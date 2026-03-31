@@ -59,7 +59,7 @@ interface Order {
 }
 
 const ACTIVE_ORDER_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY"]);
-const COMPACT_ORDER_STATUSES = new Set(["DELIVERING", "DELIVERED", "DELIVERY_FAILED", "REJECTED", "CANCELLED"]);
+const COMPACT_ORDER_STATUSES = new Set(["READY", "DELIVERING", "DELIVERED", "DELIVERY_FAILED", "REJECTED", "CANCELLED"]);
 
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -305,9 +305,9 @@ const AdminOrdersPage = () => {
               <div className="flex gap-4">
                 <button
                   onClick={() => setAcceptDialog(null)}
-                  className="flex-1 py-4 bg-white/5 rounded-2xl font-bold uppercase tracking-widest text-sm text-white/40 hover:bg-white/10 transition-all"
+                  className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold uppercase tracking-widest text-[10px] text-white/60 hover:bg-white/10 hover:text-white transition-all"
                 >
-                  Avbryt
+                  Stäng
                 </button>
                 <button
                   onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)}
@@ -585,12 +585,12 @@ const AdminOrdersPage = () => {
                         {isPending && (
                           <div className="flex items-center gap-3">
                             <button
-                              onClick={() => updateStatus(order.id, "REJECTED")}
-                              disabled={actionLoading === order.id}
-                              className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
-                            >
-                              {actionLoading === order.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                              Neka
+                               onClick={() => { if(confirm("Vill du verkligen NEKA denna order?")) updateStatus(order.id, "REJECTED"); }}
+                               disabled={actionLoading === order.id}
+                               className="flex items-center gap-2 px-6 py-3 bg-red-500/20 text-red-300 border border-red-500/30 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                             >
+                               {actionLoading === order.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                               Avböj Order
                             </button>
                             <button
                               onClick={() => setAcceptDialog({ orderId: order.id, time: 20 })}

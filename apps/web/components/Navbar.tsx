@@ -70,7 +70,7 @@ const Navbar = () => {
   if (!mounted) return (
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "#0d0d0d", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="Palmyra Logo" className="w-10 h-10" />
+          <img src="/logo.png" alt="Palmyra Logo" className="w-10 h-10" />
           <span className="text-xl font-black text-white">PALMYRA</span>
        </div>
     </nav>
@@ -80,7 +80,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-12 h-12 flex-shrink-0">
-            <img src="/logo.svg" alt="Palmyra Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
+            <img src="/logo.png" alt="Palmyra Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
           </div>
           <div className="flex flex-col -gap-1">
             <span className="text-xl font-black tracking-tighter text-white leading-none">
@@ -144,7 +144,7 @@ const Navbar = () => {
             {/* Close button for full screen menu */}
             <div className="flex justify-between items-center mb-10">
               <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center gap-3">
-                <img src="/logo.svg" alt="Palmyra Logo" className="w-10 h-10" />
+                <img src="/logo.png" alt="Palmyra Logo" className="w-10 h-10" />
                 <span className="text-xl font-black tracking-tighter text-white">PALMYRA</span>
               </Link>
               <button 

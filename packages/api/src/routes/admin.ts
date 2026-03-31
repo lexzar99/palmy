@@ -671,7 +671,7 @@ router.post('/extra-groups', async (req, res) => {
 // PATCH /api/admin/extra-groups/:id
 router.patch('/extra-groups/:id', async (req, res) => {
   try {
-    const { extras, ...rest } = req.body;
+    const { extras, categoryIds, ...rest } = req.body;
 
     const group = await prisma.extraGroup.update({
       where: { id: req.params.id },
@@ -691,6 +691,35 @@ router.patch('/extra-groups/:id', async (req, res) => {
       },
       include: { extras: true },
     });
+
+    // If categoryIds are provided, link to all products in those categories
+    if (categoryIds && Array.isArray(categoryIds)) {
+      const productsInCategory = await prisma.product.findMany({
+        where: { categoryId: { in: categoryIds } },
+        select: { id: true },
+      });
+
+      // Using a transaction for safety
+      await prisma.$transaction([
+        // Optionally remove old category-based links? 
+        // For simplicity, we just add missing ones or ensure all products in these categories have it.
+        ...productsInCategory.map(product => 
+          prisma.productExtraGroup.upsert({
+            where: {
+              productId_extraGroupId: {
+                productId: product.id,
+                extraGroupId: group.id,
+              }
+            },
+            update: {}, // No update needed if exists
+            create: {
+              productId: product.id,
+              extraGroupId: group.id,
+            }
+          })
+        )
+      ]);
+    }
 
     res.json({
       ...group,

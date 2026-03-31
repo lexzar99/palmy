@@ -77,6 +77,7 @@ const UnifiedMenuPage = () => {
     minSelections: 0,
     maxSelections: 99,
     extras: [] as { name: string; priceAddon: number; isDefault: boolean }[],
+    categoryIds: [] as string[],
   });
 
   const [dealForm, setDealForm] = useState({
@@ -263,6 +264,7 @@ const UnifiedMenuPage = () => {
         minSelections: group.minSelections,
         maxSelections: group.maxSelections,
         extras: group.extras.map((e: any) => ({ name: e.name, priceAddon: e.priceAddon, isDefault: e.isDefault })),
+        categoryIds: [], // We don't fetch back existing category links as primary state, but user can re-assign
       });
     } else {
       setEditingId(null);
@@ -274,6 +276,7 @@ const UnifiedMenuPage = () => {
         minSelections: 0,
         maxSelections: 99,
         extras: [],
+        categoryIds: [],
       });
     }
     setIsExtraModalOpen(true);
@@ -865,6 +868,44 @@ const UnifiedMenuPage = () => {
                          <option value="CHECKBOX">Flerval</option>
                          <option value="RADIO">Endast ett val</option>
                       </select>
+                      <button
+                        type="button"
+                        onClick={() => setExtraForm({ ...extraForm, required: !extraForm.required })}
+                        className={`p-4 rounded-2xl border transition-all flex items-center justify-between font-bold ${
+                          extraForm.required ? "bg-red-500/10 border-red-500 text-red-400" : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                        }`}
+                      >
+                        <span className="text-xs">Obligatoriskt val?</span>
+                        {extraForm.required ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                      </button>
+                   </div>
+
+                   <div className="space-y-4">
+                      <label className="block text-[10px] font-black uppercase text-white/20 tracking-widest ml-1">Assigna till hel kategori (Bulk-koppling)</label>
+                      <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-2 no-scrollbar">
+                         {categories.map(cat => {
+                           const isSelected = extraForm.categoryIds.includes(cat.id);
+                           return (
+                             <button
+                               type="button"
+                               key={cat.id}
+                               onClick={() => {
+                                 const ids = isSelected 
+                                   ? extraForm.categoryIds.filter(id => id !== cat.id) 
+                                   : [...extraForm.categoryIds, cat.id];
+                                 setExtraForm({...extraForm, categoryIds: ids});
+                               }}
+                               className={`p-3 rounded-xl border text-xs font-bold transition-all text-left flex justify-between items-center ${
+                                 isSelected ? "bg-gold-500/10 border-gold-500 text-gold-500 shadow-lg shadow-gold-500/10" : "bg-white/5 border-white/5 text-white/20 hover:bg-white/10"
+                               }`}
+                             >
+                               <span className="truncate">{cat.name}</span>
+                               {isSelected && <Check size={14} />}
+                             </button>
+                           );
+                         })}
+                      </div>
+                      <p className="text-[9px] text-white/20 italic">Markera kategorier för att koppla denna grupp till alla deras produkter vid spara.</p>
                    </div>
                    <div className="space-y-4">
                       <div className="flex justify-between items-center">

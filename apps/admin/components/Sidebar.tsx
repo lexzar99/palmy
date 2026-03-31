@@ -77,8 +77,8 @@ const Sidebar = () => {
     <div className="flex flex-col h-full p-8">
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gold-500 rounded-lg flex items-center justify-center font-bold text-dark-500 text-lg">P</div>
-          <span className="font-bold tracking-tight text-white/80 uppercase">ADMIN <span className="text-gold-500">PALMYRA</span></span>
+          <img src="/logo.png" alt="Palmyra Logo" className="w-8 h-8 object-contain" />
+          <span className="font-bold tracking-tight text-white/80 uppercase">ADMIN <span className="text-gold-500 text-sm">PALMYRA</span></span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white">
           <X size={20} />

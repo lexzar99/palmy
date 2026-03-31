@@ -129,14 +129,14 @@ const MenuPage = () => {
           </motion.p>
         </div>
 
-        <div className="relative group max-w-[260px] w-full">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={16} />
+        <div className="relative group max-w-[180px] w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={14} />
           <input 
             type="text"
             placeholder="Sök..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all text-sm placeholder:text-white/10"
+            className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all placeholder:text-white/10"
           />
         </div>
       </div>
@@ -163,17 +163,17 @@ const MenuPage = () => {
 
       {/* Ultra Compact Info Bar */}
       <div className="flex flex-wrap items-center gap-2 mb-8">
-        <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 ${settings.isOpen ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-400" : "border-red-500/10 bg-red-500/5 text-red-400"}`}>
-          <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${settings.isOpen ? "bg-emerald-500" : "bg-red-500"}`} />
-          <span className="text-[10px] font-black uppercase tracking-widest leading-none">{settings.isOpen ? "Öppet för beställning" : "Stängt"}</span>
+        <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-2 ${settings.isOpen ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-400" : "border-red-500/10 bg-red-500/5 text-red-400"}`}>
+          <div className={`w-1 h-1 rounded-full animate-pulse ${settings.isOpen ? "bg-emerald-500" : "bg-red-500"}`} />
+          <span className="text-[9px] font-black uppercase tracking-widest">{settings.isOpen ? "ÖPPET" : "STÄNGT"}</span>
         </div>
-        <div className="px-4 py-2 rounded-xl border border-white/5 bg-white/5 flex items-center gap-2">
-          <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Hemkörning</span>
-          <span className="text-xs font-black text-gold-500">{settings.deliveryFee} kr</span>
+        <div className="px-2.5 py-1.5 rounded-lg border border-white/5 bg-white/5 flex items-center gap-1.5">
+          <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Utkörning</span>
+          <span className="text-[10px] font-black text-gold-500">{settings.deliveryFee} kr</span>
         </div>
-        <div className="px-4 py-2 rounded-xl border border-white/5 bg-white/5 flex items-center gap-2">
-          <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Min. order</span>
-          <span className="text-xs font-black text-gold-500">{settings.minOrderAmount} kr</span>
+        <div className="px-2.5 py-1.5 rounded-lg border border-white/5 bg-white/5 flex items-center gap-1.5">
+          <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Min. order</span>
+          <span className="text-[10px] font-black text-gold-500">{settings.minOrderAmount} kr</span>
         </div>
       </div>
 
@@ -222,19 +222,19 @@ const MenuPage = () => {
                   key={p.id}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedProduct(p)}
-                  className="group bg-white/5 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/40 hover:bg-white/[0.07] transition-all flex items-center gap-4 hover:shadow-[0_0_20px_rgba(212,167,74,0.1)]"
+                  className="group bg-[#0d0d0d] border border-white/5 rounded-xl p-3 md:p-4 cursor-pointer hover:border-gold-500/30 hover:bg-white/[0.03] transition-all flex items-center gap-4 hover:shadow-[0_4px_20px_rgba(0,0,0,0.5)] active:scale-95"
                 >
                   {p.imageUrl && (
-                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
-                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
+                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold truncate uppercase tracking-wide group-hover:text-gold-500 transition-colors">{p.name}</h3>
-                    <p className="text-white/25 text-[10px] line-clamp-1 leading-relaxed mt-0.5">{p.description}</p>
+                    <h3 className="text-xs md:text-sm font-bold truncate uppercase tracking-wide group-hover:text-gold-500 transition-colors leading-tight">{p.name}</h3>
+                    <p className="text-white/20 text-[9px] md:text-[10px] line-clamp-1 mt-0.5 font-medium">{p.description}</p>
                   </div>
-                  <div className="text-xl font-black text-gold-500 transition-colors whitespace-nowrap">
-                    {p.price}<span className="text-[10px] ml-0.5 opacity-40">kr</span>
+                  <div className="text-lg md:text-xl font-black text-gold-500 group-hover:scale-110 transition-transform whitespace-nowrap ml-2">
+                    {p.price}<span className="text-[10px] ml-0.5 opacity-30">kr</span>
                   </div>
                 </motion.div>
               ))}
