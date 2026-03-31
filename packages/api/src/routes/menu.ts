@@ -63,6 +63,7 @@ router.get('/categories', async (_req, res) => {
             priceAddon: e.priceAddon / 100,
             isDefault: e.isDefault,
           })),
+          position: peg.extraGroup.position || 0,
         })),
       })),
     }));
