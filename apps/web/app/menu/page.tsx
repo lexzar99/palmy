@@ -222,7 +222,7 @@ const MenuPage = () => {
                   key={p.id}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedProduct(p)}
-                  className="group bg-white/5 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/20 hover:bg-white/[0.07] transition-all flex items-center gap-4"
+                  className="group bg-white/5 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/40 hover:bg-white/[0.07] transition-all flex items-center gap-4 hover:shadow-[0_0_20px_rgba(212,167,74,0.1)]"
                 >
                   {p.imageUrl && (
                     <div className="w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
@@ -233,7 +233,7 @@ const MenuPage = () => {
                     <h3 className="text-sm font-bold truncate uppercase tracking-wide group-hover:text-gold-500 transition-colors">{p.name}</h3>
                     <p className="text-white/25 text-[10px] line-clamp-1 leading-relaxed mt-0.5">{p.description}</p>
                   </div>
-                  <div className="text-xl font-black text-white group-hover:text-gold-500 transition-colors whitespace-nowrap">
+                  <div className="text-xl font-black text-gold-500 transition-colors whitespace-nowrap">
                     {p.price}<span className="text-[10px] ml-0.5 opacity-40">kr</span>
                   </div>
                 </motion.div>

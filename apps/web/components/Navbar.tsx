@@ -69,24 +69,27 @@ const Navbar = () => {
 
   if (!mounted) return (
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "#0d0d0d", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
-       <div className="flex items-center gap-2">
-          <div className="w-10 h-10 bg-gold-500 rounded-lg flex items-center justify-center font-bold text-dark-500 text-xl">P</div>
-          <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-            PALMYRA <span className="text-gold-500">PIZZERIA</span>
-          </span>
+       <div className="flex items-center gap-3">
+          <img src="/logo.svg" alt="Palmyra Logo" className="w-10 h-10" />
+          <span className="text-xl font-black text-white">PALMYRA</span>
        </div>
     </nav>
   );
   return (
     <nav className={`fixed top-0 left-0 right-0 border-b border-white/5 transition-all duration-300 ${isOpen ? 'z-[200] bg-dark-500' : 'z-[100] bg-[#0d0d0d]/95 backdrop-blur-md'}`}>
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 bg-gold-500 rounded-lg flex items-center justify-center font-bold text-dark-500 text-xl group-hover:bg-gold-400 transition-colors">
-            P
+        <Link href="/" className="flex items-center gap-3 group">
+          <div className="relative w-12 h-12 flex-shrink-0">
+            <img src="/logo.svg" alt="Palmyra Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
           </div>
-          <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-            PALMYRA <span className="text-gold-500">PIZZERIA</span>
-          </span>
+          <div className="flex flex-col -gap-1">
+            <span className="text-xl font-black tracking-tighter text-white leading-none">
+              PALMYRA
+            </span>
+            <span className="text-[10px] font-black tracking-[0.4em] text-gold-500/80 leading-none mt-1">
+              PIZZERIA
+            </span>
+          </div>
         </Link>
         
         {/* Desktops links... */}
@@ -140,9 +143,9 @@ const Navbar = () => {
 
             {/* Close button for full screen menu */}
             <div className="flex justify-between items-center mb-10">
-              <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gold-500 rounded flex items-center justify-center font-bold text-dark-500 text-lg">P</div>
-                <span className="text-sm font-black tracking-widest text-white uppercase italic">Palmyra</span>
+              <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center gap-3">
+                <img src="/logo.svg" alt="Palmyra Logo" className="w-10 h-10" />
+                <span className="text-xl font-black tracking-tighter text-white">PALMYRA</span>
               </Link>
               <button 
                 onClick={() => setIsOpen(false)}
