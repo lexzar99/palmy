@@ -78,6 +78,7 @@ const UnifiedMenuPage = () => {
     maxSelections: 99,
     extras: [] as { name: string; priceAddon: number; isDefault: boolean }[],
     categoryIds: [] as string[],
+    position: 0,
   });
 
   const [dealForm, setDealForm] = useState({
@@ -264,7 +265,8 @@ const UnifiedMenuPage = () => {
         minSelections: group.minSelections,
         maxSelections: group.maxSelections,
         extras: group.extras.map((e: any) => ({ name: e.name, priceAddon: e.priceAddon, isDefault: e.isDefault })),
-        categoryIds: [], // We don't fetch back existing category links as primary state, but user can re-assign
+        categoryIds: [],
+        position: group.position || 0,
       });
     } else {
       setEditingId(null);
@@ -277,6 +279,7 @@ const UnifiedMenuPage = () => {
         maxSelections: 99,
         extras: [],
         categoryIds: [],
+        position: 0,
       });
     }
     setIsExtraModalOpen(true);
@@ -868,6 +871,15 @@ const UnifiedMenuPage = () => {
                          <option value="CHECKBOX">Flerval</option>
                          <option value="RADIO">Endast ett val</option>
                       </select>
+                      <div className="flex bg-white/5 border border-white/5 rounded-2xl px-4 py-3 items-center justify-between">
+                         <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">Prio (1=först)</span>
+                         <input 
+                           type="number" 
+                           value={extraForm.position} 
+                           onChange={e => setExtraForm({...extraForm, position: parseInt(e.target.value) || 0})} 
+                           className="bg-dark-500 w-16 text-center border border-white/10 rounded-xl py-1 font-bold outline-none" 
+                         />
+                      </div>
                       <button
                         type="button"
                         onClick={() => setExtraForm({ ...extraForm, required: !extraForm.required })}

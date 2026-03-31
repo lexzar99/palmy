@@ -60,6 +60,7 @@ model ExtraGroup {
   required     Boolean   @default(false)   // true = obligatorisk
   minSelections Int      @default(0)
   maxSelections Int      @default(99)      // 1 = välj exakt ett (RADIO)
+  position      Int      @default(0)       // Sorteringsordning: 1=först, 2=näst, etc
   
   extras       Extra[]
   productGroups ProductExtraGroup[]

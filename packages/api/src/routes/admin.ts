@@ -635,16 +635,12 @@ router.get('/extra-groups', async (_req, res) => {
 // POST /api/admin/extra-groups
 router.post('/extra-groups', async (req, res) => {
   try {
-    const { name, description, type, required, minSelections, maxSelections, extras } = req.body;
+    const { extras, ...rest } = req.body;
 
     const group = await prisma.extraGroup.create({
       data: {
-        name,
-        description,
-        type: type || 'CHECKBOX',
-        required: required || false,
-        minSelections: minSelections || 0,
-        maxSelections: maxSelections || 99,
+        ...rest,
+        type: rest.type || 'CHECKBOX',
         ...(extras && extras.length > 0 ? {
           extras: {
             create: extras.map((e: { name: string; priceAddon: number; isDefault: boolean }, i: number) => ({

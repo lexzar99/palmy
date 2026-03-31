@@ -121,9 +121,10 @@ const ProductModal = ({ product, onClose }: ProductModalProps) => {
       >
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full transition-all z-[70] backdrop-blur-md border border-white/10 active:scale-95"
+          className="absolute top-6 right-6 p-3 bg-white hover:bg-gold-500 text-dark-500 rounded-full transition-all z-[100] shadow-2xl active:scale-95"
+          aria-label="Stäng"
         >
-          <X size={20} />
+          <X size={24} strokeWidth={3} />
         </button>
 
         <div className="max-h-[90dvh] overflow-y-auto no-scrollbar">
@@ -140,7 +141,7 @@ const ProductModal = ({ product, onClose }: ProductModalProps) => {
             <p className="text-white/40 text-lg mb-8 leading-relaxed">{product.description}</p>
 
             <div className="space-y-12 mb-12">
-              {product.extraGroups?.map((group: any) => (
+              {[...(product.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group: any) => (
                 <div key={group.id}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
