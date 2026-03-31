@@ -78,13 +78,10 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
         </div>
 
         {/* Stripe Payment Element */}
-        <div className="stripe-element-container">
+        <div className="stripe-element-container min-h-[250px]">
           <PaymentElement 
             options={{
-              layout: {
-                type: 'tabs',
-                defaultCollapsed: false,
-              },
+              layout: 'tabs',
               business: { name: 'Palmyra Pizzeria' },
             }}
           />

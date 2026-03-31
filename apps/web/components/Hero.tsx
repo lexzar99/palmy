@@ -113,22 +113,34 @@ const Hero = () => {
             }}
           />
           <AnimatePresence mode="wait">
-            <motion.img
+            <motion.div
               key={activeIndex}
-              src={showcaseItems[activeIndex].src}
-              alt={showcaseItems[activeIndex].alt}
               initial={{ opacity: 0, scale: 0.8, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.8, y: -20 }}
               transition={{ duration: 0.4, ease: "easeOut" }}
-              className="relative object-contain max-w-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
-              style={{
-                maxHeight: "clamp(200px, 50vw, 400px)",
-                zIndex: 1,
-              }}
-            />
+              className="relative w-full h-full flex items-center justify-center"
+            >
+              <img
+                src={showcaseItems[activeIndex].src}
+                alt={showcaseItems[activeIndex].alt}
+                className="relative object-contain max-w-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)] h-[85%]"
+              />
+              
+              {/* CENTERED BUTTON OVER CONTENT */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[10] w-full flex justify-center">
+                <Link
+                  href="/menu"
+                  className="group relative flex items-center justify-center gap-4 px-12 py-5 bg-gold-500 text-dark-500 font-bold uppercase tracking-[0.4em] text-[11px] transition-all hover:bg-gold-400 active:scale-95 shadow-[0_20px_60px_rgba(212,167,74,0.5)] overflow-hidden"
+                  style={{ borderRadius: "100px" }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 -translate-x-full group-hover:animate-shimmer" />
+                  Vår Meny
+                  <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                </Link>
+              </div>
+            </motion.div>
           </AnimatePresence>
-
 
           {/* Label badge */}
           <AnimatePresence mode="wait">
@@ -138,7 +150,7 @@ const Hero = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full"
-              style={{ zIndex: 2 }}
+              style={{ zIndex: 20 }}
             >
               <p className="text-[10px] font-black uppercase tracking-widest text-gold-400 whitespace-nowrap">
                 {showcaseItems[activeIndex].label}
@@ -160,18 +172,8 @@ const Hero = () => {
           ))}
         </div>
 
-        {/* CTAs - Moved higher up */}
+        {/* Secondary CTAs */}
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center mb-8 relative z-20">
-          <Link
-            href="/menu"
-            className="group relative flex items-center justify-center gap-4 px-12 py-5 bg-gold-500 text-dark-500 font-bold uppercase tracking-[0.4em] text-[11px] transition-all hover:bg-gold-400 active:scale-95 w-full sm:w-auto shadow-[0_20px_50px_rgba(212,167,74,0.3)] hover:shadow-[0_20px_60px_rgba(212,167,74,0.4)] overflow-hidden"
-            style={{ borderRadius: "100px" }}
-          >
-            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:animate-shimmer" />
-            Vår Meny
-            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-
           <a
             href="tel:046120612"
             className="flex items-center justify-center gap-3 px-10 py-5 border border-white/10 bg-white/5 text-white font-bold uppercase tracking-[0.3em] text-[10px] transition-all hover:bg-white/10 active:scale-95 w-full sm:w-auto"
