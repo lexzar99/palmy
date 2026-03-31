@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Tag, Sparkles } from "lucide-react";
+import { Search, Loader2, Info, Sparkles } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -129,65 +129,56 @@ const MenuPage = () => {
           </motion.p>
         </div>
 
-        <div className="relative group max-w-md w-full">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={20} />
+        <div className="relative group max-w-[260px] w-full">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={16} />
           <input 
             type="text"
-            placeholder="Sök i menyn..."
+            placeholder="Sök..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-2 focus:ring-gold-500/50 focus:border-gold-500 transition-all text-white placeholder:text-white/20"
+            className="w-full bg-white/5 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all text-sm placeholder:text-white/10"
           />
         </div>
       </div>
 
       {deals.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-8">
           {deals.map((deal) => (
-            <div key={deal.id} className="rounded-[2rem] border border-white/10 bg-white/5 p-6 relative overflow-hidden group hover:border-gold-500/30 transition-all">
-              <div className="flex items-start justify-between gap-4 mb-4 relative z-10">
+            <div key={deal.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 relative overflow-hidden group hover:border-gold-500/20 transition-all">
+              <div className="flex items-start justify-between gap-3 mb-2 relative z-10">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-gold-500/20 bg-gold-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-3">
-                    <Sparkles size={12} />
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-gold-500/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.2em] text-gold-500 mb-2">
+                    <Sparkles size={10} />
                     {deal.badgeText || "Deal"}
                   </div>
-                  <h3 className="text-2xl font-black tracking-tight">{deal.title}</h3>
-                  <p className="text-white/45 text-sm mt-2 leading-relaxed">{deal.description || formatDealReward(deal)}</p>
+                  <h3 className="text-lg font-black tracking-tight leading-none mb-1">{deal.title}</h3>
+                  <p className="text-white/30 text-[10px] leading-tight line-clamp-1">{deal.description || formatDealReward(deal)}</p>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-black uppercase tracking-[0.2em] text-white/25">Belöning</div>
-                  <div className="text-xl font-black text-gold-500">{formatDealReward(deal)}</div>
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-white/35">
-                {deal.minOrder > 0 && <span className="rounded-full bg-white/5 px-3 py-1 uppercase tracking-[0.2em]">Från {deal.minOrder} kr</span>}
-                {deal.validUntil && <span className="rounded-full bg-white/5 px-3 py-1 uppercase tracking-[0.2em]">Till {new Date(deal.validUntil).toLocaleDateString("sv-SE")}</span>}
-                {deal.maxUsesPerCustomer ? <span className="rounded-full bg-white/5 px-3 py-1 uppercase tracking-[0.2em]">{deal.maxUsesPerCustomer} per kund</span> : null}
+                <div className="text-xl font-black text-gold-500">{formatDealReward(deal)}</div>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
-        <div className={`rounded-3xl border px-6 py-5 ${settings.isOpen ? "border-emerald-500/20 bg-emerald-500/10" : "border-red-500/20 bg-red-500/10"}`}>
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 mb-2">Status</div>
-          <div className={`text-xl font-black uppercase ${settings.isOpen ? "text-emerald-300" : "text-red-300"}`}>
-            {settings.isOpen ? "Öppet för beställning" : "Stängt just nu"}
-          </div>
+      {/* Ultra Compact Info Bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-8">
+        <div className={`px-4 py-2 rounded-xl border flex items-center gap-3 ${settings.isOpen ? "border-emerald-500/10 bg-emerald-500/5 text-emerald-400" : "border-red-500/10 bg-red-500/5 text-red-400"}`}>
+          <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${settings.isOpen ? "bg-emerald-500" : "bg-red-500"}`} />
+          <span className="text-[10px] font-black uppercase tracking-widest leading-none">{settings.isOpen ? "Öppet för beställning" : "Stängt"}</span>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 mb-2">Hemkörning</div>
-          <div className="text-xl font-black text-gold-500">{settings.deliveryFee} kr</div>
+        <div className="px-4 py-2 rounded-xl border border-white/5 bg-white/5 flex items-center gap-2">
+          <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Hemkörning</span>
+          <span className="text-xs font-black text-gold-500">{settings.deliveryFee} kr</span>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/40 mb-2">Minimiorder</div>
-          <div className="text-xl font-black text-gold-500">{settings.minOrderAmount} kr</div>
+        <div className="px-4 py-2 rounded-xl border border-white/5 bg-white/5 flex items-center gap-2">
+          <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">Min. order</span>
+          <span className="text-xs font-black text-gold-500">{settings.minOrderAmount} kr</span>
         </div>
       </div>
 
       {/* Category Nav */}
-      <div className="sticky top-20 z-40 bg-dark-500/95 backdrop-blur-xl py-4 -mx-6 px-6 mb-8 border-b border-white/5 overflow-x-auto no-scrollbar flex items-center gap-2 touch-pan-x">
+      <div className="sticky top-20 z-40 bg-dark-500/90 backdrop-blur-md py-3 -mx-6 px-6 mb-6 border-b border-white/5 overflow-x-auto no-scrollbar flex items-center gap-2">
         {categories.map((cat) => (
           <button
             key={cat.id}
@@ -195,22 +186,18 @@ const MenuPage = () => {
               setActiveCategory(cat.id);
               const element = document.getElementById(cat.id);
               if (element) {
-                const offset = 160; // Header(80) + CategoryNav(80)
+                const offset = 140;
                 const bodyRect = document.body.getBoundingClientRect().top;
                 const elementRect = element.getBoundingClientRect().top;
                 const elementPosition = elementRect - bodyRect;
                 const offsetPosition = elementPosition - offset;
-
-                window.scrollTo({
-                  top: offsetPosition,
-                  behavior: 'smooth'
-                });
+                window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
               }
             }}
-            className={`whitespace-nowrap px-6 py-2.5 rounded-full text-[13px] font-black uppercase tracking-wider transition-all active:scale-95 ${
+            className={`whitespace-nowrap px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all ${
               activeCategory === cat.id 
-                ? 'bg-gold-500 text-dark-500 shadow-[0_0_20px_rgba(212,167,74,0.3)]' 
-                : 'bg-white/5 text-white/40 hover:bg-white/10'
+                ? 'bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20' 
+                : 'bg-white/5 text-white/30 hover:bg-white/10'
             }`}
           >
             {cat.name}
@@ -219,46 +206,35 @@ const MenuPage = () => {
       </div>
 
       {/* Menu Grid */}
-      <div className="space-y-20">
+      <div className="space-y-16">
         {filteredCategories.map((cat) => (
-          <section key={cat.id} id={cat.id} className="scroll-mt-40">
-            <div className="mb-8 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5">
-              {cat.imageUrl && (
-                <div className="relative aspect-[4/3] min-h-[220px] w-full overflow-hidden bg-[#120d08] sm:aspect-[21/8] sm:min-h-0">
-                  <img
-                    src={cat.imageUrl}
-                    alt={cat.name}
-                    className="absolute inset-0 h-full w-full object-contain object-center p-2 sm:p-4"
-                  />
-                </div>
-              )}
-              <div className="p-6">
-                <h2 className="text-2xl font-bold mb-2 flex items-center gap-4">
-                  {cat.name}
-                  <div className="h-px bg-white/10 flex-1" />
-                </h2>
-                {cat.description && <p className="text-white/40 max-w-3xl">{cat.description}</p>}
-              </div>
+          <section key={cat.id} id={cat.id} className="scroll-mt-32">
+            <div className="mb-6 flex items-center gap-4">
+              <h2 className="text-xl font-black uppercase tracking-widest text-white whitespace-nowrap">
+                {cat.name}
+              </h2>
+              <div className="h-px bg-gradient-to-r from-white/10 to-transparent flex-1" />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {cat.products.map((p: any) => (
                 <motion.div
                   key={p.id}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedProduct(p)}
-                  className="group bg-white/5 border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-gold-500/40 hover:shadow-[0_0_30px_rgba(212,167,74,0.1)] transition-all touch-manipulation"
+                  className="group bg-white/5 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/20 hover:bg-white/[0.07] transition-all flex items-center gap-4"
                 >
-                  <div className="flex justify-between items-start gap-4">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold mb-1 group-hover:text-gold-500 transition-colors uppercase">{p.name}</h3>
-                      <p className="text-white/40 text-[11px] line-clamp-2 leading-relaxed mb-3">{p.description || "Ingen beskrivning tillgänglig."}</p>
-                      <div className="text-lg font-bold text-gold-500">{p.price} kr</div>
+                  {p.imageUrl && (
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
+                      <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
                     </div>
-                    {p.imageUrl && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 relative flex-shrink-0">
-                        <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                      </div>
-                    )}
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold truncate uppercase tracking-wide group-hover:text-gold-500 transition-colors">{p.name}</h3>
+                    <p className="text-white/25 text-[10px] line-clamp-1 leading-relaxed mt-0.5">{p.description}</p>
+                  </div>
+                  <div className="text-xl font-black text-white group-hover:text-gold-500 transition-colors whitespace-nowrap">
+                    {p.price}<span className="text-[10px] ml-0.5 opacity-40">kr</span>
                   </div>
                 </motion.div>
               ))}
