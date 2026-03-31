@@ -1,0 +1,210 @@
+"use client";
+
+import Link from "next/link";
+import axios from "axios";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { io as socketIO } from "socket.io-client";
+import { ArrowRight, Sparkles, ShoppingBag, Clock } from "lucide-react";
+import { API_URL, SOCKET_URL } from "@/lib/api";
+
+const Hero = () => {
+  const [settings, setSettings] = useState({
+    isOpen: true,
+    estimatedPickupTime: 20,
+    deliveryFee: 49,
+    minOrderAmount: 150,
+  });
+
+  const showcaseItems = [
+    { id: "pizza", src: "/pizza_new.png", alt: "Krispig Pizza", label: "Krispig Pizza" },
+    { id: "fries", src: "/fries_new.png", alt: "Guldfrasiga Pommes", label: "Guldfrasiga Pommes" },
+    { id: "pita", src: "/pita_new.png", alt: "Legendarisk Pita", label: "Legendarisk Pita" },
+    { id: "kebab", src: "/kebab_new.png", alt: "Lyxig Kebabtallrik", label: "Lyxig Kebabtallrik" },
+  ];
+
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % showcaseItems.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    axios.get(`${API_URL}/api/settings`).then((res) => {
+      setSettings((prev) => ({ ...prev, ...res.data }));
+    }).catch(() => {});
+
+    const socket = socketIO(SOCKET_URL, {
+      path: "/socket.io",
+      transports: ["websocket", "polling"],
+    });
+
+    socket.on("settings:updated", (data: any) => {
+      setSettings((prev) => ({ ...prev, ...data }));
+    });
+
+    return () => { socket.disconnect(); };
+  }, []);
+
+  return (
+    <section
+      className="relative flex flex-col items-center justify-center text-center px-4 py-24 sm:py-32 min-h-screen"
+      style={{ background: "#050505" }}
+    >
+      {/* Radial glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(circle at 50% 50%, rgba(212,167,74,0.12) 0%, transparent 65%)",
+        }}
+      />
+      {/* Grid */}
+      <div
+        className="absolute inset-0 opacity-10 pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)",
+          backgroundSize: "64px 64px",
+        }}
+      />
+
+      <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center" style={{ zIndex: 2 }}>
+        {/* Status badge */}
+        <div
+          className={`mb-8 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.35em] ${
+            settings.isOpen
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+              : "border-red-500/30 bg-red-500/10 text-red-300"
+          }`}
+        >
+          {settings.isOpen ? "Vi har öppet" : "Vi öppnar snart"}
+        </div>
+
+        {/* Heading */}
+        <h1 className="font-black italic tracking-tighter leading-none select-none text-white mb-0"
+          style={{ fontSize: "clamp(4rem, 18vw, 9rem)" }}>
+          PALMYRA
+        </h1>
+        <div
+          className="font-black italic tracking-tighter leading-none select-none border-t border-b border-white/30 px-4 w-full text-center mb-10"
+          style={{
+            fontSize: "clamp(4rem, 18vw, 9rem)",
+            WebkitTextStroke: "1px rgba(255,255,255,0.25)",
+            color: "transparent",
+          }}
+        >
+          LUND
+        </div>
+
+        {/* Product Showcase */}
+        <div
+          className="relative w-full flex items-center justify-center rounded-3xl my-6"
+          style={{
+            height: "clamp(240px, 55vw, 440px)",
+          }}
+        >
+          {/* Glow behind image */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: "radial-gradient(circle, rgba(212,167,74,0.2) 0%, transparent 60%)",
+            }}
+          />
+          <AnimatePresence mode="wait">
+            <motion.img
+              key={activeIndex}
+              src={showcaseItems[activeIndex].src}
+              alt={showcaseItems[activeIndex].alt}
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8, y: -20 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              className="relative object-contain max-w-full drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+              style={{
+                maxHeight: "clamp(200px, 50vw, 400px)",
+                zIndex: 1,
+              }}
+            />
+          </AnimatePresence>
+
+
+          {/* Label badge */}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`label-${activeIndex}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md border border-white/10 px-4 py-1.5 rounded-full"
+              style={{ zIndex: 2 }}
+            >
+              <p className="text-[10px] font-black uppercase tracking-widest text-gold-400 whitespace-nowrap">
+                {showcaseItems[activeIndex].label}
+              </p>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Dot indicators */}
+        <div className="flex gap-2 mt-4 mb-10">
+          {showcaseItems.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveIndex(i)}
+              className={`rounded-full transition-all ${
+                i === activeIndex ? "w-6 h-2 bg-gold-500" : "w-2 h-2 bg-white/20"
+              }`}
+              aria-label={`Bild ${i + 1}`}
+            />
+          ))}
+        </div>
+
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+          <Link
+            href="/menu"
+            className="flex items-center justify-center gap-3 px-10 py-4 bg-white text-black font-black uppercase tracking-[0.35em] text-xs transition-all hover:bg-gold-500 active:scale-95 w-full sm:w-auto"
+            style={{ clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)" }}
+          >
+            Gå till meny
+            <ArrowRight size={16} />
+          </Link>
+
+          <a
+            href="tel:046120612"
+            className="flex items-center justify-center px-8 py-4 border border-white/20 text-white font-black uppercase tracking-[0.35em] text-xs transition-all hover:bg-white/10 active:scale-95 w-full sm:w-auto"
+            style={{ clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)" }}
+          >
+            046-120 612
+          </a>
+        </div>
+
+        {/* Info bar */}
+        <div className="flex items-center gap-8 mt-8 text-[10px] font-bold uppercase tracking-[0.25em] text-white/30">
+          <div className="flex items-center gap-2">
+            <ShoppingBag size={13} className="text-gold-500/50" />
+            <span>{settings.deliveryFee} kr</span>
+          </div>
+          <div className="w-1 h-1 rounded-full bg-white/10" />
+          <div className="flex items-center gap-2">
+            <Clock size={13} className="text-gold-500/50" />
+            <span>~{settings.estimatedPickupTime} min</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Sparkle decor */}
+      <div className="absolute top-1/4 right-6 opacity-10 pointer-events-none hidden sm:block">
+        <Sparkles size={80} className="text-gold-500 blur-sm" />
+      </div>
+      <div className="absolute bottom-1/4 left-6 opacity-8 pointer-events-none hidden sm:block">
+        <Sparkles size={60} className="text-white blur-sm" />
+      </div>
+    </section>
+  );
+};
+
+export default Hero;

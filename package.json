@@ -1,0 +1,20 @@
+{
+  "name": "palmyra-pizzeria",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "db:migrate": "pnpm --filter @palmyra/db migrate",
+    "db:seed": "pnpm --filter @palmyra/db seed",
+    "db:studio": "pnpm --filter @palmyra/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "pnpm@10.33.0"
+}

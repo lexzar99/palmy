@@ -1,0 +1,35 @@
+<svg width="1200" height="1200" viewBox="0 0 1200 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="1200" rx="120" fill="#0E0C09"/>
+  <circle cx="600" cy="600" r="390" fill="#F5E8C4"/>
+  <circle cx="600" cy="600" r="355" fill="#D7953F"/>
+  <circle cx="600" cy="600" r="320" fill="#F2C572"/>
+  <circle cx="600" cy="600" r="300" fill="#C94C24"/>
+  <path d="M600 300C765.685 300 900 434.315 900 600C900 765.685 765.685 900 600 900C434.315 900 300 765.685 300 600C300 434.315 434.315 300 600 300Z" fill="#F4C95D"/>
+  <path d="M600 300L694 600L600 900L506 600L600 300Z" fill="#F7D98A" opacity="0.45"/>
+  <path d="M300 600L600 506L900 600L600 694L300 600Z" fill="#F7D98A" opacity="0.45"/>
+  <path d="M388 388L600 600L812 388" stroke="#E3A84D" stroke-width="14" stroke-linecap="round"/>
+  <path d="M388 812L600 600L812 812" stroke="#E3A84D" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="500" cy="430" r="42" fill="#8D1F1F"/>
+  <circle cx="673" cy="440" r="42" fill="#8D1F1F"/>
+  <circle cx="760" cy="585" r="42" fill="#8D1F1F"/>
+  <circle cx="640" cy="725" r="42" fill="#8D1F1F"/>
+  <circle cx="450" cy="710" r="42" fill="#8D1F1F"/>
+  <circle cx="390" cy="555" r="42" fill="#8D1F1F"/>
+  <circle cx="545" cy="570" r="22" fill="#F7E8A8"/>
+  <circle cx="715" cy="660" r="22" fill="#F7E8A8"/>
+  <circle cx="468" cy="600" r="22" fill="#F7E8A8"/>
+  <circle cx="615" cy="442" r="22" fill="#F7E8A8"/>
+  <circle cx="558" cy="770" r="22" fill="#F7E8A8"/>
+  <path d="M474 504C487.333 481.333 501.333 469.667 516 469C507.333 489 506 506 512 520C495.333 522 482.667 516.667 474 504Z" fill="#4E8B43"/>
+  <path d="M731 514C744.333 491.333 758.333 479.667 773 479C764.333 499 763 516 769 530C752.333 532 739.667 526.667 731 514Z" fill="#4E8B43"/>
+  <path d="M709 742C722.333 719.333 736.333 707.667 751 707C742.333 727 741 744 747 758C730.333 760 717.667 754.667 709 742Z" fill="#4E8B43"/>
+  <path d="M420 739C433.333 716.333 447.333 704.667 462 704C453.333 724 452 741 458 755C441.333 757 428.667 751.667 420 739Z" fill="#4E8B43"/>
+  <circle cx="600" cy="600" r="392" stroke="#3F2E17" stroke-width="22"/>
+  <rect x="160" y="160" width="880" height="880" rx="96" stroke="url(#paint0_linear_641_11)" stroke-opacity="0.45" stroke-width="2"/>
+  <defs>
+    <linearGradient id="paint0_linear_641_11" x1="160" y1="160" x2="1040" y2="1040" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D4A74A"/>
+      <stop offset="1" stop-color="#FF8A00"/>
+    </linearGradient>
+  </defs>
+</svg>

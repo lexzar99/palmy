@@ -1,0 +1,255 @@
+// Palmyra Lund - Database Schema (SQLite compatible)
+// Stödjer: Kategorier, Produkter, Obligatoriska & Valfria tillbehör, Orders, Betalning
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------
+// MENY
+// ----------------------
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    // t.ex. "Pizza Standard 1"
+  slug        String    @unique
+  description String?
+  position    Int       @default(0) // Sorteringsordning
+  isActive    Boolean   @default(true)
+  imageUrl    String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String        // t.ex. "Margherita"
+  slug        String        @unique
+  description String?       // t.ex. "Tomat, ost"
+  price       Int           // i ören, t.ex. 11000 = 110 kr
+  categoryId  String
+  category    Category      @relation(fields: [categoryId], references: [id])
+  imageUrl    String?
+  isActive    Boolean       @default(true)
+  isVegan     Boolean       @default(false)
+  isVegetarian Boolean      @default(false)
+  isGlutenFree Boolean      @default(false)
+  position    Int           @default(0)
+  
+  // Tillbehörsgrupper kopplade till denna produkt
+  extraGroups ProductExtraGroup[]
+  orderItems  OrderItem[]
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// En grupp av tillbehör/val för en produkt
+// t.ex. "Storlek" (obligatorisk) eller "Pålägg" (valfri)
+model ExtraGroup {
+  id           String    @id @default(cuid())
+  name         String    // t.ex. "Storlek", "Pålägg", "Sås"
+  description  String?
+  type         String    @default("CHECKBOX") // RADIO = välj ett, CHECKBOX = välj flera
+  required     Boolean   @default(false)   // true = obligatorisk
+  minSelections Int      @default(0)
+  maxSelections Int      @default(99)      // 1 = välj exakt ett (RADIO)
+  
+  extras       Extra[]
+  productGroups ProductExtraGroup[]
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Relation: Vilka ExtraGroups hör till vilka Products
+model ProductExtraGroup {
+  id           String     @id @default(cuid())
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  extraGroupId String
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  position     Int        @default(0)
+  
+  @@unique([productId, extraGroupId])
+}
+
+// Enskilt tillbehör/val
+// t.ex. "PANPIZZA +20kr", "Kebab +25kr", "Standard +0kr"
+model Extra {
+  id           String     @id @default(cuid())
+  name         String     // t.ex. "PANPIZZA", "Kebab", "Vitlökssås"
+  priceAddon   Int        @default(0) // i ören, 0 = ingen extra kostnad
+  extraGroupId String
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  isDefault    Boolean    @default(false) // t.ex. "Standard" är förvald
+  isActive     Boolean    @default(true)
+  position     Int        @default(0)
+  
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+// ----------------------
+// ORDERS
+// ----------------------
+
+model Order {
+  id           String      @id @default(cuid())
+  orderNumber  Int         @unique // SQLite workaround: Manage this in app logic if needed, or omit autoincrement here
+  status       String      @default("PENDING")
+  type         String      // PICKUP eller DELIVERY
+  
+  // Kundinfo
+  customerName  String
+  customerPhone String
+  customerEmail String?
+  
+  // Leveransadress (null om avhämtning)
+  deliveryStreet   String?
+  deliveryCity     String?
+  deliveryZip      String?
+  deliveryNote     String?
+  
+  // Betalning
+  total            Int         // i ören
+  deliveryFee      Int         @default(0)
+  discountAmount   Int         @default(0)
+  discountCode     String?
+  appliedDealId    String?
+  appliedDealTitle String?
+  
+  // Stripe
+  stripePaymentIntentId String?
+  paymentStatus    String @default("PENDING")
+  paymentMethod    String @default("ONLINE")
+  
+  // Övrigt
+  note             String?
+  estimatedTime    Int?        // minuter
+  
+  items        OrderItem[]
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  // Snapshot av produktdata vid beställningstillfället
+  productName String
+  basePrice   Int      // produktpris i ören
+  
+  quantity  Int      @default(1)
+  note      String?
+  
+  // Valda tillbehör (JSON-snapshot, stored as string in SQLite)
+  selectedExtras String @default("[]")
+  
+  subtotal  Int      // (basePrice + extras) * quantity, i ören
+  
+  createdAt DateTime @default(now())
+}
+
+// ----------------------
+// RABATTKODER
+// ----------------------
+
+model DiscountCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String?
+  type        String   @default("PERCENTAGE")
+  value       Int      // procent (15) eller kr i ören (1000 = 10kr)
+  minOrder    Int      @default(0) // minsta ordersumma för att aktivera
+  
+  // Begränsningar
+  isActive    Boolean  @default(true)
+  maxUsages   Int?     // null = obegränsat
+  usageCount  Int      @default(0)
+  validFrom   DateTime?
+  validUntil  DateTime?
+  
+  // Vilka kategorier gäller koden för (null = alla, stored as string)
+  applicableCategoryIds String @default("[]")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Deal {
+  id                 String   @id @default(cuid())
+  title              String
+  description        String?
+  badgeText          String?
+  triggerType        String   @default("NONE") // NONE, MIN_ORDER, COMBO
+  discountType       String   @default("PERCENTAGE") // PERCENTAGE, FIXED
+  discountValue      Int      // percent eller ören
+  minOrder           Int      @default(0)
+  comboProductIds    String   @default("[]") // JSON array
+  isActive           Boolean  @default(true)
+  showOnSite         Boolean  @default(true)
+  popupEnabled       Boolean  @default(true)
+  maxUsages          Int?
+  maxUsesPerCustomer Int?
+  usageCount         Int      @default(0)
+  validFrom          DateTime?
+  validUntil         DateTime?
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// ----------------------
+// ADMIN USERS
+// ----------------------
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // bcrypt hash
+  name      String
+  role      String   @default("STAFF")
+  isActive  Boolean  @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ----------------------
+// RESTAURANGINSTÄLLNINGAR
+// ----------------------
+
+model RestaurantSettings {
+  id              String  @id @default("settings")
+  isOpen          Boolean @default(true)
+  deliveryFee     Int     @default(0)    // i ören
+  minOrderAmount  Int     @default(0)    // i ören
+  deliveryRadius  Int     @default(10)   // km
+  estimatedPickupTime  Int @default(20)  // minuter
+  estimatedDeliveryTime Int @default(35) // minuter
+  notificationSound String @default("signal-1")
+  
+  // Öppettider (JSON stored as string)
+  openingHours    String    @default("{}")
+  
+  updatedAt       DateTime @updatedAt
+}
+
+model OrderDraft {
+  id           String   @id @default(cuid())
+  data         String   // JSON stringified order data
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+}
