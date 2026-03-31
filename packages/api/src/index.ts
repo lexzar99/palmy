@@ -17,6 +17,7 @@ import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 
 const app = express();
+app.set('trust proxy', 1); // Trust Railway's proxy
 const httpServer = createServer(app);
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
