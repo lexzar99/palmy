@@ -5,7 +5,7 @@ import axios from "axios";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { io as socketIO } from "socket.io-client";
-import { ArrowRight, Sparkles, ShoppingBag, Clock } from "lucide-react";
+import { ArrowRight, Sparkles, ShoppingBag, Clock, Phone } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 
 const Hero = () => {
@@ -160,24 +160,35 @@ const Hero = () => {
           ))}
         </div>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+        {/* CTAs - Moved higher up */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center mb-8 relative z-20">
           <Link
             href="/menu"
-            className="flex items-center justify-center gap-3 px-10 py-4 bg-white text-black font-black uppercase tracking-[0.35em] text-xs transition-all hover:bg-gold-500 active:scale-95 w-full sm:w-auto"
-            style={{ clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)" }}
+            className="group relative flex items-center justify-center gap-4 px-12 py-5 bg-gold-500 text-dark-500 font-bold uppercase tracking-[0.4em] text-[11px] transition-all hover:bg-gold-400 active:scale-95 w-full sm:w-auto shadow-[0_20px_50px_rgba(212,167,74,0.3)] hover:shadow-[0_20px_60px_rgba(212,167,74,0.4)] overflow-hidden"
+            style={{ borderRadius: "100px" }}
           >
-            Gå till meny
-            <ArrowRight size={16} />
+            <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:animate-shimmer" />
+            Vår Meny
+            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
           </Link>
 
           <a
             href="tel:046120612"
-            className="flex items-center justify-center px-8 py-4 border border-white/20 text-white font-black uppercase tracking-[0.35em] text-xs transition-all hover:bg-white/10 active:scale-95 w-full sm:w-auto"
-            style={{ clipPath: "polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%)" }}
+            className="flex items-center justify-center gap-3 px-10 py-5 border border-white/10 bg-white/5 text-white font-bold uppercase tracking-[0.3em] text-[10px] transition-all hover:bg-white/10 active:scale-95 w-full sm:w-auto"
+            style={{ borderRadius: "100px" }}
           >
+            <Phone size={14} className="text-gold-500" />
             046-120 612
           </a>
+        </div>
+
+        <div className="flex items-center justify-center gap-8 mb-12 flex-wrap">
+          {["Alltid Färskt", "Snabb Leverans", "Äkta Ingredienser"].map((benefit) => (
+            <div key={benefit} className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,167,74,0.8)]" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-white/40">{benefit}</span>
+            </div>
+          ))}
         </div>
 
         {/* Info bar */}

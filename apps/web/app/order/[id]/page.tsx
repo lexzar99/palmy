@@ -378,7 +378,7 @@ const OrderStatusPage = () => {
             <div className="bg-red-500/5 border border-red-500/20 rounded-[2rem] p-8 text-center">
               <div className="text-4xl mb-3">😔</div>
               <p className="text-sm font-bold uppercase tracking-widest text-red-400 mb-2">Order nekad</p>
-              <p className="text-white/40 text-xs mb-4">Vi har tyvärr stängt för idag.</p>
+              <p className="text-white/40 text-xs mb-4">Din beställning gick inte igenom pga stängning.</p>
             </div>
           )}
         </div>
