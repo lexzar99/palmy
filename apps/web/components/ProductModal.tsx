@@ -141,7 +141,18 @@ const ProductModal = ({ product, onClose }: ProductModalProps) => {
             <p className="text-white/40 text-lg mb-8 leading-relaxed">{product.description}</p>
 
             <div className="space-y-12 mb-12">
-              {[...(product.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group: any) => (
+              {[...(product.extraGroups || [])].sort((a, b) => {
+                // First by position
+                if ((a.position || 0) !== (b.position || 0)) {
+                  return (a.position || 0) - (b.position || 0);
+                }
+                // Then required first
+                if (a.required !== b.required) {
+                  return a.required ? -1 : 1;
+                }
+                // Finally name
+                return (a.name || "").localeCompare(b.name || "");
+              }).map((group: any) => (
                 <div key={group.id}>
                   <div className="flex items-center justify-between mb-4">
                     <div>

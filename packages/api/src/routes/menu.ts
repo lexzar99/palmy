@@ -63,7 +63,7 @@ router.get('/categories', async (_req, res) => {
             priceAddon: e.priceAddon / 100,
             isDefault: e.isDefault,
           })),
-          position: peg.extraGroup.position || 0,
+          position: (peg.extraGroup as any).position || 0,
         })),
       })),
     }));
@@ -123,6 +123,7 @@ router.get('/products/:id', async (req, res) => {
           priceAddon: e.priceAddon / 100,
           isDefault: e.isDefault,
         })),
+        position: (peg.extraGroup as any).position || 0,
       })),
     });
   } catch (error) {
