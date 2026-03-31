@@ -73,7 +73,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; d
     label: "Nekad",
     icon: AlertCircle,
     color: "text-red-500",
-    desc: "Vi kunde inte ta emot din beställning just nu. Ring oss gärna.",
+    desc: "Din beställning gick inte igenom pga stängning. Vi hoppas få se dig snart igen!",
   },
   CANCELLED: {
     label: "Avbokad",
@@ -378,8 +378,7 @@ const OrderStatusPage = () => {
             <div className="bg-red-500/5 border border-red-500/20 rounded-[2rem] p-8 text-center">
               <div className="text-4xl mb-3">😔</div>
               <p className="text-sm font-bold uppercase tracking-widest text-red-400 mb-2">Order nekad</p>
-              <p className="text-white/40 text-xs mb-4">Ring oss direkt om du vill beställa.</p>
-              <a href="tel:046120612" className="text-gold-500 font-bold text-sm">046120612</a>
+              <p className="text-white/40 text-xs mb-4">Vi har tyvärr stängt för idag.</p>
             </div>
           )}
         </div>

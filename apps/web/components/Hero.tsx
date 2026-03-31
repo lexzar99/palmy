@@ -35,7 +35,7 @@ const Hero = () => {
   useEffect(() => {
     axios.get(`${API_URL}/api/settings`).then((res) => {
       setSettings((prev) => ({ ...prev, ...res.data }));
-    }).catch(() => {});
+    }).catch(() => { });
 
     const socket = socketIO(SOCKET_URL, {
       path: "/socket.io",
@@ -74,11 +74,10 @@ const Hero = () => {
       <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center" style={{ zIndex: 2 }}>
         {/* Status badge */}
         <div
-          className={`mb-8 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.35em] ${
-            settings.isOpen
+          className={`mb-8 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.35em] ${settings.isOpen
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : "border-red-500/30 bg-red-500/10 text-red-300"
-          }`}
+            }`}
         >
           {settings.isOpen ? "Vi har öppet" : "Vi öppnar snart"}
         </div>
@@ -154,9 +153,8 @@ const Hero = () => {
             <button
               key={i}
               onClick={() => setActiveIndex(i)}
-              className={`rounded-full transition-all ${
-                i === activeIndex ? "w-6 h-2 bg-gold-500" : "w-2 h-2 bg-white/20"
-              }`}
+              className={`rounded-full transition-all ${i === activeIndex ? "w-6 h-2 bg-gold-500" : "w-2 h-2 bg-white/20"
+                }`}
               aria-label={`Bild ${i + 1}`}
             />
           ))}

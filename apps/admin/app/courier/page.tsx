@@ -180,80 +180,73 @@ export default function CourierPage() {
                 saveSort(nextOrders);
                 setDraggedId(null);
               }}
-              className={`rounded-[1.75rem] border border-white/10 bg-white/5 ${settings.compactMode ? "p-4" : "p-6"}`}
+              className={`rounded-[1.75rem] border border-white/10 bg-white/5 p-4 sm:p-5`}
             >
-              <div className="flex items-start gap-3">
-                <div className="mt-1 text-white/20">
-                  <GripVertical size={20} />
+              <div className="flex items-start gap-4">
+                <div className="mt-2 text-white/10 cursor-grab active:cursor-grabbing">
+                  <GripVertical size={24} />
                 </div>
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.25em] text-gold-500">Stopp {index + 1}</div>
-                      <div className="mt-1 truncate text-lg font-black uppercase">{order.deliveryStreet || `Order #${order.orderNumber}`}</div>
-                      <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-white/50">
-                        <span className="rounded-full bg-white/5 px-3 py-1">{order.deliveryZip} {order.deliveryCity}</span>
-                        <span className="rounded-full bg-white/5 px-3 py-1">{order.total.toFixed(0)} kr</span>
-                        <span className={`rounded-full px-3 py-1 ${order.status === "DELIVERING" ? "bg-indigo-500/10 text-indigo-300" : "bg-orange-500/10 text-orange-300"}`}>
-                          {order.status === "DELIVERING" ? "På väg" : "Packas"}
-                        </span>
-                      </div>
+                
+                <div className="flex-1 min-w-0 space-y-4">
+                  {/* Address Focus */}
+                  <button 
+                    onClick={() => {
+                      if (order.deliveryStreet) {
+                        navigator.clipboard.writeText(order.deliveryStreet);
+                        alert("Adress kopierad: " + order.deliveryStreet);
+                      }
+                    }}
+                    className="w-full text-left bg-dark-500 border border-white/5 rounded-2xl p-4 active:bg-white/5 transition-colors group"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-500/60">Leveransadress (Klicka för att kopiera)</div>
+                      <MapPin size={12} className="text-gold-500/40 group-active:text-gold-500" />
                     </div>
-                  </div>
+                    <div className="text-xl font-black uppercase tracking-tight text-white group-active:text-gold-500 truncate">
+                      {order.deliveryStreet || "Ingen adress"}
+                    </div>
+                    <div className="text-xs font-bold text-white/30 uppercase tracking-widest mt-0.5">
+                      {order.deliveryZip} {order.deliveryCity}
+                    </div>
+                  </button>
 
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <a href={`tel:${order.customerPhone}`} className="rounded-2xl border border-white/10 bg-dark-500 px-4 py-3">
-                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20"><Phone size={14} /> Telefon</div>
-                      <div className="mt-1 text-base font-black">{order.customerPhone}</div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <a 
+                      href={`tel:${order.customerPhone}`}
+                      className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/10 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white hover:bg-white/10 active:scale-95 transition-all px-4"
+                    >
+                      <Phone size={14} className="text-emerald-400" />
+                      Ring Kund
                     </a>
-                    <div className="rounded-2xl border border-white/10 bg-dark-500 px-4 py-3">
-                      <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20"><MapPin size={14} /> Adress</div>
-                      <div className="mt-1 text-base font-black">{order.deliveryStreet}</div>
-                      <div className="text-sm text-white/50">{order.deliveryZip} {order.deliveryCity}</div>
+                    <div className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-white/5 border border-white/5 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white/40 px-4">
+                      {order.total.toFixed(0)} kr
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-dark-500 px-4 py-3">
-                    <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
-                      <Bike size={14} />
-                      Packlista
-                    </div>
-                    <div className="space-y-2">
-                      {order.items.map((item: any) => {
-                        const extras = parseExtras(item.selectedExtras);
-                        return (
-                          <div key={item.id} className="rounded-2xl bg-white/5 px-3 py-3">
-                            <div className="text-sm font-black uppercase">{item.quantity}x {item.productName}</div>
-                            {extras.length > 0 && (
-                              <div className="mt-1 space-y-1">
-                                {extras.map((extra: any, idx: number) => (
-                                  <div key={`${item.id}-extra-${idx}`} className="text-[11px] font-bold uppercase text-red-400">
-                                    {extra.groupName}: {extra.extraName || extra.name}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            {item.note && <div className="mt-1 text-[11px] font-bold uppercase text-yellow-300">OBS: {item.note}</div>}
-                          </div>
-                        );
-                      })}
+                  {/* Extremely Compact Packlist */}
+                  <div className="rounded-xl border border-dashed border-white/10 p-3 space-y-2">
+                    <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">Packlista</div>
+                    <div className="flex flex-wrap gap-2">
+                      {order.items.map((item: any) => (
+                        <div key={item.id} className="text-[11px] font-bold text-white/60 bg-white/5 px-2 py-1 rounded-lg border border-white/5 leading-none">
+                          <span className="text-gold-500">{item.quantity}x</span> {item.productName.split(' ')[0]}
+                        </div>
+                      ))}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex gap-2">
                     <button
                       onClick={() => updateCourierStatus(order.id, "DELIVERY_FAILED")}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-red-300"
+                      className="flex-1 py-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all"
                     >
-                      <XCircle size={16} />
-                      Ej levererad
+                      Misslyckad
                     </button>
                     <button
                       onClick={() => updateCourierStatus(order.id, "DELIVERED")}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-500 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-dark-500"
+                      className="flex-[2] py-3 bg-green-500 text-dark-500 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-green-400 transition-all shadow-lg shadow-green-500/20"
                     >
-                      <CheckCircle2 size={16} />
-                      Levererad
+                      Markera Levererad
                     </button>
                   </div>
                 </div>

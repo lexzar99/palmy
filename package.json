@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "db:migrate": "pnpm --filter @palmyra/db migrate",
-    "db:seed": "pnpm --filter @palmyra/db seed",
-    "db:studio": "pnpm --filter @palmyra/db studio"
+    "db:migrate": "pnpm --filter db migrate",
+    "db:seed": "pnpm --filter db seed",
+    "db:studio": "pnpm --filter db studio"
   },
   "devDependencies": {
     "turbo": "^2.3.3"

@@ -850,6 +850,74 @@ router.post('/menu/import-eatsmart', async (_req, res) => {
   }
 });
 
+router.post('/menu/bulk-import', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text) {
+      res.status(400).json({ error: 'Ingen text tillhandahållen' });
+      return;
+    }
+
+    const lines = text.split('\n').filter((l: string) => l.trim().length > 0);
+    const results = {
+      created: 0,
+      errors: 0,
+    };
+
+    for (const line of lines) {
+      const parts = line.split(':').map((p) => p.trim());
+      if (parts.length < 3) {
+        results.errors += 1;
+        continue;
+      }
+
+      const [categoryName, productName, priceStr, description = ''] = parts;
+      const price = parseFloat(priceStr.replace(',', '.'));
+
+      if (isNaN(price)) {
+        results.errors += 1;
+        continue;
+      }
+
+      const categorySlug = categoryName.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
+      const productSlugBase = productName.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
+
+      try {
+        const category = await prisma.category.upsert({
+          where: { slug: categorySlug },
+          update: {},
+          create: {
+            name: categoryName,
+            slug: categorySlug,
+            position: 0,
+          },
+        });
+
+        await prisma.product.create({
+          data: {
+            name: productName,
+            slug: `${categorySlug}-${productSlugBase}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+            description,
+            price: Math.round(price * 100),
+            categoryId: category.id,
+            isActive: true,
+          },
+        });
+
+        results.created += 1;
+      } catch (err) {
+        console.error('Bulk import error for line:', line, err);
+        results.errors += 1;
+      }
+    }
+
+    res.json({ success: true, ...results });
+  } catch (error) {
+    console.error('Bulk import fatal error:', error);
+    res.status(500).json({ error: 'Internt serverfel vid import' });
+  }
+});
+
 // =====================
 // STATISTIK
 // =====================

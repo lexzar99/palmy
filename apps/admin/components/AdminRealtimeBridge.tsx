@@ -57,7 +57,7 @@ export default function AdminRealtimeBridge() {
     void playNotificationSound(soundIdRef.current);
     soundLoopRef.current = window.setInterval(() => {
       void playNotificationSound(soundIdRef.current);
-    }, 7000);
+    }, 2000);
 
     return () => {
       if (soundLoopRef.current) {

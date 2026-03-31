@@ -246,21 +246,17 @@ const MenuPage = () => {
                   key={p.id}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setSelectedProduct(p)}
-                  className="group bg-white/5 border border-white/10 rounded-3xl p-6 cursor-pointer hover:border-gold-500/40 hover:shadow-[0_0_30px_rgba(212,167,74,0.1)] transition-all touch-manipulation"
+                  className="group bg-white/5 border border-white/10 rounded-2xl p-4 cursor-pointer hover:border-gold-500/40 hover:shadow-[0_0_30px_rgba(212,167,74,0.1)] transition-all touch-manipulation"
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold mb-2 group-hover:text-gold-500 transition-colors uppercase">{p.name}</h3>
-                      <p className="text-white/40 text-sm line-clamp-2 leading-relaxed mb-4">{p.description || "Ingen beskrivning tillgänglig."}</p>
-                      <div className="text-xl font-bold text-gold-500">{p.price} kr</div>
+                      <h3 className="text-lg font-bold mb-1 group-hover:text-gold-500 transition-colors uppercase">{p.name}</h3>
+                      <p className="text-white/40 text-[11px] line-clamp-2 leading-relaxed mb-3">{p.description || "Ingen beskrivning tillgänglig."}</p>
+                      <div className="text-lg font-bold text-gold-500">{p.price} kr</div>
                     </div>
-                    {p.imageUrl ? (
-                      <div className="w-24 h-24 rounded-2xl overflow-hidden bg-white/5 relative flex-shrink-0">
+                    {p.imageUrl && (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 relative flex-shrink-0">
                         <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="w-24 h-24 rounded-2xl bg-white/5 flex items-center justify-center text-white/10 flex-shrink-0">
-                        <Tag size={28} />
                       </div>
                     )}
                   </div>

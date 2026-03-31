@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { 
   Plus, 
@@ -29,6 +30,7 @@ import { API_URL } from "@/lib/api";
 type Tab = "PRODUCTS" | "CATEGORIES" | "EXTRAS" | "DEALS";
 
 const UnifiedMenuPage = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("PRODUCTS");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -494,6 +496,13 @@ const UnifiedMenuPage = () => {
         </div>
 
         <div className="flex items-center gap-4 flex-wrap">
+          <button
+            onClick={() => router.push("/menu/import")}
+            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all shadow-lg shadow-black/20"
+          >
+            <Upload size={16} />
+            Bulk-import
+          </button>
           <button
             onClick={handleImportEatsmart}
             disabled={importing || loading}
