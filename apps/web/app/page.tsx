@@ -32,26 +32,7 @@ const discoveryCards = [
   { title: "Fräscht", subtitle: "Sallad", color: "from-[#9be7ff] to-[#7dd3fc]" },
   { title: "Extra", subtitle: "Dryck", color: "from-[#d8b4fe] to-[#f0abfc]" },
 ];
-const BottomNav = () => (
-  <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-xl bg-[#0d0d0d] border border-white/10 px-8 py-4 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50">
-    <Link href="/" className="flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest text-gold-500">
-      <Home size={20} />
-      Hem
-    </Link>
-    <button className="flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors">
-      <Mail size={20} />
-      Kontakt
-    </button>
-    <Link href="/cart" className="flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors">
-      <ShoppingBag size={20} />
-      Kasse
-    </Link>
-    <button className="flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-white/30 hover:text-white transition-colors">
-      <User size={20} />
-      Profil
-    </button>
-  </div>
-);
+import BottomNav from "@/components/BottomNav";
 
 export default function HomePage() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);

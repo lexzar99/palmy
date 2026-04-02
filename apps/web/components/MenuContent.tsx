@@ -12,6 +12,7 @@ import DealSpotlight from "@/components/DealSpotlight";
 import { useCartStore } from "@/store/cartStore";
 import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
+import BottomNav from "@/components/BottomNav";
 
 interface MenuContentProps {
   restaurantSlug?: string;
@@ -316,6 +317,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
       <DealSpotlight deals={deals.filter((deal) => deal.popupEnabled)} subtotal={subtotal} productIds={productIds} floating />
       <FloatingCartButton />
+      <BottomNav />
     </div>
   );
 };
