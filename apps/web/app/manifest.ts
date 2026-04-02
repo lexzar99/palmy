@@ -2,13 +2,13 @@ import { MetadataRoute } from 'next'
  
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Palmyra Pizzeria',
+    name: 'Palmyra Delivery',
     short_name: 'Palmyra',
-    description: 'Bästa pizzan, rullarna och tallrikarna i Lund.',
+    description: 'Beställ Palmyra och andra restauranger i en Foodora-liknande upplevelse.',
     start_url: '/',
     display: 'standalone',
-    background_color: '#050505',
-    theme_color: '#d4a74a',
+    background_color: '#fff3d1',
+    theme_color: '#fbbf24',
     icons: [
       {
         src: '/icon',

@@ -15,6 +15,7 @@ import paymentRoutes from './routes/payments';
 import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
+import restaurantsRoutes from './routes/restaurants';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -81,6 +82,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
+app.use('/api/restaurants', restaurantsRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {

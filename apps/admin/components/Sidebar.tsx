@@ -14,7 +14,9 @@ import {
   Activity,
   Bike,
   Menu,
-  X
+  X,
+  Store,
+  ChevronDown
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,6 +29,7 @@ const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [restaurantSectionOpen, setRestaurantSectionOpen] = useState(true);
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
@@ -128,6 +131,57 @@ const Sidebar = () => {
             </Link>
           );
         })}
+
+        <div className="mt-4 rounded-xl border border-white/5">
+          <button
+            onClick={() => setRestaurantSectionOpen((o) => !o)}
+            className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-white/70"
+          >
+            <span className="flex items-center gap-3">
+              <Store size={20} />
+              Hantera restauranger
+            </span>
+            <ChevronDown
+              size={18}
+              className={`transition-transform ${restaurantSectionOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+          <AnimatePresence>
+            {restaurantSectionOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="flex flex-col border-t border-white/5">
+                  <Link
+                    href="/restaurants"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`px-4 py-3 text-sm ${
+                      pathname === "/restaurants"
+                        ? "bg-gold-500/15 text-gold-300"
+                        : "text-white/50 hover:bg-white/5"
+                    }`}
+                  >
+                    Alla restauranger
+                  </Link>
+                  <Link
+                    href="/menu"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`px-4 py-3 text-sm ${
+                      pathname === "/menu"
+                        ? "bg-gold-500/15 text-gold-300"
+                        : "text-white/50 hover:bg-white/5"
+                    }`}
+                  >
+                    Palmyra meny
+                  </Link>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </nav>
 
       <button

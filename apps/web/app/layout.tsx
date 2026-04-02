@@ -9,8 +9,8 @@ import InstallPWA from "@/components/InstallPWA";
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Palmyra Lund | Pizza, rullar och tallrikar i Lund",
-  description: "Beställ från Palmyra Lund med live status, hemleverans och avhämtning av pizza, rullar, tallrikar och dryck.",
+  title: "Palmyra Delivery | Mat nära dig",
+  description: "Foodora-liknande upplevelse: beställ Palmyra eller andra restauranger, spåra leverans och spara favoriter.",
 };
 
 export const viewport: Viewport = {

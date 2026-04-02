@@ -254,3 +254,65 @@ model OrderDraft {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
 }
+
+// ----------------------
+// MULTI-RESTAURANGKATALOG (FÖR STARTSIDA & ADMIN)
+// ----------------------
+
+model Restaurant {
+  id             String                @id @default(cuid())
+  name           String
+  slug           String                @unique
+  description    String?
+  cuisine        String                @default("Blandat")
+  address        String?
+  city           String?               @default("Lund")
+  zip            String?
+  phone          String?
+  imageUrl       String?
+  heroImageUrl   String?
+  rating         Float?                @default(4.6)
+  ratingCount    Int?                  @default(120)
+  deliveryFee    Int                   @default(0)   // ören
+  minOrderAmount Int                   @default(0)   // ören
+  etaMinutes     Int                   @default(30)
+  isOpen         Boolean               @default(true)
+  isFeatured     Boolean               @default(false)
+  tags           String                @default("[]") // JSON-array
+  openingHours   String                @default("{}")
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  categories RestaurantCategory[]
+}
+
+model RestaurantCategory {
+  id           String             @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  description  String?
+  position     Int                @default(0)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  items        RestaurantItem[]
+
+  @@index([restaurantId])
+}
+
+model RestaurantItem {
+  id          String              @id @default(cuid())
+  categoryId  String
+  category    RestaurantCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Int                 // ören
+  imageUrl    String?
+  tags        String              @default("[]") // JSON-array
+  isPopular   Boolean             @default(false)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([categoryId])
+}
