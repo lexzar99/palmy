@@ -385,9 +385,11 @@ router.get('/reports/orders', async (req, res) => {
 // =====================
 
 // GET /api/admin/categories
-router.get('/categories', async (_req, res) => {
+router.get('/categories', async (req, res) => {
   try {
+    const { restaurantId } = req.query;
     const categories = await prisma.category.findMany({
+      where: restaurantId ? { restaurantId: restaurantId as string } : {},
       orderBy: { position: 'asc' },
       include: { _count: { select: { products: true } } },
     });
@@ -400,11 +402,18 @@ router.get('/categories', async (_req, res) => {
 // POST /api/admin/categories
 router.post('/categories', async (req, res) => {
   try {
-    const { name, description, imageUrl, position } = req.body;
+    const { name, description, imageUrl, position, restaurantId } = req.body;
     const slug = name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
 
     const category = await prisma.category.create({
-      data: { name, slug, description, imageUrl, position: position || 0 },
+      data: { 
+        name, 
+        slug: `${slug}-${Date.now()}`, // Ensure unique slug for multi-tenant
+        description, 
+        imageUrl, 
+        position: position || 0,
+        restaurantId: restaurantId || null 
+      },
     });
     res.status(201).json(category);
   } catch (error: unknown) {
@@ -486,12 +495,15 @@ const ProductSchema = z.object({
 // GET /api/admin/products
 router.get('/products', async (req, res) => {
   try {
-    const { categoryId } = req.query;
+    const { categoryId, restaurantId } = req.query;
     const products = await prisma.product.findMany({
-      where: categoryId ? { categoryId: categoryId as string } : {},
+      where: {
+        ...(categoryId ? { categoryId: categoryId as string } : {}),
+        ...(restaurantId ? { category: { restaurantId: restaurantId as string } } : {}),
+      },
       orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
       include: {
-        category: { select: { name: true } },
+        category: { select: { name: true, restaurantId: true } },
         extraGroups: {
           include: {
             extraGroup: {

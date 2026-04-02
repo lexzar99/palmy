@@ -16,6 +16,8 @@ datasource db {
 
 model Category {
   id          String    @id @default(cuid())
+  restaurantId String?  // null = global/default
+  restaurant  Restaurant? @relation(fields: [restaurantId], references: [id])
   name        String    // t.ex. "Pizza Standard 1"
   slug        String    @unique
   description String?
@@ -104,6 +106,8 @@ model Extra {
 model Order {
   id           String      @id @default(cuid())
   orderNumber  Int         @unique // SQLite workaround: Manage this in app logic if needed, or omit autoincrement here
+  restaurantId String?     // Which restaurant this order belongs to
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
   status       String      @default("PENDING")
   type         String      // PICKUP eller DELIVERY
   
@@ -283,13 +287,15 @@ model Restaurant {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  categories RestaurantCategory[]
+  categories Category[]
+  legacyCategories RestaurantCategory[] @relation("RestaurantToLegacyCategory")
+  orders     Order[]
 }
 
 model RestaurantCategory {
   id           String             @id @default(cuid())
   restaurantId String
-  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant         @relation("RestaurantToLegacyCategory", fields: [restaurantId], references: [id], onDelete: Cascade)
   name         String
   description  String?
   position     Int                @default(0)

@@ -67,6 +67,8 @@ const OrderItemSchema = z.object({
 });
 
 const CreateOrderSchema = z.object({
+  restaurantId: z.string().optional(), // Valfritt, fallback till palmyra
+  restaurantSlug: z.string().optional(),
   type: z.enum(['PICKUP', 'DELIVERY']),
   paymentMethod: z.string().nullable().optional(),
   customerName: z.string().min(2).max(100),
@@ -99,10 +101,26 @@ router.post('/', async (req: Request, res: Response) => {
       return;
     }
 
-    const settings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    // Resolve restaurant
+    const restaurant = await prisma.restaurant.findFirst({
+      where: data.restaurantId 
+        ? { id: data.restaurantId } 
+        : data.restaurantSlug 
+          ? { slug: data.restaurantSlug } 
+          : { slug: 'palmyra' }
+    });
+
+    const globalSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
+    
+    // Use restaurant specific settings or global fallbacks
+    const restaurantOpen = restaurant?.isOpen ?? globalSettings?.isOpen ?? true;
+    const deliveryFee = data.type === 'DELIVERY'
+      ? (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100))
+      : 0;
+    const minOrderAmount = restaurant?.minOrderAmount ?? globalSettings?.minOrderAmount ?? Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100);
     const estimatedTime = data.type === 'PICKUP'
-      ? settings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME
-      : settings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME;
+      ? (globalSettings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME)
+      : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
 
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
     const existingOrder = await prisma.order.findFirst({
@@ -133,8 +151,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Only enforce open status for unpaid/manual flows.
-    if (!confirmedPayment && settings && !settings.isOpen) {
-      res.status(400).json({ error: 'Tyvärr, vi har för närvarande stängt. Välkommen tillbaka när vi öppnar!' });
+    if (!confirmedPayment && !restaurantOpen) {
+      res.status(400).json({ error: 'Tyvärr, restaurangen har för närvarande stängt. Välkommen tillbaka när vi öppnar!' });
       return;
     }
 
@@ -261,9 +279,8 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Minsta ordersumma-validering
-    const minOrder = settings?.minOrderAmount ?? Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100);
-    if (!confirmedPayment && subtotal < minOrder) {
-      res.status(400).json({ error: `Minsta beställningsbelopp är ${minOrder / 100} kr. Du saknar ${((minOrder - subtotal) / 100).toFixed(0)} kr.` });
+    if (!confirmedPayment && subtotal < minOrderAmount) {
+      res.status(400).json({ error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr. Du saknar ${((minOrderAmount - subtotal) / 100).toFixed(0)} kr.` });
       return;
     }
 
@@ -348,10 +365,7 @@ router.post('/', async (req: Request, res: Response) => {
       validatedCode = undefined;
     }
 
-    // Leveransavgift (använd inställningarna som redan hämtats överst)
-    const deliveryFee = data.type === 'DELIVERY'
-      ? (settings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100))
-      : 0;
+    // Leveransavgift (use pre-calculated value from above)
 
     let total = subtotal - discountAmount + deliveryFee;
 
@@ -378,6 +392,7 @@ router.post('/', async (req: Request, res: Response) => {
         type: data.type,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
+        restaurantId: restaurant?.id || null,
         customerEmail: data.customerEmail || null,
         deliveryStreet: data.deliveryStreet || null,
         deliveryCity: data.deliveryCity || null,

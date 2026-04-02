@@ -3,11 +3,19 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 
-// GET /api/menu/categories - Alla aktiva kategorier med produkter
-router.get('/categories', async (_req, res) => {
+// GET /api/menu/categories - Alla aktiva kategorier med produkter för en specifik restaurang
+router.get('/categories', async (req, res) => {
   try {
+    const { restaurantId, slug } = req.query;
+    
     const categories = await prisma.category.findMany({
-      where: { isActive: true },
+      where: { 
+        isActive: true,
+        ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
+        ...(slug ? { restaurant: { slug: slug as string } } : {}),
+        // Om varken id eller slug anges, hämta globala/default (Palmyra)
+        ...(!restaurantId && !slug ? { restaurantId: null } : {}),
+      },
       orderBy: { position: 'asc' },
       include: {
         products: {

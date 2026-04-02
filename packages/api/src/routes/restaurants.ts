@@ -83,18 +83,32 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
         name: cat.name,
         description: cat.description,
         position: cat.position,
-        items: (cat.items || []).map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          price: fromOre(item.price),
-          imageUrl: item.imageUrl,
-          tags: parseJson<string[]>(item.tags, []),
-          isPopular: item.isPopular,
+        items: (cat.products || []).map((prod: any) => ({
+          id: prod.id,
+          name: prod.name,
+          description: prod.description,
+          price: fromOre(prod.price),
+          imageUrl: prod.imageUrl,
+          isVegan: prod.isVegan,
+          isVegetarian: prod.isVegetarian,
+          isGlutenFree: prod.isGlutenFree,
+          tags: [], // Tags logic can be added later if needed
+          extraGroups: (prod.extraGroups || []).map((peg: any) => ({
+            id: peg.extraGroup.id,
+            name: peg.extraGroup.name,
+            type: peg.extraGroup.type,
+            required: peg.extraGroup.required,
+            extras: (peg.extraGroup.extras || []).map((e: any) => ({
+              id: e.id,
+              name: e.name,
+              priceAddon: fromOre(e.priceAddon),
+              isDefault: e.isDefault,
+            })),
+          })),
         })),
       }))
     : undefined,
-});
+}) ;
 
 const seedRestaurants = async () => {
   const count = await prisma.restaurant.count();
@@ -207,7 +221,27 @@ router.get('/', async (req, res) => {
         { name: 'asc' },
       ],
       include: includeMenu
-        ? { categories: { orderBy: { position: 'asc' }, include: { items: { orderBy: { createdAt: 'asc' } } } } }
+        ? { 
+            categories: { 
+              orderBy: { position: 'asc' }, 
+              include: { 
+                products: { 
+                  orderBy: { position: 'asc' },
+                  include: {
+                    extraGroups: {
+                      include: {
+                        extraGroup: {
+                          include: {
+                            extras: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                } 
+              } 
+            } 
+          }
         : undefined,
     });
 
@@ -369,17 +403,31 @@ router.delete('/:restaurantId/items/:itemId', authenticate, async (req: AuthRequ
   }
 });
 
-// Public: restaurant detail (including Palmyra core menu)
+// Public: restaurant detail
 router.get('/:slug', async (req, res) => {
   try {
-    await seedRestaurants();
     const { slug } = req.params;
     const restaurant = await prisma.restaurant.findFirst({
       where: { slug },
       include: {
         categories: {
           orderBy: { position: 'asc' },
-          include: { items: { orderBy: { createdAt: 'asc' } } },
+          include: { 
+            products: { 
+              orderBy: { position: 'asc' },
+              include: {
+                extraGroups: {
+                  include: {
+                    extraGroup: {
+                      include: {
+                        extras: true
+                      }
+                    }
+                  }
+                }
+              }
+            } 
+          }
         },
       },
     });
@@ -388,45 +436,10 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    // Special-case Palmyra: return live meny från core menytabeller
-    if (slug === 'palmyra') {
-      const categories = await prisma.category.findMany({
-        where: { isActive: true },
-        orderBy: { position: 'asc' },
-        include: {
-          products: {
-            where: { isActive: true },
-            orderBy: { position: 'asc' },
-          },
-        },
-      });
-
-      const menu = categories.map((cat) => ({
-        id: cat.id,
-        name: cat.name,
-        description: cat.description,
-        items: cat.products.map((prod) => ({
-          id: prod.id,
-          name: prod.name,
-          description: prod.description,
-          price: fromOre(prod.price),
-          imageUrl: prod.imageUrl,
-          tags: [],
-        })),
-      }));
-
-      return res.json({
-        ...formatRestaurant(restaurant, false),
-        canOrderOnline: true,
-        menuSource: 'palmyra-core',
-        menu,
-      });
-    }
-
     return res.json({
       ...formatRestaurant(restaurant, true),
-      canOrderOnline: false,
-      menuSource: 'custom',
+      canOrderOnline: true,
+      menuSource: 'unified',
     });
   } catch (error) {
     console.error('Error fetching restaurant', error);

@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
-import Navbar from "@/components/Navbar";
+import "./globals.css";
 import ShootingStars from "@/components/ShootingStars";
 import InstallPWA from "@/components/InstallPWA";
 
@@ -9,8 +9,8 @@ import InstallPWA from "@/components/InstallPWA";
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Palmyra Delivery | Mat nära dig",
-  description: "Foodora-liknande upplevelse: beställ Palmyra eller andra restauranger, spåra leverans och spara favoriter.",
+  title: "Palmyra Lund | Din Favoritmat Direkt Hem",
+  description: "Beställ mat från Palmyra Pizzeria och andra lokala restauranger i Lund. Snabb leverans och smidig betalning.",
 };
 
 export const viewport: Viewport = {
@@ -29,7 +29,6 @@ export default function RootLayout({
     <html lang="sv">
       <body className={`${outfit.className} text-white min-h-screen antialiased`} style={{ background: "#050505" }}>
         <ShootingStars />
-        <Navbar />
         <main>{children}</main>
         <footer className="border-t border-white/5 py-12 px-6 text-center text-white/40 text-sm relative" style={{ zIndex: 2 }}>
           <p>© {new Date().getFullYear()} Palmyra Lund. Alla rättigheter förbehållna.</p>
