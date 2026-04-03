@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_URL } from "@/lib/api";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 type Tab = "PRODUCTS" | "CATEGORIES" | "EXTRAS" | "DEALS";
 
@@ -100,16 +101,18 @@ const UnifiedMenuPage = () => {
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { selectedRestaurantId } = useRestaurantStore();
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
   const fetchData = useCallback(async () => {
+    if (!selectedRestaurantId) return;
     setLoading(true);
     try {
       const [catRes, prodRes, extraRes, dealRes] = await Promise.all([
-        axios.get(`${API_URL}/api/admin/categories`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/products`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/extra-groups`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/deals`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/categories?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/products?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/extra-groups?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/deals?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       ]);
       setCategories(catRes.data);
       setProducts(prodRes.data);
@@ -120,11 +123,11 @@ const UnifiedMenuPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedRestaurantId]);
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, [fetchData, selectedRestaurantId]);
 
   // =====================
   // PRODUCT LOGIC

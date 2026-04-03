@@ -5,6 +5,7 @@ import Link from "next/link";
 import axios from "axios";
 import { ArrowRight, Loader2, Settings, ShoppingCart, UtensilsCrossed } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -20,21 +21,25 @@ export default function Dashboard() {
     minOrderAmount: 150,
   });
 
+  const { selectedRestaurantId } = useRestaurantStore();
+
   useEffect(() => {
+    if (!selectedRestaurantId) return;
+    setLoading(true);
     Promise.all([
-      axios.get(`${API_URL}/api/admin/stats`, {
+      axios.get(`${API_URL}/api/admin/stats?restaurantId=${selectedRestaurantId}`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("palmyra_token") || ""}` },
       }),
-      axios.get(`${API_URL}/api/settings`),
+      axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`),
     ]).then(([statsRes, settingsRes]) => {
       setStats(statsRes.data);
       setSettings({
         isOpen: settingsRes.data.isOpen ?? true,
-        deliveryFee: settingsRes.data.deliveryFee ?? 49,
-        minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
+        deliveryFee: settingsRes.data.deliveryFee ?? 0,
+        minOrderAmount: settingsRes.data.minOrderAmount ?? 0,
       });
     }).finally(() => setLoading(false));
-  }, []);
+  }, [selectedRestaurantId]);
 
   if (loading) {
     return (

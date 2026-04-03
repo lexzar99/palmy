@@ -12,7 +12,7 @@ const BottomNav = () => {
 
   const links = [
     { href: "/", icon: Home, label: "Hem" },
-    { href: "/?search=1", icon: Search, label: "Sök" },
+    { href: "/search", icon: Search, label: "Sök" },
     { href: "/cart", icon: ShoppingBag, label: "Kasse" },
     { href: "/history", icon: User, label: "Profil" },
   ];

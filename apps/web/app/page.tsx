@@ -112,7 +112,7 @@ export default function HomePage() {
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white">
+    <div className="min-h-screen bg-[#0d0d0d] text-white">
       <div className="relative mx-auto max-w-2xl px-4 pb-32 pt-8">
 
         {/* Header */}
@@ -166,15 +166,10 @@ export default function HomePage() {
                 className="w-full bg-transparent text-sm placeholder:text-white/20 focus:outline-none font-medium"
               />
             </div>
-            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-gold-500/30 transition-all">
+            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 hover:border-gold-500/30 transition-all cursor-pointer">
               <Search size={16} className="text-white/20 shrink-0" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Sök restaurang eller rätt..."
-                className="w-full bg-transparent text-sm placeholder:text-white/20 focus:outline-none font-medium"
-              />
-            </div>
+              <span className="text-sm text-white/20 font-medium">Sök restaurang eller rätt...</span>
+            </Link>
           </div>
         </header>
 

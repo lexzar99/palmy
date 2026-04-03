@@ -61,6 +61,8 @@ interface Order {
 const ACTIVE_ORDER_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY"]);
 const COMPACT_ORDER_STATUSES = new Set(["READY", "DELIVERING", "DELIVERED", "DELIVERY_FAILED", "REJECTED", "CANCELLED"]);
 
+import { useRestaurantStore } from "@/store/restaurantStore";
+
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -71,14 +73,16 @@ const AdminOrdersPage = () => {
   const [acceptDialog, setAcceptDialog] = useState<{ orderId: string; time: number } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const socketRef = useRef<any>(null);
+  const { selectedRestaurantId } = useRestaurantStore();
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
   const fetchData = useCallback(async () => {
+    if (!selectedRestaurantId) return;
     try {
       const [ordersRes, statsRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/api/admin/orders?limit=100`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/orders?limit=100&restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/stats?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       ]);
 
       if (ordersRes.status === "fulfilled") {
@@ -100,9 +104,10 @@ const AdminOrdersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedRestaurantId]);
 
   useEffect(() => {
+    if (!selectedRestaurantId) return;
     fetchData();
 
     const socket = socketIO(SOCKET_URL, {
@@ -116,7 +121,7 @@ const AdminOrdersPage = () => {
     });
     socketRef.current = socket;
     const joinAdminRoom = () => {
-      socket.emit("join:admin");
+      socket.emit("join:admin", { restaurantId: selectedRestaurantId });
       void fetchData();
     };
 
@@ -124,21 +129,25 @@ const AdminOrdersPage = () => {
     socket.on("connect_error", (error) => {
       console.warn("Admin orders socket connection error:", error.message);
     });
-    socket.emit("join:admin");
+    socket.emit("join:admin", { restaurantId: selectedRestaurantId });
 
     socket.on("order:new", (order: any) => {
-      setOrders((prev) => {
-        const merged = [order as Order, ...prev.filter((existing) => existing.id !== order.id)];
-        return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      });
-      setStats((prev: any) => prev ? { ...prev, pendingOrders: (prev.pendingOrders || 0) + 1, ordersToday: (prev.ordersToday || 0) + 1 } : prev);
-      window.setTimeout(() => {
-        void fetchData();
-      }, 250);
+      if (order.restaurantId === selectedRestaurantId) {
+        setOrders((prev) => {
+          const merged = [order as Order, ...prev.filter((existing) => existing.id !== order.id)];
+          return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        });
+        setStats((prev: any) => prev ? { ...prev, pendingOrders: (prev.pendingOrders || 0) + 1, ordersToday: (prev.ordersToday || 0) + 1 } : prev);
+        window.setTimeout(() => {
+          void fetchData();
+        }, 250);
+      }
     });
 
-    socket.on("order:updated", () => {
-      void fetchData();
+    socket.on("order:updated", (data: any) => {
+      if (!data.restaurantId || data.restaurantId === selectedRestaurantId) {
+        void fetchData();
+      }
     });
 
     const refreshInterval = window.setInterval(() => {
@@ -149,7 +158,7 @@ const AdminOrdersPage = () => {
       window.clearInterval(refreshInterval);
       socket.disconnect();
     };
-  }, [fetchData]);
+  }, [fetchData, selectedRestaurantId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30000);
