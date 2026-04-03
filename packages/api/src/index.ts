@@ -16,7 +16,7 @@ import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 import restaurantsRoutes from './routes/restaurants';
-import { ensureDefaultSuperAdmin } from './lib/bootstrapAuth';
+import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -138,6 +138,8 @@ const PORT = Number(process.env.PORT || 4000);
   try {
     await ensureDefaultSuperAdmin();
     console.log('🔐 Default SUPER_ADMIN ensured (admin/admin123)');
+    await ensureRestaurantAdmins();
+    console.log('🏪 Restaurant admin logins ensured (one per restaurant slug)');
   } catch (error) {
     console.warn('⚠️ Could not ensure default SUPER_ADMIN:', error);
   }
