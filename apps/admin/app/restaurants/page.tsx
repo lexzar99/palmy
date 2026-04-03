@@ -129,6 +129,9 @@ export default function RestaurantsPage() {
         deliveryFee: Number(form.deliveryFee || 0),
         minOrderAmount: Number(form.minOrderAmount || 0),
         etaMinutes: Number(form.etaMinutes || 30),
+        zip: form.zip || "",
+        phone: form.phone || "",
+        address: form.address || "",
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
         openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
@@ -405,11 +408,15 @@ export default function RestaurantsPage() {
                                 <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="046-XXX XXX" />
                              </div>
                           </div>
-                         <div className="md:col-span-3 space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Adress</label>
-                            <input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10, 222 10 Lund" />
-                         </div>
-                      </div>
+                          <div className="space-y-2">
+                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Postnummer</label>
+                             <input value={form.zip || ""} onChange={e => setForm({...form, zip: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="222 10" />
+                          </div>
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Adress</label>
+                          <input value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10" />
+                       </div>
                    </div>
 
                    <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
@@ -472,7 +479,7 @@ export default function RestaurantsPage() {
                            >
                               {form.heroImageUrl ? (
                                 <>
-                                  <img src={form.heroImageUrl} className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-all" alt="" />
+                                  <img src={form.heroImageUrl.startsWith('data:') ? form.heroImageUrl : (form.heroImageUrl.startsWith('/') ? `${API_URL}${form.heroImageUrl}` : form.heroImageUrl)} className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-all" alt="" />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all">
                                      <Upload className="text-white" />
                                   </div>
@@ -492,7 +499,7 @@ export default function RestaurantsPage() {
                            <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Logo / Avatar</label>
                            <div className="flex items-center gap-6">
                               <div className="h-24 w-24 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden shadow-2xl ring-1 ring-white/5 leading-none">
-                                {form.imageUrl ? <img src={form.imageUrl} className="h-full w-full object-cover" alt="" /> : <Plus className="text-white/10" />}
+                                {form.imageUrl ? <img src={form.imageUrl.startsWith('data:') ? form.imageUrl : (form.imageUrl.startsWith('/') ? `${API_URL}${form.imageUrl}` : form.imageUrl)} className="h-full w-full object-cover" alt="" /> : <Plus className="text-white/10" />}
                               </div>
                               <button 
                                 onClick={() => fileInputRef.current?.click()}
