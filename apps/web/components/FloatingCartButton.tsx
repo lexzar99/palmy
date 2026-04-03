@@ -43,11 +43,11 @@ const FloatingCartButton = () => {
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-6"
+        className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-6"
       >
         <Link
           href="/cart"
-          className="flex items-center justify-between rounded-3xl border border-gold-500/30 bg-gold-500 p-5 shadow-[0_20px_50px_rgba(212,167,74,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-between rounded-3xl border border-gold-500/30 bg-gold-500 p-5 shadow-[0_20px_50px_rgba(212,167,74,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-dark-500 text-gold-500">

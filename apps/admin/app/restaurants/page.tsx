@@ -126,11 +126,11 @@ export default function RestaurantsPage() {
     try {
       const payload = {
         ...form,
-        deliveryFee: Number(form.deliveryFee),
-        minOrderAmount: Number(form.minOrderAmount),
-        etaMinutes: Number(form.etaMinutes),
-        tags: typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags,
-        openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours) : form.openingHours,
+        deliveryFee: Number(form.deliveryFee || 0),
+        minOrderAmount: Number(form.minOrderAmount || 0),
+        etaMinutes: Number(form.etaMinutes || 30),
+        tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
+        openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
 
       if (selectedId) {
@@ -248,7 +248,7 @@ export default function RestaurantsPage() {
                  {/* Hero Header */}
                  <div className="h-44 w-full bg-dark-500 relative">
                     {r.heroImageUrl ? (
-                      <img src={r.heroImageUrl} className="h-full w-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={r.name} />
+                      <img src={r.heroImageUrl.startsWith('/') ? `${API_URL}${r.heroImageUrl}` : r.heroImageUrl} className="h-full w-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={r.name} />
                     ) : (
                       <div className="h-full w-full flex items-center justify-center opacity-10"><ImageIcon size={48} /></div>
                     )}
@@ -256,7 +256,7 @@ export default function RestaurantsPage() {
                     
                     {/* Floating Avatar */}
                     <div className="absolute -bottom-6 left-8 h-20 w-20 rounded-2xl border-4 border-[#0d0d0d] overflow-hidden bg-dark-400 shadow-2xl shadow-black/50">
-                       {r.imageUrl ? <img src={r.imageUrl} className="h-full w-full object-cover" alt="" /> : <div className="h-full w-full flex items-center justify-center opacity-20"><Sparkles /></div>}
+                       {r.imageUrl ? <img src={r.imageUrl.startsWith('/') ? `${API_URL}${r.imageUrl}` : r.imageUrl} className="h-full w-full object-cover" alt="" /> : <div className="h-full w-full flex items-center justify-center opacity-20"><Sparkles /></div>}
                     </div>
 
                     {/* Featured Badge */}
@@ -398,7 +398,14 @@ export default function RestaurantsPage() {
                                <input value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" />
                             </div>
                          </div>
-                         <div className="md:col-span-2 space-y-2">
+                          <div className="space-y-2">
+                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Telefonnummer</label>
+                             <div className="relative">
+                                <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" />
+                                <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="046-XXX XXX" />
+                             </div>
+                          </div>
+                         <div className="md:col-span-3 space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Adress</label>
                             <input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10, 222 10 Lund" />
                          </div>

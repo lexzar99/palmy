@@ -105,8 +105,8 @@ export default function HomePage() {
     });
   }, [restaurants, activeCuisine, query]);
 
-  // Populära val är de med featuredClass 1 (Premium)
-  const featured = filtered.filter((r) => r.featuredClass === 1).slice(0, 5);
+  // Populära val är de med featuredClass 1 eller 2 (Premium/Standard)
+  const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
   const getRestaurantHref = (r: Restaurant) =>
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
@@ -213,7 +213,7 @@ export default function HomePage() {
                   <div className="h-36 w-full bg-white/5 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
-                        src={r.heroImageUrl || r.imageUrl}
+                        src={(r.heroImageUrl || r.imageUrl || "").startsWith('/') ? `${API_URL}${r.heroImageUrl || r.imageUrl}` : (r.heroImageUrl || r.imageUrl)}
                         alt={r.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
@@ -277,7 +277,7 @@ export default function HomePage() {
                   <div className="w-28 h-28 shrink-0 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
-                        src={r.heroImageUrl || r.imageUrl}
+                        src={(r.imageUrl || r.heroImageUrl || "").startsWith('/') ? `${API_URL}${r.imageUrl || r.heroImageUrl}` : (r.imageUrl || r.heroImageUrl)}
                         alt={r.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
@@ -313,9 +313,9 @@ export default function HomePage() {
                         <span>Min {r.minOrderAmount} kr</span>
                       )}
                     </div>
-                    {r.tags && r.tags.length > 0 && (
+                    {r.tags && (Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {r.tags.slice(0, 3).map((tag) => (
+                        {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
                           <span key={tag} className="text-[8px] font-bold text-white/20 bg-white/5 px-1.5 py-0.5 rounded-full">
                             {tag}
                           </span>
