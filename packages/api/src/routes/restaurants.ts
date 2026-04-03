@@ -31,27 +31,11 @@ const restaurantSchema = z.object({
   minOrderAmount: z.number().nonnegative().optional(),
   etaMinutes: z.number().int().positive().optional(),
   tags: z.array(z.string()).optional(),
-  isFeatured: z.boolean().optional(),
+  featuredClass: z.number().int().min(1).max(3).optional(),
   isOpen: z.boolean().optional(),
   rating: z.number().min(0).max(5).optional(),
   ratingCount: z.number().int().nonnegative().optional(),
   openingHours: z.record(z.string(), z.any()).optional(),
-});
-
-const categorySchema = z.object({
-  name: z.string().min(2),
-  description: z.string().optional(),
-  position: z.number().int().optional(),
-});
-
-const itemSchema = z.object({
-  categoryId: z.string(),
-  name: z.string().min(2),
-  description: z.string().optional(),
-  price: z.number().nonnegative(),
-  imageUrl: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  isPopular: z.boolean().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => ({
@@ -72,7 +56,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
   minOrderAmount: fromOre(restaurant.minOrderAmount),
   etaMinutes: restaurant.etaMinutes ?? 30,
   isOpen: restaurant.isOpen ?? true,
-  isFeatured: restaurant.isFeatured ?? false,
+  featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, unknown>>(restaurant.openingHours, {}),
   createdAt: restaurant.createdAt,
@@ -92,12 +76,13 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
           isVegan: prod.isVegan,
           isVegetarian: prod.isVegetarian,
           isGlutenFree: prod.isGlutenFree,
-          tags: [], // Tags logic can be added later if needed
           extraGroups: (prod.extraGroups || []).map((peg: any) => ({
             id: peg.extraGroup.id,
             name: peg.extraGroup.name,
             type: peg.extraGroup.type,
             required: peg.extraGroup.required,
+            minSelections: peg.extraGroup.minSelections,
+            maxSelections: peg.extraGroup.maxSelections,
             extras: (peg.extraGroup.extras || []).map((e: any) => ({
               id: e.id,
               name: e.name,
@@ -108,285 +93,198 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
         })),
       }))
     : undefined,
-}) ;
+});
 
-const seedRestaurants = async () => {
-  const count = await prisma.restaurant.count();
-  if (count > 0) return;
+// Seed data
+router.post('/seed', authenticate, async (req: AuthRequest, res) => {
+  try {
+    if (req.admin?.role !== 'SUPERIOR') {
+      return res.status(403).json({ error: 'Endast superior admin kan seeda' });
+    }
 
-  const palmyra = await prisma.restaurant.create({
-    data: {
-      name: 'Palmyra Pizzeria',
-      slug: 'palmyra',
-      description: 'Lunds klassiker med pizza, kebab och rullar.',
-      cuisine: 'Pizza & Kebab',
-      address: 'Västra Mårtensgatan 10',
-      city: 'Lund',
-      zip: '223 51',
-      phone: '046-120 612',
-      imageUrl: '/hero.png',
-      heroImageUrl: '/hero-palmyra.svg',
-      deliveryFee: kr(39),
-      minOrderAmount: kr(150),
-      etaMinutes: 32,
-      isFeatured: true,
-      tags: JSON.stringify(['Pizza', 'Kebab', 'Rullar']),
-    },
-  });
-
-  await prisma.restaurant.create({
-    data: {
-      name: 'Sushi Nori',
-      slug: 'sushi-nori',
-      description: 'Poké bowls, nigiri och varma rullar.',
-      cuisine: 'Sushi',
-      city: 'Lund',
-      imageUrl: '/burger_new.jpg',
-      heroImageUrl: '/hero.png',
-      deliveryFee: kr(29),
-      minOrderAmount: kr(150),
-      etaMinutes: 28,
-      rating: 4.8,
-      ratingCount: 230,
-      isFeatured: true,
-      tags: JSON.stringify(['Sushi', 'Poké', 'Japanskt']),
-      legacyCategories: {
-        create: [
-          {
-            name: 'Signaturrätter',
-            position: 0,
-            items: {
-              create: [
-                { name: 'Salmon Poké', description: 'Lax, edamame, mango, ponzu', price: kr(139), isPopular: true },
-                { name: 'Crispy Ebi Roll', description: 'Tempuraräka, avocado, chilimajo', price: kr(119) },
-                { name: 'Veggie Garden', description: 'Avocado, tofu, gurka, sesam', price: kr(109), isPopular: true },
-              ],
-            },
-          },
-        ],
+    // Palmyra (huvudrestaurang)
+    await prisma.restaurant.upsert({
+      where: { slug: 'palmyra' },
+      update: {},
+      create: {
+        name: 'Palmyra Lund',
+        slug: 'palmyra',
+        description: 'Lunds klassiker med pizza, kebab och rullar.',
+        cuisine: 'Pizza & Kebab',
+        address: 'Västra Mårtensgatan 10',
+        city: 'Lund',
+        zip: '223 51',
+        phone: '046-120 612',
+        imageUrl: '/hero.png',
+        heroImageUrl: '/hero-palmyra.svg',
+        deliveryFee: kr(39),
+        minOrderAmount: kr(150),
+        etaMinutes: 32,
+        featuredClass: 1,
+        tags: JSON.stringify(['Pizza', 'Kebab', 'Rullar']),
       },
-    },
-  });
+    });
 
-  await prisma.restaurant.create({
-    data: {
-      name: 'Kebabino',
-      slug: 'kebabino',
-      description: 'Durum, tallrikar och halal kebab.',
-      cuisine: 'Kebab',
-      city: 'Lund',
-      imageUrl: '/kebab_new.png',
-      heroImageUrl: '/hero.png',
-      deliveryFee: kr(25),
-      minOrderAmount: kr(140),
-      etaMinutes: 24,
-      rating: 4.5,
-      ratingCount: 180,
-      tags: JSON.stringify(['Kebab', 'Halal', 'Durum']),
-      legacyCategories: {
-        create: [
-          {
-            name: 'Klassiker',
-            position: 0,
-            items: {
-              create: [
-                { name: 'Kebabtallrik', description: 'Pommes, sallad, två valfria såser', price: kr(119), isPopular: true },
-                { name: 'Durum Kebab', description: 'Nygrillat tunnbröd, sallad, sås', price: kr(105) },
-              ],
-            },
-          },
-        ],
+    await prisma.restaurant.upsert({
+      where: { slug: 'sushi-nori' },
+      update: {},
+      create: {
+        name: 'Sushi Nori',
+        slug: 'sushi-nori',
+        description: 'Poké bowls, nigiri och varma rullar.',
+        cuisine: 'Sushi',
+        city: 'Lund',
+        imageUrl: '/burger_new.jpg',
+        heroImageUrl: '/hero.png',
+        deliveryFee: kr(29),
+        minOrderAmount: kr(150),
+        etaMinutes: 28,
+        rating: 4.8,
+        ratingCount: 230,
+        featuredClass: 1,
+        tags: JSON.stringify(['Sushi', 'Poké', 'Japanskt']),
       },
-    },
-  });
+    });
 
-  console.log('🌱 Seeded default restaurants (incl. Palmyra)');
-  return palmyra;
-};
+    await prisma.restaurant.upsert({
+      where: { slug: 'kebabino' },
+      update: {},
+      create: {
+        name: 'Kebabino',
+        slug: 'kebabino',
+        description: 'Durum, tallrikar och halal kebab.',
+        cuisine: 'Kebab',
+        city: 'Lund',
+        imageUrl: '/kebab_new.png',
+        heroImageUrl: '/hero.png',
+        deliveryFee: kr(25),
+        minOrderAmount: kr(140),
+        etaMinutes: 24,
+        rating: 4.5,
+        ratingCount: 180,
+        featuredClass: 2,
+        tags: JSON.stringify(['Kebab', 'Halal', 'Durum']),
+      },
+    });
+
+    res.json({ success: true, message: 'Restauranger seedade' });
+  } catch (err: any) {
+    console.error('Seed error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Public: list restaurants
 router.get('/', async (req, res) => {
   try {
-    await seedRestaurants();
-    const { search = '', cuisine, withMenu } = req.query;
-    const includeMenu = withMenu === '1' || withMenu === 'true';
-
+    const { withMenu, city } = req.query;
     const restaurants = await prisma.restaurant.findMany({
-      where: {
-        name: { contains: search as string, mode: 'insensitive' },
-        ...(cuisine ? { cuisine: { contains: cuisine as string, mode: 'insensitive' } } : {}),
-      },
-      orderBy: [
-        { isFeatured: 'desc' },
-        { name: 'asc' },
-      ],
-      include: includeMenu
-        ? { 
-            legacyCategories: { 
-              orderBy: { position: 'asc' }, 
-              include: { 
-                items: true 
-              }
-            } 
+      where: city ? { city: city as string } : {},
+      include: withMenu === '1' ? {
+        categories: {
+          orderBy: { position: 'asc' },
+          include: {
+            products: {
+              where: { isActive: true },
+              orderBy: { position: 'asc' },
+            }
           }
-        : undefined,
+        }
+      } : undefined,
+      orderBy: { featuredClass: 'asc' },
     });
 
-    res.json(restaurants.map((r) => formatRestaurant(r, includeMenu)));
-  } catch (error) {
-    console.error('Error fetching restaurants', error);
+    res.json(restaurants.map(r => formatRestaurant(r, withMenu === '1')));
+  } catch (err) {
     res.status(500).json({ error: 'Kunde inte hämta restauranger' });
   }
 });
 
-// Admin: create restaurant
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
     const payload = restaurantSchema.parse(req.body);
-    const slug = payload.slug ? slugify(payload.slug) : slugify(payload.name);
-
     const restaurant = await prisma.restaurant.create({
       data: {
-        ...(payload as any), name: payload.name as string,
-        slug,
+        ...payload,
+        name: payload.name, // Explicitly pass name to satisfy Prisma TS
+        slug: payload.slug || slugify(payload.name),
         deliveryFee: kr(payload.deliveryFee ?? 0),
         minOrderAmount: kr(payload.minOrderAmount ?? 0),
         tags: JSON.stringify(payload.tags ?? []),
         openingHours: JSON.stringify(payload.openingHours ?? {}),
       },
     });
-
-    res.status(201).json(formatRestaurant(restaurant));
+    res.status(201).json(restaurant);
   } catch (err: any) {
-    console.error(err);
-    res.status(400).json({ error: err.message || 'Kunde inte skapa restaurangen' });
+    res.status(400).json({ error: err.message });
   }
 });
 
-// Admin: update restaurant
-router.patch('/:restaurantId', authenticate, async (req: AuthRequest, res) => {
+router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const payload = restaurantSchema.partial().parse(req.body);
-    const { restaurantId } = req.params;
+    const { id } = req.params;
+    
+    // Explicitly handle fields that need conversion
+    const data: any = { ...payload };
+    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(payload.deliveryFee);
+    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(payload.minOrderAmount);
+    if (payload.tags !== undefined) data.tags = JSON.stringify(payload.tags);
+    if (payload.openingHours !== undefined) data.openingHours = JSON.stringify(payload.openingHours);
 
     const restaurant = await prisma.restaurant.update({
-      where: { id: restaurantId },
-      data: {
-        ...(payload as any), name: payload.name as string,
-        ...(payload.slug ? { slug: slugify(payload.slug) } : {}),
-        ...(payload.deliveryFee !== undefined ? { deliveryFee: kr(payload.deliveryFee) } : {}),
-        ...(payload.minOrderAmount !== undefined ? { minOrderAmount: kr(payload.minOrderAmount) } : {}),
-        ...(payload.tags ? { tags: JSON.stringify(payload.tags) } : {}),
-        ...(payload.openingHours ? { openingHours: JSON.stringify(payload.openingHours) } : {}),
-      },
+      where: { id },
+      data,
     });
-
-    res.json(formatRestaurant(restaurant));
+    res.json(restaurant);
   } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte uppdatera restaurangen' });
+    res.status(400).json({ error: err.message });
   }
 });
 
-router.delete('/:restaurantId', authenticate, async (req: AuthRequest, res) => {
+router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const { restaurantId } = req.params;
-    await prisma.restaurant.delete({ where: { id: restaurantId } });
+    await prisma.restaurant.delete({ where: { id: req.params.id } });
     res.json({ success: true });
-  } catch (err: any) {
-    res.status(400).json({ error: 'Kunde inte radera restaurangen' });
+  } catch (err) {
+    res.status(400).json({ error: 'Kunde inte radera restaurang' });
   }
 });
 
-// Admin: category CRUD
+// Category/Item management (Admin)
 router.post('/:restaurantId/categories', authenticate, async (req: AuthRequest, res) => {
   try {
-    const payload = categorySchema.parse(req.body);
-    const category = await prisma.restaurantCategory.create({
+    const { name, description } = req.body;
+    const { restaurantId } = req.params;
+    const category = await prisma.category.create({
       data: {
-        restaurantId: req.params.restaurantId,
-        name: payload.name,
-        description: payload.description,
-        position: payload.position ?? 0,
+        name,
+        description,
+        slug: slugify(name) + '-' + Math.random().toString(36).substring(7),
+        restaurantId,
       },
     });
     res.status(201).json(category);
   } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte skapa kategori' });
+    res.status(400).json({ error: err.message });
   }
 });
 
-router.patch('/:restaurantId/categories/:categoryId', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const payload = categorySchema.partial().parse(req.body);
-    const { categoryId } = req.params;
-    const category = await prisma.restaurantCategory.update({
-      where: { id: categoryId },
-      data: {
-        ...(payload as any), name: payload.name as string,
-      },
-    });
-    res.json(category);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte uppdatera kategori' });
-  }
-});
-
-router.delete('/:restaurantId/categories/:categoryId', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { categoryId } = req.params;
-    await prisma.restaurantCategory.delete({ where: { id: categoryId } });
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte radera kategori' });
-  }
-});
-
-// Admin: items
 router.post('/:restaurantId/items', authenticate, async (req: AuthRequest, res) => {
   try {
-    const payload = itemSchema.parse(req.body);
-    const item = await prisma.restaurantItem.create({
+    const { categoryId, name, description, price } = req.body;
+    const item = await prisma.product.create({
       data: {
-        categoryId: payload.categoryId,
-        name: payload.name,
-        description: payload.description,
-        price: kr(payload.price),
-        imageUrl: payload.imageUrl,
-        tags: JSON.stringify(payload.tags ?? []),
-        isPopular: payload.isPopular ?? false,
+        categoryId,
+        name,
+        description,
+        slug: slugify(name) + '-' + Math.random().toString(36).substring(7),
+        price: kr(price),
       },
     });
     res.status(201).json(item);
   } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte skapa menyobjekt' });
-  }
-});
-
-router.patch('/:restaurantId/items/:itemId', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const payload = itemSchema.partial().parse(req.body);
-    const { itemId } = req.params;
-    const item = await prisma.restaurantItem.update({
-      where: { id: itemId },
-      data: {
-        ...(payload as any), name: payload.name as string,
-        ...(payload.price !== undefined ? { price: kr(payload.price) } : {}),
-        ...(payload.tags ? { tags: JSON.stringify(payload.tags) } : {}),
-      },
-    });
-    res.json(item);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Kunde inte uppdatera menyobjekt' });
-  }
-});
-
-router.delete('/:restaurantId/items/:itemId', authenticate, async (req: AuthRequest, res) => {
-  try {
-    const { itemId } = req.params;
-    await prisma.restaurantItem.delete({ where: { id: itemId } });
-    res.json({ success: true });
-  } catch (err: any) {
-    res.status(400).json({ error: 'Kunde inte radera menyobjekt' });
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -397,10 +295,24 @@ router.get('/:slug', async (req, res) => {
     const restaurant = await prisma.restaurant.findFirst({
       where: { slug },
       include: {
-        legacyCategories: {
+        categories: {
           orderBy: { position: 'asc' },
           include: { 
-            items: true
+            products: {
+              where: { isActive: true },
+              orderBy: { position: 'asc' },
+              include: {
+                extraGroups: {
+                  include: {
+                    extraGroup: {
+                      include: {
+                        extras: true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
       },
@@ -410,11 +322,7 @@ router.get('/:slug', async (req, res) => {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    return res.json({
-      ...formatRestaurant(restaurant, true),
-      canOrderOnline: true,
-      menuSource: 'unified',
-    });
+    return res.json(formatRestaurant(restaurant, true));
   } catch (error) {
     console.error('Error fetching restaurant', error);
     res.status(500).json({ error: 'Kunde inte hämta restaurang' });

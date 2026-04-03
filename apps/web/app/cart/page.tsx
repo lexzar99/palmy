@@ -485,8 +485,11 @@ const CartPage = () => {
 
 
   const handleUpsellSelect = (product: MenuProduct & { displayName: string }) => {
+    const currentRestaurantId = useCartStore.getState().restaurantId || "palmyra";
+    
     addItem({
       productId: product.id,
+      restaurantId: currentRestaurantId,
       name: product.displayName,
       price: product.price,
       quantity: 1,
