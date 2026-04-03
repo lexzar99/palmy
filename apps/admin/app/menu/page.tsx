@@ -168,7 +168,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/products`, productForm, {
+        await axios.post(`${API_URL}/api/admin/products`, { ...productForm, restaurantId: selectedRestaurantId }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
