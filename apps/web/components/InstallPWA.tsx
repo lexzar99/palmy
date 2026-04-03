@@ -75,13 +75,13 @@ const InstallPWA = () => {
         exit={{ y: 100, opacity: 0 }}
         className="fixed bottom-6 left-6 right-6 z-[200] md:left-auto md:right-8 md:max-w-sm"
       >
-        <div className="bg-white border border-light-400 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden premium-shadow">
+        <div className="bg-zinc-900 border border-white/5 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden shadow-xl">
           {/* Subtle glow */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gold-500" />
           
           <button 
             onClick={handleDismiss}
-            className="absolute top-4 right-4 p-1 text-dark-sub/30 hover:text-dark-text transition-colors"
+            className="absolute top-4 right-4 p-1 text-zinc-400/30 hover:text-zinc-100 transition-colors"
           >
             <X size={20} />
           </button>
@@ -91,10 +91,10 @@ const InstallPWA = () => {
               P
             </div>
             <div>
-              <h3 className="text-lg font-black tracking-tight text-dark-text uppercase italic">
+              <h3 className="text-lg font-black tracking-tight text-zinc-100 uppercase italic">
                 Installera MatGo
               </h3>
-              <p className="text-dark-sub text-sm leading-relaxed font-medium">
+              <p className="text-zinc-400 text-sm leading-relaxed font-medium">
                 Appen funkar bäst när du lägger till den på hemskärmen!
               </p>
             </div>
@@ -102,20 +102,20 @@ const InstallPWA = () => {
 
           <div className="space-y-4">
             {isIOS ? (
-              <div className="bg-light-200 rounded-2xl p-4 border border-light-400">
-                <p className="text-xs font-bold text-dark-sub flex items-center gap-2 mb-2 uppercase tracking-wider">
+              <div className="bg-zinc-950 rounded-2xl p-4 border border-white/5">
+                <p className="text-xs font-bold text-zinc-400 flex items-center gap-2 mb-2 uppercase tracking-wider">
                   Hur man installerar på iPhone:
                 </p>
-                <ol className="text-xs text-dark-sub/80 space-y-3">
+                <ol className="text-xs text-zinc-400/80 space-y-3">
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-light-300 flex items-center justify-center shrink-0 border border-light-400">
+                    <div className="w-6 h-6 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 border border-white/5">
                       <Share size={14} className="text-blue-500" />
                     </div>
                     <span>Tryck på <strong>Delningsknappen</strong> i Safari</span>
                   </li>
                   <li className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-light-300 flex items-center justify-center shrink-0 border border-light-400">
-                      <Plus size={14} className="text-dark-text" />
+                    <div className="w-6 h-6 rounded-lg bg-zinc-800/50 flex items-center justify-center shrink-0 border border-white/5">
+                      <Plus size={14} className="text-zinc-100" />
                     </div>
                     <span>Välj <strong>Lägg till på hemskärmen</strong></span>
                   </li>
@@ -130,7 +130,7 @@ const InstallPWA = () => {
               </button>
             )}
             
-            <p className="text-[9px] text-center text-dark-sub/40 font-black uppercase tracking-widest">
+            <p className="text-[9px] text-center text-zinc-400/40 font-black uppercase tracking-widest">
               Snabbt • Enkelt • Bulletproof
             </p>
           </div>

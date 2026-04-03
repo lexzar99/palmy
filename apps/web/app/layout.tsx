@@ -16,7 +16,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#e8e8ea",
+  themeColor: "#18181b",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body className={`${outfit.className} text-dark-text bg-light-200 min-h-screen antialiased`}>
+      <body className={`${outfit.className} text-zinc-100 bg-zinc-900 min-h-screen antialiased`}>
         <ServiceWorkerRegister />
         <main>{children}</main>
         <BottomNav />

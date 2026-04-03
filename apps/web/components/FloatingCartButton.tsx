@@ -32,10 +32,10 @@ const FloatingCartButton = () => {
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className="fixed bottom-28 right-6 z-[55] max-w-xs rounded-[1.75rem] border border-light-400 bg-white/95 px-5 py-4 premium-shadow backdrop-blur-xl"
+            className="fixed bottom-28 right-6 z-[55] max-w-xs rounded-[1.75rem] border border-white/5 bg-white/95 px-5 py-4 shadow-xl backdrop-blur-xl"
           >
             <div className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Tillagd i korgen</div>
-            <div className="text-sm font-black text-dark-text">{lastAddedItemName}</div>
+            <div className="text-sm font-black text-zinc-100">{lastAddedItemName}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -50,7 +50,7 @@ const FloatingCartButton = () => {
           className="flex items-center justify-between rounded-2xl border border-gold-400/50 bg-gold-500 px-5 py-3.5 shadow-xl shadow-gold-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-gold-600 premium-shadow">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-gold-600 shadow-xl">
               <ShoppingBag size={20} />
             </div>
             <div>
@@ -58,7 +58,7 @@ const FloatingCartButton = () => {
               <div className="text-sm font-black text-white leading-none">{count} st · {total.toFixed(0)} kr</div>
             </div>
           </div>
-          <div className="bg-white p-2.5 rounded-xl premium-shadow">
+          <div className="bg-zinc-900 p-2.5 rounded-xl shadow-xl">
             <ArrowRight size={18} className="text-gold-600" />
           </div>
         </Link>

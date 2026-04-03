@@ -126,17 +126,17 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-6 bg-light-200/90 backdrop-blur-xl"
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-6 bg-zinc-950/90 backdrop-blur-xl"
     >
       <motion.div
         initial={{ scale: 0.95, y: 10 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 10 }}
-        className="w-full max-w-xl bg-white border border-light-400 rounded-[2rem] overflow-hidden shadow-2xl relative mb-[env(safe-area-inset-bottom)]"
+        className="w-full max-w-xl bg-zinc-900 border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl relative mb-[env(safe-area-inset-bottom)]"
       >
         <button 
           onClick={onClose}
-          className="absolute top-6 right-6 p-3 bg-light-200 hover:bg-gold-500 text-dark-text rounded-full transition-all z-[100] shadow-xl active:scale-95"
+          className="absolute top-6 right-6 p-3 bg-zinc-950 hover:bg-gold-500 text-zinc-100 rounded-full transition-all z-[100] shadow-xl active:scale-95"
           aria-label="Stäng"
         >
           <X size={24} strokeWidth={3} />
@@ -144,7 +144,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
 
         <div className="max-h-[90dvh] overflow-y-auto no-scrollbar">
           {product.imageUrl && (
-            <div className="w-full h-56 md:h-64 bg-light-300 relative">
+            <div className="w-full h-56 md:h-64 bg-zinc-800/50 relative">
               <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent" />
             </div>
@@ -152,8 +152,8 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
 
           <div className="p-5 md:p-10">
 
-            <h2 className="text-3xl md:text-5xl font-black mb-3 tracking-tight text-dark-text uppercase">{product.name}</h2>
-            <p className="text-dark-sub text-lg mb-8 leading-relaxed font-medium">{product.description}</p>
+            <h2 className="text-3xl md:text-5xl font-black mb-3 tracking-tight text-zinc-100 uppercase">{product.name}</h2>
+            <p className="text-zinc-400 text-lg mb-8 leading-relaxed font-medium">{product.description}</p>
 
             <div className="space-y-12 mb-12">
               {[...(product.extraGroups || [])].sort((a, b) => {
@@ -171,7 +171,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
                 <div key={group.id}>
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h3 className="text-xl font-black uppercase tracking-wider text-dark-text">{group.name}</h3>
+                      <h3 className="text-xl font-black uppercase tracking-wider text-zinc-100">{group.name}</h3>
                       {group.required && (
                         <span className="text-[10px] bg-gold-500/20 text-gold-600 px-2 py-0.5 rounded-full font-black">OBLIGATORISK</span>
                       )}
@@ -187,7 +187,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
                           className={`group flex items-center justify-between p-4 rounded-2xl border transition-all ${
                             isSelected 
                               ? 'bg-gold-500/10 border-gold-500 text-gold-600' 
-                              : 'bg-light-200 border-light-400 text-dark-sub hover:border-gold-500/30'
+                              : 'bg-zinc-950 border-white/5 text-zinc-400 hover:border-gold-500/30'
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -211,13 +211,13 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
 
             {/* Note Field */}
             <div className="mb-12">
-              <label className="block text-dark-sub/50 text-[10px] uppercase font-black tracking-widest mb-3">Speciella önskemål för denna produkt</label>
+              <label className="block text-zinc-400/50 text-[10px] uppercase font-black tracking-widest mb-3">Speciella önskemål för denna produkt</label>
               <textarea 
                 rows={2} 
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="T.ex. utan lök, extra välgräddad..."
-                className="w-full bg-light-200 border border-light-400 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none resize-none font-bold text-dark-text placeholder:text-dark-sub/30"
+                className="w-full bg-zinc-950 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none resize-none font-bold text-zinc-100 placeholder:text-zinc-400/30"
               />
             </div>
 
@@ -227,18 +227,18 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
               </div>
             )}
 
-            <div className="sticky bottom-0 bg-white pt-8 pb-4 mt-8 flex flex-col md:flex-row items-center gap-6 border-t border-light-400">
-              <div className="flex items-center gap-6 bg-light-200 p-2 px-6 rounded-2xl border border-light-400 premium-shadow">
+            <div className="sticky bottom-0 bg-zinc-900 pt-8 pb-4 mt-8 flex flex-col md:flex-row items-center gap-6 border-t border-white/5">
+              <div className="flex items-center gap-6 bg-zinc-950 p-2 px-6 rounded-2xl border border-white/5 shadow-xl">
                 <button 
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="p-2 hover:bg-light-300 rounded-xl transition-colors text-dark-text"
+                  className="p-2 hover:bg-zinc-800/50 rounded-xl transition-colors text-zinc-100"
                 >
                   <Minus size={20} />
                 </button>
-                <span className="text-2xl font-black w-4 text-center text-dark-text">{quantity}</span>
+                <span className="text-2xl font-black w-4 text-center text-zinc-100">{quantity}</span>
                 <button 
                   onClick={() => setQuantity(quantity + 1)}
-                  className="p-2 hover:bg-light-300 rounded-xl transition-colors text-dark-text"
+                  className="p-2 hover:bg-zinc-800/50 rounded-xl transition-colors text-zinc-100"
                 >
                   <Plus size={20} />
                 </button>

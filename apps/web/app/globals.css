@@ -5,16 +5,7 @@
   --color-gold-500: #fcc419;
   --color-gold-600: #f08c00;
 
-  /* Premium Soft Gray Theme Palette */
-  --color-light-100: #ffffff;
-  --color-light-200: #e8e8ea; /* Softer, slightly darker background */
-  --color-light-300: #d8d8dc;
-  --color-light-400: #c5c5c9;
-  --color-light-500: #b0b0b5;
-  
-  --color-dark-text: #212529;
-  --color-dark-sub: #495057;
-
+  /* Premium Dark Gray Theme Palette */
   --color-sky-500: #339af0;
   --color-coral-500: #ff6b6b;
   --color-lime-500: #51cf66;
@@ -23,17 +14,17 @@
 @layer base {
   body {
     background: 
-      radial-gradient(at 0% 0%, color-mix(in srgb, var(--color-gold-500) 5%, transparent) 0%, transparent 50%),
+      radial-gradient(at 0% 0%, color-mix(in srgb, var(--color-gold-500) 8%, transparent) 0%, transparent 60%),
       radial-gradient(at 100% 0%, color-mix(in srgb, var(--color-sky-500) 5%, transparent) 0%, transparent 50%),
-      var(--color-light-200);
-    color: var(--color-dark-text);
+      #18181b; /* zinc-900 */
+    color: #f4f4f5; /* zinc-100 */
     min-height: 100vh;
   }
 }
 
 /* Custom shadow for premium cards */
 .premium-shadow {
-  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
 }
 
 .no-scrollbar::-webkit-scrollbar {

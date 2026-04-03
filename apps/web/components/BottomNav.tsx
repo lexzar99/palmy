@@ -18,7 +18,7 @@ const BottomNav = () => {
   ];
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-2xl bg-white border border-light-400 px-6 py-3 text-dark-text premium-shadow z-50">
+    <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-2xl bg-zinc-900 border border-white/5 px-6 py-3 text-zinc-100 shadow-xl z-50">
       {links.map(({ href, icon: Icon, label }) => {
         const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]);
         const isCart = href === "/cart";
@@ -27,7 +27,7 @@ const BottomNav = () => {
             key={href}
             href={href}
             className={`relative flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-              isActive ? "text-gold-600 scale-110" : "text-dark-sub/50 hover:text-dark-text"
+              isActive ? "text-gold-600 scale-110" : "text-zinc-400/50 hover:text-zinc-100"
             }`}
           >
             <div className="relative">

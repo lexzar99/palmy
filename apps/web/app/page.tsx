@@ -125,7 +125,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen text-dark-text bg-light-200">
+    <div className="min-h-screen text-zinc-100 bg-zinc-950">
       <div className="relative mx-auto max-w-2xl px-4 pb-32 pt-8">
 
         {/* Header */}
@@ -137,19 +137,19 @@ export default function HomePage() {
                 Vad vill du <span className="text-gold-600">äta</span>?
               </h1>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-400/20 border border-gold-500/20 text-gold-600 premium-shadow">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-400/20 border border-gold-500/20 text-gold-600 shadow-xl">
               <Sparkles size={22} />
             </div>
           </div>
 
           {/* Order type toggle */}
-          <div className="flex items-center gap-2 mb-6 p-1 bg-light-300 rounded-2xl border border-light-400 premium-shadow">
+          <div className="flex items-center gap-2 mb-6 p-1 bg-zinc-800/50 rounded-2xl border border-white/5 shadow-xl">
             <button
               onClick={() => toggleOrderType("DELIVERY")}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                 orderType === "DELIVERY"
                   ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
-                  : "text-dark-sub hover:text-dark-text"
+                  : "text-zinc-400 hover:text-zinc-100"
               }`}
             >
               <Truck size={16} />
@@ -160,7 +160,7 @@ export default function HomePage() {
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                 orderType === "PICKUP"
                   ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
-                  : "text-dark-sub hover:text-dark-text"
+                  : "text-zinc-400 hover:text-zinc-100"
               }`}
             >
               <Store size={16} />
@@ -170,18 +170,18 @@ export default function HomePage() {
 
           {/* Address + search */}
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-center gap-3 rounded-xl bg-white border border-light-400 px-4 py-3.5 focus-within:border-gold-500 transition-all premium-shadow">
+            <div className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-4 py-3.5 focus-within:border-gold-500 transition-all shadow-xl">
               <MapPin className="text-gold-500 shrink-0" size={16} />
               <input
                 value={address}
                 onChange={(e) => saveAddress(e.target.value)}
                 placeholder={orderType === "DELIVERY" ? "Din leveransadress..." : "Ange stad eller område..."}
-                className="w-full bg-transparent text-sm placeholder:text-dark-sub/30 focus:outline-none font-bold text-dark-text"
+                className="w-full bg-transparent text-sm placeholder:text-zinc-400/30 focus:outline-none font-bold text-zinc-100"
               />
             </div>
-            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-white border border-light-400 px-4 py-3.5 hover:border-gold-500 transition-all cursor-pointer premium-shadow">
-              <Search size={16} className="text-dark-sub/30 shrink-0" />
-              <span className="text-sm text-dark-sub/30 font-bold">Sök restaurang eller rätt...</span>
+            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-4 py-3.5 hover:border-gold-500 transition-all cursor-pointer shadow-xl">
+              <Search size={16} className="text-zinc-400/30 shrink-0" />
+              <span className="text-sm text-zinc-400/30 font-bold">Sök restaurang eller rätt...</span>
             </Link>
           </div>
         </header>
@@ -196,7 +196,7 @@ export default function HomePage() {
                 className={`whitespace-nowrap flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all border ${
                   activeCuisine === c.label
                     ? "bg-gold-500 text-white border-gold-500 shadow-lg shadow-gold-500/10"
-                    : "bg-white text-dark-sub/60 border-light-400 hover:bg-light-300"
+                    : "bg-zinc-900 text-zinc-400/60 border-white/5 hover:bg-zinc-800/50"
                 }`}
               >
                 <span>{c.emoji}</span>
@@ -212,7 +212,7 @@ export default function HomePage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Flame size={16} className="text-gold-600" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-dark-text">Populära val</h2>
+                <h2 className="text-sm font-black uppercase tracking-widest text-zinc-100">Populära val</h2>
               </div>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
@@ -220,7 +220,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
-                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-light-400 hover:border-gold-500/30 transition-all shadow-xl premium-shadow"
+                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl shadow-xl"
                 >
                   {/* Cover image */}
                   <div className="h-36 w-full bg-white/5 relative overflow-hidden">
@@ -246,19 +246,19 @@ export default function HomePage() {
                     {r.isOpen !== false && (
                       <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         <div className="px-2 py-0.5 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
-                          <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                          <div className="w-1 h-1 rounded-full bg-zinc-900 animate-pulse" />
                            Öppet
                         </div>
                       </div>
                     )}
                   </div>
                   {/* Info */}
-                  <div className="p-3 bg-white">
-                    <div className="font-black uppercase tracking-tighter text-sm group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-dark-text">
+                  <div className="p-3 bg-zinc-900">
+                    <div className="font-black uppercase tracking-tighter text-sm group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-zinc-100">
                       {r.name}
                     </div>
-                    <p className="text-[10px] text-dark-sub mb-2 font-bold uppercase">{r.cuisine}</p>
-                    <div className="flex items-center gap-3 text-[9px] text-dark-sub/50 font-black uppercase">
+                    <p className="text-[10px] text-zinc-400 mb-2 font-bold uppercase">{r.cuisine}</p>
+                    <div className="flex items-center gap-3 text-[9px] text-zinc-400/50 font-black uppercase">
                       <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
                       <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr</span>
                     </div>
@@ -271,18 +271,18 @@ export default function HomePage() {
 
         {/* All restaurants – Foodora style */}
         <section>
-          <h2 className="text-sm font-black uppercase tracking-widest text-dark-sub/50 mb-4">
+          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400/50 mb-4">
             {activeCuisine === "Alla" ? "Alla restauranger" : activeCuisine} · {filtered.length} st
           </h2>
 
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 rounded-2xl bg-white animate-pulse border border-light-400" />
+                <div key={i} className="h-32 rounded-2xl bg-zinc-900 animate-pulse border border-white/5" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-dark-sub/30">
+            <div className="text-center py-16 text-zinc-400/30">
               <p className="text-4xl mb-4">😕</p>
               <p className="font-black uppercase tracking-widest">Inga restauranger hittades</p>
             </div>
@@ -292,7 +292,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
-                  className="group flex overflow-hidden rounded-2xl bg-white border border-light-400 hover:border-gold-500/20 transition-all premium-shadow"
+                  className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all shadow-xl"
                 >
                   {/* Cover image */}
                   <div className="w-28 h-28 shrink-0 relative overflow-hidden">
@@ -303,7 +303,7 @@ export default function HomePage() {
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-light-300 text-4xl">🍽️</div>
+                      <div className="h-full w-full flex items-center justify-center bg-zinc-800/50 text-4xl">🍽️</div>
                     )}
                     {r.isOpen === false && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -315,19 +315,19 @@ export default function HomePage() {
                   {/* Info */}
                   <div className="flex-1 px-4 py-3 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <h3 className="font-black uppercase tracking-tighter leading-tight group-hover:text-gold-600 transition-colors truncate text-dark-text">
+                      <h3 className="font-black uppercase tracking-tighter leading-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
                         {r.name}
                       </h3>
                       <div className="flex items-center gap-0.5 shrink-0 text-gold-600 text-[10px] font-black">
                         <Star size={11} className="fill-gold-600" />
                         {(r.rating ?? 4.6).toFixed(1)}
-                        <span className="text-dark-sub/50 ml-0.5 font-bold">({r.ratingCount ?? 120})</span>
+                        <span className="text-zinc-400/50 ml-0.5 font-bold">({r.ratingCount ?? 120})</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-dark-sub font-bold uppercase line-clamp-1 mb-2">
+                    <p className="text-[10px] text-zinc-400 font-bold uppercase line-clamp-1 mb-2">
                       {r.description || r.cuisine}
                     </p>
-                    <div className="flex items-center gap-3 text-[9px] text-dark-sub/40 font-black uppercase">
+                    <div className="flex items-center gap-3 text-[9px] text-zinc-400/40 font-black uppercase">
                       <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
                       <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr leverans</span>
                       {(r.minOrderAmount ?? 0) > 0 && (
@@ -338,7 +338,7 @@ export default function HomePage() {
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <div className="flex flex-wrap gap-1">
                           {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
-                            <span key={tag} className="text-[8px] font-black text-dark-sub/40 bg-light-300 px-1.5 py-0.5 rounded-full uppercase">
+                            <span key={tag} className="text-[8px] font-black text-zinc-400/40 bg-zinc-800/50 px-1.5 py-0.5 rounded-full uppercase">
                               {tag}
                             </span>
                           ))}
@@ -367,13 +367,13 @@ export default function HomePage() {
         </section>
 
         {/* PWA promo */}
-        <section className="mt-12 rounded-2xl border border-light-400 bg-white p-6 flex items-center gap-4 premium-shadow">
+        <section className="mt-12 rounded-2xl border border-white/5 bg-zinc-900 p-6 flex items-center gap-4 shadow-xl">
           <div className="p-3 rounded-xl bg-gold-400/20 border border-gold-500/20 text-gold-600 shrink-0">
             <ArrowRight size={20} />
           </div>
           <div>
-            <p className="text-sm font-black uppercase tracking-tight text-dark-text">Installera MatGo</p>
-            <p className="text-[10px] text-dark-sub font-bold uppercase opacity-40">Snabb åtkomst till alla restauranger direkt från hemskärmen.</p>
+            <p className="text-sm font-black uppercase tracking-tight text-zinc-100">Installera MatGo</p>
+            <p className="text-[10px] text-zinc-400 font-bold uppercase opacity-40">Snabb åtkomst till alla restauranger direkt från hemskärmen.</p>
           </div>
         </section>
 
