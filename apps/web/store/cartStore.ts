@@ -39,12 +39,20 @@ export const useCartStore = create<CartStore>()(
       lastAddedAt: 0,
       addItem: (item) => set((state) => {
         const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
-        const newItems = isDifferentRestaurant 
-          ? [{ ...item, cartItemId: Math.random().toString(36).substr(2, 9) }]
-          : [...state.items, { ...item, cartItemId: Math.random().toString(36).substr(2, 9) }];
-          
+        
+        if (isDifferentRestaurant) {
+           // We expect the caller to have already confirmed this via window.confirm
+           // If they didn't, we still clear here to prevent mixed restaurants in one order
+           return {
+             items: [{ ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
+             restaurantId: item.restaurantId,
+             lastAddedItemName: item.name,
+             lastAddedAt: Date.now(),
+           };
+        }
+
         return {
-          items: newItems,
+          items: [...state.items, { ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
           restaurantId: item.restaurantId,
           lastAddedItemName: item.name,
           lastAddedAt: Date.now(),

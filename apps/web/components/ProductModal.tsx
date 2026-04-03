@@ -13,6 +13,9 @@ interface ProductModalProps {
 
 const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
+  const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
+  const cartItemsCount = useCartStore((state) => state.items.length);
+
   const [quantity, setQuantity] = useState(1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
   const [note, setNote] = useState("");
@@ -94,6 +97,10 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
         setSelectionError(`${group.name} tillåter högst ${group.maxSelections} val.`);
         return;
       }
+    }
+    if (cartItemsCount > 0 && currentCartRestaurantId !== restaurantId) {
+       const confirmChange = window.confirm("Du har redan artiklar i din varukorg från en annan restaurang. Vill du byta restaurang och tömma din aktuella varukorg?");
+       if (!confirmChange) return;
     }
 
     addItem({

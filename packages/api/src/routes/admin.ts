@@ -703,7 +703,7 @@ router.post('/extra-groups', async (req, res) => {
           extras: {
             create: extras.map((e: any, i: number) => ({
               name: e.name,
-              priceAddon: Math.round((e.priceAddon || 0) * 100),
+              priceAddon: Math.round(Number(e.priceAddon || 0) * 100),
               isDefault: e.isDefault || false,
               position: i,
             })),

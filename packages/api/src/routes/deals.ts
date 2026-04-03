@@ -10,6 +10,10 @@ router.get('/', async (_req, res) => {
       where: {
         showOnSite: true,
         isActive: true,
+        OR: [
+          { restaurantId: null },
+          { isGlobal: true }
+        ]
       },
       orderBy: [
         { sortOrder: 'asc' },

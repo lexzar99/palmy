@@ -34,6 +34,7 @@ router.get('/', async (_req, res) => {
       estimatedPickupTime: settings.estimatedPickupTime,
       estimatedDeliveryTime: settings.estimatedDeliveryTime,
       notificationSound: settings.notificationSound,
+      phone: settings.phone,
       openingHours: parseOpeningHours(settings.openingHours as string),
     });
   } catch {
@@ -68,6 +69,7 @@ router.patch('/', authenticate, async (req, res) => {
         estimatedPickupTime: estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME,
         estimatedDeliveryTime: estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME,
         notificationSound: notificationSound ?? defaultRestaurantSettings.notificationSound,
+        phone: req.body.phone,
         openingHours: JSON.stringify(openingHours ?? defaultRestaurantSettings.openingHours),
       },
     });
@@ -80,6 +82,7 @@ router.patch('/', authenticate, async (req, res) => {
       estimatedPickupTime: settings.estimatedPickupTime,
       estimatedDeliveryTime: settings.estimatedDeliveryTime,
       notificationSound: settings.notificationSound,
+      phone: settings.phone,
       openingHours: parseOpeningHours(settings.openingHours),
     };
 

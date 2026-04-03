@@ -27,14 +27,14 @@ const restaurantSchema = z.object({
   phone: z.string().optional(),
   imageUrl: z.string().optional(),
   heroImageUrl: z.string().optional(),
-  deliveryFee: z.number().nonnegative().optional(),
-  minOrderAmount: z.number().nonnegative().optional(),
-  etaMinutes: z.number().int().positive().optional(),
+  deliveryFee: z.any().optional(),
+  minOrderAmount: z.any().optional(),
+  etaMinutes: z.any().optional(),
   tags: z.any().optional(),
-  featuredClass: z.number().int().min(1).max(3).optional(),
+  featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
-  rating: z.number().min(0).max(5).optional(),
-  ratingCount: z.number().int().nonnegative().optional(),
+  rating: z.any().optional(),
+  ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
 });
 
@@ -227,10 +227,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     
     // Explicitly handle fields that need conversion
     const data: any = { ...payload };
-    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(payload.deliveryFee);
-    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(payload.minOrderAmount);
-    if (payload.tags !== undefined) data.tags = JSON.stringify(payload.tags);
-    if (payload.openingHours !== undefined) data.openingHours = JSON.stringify(payload.openingHours);
+    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(Number(payload.deliveryFee));
+    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(Number(payload.minOrderAmount));
+    if (payload.tags !== undefined) data.tags = typeof payload.tags === 'string' ? payload.tags : JSON.stringify(payload.tags);
+    if (payload.openingHours !== undefined) data.openingHours = typeof payload.openingHours === 'string' ? payload.openingHours : JSON.stringify(payload.openingHours);
 
     const restaurant = await prisma.restaurant.update({
       where: { id },

@@ -216,6 +216,7 @@ model Deal {
   validFrom          DateTime?
   validUntil         DateTime?
   sortOrder          Int      @default(0)
+  isGlobal           Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
@@ -249,6 +250,7 @@ model RestaurantSettings {
   estimatedPickupTime  Int @default(20)  // minuter
   estimatedDeliveryTime Int @default(35) // minuter
   notificationSound String @default("signal-1")
+  phone           String?
   
   // Öppettider (JSON stored as string)
   openingHours    String    @default("{}")

@@ -126,6 +126,9 @@ export default function RestaurantsPage() {
     try {
       const payload = {
         ...form,
+        deliveryFee: Number(form.deliveryFee),
+        minOrderAmount: Number(form.minOrderAmount),
+        etaMinutes: Number(form.etaMinutes),
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags) : form.tags,
         openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours) : form.openingHours,
       };
@@ -257,7 +260,7 @@ export default function RestaurantsPage() {
                     </div>
 
                     {/* Featured Badge */}
-                    <div className="absolute top-4 right-6">
+                    <div className="absolute top-4 right-6 flex flex-col items-end gap-2">
                        <span className={`rounded-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest ${
                          r.featuredClass === 1 ? "bg-gold-500 text-dark-500 shadow-[0_0_20px_rgba(212,167,74,0.4)]" : 
                          r.featuredClass === 2 ? "bg-white/10 text-white/50 backdrop-blur-md" : 
