@@ -5,12 +5,12 @@
   --color-gold-500: #fcc419;
   --color-gold-600: #f08c00;
 
-  /* Premium Light Theme Palette */
+  /* Premium Soft Gray Theme Palette */
   --color-light-100: #ffffff;
-  --color-light-200: #f8f9fa;
-  --color-light-300: #f1f3f5;
-  --color-light-400: #e9ecef;
-  --color-light-500: #dee2e6;
+  --color-light-200: #e8e8ea; /* Softer, slightly darker background */
+  --color-light-300: #d8d8dc;
+  --color-light-400: #c5c5c9;
+  --color-light-500: #b0b0b5;
   
   --color-dark-text: #212529;
   --color-dark-sub: #495057;
