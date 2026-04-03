@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Plus, Minus, Check, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import ConfirmModal from "./ConfirmModal";
 
 interface ProductModalProps {
   product: any;
@@ -20,6 +21,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
   const [note, setNote] = useState("");
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Initialisera förvalda extran
   useEffect(() => {
@@ -99,10 +101,14 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
       }
     }
     if (cartItemsCount > 0 && currentCartRestaurantId !== restaurantId) {
-       const confirmChange = window.confirm("Du har redan artiklar i din varukorg från en annan restaurang. Vill du byta restaurang och tömma din aktuella varukorg?");
-       if (!confirmChange) return;
+       setShowConfirmModal(true);
+       return;
     }
 
+    performAddToCart();
+  };
+
+  const performAddToCart = () => {
     addItem({
       productId: product.id,
       restaurantId,
@@ -251,6 +257,16 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
             </div>
           </div>
         </div>
+
+        <ConfirmModal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={performAddToCart}
+          title="Byt restaurang?"
+          message="Du har redan artiklar i din varukorg från en annan restaurang. Vill du byta restaurang och tömma din aktuella varukorg?"
+          confirmText="Ja, töm och lägg till"
+          cancelText="Nej, behåll befintlig"
+        />
       </motion.div>
     </motion.div>
   );

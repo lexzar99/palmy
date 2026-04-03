@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
-import ShootingStars from "@/components/ShootingStars";
 import InstallPWA from "@/components/InstallPWA";
 import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
@@ -28,7 +27,6 @@ export default function RootLayout({
   return (
     <html lang="sv">
       <body className={`${outfit.className} text-white min-h-screen antialiased`}>
-        <ShootingStars />
         <ServiceWorkerRegister />
         <main>{children}</main>
         <BottomNav />

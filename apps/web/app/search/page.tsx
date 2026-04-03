@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
-import { Search as SearchIcon, Star, Clock, Bike, ChevronRight, Utensils } from "lucide-react";
+import { Search as SearchIcon, Star, Clock, Bike, ChevronRight, Utensils, Phone } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Restaurant {
@@ -21,6 +21,7 @@ interface Restaurant {
   minOrderAmount?: number;
   etaMinutes?: number;
   isOpen?: boolean;
+  phone?: string;
 }
 
 export default function SearchPage() {
@@ -108,6 +109,27 @@ export default function SearchPage() {
                          <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes || 30} min</span>
                          <span className="flex items-center gap-1 text-gold-500/80"><Star size={10} className="fill-gold-500/80 translate-y-[-0.5px]" />{(r.rating || 4.6).toFixed(1)}</span>
                        </div>
+                       <div className="flex items-center gap-1.5 mt-3">
+                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                          r.isOpen !== false 
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+                          {r.isOpen !== false ? "Öppet" : "Stängt"}
+                        </div>
+                        {r.isOpen !== false && r.phone && (
+                          <div 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              window.location.href = `tel:${r.phone}`;
+                            }}
+                            className="p-1.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 transition-colors pointer-events-auto"
+                          >
+                            <Phone size={10} />
+                          </div>
+                        )}
+                      </div>
                      </div>
                      <div className="flex items-center text-white/10 group-hover:text-gold-500 pr-2">
                        <ChevronRight size={20} />

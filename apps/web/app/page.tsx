@@ -17,6 +17,7 @@ import {
   Flame,
   Sparkles,
   ArrowRight,
+  Phone,
 } from "lucide-react";
 
 interface Restaurant {
@@ -36,6 +37,7 @@ interface Restaurant {
   isOpen?: boolean;
   featuredClass?: number;
   tags?: string[];
+  phone?: string;
 }
 
 const cuisineFilters = [
@@ -241,6 +243,25 @@ export default function HomePage() {
                       <Star size={10} className="fill-gold-500 text-gold-500" />
                       <span className="text-[9px] font-black text-white">{(r.rating ?? 4.6).toFixed(1)}</span>
                     </div>
+                    {r.isOpen !== false && (
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        <div className="px-2 py-0.5 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                          <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                          Öppet
+                        </div>
+                        {r.phone && (
+                          <div 
+                            onClick={(e) => {
+                              e.preventDefault();
+                              window.location.href = `tel:${r.phone}`;
+                            }}
+                            className="p-1.5 rounded-full bg-sky-500/80 backdrop-blur-sm text-white hover:bg-sky-600 transition-colors shadow-lg pointer-events-auto"
+                          >
+                            <Phone size={10} />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   {/* Info */}
                   <div className="p-3 bg-white/[0.03]">
@@ -325,12 +346,35 @@ export default function HomePage() {
                       )}
                     </div>
                     {r.tags && (Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
-                          <span key={tag} className="text-[8px] font-bold text-white/20 bg-white/5 px-1.5 py-0.5 rounded-full">
-                            {tag}
-                          </span>
-                        ))}
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
+                            <span key={tag} className="text-[8px] font-bold text-white/20 bg-white/5 px-1.5 py-0.5 rounded-full">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                            r.isOpen !== false 
+                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
+                              : "bg-red-500/10 text-red-400 border border-red-500/20"
+                          }`}>
+                            <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+                            {r.isOpen !== false ? "Öppet" : "Stängt"}
+                          </div>
+                          {r.isOpen !== false && r.phone && (
+                            <div 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.location.href = `tel:${r.phone}`;
+                              }}
+                              className="p-1.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 transition-colors pointer-events-auto"
+                            >
+                              <Phone size={10} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
