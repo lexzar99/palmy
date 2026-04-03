@@ -1,0 +1,16 @@
+<svg width="200" height="250" viewBox="0 0 200 250" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Kebab Spit Body (Triangle) -->
+  <path d="M20 60L180 60L100 240L20 60Z" fill="#D4A74A" />
+  <path d="M30 75H170M35 100H165M45 130H155M55 160H145M70 190H130M85 215H115" stroke="black" stroke-width="6" stroke-linecap="round"/>
+  
+  <!-- Crown on Top -->
+  <path d="M100 10L125 40L160 20L150 60H50L40 20L75 40L100 10Z" fill="#D4A74A" stroke="#B8860B" stroke-width="2"/>
+  <circle cx="100" cy="10" r="4" fill="#B8860B"/>
+  <circle cx="160" cy="20" r="4" fill="#B8860B"/>
+  <circle cx="40" cy="20" r="4" fill="#B8860B"/>
+
+  <!-- Vertical PALMYRA Text (Simulated with paths for the shape) -->
+  <g transform="translate(100, 140)" text-anchor="middle" font-family="Arial Black, sans-serif" font-weight="900" fill="black">
+    <text y="-55" font-size="22" transform="scale(1.2, 1)">PALMYRA</text>
+  </g>
+</svg>
