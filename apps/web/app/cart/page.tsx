@@ -135,6 +135,7 @@ const CartPage = () => {
   const router = useRouter();
 
   const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
+  const [addressPrefilled, setAddressPrefilled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
@@ -154,6 +155,20 @@ const CartPage = () => {
     deliveryZip: "",
     note: "",
   });
+
+  // Pre-fill from homepage selections
+  useEffect(() => {
+    if (typeof window !== "undefined" && !addressPrefilled) {
+      const savedType = localStorage.getItem("platform_order_type");
+      if (savedType === "PICKUP" || savedType === "DELIVERY") setOrderType(savedType);
+      const savedAddress = localStorage.getItem("platform_address");
+      if (savedAddress) {
+        const parts = savedAddress.split(",").map(s => s.trim());
+        setFormData(prev => ({ ...prev, deliveryStreet: parts[0] || prev.deliveryStreet }));
+      }
+      setAddressPrefilled(true);
+    }
+  }, [addressPrefilled]);
 
   const [restaurantSettings, setRestaurantSettings] = useState({
     isOpen: true,

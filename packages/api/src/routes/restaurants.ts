@@ -150,7 +150,7 @@ const seedRestaurants = async () => {
       ratingCount: 230,
       isFeatured: true,
       tags: JSON.stringify(['Sushi', 'Poké', 'Japanskt']),
-      categories: {
+      legacyCategories: {
         create: [
           {
             name: 'Signaturrätter',
@@ -183,7 +183,7 @@ const seedRestaurants = async () => {
       rating: 4.5,
       ratingCount: 180,
       tags: JSON.stringify(['Kebab', 'Halal', 'Durum']),
-      categories: {
+      legacyCategories: {
         create: [
           {
             name: 'Klassiker',
@@ -222,24 +222,11 @@ router.get('/', async (req, res) => {
       ],
       include: includeMenu
         ? { 
-            categories: { 
+            legacyCategories: { 
               orderBy: { position: 'asc' }, 
               include: { 
-                products: { 
-                  orderBy: { position: 'asc' },
-                  include: {
-                    extraGroups: {
-                      include: {
-                        extraGroup: {
-                          include: {
-                            extras: true
-                          }
-                        }
-                      }
-                    }
-                  }
-                } 
-              } 
+                items: true 
+              }
             } 
           }
         : undefined,
@@ -260,7 +247,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     const restaurant = await prisma.restaurant.create({
       data: {
-        ...payload,
+        ...(payload as any), name: payload.name as string,
         slug,
         deliveryFee: kr(payload.deliveryFee ?? 0),
         minOrderAmount: kr(payload.minOrderAmount ?? 0),
@@ -285,7 +272,7 @@ router.patch('/:restaurantId', authenticate, async (req: AuthRequest, res) => {
     const restaurant = await prisma.restaurant.update({
       where: { id: restaurantId },
       data: {
-        ...payload,
+        ...(payload as any), name: payload.name as string,
         ...(payload.slug ? { slug: slugify(payload.slug) } : {}),
         ...(payload.deliveryFee !== undefined ? { deliveryFee: kr(payload.deliveryFee) } : {}),
         ...(payload.minOrderAmount !== undefined ? { minOrderAmount: kr(payload.minOrderAmount) } : {}),
@@ -335,7 +322,7 @@ router.patch('/:restaurantId/categories/:categoryId', authenticate, async (req: 
     const category = await prisma.restaurantCategory.update({
       where: { id: categoryId },
       data: {
-        ...payload,
+        ...(payload as any), name: payload.name as string,
       },
     });
     res.json(category);
@@ -382,7 +369,7 @@ router.patch('/:restaurantId/items/:itemId', authenticate, async (req: AuthReque
     const item = await prisma.restaurantItem.update({
       where: { id: itemId },
       data: {
-        ...payload,
+        ...(payload as any), name: payload.name as string,
         ...(payload.price !== undefined ? { price: kr(payload.price) } : {}),
         ...(payload.tags ? { tags: JSON.stringify(payload.tags) } : {}),
       },
@@ -410,23 +397,10 @@ router.get('/:slug', async (req, res) => {
     const restaurant = await prisma.restaurant.findFirst({
       where: { slug },
       include: {
-        categories: {
+        legacyCategories: {
           orderBy: { position: 'asc' },
           include: { 
-            products: { 
-              orderBy: { position: 'asc' },
-              include: {
-                extraGroups: {
-                  include: {
-                    extraGroup: {
-                      include: {
-                        extras: true
-                      }
-                    }
-                  }
-                }
-              }
-            } 
+            items: true
           }
         },
       },

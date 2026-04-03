@@ -1,50 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Mail, ShoppingBag, User } from "lucide-react";
+import { Home, Search, ShoppingBag, User } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useCartStore } from "@/store/cartStore";
 
 const BottomNav = () => {
   const pathname = usePathname();
+  const items = useCartStore((s) => s.items);
+  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+
+  const links = [
+    { href: "/", icon: Home, label: "Hem" },
+    { href: "/?search=1", icon: Search, label: "Sök" },
+    { href: "/cart", icon: ShoppingBag, label: "Kasse" },
+    { href: "/history", icon: User, label: "Profil" },
+  ];
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-xl bg-[#0d0d0d] border border-white/10 px-8 py-4 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50">
-      <Link 
-        href="/" 
-        className={`flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-          pathname === "/" ? "text-gold-500 scale-110" : "text-white/30 hover:text-white"
-        }`}
-      >
-        <Home size={20} />
-        Hem
-      </Link>
-      <Link 
-        href="/contact" 
-        className={`flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-          pathname === "/contact" ? "text-gold-500 scale-110" : "text-white/30 hover:text-white"
-        }`}
-      >
-        <Mail size={20} />
-        Kontakt
-      </Link>
-      <Link 
-        href="/cart" 
-        className={`flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-          pathname === "/cart" ? "text-gold-500 scale-110" : "text-white/30 hover:text-white"
-        }`}
-      >
-        <ShoppingBag size={20} />
-        Kasse
-      </Link>
-      <Link 
-        href="/history" 
-        className={`flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-          pathname === "/history" ? "text-gold-500 scale-110" : "text-white/30 hover:text-white"
-        }`}
-      >
-        <User size={20} />
-        Profil
-      </Link>
+    <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-2xl bg-[#0d0d0d] border border-white/10 px-6 py-3 text-white shadow-[0_20px_50px_rgba(0,0,0,0.6)] z-50">
+      {links.map(({ href, icon: Icon, label }) => {
+        const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]);
+        const isCart = href === "/cart";
+        return (
+          <Link
+            key={href}
+            href={href}
+            className={`relative flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
+              isActive ? "text-gold-500 scale-110" : "text-white/30 hover:text-white"
+            }`}
+          >
+            <div className="relative">
+              <Icon size={20} />
+              {isCart && totalItems > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-gold-500 text-dark-500 text-[8px] font-black px-1">
+                  {totalItems}
+                </span>
+              )}
+            </div>
+            {label}
+          </Link>
+        );
+      })}
     </div>
   );
 };

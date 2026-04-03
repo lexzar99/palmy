@@ -1,16 +1,15 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
-import "./globals.css";
 import ShootingStars from "@/components/ShootingStars";
 import InstallPWA from "@/components/InstallPWA";
-
+import BottomNav from "@/components/BottomNav";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Palmyra Lund | Din Favoritmat Direkt Hem",
-  description: "Beställ mat från Palmyra Pizzeria och andra lokala restauranger i Lund. Snabb leverans och smidig betalning.",
+  title: "MatGo | Beställ från dina favoritrestauranger",
+  description: "Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.",
 };
 
 export const viewport: Viewport = {
@@ -30,13 +29,9 @@ export default function RootLayout({
       <body className={`${outfit.className} text-white min-h-screen antialiased`} style={{ background: "#050505" }}>
         <ShootingStars />
         <main>{children}</main>
-        <footer className="border-t border-white/5 py-12 px-6 text-center text-white/40 text-sm relative" style={{ zIndex: 2 }}>
-          <p>© {new Date().getFullYear()} Palmyra Lund. Alla rättigheter förbehållna.</p>
-          <p className="mt-2">Kiliansgatan 14, 223 50 Lund | 046120612</p>
-        </footer>
+        <BottomNav />
         <InstallPWA />
       </body>
-
     </html>
   );
 }
