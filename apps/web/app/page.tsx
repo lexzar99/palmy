@@ -125,31 +125,31 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen text-white">
+    <div className="min-h-screen text-dark-text bg-light-200">
       <div className="relative mx-auto max-w-2xl px-4 pb-32 pt-8">
 
         {/* Header */}
         <header className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500/60 mb-1">Välkommen</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">Välkommen</p>
               <h1 className="text-3xl font-black tracking-tighter uppercase leading-none">
-                Vad vill du <span className="text-gold-500">äta</span>?
+                Vad vill du <span className="text-gold-600">äta</span>?
               </h1>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-500/10 border border-gold-500/20 text-gold-500">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-400/20 border border-gold-500/20 text-gold-600 premium-shadow">
               <Sparkles size={22} />
             </div>
           </div>
 
           {/* Order type toggle */}
-          <div className="flex items-center gap-2 mb-4 p-1 bg-white/5 rounded-2xl border border-white/5">
+          <div className="flex items-center gap-2 mb-6 p-1 bg-light-300 rounded-2xl border border-light-400 premium-shadow">
             <button
               onClick={() => toggleOrderType("DELIVERY")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                 orderType === "DELIVERY"
-                  ? "bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20"
-                  : "text-white/40 hover:text-white"
+                  ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
+                  : "text-dark-sub hover:text-dark-text"
               }`}
             >
               <Truck size={16} />
@@ -157,10 +157,10 @@ export default function HomePage() {
             </button>
             <button
               onClick={() => toggleOrderType("PICKUP")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                 orderType === "PICKUP"
-                  ? "bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20"
-                  : "text-white/40 hover:text-white"
+                  ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
+                  : "text-dark-sub hover:text-dark-text"
               }`}
             >
               <Store size={16} />
@@ -170,18 +170,18 @@ export default function HomePage() {
 
           {/* Address + search */}
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 focus-within:border-gold-500/30 transition-all">
+            <div className="flex items-center gap-3 rounded-xl bg-white border border-light-400 px-4 py-3.5 focus-within:border-gold-500 transition-all premium-shadow">
               <MapPin className="text-gold-500 shrink-0" size={16} />
               <input
                 value={address}
                 onChange={(e) => saveAddress(e.target.value)}
                 placeholder={orderType === "DELIVERY" ? "Din leveransadress..." : "Ange stad eller område..."}
-                className="w-full bg-transparent text-sm placeholder:text-white/20 focus:outline-none font-medium"
+                className="w-full bg-transparent text-sm placeholder:text-dark-sub/30 focus:outline-none font-bold text-dark-text"
               />
             </div>
-            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-white/5 border border-white/10 px-4 py-3.5 hover:border-gold-500/30 transition-all cursor-pointer">
-              <Search size={16} className="text-white/20 shrink-0" />
-              <span className="text-sm text-white/20 font-medium">Sök restaurang eller rätt...</span>
+            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-white border border-light-400 px-4 py-3.5 hover:border-gold-500 transition-all cursor-pointer premium-shadow">
+              <Search size={16} className="text-dark-sub/30 shrink-0" />
+              <span className="text-sm text-dark-sub/30 font-bold">Sök restaurang eller rätt...</span>
             </Link>
           </div>
         </header>
@@ -195,8 +195,8 @@ export default function HomePage() {
                 onClick={() => setActiveCuisine(c.label)}
                 className={`whitespace-nowrap flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all border ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-dark-500 border-gold-500 shadow-lg shadow-gold-500/10"
-                    : "bg-white/5 text-white/30 border-white/5 hover:bg-white/10"
+                    ? "bg-gold-500 text-white border-gold-500 shadow-lg shadow-gold-500/10"
+                    : "bg-white text-dark-sub/60 border-light-400 hover:bg-light-300"
                 }`}
               >
                 <span>{c.emoji}</span>
@@ -211,8 +211,8 @@ export default function HomePage() {
           <section className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <Flame size={16} className="text-gold-500" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-white/80">Populära val</h2>
+                <Flame size={16} className="text-gold-600" />
+                <h2 className="text-sm font-black uppercase tracking-widest text-dark-text">Populära val</h2>
               </div>
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
@@ -220,7 +220,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
-                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl"
+                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-light-400 hover:border-gold-500/30 transition-all shadow-xl premium-shadow"
                 >
                   {/* Cover image */}
                   <div className="h-36 w-full bg-white/5 relative overflow-hidden">
@@ -233,7 +233,7 @@ export default function HomePage() {
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-5xl">🍽️</div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     {r.isOpen === false && (
                       <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-red-400 text-[8px] font-black uppercase tracking-wider">
                         Stängt
@@ -241,7 +241,7 @@ export default function HomePage() {
                     )}
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-0.5">
                       <Star size={10} className="fill-gold-500 text-gold-500" />
-                      <span className="text-[9px] font-black text-white">{(r.rating ?? 4.6).toFixed(1)}</span>
+                      <span className="text-[9px] font-black text-white/90">{(r.rating ?? 4.6).toFixed(1)}</span>
                     </div>
                     {r.isOpen !== false && (
                       <div className="absolute top-2 left-2 flex items-center gap-1.5">
@@ -253,12 +253,12 @@ export default function HomePage() {
                     )}
                   </div>
                   {/* Info */}
-                  <div className="p-3 bg-white/[0.03]">
-                    <div className="font-black uppercase tracking-tight text-sm group-hover:text-gold-500 transition-colors leading-tight mb-0.5">
+                  <div className="p-3 bg-white">
+                    <div className="font-black uppercase tracking-tighter text-sm group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-dark-text">
                       {r.name}
                     </div>
-                    <p className="text-[10px] text-white/30 mb-2">{r.cuisine}</p>
-                    <div className="flex items-center gap-3 text-[9px] text-white/30 font-bold uppercase">
+                    <p className="text-[10px] text-dark-sub mb-2 font-bold uppercase">{r.cuisine}</p>
+                    <div className="flex items-center gap-3 text-[9px] text-dark-sub/50 font-black uppercase">
                       <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
                       <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr</span>
                     </div>
@@ -271,20 +271,20 @@ export default function HomePage() {
 
         {/* All restaurants – Foodora style */}
         <section>
-          <h2 className="text-sm font-black uppercase tracking-widest text-white/50 mb-4">
+          <h2 className="text-sm font-black uppercase tracking-widest text-dark-sub/50 mb-4">
             {activeCuisine === "Alla" ? "Alla restauranger" : activeCuisine} · {filtered.length} st
           </h2>
 
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 rounded-2xl bg-white/5 animate-pulse" />
+                <div key={i} className="h-32 rounded-2xl bg-white animate-pulse border border-light-400" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-white/30">
+            <div className="text-center py-16 text-dark-sub/30">
               <p className="text-4xl mb-4">😕</p>
-              <p className="font-bold uppercase">Inga restauranger hittades</p>
+              <p className="font-black uppercase tracking-widest">Inga restauranger hittades</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -292,7 +292,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
-                  className="group flex overflow-hidden rounded-2xl bg-white/[0.03] border border-white/5 hover:border-gold-500/20 transition-all"
+                  className="group flex overflow-hidden rounded-2xl bg-white border border-light-400 hover:border-gold-500/20 transition-all premium-shadow"
                 >
                   {/* Cover image */}
                   <div className="w-28 h-28 shrink-0 relative overflow-hidden">
@@ -303,7 +303,7 @@ export default function HomePage() {
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-white/5 text-4xl">🍽️</div>
+                      <div className="h-full w-full flex items-center justify-center bg-light-300 text-4xl">🍽️</div>
                     )}
                     {r.isOpen === false && (
                       <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
@@ -315,19 +315,19 @@ export default function HomePage() {
                   {/* Info */}
                   <div className="flex-1 px-4 py-3 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <h3 className="font-black uppercase tracking-tight leading-tight group-hover:text-gold-500 transition-colors truncate">
+                      <h3 className="font-black uppercase tracking-tighter leading-tight group-hover:text-gold-600 transition-colors truncate text-dark-text">
                         {r.name}
                       </h3>
-                      <div className="flex items-center gap-0.5 shrink-0 text-gold-500 text-[10px] font-black">
-                        <Star size={11} className="fill-gold-500" />
+                      <div className="flex items-center gap-0.5 shrink-0 text-gold-600 text-[10px] font-black">
+                        <Star size={11} className="fill-gold-600" />
                         {(r.rating ?? 4.6).toFixed(1)}
-                        <span className="text-white/20 ml-0.5 font-medium">({r.ratingCount ?? 120})</span>
+                        <span className="text-dark-sub/50 ml-0.5 font-bold">({r.ratingCount ?? 120})</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-white/30 font-medium line-clamp-1 mb-2">
+                    <p className="text-[10px] text-dark-sub font-bold uppercase line-clamp-1 mb-2">
                       {r.description || r.cuisine}
                     </p>
-                    <div className="flex items-center gap-3 text-[9px] text-white/30 font-bold uppercase">
+                    <div className="flex items-center gap-3 text-[9px] text-dark-sub/40 font-black uppercase">
                       <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
                       <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr leverans</span>
                       {(r.minOrderAmount ?? 0) > 0 && (
@@ -338,7 +338,7 @@ export default function HomePage() {
                       <div className="flex flex-wrap items-center gap-2 mt-2">
                         <div className="flex flex-wrap gap-1">
                           {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
-                            <span key={tag} className="text-[8px] font-bold text-white/20 bg-white/5 px-1.5 py-0.5 rounded-full">
+                            <span key={tag} className="text-[8px] font-black text-dark-sub/40 bg-light-300 px-1.5 py-0.5 rounded-full uppercase">
                               {tag}
                             </span>
                           ))}
@@ -357,7 +357,7 @@ export default function HomePage() {
                     )}
                   </div>
 
-                  <div className="flex items-center pr-4 text-white/10 group-hover:text-gold-500 transition-colors">
+                  <div className="flex items-center pr-4 text-light-500 group-hover:text-gold-600 transition-colors">
                     <ChevronRight size={18} />
                   </div>
                 </Link>
@@ -367,13 +367,13 @@ export default function HomePage() {
         </section>
 
         {/* PWA promo */}
-        <section className="mt-12 rounded-2xl border border-white/5 bg-white/[0.03] p-6 flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-gold-500/10 border border-gold-500/20 text-gold-500 shrink-0">
+        <section className="mt-12 rounded-2xl border border-light-400 bg-white p-6 flex items-center gap-4 premium-shadow">
+          <div className="p-3 rounded-xl bg-gold-400/20 border border-gold-500/20 text-gold-600 shrink-0">
             <ArrowRight size={20} />
           </div>
           <div>
-            <p className="text-sm font-black uppercase tracking-tight">Installera MatGo</p>
-            <p className="text-[10px] text-white/30 font-medium">Snabb åtkomst till alla restauranger direkt från hemskärmen.</p>
+            <p className="text-sm font-black uppercase tracking-tight text-dark-text">Installera MatGo</p>
+            <p className="text-[10px] text-dark-sub font-bold uppercase opacity-40">Snabb åtkomst till alla restauranger direkt från hemskärmen.</p>
           </div>
         </section>
 

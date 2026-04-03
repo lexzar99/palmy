@@ -1,25 +1,45 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gold-400: #f3c96e;
-  --color-gold-500: #e7b24b;
-  --color-gold-600: #c7922d;
+  --color-gold-400: #ffd43b;
+  --color-gold-500: #fcc419;
+  --color-gold-600: #f08c00;
 
-  /* Brighter, more vibrant base palette (still "gold-first") */
-  --color-dark-400: #111a33;
-  --color-dark-500: #090f21;
-  --color-sky-500: #38bdf8;
-  --color-coral-500: #fb7185;
-  --color-lime-500: #a3e635;
+  /* Premium Light Theme Palette */
+  --color-light-100: #ffffff;
+  --color-light-200: #f8f9fa;
+  --color-light-300: #f1f3f5;
+  --color-light-400: #e9ecef;
+  --color-light-500: #dee2e6;
+  
+  --color-dark-text: #212529;
+  --color-dark-sub: #495057;
+
+  --color-sky-500: #339af0;
+  --color-coral-500: #ff6b6b;
+  --color-lime-500: #51cf66;
 }
 
 @layer base {
   body {
-    background:
-      radial-gradient(900px 700px at 15% -10%, color-mix(in srgb, var(--color-gold-500) 35%, transparent) 0%, transparent 60%),
-      radial-gradient(900px 700px at 110% 20%, color-mix(in srgb, var(--color-sky-500) 28%, transparent) 0%, transparent 55%),
-      radial-gradient(700px 500px at 30% 110%, color-mix(in srgb, var(--color-coral-500) 22%, transparent) 0%, transparent 55%),
-      linear-gradient(180deg, color-mix(in srgb, var(--color-dark-500) 90%, black) 0%, var(--color-dark-500) 100%);
-    color: white;
+    background: 
+      radial-gradient(at 0% 0%, color-mix(in srgb, var(--color-gold-500) 5%, transparent) 0%, transparent 50%),
+      radial-gradient(at 100% 0%, color-mix(in srgb, var(--color-sky-500) 5%, transparent) 0%, transparent 50%),
+      var(--color-light-200);
+    color: var(--color-dark-text);
+    min-height: 100vh;
   }
+}
+
+/* Custom shadow for premium cards */
+.premium-shadow {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

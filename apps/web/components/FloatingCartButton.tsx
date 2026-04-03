@@ -32,10 +32,10 @@ const FloatingCartButton = () => {
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className="fixed bottom-28 right-6 z-[55] max-w-xs rounded-[1.75rem] border border-gold-500/20 bg-dark-400/95 px-5 py-4 shadow-[0_18px_60px_rgba(0,0,0,0.45)] backdrop-blur-xl"
+            className="fixed bottom-28 right-6 z-[55] max-w-xs rounded-[1.75rem] border border-light-400 bg-white/95 px-5 py-4 premium-shadow backdrop-blur-xl"
           >
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Tillagd i korgen</div>
-            <div className="text-sm font-bold text-white">{lastAddedItemName}</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Tillagd i korgen</div>
+            <div className="text-sm font-black text-dark-text">{lastAddedItemName}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -47,19 +47,19 @@ const FloatingCartButton = () => {
       >
         <Link
           href="/cart"
-          className="flex items-center justify-between rounded-2xl border border-gold-500/30 bg-gold-500 px-5 py-3.5 shadow-[0_20px_50px_rgba(212,167,74,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-between rounded-2xl border border-gold-400/50 bg-gold-500 px-5 py-3.5 shadow-xl shadow-gold-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-dark-500 text-gold-500">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-gold-600 premium-shadow">
               <ShoppingBag size={20} />
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-dark-500/60 leading-none mb-1">Varukorg</div>
-              <div className="text-sm font-black text-dark-500 leading-none">{count} st · {total.toFixed(0)} kr</div>
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80 leading-none mb-1">Varukorg</div>
+              <div className="text-sm font-black text-white leading-none">{count} st · {total.toFixed(0)} kr</div>
             </div>
           </div>
-          <div className="bg-dark-500/10 p-2.5 rounded-xl">
-            <ArrowRight size={18} className="text-dark-500" />
+          <div className="bg-white p-2.5 rounded-xl premium-shadow">
+            <ArrowRight size={18} className="text-gold-600" />
           </div>
         </Link>
       </motion.div>

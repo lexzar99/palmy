@@ -137,7 +137,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32">
+    <div className="pb-32 bg-light-200">
       {/* Hero cover image (Foodora-style) */}
       {isStandalone && heroImage && (
         <div className="relative w-full h-52 overflow-hidden">
@@ -145,7 +145,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
           <Link
             href="/"
-            className="absolute top-4 left-4 flex items-center gap-1.5 text-white/80 hover:text-gold-500 text-xs font-black uppercase tracking-widest bg-black/40 backdrop-blur px-3 py-2 rounded-full transition-colors"
+            className="absolute top-4 left-4 flex items-center gap-1.5 text-dark-text/80 hover:text-gold-600 text-xs font-black uppercase tracking-widest bg-white/80 backdrop-blur px-3 py-2 rounded-full transition-colors premium-shadow"
           >
             <ChevronLeft size={14} />
             Tillbaka
@@ -157,7 +157,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         {isStandalone && !heroImage && (
           <Link
             href="/"
-            className="inline-flex items-center gap-2 text-white/40 hover:text-gold-500 transition-colors text-xs font-bold uppercase tracking-widest mb-6"
+            className="inline-flex items-center gap-2 text-dark-sub hover:text-gold-600 transition-colors text-xs font-bold uppercase tracking-widest mb-6"
           >
             <ChevronLeft size={16} />
             Tillbaka
@@ -172,7 +172,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             className="flex items-start gap-4 mb-3"
           >
             {!heroImage && restaurant.imageUrl && (
-              <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 shadow-2xl shrink-0">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden border border-light-400 shadow-xl shrink-0">
                 <img
                   src={restaurant.slug === "palmyra" ? "/hero-palmyra.svg" : restaurant.imageUrl}
                   alt={restaurant.name}
@@ -181,19 +181,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none mb-1">
+              <h1 className="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none mb-1 text-dark-text">
                 {restaurant.name.split(" ")[0]}{" "}
-                <span className="text-gold-500">{restaurant.name.split(" ").slice(1).join(" ")}</span>
+                <span className="text-gold-600">{restaurant.name.split(" ").slice(1).join(" ")}</span>
               </h1>
               <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                <span className="text-dark-sub text-[10px] font-bold uppercase tracking-widest">
                   {restaurant.cuisine || "Restaurang"}
                 </span>
                 {restaurant.rating && (
-                  <div className="flex items-center gap-1 text-gold-500 font-bold text-[10px]">
-                    <Star size={10} className="fill-gold-500" />
+                  <div className="flex items-center gap-1 text-gold-600 font-bold text-[10px]">
+                    <Star size={10} className="fill-gold-600" />
                     {restaurant.rating}{" "}
-                    <span className="text-white/20 font-medium">({restaurant.ratingCount})</span>
+                    <span className="text-dark-sub/50 font-medium">({restaurant.ratingCount})</span>
                   </div>
                 )}
               </div>
@@ -202,8 +202,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               <div
                 className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
                   restaurant.isOpen
-                    ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
-                    : "border-red-500/20 bg-red-500/5 text-red-400"
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
+                    : "border-red-500/30 bg-red-500/10 text-red-600"
                 }`}
               >
                 <div
@@ -218,37 +218,38 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               {restaurant.phone && (
                 <a
                   href={`tel:${String(restaurant.phone).replace(/\\s+/g, "")}`}
-                  className="px-3 py-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/15 transition-colors flex items-center gap-1.5"
+                  className="px-3 py-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 transition-colors flex items-center gap-1.5 premium-shadow"
                 >
                   <Phone size={14} />
                   <span className="text-[9px] font-black uppercase tracking-widest">Ring</span>
                 </a>
               )}
+              {/* Removign old ring button block since merged above */}
             </div>
           </motion.div>
 
           {restaurant.description && (
-            <p className="text-white/40 text-sm leading-relaxed mb-4 max-w-lg">{restaurant.description}</p>
+            <p className="text-dark-sub text-sm leading-relaxed mb-4 max-w-lg">{restaurant.description}</p>
           )}
 
           {/* Info chips */}
           <div className="flex flex-wrap gap-2 mb-3">
-            <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 flex items-center gap-1.5">
-              <Bike size={12} className="text-gold-500" />
-              <span className="text-[9px] font-black text-white/50 uppercase tracking-wider">
+            <div className="px-3 py-1.5 rounded-xl border border-light-400 bg-white flex items-center gap-1.5 premium-shadow">
+              <Bike size={12} className="text-gold-600" />
+              <span className="text-[9px] font-black text-dark-sub uppercase tracking-wider">
                 Leverans {restaurant.deliveryFee} kr
               </span>
             </div>
-            <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 flex items-center gap-1.5">
-              <Clock size={12} className="text-gold-500" />
-              <span className="text-[9px] font-black text-white/50 uppercase tracking-wider">
+            <div className="px-3 py-1.5 rounded-xl border border-light-400 bg-white flex items-center gap-1.5 premium-shadow">
+              <Clock size={12} className="text-gold-600" />
+              <span className="text-[9px] font-black text-dark-sub uppercase tracking-wider">
                 ~{restaurant.etaMinutes} min
               </span>
             </div>
             {restaurant.minOrderAmount > 0 && (
-              <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-white/5 flex items-center gap-1.5">
-                <Store size={12} className="text-gold-500" />
-                <span className="text-[9px] font-black text-white/50 uppercase tracking-wider">
+              <div className="px-3 py-1.5 rounded-xl border border-light-400 bg-white flex items-center gap-1.5 premium-shadow">
+                <Store size={12} className="text-gold-600" />
+                <span className="text-[9px] font-black text-dark-sub uppercase tracking-wider">
                   Min. order {restaurant.minOrderAmount} kr
                 </span>
               </div>
@@ -257,19 +258,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
           {/* Contact info */}
           {(restaurant.address || restaurant.phone) && (
-            <div className="flex flex-wrap gap-3 text-[10px] text-white/30 font-medium">
+            <div className="flex flex-wrap gap-3 text-[10px] text-dark-sub font-medium">
               {restaurant.address && restaurant.city && (
                 <span className="flex items-center gap-1">
-                  <MapPin size={11} className="text-white/20" />
+                  <MapPin size={11} className="text-dark-sub/50" />
                   {restaurant.address}, {restaurant.city}
                 </span>
               )}
               {restaurant.phone && (
                 <a
                   href={`tel:${restaurant.phone}`}
-                  className="flex items-center gap-1 hover:text-gold-500 transition-colors"
+                  className="flex items-center gap-1 hover:text-gold-600 transition-colors"
                 >
-                  <Phone size={11} className="text-white/20" />
+                  <Phone size={11} className="text-dark-sub/50" />
                   {restaurant.phone}
                 </a>
               )}
@@ -283,18 +284,18 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             {deals.slice(0, 4).map((deal) => (
               <div
                 key={deal.id}
-                className="rounded-2xl border border-white/10 bg-white/5 p-4 relative overflow-hidden group hover:border-gold-500/20 transition-all"
+                className="rounded-2xl border border-light-400 bg-white p-4 relative overflow-hidden group hover:border-gold-600/20 transition-all premium-shadow"
               >
                 <div className="flex items-start justify-between gap-3 relative z-10">
                   <div>
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-gold-500/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.2em] text-gold-500 mb-1.5">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1.5">
                       <Sparkles size={8} />
                       {deal.badgeText || "Deal"}
                     </div>
-                    <h3 className="text-sm font-black tracking-tight leading-none mb-0.5">{deal.title}</h3>
-                    <p className="text-white/30 text-[9px] line-clamp-1">{deal.description || formatDealReward(deal)}</p>
+                    <h3 className="text-sm font-black tracking-tight leading-none mb-0.5 text-dark-text">{deal.title}</h3>
+                    <p className="text-dark-sub text-[9px] line-clamp-1">{deal.description || formatDealReward(deal)}</p>
                   </div>
-                  <div className="text-lg font-black text-gold-500">{formatDealReward(deal)}</div>
+                  <div className="text-lg font-black text-gold-600">{formatDealReward(deal)}</div>
                 </div>
               </div>
             ))}
@@ -302,16 +303,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         )}
 
         {/* Search + category nav */}
-        <div className="sticky top-0 z-40 bg-dark-500/70 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-white/5">
+        <div className="sticky top-0 z-40 bg-light-200/80 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-light-400">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-[180px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={12} />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-sub/50" size={12} />
               <input
                 type="text"
                 placeholder="Sök i menyn..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all placeholder:text-white/10"
+                className="w-full bg-white border border-light-400 rounded-lg py-2 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all placeholder:text-dark-sub/30 premium-shadow"
               />
             </div>
             <div className="flex gap-2 overflow-x-auto no-scrollbar">
@@ -332,8 +333,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   }}
                   className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                     activeCategory === cat.id
-                      ? "bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20"
-                      : "bg-white/5 text-white/30 hover:bg-white/10 hover:text-white/60"
+                      ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
+                      : "bg-white text-dark-sub/60 hover:bg-light-300 premium-shadow border border-light-400"
                   }`}
                 >
                   {cat.name}
@@ -348,10 +349,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           {filteredCategories.map((cat) => (
             <section key={cat.id} id={cat.id} className="scroll-mt-32">
               <div className="mb-6 flex items-center gap-4">
-                <h2 className="text-xl font-black uppercase tracking-widest text-white whitespace-nowrap">
+                <h2 className="text-xl font-black uppercase tracking-widest text-dark-text whitespace-nowrap">
                   {cat.name}
                 </h2>
-                <div className="h-px bg-gradient-to-r from-white/10 to-transparent flex-1" />
+                <div className="h-px bg-gradient-to-r from-light-500 to-transparent flex-1" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -360,26 +361,22 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     key={p.id}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setSelectedProduct(p)}
-                    className="group bg-white/[0.03] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-white/[0.05] transition-all flex items-center gap-4 active:scale-95"
+                    className="group bg-white border border-light-400 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-light-100 transition-all flex items-center gap-4 active:scale-95 premium-shadow"
                   >
-                    {p.imageUrl ? (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/5">
+                    {p.imageUrl && (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-light-300 flex-shrink-0 border border-light-400">
                         <img
                           src={p.imageUrl}
                           alt={p.name}
-                          className="w-full h-full object-cover opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"
                         />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl bg-white/5 flex items-center justify-center text-white/10 flex-shrink-0">
-                        <Sparkles size={20} />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-black truncate uppercase tracking-tight group-hover:text-gold-500 transition-colors leading-tight mb-0.5">
+                      <h3 className="text-sm font-black truncate uppercase tracking-tight group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-dark-text">
                         {p.name}
                       </h3>
-                      <p className="text-white/20 text-[10px] line-clamp-2 leading-relaxed font-medium">
+                      <p className="text-dark-sub text-[10px] line-clamp-2 leading-relaxed font-medium">
                         {p.description}
                       </p>
                       <div className="flex items-center gap-1.5 mt-2">
@@ -388,7 +385,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                         {p.isGlutenFree && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Glutenfri" />}
                       </div>
                     </div>
-                    <div className="text-xl font-black text-gold-500 group-hover:scale-110 transition-transform whitespace-nowrap ml-2">
+                    <div className="text-xl font-black text-gold-600 group-hover:scale-110 transition-transform whitespace-nowrap ml-2">
                       {p.price}
                       <span className="text-[10px] ml-0.5 opacity-30">kr</span>
                     </div>
