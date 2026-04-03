@@ -59,7 +59,7 @@ export default function AdminRealtimeBridge() {
       soundLoopRef.current = null;
     }
 
-    if (pendingCount <= 0) {
+    if (pendingCount <= 0 || isSuperAdmin) {
       return () => {
         if (soundLoopRef.current) {
           window.clearInterval(soundLoopRef.current);
@@ -79,7 +79,7 @@ export default function AdminRealtimeBridge() {
         soundLoopRef.current = null;
       }
     };
-  }, [pendingCount]);
+  }, [pendingCount, isSuperAdmin]);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -174,7 +174,7 @@ export default function AdminRealtimeBridge() {
         soundLoopRef.current = null;
       }
     };
-  }, [syncPendingOrders, isSuperAdmin, restaurantId]);
+  }, [syncPendingOrders, isSuperAdmin, restaurantId, pendingCount]);
 
   return null;
 }

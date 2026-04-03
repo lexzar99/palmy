@@ -43,6 +43,12 @@ const Sidebar = () => {
       const raw = localStorage.getItem("palmyra_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
+      
+      if (admin && admin.role !== "SUPER_ADMIN" && admin.restaurantId) {
+        if (!selectedRestaurantId || selectedRestaurantId !== admin.restaurantId) {
+          setRestaurant(admin.restaurantId, admin.restaurantName || "Restaurang");
+        }
+      }
     } catch {
       setIsSuperAdmin(false);
     }

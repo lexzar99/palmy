@@ -81,13 +81,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     });
 
     socket.on("settings:updated", (nextSettings) => {
-      if (!restaurantSlug || restaurantSlug === "palmyra") {
+      const isGlobal = !nextSettings.slug && !nextSettings.restaurantId;
+      const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
+      
+      if (isMatch || (isGlobal && (!restaurantSlug || restaurantSlug === "palmyra"))) {
         setRestaurant((prev: any) => ({
           ...prev,
-          isOpen: nextSettings.isOpen ?? true,
-          deliveryFee: nextSettings.deliveryFee ?? 49,
-          minOrderAmount: nextSettings.minOrderAmount ?? 150,
-          etaMinutes: nextSettings.estimatedDeliveryTime ?? 35,
+          isOpen: nextSettings.isOpen ?? prev?.isOpen ?? true,
+          deliveryFee: nextSettings.deliveryFee ?? prev?.deliveryFee ?? 49,
+          minOrderAmount: nextSettings.minOrderAmount ?? prev?.minOrderAmount ?? 150,
+          etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev?.etaMinutes ?? 35,
         }));
       }
     });

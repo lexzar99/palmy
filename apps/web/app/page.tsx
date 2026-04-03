@@ -110,6 +110,23 @@ export default function HomePage() {
   // Populära val är de med featuredClass 1 eller 2 (Premium/Standard)
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
+  const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
+    if (!address.trim()) {
+      e.preventDefault();
+      alert(`Vänligen ange din ${orderType === "DELIVERY" ? "leveransadress" : "stad"} först.`);
+      return;
+    }
+
+    const valLow = address.toLowerCase();
+    const isOutsideLund = valLow.includes("malmö") || valLow.includes("malmo");
+    
+    if (isOutsideLund) {
+      e.preventDefault();
+      alert("Tyvärr, vi finns inte i denna stad ännu. För tillfället levererar vi endast i Lund.");
+      return;
+    }
+  };
+
   const getRestaurantHref = (r: Restaurant) =>
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
 
@@ -220,6 +237,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
+                  onClick={(e) => handleRestaurantClick(e, r)}
                   className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl shadow-xl"
                 >
                   {/* Cover image */}
@@ -292,6 +310,7 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
+                  onClick={(e) => handleRestaurantClick(e, r)}
                   className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all shadow-xl"
                 >
                   {/* Cover image */}

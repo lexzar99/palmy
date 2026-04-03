@@ -252,6 +252,7 @@ router.get('/orders', async (req, res) => {
         take: parseInt(limit as string),
         skip: parseInt(offset as string),
         include: {
+          restaurant: { select: { name: true } },
           items: {
             include: { product: { select: { name: true } } },
           },
@@ -271,6 +272,7 @@ router.get('/orders', async (req, res) => {
           basePrice: i.basePrice / 100,
           subtotal: i.subtotal / 100,
         })),
+        restaurantName: o.restaurant?.name || 'Okänd restaurang',
       })),
       total,
     });
@@ -284,6 +286,7 @@ router.get('/orders/:id', async (req, res) => {
     const order = await prisma.order.findUnique({
       where: { id: req.params.id },
       include: {
+        restaurant: { select: { name: true } },
         items: {
           include: { product: { select: { name: true } } },
         },
@@ -314,6 +317,7 @@ router.get('/orders/:id', async (req, res) => {
         basePrice: i.basePrice / 100,
         subtotal: i.subtotal / 100,
       })),
+      restaurantName: order.restaurant?.name || 'Okänd restaurang',
     });
   } catch {
     res.status(500).json({ error: 'Serverfel' });

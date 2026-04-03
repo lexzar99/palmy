@@ -56,6 +56,7 @@ interface Order {
     selectedExtras: string | any[];
     note?: string;
   }[];
+  restaurantName?: string;
 }
 
 const ACTIVE_ORDER_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY"]);
@@ -74,6 +75,7 @@ const AdminOrdersPage = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const socketRef = useRef<any>(null);
+  const [newOrderNotification, setNewOrderNotification] = useState<Order | null>(null);
   const { selectedRestaurantId } = useRestaurantStore();
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
@@ -149,6 +151,12 @@ const AdminOrdersPage = () => {
           return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         });
         setStats((prev: any) => prev ? { ...prev, pendingOrders: (prev.pendingOrders || 0) + 1, ordersToday: (prev.ordersToday || 0) + 1 } : prev);
+        
+        if (isSuperAdmin) {
+          setNewOrderNotification(order as Order);
+          setTimeout(() => setNewOrderNotification(null), 5000);
+        }
+
         window.setTimeout(() => {
           void fetchData();
         }, 250);
@@ -347,6 +355,30 @@ const AdminOrdersPage = () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {newOrderNotification && isSuperAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg"
+          >
+            <div className="bg-gold-500 text-dark-500 p-8 rounded-[2.5rem] shadow-[0_30px_100px_rgba(212,167,74,0.4)] border-4 border-white/20 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.4em] mb-4 opacity-70">
+                Ny Inkommande Beställning
+              </div>
+              <div className="text-4xl font-black uppercase tracking-tighter mb-4 leading-tight">
+                🏠 {newOrderNotification.restaurantName || "Okänd Restaurang"}
+              </div>
+              <div className="text-sm font-black uppercase tracking-widest bg-dark-500/10 py-3 px-6 rounded-2xl inline-block">
+                Order #{newOrderNotification.orderNumber} · {newOrderNotification.total.toFixed(0)} KR
+              </div>
+              <div className="mt-4 text-xs font-bold uppercase opacity-60">Visas i listan nedan</div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Orders list */}
       {loading && orders.length === 0 ? (
         <div className="flex items-center justify-center py-24">
@@ -424,6 +456,11 @@ const AdminOrdersPage = () => {
                           <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/50">
                             <span className="rounded-full bg-white/5 px-4 py-2">{order.customerPhone}</span>
                             <span className="rounded-full bg-white/5 px-4 py-2">{order.total.toFixed(0)} kr</span>
+                            {isSuperAdmin && order.restaurantName && (
+                              <span className="rounded-full bg-gold-500/10 text-gold-500 border border-gold-500/20 px-4 py-2 font-black uppercase">
+                                {order.restaurantName}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </button>
@@ -541,6 +578,11 @@ const AdminOrdersPage = () => {
                             <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-2">
                               {new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
                             </div>
+                            {isSuperAdmin && order.restaurantName && (
+                              <div className="mb-4 text-3xl font-black text-gold-500 uppercase tracking-tighter bg-gold-500/5 p-4 rounded-3xl border border-gold-500/10">
+                                🏠 {order.restaurantName}
+                              </div>
+                            )}
                             {order.type === "DELIVERY" ? (
                               <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-black uppercase tracking-widest">
                                 <Truck size={14} /> UTKÖRNING

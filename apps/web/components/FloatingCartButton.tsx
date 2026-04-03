@@ -14,10 +14,7 @@ const FloatingCartButton = () => {
   const [showToast, setShowToast] = useState(false);
 
   useEffect(() => {
-    if (!lastAddedAt) return;
-    setShowToast(true);
-    const timeout = window.setTimeout(() => setShowToast(false), 2600);
-    return () => window.clearTimeout(timeout);
+    // Toast removed as requested
   }, [lastAddedAt]);
 
   if (items.length === 0) return null;
@@ -26,40 +23,28 @@ const FloatingCartButton = () => {
 
   return (
     <>
-      <AnimatePresence>
-        {showToast && lastAddedItemName && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className="fixed bottom-28 right-6 z-[55] max-w-xs rounded-[1.75rem] border border-white/5 bg-white/95 px-5 py-4 shadow-xl backdrop-blur-xl"
-          >
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Tillagd i korgen</div>
-            <div className="text-sm font-black text-zinc-100">{lastAddedItemName}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Toast removed */}
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 w-full max-w-xs px-6"
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-full max-w-[220px] px-2"
       >
         <Link
           href="/cart"
-          className="flex items-center justify-between rounded-2xl border border-gold-400/50 bg-gold-500 px-5 py-3.5 shadow-xl shadow-gold-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-between rounded-full border border-gold-400/50 bg-gold-500 px-3 py-2 shadow-lg shadow-gold-500/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
         >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-gold-600 shadow-xl">
-              <ShoppingBag size={20} />
+          <div className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-gold-600 shadow-sm">
+              <ShoppingBag size={12} />
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-white/80 leading-none mb-1">Varukorg</div>
-              <div className="text-sm font-black text-white leading-none">{count} st · {total.toFixed(0)} kr</div>
+              <div className="text-[7px] font-black uppercase tracking-[0.1em] text-white/80 leading-none mb-0.5">Varukorg</div>
+              <div className="text-[10px] font-black text-white leading-none">{count} st · {total.toFixed(0)} kr</div>
             </div>
           </div>
-          <div className="bg-zinc-900 p-2.5 rounded-xl shadow-xl">
-            <ArrowRight size={18} className="text-gold-600" />
+          <div className="bg-white/10 p-1 rounded-full">
+            <ArrowRight size={12} className="text-white" />
           </div>
         </Link>
       </motion.div>

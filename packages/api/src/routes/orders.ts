@@ -415,6 +415,7 @@ router.post('/', async (req: Request, res: Response) => {
         },
       },
       include: {
+        restaurant: { select: { name: true } },
         items: true,
       },
     });
@@ -438,6 +439,7 @@ router.post('/', async (req: Request, res: Response) => {
     const orderForSocket = {
       id: order.id,
       restaurantId: order.restaurantId,
+      restaurantName: order.restaurant?.name || 'Okänd restaurang',
       orderNumber: order.orderNumber,
       status: order.status,
       type: order.type,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
+import { io } from '../index';
 
 const router = Router();
 
@@ -280,6 +281,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       where: { id },
       data,
     });
+    io.emit('settings:updated', {
+      restaurantId: restaurant.id,
+      slug: restaurant.slug,
+      isOpen: restaurant.isOpen,
+      deliveryFee: restaurant.deliveryFee,
+      minOrderAmount: restaurant.minOrderAmount,
+      etaMinutes: restaurant.etaMinutes,
+    });
+
     res.json(restaurant);
   } catch (err: any) {
     res.status(400).json({ error: err.message });

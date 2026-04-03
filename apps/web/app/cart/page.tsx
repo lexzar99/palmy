@@ -340,6 +340,7 @@ const CartPage = () => {
         type: orderType,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
+        restaurantId: useCartStore.getState().restaurantId || undefined,
         deliveryStreet: formData.deliveryStreet || undefined,
         deliveryZip: formData.deliveryZip || undefined,
         note: formData.note || undefined,
@@ -389,6 +390,14 @@ const CartPage = () => {
       return;
     }
 
+    if (orderType === "DELIVERY") {
+      const isOutsideLund = formData.deliveryStreet.toLowerCase().includes("malmö") || formData.deliveryStreet.toLowerCase().includes("malmo");
+      if (isOutsideLund) {
+        setError("Tyvärr, vi levererar endast i Lund för tillfället.");
+        return;
+      }
+    }
+
     if (!restaurantSettings.isOpen) {
       setError("Restaurangen är stängd just nu.");
       return;
@@ -407,6 +416,7 @@ const CartPage = () => {
         type: orderType,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
+        restaurantId: useCartStore.getState().restaurantId || undefined,
         deliveryStreet: formData.deliveryStreet || undefined,
         deliveryZip: formData.deliveryZip || undefined,
         note: formData.note || undefined,
