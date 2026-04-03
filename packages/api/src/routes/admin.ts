@@ -20,6 +20,7 @@ const ensureExtraGroup = async ({
   minSelections,
   maxSelections,
   extras,
+  restaurantId,
 }: {
   name: string;
   description: string;
@@ -28,9 +29,10 @@ const ensureExtraGroup = async ({
   minSelections: number;
   maxSelections: number;
   extras: Array<{ name: string; priceAddon: number; isDefault?: boolean }>;
+  restaurantId?: string | null;
 }) => {
   const existing = await prisma.extraGroup.findFirst({
-    where: { name },
+    where: { name, restaurantId: restaurantId || null },
     include: { extras: true },
   });
 
@@ -46,6 +48,7 @@ const ensureExtraGroup = async ({
       required,
       minSelections,
       maxSelections,
+      restaurantId: restaurantId || null,
       extras: {
         create: extras.map((extra, index) => ({
           name: extra.name,

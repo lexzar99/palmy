@@ -97,7 +97,7 @@ const Sidebar = () => {
     { href: "/menu", label: "Menyhantering", icon: Utensils },
     { href: "/receipt", label: "Kvittolayout", icon: Printer },
     { href: "/stats", label: "Statistik / Utdrag", icon: Activity },
-    { href: "/settings", label: "Inställningar", icon: Settings },
+    { href: "/settings/global", label: "Globala Inställningar", icon: Settings },
   ];
 
   const sidebarContent = (
@@ -145,6 +145,17 @@ const Sidebar = () => {
                   }`}
                 >
                   Alla restauranger
+                </Link>
+                <Link
+                  href="/settings/global"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`px-4 py-3.5 text-xs font-black uppercase tracking-widest ${
+                    pathname === "/settings/global"
+                      ? "bg-gold-500/15 text-gold-500"
+                      : "text-white/40 hover:bg-white/5"
+                  }`}
+                >
+                  Globala Inställningar
                 </Link>
               </div>
             </motion.div>

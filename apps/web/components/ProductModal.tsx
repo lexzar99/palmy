@@ -123,10 +123,10 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 md:p-6 bg-dark-500/90 backdrop-blur-xl"
     >
       <motion.div
-        initial={{ scale: 0.9, y: 20 }}
+        initial={{ scale: 0.95, y: 10 }}
         animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 20 }}
-        className="w-full max-w-2xl bg-dark-400 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl relative mb-[env(safe-area-inset-bottom)]"
+        exit={{ scale: 0.95, y: 10 }}
+        className="w-full max-w-xl bg-dark-400 border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl relative mb-[env(safe-area-inset-bottom)]"
       >
         <button 
           onClick={onClose}
@@ -144,7 +144,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
             </div>
           )}
 
-          <div className="p-6 md:p-12">
+          <div className="p-5 md:p-10">
 
             <h2 className="text-3xl md:text-5xl font-bold mb-3 tracking-tight">{product.name}</h2>
             <p className="text-white/40 text-lg mb-8 leading-relaxed">{product.description}</p>
