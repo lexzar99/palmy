@@ -1,16 +1,25 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gold-400: #e5b85c;
-  --color-gold-500: #d4a74a;
-  --color-gold-600: #b38b3a;
-  --color-dark-400: #1a1a1a;
-  --color-dark-500: #111111;
+  --color-gold-400: #f3c96e;
+  --color-gold-500: #e7b24b;
+  --color-gold-600: #c7922d;
+
+  /* Brighter, more vibrant base palette (still "gold-first") */
+  --color-dark-400: #111a33;
+  --color-dark-500: #090f21;
+  --color-sky-500: #38bdf8;
+  --color-coral-500: #fb7185;
+  --color-lime-500: #a3e635;
 }
 
 @layer base {
   body {
-    background-color: var(--color-dark-500);
+    background:
+      radial-gradient(900px 700px at 15% -10%, color-mix(in srgb, var(--color-gold-500) 35%, transparent) 0%, transparent 60%),
+      radial-gradient(900px 700px at 110% 20%, color-mix(in srgb, var(--color-sky-500) 28%, transparent) 0%, transparent 55%),
+      radial-gradient(700px 500px at 30% 110%, color-mix(in srgb, var(--color-coral-500) 22%, transparent) 0%, transparent 55%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-dark-500) 90%, black) 0%, var(--color-dark-500) 100%);
     color: white;
   }
 }

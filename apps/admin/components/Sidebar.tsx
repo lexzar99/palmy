@@ -12,7 +12,6 @@ import {
   ToggleRight, 
   Clock, 
   Activity,
-  Bike,
   Menu,
   X,
   Store,
@@ -32,6 +31,7 @@ const Sidebar = () => {
   const [toggling, setToggling] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [restaurantSectionOpen, setRestaurantSectionOpen] = useState(true);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const { selectedRestaurantId, selectedRestaurantName, setRestaurant } = useRestaurantStore();
@@ -39,15 +39,25 @@ const Sidebar = () => {
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
   useEffect(() => {
-    // Fetch all restaurants for the dropdown
-    axios.get(`${API_URL}/api/restaurants`).then(res => {
-      setRestaurants(res.data);
-      // Default to Palmyra if nothing selected
-      if (!selectedRestaurantId && res.data.length > 0) {
-        const palmyra = res.data.find((r: any) => r.slug === "palmyra");
-        if (palmyra) setRestaurant(palmyra.id, palmyra.name);
-      }
-    }).catch(() => {});
+    try {
+      const raw = localStorage.getItem("palmyra_admin");
+      const admin = raw ? JSON.parse(raw) : null;
+      setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
+    } catch {
+      setIsSuperAdmin(false);
+    }
+
+    if (isSuperAdmin) {
+      // Fetch all restaurants for the dropdown (super admin only)
+      axios.get(`${API_URL}/api/restaurants`).then(res => {
+        setRestaurants(res.data);
+        // Default to Palmyra if nothing selected
+        if (!selectedRestaurantId && res.data.length > 0) {
+          const palmyra = res.data.find((r: any) => r.slug === "palmyra");
+          if (palmyra) setRestaurant(palmyra.id, palmyra.name);
+        }
+      }).catch(() => {});
+    }
 
     // Fetch status for the selected restaurant
     if (selectedRestaurantId) {
@@ -70,7 +80,7 @@ const Sidebar = () => {
     return () => {
       socket.disconnect();
     };
-  }, [selectedRestaurantId]);
+  }, [selectedRestaurantId, isSuperAdmin, setRestaurant]);
 
   const toggleOpen = async () => {
     if (!selectedRestaurantId) return;
@@ -92,12 +102,11 @@ const Sidebar = () => {
 
   const links = [
     { href: "/orders", label: "Beställningar", icon: ShoppingCart },
-    { href: "/courier", label: "Budvy", icon: Bike },
     { href: "/history", label: "Föregående beställningar", icon: Clock },
     { href: "/menu", label: "Menyhantering", icon: Utensils },
     { href: "/receipt", label: "Kvittolayout", icon: Printer },
     { href: "/stats", label: "Statistik / Utdrag", icon: Activity },
-    { href: "/settings/global", label: "Globala Inställningar", icon: Settings },
+    { href: "/settings/global", label: "Inställningar", icon: Settings },
   ];
 
   const sidebarContent = (
@@ -112,6 +121,7 @@ const Sidebar = () => {
         </button>
       </div>
 
+      {isSuperAdmin && (
       <div className="mb-6 rounded-xl border border-white/10 bg-white/5">
         <button
           onClick={() => setRestaurantSectionOpen((o) => !o)}
@@ -162,8 +172,10 @@ const Sidebar = () => {
           )}
         </AnimatePresence>
       </div>
+      )}
 
       {/* Restaurant Selector Dropdown */}
+      {isSuperAdmin && (
       <div className="relative mb-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2 ml-1">Välj Restaurang</p>
         <div className="relative group">
@@ -184,6 +196,7 @@ const Sidebar = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* Global Open/Closed Toggle */}
       <button

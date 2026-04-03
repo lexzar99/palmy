@@ -26,7 +26,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body className={`${outfit.className} text-white min-h-screen antialiased`} style={{ background: "#050505" }}>
+      <body className={`${outfit.className} text-white min-h-screen antialiased`}>
         <ShootingStars />
         <main>{children}</main>
         <BottomNav />

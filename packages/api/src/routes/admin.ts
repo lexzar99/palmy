@@ -10,6 +10,18 @@ import { formatDealForClient, parseDealProductIds } from '../lib/deals';
 const router = Router();
 router.use(authenticate);
 
+const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
+
+const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
+  if (isSuperAdmin(req)) return null;
+  const rid = req.admin?.restaurantId;
+  if (!rid) {
+    res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
+    return null;
+  }
+  return rid;
+};
+
 const kr = (amount: number) => Math.round(amount * 100);
 
 const ensureExtraGroup = async ({
@@ -217,7 +229,13 @@ router.get('/orders', async (req, res) => {
     const { status, limit = '50', offset = '0', date, restaurantId } = req.query;
 
     const where: Record<string, unknown> = {};
-    if (restaurantId) where.restaurantId = restaurantId as string;
+    if (isSuperAdmin(req as AuthRequest)) {
+      if (restaurantId) where.restaurantId = restaurantId as string;
+    } else {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      where.restaurantId = rid;
+    }
     if (status) where.status = status;
     if (date) {
       const start = new Date(date as string);
@@ -277,6 +295,15 @@ router.get('/orders/:id', async (req, res) => {
       return;
     }
 
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (order.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara se orders för din restaurang' });
+        return;
+      }
+    }
+
     res.json({
       ...order,
       total: order.total / 100,
@@ -296,11 +323,35 @@ router.get('/orders/:id', async (req, res) => {
 // PATCH /api/admin/orders/:id/status
 router.patch('/orders/:id/status', async (req, res) => {
   try {
+    // SUPER_ADMIN can monitor all restaurants, but cannot accept/handle orders.
+    if (isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'SUPER_ADMIN kan inte ta emot/uppdatera beställningar' });
+      return;
+    }
+
     const { status, estimatedTime } = req.body;
     const validStatuses = ['ACCEPTED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED'];
 
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: 'Ogiltig status' });
+      return;
+    }
+
+    const adminRestaurantId = requireRestaurantScope(req as AuthRequest, res);
+    if (!adminRestaurantId) return;
+
+    const existing = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, restaurantId: true },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    if (existing.restaurantId !== adminRestaurantId) {
+      res.status(403).json({ error: 'Du kan bara uppdatera orders för din restaurang' });
       return;
     }
 
@@ -324,7 +375,16 @@ router.patch('/orders/:id/status', async (req, res) => {
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
+      restaurantId: order.restaurantId,
     });
+    if (order.restaurantId) {
+      io.to(`admin-room:${order.restaurantId}`).emit('order:updated', {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        restaurantId: order.restaurantId,
+      });
+    }
 
     res.json({ success: true, status: order.status });
   } catch {
@@ -338,8 +398,14 @@ router.get('/reports/orders', async (req, res) => {
     const { dateFrom, dateTo, paymentMethod = 'ALL', restaurantId } = req.query;
     const where: Record<string, unknown> = {
       status: { notIn: ['CANCELLED', 'REJECTED'] },
-      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
     };
+    if (isSuperAdmin(req as AuthRequest)) {
+      Object.assign(where, restaurantId ? { restaurantId: restaurantId as string } : {});
+    } else {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      Object.assign(where, { restaurantId: rid });
+    }
 
     if (dateFrom || dateTo) {
       const createdAt: Record<string, Date> = {};
@@ -390,9 +456,14 @@ router.get('/reports/orders', async (req, res) => {
 router.get('/stats', async (req, res) => {
   try {
     const { restaurantId } = req.query;
-    const where = {
-      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
-    };
+    const where: Record<string, unknown> = {};
+    if (isSuperAdmin(req as AuthRequest)) {
+      Object.assign(where, restaurantId ? { restaurantId: restaurantId as string } : {});
+    } else {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      Object.assign(where, { restaurantId: rid });
+    }
 
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -422,10 +493,16 @@ router.get('/stats', async (req, res) => {
 router.get('/stats/report', async (req, res) => {
   try {
     const { restaurantId } = req.query;
-    const where = {
+    const where: Record<string, unknown> = {
       status: { notIn: ['CANCELLED', 'REJECTED'] },
-      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
     };
+    if (isSuperAdmin(req as AuthRequest)) {
+      Object.assign(where, restaurantId ? { restaurantId: restaurantId as string } : {});
+    } else {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      Object.assign(where, { restaurantId: rid });
+    }
 
     const now = new Date();
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -467,8 +544,13 @@ router.get('/stats/report', async (req, res) => {
 router.get('/categories', async (req, res) => {
   try {
     const { restaurantId } = req.query;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const categories = await prisma.category.findMany({
-      where: restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null },
+      where: { restaurantId: scopedRestaurantId },
       orderBy: { position: 'asc' },
       include: { _count: { select: { products: true } } },
     });
@@ -483,6 +565,10 @@ router.post('/categories', async (req, res) => {
   try {
     const { name, description, imageUrl, position, restaurantId } = req.body;
     const slug = name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? String(restaurantId) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const category = await prisma.category.create({
       data: { 
@@ -491,7 +577,7 @@ router.post('/categories', async (req, res) => {
         description, 
         imageUrl, 
         position: position || 0,
-        restaurantId: restaurantId || null 
+        restaurantId: scopedRestaurantId
       },
     });
     res.status(201).json(category);
@@ -503,6 +589,23 @@ router.post('/categories', async (req, res) => {
 // PATCH /api/admin/categories/:id
 router.patch('/categories/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.category.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, restaurantId: true },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Kategori hittades inte' });
+        return;
+      }
+      if (existing.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara uppdatera kategorier för din restaurang' });
+        return;
+      }
+    }
+
     const { name, description, imageUrl, position, isActive } = req.body;
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
@@ -526,6 +629,23 @@ router.patch('/categories/:id', async (req, res) => {
 // DELETE /api/admin/categories/:id
 router.delete('/categories/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.category.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, restaurantId: true },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Kategori hittades inte' });
+        return;
+      }
+      if (existing.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara radera kategorier för din restaurang' });
+        return;
+      }
+    }
+
     await prisma.category.delete({
       where: { id: req.params.id },
     });
@@ -557,10 +677,15 @@ const ProductSchema = z.object({
 router.get('/products', async (req, res) => {
   try {
     const { categoryId, restaurantId } = req.query;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const products = await prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
-        ...(restaurantId ? { category: { restaurantId: restaurantId as string } } : { category: { restaurantId: null } }),
+        category: { restaurantId: scopedRestaurantId },
       },
       orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
       include: {
@@ -600,6 +725,23 @@ router.post('/products', async (req, res) => {
     const data = ProductSchema.parse(req.body);
     const slug = data.name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
 
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const category = await prisma.category.findUnique({
+        where: { id: data.categoryId },
+        select: { id: true, restaurantId: true },
+      });
+      if (!category) {
+        res.status(400).json({ error: 'Ogiltig kategori' });
+        return;
+      }
+      if (category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara skapa produkter i din restaurangs kategorier' });
+        return;
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         name: data.name,
@@ -633,6 +775,23 @@ router.post('/products', async (req, res) => {
 // PATCH /api/admin/products/:id
 router.patch('/products/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.product.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, category: { select: { restaurantId: true } } },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Produkt hittades inte' });
+        return;
+      }
+      if (existing.category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara uppdatera produkter för din restaurang' });
+        return;
+      }
+    }
+
     const { extraGroupIds, price, ...rest } = req.body;
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
@@ -662,6 +821,23 @@ router.patch('/products/:id', async (req, res) => {
 // DELETE /api/admin/products/:id
 router.delete('/products/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.product.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, category: { select: { restaurantId: true } } },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Produkt hittades inte' });
+        return;
+      }
+      if (existing.category.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara radera produkter för din restaurang' });
+        return;
+      }
+    }
+
     await prisma.product.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch {
@@ -677,8 +853,13 @@ router.delete('/products/:id', async (req, res) => {
 router.get('/extra-groups', async (req, res) => {
   try {
     const { restaurantId } = req.query;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const groups = await prisma.extraGroup.findMany({
-      where: restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null },
+      where: { restaurantId: scopedRestaurantId },
       include: {
         extras: { orderBy: { position: 'asc' } },
         _count: { select: { productGroups: true } },
@@ -697,10 +878,15 @@ router.get('/extra-groups', async (req, res) => {
 router.post('/extra-groups', async (req, res) => {
   try {
     const { extras, restaurantId, ...rest } = req.body;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? String(restaurantId) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const group = await prisma.extraGroup.create({
       data: {
         ...rest,
-        restaurantId: restaurantId || null,
+        restaurantId: scopedRestaurantId,
         type: rest.type || 'CHECKBOX',
         ...(extras && extras.length > 0 ? {
           extras: {
@@ -728,6 +914,23 @@ router.post('/extra-groups', async (req, res) => {
 // PATCH /api/admin/extra-groups/:id
 router.patch('/extra-groups/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.extraGroup.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, restaurantId: true },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Tillbehörsgrupp hittades inte' });
+        return;
+      }
+      if (existing.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara uppdatera tillbehörsgrupper för din restaurang' });
+        return;
+      }
+    }
+
     const { extras, ...rest } = req.body;
     const group = await prisma.extraGroup.update({
       where: { id: req.params.id },
@@ -760,6 +963,23 @@ router.patch('/extra-groups/:id', async (req, res) => {
 // DELETE /api/admin/extra-groups/:id
 router.delete('/extra-groups/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.extraGroup.findUnique({
+        where: { id: req.params.id },
+        select: { id: true, restaurantId: true },
+      });
+      if (!existing) {
+        res.status(404).json({ error: 'Tillbehörsgrupp hittades inte' });
+        return;
+      }
+      if (existing.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara radera tillbehörsgrupper för din restaurang' });
+        return;
+      }
+    }
+
     await prisma.extraGroup.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch {
@@ -774,8 +994,13 @@ router.delete('/extra-groups/:id', async (req, res) => {
 router.get('/deals', async (req, res) => {
   try {
     const { restaurantId } = req.query;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const deals = await prisma.deal.findMany({
-      where: (restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null }) as any,
+      where: { restaurantId: scopedRestaurantId } as any,
       orderBy: { sortOrder: 'asc' },
     });
     res.json(deals);
@@ -787,8 +1012,13 @@ router.get('/deals', async (req, res) => {
 router.post('/deals', async (req, res) => {
   try {
     const { restaurantId, ...rest } = req.body;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? String(restaurantId) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
     const deal = await prisma.deal.create({
-      data: { ...rest, restaurantId: restaurantId || null },
+      data: { ...rest, restaurantId: scopedRestaurantId },
     });
     res.status(201).json(deal);
   } catch {
@@ -801,8 +1031,13 @@ router.post('/deals', async (req, res) => {
 // MENYIMPORT
 // =====================
 
-router.post('/menu/import-eatsmart', async (_req, res) => {
+router.post('/menu/import-eatsmart', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
     const groups = await ensureCoreExtraGroups();
     const existingCategories = await prisma.category.findMany({
       select: { id: true, slug: true },

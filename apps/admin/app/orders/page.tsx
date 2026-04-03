@@ -72,10 +72,21 @@ const AdminOrdersPage = () => {
   // Track which order IDs have the accept dialog open
   const [acceptDialog, setAcceptDialog] = useState<{ orderId: string; time: number } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const socketRef = useRef<any>(null);
   const { selectedRestaurantId } = useRestaurantStore();
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("palmyra_admin");
+      const admin = raw ? JSON.parse(raw) : null;
+      setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
+    } catch {
+      setIsSuperAdmin(false);
+    }
+  }, []);
 
   const fetchData = useCallback(async () => {
     if (!selectedRestaurantId) return;
@@ -166,6 +177,10 @@ const AdminOrdersPage = () => {
   }, []);
 
   const updateStatus = async (orderId: string, status: string, estimatedTime?: number) => {
+    if (isSuperAdmin) {
+      alert("SUPER_ADMIN kan inte ta emot/uppdatera beställningar.");
+      return;
+    }
     setActionLoading(orderId);
     try {
       await axios.patch(
@@ -591,7 +606,7 @@ const AdminOrdersPage = () => {
                       <div className="flex items-center justify-between pt-6 border-t border-white/5 flex-wrap gap-4">
                         <div className="text-3xl font-black text-gold-500">{order.total.toFixed(0)} KR</div>
 
-                        {isPending && (
+                        {isPending && !isSuperAdmin && (
                           <div className="flex items-center gap-3">
                             <button
                                onClick={() => { if(confirm("Vill du verkligen NEKA denna order?")) updateStatus(order.id, "REJECTED"); }}
@@ -610,9 +625,14 @@ const AdminOrdersPage = () => {
                             </button>
                           </div>
                         )}
+                        {isPending && isSuperAdmin && (
+                          <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/40 text-[10px] font-black uppercase tracking-[0.2em]">
+                            Endast visning (SUPER_ADMIN)
+                          </div>
+                        )}
 
                         <div className="flex items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 lg:ml-auto">
-                          {order.status === "PREPARING" && order.type === "PICKUP" && (
+                          {!isSuperAdmin && order.status === "PREPARING" && order.type === "PICKUP" && (
                             <button
                                onClick={() => updateStatus(order.id, "READY")}
                                disabled={actionLoading === order.id}
@@ -622,7 +642,7 @@ const AdminOrdersPage = () => {
                                Markera Klar
                              </button>
                           )}
-                          {order.status === "PREPARING" && order.type === "DELIVERY" && (
+                          {!isSuperAdmin && order.status === "PREPARING" && order.type === "DELIVERY" && (
                             <button
                               onClick={() => updateStatus(order.id, "DELIVERING")}
                               disabled={actionLoading === order.id}

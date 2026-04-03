@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { authenticate } from '../middleware/auth';
+import { authenticate, AuthRequest } from '../middleware/auth';
 import { io } from '../index';
 import {
   defaultRestaurantSettings,
@@ -45,6 +45,12 @@ router.get('/', async (_req, res) => {
 // PATCH /api/settings - Admin uppdaterar inställningar
 router.patch('/', authenticate, async (req, res) => {
   try {
+    const authReq = req as AuthRequest;
+    if (authReq.admin?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
     const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours } = req.body;
 
     const data: Record<string, unknown> = {};

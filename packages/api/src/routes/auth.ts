@@ -9,24 +9,47 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { identifier, email, password } = req.body as {
+      identifier?: string;
+      email?: string;
+      password?: string;
+    };
 
-    if (!email || !password) {
-      res.status(400).json({ error: 'E-post och lösenord krävs' });
+    const loginId = (identifier || email || '').trim().toLowerCase();
+    if (!loginId || !password) {
+      res.status(400).json({ error: 'Användarnamn och lösenord krävs' });
       return;
     }
 
-    const admin = await prisma.adminUser.findUnique({
-      where: { email: email.toLowerCase(), isActive: true },
+    const admin = await prisma.adminUser.findFirst({
+      where: { email: loginId, isActive: true },
     });
 
     if (!admin || !(await bcrypt.compare(password, admin.password))) {
-      res.status(401).json({ error: 'Felaktigt e-post eller lösenord' });
+      res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
 
+    let restaurantId: string | null = null;
+    let restaurantSlug: string | null = null;
+    let restaurantName: string | null = null;
+    if (admin.role !== 'SUPER_ADMIN') {
+      // Restaurant admins log in with their restaurant slug (stored in AdminUser.email).
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug: admin.email.toLowerCase() },
+        select: { id: true, slug: true, name: true },
+      });
+      if (!restaurant) {
+        res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
+        return;
+      }
+      restaurantId = restaurant.id;
+      restaurantSlug = restaurant.slug;
+      restaurantName = restaurant.name;
+    }
+
     const token = jwt.sign(
-      { id: admin.id, email: admin.email, role: admin.role },
+      { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -38,6 +61,9 @@ router.post('/login', async (req, res) => {
         email: admin.email,
         name: admin.name,
         role: admin.role,
+        restaurantId,
+        restaurantSlug,
+        restaurantName,
       },
     });
   } catch (error) {
@@ -52,7 +78,7 @@ router.post('/verify', async (req, res) => {
     const { token } = req.body;
     const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
     
-    const admin = await prisma.adminUser.findUnique({
+    const admin = await prisma.adminUser.findFirst({
       where: { id: payload.id, isActive: true },
       select: { id: true, email: true, name: true, role: true },
     });
@@ -62,7 +88,20 @@ router.post('/verify', async (req, res) => {
       return;
     }
 
-    res.json({ valid: true, admin });
+    let restaurantId: string | null = null;
+    let restaurantSlug: string | null = null;
+    let restaurantName: string | null = null;
+    if (admin.role !== 'SUPER_ADMIN') {
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug: admin.email.toLowerCase() },
+        select: { id: true, slug: true, name: true },
+      });
+      restaurantId = restaurant?.id ?? null;
+      restaurantSlug = restaurant?.slug ?? null;
+      restaurantName = restaurant?.name ?? null;
+    }
+
+    res.json({ valid: true, admin: { ...admin, restaurantId, restaurantSlug, restaurantName } });
   } catch {
     res.json({ valid: false });
   }

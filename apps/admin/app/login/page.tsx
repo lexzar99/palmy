@@ -8,7 +8,7 @@ import { API_URL } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@palmyrapizzeria.se");
+  const [identifier, setIdentifier] = useState("admin");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,10 +25,14 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, { email, password });
+      const res = await axios.post(`${API_URL}/api/auth/login`, { identifier, password });
       localStorage.setItem("palmyra_token", res.data.token);
       localStorage.setItem("palmyra_admin", JSON.stringify(res.data.admin));
-      router.replace("/orders");
+      if (res.data.admin?.role === "SUPER_ADMIN") {
+        router.replace("/restaurants");
+      } else {
+        router.replace("/orders");
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || "Inloggning misslyckades");
     } finally {
@@ -57,14 +61,17 @@ export default function LoginPage() {
 
           <div className="space-y-6">
             <div>
-              <label className="block text-[10px] font-black uppercase text-white/20 mb-2 ml-1">E-post</label>
+              <label className="block text-[10px] font-black uppercase text-white/20 mb-2 ml-1">Användarnamn</label>
               <div className="relative">
                 <Mail size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" />
                 <input
                   required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   className="w-full bg-dark-500 border border-white/10 rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-2 focus:ring-gold-500/50 transition-all"
                 />
               </div>
@@ -104,7 +111,7 @@ export default function LoginPage() {
           </button>
 
           <div className="text-center text-white/20 text-xs">
-            <p className="font-bold">Admin1234!</p>
+            <p className="font-bold">admin / admin123</p>
           </div>
         </form>
       </div>

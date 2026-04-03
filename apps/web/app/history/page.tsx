@@ -14,7 +14,9 @@ const STATUS_LABELS: Record<string, string> = {
   ACCEPTED: "Bekräftad",
   PREPARING: "Tillagas",
   READY: "Klar",
-  DELIVERED: "Levererad",
+  DELIVERING: "På väg",
+  // We intentionally hide "Levererad" in customer UI for now.
+  DELIVERED: "På väg",
   DELIVERY_FAILED: "Leveransproblem",
   CANCELLED: "Avbokad",
   REJECTED: "Nekad",

@@ -98,7 +98,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
 // Seed data
 router.post('/seed', authenticate, async (req: AuthRequest, res) => {
   try {
-    if (req.admin?.role !== 'SUPERIOR') {
+    if (req.admin?.role !== 'SUPER_ADMIN') {
       return res.status(403).json({ error: 'Endast superior admin kan seeda' });
     }
 
@@ -202,16 +202,37 @@ router.get('/', async (req, res) => {
 
 router.post('/', authenticate, async (req: AuthRequest, res) => {
   try {
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
     const payload = restaurantSchema.parse(req.body);
+    const data: any = {
+      name: payload.name,
+      slug: payload.slug || slugify(payload.name),
+      description: payload.description,
+      cuisine: payload.cuisine,
+      address: payload.address,
+      city: payload.city,
+      zip: payload.zip,
+      phone: payload.phone,
+      imageUrl: payload.imageUrl,
+      heroImageUrl: payload.heroImageUrl,
+      etaMinutes: payload.etaMinutes !== undefined ? Number(payload.etaMinutes) : undefined,
+      featuredClass: payload.featuredClass !== undefined ? Number(payload.featuredClass) : undefined,
+      isOpen: payload.isOpen,
+      rating: payload.rating !== undefined ? Number(payload.rating) : undefined,
+      ratingCount: payload.ratingCount !== undefined ? Number(payload.ratingCount) : undefined,
+      deliveryFee: kr(Number(payload.deliveryFee ?? 0)),
+      minOrderAmount: kr(Number(payload.minOrderAmount ?? 0)),
+      tags: JSON.stringify(payload.tags ?? []),
+      openingHours: JSON.stringify(payload.openingHours ?? {}),
+    };
+
     const restaurant = await prisma.restaurant.create({
       data: {
-        ...payload,
-        name: payload.name, // Explicitly pass name to satisfy Prisma TS
-        slug: payload.slug || slugify(payload.name),
-        deliveryFee: kr(payload.deliveryFee ?? 0),
-        minOrderAmount: kr(payload.minOrderAmount ?? 0),
-        tags: JSON.stringify(payload.tags ?? []),
-        openingHours: JSON.stringify(payload.openingHours ?? {}),
+        ...data,
       },
     });
     res.status(201).json(restaurant);
@@ -224,9 +245,32 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
     const payload = restaurantSchema.partial().parse(req.body);
     const { id } = req.params;
+
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      const rid = req.admin?.restaurantId;
+      if (!rid || rid !== id) {
+        res.status(403).json({ error: 'Du kan bara uppdatera din egen restaurang' });
+        return;
+      }
+    }
     
-    // Explicitly handle fields that need conversion
-    const data: any = { ...payload };
+    // Build update payload explicitly to avoid accidentally passing unsupported keys.
+    const data: any = {};
+    if (payload.name !== undefined) data.name = payload.name;
+    if (payload.slug !== undefined) data.slug = payload.slug;
+    if (payload.description !== undefined) data.description = payload.description;
+    if (payload.cuisine !== undefined) data.cuisine = payload.cuisine;
+    if (payload.address !== undefined) data.address = payload.address;
+    if (payload.city !== undefined) data.city = payload.city;
+    if (payload.zip !== undefined) data.zip = payload.zip;
+    if (payload.phone !== undefined) data.phone = payload.phone;
+    if (payload.imageUrl !== undefined) data.imageUrl = payload.imageUrl;
+    if (payload.heroImageUrl !== undefined) data.heroImageUrl = payload.heroImageUrl;
+    if (payload.etaMinutes !== undefined) data.etaMinutes = Number(payload.etaMinutes);
+    if (payload.featuredClass !== undefined) data.featuredClass = Number(payload.featuredClass);
+    if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
+    if (payload.rating !== undefined) data.rating = Number(payload.rating);
+    if (payload.ratingCount !== undefined) data.ratingCount = Number(payload.ratingCount);
     if (payload.deliveryFee !== undefined) data.deliveryFee = kr(Number(payload.deliveryFee));
     if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(Number(payload.minOrderAmount));
     if (payload.tags !== undefined) data.tags = typeof payload.tags === 'string' ? payload.tags : JSON.stringify(payload.tags);
@@ -244,6 +288,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
 router.delete('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
     await prisma.restaurant.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (err) {
@@ -256,6 +305,13 @@ router.post('/:restaurantId/categories', authenticate, async (req: AuthRequest, 
   try {
     const { name, description } = req.body;
     const { restaurantId } = req.params;
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      const rid = req.admin?.restaurantId;
+      if (!rid || rid !== restaurantId) {
+        res.status(403).json({ error: 'Du kan bara skapa kategorier för din egen restaurang' });
+        return;
+      }
+    }
     const category = await prisma.category.create({
       data: {
         name,
@@ -273,6 +329,26 @@ router.post('/:restaurantId/categories', authenticate, async (req: AuthRequest, 
 router.post('/:restaurantId/items', authenticate, async (req: AuthRequest, res) => {
   try {
     const { categoryId, name, description, price } = req.body;
+    const { restaurantId } = req.params;
+
+    if (req.admin?.role !== 'SUPER_ADMIN') {
+      const rid = req.admin?.restaurantId;
+      if (!rid || rid !== restaurantId) {
+        res.status(403).json({ error: 'Du kan bara skapa produkter för din egen restaurang' });
+        return;
+      }
+    }
+
+    const category = await prisma.category.findUnique({
+      where: { id: categoryId },
+      select: { id: true, restaurantId: true },
+    });
+
+    if (!category || category.restaurantId !== restaurantId) {
+      res.status(400).json({ error: 'Ogiltig kategori för vald restaurang' });
+      return;
+    }
+
     const item = await prisma.product.create({
       data: {
         categoryId,

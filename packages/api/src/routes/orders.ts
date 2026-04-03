@@ -437,6 +437,7 @@ router.post('/', async (req: Request, res: Response) => {
     // Emit till admin via Socket.IO
     const orderForSocket = {
       id: order.id,
+      restaurantId: order.restaurantId,
       orderNumber: order.orderNumber,
       status: order.status,
       type: order.type,
@@ -459,7 +460,11 @@ router.post('/', async (req: Request, res: Response) => {
         selectedExtras: JSON.parse(i.selectedExtras),
       })),
     };
+    // Global room is used by SUPER_ADMIN; per-restaurant room is used by each restaurant panel.
     io.to('admin-room').emit('order:new', orderForSocket);
+    if (order.restaurantId) {
+      io.to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
+    }
 
     res.status(201).json({
       orderId: order.id,

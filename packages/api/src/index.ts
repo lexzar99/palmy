@@ -16,6 +16,7 @@ import discountRoutes from './routes/discount';
 import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 import restaurantsRoutes from './routes/restaurants';
+import { ensureDefaultSuperAdmin } from './lib/bootstrapAuth';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -99,9 +100,16 @@ app.get('/health', (_req, res) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
   
-  socket.on('join:admin', () => {
-    socket.join('admin-room');
-    console.log(`👮 Admin joined: ${socket.id}`);
+  socket.on('join:admin', (payload?: { restaurantId?: string }) => {
+    const restaurantId = payload?.restaurantId;
+    if (restaurantId) {
+      socket.join(`admin-room:${restaurantId}`);
+      console.log(`👮 Admin joined (restaurant ${restaurantId}): ${socket.id}`);
+      return;
+    }
+
+    socket.join('admin-room'); // Global (super admin)
+    console.log(`👮 Admin joined (global): ${socket.id}`);
   });
 
   socket.on('join:order', (orderId: string) => {
@@ -126,13 +134,21 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 
 const PORT = Number(process.env.PORT || 4000);
 
+(async () => {
+  try {
+    await ensureDefaultSuperAdmin();
+    console.log('🔐 Default SUPER_ADMIN ensured (admin/admin123)');
+  } catch (error) {
+    console.warn('⚠️ Could not ensure default SUPER_ADMIN:', error);
+  }
 
-httpServer.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 Palmyra API körs på port ${PORT}`);
-  console.log(`📡 Socket.IO redo`);
-  console.log(`🌍 Internt: http://localhost:${PORT}`);
-  console.log(`🌐 Externt: http://192.168.0.3:${PORT} (kontrollera ifconfig om detta ej funkar)\n`);
-});
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🚀 Palmyra API körs på port ${PORT}`);
+    console.log(`📡 Socket.IO redo`);
+    console.log(`🌍 Internt: http://localhost:${PORT}`);
+    console.log(`🌐 Externt: http://192.168.0.3:${PORT} (kontrollera ifconfig om detta ej funkar)\n`);
+  });
+})();
 
 
 export default app;

@@ -57,12 +57,6 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; d
     color: "text-blue-400",
     desc: "Din beställning är på väg till dig.",
   },
-  DELIVERED: {
-    label: "Levererad!",
-    icon: HeartFilledIcon,
-    color: "text-green-500",
-    desc: "Smaklig måltid! Tack för att du valde Palmyra.",
-  },
   DELIVERY_FAILED: {
     label: "Leveransproblem",
     icon: AlertCircle,
@@ -83,8 +77,10 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; d
   },
 };
 
-const PICKUP_PROGRESS_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED"];
-const DELIVERY_PROGRESS_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING", "DELIVERED"];
+// Customer-facing progress ends at READY (pickup) / DELIVERING (delivery).
+// We intentionally hide "DELIVERED" from the customer UI for now.
+const PICKUP_PROGRESS_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "READY"];
+const DELIVERY_PROGRESS_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING"];
 
 const OrderStatusPage = () => {
   const { id } = useParams();
@@ -163,12 +159,18 @@ const OrderStatusPage = () => {
     );
   }
 
-  const statusInfo = STATUS_CONFIG[order.status] ?? STATUS_CONFIG.PENDING;
+  const displayStatus =
+    order.status === "DELIVERED"
+      ? (order.type === "DELIVERY" ? "DELIVERING" : "READY")
+      : order.status;
+
+  const statusInfo = STATUS_CONFIG[displayStatus] ?? STATUS_CONFIG.PENDING;
   const StatusIcon = statusInfo.icon;
-  const isRejected = order.status === "REJECTED" || order.status === "CANCELLED" || order.status === "DELIVERY_FAILED";
-  const isPending = order.status === "PENDING";
+  const isRejected = displayStatus === "REJECTED" || displayStatus === "CANCELLED" || displayStatus === "DELIVERY_FAILED";
+  const isPending = displayStatus === "PENDING";
   const progressSteps = order.type === "DELIVERY" ? DELIVERY_PROGRESS_STEPS : PICKUP_PROGRESS_STEPS;
-  const currentIdx = progressSteps.indexOf(order.status);
+  const currentIdxRaw = progressSteps.indexOf(displayStatus);
+  const currentIdx = currentIdxRaw === -1 ? progressSteps.length - 1 : currentIdxRaw;
   const parseExtras = (extras: any) => {
     if (typeof extras === "string") {
       try {

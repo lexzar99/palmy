@@ -23,10 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body className={`${inter.className} text-white min-h-screen antialiased`} style={{ background: "#0d0d0d" }}>
+      <body className={`${inter.className} text-white min-h-screen antialiased`}>
         <AdminShell>{children}</AdminShell>
       </body>
     </html>
   );
 }
-

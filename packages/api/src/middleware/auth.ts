@@ -9,6 +9,8 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
     role: string;
+    restaurantId?: string | null;
+    restaurantSlug?: string | null;
   };
 }
 
@@ -28,10 +30,10 @@ export const authenticate = async (
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
-    
-    const admin = await prisma.adminUser.findUnique({
+
+    const admin = await prisma.adminUser.findFirst({
       where: { id: payload.id, isActive: true },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, isActive: true },
     });
 
     if (!admin) {
@@ -39,7 +41,23 @@ export const authenticate = async (
       return;
     }
 
-    req.admin = admin;
+    let restaurantId: string | null = null;
+    let restaurantSlug: string | null = null;
+    if (admin.role !== 'SUPER_ADMIN') {
+      // We keep the schema simple: restaurant admins are linked by using the restaurant slug
+      // as their "email"/username (e.g. "palmyra", "sushi-nori").
+      const slug = (admin.email || '').toLowerCase();
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug },
+        select: { id: true, slug: true },
+      });
+      if (restaurant) {
+        restaurantId = restaurant.id;
+        restaurantSlug = restaurant.slug;
+      }
+    }
+
+    req.admin = { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug };
     next();
   } catch {
     res.status(401).json({ error: 'Ogiltig eller utgången token' });

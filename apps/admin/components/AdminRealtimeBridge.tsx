@@ -9,10 +9,24 @@ import { playNotificationSound, primeNotificationAudio } from "@/lib/notificatio
 export default function AdminRealtimeBridge() {
   const [soundId, setSoundId] = useState("signal-1");
   const [pendingCount, setPendingCount] = useState(0);
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const soundIdRef = useRef("signal-1");
   const pendingIdsRef = useRef<Set<string>>(new Set());
   const pollRef = useRef<number | null>(null);
   const soundLoopRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("palmyra_admin");
+      const admin = raw ? JSON.parse(raw) : null;
+      setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
+      setRestaurantId(admin?.restaurantId || null);
+    } catch {
+      setIsSuperAdmin(false);
+      setRestaurantId(null);
+    }
+  }, []);
 
   useEffect(() => {
     soundIdRef.current = soundId;
@@ -98,7 +112,11 @@ export default function AdminRealtimeBridge() {
     });
 
     const joinAdminRoom = () => {
-      socket.emit("join:admin");
+      if (!isSuperAdmin && restaurantId) {
+        socket.emit("join:admin", { restaurantId });
+      } else {
+        socket.emit("join:admin");
+      }
       void syncPendingOrders();
     };
 
@@ -156,7 +174,7 @@ export default function AdminRealtimeBridge() {
         soundLoopRef.current = null;
       }
     };
-  }, [syncPendingOrders]);
+  }, [syncPendingOrders, isSuperAdmin, restaurantId]);
 
   return null;
 }

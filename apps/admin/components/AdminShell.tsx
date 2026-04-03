@@ -5,12 +5,15 @@ import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AdminRealtimeBridge from "@/components/AdminRealtimeBridge";
 import { API_URL } from "@/lib/api";
+import axios from "axios";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const isLoginPage = pathname === "/login";
+  const { setRestaurant } = useRestaurantStore();
 
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
@@ -39,8 +42,38 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }
 
     if (token) {
-      setAuthed(true);
-      setReady(true);
+      // Verify token and also hydrate session data (role + restaurant scope).
+      (async () => {
+        try {
+          const verifyRes = await axios.post(`${API_URL}/api/auth/verify`, { token });
+          if (!verifyRes.data?.valid) throw new Error("invalid");
+          const admin = verifyRes.data.admin;
+          localStorage.setItem("palmyra_admin", JSON.stringify(admin));
+
+          if (admin?.role !== "SUPER_ADMIN" && admin?.restaurantId) {
+            setRestaurant(admin.restaurantId, admin.restaurantName || admin.restaurantSlug || "Restaurang");
+          }
+
+          // Prevent restaurant admins from entering super admin pages.
+          if (admin?.role !== "SUPER_ADMIN") {
+            const isRestaurantAdminBlocked =
+              pathname.startsWith("/restaurants") ||
+              ((pathname === "/settings" || pathname.startsWith("/settings/")) && !pathname.startsWith("/settings/global"));
+            if (isRestaurantAdminBlocked) {
+              router.replace("/orders");
+              return;
+            }
+          }
+
+          setAuthed(true);
+          setReady(true);
+        } catch {
+          localStorage.removeItem("palmyra_token");
+          localStorage.removeItem("palmyra_admin");
+          router.replace("/login");
+          setReady(true);
+        }
+      })();
     } else {
       router.replace("/login");
       // Give the router a moment before showing shell
@@ -49,7 +82,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }
 
     return () => clearTimeout(timer);
-  }, [isLoginPage, router, ready]);
+  }, [isLoginPage, router, ready, pathname, setRestaurant]);
 
   if (isLoginPage) return <>{children}</>;
 
@@ -60,7 +93,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0d0d0d",
+        background: "var(--color-dark-500)",
         flexDirection: "column",
         gap: "24px",
         padding: "20px",
@@ -117,7 +150,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#0d0d0d", overflowX: "hidden" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-dark-500)", overflowX: "hidden" }}>
       <AdminRealtimeBridge />
       <Sidebar />
       <main style={{ flex: 1, padding: "16px", paddingBottom: "80px" }} className="lg:ml-64 lg:p-10">
