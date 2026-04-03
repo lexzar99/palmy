@@ -41,7 +41,10 @@ export const io = new SocketIOServer(httpServer, {
 });
 
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet({ 
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(cors(corsOptions));
 app.use(compression());
 
