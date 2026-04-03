@@ -110,7 +110,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#050505]">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -118,7 +118,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   if (error || (!restaurant && !loading)) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#050505] p-6 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <div className="flex mb-6 items-center justify-center w-16 h-16 rounded-full bg-red-500/10 text-red-500">
           <Info size={32} />
         </div>
@@ -142,7 +142,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {isStandalone && heroImage && (
         <div className="relative w-full h-52 overflow-hidden">
           <img src={heroImage} alt={restaurant?.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-[#050505]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
           <Link
             href="/"
             className="absolute top-4 left-4 flex items-center gap-1.5 text-white/80 hover:text-gold-500 text-xs font-black uppercase tracking-widest bg-black/40 backdrop-blur px-3 py-2 rounded-full transition-colors"
@@ -173,7 +173,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           >
             {!heroImage && restaurant.imageUrl && (
               <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/10 shadow-2xl shrink-0">
-                <img src={restaurant.imageUrl} alt={restaurant.name} className="w-full h-full object-cover" />
+                <img
+                  src={restaurant.slug === "palmyra" ? "/hero-palmyra.svg" : restaurant.imageUrl}
+                  alt={restaurant.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
             )}
             <div className="flex-1 min-w-0">
@@ -194,7 +198,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-col items-end gap-2 shrink-0">
               <div
                 className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
                   restaurant.isOpen
@@ -211,6 +215,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   {restaurant.isOpen ? "Öppet" : "Stängt"}
                 </span>
               </div>
+              {restaurant.phone && (
+                <a
+                  href={`tel:${String(restaurant.phone).replace(/\\s+/g, "")}`}
+                  className="px-3 py-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-300 hover:bg-sky-500/15 transition-colors flex items-center gap-1.5"
+                >
+                  <Phone size={14} />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Ring</span>
+                </a>
+              )}
             </div>
           </motion.div>
 
@@ -289,7 +302,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         )}
 
         {/* Search + category nav */}
-        <div className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-white/5">
+        <div className="sticky top-0 z-40 bg-dark-500/70 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-white/5">
           <div className="flex items-center gap-3">
             <div className="relative flex-1 max-w-[180px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" size={12} />
@@ -347,7 +360,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     key={p.id}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => setSelectedProduct(p)}
-                    className="group bg-[#0d0d0d] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-white/[0.03] transition-all flex items-center gap-4 active:scale-95"
+                    className="group bg-white/[0.03] border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-white/[0.05] transition-all flex items-center gap-4 active:scale-95"
                   >
                     {p.imageUrl ? (
                       <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 flex-shrink-0 border border-white/5">

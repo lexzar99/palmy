@@ -4,7 +4,7 @@ export default async function RestaurantPage({ params }: { params: Promise<{ slu
   const { slug } = await params;
 
   return (
-    <div className="min-h-screen bg-[#050505]">
+    <div className="min-h-screen">
       <MenuContent restaurantSlug={slug} isStandalone={true} />
     </div>
   );

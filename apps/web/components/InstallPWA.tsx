@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 const InstallPWA = () => {
   const [showPrompt, setShowPrompt] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     const isStandalone = 
@@ -17,21 +18,54 @@ const InstallPWA = () => {
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(isIOSDevice);
 
-    const hasDismissed = localStorage.getItem("palmyra_pwa_dismissed");
+    const dismissedAtRaw = localStorage.getItem("matgo_pwa_dismissed_at");
+    const dismissedAt = dismissedAtRaw ? Number(dismissedAtRaw) : 0;
+    const recentlyDismissed = dismissedAt > 0 && Date.now() - dismissedAt < 24 * 60 * 60 * 1000;
     
-    // Only show if not installed and not dismissed recently
-    if (!isStandalone && !hasDismissed) {
+    const onBeforeInstallPrompt = (e: any) => {
+      // Chrome/Edge: capture the event and show our own UI.
+      e.preventDefault();
+      setDeferredPrompt(e);
+      if (!isStandalone && !recentlyDismissed) {
+        setShowPrompt(true);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+
+    // iOS has no beforeinstallprompt; show the instructions banner.
+    if (isIOSDevice && !isStandalone && !recentlyDismissed) {
       setShowPrompt(true);
     }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+    };
   }, []);
 
   const handleDismiss = () => {
     setShowPrompt(false);
     // Don't show again for 24 hours
-    localStorage.setItem("palmyra_pwa_dismissed", Date.now().toString());
+    localStorage.setItem("matgo_pwa_dismissed_at", Date.now().toString());
   };
 
   if (!showPrompt) return null;
+
+  const handleInstall = async () => {
+    if (!deferredPrompt) {
+      // No install prompt available (often due to missing SW/HTTPS or already installed).
+      handleDismiss();
+      return;
+    }
+
+    try {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+    } finally {
+      setDeferredPrompt(null);
+      handleDismiss();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -58,7 +92,7 @@ const InstallPWA = () => {
             </div>
             <div>
               <h3 className="text-lg font-black tracking-tight text-white uppercase italic">
-                Installera Palmyra
+                Installera MatGo
               </h3>
               <p className="text-white/40 text-sm leading-relaxed">
                 Appen funkar bäst när du lägger till den på hemskärmen!
@@ -89,7 +123,7 @@ const InstallPWA = () => {
               </div>
             ) : (
               <button 
-                onClick={handleDismiss}
+                onClick={handleInstall}
                 className="w-full py-4 bg-gold-500 text-dark-500 font-black rounded-2xl uppercase tracking-widest text-xs hover:bg-gold-400 transition-colors"
               >
                 Lägg till på hemskärmen

@@ -111,8 +111,19 @@ export default function HomePage() {
   const getRestaurantHref = (r: Restaurant) =>
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
 
+  const getImageSrc = (path?: string) => {
+    if (!path) return "";
+    if (path.startsWith("/")) return `${API_URL}${path}`;
+    return path;
+  };
+
+  const getCardImage = (r: Restaurant) => {
+    if (r.slug === "palmyra") return getImageSrc("/hero-palmyra.svg");
+    return getImageSrc(r.heroImageUrl || r.imageUrl || "");
+  };
+
   return (
-    <div className="min-h-screen bg-[#0d0d0d] text-white">
+    <div className="min-h-screen text-white">
       <div className="relative mx-auto max-w-2xl px-4 pb-32 pt-8">
 
         {/* Header */}
@@ -213,7 +224,7 @@ export default function HomePage() {
                   <div className="h-36 w-full bg-white/5 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
-                        src={(r.heroImageUrl || r.imageUrl || "").startsWith('/') ? `${API_URL}${r.heroImageUrl || r.imageUrl}` : (r.heroImageUrl || r.imageUrl)}
+                        src={getCardImage(r)}
                         alt={r.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
@@ -232,7 +243,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   {/* Info */}
-                  <div className="p-3 bg-[#0d0d0d]">
+                  <div className="p-3 bg-white/[0.03]">
                     <div className="font-black uppercase tracking-tight text-sm group-hover:text-gold-500 transition-colors leading-tight mb-0.5">
                       {r.name}
                     </div>
@@ -271,13 +282,13 @@ export default function HomePage() {
                 <Link
                   key={r.id}
                   href={getRestaurantHref(r)}
-                  className="group flex overflow-hidden rounded-2xl bg-[#0d0d0d] border border-white/5 hover:border-gold-500/20 transition-all"
+                  className="group flex overflow-hidden rounded-2xl bg-white/[0.03] border border-white/5 hover:border-gold-500/20 transition-all"
                 >
                   {/* Cover image */}
                   <div className="w-28 h-28 shrink-0 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
-                        src={(r.imageUrl || r.heroImageUrl || "").startsWith('/') ? `${API_URL}${r.imageUrl || r.heroImageUrl}` : (r.imageUrl || r.heroImageUrl)}
+                        src={getCardImage(r)}
                         alt={r.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />

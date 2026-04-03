@@ -45,8 +45,14 @@ export default function SearchPage() {
     );
   }, [query, restaurants]);
 
+  const getImageSrc = (path?: string) => {
+    if (!path) return "";
+    if (path.startsWith("/")) return `${API_URL}${path}`;
+    return path;
+  };
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen text-white">
       <div className="mx-auto max-w-2xl px-4 pt-8 pb-32">
         <header className="mb-8">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500/60 mb-2">Sök i plattformen</p>
@@ -61,7 +67,7 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Sök restaurang eller matkategori..."
-              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-lg font-medium placeholder:text-white/20 focus:outline-none focus:border-gold-500/40 focus:bg-white/[0.07] transition-all shadow-2xl shadow-black/50"
+              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-lg font-medium placeholder:text-white/20 focus:outline-none focus:border-sky-500/50 focus:bg-white/[0.07] transition-all shadow-2xl shadow-black/50"
             />
           </div>
         </header>
@@ -81,11 +87,18 @@ export default function SearchPage() {
                    <Link
                      key={r.id}
                      href={r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`}
-                     className="group flex overflow-hidden rounded-2xl bg-[#111] border border-white/5 hover:border-gold-500/20 transition-all p-3"
+                     className="group flex overflow-hidden rounded-2xl bg-white/[0.03] border border-white/5 hover:border-gold-500/20 transition-all p-3"
                    >
                      <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden bg-white/5">
                        {r.heroImageUrl || r.imageUrl ? (
-                         <img src={r.heroImageUrl || r.imageUrl} className="h-full w-full object-cover" />
+                         <img
+                           src={
+                             r.slug === "palmyra"
+                               ? getImageSrc("/hero-palmyra.svg")
+                               : getImageSrc(r.heroImageUrl || r.imageUrl || "")
+                           }
+                           className="h-full w-full object-cover"
+                         />
                        ) : <div className="h-full w-full flex items-center justify-center text-3xl opacity-20"><Utensils /></div>}
                      </div>
                      <div className="flex-1 px-4 py-1">

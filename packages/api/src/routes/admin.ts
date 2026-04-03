@@ -877,7 +877,7 @@ router.get('/extra-groups', async (req, res) => {
 // POST /api/admin/extra-groups
 router.post('/extra-groups', async (req, res) => {
   try {
-    const { extras, restaurantId, ...rest } = req.body;
+    const { extras, restaurantId, categoryIds, ...rest } = req.body;
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
@@ -901,6 +901,25 @@ router.post('/extra-groups', async (req, res) => {
       },
       include: { extras: true },
     });
+
+    // Optional bulk linking: attach this group to all products in the selected categories.
+    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { categoryId: { in: categoryIds } },
+        select: { id: true },
+      });
+
+      if (products.length > 0) {
+        await prisma.productExtraGroup.createMany({
+          data: products.map((p) => ({
+            productId: p.id,
+            extraGroupId: group.id,
+            position: 999,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     res.status(201).json({
       ...group,
@@ -931,7 +950,7 @@ router.patch('/extra-groups/:id', async (req, res) => {
       }
     }
 
-    const { extras, ...rest } = req.body;
+    const { extras, categoryIds, restaurantId: _ignoreRestaurantId, ...rest } = req.body;
     const group = await prisma.extraGroup.update({
       where: { id: req.params.id },
       data: {
@@ -950,6 +969,24 @@ router.patch('/extra-groups/:id', async (req, res) => {
       },
       include: { extras: true },
     });
+
+    if (Array.isArray(categoryIds) && categoryIds.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { categoryId: { in: categoryIds } },
+        select: { id: true },
+      });
+
+      if (products.length > 0) {
+        await prisma.productExtraGroup.createMany({
+          data: products.map((p) => ({
+            productId: p.id,
+            extraGroupId: group.id,
+            position: 999,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     res.json({
       ...group,

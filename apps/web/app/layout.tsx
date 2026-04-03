@@ -4,6 +4,7 @@ import "./globals.css";
 import ShootingStars from "@/components/ShootingStars";
 import InstallPWA from "@/components/InstallPWA";
 import BottomNav from "@/components/BottomNav";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -28,6 +29,7 @@ export default function RootLayout({
     <html lang="sv">
       <body className={`${outfit.className} text-white min-h-screen antialiased`}>
         <ShootingStars />
+        <ServiceWorkerRegister />
         <main>{children}</main>
         <BottomNav />
         <InstallPWA />

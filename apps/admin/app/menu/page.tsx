@@ -292,19 +292,21 @@ const UnifiedMenuPage = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      // categoryIds are used for bulk linking in the UI; don't send it as a Prisma field.
+      const { categoryIds, ...payload } = extraForm as any;
       if (editingId) {
-        await axios.patch(`${API_URL}/api/admin/extra-groups/${editingId}`, extraForm, {
+        await axios.patch(`${API_URL}/api/admin/extra-groups/${editingId}`, { ...payload, categoryIds }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/extra-groups`, { ...extraForm, restaurantId: selectedRestaurantId }, {
+        await axios.post(`${API_URL}/api/admin/extra-groups`, { ...payload, categoryIds, restaurantId: selectedRestaurantId }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
       setIsExtraModalOpen(false);
       fetchData();
-    } catch {
-      alert("Fel vid spara tillbehör");
+    } catch (err: any) {
+      alert(err?.response?.data?.error || "Fel vid spara tillbehör");
     } finally {
       setSaving(false);
     }
@@ -933,9 +935,20 @@ const UnifiedMenuPage = () => {
                            <input value={ex.name} onChange={e => {
                              const n = [...extraForm.extras]; n[idx].name = e.target.value; setExtraForm({...extraForm, extras: n});
                            }} className="flex-1 bg-white/5 border border-white/5 rounded-xl p-3 text-sm" placeholder="Namn" />
-                           <input type="number" value={ex.priceAddon || ""} onChange={e => {
-                             const n = [...extraForm.extras]; n[idx].priceAddon = parseInt(e.target.value) || 0; setExtraForm({...extraForm, extras: n});
-                           }} className="w-24 bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-center" placeholder="Pris" />
+                           <input
+                             type="number"
+                             min={0}
+                             step="1"
+                             value={ex.priceAddon ?? ""}
+                             onChange={(e) => {
+                               const raw = e.target.value;
+                               const n = [...extraForm.extras];
+                               n[idx].priceAddon = raw === "" ? 0 : Number(raw);
+                               setExtraForm({ ...extraForm, extras: n });
+                             }}
+                             className="w-24 bg-white/5 border border-white/5 rounded-xl p-3 text-sm text-center"
+                             placeholder="Pris"
+                           />
                            <button type="button" onClick={() => {
                              setExtraForm({...extraForm, extras: extraForm.extras.filter((_, i) => i !== idx)});
                            }} className="p-3 text-red-400 bg-red-400/10 rounded-xl hover:bg-red-400/20"><Trash2 size={16} /></button>
