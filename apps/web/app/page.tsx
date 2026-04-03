@@ -92,10 +92,7 @@ export default function HomePage() {
   };
 
   const filtered = useMemo(() => {
-    // Endast utvalda (featuredClass 1 och 2) ska synas för kunden
     return restaurants.filter((r) => {
-      if ((r.featuredClass || 3) > 2) return false;
-      
       const matchCuisine =
         activeCuisine === "Alla" ||
         (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||

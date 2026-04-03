@@ -211,9 +211,10 @@ const getGroupIdsForProduct = (
 // GET /api/admin/orders
 router.get('/orders', async (req, res) => {
   try {
-    const { status, limit = '50', offset = '0', date } = req.query;
+    const { status, limit = '50', offset = '0', date, restaurantId } = req.query;
 
     const where: Record<string, unknown> = {};
+    if (restaurantId) where.restaurantId = restaurantId as string;
     if (status) where.status = status;
     if (date) {
       const start = new Date(date as string);

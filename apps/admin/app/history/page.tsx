@@ -19,6 +19,7 @@ import {
   Filter
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Väntande",
@@ -46,13 +47,15 @@ const HistoryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const { selectedRestaurantId } = useRestaurantStore();
 
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
   const fetchOrders = useCallback(async () => {
+    if (!selectedRestaurantId) return;
     setLoading(true);
     try {
-      let url = `${API_URL}/api/admin/orders?limit=100`;
+      let url = `${API_URL}/api/admin/orders?limit=100&restaurantId=${selectedRestaurantId}`;
       if (dateFilter) url += `&date=${dateFilter}`;
       
       const res = await axios.get(url, {
@@ -64,7 +67,7 @@ const HistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [dateFilter]);
+  }, [dateFilter, selectedRestaurantId]);
 
   useEffect(() => {
     fetchOrders();

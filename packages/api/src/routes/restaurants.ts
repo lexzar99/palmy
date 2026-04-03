@@ -30,12 +30,12 @@ const restaurantSchema = z.object({
   deliveryFee: z.number().nonnegative().optional(),
   minOrderAmount: z.number().nonnegative().optional(),
   etaMinutes: z.number().int().positive().optional(),
-  tags: z.array(z.string()).optional(),
+  tags: z.any().optional(),
   featuredClass: z.number().int().min(1).max(3).optional(),
   isOpen: z.boolean().optional(),
   rating: z.number().min(0).max(5).optional(),
   ratingCount: z.number().int().nonnegative().optional(),
-  openingHours: z.record(z.string(), z.any()).optional(),
+  openingHours: z.any().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => ({

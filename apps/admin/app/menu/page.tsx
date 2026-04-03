@@ -226,7 +226,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/categories`, categoryForm, {
+        await axios.post(`${API_URL}/api/admin/categories`, { ...categoryForm, restaurantId: selectedRestaurantId }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -297,7 +297,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/extra-groups`, extraForm, {
+        await axios.post(`${API_URL}/api/admin/extra-groups`, { ...extraForm, restaurantId: selectedRestaurantId }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -388,6 +388,7 @@ const UnifiedMenuPage = () => {
       maxUsesPerCustomer: dealForm.maxUsesPerCustomer ? Number(dealForm.maxUsesPerCustomer) : null,
       validUntil: dealForm.validUntil ? new Date(dealForm.validUntil).toISOString() : null,
       sortOrder: dealForm.sortOrder,
+      restaurantId: selectedRestaurantId,
     };
 
     try {

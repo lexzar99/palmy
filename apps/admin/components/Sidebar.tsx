@@ -112,6 +112,46 @@ const Sidebar = () => {
         </button>
       </div>
 
+      <div className="mb-6 rounded-xl border border-white/10 bg-white/5">
+        <button
+          onClick={() => setRestaurantSectionOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-white/70 hover:text-white transition-colors"
+        >
+          <span className="flex items-center gap-3 text-gold-500">
+            <Store size={20} />
+            <span className="font-black uppercase tracking-widest text-[#fff]">GLOBAL HANTERING</span>
+          </span>
+          <ChevronDown
+            size={18}
+            className={`transition-transform text-white/40 ${restaurantSectionOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        <AnimatePresence>
+          {restaurantSectionOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex flex-col border-t border-white/5">
+                <Link
+                  href="/restaurants"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`px-4 py-3.5 text-xs font-black uppercase tracking-widest ${
+                    pathname === "/restaurants"
+                      ? "bg-gold-500/15 text-gold-500"
+                      : "text-white/40 hover:bg-white/5"
+                  }`}
+                >
+                  Alla restauranger
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
       {/* Restaurant Selector Dropdown */}
       <div className="relative mb-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2 ml-1">Välj Restaurang</p>
@@ -180,45 +220,7 @@ const Sidebar = () => {
           );
         })}
 
-        <div className="mt-4 rounded-xl border border-white/5">
-          <button
-            onClick={() => setRestaurantSectionOpen((o) => !o)}
-            className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-white/70"
-          >
-            <span className="flex items-center gap-3">
-              <Store size={20} />
-              Global hantering
-            </span>
-            <ChevronDown
-              size={18}
-              className={`transition-transform ${restaurantSectionOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          <AnimatePresence>
-            {restaurantSectionOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="flex flex-col border-t border-white/5">
-                  <Link
-                    href="/restaurants"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`px-4 py-3 text-sm ${
-                      pathname === "/restaurants"
-                        ? "bg-gold-500/15 text-gold-300"
-                        : "text-white/50 hover:bg-white/5"
-                    }`}
-                  >
-                    Alla restauranger
-                  </Link>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+
       </nav>
 
       <button
