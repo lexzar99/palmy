@@ -15,10 +15,12 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/api";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 const today = new Date().toISOString().slice(0, 10);
 
 const StatsPage = () => {
+  const { selectedRestaurantId } = useRestaurantStore();
   const [stats, setStats] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
   const [reportRows, setReportRows] = useState<any[]>([]);
@@ -38,7 +40,7 @@ const StatsPage = () => {
     try {
       const res = await axios.get(`${API_URL}/api/admin/reports/orders`, {
         headers: { Authorization: `Bearer ${getToken()}` },
-        params: nextFilters,
+        params: { ...nextFilters, restaurantId: selectedRestaurantId },
       });
       setReportRows(res.data.orders || []);
       setPaymentMethods(res.data.availablePaymentMethods || ["ALL"]);
@@ -51,10 +53,17 @@ const StatsPage = () => {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
         const [statsRes, reportRes] = await Promise.all([
-          axios.get(`${API_URL}/api/admin/stats`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-          axios.get(`${API_URL}/api/admin/stats/report`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+          axios.get(`${API_URL}/api/admin/stats`, { 
+            headers: { Authorization: `Bearer ${getToken()}` },
+            params: { restaurantId: selectedRestaurantId }
+          }),
+          axios.get(`${API_URL}/api/admin/stats/report`, { 
+            headers: { Authorization: `Bearer ${getToken()}` },
+            params: { restaurantId: selectedRestaurantId }
+          }),
         ]);
         setStats(statsRes.data);
         setReport(reportRes.data);
@@ -66,7 +75,7 @@ const StatsPage = () => {
     };
     fetchData();
     fetchReport(filters);
-  }, []);
+  }, [selectedRestaurantId]);
 
   const currentCards = [
     { label: "Intäkter Idag", value: `${stats?.revenueToday ?? 0} kr`, icon: DollarSign, color: "text-emerald-400" },

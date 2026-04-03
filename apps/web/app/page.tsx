@@ -34,7 +34,7 @@ interface Restaurant {
   minOrderAmount?: number;
   etaMinutes?: number;
   isOpen?: boolean;
-  isFeatured?: boolean;
+  featuredClass?: number;
   tags?: string[];
 }
 
@@ -92,7 +92,10 @@ export default function HomePage() {
   };
 
   const filtered = useMemo(() => {
+    // Endast utvalda (featuredClass 1 och 2) ska synas för kunden
     return restaurants.filter((r) => {
+      if ((r.featuredClass || 3) > 2) return false;
+      
       const matchCuisine =
         activeCuisine === "Alla" ||
         (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
@@ -105,8 +108,8 @@ export default function HomePage() {
     });
   }, [restaurants, activeCuisine, query]);
 
-  const featured = filtered.filter((r) => r.isFeatured).slice(0, 3);
-  const rest = filtered.filter((r) => !r.isFeatured || featured.findIndex((f) => f.id === r.id) === -1);
+  // Populära val är de med featuredClass 1 (Premium)
+  const featured = filtered.filter((r) => r.featuredClass === 1).slice(0, 5);
 
   const getRestaurantHref = (r: Restaurant) =>
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;

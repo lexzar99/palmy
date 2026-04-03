@@ -56,13 +56,15 @@ model Product {
 // t.ex. "Storlek" (obligatorisk) eller "Pålägg" (valfri)
 model ExtraGroup {
   id           String    @id @default(cuid())
+  restaurantId String?   // Null means global, otherwise specific to a restaurant
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
   name         String    // t.ex. "Storlek", "Pålägg", "Sås"
   description  String?
   type         String    @default("CHECKBOX") // RADIO = välj ett, CHECKBOX = välj flera
   required     Boolean   @default(false)   // true = obligatorisk
   minSelections Int      @default(0)
   maxSelections Int      @default(99)      // 1 = välj exakt ett (RADIO)
-  position      Int      @default(0)       // Sorteringsordning: 1=först, 2=näst, etc
+  position      Int      @default(0)       // Sorteringsordning
   
   extras       Extra[]
   productGroups ProductExtraGroup[]
@@ -195,6 +197,8 @@ model DiscountCode {
 
 model Deal {
   id                 String   @id @default(cuid())
+  restaurantId       String?
+  restaurant         Restaurant? @relation(fields: [restaurantId], references: [id])
   title              String
   description        String?
   badgeText          String?
@@ -281,44 +285,16 @@ model Restaurant {
   minOrderAmount Int                   @default(0)   // ören
   etaMinutes     Int                   @default(30)
   isOpen         Boolean               @default(true)
-  isFeatured     Boolean               @default(false)
+  featuredClass  Int                   @default(3)   // 1 = Premium, 2 = Standard, 3 = Normal (inte utvald i UI)
   tags           String                @default("[]") // JSON-array
   openingHours   String                @default("{}")
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  categories Category[]
-  legacyCategories RestaurantCategory[] @relation("RestaurantToLegacyCategory")
-  orders     Order[]
+  categories  Category[]
+  extraGroups ExtraGroup[]
+  orders      Order[]
+  deals       Deal[]
 }
 
-model RestaurantCategory {
-  id           String             @id @default(cuid())
-  restaurantId String
-  restaurant   Restaurant         @relation("RestaurantToLegacyCategory", fields: [restaurantId], references: [id], onDelete: Cascade)
-  name         String
-  description  String?
-  position     Int                @default(0)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
 
-  items        RestaurantItem[]
-
-  @@index([restaurantId])
-}
-
-model RestaurantItem {
-  id          String              @id @default(cuid())
-  categoryId  String
-  category    RestaurantCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  price       Int                 // ören
-  imageUrl    String?
-  tags        String              @default("[]") // JSON-array
-  isPopular   Boolean             @default(false)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-
-  @@index([categoryId])
-}

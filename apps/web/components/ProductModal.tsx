@@ -7,10 +7,11 @@ import { useCartStore } from "@/store/cartStore";
 
 interface ProductModalProps {
   product: any;
+  restaurantId: string;
   onClose: () => void;
 }
 
-const ProductModal = ({ product, onClose }: ProductModalProps) => {
+const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
   const [quantity, setQuantity] = useState(1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
@@ -97,6 +98,7 @@ const ProductModal = ({ product, onClose }: ProductModalProps) => {
 
     addItem({
       productId: product.id,
+      restaurantId,
       name: product.name,
       price: product.price,
       quantity,

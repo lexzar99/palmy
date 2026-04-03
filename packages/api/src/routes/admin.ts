@@ -328,11 +328,13 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// Admin: reports/orders (scoped by restaurantId)
 router.get('/reports/orders', async (req, res) => {
   try {
-    const { dateFrom, dateTo, paymentMethod = 'ALL' } = req.query;
+    const { dateFrom, dateTo, paymentMethod = 'ALL', restaurantId } = req.query;
     const where: Record<string, unknown> = {
       status: { notIn: ['CANCELLED', 'REJECTED'] },
+      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
     };
 
     if (dateFrom || dateTo) {
@@ -380,6 +382,79 @@ router.get('/reports/orders', async (req, res) => {
   }
 });
 
+// Admin: stats (scoped by restaurantId)
+router.get('/stats', async (req, res) => {
+  try {
+    const { restaurantId } = req.query;
+    const where = {
+      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
+    };
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [totalOrders, ordersToday, pendingOrders, revenueToday] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.count({ where: { ...where, createdAt: { gte: startOfDay } } }),
+      prisma.order.count({ where: { ...where, status: 'PENDING' } }),
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: startOfDay }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+        _sum: { total: true },
+      }),
+    ]);
+
+    res.json({
+      totalOrders,
+      ordersToday,
+      pendingOrders,
+      revenueToday: (revenueToday._sum.total || 0) / 100,
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel vid statistik' });
+  }
+});
+
+// Admin: stats/report (scoped by restaurantId)
+router.get('/stats/report', async (req, res) => {
+  try {
+    const { restaurantId } = req.query;
+    const where = {
+      status: { notIn: ['CANCELLED', 'REJECTED'] },
+      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
+    };
+
+    const now = new Date();
+    const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const [stats7, stats30] = await Promise.all([
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: last7Days } },
+        _sum: { total: true },
+        _count: true,
+      }),
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: last30Days } },
+        _sum: { total: true },
+        _count: true,
+      }),
+    ]);
+
+    res.json({
+      last7: {
+        revenue: (stats7._sum.total || 0) / 100,
+        count: stats7._count,
+      },
+      last30: {
+        revenue: (stats30._sum.total || 0) / 100,
+        count: stats30._count,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel vid rapport' });
+  }
+});
+
 // =====================
 // KATEGORIER
 // =====================
@@ -389,7 +464,7 @@ router.get('/categories', async (req, res) => {
   try {
     const { restaurantId } = req.query;
     const categories = await prisma.category.findMany({
-      where: restaurantId ? { restaurantId: restaurantId as string } : {},
+      where: restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null },
       orderBy: { position: 'asc' },
       include: { _count: { select: { products: true } } },
     });
@@ -408,7 +483,7 @@ router.post('/categories', async (req, res) => {
     const category = await prisma.category.create({
       data: { 
         name, 
-        slug: `${slug}-${Date.now()}`, // Ensure unique slug for multi-tenant
+        slug: `${slug}-${Date.now()}`, 
         description, 
         imageUrl, 
         position: position || 0,
@@ -416,11 +491,7 @@ router.post('/categories', async (req, res) => {
       },
     });
     res.status(201).json(category);
-  } catch (error: unknown) {
-    if ((error as { code?: string }).code === 'P2002') {
-      res.status(400).json({ error: 'Kategorinamn finns redan' });
-      return;
-    }
+  } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -432,7 +503,6 @@ router.patch('/categories/:id', async (req, res) => {
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       data.name = name;
-      data.slug = name.toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
     }
     if (description !== undefined) data.description = description;
     if (imageUrl !== undefined) data.imageUrl = imageUrl;
@@ -452,25 +522,12 @@ router.patch('/categories/:id', async (req, res) => {
 // DELETE /api/admin/categories/:id
 router.delete('/categories/:id', async (req, res) => {
   try {
-    const categoryId = req.params.id;
-    
-    // Check if category has products
-    const productCount = await prisma.product.count({
-      where: { categoryId }
-    });
-    
-    if (productCount > 0) {
-      res.status(400).json({ error: 'Kategorin är inte tom. Ta bort eller flytta alla produkter först.' });
-      return;
-    }
-
     await prisma.category.delete({
-      where: { id: categoryId },
+      where: { id: req.params.id },
     });
     res.json({ success: true });
-  } catch (error) {
-    console.error('Delete category error:', error);
-    res.status(500).json({ error: 'Kunde inte radera kategorin' });
+  } catch {
+    res.status(500).json({ error: 'Serverfel' });
   }
 });
 
@@ -481,7 +538,7 @@ router.delete('/categories/:id', async (req, res) => {
 const ProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  price: z.number().positive(), // i kr (konverteras till ören)
+  price: z.number().positive(),
   categoryId: z.string(),
   imageUrl: z.string().optional(),
   isActive: z.boolean().optional(),
@@ -489,7 +546,7 @@ const ProductSchema = z.object({
   isVegetarian: z.boolean().optional(),
   isGlutenFree: z.boolean().optional(),
   position: z.number().optional(),
-  extraGroupIds: z.array(z.string()).optional(), // vilka extra-grupper som ska kopplas
+  extraGroupIds: z.array(z.string()).optional(),
 });
 
 // GET /api/admin/products
@@ -499,7 +556,7 @@ router.get('/products', async (req, res) => {
     const products = await prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
-        ...(restaurantId ? { category: { restaurantId: restaurantId as string } } : {}),
+        ...(restaurantId ? { category: { restaurantId: restaurantId as string } } : { category: { restaurantId: null } }),
       },
       orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
       include: {
@@ -561,15 +618,10 @@ router.post('/products', async (req, res) => {
           },
         } : {}),
       },
-      include: { extraGroups: { include: { extraGroup: true } } },
     });
 
     res.status(201).json({ ...product, price: product.price / 100 });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Ogiltig data', details: error.errors });
-      return;
-    }
+  } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -578,7 +630,6 @@ router.post('/products', async (req, res) => {
 router.patch('/products/:id', async (req, res) => {
   try {
     const { extraGroupIds, price, ...rest } = req.body;
-
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
 
@@ -596,11 +647,6 @@ router.patch('/products/:id', async (req, res) => {
           },
         } : {}),
       },
-      include: {
-        extraGroups: {
-          include: { extraGroup: { include: { extras: true } } },
-        },
-      },
     });
 
     res.json({ ...product, price: product.price / 100 });
@@ -612,10 +658,7 @@ router.patch('/products/:id', async (req, res) => {
 // DELETE /api/admin/products/:id
 router.delete('/products/:id', async (req, res) => {
   try {
-    await prisma.product.update({
-      where: { id: req.params.id },
-      data: { isActive: false },
-    });
+    await prisma.product.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -623,13 +666,15 @@ router.delete('/products/:id', async (req, res) => {
 });
 
 // =====================
-// EXTRA GRUPPER
+// EXTRA GRUPPER (scoped by restaurantId)
 // =====================
 
 // GET /api/admin/extra-groups
-router.get('/extra-groups', async (_req, res) => {
+router.get('/extra-groups', async (req, res) => {
   try {
+    const { restaurantId } = req.query;
     const groups = await prisma.extraGroup.findMany({
+      where: restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null },
       include: {
         extras: { orderBy: { position: 'asc' } },
         _count: { select: { productGroups: true } },
@@ -647,15 +692,15 @@ router.get('/extra-groups', async (_req, res) => {
 // POST /api/admin/extra-groups
 router.post('/extra-groups', async (req, res) => {
   try {
-    const { extras, ...rest } = req.body;
-
+    const { extras, restaurantId, ...rest } = req.body;
     const group = await prisma.extraGroup.create({
       data: {
         ...rest,
+        restaurantId: restaurantId || null,
         type: rest.type || 'CHECKBOX',
         ...(extras && extras.length > 0 ? {
           extras: {
-            create: extras.map((e: { name: string; priceAddon: number; isDefault: boolean }, i: number) => ({
+            create: extras.map((e: any, i: number) => ({
               name: e.name,
               priceAddon: Math.round((e.priceAddon || 0) * 100),
               isDefault: e.isDefault || false,
@@ -679,8 +724,7 @@ router.post('/extra-groups', async (req, res) => {
 // PATCH /api/admin/extra-groups/:id
 router.patch('/extra-groups/:id', async (req, res) => {
   try {
-    const { extras, categoryIds, ...rest } = req.body;
-
+    const { extras, ...rest } = req.body;
     const group = await prisma.extraGroup.update({
       where: { id: req.params.id },
       data: {
@@ -688,7 +732,7 @@ router.patch('/extra-groups/:id', async (req, res) => {
         ...(extras !== undefined ? {
           extras: {
             deleteMany: {},
-            create: extras.map((e: { name: string; priceAddon: number; isDefault: boolean }, i: number) => ({
+            create: extras.map((e: any, i: number) => ({
               name: e.name,
               priceAddon: Math.round((e.priceAddon || 0) * 100),
               isDefault: e.isDefault || false,
@@ -699,35 +743,6 @@ router.patch('/extra-groups/:id', async (req, res) => {
       },
       include: { extras: true },
     });
-
-    // If categoryIds are provided, link to all products in those categories
-    if (categoryIds && Array.isArray(categoryIds)) {
-      const productsInCategory = await prisma.product.findMany({
-        where: { categoryId: { in: categoryIds } },
-        select: { id: true },
-      });
-
-      // Using a transaction for safety
-      await prisma.$transaction([
-        // Optionally remove old category-based links? 
-        // For simplicity, we just add missing ones or ensure all products in these categories have it.
-        ...productsInCategory.map(product => 
-          prisma.productExtraGroup.upsert({
-            where: {
-              productId_extraGroupId: {
-                productId: product.id,
-                extraGroupId: group.id,
-              }
-            },
-            update: {}, // No update needed if exists
-            create: {
-              productId: product.id,
-              extraGroupId: group.id,
-            }
-          })
-        )
-      ]);
-    }
 
     res.json({
       ...group,
@@ -741,14 +756,42 @@ router.patch('/extra-groups/:id', async (req, res) => {
 // DELETE /api/admin/extra-groups/:id
 router.delete('/extra-groups/:id', async (req, res) => {
   try {
-    await prisma.extraGroup.delete({
-      where: { id: req.params.id },
-    });
+    await prisma.extraGroup.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
+
+// =====================
+// DEALS (scoped by restaurantId)
+// =====================
+
+router.get('/deals', async (req, res) => {
+  try {
+    const { restaurantId } = req.query;
+    const deals = await prisma.deal.findMany({
+      where: (restaurantId ? { restaurantId: restaurantId as string } : { restaurantId: null }) as any,
+      orderBy: { sortOrder: 'asc' },
+    });
+    res.json(deals);
+  } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+router.post('/deals', async (req, res) => {
+  try {
+    const { restaurantId, ...rest } = req.body;
+    const deal = await prisma.deal.create({
+      data: { ...rest, restaurantId: restaurantId || null },
+    });
+    res.status(201).json(deal);
+  } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 
 // =====================
 // MENYIMPORT
@@ -952,233 +995,6 @@ router.post('/menu/bulk-import', async (req, res) => {
   } catch (error) {
     console.error('Bulk import fatal error:', error);
     res.status(500).json({ error: 'Internt serverfel vid import' });
-  }
-});
-
-// =====================
-// STATISTIK
-// =====================
-
-router.get('/stats', async (_req, res) => {
-  try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [
-      ordersToday,
-      totalOrders,
-      revenueToday,
-      pendingOrders,
-    ] = await Promise.all([
-      prisma.order.count({ where: { createdAt: { gte: today } } }),
-      prisma.order.count({ where: { status: { not: 'CANCELLED' } } }),
-      prisma.order.aggregate({
-        where: { createdAt: { gte: today }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
-        _sum: { total: true },
-      }),
-      prisma.order.count({ where: { status: 'PENDING' } }),
-    ]);
-
-    res.json({
-      ordersToday,
-      totalOrders,
-      revenueToday: (revenueToday._sum.total || 0) / 100,
-      pendingOrders,
-    });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// GET /api/admin/stats/report
-router.get('/stats/report', async (_req, res) => {
-  try {
-    const now = new Date();
-    const last7 = new Date(now);
-    last7.setDate(now.getDate() - 7);
-    const last30 = new Date(now);
-    last30.setDate(now.getDate() - 30);
-
-    const [stats7, stats30] = await Promise.all([
-      prisma.order.aggregate({
-        where: { createdAt: { gte: last7 }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      prisma.order.aggregate({
-        where: { createdAt: { gte: last30 }, status: { notIn: ['CANCELLED', 'REJECTED'] } },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-    ]);
-
-    res.json({
-      last7: {
-        revenue: (stats7._sum.total || 0) / 100,
-        count: stats7._count.id,
-      },
-      last30: {
-        revenue: (stats30._sum.total || 0) / 100,
-        count: stats30._count.id,
-      },
-    });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// =====================
-// DEALS
-// =====================
-
-const DealPayloadSchema = z.object({
-  title: z.string().min(2).max(120),
-  description: z.string().max(500).optional().nullable(),
-  badgeText: z.string().max(60).optional().nullable(),
-  triggerType: z.enum(['NONE', 'MIN_ORDER', 'COMBO']).default('NONE'),
-  discountType: z.enum(['PERCENTAGE', 'FIXED']).default('PERCENTAGE'),
-  discountValue: z.number().min(1),
-  minOrder: z.number().min(0).optional().default(0),
-  comboProductIds: z.array(z.string()).optional().default([]),
-  isActive: z.boolean().optional().default(true),
-  showOnSite: z.boolean().optional().default(true),
-  popupEnabled: z.boolean().optional().default(true),
-  maxUsages: z.number().int().positive().nullable().optional(),
-  maxUsesPerCustomer: z.number().int().positive().nullable().optional(),
-  validFrom: z.string().nullable().optional(),
-  validUntil: z.string().nullable().optional(),
-  sortOrder: z.number().int().min(0).optional().default(0),
-});
-
-const serializeDealPayload = (payload: z.infer<typeof DealPayloadSchema>) => ({
-  title: payload.title.trim(),
-  description: payload.description?.trim() || null,
-  badgeText: payload.badgeText?.trim() || null,
-  triggerType: payload.triggerType,
-  discountType: payload.discountType,
-  discountValue: payload.discountType === 'FIXED'
-    ? Math.round(payload.discountValue * 100)
-    : Math.round(payload.discountValue),
-  minOrder: Math.round((payload.minOrder || 0) * 100),
-  comboProductIds: JSON.stringify(payload.comboProductIds || []),
-  isActive: payload.isActive ?? true,
-  showOnSite: payload.showOnSite ?? true,
-  popupEnabled: payload.popupEnabled ?? true,
-  maxUsages: payload.maxUsages ?? null,
-  maxUsesPerCustomer: payload.maxUsesPerCustomer ?? null,
-  validFrom: payload.validFrom ? new Date(payload.validFrom) : null,
-  validUntil: payload.validUntil ? new Date(payload.validUntil) : null,
-  sortOrder: payload.sortOrder ?? 0,
-});
-
-router.get('/deals', async (_req, res) => {
-  try {
-    const deals = await prisma.deal.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
-    });
-
-    const comboProductIds = [...new Set(deals.flatMap((deal) => parseDealProductIds(deal.comboProductIds)))];
-    const products = comboProductIds.length
-      ? await prisma.product.findMany({
-          where: { id: { in: comboProductIds } },
-          select: { id: true, name: true },
-        })
-      : [];
-
-    const productNameMap = new Map(products.map((product) => [product.id, product.name]));
-
-    res.json(
-      deals.map((deal) =>
-        formatDealForClient(deal, {
-          comboProductNames: parseDealProductIds(deal.comboProductIds).map((productId) => productNameMap.get(productId) || 'Valfri vara'),
-        }),
-      ),
-    );
-  } catch (error) {
-    console.error('Admin deals error:', error);
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-router.post('/deals', async (req, res) => {
-  try {
-    const parsed = DealPayloadSchema.parse(req.body);
-    if (parsed.triggerType === 'COMBO' && (!parsed.comboProductIds || parsed.comboProductIds.length === 0)) {
-      res.status(400).json({ error: 'Välj minst en produkt till combo-dealen' });
-      return;
-    }
-
-    const deal = await prisma.deal.create({
-      data: serializeDealPayload(parsed),
-    });
-
-    res.status(201).json(formatDealForClient(deal));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Ogiltig deal-data', details: error.errors });
-      return;
-    }
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-router.patch('/deals/:id', async (req, res) => {
-  try {
-    const parsed = DealPayloadSchema.partial().parse(req.body);
-    const existing = await prisma.deal.findUnique({ where: { id: req.params.id } });
-
-    if (!existing) {
-      res.status(404).json({ error: 'Dealen hittades inte' });
-      return;
-    }
-
-    const merged = {
-      title: parsed.title ?? existing.title,
-      description: parsed.description ?? existing.description,
-      badgeText: parsed.badgeText ?? existing.badgeText,
-      triggerType: parsed.triggerType ?? existing.triggerType,
-      discountType: parsed.discountType ?? existing.discountType,
-      discountValue: parsed.discountValue ?? (existing.discountType === 'FIXED' ? existing.discountValue / 100 : existing.discountValue),
-      minOrder: parsed.minOrder ?? existing.minOrder / 100,
-      comboProductIds: parsed.comboProductIds ?? parseDealProductIds(existing.comboProductIds),
-      isActive: parsed.isActive ?? existing.isActive,
-      showOnSite: parsed.showOnSite ?? existing.showOnSite,
-      popupEnabled: parsed.popupEnabled ?? existing.popupEnabled,
-      maxUsages: parsed.maxUsages ?? existing.maxUsages,
-      maxUsesPerCustomer: parsed.maxUsesPerCustomer ?? existing.maxUsesPerCustomer,
-      validFrom: parsed.validFrom ?? existing.validFrom?.toISOString() ?? null,
-      validUntil: parsed.validUntil ?? existing.validUntil?.toISOString() ?? null,
-      sortOrder: parsed.sortOrder ?? existing.sortOrder,
-    };
-
-    if (merged.triggerType === 'COMBO' && merged.comboProductIds.length === 0) {
-      res.status(400).json({ error: 'Välj minst en produkt till combo-dealen' });
-      return;
-    }
-
-    const updated = await prisma.deal.update({
-      where: { id: req.params.id },
-      data: serializeDealPayload(DealPayloadSchema.parse(merged)),
-    });
-
-    res.json(formatDealForClient(updated));
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      res.status(400).json({ error: 'Ogiltig deal-data', details: error.errors });
-      return;
-    }
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-router.delete('/deals/:id', async (req, res) => {
-  try {
-    await prisma.deal.delete({
-      where: { id: req.params.id },
-    });
-    res.json({ ok: true });
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
   }
 });
 

@@ -40,7 +40,7 @@ interface Restaurant {
   deliveryFee?: number;
   etaMinutes?: number;
   isOpen?: boolean;
-  isFeatured?: boolean;
+  featuredClass?: number;
   tags?: string[];
   openingHours?: Record<string, string>;
   menu?: RestaurantCategory[];
@@ -55,7 +55,7 @@ const emptyForm: Partial<Restaurant> = {
   deliveryFee: 0,
   etaMinutes: 30,
   isOpen: true,
-  isFeatured: false,
+  featuredClass: 3,
   tags: [],
 };
 
@@ -224,8 +224,12 @@ export default function RestaurantsPage() {
                   <div className="text-sm font-bold">{r.name}</div>
                   <div className="text-[10px] uppercase tracking-[0.2em] text-white/30">{r.cuisine || ""}</div>
                 </div>
-                {r.isFeatured && (
-                  <span className="rounded-full bg-gold-500/20 px-2 py-1 text-[10px] font-black text-gold-400">Utvald</span>
+                {(r.featuredClass || 3) < 3 && (
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-black ${
+                    r.featuredClass === 1 ? "bg-gold-500/20 text-gold-400" : "bg-white/10 text-white/50"
+                  }`}>
+                    {r.featuredClass === 1 ? "Premium" : "Standard"}
+                  </span>
                 )}
               </div>
             </button>
@@ -350,14 +354,23 @@ export default function RestaurantsPage() {
             >
               <Check size={14} /> {form.isOpen ? "Öppen" : "Stängd"}
             </button>
-            <button
-              onClick={() => setForm({ ...form, isFeatured: !form.isFeatured })}
-              className={`flex items-center gap-2 rounded-full px-3 py-2 font-black uppercase tracking-wider ${
-                form.isFeatured ? "bg-gold-500/30 text-gold-300" : "bg-white/5 text-white/40"
-              }`}
-            >
-              <Plus size={14} /> Utvald
-            </button>
+            
+            <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 p-1">
+              {[1, 2, 3].map((cls) => (
+                <button
+                  key={cls}
+                  onClick={() => setForm({ ...form, featuredClass: cls })}
+                  className={`rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all ${
+                    form.featuredClass === cls
+                      ? "bg-gold-500 text-dark-500 shadow-lg"
+                      : "text-white/40 hover:text-white"
+                  }`}
+                >
+                  {cls === 1 ? "Premium" : cls === 2 ? "Standard" : "Normal"}
+                </button>
+              ))}
+            </div>
+            <p className="w-full text-[9px] text-white/20 mt-1 ml-1 uppercase tracking-widest italic">Featured Class styr ranking och synlighet på startsidan</p>
           </div>
         </div>
 

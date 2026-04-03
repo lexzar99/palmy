@@ -390,7 +390,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {/* Product Modal */}
       <AnimatePresence>
         {selectedProduct && (
-          <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
+          <ProductModal 
+            product={selectedProduct} 
+            restaurantId={restaurant?.id || "palmyra"}
+            onClose={() => setSelectedProduct(null)} 
+          />
         )}
       </AnimatePresence>
 

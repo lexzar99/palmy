@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export interface CartItem {
   cartItemId: string; // Unikt id för denna specifika rad i korgen
   productId: string;
+  restaurantId: string;
   name: string;
   price: number; // Baspris i kr
   quantity: number;
@@ -19,6 +20,7 @@ export interface CartItem {
 
 interface CartStore {
   items: CartItem[];
+  restaurantId: string | null;
   lastAddedItemName: string | null;
   lastAddedAt: number;
   addItem: (item: Omit<CartItem, 'cartItemId'>) => void;
@@ -32,22 +34,35 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       items: [],
+      restaurantId: null,
       lastAddedItemName: null,
       lastAddedAt: 0,
-      addItem: (item) => set((state) => ({
-        items: [...state.items, { ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
-        lastAddedItemName: item.name,
-        lastAddedAt: Date.now(),
-      })),
-      removeItem: (id) => set((state) => ({
-        items: state.items.filter((i) => i.cartItemId !== id),
-      })),
+      addItem: (item) => set((state) => {
+        const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
+        const newItems = isDifferentRestaurant 
+          ? [{ ...item, cartItemId: Math.random().toString(36).substr(2, 9) }]
+          : [...state.items, { ...item, cartItemId: Math.random().toString(36).substr(2, 9) }];
+          
+        return {
+          items: newItems,
+          restaurantId: item.restaurantId,
+          lastAddedItemName: item.name,
+          lastAddedAt: Date.now(),
+        };
+      }),
+      removeItem: (id) => set((state) => {
+        const remainingItems = state.items.filter((i) => i.cartItemId !== id);
+        return {
+          items: remainingItems,
+          restaurantId: remainingItems.length > 0 ? state.restaurantId : null,
+        };
+      }),
       updateQuantity: (id, amount) => set((state) => ({
         items: state.items.map((i) => 
           i.cartItemId === id ? { ...i, quantity: Math.max(1, i.quantity + amount) } : i
         ),
       })),
-      clearCart: () => set({ items: [], lastAddedItemName: null, lastAddedAt: 0 }),
+      clearCart: () => set({ items: [], restaurantId: null, lastAddedItemName: null, lastAddedAt: 0 }),
       getTotal: () => {
         const items = get().items;
         return items.reduce((total, item) => {
