@@ -247,19 +247,8 @@ export default function HomePage() {
                       <div className="absolute top-2 left-2 flex items-center gap-1.5">
                         <div className="px-2 py-0.5 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
                           <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                          Öppet
+                           Öppet
                         </div>
-                        {r.phone && (
-                          <div 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              window.location.href = `tel:${r.phone}`;
-                            }}
-                            className="p-1.5 rounded-full bg-sky-500/80 backdrop-blur-sm text-white hover:bg-sky-600 transition-colors shadow-lg pointer-events-auto"
-                          >
-                            <Phone size={10} />
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -363,17 +352,6 @@ export default function HomePage() {
                             <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
                             {r.isOpen !== false ? "Öppet" : "Stängt"}
                           </div>
-                          {r.isOpen !== false && r.phone && (
-                            <div 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                window.location.href = `tel:${r.phone}`;
-                              }}
-                              className="p-1.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 transition-colors pointer-events-auto"
-                            >
-                              <Phone size={10} />
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}

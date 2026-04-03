@@ -118,17 +118,6 @@ export default function SearchPage() {
                           <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
                           {r.isOpen !== false ? "Öppet" : "Stängt"}
                         </div>
-                        {r.isOpen !== false && r.phone && (
-                          <div 
-                            onClick={(e) => {
-                              e.preventDefault();
-                              window.location.href = `tel:${r.phone}`;
-                            }}
-                            className="p-1.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 hover:bg-sky-500/20 transition-colors pointer-events-auto"
-                          >
-                            <Phone size={10} />
-                          </div>
-                        )}
                       </div>
                      </div>
                      <div className="flex items-center text-white/10 group-hover:text-gold-500 pr-2">
