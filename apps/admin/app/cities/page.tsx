@@ -100,9 +100,10 @@ const CitiesPage = () => {
         ...selectedCity,
         zones: typeof selectedCity.zones === 'string' ? selectedCity.zones : JSON.stringify(selectedCity.zones)
       });
-      setTimeout(() => setIsSaving(false), 800);
+      setTimeout(() => setIsSaving(false), 1200);
     } catch (err) {
-      alert("Kunde inte spara");
+      console.error("Save error:", err);
+      alert("Kunde inte spara ändringar. Kontrollera anslutningen.");
       setIsSaving(false);
     }
   };
@@ -127,7 +128,11 @@ const CitiesPage = () => {
       deliveryFee: 39,
       minOrder: 200
     };
-    setCities(cities.map(c => c.id === selectedCityId ? { ...c, zones: [...c.zones, newZone] } : c));
+    setCities(cities.map(c => {
+      if (c.id !== selectedCityId) return c;
+      const currentZones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
+      return { ...c, zones: [...(currentZones || []), newZone] as any };
+    }));
   };
 
   const updateZone = (zoneId: string, field: keyof DeliveryZone, value: any) => {
@@ -258,7 +263,9 @@ const CitiesPage = () => {
                      ].map(mode => (
                        <button
                          key={mode.id}
-                         onClick={() => setCities(cities.map(c => c.id === selectedCity.id ? {...c, deliveryMode: mode.id as any} : c))}
+                         onClick={() => {
+                           setCities(cities.map(c => c.id === selectedCity.id ? {...c, deliveryMode: mode.id as any} : c));
+                         }}
                          className={`p-8 rounded-[2.5rem] border-2 text-left transition-all flex flex-col gap-4 ${
                            selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-white/5 border-white/5 hover:border-white/10"
                          }`}
@@ -347,17 +354,28 @@ const CitiesPage = () => {
                   </div>
                </div>
 
-               {/* Footer Save */}
-               <div className="flex justify-end pt-4">
-                  <button 
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className="flex items-center gap-4 px-12 py-6 bg-emerald-500 text-white rounded-[2rem] font-black uppercase tracking-widest shadow-2xl shadow-emerald-500/20 active:scale-95 transition-all text-sm"
-                  >
-                    {isSaving ? <Loader2 size={24} className="animate-spin" /> : <Save size={24} />}
-                    Spara ändringar för {selectedCity.name}
-                  </button>
-               </div>
+               {/* Bottom Actions */}
+              <div className="flex justify-end pt-10 border-t border-white/5">
+                 <button 
+                   onClick={handleSave}
+                   disabled={isSaving}
+                   className={`flex items-center gap-4 px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] transition-all shadow-2xl ${
+                     isSaving ? "bg-emerald-500 text-white scale-95" : "bg-sky-500 hover:bg-sky-400 text-white hover:scale-105"
+                   }`}
+                 >
+                    {isSaving ? (
+                      <>
+                        <Check size={20} />
+                        Sparat!
+                      </>
+                    ) : (
+                      <>
+                        <Save size={20} />
+                        Spara ändringar
+                      </>
+                    )}
+                 </button>
+              </div>
             </motion.div>
           ) : (
             <div className="flex flex-col items-center justify-center py-40 text-white/10 gap-6">
