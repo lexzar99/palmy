@@ -232,3 +232,14 @@ model Restaurant {
   extraGroups    ExtraGroup[]
   orders         Order[]
 }
+
+model City {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  slug         String   @unique
+  isActive     Boolean  @default(true)
+  deliveryMode String   @default("ALL")
+  zones        String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
