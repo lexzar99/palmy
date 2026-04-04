@@ -91,21 +91,11 @@ function SocialButton({
   onSuccess: (token: string, user: any) => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const { data: session, status } = useSession();
 
-  // When session just arrived after OAuth redirect, exchange it for platform token
-  useEffect(() => {
-    if (status === "authenticated" && (session as any)?.platformToken) {
-      const pToken = (session as any).platformToken as string;
-      const pUser = (session as any).platformUser as any;
-      localStorage.setItem("platform_user_token", pToken);
-      onSuccess(pToken, pUser);
-    }
-  }, [status, session, onSuccess]);
-
+  // This component now only triggers the sign-in flow
   const handleClick = async () => {
     setLoading(true);
-    await signIn(provider, { callbackUrl: "/profile" });
+    await signIn(provider, { callbackUrl: window.location.origin + "/profile" });
   };
 
   return (
@@ -143,7 +133,7 @@ export default function ProfilePage() {
   const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-
+ 
   // Add phone for OAuth users
   const [showAddPhone, setShowAddPhone] = useState(false);
   const [addPhoneCountry, setAddPhoneCountry] = useState("+46");
@@ -159,6 +149,38 @@ export default function ProfilePage() {
       ]);
       setUser(profileRes.data);
       setEditName(profileRes.data.name || "");
+      setEditEmail(profileRes.data.email || "");
+      setOrders(ordersRes.data || []);
+    } catch {
+      handleLogout();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // ─── OAuth Session Exchange ──────────────────────────────────────────────
+  const { data: session, status } = useSession();
+ 
+  useEffect(() => {
+    if (status === "authenticated" && (session as any)?.platformToken) {
+      const pToken = (session as any).platformToken as string;
+      const pUser = (session as any).platformUser as any;
+      
+      // Only update if we don't already have this token to avoid loops
+      if (token !== pToken) {
+        localStorage.setItem("platform_user_token", pToken);
+        setToken(pToken);
+        setUser(pUser);
+        fetchData(pToken);
+        
+        // If OAuth user has no phone, show add-phone prompt
+        if (pUser?.needsPhone) {
+          setShowAddPhone(true);
+        }
+      }
+    }
+  }, [status, session, token, fetchData]);
+
       setEditEmail(profileRes.data.email || "");
       setOrders(ordersRes.data || []);
     } catch {

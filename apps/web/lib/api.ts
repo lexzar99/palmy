@@ -3,13 +3,16 @@ export const getApiUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  // Fallback for client-side
+  // Final fallback (production)
+  if (process.env.NODE_ENV === "production" || (typeof window !== "undefined" && !window.location.hostname.includes("localhost"))) {
+    return "https://api-production-eb5f.up.railway.app";
+  }
+ 
+  // Fallback for client-side local dev
   if (typeof window !== "undefined") {
-    // If the site is accessed via a hostname (e.g., 192.168.0.x or palmyra.local), 
-    // we should try to use that same hostname for the API on port 4000
     return `http://${window.location.hostname}:4000`;
   }
-
+ 
   return "http://localhost:4000";
 };
 
