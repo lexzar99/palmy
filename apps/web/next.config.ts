@@ -8,16 +8,18 @@ const apiTarget =
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.0.3'],
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiTarget}/api/:path*`,
-      },
-      {
-        source: "/socket.io/:path*",
-        destination: `${apiTarget}/socket.io/:path*`,
-      },
-    ];
+    return {
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${apiTarget}/api/:path*`,
+        },
+        {
+          source: "/socket.io/:path*",
+          destination: `${apiTarget}/socket.io/:path*`,
+        },
+      ],
+    };
   },
 };
 

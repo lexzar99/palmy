@@ -35,7 +35,7 @@ const handler = NextAuth({
     async jwt({ token, account, user }) {
       if (account && user?.email) {
         try {
-          const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
+          const res = await axios.post(`${API_URL}/api/account/oauth-token`, {
             email: user.email,
             name: user.name,
             provider: account.provider,

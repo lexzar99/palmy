@@ -23,7 +23,7 @@ const RegisterPage = () => {
     setIsRegistering(true);
     setError("");
     try {
-      const res = await axios.post(`${API_URL}/api/auth/register-user`, { name, phone, password, email });
+      const res = await axios.post(`${API_URL}/api/account/register-user`, { name, phone, password, email });
       localStorage.setItem("platform_user_token", res.data.token);
       setSuccess(true);
       setTimeout(() => router.push("/profile"), 2000);

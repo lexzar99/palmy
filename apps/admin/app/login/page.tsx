@@ -25,7 +25,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login`, { identifier, password });
+      const res = await axios.post(`${API_URL}/api/account/login`, { identifier, password });
       localStorage.setItem("palmyra_token", res.data.token);
       localStorage.setItem("palmyra_admin", JSON.stringify(res.data.admin));
       if (res.data.admin?.role === "SUPER_ADMIN") {

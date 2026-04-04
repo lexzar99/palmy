@@ -45,7 +45,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       // Verify token and also hydrate session data (role + restaurant scope).
       (async () => {
         try {
-          const verifyRes = await axios.post(`${API_URL}/api/auth/verify`, { token });
+          const verifyRes = await axios.post(`${API_URL}/api/account/verify`, { token });
           if (!verifyRes.data?.valid) throw new Error("invalid");
           const admin = verifyRes.data.admin;
           localStorage.setItem("palmyra_admin", JSON.stringify(admin));

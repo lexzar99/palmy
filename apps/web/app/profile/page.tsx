@@ -188,7 +188,7 @@ export default function ProfilePage() {
     setLoginError("");
     const fullPhone = `${countryCode}${loginPhone.replace(/^0/, "")}`;
     try {
-      const res = await axios.post(`${API_URL}/api/auth/login-user`, {
+      const res = await axios.post(`${API_URL}/api/account/login-user`, {
         identifier: fullPhone,
         password: loginPassword,
       });
@@ -216,7 +216,7 @@ export default function ProfilePage() {
     setAddPhoneError("");
     const fullPhone = `${addPhoneCountry}${addPhoneNum.replace(/^0/, "")}`;
     try {
-      await axios.patch(`${API_URL}/api/auth/add-phone`, { phone: fullPhone }, {
+      await axios.patch(`${API_URL}/api/account/add-phone`, { phone: fullPhone }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setShowAddPhone(false);
