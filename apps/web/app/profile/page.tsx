@@ -170,8 +170,17 @@ const ProfilePage = () => {
                 </div>
               </div>
               <div>
-                 <h1 className="text-2xl font-black uppercase tracking-tight">{user.name}</h1>
-                 <p className="text-[10px] font-black uppercase tracking-widest text-gold-500 opacity-60">Verified Member</p>
+                 <h1 className="text-2xl font-black uppercase tracking-tight italic flex items-center gap-2">
+                   {user.name}
+                   {!user.isVerified && (
+                     <Link href="/verify-phone" className="text-[8px] bg-red-500/20 text-red-500 px-2 py-1 rounded-full animate-pulse">
+                        Verifiera nu
+                     </Link>
+                   )}
+                 </h1>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-gold-500 opacity-60">
+                   {user.isVerified ? "Verifierad Medlem" : "Ej verifierad"}
+                 </p>
               </div>
            </div>
            <button 
@@ -209,7 +218,7 @@ const ProfilePage = () => {
               exit={{ opacity: 0, x: 10 }}
               className="space-y-6"
             >
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                  <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 space-y-4">
                     <div className="w-10 h-10 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-500">
                        <Package size={20} />
@@ -217,15 +226,6 @@ const ProfilePage = () => {
                     <div>
                        <div className="text-2xl font-black">{orders.length}</div>
                        <div className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Totalt Beställt</div>
-                    </div>
-                 </div>
-                 <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 space-y-4">
-                    <div className="w-10 h-10 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500">
-                       <CreditCard size={20} />
-                    </div>
-                    <div>
-                       <div className="text-2xl font-black">Gold</div>
-                       <div className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Medlemsnivå</div>
                     </div>
                  </div>
               </div>
