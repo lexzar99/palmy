@@ -111,6 +111,8 @@ model Order {
   restaurantId          String?
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
   items                 OrderItem[]
+  userId                String?
+  user                  User?       @relation(fields: [userId], references: [id])
 }
 
 model OrderItem {
@@ -240,6 +242,21 @@ model City {
   isActive     Boolean  @default(true)
   deliveryMode String   @default("ALL")
   zones        String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String?  @unique
+  phone        String   @unique
+  password     String
+  name         String
+  address      String?
+  city         String?
+  zip          String?
+  isActive     Boolean  @default(true)
+  orders       Order[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

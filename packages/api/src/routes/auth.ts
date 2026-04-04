@@ -108,3 +108,74 @@ router.post('/verify', async (req, res) => {
 });
 
 export default router;
+
+// POST /api/auth/register-user
+router.post('/register-user', async (req, res) => {
+  try {
+    const { name, phone, password, email } = req.body;
+    
+    if (!name || !phone || !password) {
+      return res.status(400).json({ error: 'Namn, telefon och lösenord krävs' });
+    }
+
+    const existing = await (prisma as any).user.findFirst({
+      where: { OR: [{ phone }, { email: email || undefined }] }
+    });
+
+    if (existing) {
+      return res.status(400).json({ error: 'Telefonnumret eller e-posten används redan' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await (prisma as any).user.create({
+      data: {
+        name,
+        phone,
+        email,
+        password: hashedPassword,
+      }
+    });
+
+    const token = jwt.sign(
+      { id: user.id, phone: user.phone, role: 'USER' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
+  } catch (error) {
+    console.error('Register error:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/auth/login-user
+router.post('/login-user', async (req, res) => {
+  try {
+    const { identifier, password } = req.body; // identifier = phone or email
+    
+    const user = await (prisma as any).user.findFirst({
+      where: { 
+        OR: [
+          { phone: identifier },
+          { email: identifier }
+        ],
+        isActive: true 
+      }
+    });
+
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ error: 'Felaktigt lösenord eller användare' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, phone: user.phone, role: 'USER' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
