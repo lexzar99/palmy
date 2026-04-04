@@ -206,3 +206,77 @@ router.post('/login-user', async (req, res) => {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
+
+// POST /api/auth/oauth-token — Called by NextAuth after Google/Facebook login
+router.post('/oauth-token', async (req, res) => {
+  try {
+    const { email, name, provider, providerId, image } = req.body;
+    if (!email) { res.status(400).json({ error: 'E-post krävs' }); return; }
+
+    let user = await (prisma as any).user.findFirst({
+      where: {
+        OR: [
+          { email: email.toLowerCase() },
+          { oauthProvider: provider, oauthId: providerId },
+        ]
+      }
+    });
+
+    if (!user) {
+      user = await (prisma as any).user.create({
+        data: {
+          email: email.toLowerCase(),
+          name: name || email.split('@')[0],
+          oauthProvider: provider,
+          oauthId: String(providerId),
+          image: image || null,
+          phone: null,
+          password: null,
+        }
+      });
+    } else if (!user.oauthProvider) {
+      user = await (prisma as any).user.update({
+        where: { id: user.id },
+        data: { oauthProvider: provider, oauthId: String(providerId), image: image || user.image }
+      });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, phone: user.phone, role: 'USER' },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    res.json({
+      token,
+      user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone }
+    });
+  } catch (error) {
+    console.error('OAuth token error:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// PATCH /api/auth/add-phone — Add/link phone number to an OAuth account
+router.patch('/add-phone', authenticateUser, async (req: any, res: any) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) { res.status(400).json({ error: 'Telefonnummer krävs' }); return; }
+
+    const existing = await (prisma as any).user.findFirst({ where: { phone } });
+    if (existing && existing.id !== req.user.id) {
+      res.status(400).json({ error: 'Det numret används redan av ett annat konto' });
+      return;
+    }
+
+    await (prisma as any).user.update({
+      where: { id: req.user.id },
+      data: { phone }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+

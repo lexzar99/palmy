@@ -249,13 +249,17 @@ model City {
 model User {
   id           String   @id @default(cuid())
   email        String?  @unique
-  phone        String   @unique
-  password     String
+  phone        String?  @unique
+  password     String?
   name         String
   address      String?
   city         String?
   zip          String?
   isActive     Boolean  @default(true)
+  isVerified   Boolean  @default(false)
+  oauthProvider String?
+  oauthId      String?
+  image        String?
   orders       Order[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
