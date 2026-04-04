@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart, MapPin, Printer, Truck, Store, RefreshCw, Globe, ChevronDown, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { ShoppingCart, MapPin, Printer, Truck, Store, RefreshCw, Globe, ChevronDown, CheckCircle, XCircle, Loader2, BarChart2, TrendingUp, TrendingDown } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
 import { API_URL, SOCKET_URL } from "@/lib/api";
@@ -46,7 +46,7 @@ const getDisplayName = (item: any) => {
   return sizeExtras.length > 0 ? `${item.productName} - ${sizeExtras.map((e: any) => e.extraName || e.name).join(", ")}` : item.productName;
 };
 
-const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin }: any) => {
+const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin, isPast }: any) => {
   const isExpanded = expandedOrderId === order.id;
   return (
     <motion.div layout className={`rounded-[2rem] p-5 sm:p-6 transition-all relative overflow-hidden ${isNew ? 'bg-gold-500/10 border border-gold-500/30' : 'bg-[#0f111a] border border-white/5 shadow-2xl'}`}>
@@ -72,7 +72,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-4">
-           <div className="text-xl font-black text-gold-500 tabular-nums">{order.total} KR</div>
+           <div className={`text-xl font-black tabular-nums ${isPast ? 'text-white/40' : 'text-gold-500'}`}>{order.total} KR</div>
            <motion.div animate={{ rotate: isExpanded ? 180 : 0 }} className="text-white/20">
              <ChevronDown size={20} />
            </motion.div>
@@ -139,21 +139,12 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                     </div>
                  ))}
                </div>
-               {order.note && (
-                  <div className="p-5 bg-gold-500/5 border border-gold-500/10 rounded-2xl text-sm italic mt-4 relative">
-                    <div className="absolute top-0 right-6 -translate-y-1/2 p-2 bg-[#0f111a] border border-white/5 rounded-lg text-gold-500">
-                       <Globe size={12} />
-                    </div>
-                    <span className="font-black uppercase text-[10px] text-gold-500 block mb-2 tracking-widest">Kundens Meddelande:</span>
-                    <span className="text-white/70 font-medium tracking-tight leading-relaxed">"{order.note}"</span>
-                  </div>
-               )}
             </div>
 
             {/* Actions */}
             {!isSuperAdmin && (
               <div className="pt-4 flex gap-3">
-                 {isNew ? (
+                 {order.status === "PENDING" ? (
                    <>
                       <button 
                         onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "REJECTED"); }} 
@@ -168,7 +159,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                         <CheckCircle size={20} /> Godkänn Order
                       </button>
                    </>
-                 ) : order.status === "PREPARING" || order.status === "ACCEPTED" ? (
+                 ) : (order.status === "PREPARING" || order.status === "ACCEPTED") ? (
                    <button 
                       onClick={(e) => { e.stopPropagation(); updateStatus(order.id, order.type === "PICKUP" ? "READY" : "DELIVERING"); }}
                       className="w-full py-5 bg-emerald-500 hover:bg-emerald-400 text-dark-500 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 shadow-xl shadow-emerald-500/20 active:scale-95 transition-all"
@@ -273,16 +264,26 @@ const AdminOrdersPage = () => {
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
   const activeOrders = orders.filter((o) => ["ACCEPTED", "PREPARING"].includes(o.status));
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday);
+  startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
-  const pastOrdersFiltered = orders.filter((o) => {
-    if (!["READY", "DELIVERING", "DELIVERED", "DELIVERY_FAILED", "CANCELLED", "REJECTED"].includes(o.status)) return false;
+  const completedToday = orders.filter(o => {
+    if (!["READY", "DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status)) return false;
     const orderDate = new Date(o.createdAt);
-    return orderDate >= yesterday;
+    return orderDate >= startOfToday;
   });
+
+  const completedYesterday = orders.filter(o => {
+    if (!["READY", "DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status)) return false;
+    const orderDate = new Date(o.createdAt);
+    return orderDate >= startOfYesterday && orderDate < startOfToday;
+  });
+
+  const activeSum = [...pendingOrders, ...activeOrders].reduce((acc, o) => acc + o.total, 0);
+  const todaySum = completedToday.reduce((acc, o) => acc + o.total, 0);
+  const yesterdaySum = completedYesterday.reduce((acc, o) => acc + o.total, 0);
 
   if (!isMounted) return null;
 
@@ -312,7 +313,7 @@ const AdminOrdersPage = () => {
         )}
       </AnimatePresence>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div className="space-y-1">
           <div className="text-[10px] items-center gap-2 font-black uppercase tracking-[0.3em] text-gold-500/60 flex">
              <div className="w-1.5 h-1.5 rounded-full bg-gold-500 animate-pulse" /> Live Monitoring
@@ -321,9 +322,30 @@ const AdminOrdersPage = () => {
              {selectedRestaurantName || "Central"} <span className="text-gold-500">Live</span>
           </h1>
         </div>
-        <button onClick={fetchData} className="w-14 h-14 bg-[#0f111a] border border-white/5 hover:border-gold-500/20 rounded-2xl text-white/20 hover:text-gold-500 transition-all flex items-center justify-center shadow-xl">
-          <RefreshCw size={24} className={loading?"animate-spin":""} />
-        </button>
+        
+        {/* Stats Cards Dashboard at top */}
+        <div className="grid grid-cols-2 lg:flex gap-3">
+           <div className="bg-[#0f111a] border border-gold-500/20 p-4 rounded-2xl min-w-[140px] shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 -rotate-12 group-hover:rotate-0 transition-transform"><ShoppingCart size={40} /></div>
+              <div className="text-[8px] font-black uppercase tracking-widest text-gold-500 mb-2">Aktiva Just Nu</div>
+              <div className="text-lg font-black text-white tabular-nums">{activeSum} <span className="text-[9px] text-white/30">KR</span></div>
+              <div className="text-[8px] font-bold text-white/30 mt-1 uppercase italic">{pendingOrders.length + activeOrders.length} Beställningar</div>
+           </div>
+           
+           <div className="bg-[#0f111a] border border-white/5 p-4 rounded-2xl min-w-[140px] shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 -rotate-12 group-hover:rotate-0 transition-transform text-emerald-500"><TrendingUp size={40} /></div>
+              <div className="text-[8px] font-black uppercase tracking-widest text-white/40 mb-2">Inkört Idag</div>
+              <div className="text-lg font-black text-emerald-400 tabular-nums">{todaySum} <span className="text-[9px] text-white/30">KR</span></div>
+              <div className="text-[8px] font-bold text-white/30 mt-1 uppercase italic">{completedToday.length} Slutförda</div>
+           </div>
+
+           <div className="bg-[#0f111a] border border-white/5 p-4 rounded-2xl min-w-[140px] shadow-2xl relative overflow-hidden group col-span-2 lg:col-span-1">
+              <div className="absolute top-0 right-0 p-2 opacity-5 scale-150 -rotate-12 group-hover:rotate-0 transition-transform"><Clock size={40} /></div>
+              <div className="text-[8px] font-black uppercase tracking-widest text-white/40 mb-2">Från Igår</div>
+              <div className="text-lg font-black text-white/60 tabular-nums">{yesterdaySum} <span className="text-[9px] text-white/30">KR</span></div>
+              <div className="text-[8px] font-bold text-white/20 mt-1 uppercase italic">{completedYesterday.length} Beställningar</div>
+           </div>
+        </div>
       </div>
 
       {loading && orders.length === 0 ? (
@@ -378,17 +400,43 @@ const AdminOrdersPage = () => {
             </section>
           )}
 
-          {pastOrdersFiltered.length > 0 && (
+          {/* New Section for Completed Today */}
+          {completedToday.length > 0 && (
             <section className="space-y-6">
                <div className="flex items-center gap-4">
-                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10">Slutförda (Idag/Igår)</h2>
-                 <div className="flex-1 h-px bg-white/5 opacity-50" />
+                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-500/60">Slutförda Idag</h2>
+                 <div className="flex-1 h-px bg-emerald-500/5" />
               </div>
               <div className="space-y-3 opacity-60 hover:opacity-100 transition-opacity">
-                 {pastOrdersFiltered.slice(0, 10).map(o => (
+                 {completedToday.slice(0, 15).map(o => (
                    <OrderCard 
                      key={o.id} 
                      order={o} 
+                     isPast={true}
+                     expandedOrderId={expandedOrderId}
+                     setExpandedOrderId={setExpandedOrderId}
+                     setAcceptDialog={setAcceptDialog}
+                     updateStatus={updateStatus}
+                     isSuperAdmin={isSuperAdmin}
+                   />
+                 ))}
+              </div>
+            </section>
+          )}
+
+          {/* New Section for Yesterday */}
+          {completedYesterday.length > 0 && (
+            <section className="space-y-6">
+               <div className="flex items-center gap-4">
+                 <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10">Ordrar från Igår</h2>
+                 <div className="flex-1 h-px bg-white/5 opacity-50" />
+              </div>
+              <div className="space-y-3 opacity-40 hover:opacity-100 transition-opacity">
+                 {completedYesterday.slice(0, 5).map(o => (
+                   <OrderCard 
+                     key={o.id} 
+                     order={o} 
+                     isPast={true}
                      expandedOrderId={expandedOrderId}
                      setExpandedOrderId={setExpandedOrderId}
                      setAcceptDialog={setAcceptDialog}
