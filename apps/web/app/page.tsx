@@ -165,7 +165,9 @@ export default function HomePage() {
       // Strict city filtering
       let matchCity = true;
       if (address) {
-        matchCity = (r.city || "").toLowerCase() === address.toLowerCase();
+        const cleanAddress = address.trim().toLowerCase();
+        const restaurantCity = (r.city || "").trim().toLowerCase();
+        matchCity = restaurantCity === cleanAddress;
       }
 
       return matchCuisine && matchQuery && matchCity;
