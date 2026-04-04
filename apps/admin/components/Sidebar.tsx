@@ -108,8 +108,8 @@ const Sidebar = () => {
     { href: "/orders", label: "Beställningar", icon: ShoppingCart },
     { href: "/history", label: "Föregående beställningar", icon: Clock },
     { href: "/menu", label: "Menyhantering", icon: Utensils },
-    { href: "/receipt", label: "Kvittolayout", icon: Printer },
     { href: "/stats", label: "Statistik / Utdrag", icon: Activity },
+    { href: "/settings/printing", label: "Utskrift", icon: Printer },
     { href: "/settings/global", label: "Inställningar", icon: Settings },
   ];
 
