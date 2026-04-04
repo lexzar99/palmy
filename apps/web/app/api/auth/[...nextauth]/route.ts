@@ -18,8 +18,14 @@ declare module "next-auth/jwt" {
 }
 const API_URL = process.env.API_URL || "https://api-production-eb5f.up.railway.app";
 
-if (process.env.NODE_ENV === "production" && (!process.env.NEXTAUTH_URL || process.env.NEXTAUTH_URL.includes("localhost"))) {
-  process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
+// NextAuth uses NEXTAUTH_URL from environment variables in production.
+// If it's missing, we set a smart fallback to prevent redirect_uri_mismatch errors.
+if (!process.env.NEXTAUTH_URL) {
+  if (process.env.NODE_ENV === "production") {
+    process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
+  } else {
+    process.env.NEXTAUTH_URL = "http://localhost:3000";
+  }
 }
 
 const handler = NextAuth({

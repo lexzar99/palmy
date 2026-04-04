@@ -177,7 +177,7 @@ export default function AdminRealtimeBridge() {
         soundLoopRef.current = null;
       }
     };
-  }, [syncPendingOrders, isSuperAdmin, restaurantId, pendingCount]);
+  }, [syncPendingOrders, isSuperAdmin, restaurantId]);
 
   return null;
 }

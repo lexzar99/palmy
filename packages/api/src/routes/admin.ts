@@ -554,7 +554,12 @@ router.get('/categories', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const categories = await prisma.category.findMany({
-      where: { restaurantId: scopedRestaurantId },
+      where: { 
+        OR: [
+          { restaurantId: scopedRestaurantId },
+          { restaurantId: null }
+        ]
+      },
       orderBy: { position: 'asc' },
       include: { _count: { select: { products: true } } },
     });
@@ -689,7 +694,12 @@ router.get('/products', async (req, res) => {
     const products = await prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
-        category: { restaurantId: scopedRestaurantId },
+        category: {
+          OR: [
+            { restaurantId: scopedRestaurantId },
+            { restaurantId: null }
+          ]
+        },
       },
       orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
       include: {
@@ -863,7 +873,12 @@ router.get('/extra-groups', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const groups = await prisma.extraGroup.findMany({
-      where: { restaurantId: scopedRestaurantId },
+      where: { 
+        OR: [
+          { restaurantId: scopedRestaurantId },
+          { restaurantId: null }
+        ]
+      },
       include: {
         extras: { orderBy: { position: 'asc' } },
         _count: { select: { productGroups: true } },

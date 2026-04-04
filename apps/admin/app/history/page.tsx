@@ -11,7 +11,11 @@ import {
   Printer, 
   Truck, 
   Store,
-  RefreshCw
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  Activity,
+  AlertCircle
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useRestaurantStore } from "@/store/restaurantStore";
@@ -35,6 +39,7 @@ interface Order {
 const HistoryPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -49,45 +54,45 @@ const HistoryPage = () => {
       const raw = localStorage.getItem("palmyra_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
-    } catch {
-      setIsSuperAdmin(false);
-    }
+    } catch { setIsSuperAdmin(false); }
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (typeof window === "undefined") return;
+    if (!isMounted) return;
+    if (!selectedRestaurantId && !isSuperAdmin) { setLoading(false); return; }
+    setError(null);
     setLoading(true);
     try {
       const token = localStorage.getItem("palmyra_token");
-      const res = await axios.get(`${API_URL}/api/admin/orders?limit=300`, {
+      const restaurantParam = isSuperAdmin ? (selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : "") : `&restaurantId=${selectedRestaurantId}`;
+      const res = await axios.get(`${API_URL}/api/admin/orders?limit=300${restaurantParam}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       let fetched = res.data.orders || [];
-      // Filter for non-active orders
       fetched = fetched.filter((o: Order) => 
-        ["DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED", "READY", "DELIVERING"].includes(o.status)
+        ["DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status)
       );
-      if (!isSuperAdmin || selectedRestaurantId) {
-        fetched = fetched.filter((o: Order) => o.restaurantId === selectedRestaurantId);
-      }
       setOrders(fetched);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      if (err.response?.status === 404) setError("Data saknas. Försök logga in igen.");
+      else setError("Kunde inte hämta historik.");
     } finally {
       setLoading(false);
     }
-  }, [selectedRestaurantId, isSuperAdmin]);
+  }, [selectedRestaurantId, isSuperAdmin, isMounted]);
 
-  useEffect(() => {
-    if (isMounted) fetchData();
-  }, [fetchData, isMounted]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const groups = useMemo(() => {
-    const res = { today: { orders: [], total: 0 }, yesterday: { orders: [], total: 0 }, older: { orders: [], total: 0 } } as any;
+    const res = { 
+      today: { orders: [], total: 0 }, 
+      yesterday: { orders: [], total: 0 }, 
+      older: { orders: [], total: 0 } 
+    };
     if (!isMounted) return res;
     
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const nowLocal = new Date();
+    const startOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
@@ -108,117 +113,145 @@ const HistoryPage = () => {
 
   if (!isMounted) return null;
 
-  const renderGroup = (label: string, groupData: any, colorClass: string) => {
-    if (groupData.orders.length === 0) return null;
+  const renderGroup = (label: string, data: any, color: string, badge: string) => {
+    if (data.orders.length === 0) return null;
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between px-2">
+      <section className="space-y-6">
+        <div className="flex items-center justify-between px-3">
            <div className="flex items-center gap-4">
-              <div className={`w-1 h-8 rounded-full ${colorClass}`} />
-              <h2 className="text-xl font-black uppercase text-white">{label} ({groupData.orders.length})</h2>
+              <div className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase text-dark-500 shadow-xl shadow-gold-500/10 ${badge}`}>{label}</div>
+              <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest leading-none">{data.orders.length} Ordrar</p>
            </div>
            <div className="text-right">
-              <div className="text-[10px] font-black uppercase text-white/40">Omsättning: <span className="text-white">{groupData.total} KR</span></div>
+              <div className="text-[9px] font-black uppercase text-gold-500/40 mb-1 leading-none">Omsättning</div>
+              <div className="text-xl font-black text-white tabular-nums">{data.total} <span className="text-[10px] text-white/20">KR</span></div>
            </div>
         </div>
-        <div className="grid grid-cols-1 gap-4">
-          {groupData.orders.map((o: Order) => (
-            <div key={o.id} onClick={() => setExpandedId(expandedId === o.id ? null : o.id)} className="bg-[#0f111a] border border-white/5 rounded-3xl p-6 cursor-pointer hover:border-white/10 transition-all">
-              <div className="flex items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center font-black text-white/20 italic text-xs">#{o.orderNumber}</div>
+        <div className="space-y-4">
+          {data.orders.map((o: Order) => (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={o.id} onClick={() => setExpandedId(expandedId === o.id ? null : o.id)} className="bg-[#0f111a] border border-white/5 rounded-[2rem] p-6 cursor-pointer hover:border-gold-500/10 hover:bg-[#121421] transition-all group shadow-2xl relative overflow-hidden">
+               {o.status === "DELIVERED" && <Activity size={50} className="absolute top-0 right-0 p-4 opacity-5 scale-150 rotate-12 text-emerald-500"/>}
+               <div className="flex items-center justify-between gap-6 relative z-10">
+                <div className="flex items-center gap-5">
+                  <div className="w-10 h-10 bg-white/5 group-hover:bg-gold-500/10 rounded-xl flex items-center justify-center font-black text-white/20 group-hover:text-gold-500 transition-colors italic text-xs shadow-inner">#{o.orderNumber}</div>
                   <div>
-                    <div className="text-[9px] font-black uppercase text-white/20">
-                      {(new Date(o.createdAt)).toLocaleTimeString('sv-SE', {hour:'2-digit', minute:'2-digit'})}
+                    <div className="text-[9px] font-black uppercase text-white/20 mb-0.5">
+                      {(new Date(o.createdAt)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · {o.status === 'DELIVERED' ? 'SLUTFÖRD' : o.status}
                     </div>
-                    <div className="font-black text-white uppercase text-base">{o.customerName}</div>
+                    <div className="font-black text-white uppercase text-base tracking-tight">{o.customerName}</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-8">
-                  <div className="text-right">
-                    <div className="text-[9px] font-black uppercase text-white/20">Belopp</div>
-                    <div className="text-xl font-black text-gold-500">{o.total} KR</div>
+                  <div className="text-right hidden sm:block">
+                    <div className="text-[9px] font-black uppercase text-white/10 mb-1 leading-none">Typ</div>
+                    <div className="font-black text-xs text-white/40 flex items-center gap-2"> {o.type === 'DELIVERY' ? <Truck size={12}/> : <Store size={12}/>} {o.type === 'DELIVERY' ? 'UTKÖRNING' : 'HÄMTNING'} </div>
                   </div>
-                  <ChevronDown className={`text-white/10 transition-transform ${expandedId === o.id ? "rotate-180" : ""}`} />
+                  <div className="text-right">
+                    <div className="text-[9px] font-black uppercase text-white/10 mb-1 leading-none">Summa</div>
+                    <div className="text-xl font-black text-gold-500 transition-colors tabular-nums">{o.total} KR</div>
+                  </div>
+                  <ChevronDown className={`text-white/10 transition-transform ${expandedId === o.id ? "rotate-180 text-gold-500" : "group-hover:text-white/20"}`} />
                 </div>
               </div>
               <AnimatePresence>
                 {expandedId === o.id && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="pt-6 mt-6 border-t border-white/5">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-2">
-                        <div className="text-[9px] font-black uppercase text-white/20 mb-2">Artiklar</div>
-                        {o.items?.map((it, idx) => (
-                          <div key={idx} className="flex justify-between text-[11px] font-bold text-white/70">
-                            <span>{it.quantity}x {it.productName}</span>
-                            <span>{it.price * it.quantity} KR</span>
-                          </div>
-                        ))}
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="pt-8 mt-8 border-t border-white/5 relative z-10">
+                    <div className="grid md:grid-cols-2 gap-10">
+                      <div>
+                        <div className="text-[9px] font-black uppercase text-white/10 mb-4 tracking-[0.2em] px-2 flex justify-between"><span>Artiklar</span> <span>Pris</span></div>
+                        <div className="space-y-2">
+                           {o.items?.map((it, idx) => (
+                             <div key={idx} className="flex justify-between items-center bg-white/5 p-4 rounded-xl border border-white/5">
+                                <span className="font-black text-xs text-white/80 uppercase"><span className="text-gold-500 mr-2">{it.quantity}x</span> {it.productName}</span>
+                                <span className="text-[11px] font-bold text-white/20">{it.price * it.quantity} KR</span>
+                             </div>
+                           ))}
+                        </div>
                       </div>
-                      <div className="space-y-4 border-t md:border-t-0 md:border-l border-white/5 pt-4 md:pt-0 md:pl-8">
-                         <div className="flex justify-between text-[10px] font-black uppercase">
-                            <span className="text-white/20">Telefon</span>
-                            <span className="text-white">{o.customerPhone}</span>
+                      <div className="flex flex-col gap-6 md:border-l border-white/5 md:pl-10">
+                         <div className="space-y-4">
+                           <div className="text-[9px] font-black uppercase text-white/10 tracking-[0.2em]">Kunduppgifter</div>
+                           <div className="bg-[#07080d] p-5 rounded-2xl border border-white/5 space-y-3">
+                              <div className="flex justify-between items-center"><span className="text-[9px] font-black text-white/20 uppercase">Mobil</span><span className="font-black text-sm text-white/80 transition-colors uppercase">{o.customerPhone}</span></div>
+                              {o.type === 'DELIVERY' && <div className="flex justify-between items-center"><span className="text-[9px] font-black text-white/20 uppercase">Adress</span><span className="font-black text-[11px] text-white/80 text-right uppercase italic leading-tight">{o.deliveryStreet}, {o.deliveryCity}</span></div>}
+                           </div>
                          </div>
-                         <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${o.id}`, '_blank'); }} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-[10px] font-black uppercase text-gold-500 transition-all flex items-center justify-center gap-2"> <Printer size={14}/> Skriv Ut </button>
+                         <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${o.id}`, '_blank'); }} className="w-full py-5 bg-gold-500 rounded-2xl text-[10px] font-black uppercase text-dark-500 hover:bg-gold-400 transition-all shadow-xl shadow-gold-500/10 flex items-center justify-center gap-3"> <Printer size={18}/> Visa Kvitto </button>
                       </div>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
+            </motion.div>
           ))}
         </div>
-      </div>
+      </section>
     );
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-12 pb-32 pt-10 px-4">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+    <div className="max-w-4xl mx-auto space-y-12 pb-32 pt-4 lg:pt-10 px-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-10">
         <div className="flex items-center gap-6">
-          <div className="w-14 h-14 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 border border-gold-500/10"><Clock size={28} /></div>
+          <div className="w-16 h-16 bg-[#0f111a] border-2 border-gold-500/20 rounded-[2.2rem] flex items-center justify-center text-gold-500 shadow-2xl relative overflow-hidden group">
+             <div className="absolute inset-0 bg-gold-500 animate-pulse opacity-5" />
+             <Clock size={32} className="relative z-10 group-hover:rotate-12 transition-transform" />
+          </div>
           <div>
-            <h1 className="text-3xl font-black uppercase text-white tracking-tight italic">Order<span className="text-gold-500">Historik</span></h1>
-            <p className="text-white/20 text-[10px] font-black uppercase tracking-widest">{selectedRestaurantName || "Central Modul"}</p>
+            <h1 className="text-3xl lg:text-4xl font-black uppercase text-white tracking-tighter leading-none italic">Order<span className="text-gold-500">Historik</span></h1>
+            <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.4em] mt-1">{selectedRestaurantName || "Central Logg"}</p>
           </div>
         </div>
-        <div className="flex gap-3">
-           <div className="bg-[#0f111a] border border-white/5 p-4 rounded-2xl min-w-[120px] text-center shadow-xl">
-              <div className="text-[8px] font-black uppercase text-white/20 mb-1">Idag</div>
-              <div className="text-lg font-black text-emerald-400">{groups.today.total} KR</div>
+        <div className="flex gap-4">
+           <div className="bg-[#0f111a] border border-emerald-500/20 p-5 rounded-[2rem] text-center min-w-[130px] shadow-2xl relative overflow-hidden group">
+              <TrendingUp size={30} className="absolute top-0 right-0 p-2 opacity-5 scale-150 rotate-12 text-emerald-500"/>
+              <div className="text-[9px] font-black uppercase text-emerald-500/50 mb-1 leading-none tracking-widest">Idag Summa</div>
+              <div className="text-xl font-black text-emerald-400 tabular-nums">{groups.today.total} KR</div>
            </div>
-           <div className="bg-[#0f111a] border border-white/5 p-4 rounded-2xl min-w-[120px] text-center shadow-xl">
-              <div className="text-[8px] font-black uppercase text-white/20 mb-1">Igår</div>
-              <div className="text-lg font-black text-white/60">{groups.yesterday.total} KR</div>
+           <div className="bg-[#0f111a] border border-white/5 p-5 rounded-[2rem] text-center min-w-[130px] shadow-2xl relative overflow-hidden group">
+              <TrendingDown size={30} className="absolute top-0 right-0 p-2 opacity-5 scale-150 -rotate-12 text-white/50"/>
+              <div className="text-[9px] font-black uppercase text-white/10 mb-1 leading-none tracking-widest">Igår Summa</div>
+              <div className="text-xl font-black text-white/80 tabular-nums">{groups.yesterday.total} KR</div>
            </div>
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4">
-        <div className="relative flex-1">
-           <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/10" size={18} />
-           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök bland gamla ordrar..." className="w-full bg-[#0f111a] border border-white/5 rounded-2xl py-4 pl-14 pr-6 text-sm font-bold text-white focus:outline-none focus:border-gold-500/40" />
+      <div className="bg-[#0f111a] border border-white/10 p-4 lg:p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-4 shadow-2xl relative z-20">
+        <div className="relative flex-1 group">
+           <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-gold-500 transition-colors" size={20} />
+           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök bland historiska ordrar..." className="w-full bg-[#07080d] border border-white/5 rounded-2xl py-5 pl-16 pr-6 text-sm font-bold text-white placeholder:text-white/10 focus:outline-none focus:border-gold-500/40 transition-all" />
         </div>
         <div className="flex gap-2">
-           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-[#0f111a] border border-white/5 rounded-2xl px-6 py-4 text-[10px] font-black uppercase text-white/60 focus:outline-none appearance-none cursor-pointer">
+           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-[#07080d] border border-white/5 rounded-2xl px-6 py-4 text-[11px] font-black uppercase text-white/30 focus:outline-none focus:border-gold-500/30 cursor-pointer appearance-none min-w-[160px]">
               <option value="ALL">Alla Statusar</option>
-              <option value="DELIVERED">Klara</option>
+              <option value="DELIVERED">Klara Ordrar</option>
               <option value="REJECTED">Nekade</option>
+              <option value="CANCELLED">Avbokade</option>
            </select>
-           <button onClick={fetchData} className="p-4 bg-gold-500 text-dark-500 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-gold-500/10"><RefreshCw size={22} className={loading?"animate-spin":""}/></button>
+           <button onClick={fetchData} className="p-4 px-6 bg-white/5 border border-white/5 text-gold-500/40 hover:text-gold-500 hover:bg-white/10 rounded-2xl active:scale-95 transition-all outline-none">
+              <RefreshCw size={24} className={loading?"animate-spin":""}/>
+           </button>
         </div>
       </div>
 
-      <div className="space-y-20">
+      <div className="space-y-24">
         {loading && orders.length === 0 ? (
-          <div className="py-20 text-center"><Loader2 className="animate-spin text-gold-500 mx-auto" size={40}/></div>
+          <div className="py-24 flex flex-col items-center gap-6"><Loader2 className="animate-spin text-gold-500/20" size={50}/><p className="text-[10px] font-black uppercase tracking-[0.5em] text-white/5">Hämtar Data...</p></div>
+        ) : error ? (
+           <div className="py-24 flex flex-col items-center gap-6 text-center border-2 border-dashed border-rose-500/5 rounded-[3rem]">
+              <AlertCircle className="text-rose-500/20" size={50}/>
+              <p className="text-white/20 font-black uppercase text-[10px] tracking-widest">{error}</p>
+              <button onClick={fetchData} className="px-10 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-[0.4em] hover:bg-white/10">Försök Igen</button>
+           </div>
         ) : (
           <>
-            {renderGroup("Beställningar Idag", groups.today, "bg-emerald-500")}
-            {renderGroup("Beställningar Igår", groups.yesterday, "bg-gold-500")}
-            {renderGroup("Tidigare Historik", groups.older, "bg-white/10")}
-            {orders.length === 0 && !loading && <div className="py-20 text-center text-white/10 italic uppercase font-black tracking-widest">Hittade ingen historik</div>}
+            {renderGroup("Idag", groups.today, "text-emerald-500", "bg-emerald-500")}
+            {renderGroup("Igår", groups.yesterday, "text-gold-500", "bg-gold-500")}
+            {renderGroup("Historik", groups.older, "text-white/40", "bg-white/10")}
+            
+            {orders.length === 0 && !loading && (
+              <div className="py-32 text-center text-white/5 italic uppercase font-black tracking-[1em] text-xs">Ingen Historik</div>
+            )}
           </>
         )}
       </div>

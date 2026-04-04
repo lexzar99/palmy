@@ -264,14 +264,5 @@ model City {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
-
-model City {
-  id           String   @id @default(cuid())
-  name         String   @unique
-  slug         String   @unique
-  isActive     Boolean  @default(true)
-  deliveryMode String   @default("ALL")
-  zones        String   @default("[]")
-  createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }

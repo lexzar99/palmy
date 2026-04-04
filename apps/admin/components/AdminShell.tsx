@@ -67,7 +67,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
           setAuthed(true);
           setReady(true);
-        } catch {
+        } catch (err: any) {
+          if (err.response?.status === 404) {
+            console.warn("Restaurant data missing, clearing store.");
+            setRestaurant(null, null);
+          }
           localStorage.removeItem("palmyra_token");
           localStorage.removeItem("palmyra_admin");
           router.replace("/login");
@@ -82,7 +86,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }
 
     return () => clearTimeout(timer);
-  }, [isLoginPage, router, ready, pathname, setRestaurant]);
+  }, [isLoginPage, router, pathname, setRestaurant]);
 
   if (isLoginPage) return <>{children}</>;
 
