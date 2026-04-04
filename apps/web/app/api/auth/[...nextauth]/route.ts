@@ -16,8 +16,14 @@ declare module "next-auth/jwt" {
     platformUser?: { id: string; name: string; phone?: string; email?: string };
   }
 }
-
 const API_URL = process.env.API_URL || "https://api-production-eb5f.up.railway.app";
+
+// Force NEXTAUTH_URL if missing or pointing to localhost in prod
+if (!process.env.NEXTAUTH_URL || process.env.NEXTAUTH_URL.includes("localhost")) {
+  if (process.env.NODE_ENV === "production") {
+    process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
+  }
+}
 
 const handler = NextAuth({
   providers: [
