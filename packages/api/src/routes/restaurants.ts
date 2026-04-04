@@ -37,6 +37,8 @@ const restaurantSchema = z.object({
   rating: z.any().optional(),
   ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
+  adminPassword: z.string().optional(),
+  internalInfo: z.string().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => ({
@@ -60,6 +62,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, unknown>>(restaurant.openingHours, {}),
+  internalInfo: restaurant.internalInfo,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
   menu: includeMenu
@@ -229,6 +232,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       minOrderAmount: kr(Number(payload.minOrderAmount ?? 0)),
       tags: JSON.stringify(payload.tags ?? []),
       openingHours: JSON.stringify(payload.openingHours ?? {}),
+      internalInfo: payload.internalInfo,
     };
 
     const restaurant = await prisma.restaurant.create({
@@ -276,11 +280,31 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(Number(payload.minOrderAmount));
     if (payload.tags !== undefined) data.tags = typeof payload.tags === 'string' ? payload.tags : JSON.stringify(payload.tags);
     if (payload.openingHours !== undefined) data.openingHours = typeof payload.openingHours === 'string' ? payload.openingHours : JSON.stringify(payload.openingHours);
+    if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;
 
     const restaurant = await prisma.restaurant.update({
       where: { id },
       data,
     });
+
+    // Handle admin password update if provided
+    if (payload.adminPassword) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(payload.adminPassword, 12);
+      
+      // Upsert admin user for this restaurant
+      // Restaurant admins use their slug as email
+      await prisma.adminUser.upsert({
+        where: { email: restaurant.slug },
+        update: { password: hashedPassword },
+        create: {
+          email: restaurant.slug,
+          password: hashedPassword,
+          name: `${restaurant.name} Admin`,
+          role: 'STAFF',
+        },
+      });
+    }
     io.emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,

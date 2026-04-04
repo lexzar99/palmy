@@ -226,6 +226,7 @@ model Restaurant {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   featuredClass  Int          @default(3)
+  internalInfo   String?
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]
