@@ -14,7 +14,7 @@ const BottomNav = () => {
     { href: "/", icon: Home, label: "Hem" },
     { href: "/search", icon: Search, label: "Sök" },
     { href: "/cart", icon: ShoppingBag, label: "Kasse" },
-    { href: "/history", icon: User, label: "Profil" },
+    { href: "/profile", icon: User, label: "Profil" },
   ];
 
   return (
