@@ -196,7 +196,7 @@ const AdminOrdersPage = () => {
   const [acceptDialog, setAcceptDialog] = useState<{ orderId: string; time: number } | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const { selectedRestaurantId } = useRestaurantStore();
+  const { selectedRestaurantId, selectedRestaurantName } = useRestaurantStore();
   
   const audioRef = useRef<HTMLAudioElement | null>(null);
 

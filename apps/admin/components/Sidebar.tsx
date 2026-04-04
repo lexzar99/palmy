@@ -4,7 +4,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/navigation";
+import Link from "next/link";
 import { 
   ShoppingCart, 
   Utensils, 
