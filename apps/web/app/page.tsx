@@ -17,8 +17,10 @@ import {
   Flame,
   Sparkles,
   ArrowRight,
-  Phone,
+  X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import AddressModal from "@/components/AddressModal";
 
 interface Restaurant {
   id: string;
@@ -60,13 +62,27 @@ export default function HomePage() {
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [loading, setLoading] = useState(true);
+  
+  // Address modal state
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  
+  // Closed restaurant popup state
+  const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("platform_address");
       if (stored) setAddress(stored);
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
-      if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType);
+      if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
+
+      const err = localStorage.getItem("platform_address_error");
+      if (err) {
+        setDeliveryError(err);
+        localStorage.removeItem("platform_address_error");
+      }
     }
   }, []);
 
@@ -107,25 +123,7 @@ export default function HomePage() {
     });
   }, [restaurants, activeCuisine, query]);
 
-  // Populära val är de med featuredClass 1 eller 2 (Premium/Standard)
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
-
-  const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
-    if (!address.trim()) {
-      e.preventDefault();
-      alert(`Vänligen ange din ${orderType === "DELIVERY" ? "leveransadress" : "stad"} först.`);
-      return;
-    }
-
-    const valLow = address.toLowerCase();
-    const isOutsideLund = valLow.includes("malmö") || valLow.includes("malmo");
-    
-    if (isOutsideLund) {
-      e.preventDefault();
-      alert("Tyvärr, vi finns inte i denna stad ännu. För tillfället levererar vi endast i Lund.");
-      return;
-    }
-  };
 
   const getRestaurantHref = (r: Restaurant) =>
     r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
@@ -139,6 +137,28 @@ export default function HomePage() {
   const getCardImage = (r: Restaurant) => {
     if (r.slug === "palmyra") return getImageSrc("/hero-palmyra.svg");
     return getImageSrc(r.heroImageUrl || r.imageUrl || "");
+  };
+
+  const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
+    e.preventDefault();
+
+    // Closed restaurant check
+    if (r.isOpen === false) {
+      setClosedRestaurant(r);
+      return;
+    }
+
+    router.push(getRestaurantHref(r));
+  };
+
+  const handleAddressConfirmed = (newAddress: string, newOrderType: "DELIVERY" | "PICKUP") => {
+    saveAddress(newAddress);
+    toggleOrderType(newOrderType);
+    setShowAddressModal(false);
+    if (pendingHref) {
+      router.push(pendingHref);
+      setPendingHref(null);
+    }
   };
 
   return (
@@ -195,12 +215,24 @@ export default function HomePage() {
                 placeholder={orderType === "DELIVERY" ? "Din leveransadress..." : "Ange stad eller område..."}
                 className="w-full bg-transparent text-sm placeholder:text-zinc-400/30 focus:outline-none font-bold text-zinc-100"
               />
+              {address && (
+                <button onClick={() => saveAddress("")} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                  <X size={14} />
+                </button>
+              )}
             </div>
             <Link href="/search" className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-4 py-3.5 hover:border-gold-500 transition-all cursor-pointer shadow-xl">
               <Search size={16} className="text-zinc-400/30 shrink-0" />
               <span className="text-sm text-zinc-400/30 font-bold">Sök restaurang eller rätt...</span>
             </Link>
           </div>
+
+          {address && (
+            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
+              <MapPin size={10} />
+              {address}
+            </div>
+          )}
         </header>
 
         {/* Cuisine filter chips */}
@@ -234,11 +266,11 @@ export default function HomePage() {
             </div>
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               {featured.map((r) => (
-                <Link
+                <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl shadow-xl"
+                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl cursor-pointer"
                 >
                   {/* Cover image */}
                   <div className="h-36 w-full bg-white/5 relative overflow-hidden">
@@ -253,8 +285,8 @@ export default function HomePage() {
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                     {r.isOpen === false && (
-                      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/60 text-red-400 text-[8px] font-black uppercase tracking-wider">
-                        Stängt
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <span className="px-3 py-1 rounded-full bg-red-500/80 text-white text-[9px] font-black uppercase tracking-wider">Stängt</span>
                       </div>
                     )}
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-0.5">
@@ -281,13 +313,13 @@ export default function HomePage() {
                       <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr</span>
                     </div>
                   </div>
-                </Link>
+                </a>
               ))}
             </div>
           </section>
         )}
 
-        {/* All restaurants – Foodora style */}
+        {/* All restaurants */}
         <section>
           <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400/50 mb-4">
             {activeCuisine === "Alla" ? "Alla restauranger" : activeCuisine} · {filtered.length} st
@@ -307,11 +339,11 @@ export default function HomePage() {
           ) : (
             <div className="space-y-3">
               {filtered.map((r) => (
-                <Link
+                <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all shadow-xl"
+                  className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all shadow-xl cursor-pointer"
                 >
                   {/* Cover image */}
                   <div className="w-28 h-28 shrink-0 relative overflow-hidden">
@@ -353,33 +385,29 @@ export default function HomePage() {
                         <span>Min {r.minOrderAmount} kr</span>
                       )}
                     </div>
-                    {r.tags && (Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).length > 0 && (
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <div className="flex flex-wrap gap-1">
-                          {(Array.isArray(r.tags) ? r.tags : JSON.parse(r.tags as any || "[]")).slice(0, 3).map((tag: any) => (
-                            <span key={tag} className="text-[8px] font-black text-zinc-400/40 bg-zinc-800/50 px-1.5 py-0.5 rounded-full uppercase">
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-1.5 ml-auto">
-                          <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                            r.isOpen !== false 
-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" 
-                              : "bg-red-500/10 text-red-400 border border-red-500/20"
-                          }`}>
-                            <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                            {r.isOpen !== false ? "Öppet" : "Stängt"}
-                          </div>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {r.tags && (Array.isArray(r.tags) ? r.tags : []).slice(0, 3).map((tag: string) => (
+                        <span key={tag} className="text-[8px] font-black text-zinc-400/40 bg-zinc-800/50 px-1.5 py-0.5 rounded-full uppercase">
+                          {tag}
+                        </span>
+                      ))}
+                      <div className="flex items-center gap-1.5 ml-auto">
+                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                          r.isOpen !== false
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}>
+                          <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+                          {r.isOpen !== false ? "Öppet" : "Stängt"}
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="flex items-center pr-4 text-light-500 group-hover:text-gold-600 transition-colors">
                     <ChevronRight size={18} />
                   </div>
-                </Link>
+                </a>
               ))}
             </div>
           )}
@@ -398,6 +426,93 @@ export default function HomePage() {
 
         <div className="h-8" />
       </div>
+
+      {/* Address modal */}
+      <AddressModal
+        isOpen={showAddressModal}
+        onClose={() => { setShowAddressModal(false); setPendingHref(null); }}
+        onConfirm={handleAddressConfirmed}
+        orderType={orderType}
+        setOrderType={toggleOrderType}
+      />
+
+      {/* Closed restaurant modal */}
+      <AnimatePresence>
+        {closedRestaurant && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-950/85 backdrop-blur-xl px-4 pb-6 sm:pb-0"
+            onClick={(e) => { if (e.target === e.currentTarget) setClosedRestaurant(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 30 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
+                <span className="text-3xl">🔒</span>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-400 mb-2">Stängt just nu</p>
+              <h2 className="text-xl font-black tracking-tight text-zinc-100 uppercase mb-2">{closedRestaurant.name}</h2>
+              <p className="text-zinc-400 text-sm mb-6 font-medium">Restaurangen är stängd just nu. Vill du ändå se menyn?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setClosedRestaurant(null)}
+                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-black transition-all"
+                >
+                  Avbryt
+                </button>
+                <button
+                  onClick={() => {
+                    const href = getRestaurantHref(closedRestaurant);
+                    setClosedRestaurant(null);
+                    router.push(href);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-gold-500 hover:bg-gold-400 text-white text-sm font-black transition-all"
+                >
+                  Visa menyn
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delivery Error Modal */}
+      <AnimatePresence>
+        {deliveryError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-950/85 backdrop-blur-xl px-4"
+            onClick={() => setDeliveryError(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.96, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.96, y: 30 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
+                <span className="text-3xl">😞</span>
+              </div>
+              <h2 className="text-xl font-black tracking-tight text-zinc-100 uppercase mb-2">Tyvärr!</h2>
+              <p className="text-zinc-400 text-sm mb-6 font-medium">{deliveryError}</p>
+              <button
+                onClick={() => setDeliveryError(null)}
+                className="w-full py-3 rounded-xl bg-gold-500 hover:bg-gold-400 text-white text-sm font-black transition-all shadow-lg"
+              >
+                Okej, jag förstår
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

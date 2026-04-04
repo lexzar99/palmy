@@ -9,9 +9,11 @@ import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import DealSpotlight from "@/components/DealSpotlight";
-import { useCartStore } from "@/store/cartStore";
 import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import AddressModal from "@/components/AddressModal";
+import { useCartStore } from "@/store/cartStore";
 
 interface MenuContentProps {
   restaurantSlug?: string;
@@ -29,11 +31,26 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
+  const [address, setAddress] = useState("");
+  const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<any>(null);
+
+  const router = useRouter();
+
   const items = useCartStore((state) => state.items);
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("platform_address");
+      if (stored) setAddress(stored);
+      const storedType = localStorage.getItem("platform_order_type");
+      if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
+    }
+
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -259,26 +276,25 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             )}
           </div>
 
-          {/* Contact info */}
-          {(restaurant.address || restaurant.phone) && (
-            <div className="flex flex-wrap gap-3 text-[10px] text-zinc-400 font-medium">
-              {restaurant.address && restaurant.city && (
-                <span className="flex items-center gap-1">
-                  <MapPin size={11} className="text-zinc-400/50" />
-                  {restaurant.address}, {restaurant.city}
-                </span>
-              )}
-              {restaurant.phone && (
-                <a
-                  href={`tel:${restaurant.phone}`}
-                  className="flex items-center gap-1 hover:text-gold-600 transition-colors"
-                >
-                  <Phone size={11} className="text-zinc-400/50" />
-                  {restaurant.phone}
-                </a>
-              )}
-            </div>
-          )}
+          {/* Action buttons */}
+          <div className="flex items-center gap-3 mt-6">
+            {restaurant.phone && (
+              <a
+                href={`tel:${String(restaurant.phone).replace(/\\s+/g, "")}`}
+                className="flex-1 py-3.5 rounded-2xl bg-zinc-900 border border-white/5 hover:border-sky-500/30 hover:bg-sky-500/10 hover:text-sky-400 transition-all text-zinc-300 font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 shadow-xl"
+              >
+                <Phone size={16} />
+                Ring restaurang
+              </a>
+            )}
+            <button
+              onClick={() => setShowInfoModal(true)}
+              className="flex-1 py-3.5 rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/30 hover:bg-gold-500/10 hover:text-gold-400 transition-all text-zinc-300 font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 shadow-xl"
+            >
+              <Info size={16} />
+              Mer Info
+            </button>
+          </div>
         </div>
 
         {/* Deals */}
@@ -363,7 +379,14 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   <motion.div
                     key={p.id}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setSelectedProduct(p)}
+                    onClick={() => {
+                      if (!address.trim()) {
+                        setPendingProduct(p);
+                        setShowAddressModal(true);
+                      } else {
+                        setSelectedProduct(p);
+                      }
+                    }}
                     className="group bg-zinc-900 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-light-100 transition-all flex items-center gap-4 active:scale-95 shadow-xl"
                   >
                     {p.imageUrl && (
@@ -411,8 +434,102 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         )}
       </AnimatePresence>
 
+      {/* Info Modal */}
+      <AnimatePresence>
+        {showInfoModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-xl p-4"
+            onClick={() => setShowInfoModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={() => setShowInfoModal(false)}
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <ChevronLeft size={16} className="rotate-180" />
+              </button>
+
+              <div className="w-12 h-12 bg-gold-500/10 text-gold-500 rounded-2xl flex items-center justify-center mb-4">
+                <Info size={24} />
+              </div>
+              <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-6">Om restaurangen</h2>
+
+              <div className="space-y-4">
+                {restaurant.address && (
+                  <div className="flex items-start gap-3">
+                    <MapPin className="text-zinc-500 mt-0.5" size={16} />
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Adress</div>
+                      <div className="text-sm font-bold text-zinc-300">{restaurant.address}</div>
+                      <div className="text-sm font-bold text-zinc-300">{restaurant.zip} {restaurant.city}</div>
+                    </div>
+                  </div>
+                )}
+
+                {restaurant.phone && (
+                  <div className="flex items-start gap-3">
+                    <Phone className="text-zinc-500 mt-0.5" size={16} />
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Telefon</div>
+                      <a href={`tel:${restaurant.phone}`} className="text-sm font-bold text-gold-500 hover:underline">
+                        {restaurant.phone}
+                      </a>
+                    </div>
+                  </div>
+                )}
+
+                {(restaurant.description || restaurant.cuisine) && (
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="text-zinc-500 mt-0.5" size={16} />
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Om</div>
+                      <div className="text-sm text-zinc-400">{restaurant.description || restaurant.cuisine}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <DealSpotlight deals={deals.filter((deal) => deal.popupEnabled)} subtotal={subtotal} productIds={productIds} floating />
       <FloatingCartButton />
+
+      <AddressModal
+        isOpen={showAddressModal}
+        onClose={() => { setShowAddressModal(false); setPendingProduct(null); }}
+        onConfirm={(newAddress, newOrderType) => {
+          setAddress(newAddress);
+          setOrderType(newOrderType);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("platform_address", newAddress);
+            localStorage.setItem("platform_order_type", newOrderType);
+          }
+          setShowAddressModal(false);
+          if (pendingProduct) {
+            setSelectedProduct(pendingProduct);
+            setPendingProduct(null);
+          }
+        }}
+        onFail={(reason) => {
+          if (typeof window !== "undefined") {
+            localStorage.setItem("platform_address_error", reason);
+          }
+          router.push("/");
+        }}
+        orderType={orderType}
+        setOrderType={setOrderType}
+      />
     </div>
   );
 };

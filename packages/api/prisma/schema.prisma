@@ -1,6 +1,3 @@
-// Palmyra Lund - Database Schema (SQLite compatible)
-// Stödjer: Kategorier, Produkter, Obligatoriska & Valfria tillbehör, Orders, Betalning
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,293 +7,227 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ----------------------
-// MENY
-// ----------------------
-
 model Category {
-  id          String    @id @default(cuid())
-  restaurantId String?  // null = global/default
-  restaurant  Restaurant? @relation(fields: [restaurantId], references: [id])
-  name        String    // t.ex. "Pizza Standard 1"
-  slug        String    @unique
-  description String?
-  position    Int       @default(0) // Sorteringsordning
-  isActive    Boolean   @default(true)
-  imageUrl    String?
-  products    Product[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String      @id @default(cuid())
+  name         String
+  slug         String      @unique
+  description  String?
+  position     Int         @default(0)
+  isActive     Boolean     @default(true)
+  imageUrl     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurantId String?
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
+  products     Product[]
 }
 
 model Product {
-  id          String        @id @default(cuid())
-  name        String        // t.ex. "Margherita"
-  slug        String        @unique
-  description String?       // t.ex. "Tomat, ost"
-  price       Int           // i ören, t.ex. 11000 = 110 kr
-  categoryId  String
-  category    Category      @relation(fields: [categoryId], references: [id])
-  imageUrl    String?
-  isActive    Boolean       @default(true)
-  isVegan     Boolean       @default(false)
-  isVegetarian Boolean      @default(false)
-  isGlutenFree Boolean      @default(false)
-  position    Int           @default(0)
-  
-  // Tillbehörsgrupper kopplade till denna produkt
-  extraGroups ProductExtraGroup[]
-  orderItems  OrderItem[]
-  
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-}
-
-// En grupp av tillbehör/val för en produkt
-// t.ex. "Storlek" (obligatorisk) eller "Pålägg" (valfri)
-model ExtraGroup {
-  id           String    @id @default(cuid())
-  restaurantId String?   // Null means global, otherwise specific to a restaurant
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
-  name         String    // t.ex. "Storlek", "Pålägg", "Sås"
+  id           String              @id @default(cuid())
+  name         String
+  slug         String              @unique
   description  String?
-  type         String    @default("CHECKBOX") // RADIO = välj ett, CHECKBOX = välj flera
-  required     Boolean   @default(false)   // true = obligatorisk
-  minSelections Int      @default(0)
-  maxSelections Int      @default(99)      // 1 = välj exakt ett (RADIO)
-  position      Int      @default(0)       // Sorteringsordning
-  
-  extras       Extra[]
-  productGroups ProductExtraGroup[]
-  
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  price        Int
+  categoryId   String
+  imageUrl     String?
+  isActive     Boolean             @default(true)
+  isVegan      Boolean             @default(false)
+  isVegetarian Boolean             @default(false)
+  isGlutenFree Boolean             @default(false)
+  position     Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  orderItems   OrderItem[]
+  category     Category            @relation(fields: [categoryId], references: [id])
+  extraGroups  ProductExtraGroup[]
 }
 
-// Relation: Vilka ExtraGroups hör till vilka Products
+model ExtraGroup {
+  id            String              @id @default(cuid())
+  name          String
+  description   String?
+  type          String              @default("CHECKBOX")
+  required      Boolean             @default(false)
+  minSelections Int                 @default(0)
+  maxSelections Int                 @default(99)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  position      Int                 @default(0)
+  restaurantId  String?
+  extras        Extra[]
+  restaurant    Restaurant?         @relation(fields: [restaurantId], references: [id])
+  productGroups ProductExtraGroup[]
+}
+
 model ProductExtraGroup {
   id           String     @id @default(cuid())
   productId    String
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
   extraGroupId String
-  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
   position     Int        @default(0)
-  
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
   @@unique([productId, extraGroupId])
 }
 
-// Enskilt tillbehör/val
-// t.ex. "PANPIZZA +20kr", "Kebab +25kr", "Standard +0kr"
 model Extra {
   id           String     @id @default(cuid())
-  name         String     // t.ex. "PANPIZZA", "Kebab", "Vitlökssås"
-  priceAddon   Int        @default(0) // i ören, 0 = ingen extra kostnad
+  name         String
+  priceAddon   Int        @default(0)
   extraGroupId String
-  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
-  isDefault    Boolean    @default(false) // t.ex. "Standard" är förvald
+  isDefault    Boolean    @default(false)
   isActive     Boolean    @default(true)
   position     Int        @default(0)
-  
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
 }
 
-// ----------------------
-// ORDERS
-// ----------------------
-
 model Order {
-  id           String      @id @default(cuid())
-  orderNumber  Int         @unique // SQLite workaround: Manage this in app logic if needed, or omit autoincrement here
-  restaurantId String?     // Which restaurant this order belongs to
-  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id])
-  status       String      @default("PENDING")
-  type         String      // PICKUP eller DELIVERY
-  
-  // Kundinfo
-  customerName  String
-  customerPhone String
-  customerEmail String?
-  
-  // Leveransadress (null om avhämtning)
-  deliveryStreet   String?
-  deliveryCity     String?
-  deliveryZip      String?
-  deliveryNote     String?
-  
-  // Betalning
-  total            Int         // i ören
-  deliveryFee      Int         @default(0)
-  discountAmount   Int         @default(0)
-  discountCode     String?
-  appliedDealId    String?
-  appliedDealTitle String?
-  
-  // Stripe
+  id                    String      @id @default(cuid())
+  orderNumber           Int         @unique
+  status                String      @default("PENDING")
+  type                  String
+  customerName          String
+  customerPhone         String
+  customerEmail         String?
+  deliveryStreet        String?
+  deliveryCity          String?
+  deliveryZip           String?
+  deliveryNote          String?
+  total                 Int
+  deliveryFee           Int         @default(0)
+  discountAmount        Int         @default(0)
+  discountCode          String?
+  appliedDealId         String?
+  appliedDealTitle      String?
   stripePaymentIntentId String?
-  paymentStatus    String @default("PENDING")
-  paymentMethod    String @default("ONLINE")
-  
-  // Övrigt
-  note             String?
-  estimatedTime    Int?        // minuter
-  
-  items        OrderItem[]
-  
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  paymentStatus         String      @default("PENDING")
+  paymentMethod         String      @default("ONLINE")
+  note                  String?
+  estimatedTime         Int?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  restaurantId          String?
+  restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
+  items                 OrderItem[]
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  
-  // Snapshot av produktdata vid beställningstillfället
-  productName String
-  basePrice   Int      // produktpris i ören
-  
-  quantity  Int      @default(1)
-  note      String?
-  
-  // Valda tillbehör (JSON-snapshot, stored as string in SQLite)
-  selectedExtras String @default("[]")
-  
-  subtotal  Int      // (basePrice + extras) * quantity, i ören
-  
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  orderId        String
+  productId      String
+  productName    String
+  basePrice      Int
+  quantity       Int      @default(1)
+  note           String?
+  selectedExtras String   @default("[]")
+  subtotal       Int
+  createdAt      DateTime @default(now())
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id])
 }
 
-// ----------------------
-// RABATTKODER
-// ----------------------
-
 model DiscountCode {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  description String?
-  type        String   @default("PERCENTAGE")
-  value       Int      // procent (15) eller kr i ören (1000 = 10kr)
-  minOrder    Int      @default(0) // minsta ordersumma för att aktivera
-  
-  // Begränsningar
-  isActive    Boolean  @default(true)
-  maxUsages   Int?     // null = obegränsat
-  usageCount  Int      @default(0)
-  validFrom   DateTime?
-  validUntil  DateTime?
-  
-  // Vilka kategorier gäller koden för (null = alla, stored as string)
-  applicableCategoryIds String @default("[]")
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  code                  String    @unique
+  description           String?
+  type                  String    @default("PERCENTAGE")
+  value                 Int
+  minOrder              Int       @default(0)
+  isActive              Boolean   @default(true)
+  maxUsages             Int?
+  usageCount            Int       @default(0)
+  validFrom             DateTime?
+  validUntil            DateTime?
+  applicableCategoryIds String    @default("[]")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }
 
 model Deal {
-  id                 String   @id @default(cuid())
-  restaurantId       String?
-  restaurant         Restaurant? @relation(fields: [restaurantId], references: [id])
+  id                 String      @id @default(cuid())
   title              String
   description        String?
   badgeText          String?
-  triggerType        String   @default("NONE") // NONE, MIN_ORDER, COMBO
-  discountType       String   @default("PERCENTAGE") // PERCENTAGE, FIXED
-  discountValue      Int      // percent eller ören
-  minOrder           Int      @default(0)
-  comboProductIds    String   @default("[]") // JSON array
-  isActive           Boolean  @default(true)
-  showOnSite         Boolean  @default(true)
-  popupEnabled       Boolean  @default(true)
+  triggerType        String      @default("NONE")
+  discountType       String      @default("PERCENTAGE")
+  discountValue      Int
+  minOrder           Int         @default(0)
+  comboProductIds    String      @default("[]")
+  isActive           Boolean     @default(true)
+  showOnSite         Boolean     @default(true)
+  popupEnabled       Boolean     @default(true)
   maxUsages          Int?
   maxUsesPerCustomer Int?
-  usageCount         Int      @default(0)
+  usageCount         Int         @default(0)
   validFrom          DateTime?
   validUntil         DateTime?
-  sortOrder          Int      @default(0)
-  isGlobal           Boolean  @default(false)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  sortOrder          Int         @default(0)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  restaurantId       String?
+  isGlobal           Boolean     @default(false)
+  restaurant         Restaurant? @relation(fields: [restaurantId], references: [id])
 }
-
-// ----------------------
-// ADMIN USERS
-// ----------------------
 
 model AdminUser {
   id        String   @id @default(cuid())
   email     String   @unique
-  password  String   // bcrypt hash
+  password  String
   name      String
   role      String   @default("STAFF")
   isActive  Boolean  @default(true)
-  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// ----------------------
-// RESTAURANGINSTÄLLNINGAR
-// ----------------------
-
 model RestaurantSettings {
-  id              String  @id @default("settings")
-  isOpen          Boolean @default(true)
-  deliveryFee     Int     @default(0)    // i ören
-  minOrderAmount  Int     @default(0)    // i ören
-  deliveryRadius  Int     @default(10)   // km
-  estimatedPickupTime  Int @default(20)  // minuter
-  estimatedDeliveryTime Int @default(35) // minuter
-  notificationSound String @default("signal-1")
-  phone           String?
-  
-  // Öppettider (JSON stored as string)
-  openingHours    String    @default("{}")
-  
-  updatedAt       DateTime @updatedAt
+  id                    String   @id @default("settings")
+  isOpen                Boolean  @default(true)
+  deliveryFee           Int      @default(0)
+  minOrderAmount        Int      @default(0)
+  deliveryRadius        Int      @default(10)
+  estimatedPickupTime   Int      @default(20)
+  estimatedDeliveryTime Int      @default(35)
+  notificationSound     String   @default("signal-1")
+  openingHours          String   @default("{}")
+  updatedAt             DateTime @updatedAt
+  phone                 String?
 }
 
 model OrderDraft {
-  id           String   @id @default(cuid())
-  data         String   // JSON stringified order data
-  expiresAt    DateTime
-  createdAt    DateTime @default(now())
+  id        String   @id @default(cuid())
+  data      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
-// ----------------------
-// MULTI-RESTAURANGKATALOG (FÖR STARTSIDA & ADMIN)
-// ----------------------
-
 model Restaurant {
-  id             String                @id @default(cuid())
+  id             String       @id @default(cuid())
   name           String
-  slug           String                @unique
+  slug           String       @unique
   description    String?
-  cuisine        String                @default("Blandat")
+  cuisine        String       @default("Blandat")
   address        String?
-  city           String?               @default("Lund")
+  city           String?      @default("Lund")
   zip            String?
   phone          String?
   imageUrl       String?
   heroImageUrl   String?
-  rating         Float?                @default(4.6)
-  ratingCount    Int?                  @default(120)
-  deliveryFee    Int                   @default(0)   // ören
-  minOrderAmount Int                   @default(0)   // ören
-  etaMinutes     Int                   @default(30)
-  isOpen         Boolean               @default(true)
-  featuredClass  Int                   @default(3)   // 1 = Premium, 2 = Standard, 3 = Normal (inte utvald i UI)
-  tags           String                @default("[]") // JSON-array
-  openingHours   String                @default("{}")
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-
-  categories  Category[]
-  extraGroups ExtraGroup[]
-  orders      Order[]
-  deals       Deal[]
+  rating         Float?       @default(4.6)
+  ratingCount    Int?         @default(120)
+  deliveryFee    Int          @default(0)
+  minOrderAmount Int          @default(0)
+  etaMinutes     Int          @default(30)
+  isOpen         Boolean      @default(true)
+  tags           String       @default("[]")
+  openingHours   String       @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  featuredClass  Int          @default(3)
+  categories     Category[]
+  deals          Deal[]
+  extraGroups    ExtraGroup[]
+  orders         Order[]
 }
-
-

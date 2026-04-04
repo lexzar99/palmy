@@ -99,7 +99,8 @@ export async function playNotificationSound(soundId: string) {
     sequence.forEach((tone) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = tone.type || "sine";
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      osc.type = tone.type || "sine" as any;
       osc.frequency.setValueAtTime(tone.freq, now + tone.delay);
       gain.gain.setValueAtTime(0.0001, now + tone.delay);
       gain.gain.linearRampToValueAtTime(tone.volume, now + tone.delay + 0.02);
