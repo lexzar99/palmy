@@ -153,8 +153,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-dark-500)", overflowX: "hidden" }}>
       <AdminRealtimeBridge />
       <Sidebar />
-      <main style={{ flex: 1, padding: "16px", paddingBottom: "80px" }} className="lg:ml-64 lg:p-10">
-        {children}
+      <main className="flex-1 p-6 lg:p-12 lg:ml-80 transition-all duration-300">
+        <div className="max-w-[1600px] mx-auto">
+          {children}
+        </div>
       </main>
     </div>
   );
