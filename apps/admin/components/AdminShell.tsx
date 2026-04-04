@@ -93,7 +93,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#000",
+        background: "var(--color-bg-main)",
         flexDirection: "column",
         gap: "24px",
         padding: "20px",
@@ -102,20 +102,20 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div style={{
           width: 32,
           height: 32,
-          border: "2px solid rgba(255,255,255,0.1)",
-          borderTopColor: "#fff",
+          border: "2px solid rgba(14, 165, 233, 0.2)",
+          borderTopColor: "#0ea5e9",
           borderRadius: "50%",
           animation: "spin 0.6s linear infinite"
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p style={{ color: "#fff", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 800, margin: 0 }}>
-            Laddar
+          <p style={{ color: "var(--color-text-main)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 800, margin: 0 }}>
+            Laddar Admin
           </p>
           {showRetry && (
-            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, margin: 0 }}>
-              Det tar ovanligt lång tid...
+            <p style={{ color: "var(--color-text-muted)", fontSize: 13, margin: 0 }}>
+              Det tar lite längre tid än vanligt...
             </p>
           )}
         </div>
@@ -125,8 +125,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <button 
               onClick={() => window.location.reload()}
               style={{
-                background: "#fff",
-                color: "#000",
+                background: "#0ea5e9",
+                color: "#fff",
                 border: "none",
                 padding: "10px 20px",
                 borderRadius: "8px",
@@ -136,10 +136,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 cursor: "pointer"
               }}
             >
-              Ladda om
+              Ladda om sidan
             </button>
-            <p style={{ color: "rgba(255,255,255,0.15)", fontSize: 10 }}>
-              API: {API_URL}
+            <p style={{ color: "var(--color-text-muted)", fontSize: 10 }}>
+              Kopplar till databas
             </p>
           </div>
         )}
@@ -148,10 +148,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="flex min-h-screen bg-black text-white overflow-x-hidden">
+    <div className="flex min-h-screen text-slate-900 bg-slate-50 overflow-x-hidden font-sans">
       <AdminRealtimeBridge />
       <Sidebar />
-      <main className="flex-1 p-6 lg:p-12 lg:ml-[240px] pt-24 lg:pt-12 transition-all duration-300">
+      <main className="flex-1 p-6 lg:p-12 lg:ml-[260px] pt-24 lg:pt-12 transition-all duration-300">
         <div className="max-w-[1200px] mx-auto">
           {children}
         </div>

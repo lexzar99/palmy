@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart, User, MapPin, Printer, Truck, Store, RefreshCw, Globe, ChevronDown, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
+import { ShoppingCart, MapPin, Printer, Truck, Store, RefreshCw, Globe, ChevronDown, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
 import { API_URL, SOCKET_URL } from "@/lib/api";
@@ -49,34 +49,34 @@ const getDisplayName = (item: any) => {
 const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin }: any) => {
   const isExpanded = expandedOrderId === order.id;
   return (
-    <motion.div layout className={`rounded-3xl p-4 sm:p-6 transition-all border-2 relative overflow-hidden bg-dark-400 ${isNew ? 'border-yellow-400 shadow-xl shadow-yellow-400/20' : 'border-white/5'}`}>
+    <motion.div layout className={`rounded-xl p-4 sm:p-5 transition-all relative overflow-hidden bg-white shadow-sm border ${isNew ? 'border-blue-400 ring-4 ring-blue-50' : 'border-slate-200'}`}>
       {/* Header - Klickbar för att expandera */}
       <div 
         onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
         className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer"
       >
         <div className="flex items-center gap-4 w-full">
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black ${isNew ? 'bg-yellow-400 text-dark-500' : 'bg-white/5 text-white/50'}`}>
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black ${isNew ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'}`}>
              #{order.orderNumber}
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${isNew ? 'bg-yellow-400 text-dark-500' : 'bg-white/10 text-white/60'}`}>
+              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${isNew ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'}`}>
                 {STATUS_LABELS[order.status] || order.status}
               </span>
-              <span className="text-[10px] text-white/30 uppercase font-bold text-right ml-auto mr-4">
+              <span className="text-[10px] text-slate-400 uppercase font-bold text-right ml-auto mr-4">
                 {(new Date(order.createdAt)).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
               </span>
             </div>
-            <h3 className="text-lg font-black uppercase text-white truncate">{order.customerName}</h3>
+            <h3 className="text-base font-bold uppercase text-slate-800 truncate">{order.customerName}</h3>
           </div>
           <div className="shrink-0 sm:hidden">
-              <ChevronDown size={20} className={`text-white/30 transition-transform ${isExpanded ? 'rotate-180':''}`} />
+              <ChevronDown size={20} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180':''}`} />
           </div>
         </div>
         <div className="hidden sm:flex items-center gap-4">
-           <div className="text-xl font-black text-gold-500">{order.total} KR</div>
-           <ChevronDown size={20} className={`text-white/30 transition-transform ${isExpanded ? 'rotate-180':''}`} />
+           <div className="text-xl font-black text-slate-800">{order.total} KR</div>
+           <ChevronDown size={20} className={`text-slate-400 transition-transform ${isExpanded ? 'rotate-180':''}`} />
         </div>
       </div>
 
@@ -87,52 +87,52 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="mt-6 pt-6 border-t border-white/5 overflow-hidden flex flex-col gap-6"
+            className="mt-6 pt-5 border-t border-slate-100 overflow-hidden flex flex-col gap-6"
           >
             {/* Kund info */}
             <div className="grid grid-cols-2 gap-4">
-               <div className="bg-white/5 p-4 rounded-2xl">
-                  <div className="text-[10px] text-white/30 uppercase font-black mb-1">Leverans</div>
-                  <div className="text-sm font-bold flex items-center gap-2">
-                     {order.type === "DELIVERY" ? <Truck size={14} className="text-white/40"/> : <Store size={14} className="text-white/40"/>}
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Leverans</div>
+                  <div className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                     {order.type === "DELIVERY" ? <Truck size={14} className="text-blue-500"/> : <Store size={14} className="text-blue-500"/>}
                      {order.type === "DELIVERY" ? "Hemkörning" : "Hämtas"}
                   </div>
                </div>
-               <div className="bg-white/5 p-4 rounded-2xl">
-                  <div className="text-[10px] text-white/30 uppercase font-black mb-1">Telefon</div>
-                  <div className="text-sm font-bold text-white">{order.customerPhone}</div>
+               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                  <div className="text-[10px] text-slate-500 uppercase font-bold mb-1">Telefon</div>
+                  <div className="text-sm font-bold text-slate-800">{order.customerPhone}</div>
                </div>
             </div>
 
             {order.type === "DELIVERY" && (
-              <div className="bg-white/5 p-4 rounded-2xl flex gap-3 items-center">
-                 <MapPin className="text-white/40" size={18} />
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl flex gap-3 items-center">
+                 <MapPin className="text-blue-500" size={18} />
                  <div>
-                   <div className="text-sm font-bold">{order.deliveryStreet}</div>
-                   <div className="text-xs text-white/40">{order.deliveryZip} {order.deliveryCity}</div>
+                   <div className="text-sm font-bold text-slate-800">{order.deliveryStreet}</div>
+                   <div className="text-xs text-slate-500">{order.deliveryZip} {order.deliveryCity}</div>
                  </div>
               </div>
             )}
 
             {/* Mat Info */}
             <div className="space-y-2">
-               <div className="text-[10px] items-center text-white/30 uppercase font-black px-2 flex justify-between">
+               <div className="text-[10px] items-center text-slate-500 uppercase font-bold px-2 flex justify-between">
                   <span>Artiklar</span>
                   <span>Totalt: {order.total} KR</span>
                </div>
                {order.items?.map((it:any) => (
-                  <div key={it.id} className="bg-white/5 p-4 rounded-2xl flex justify-between">
+                  <div key={it.id} className="bg-slate-50 border border-slate-100 p-3 rounded-xl flex justify-between">
                      <div>
-                       <span className="font-black text-gold-500 mr-2">{it.quantity}x</span>
-                       <span className="font-bold text-sm uppercase">{getDisplayName(it)}</span>
-                       {it.note && <div className="text-xs text-red-400 mt-1 uppercase">Notering: {it.note}</div>}
+                       <span className="font-black text-blue-600 mr-2">{it.quantity}x</span>
+                       <span className="font-bold text-sm text-slate-800 uppercase">{getDisplayName(it)}</span>
+                       {it.note && <div className="text-xs text-rose-500 mt-1 uppercase font-bold">Notering: {it.note}</div>}
                      </div>
                   </div>
                ))}
                {order.note && (
-                  <div className="p-4 bg-white/5 border border-dashed border-white/20 rounded-2xl text-sm italic mt-2">
-                    <span className="font-bold uppercase text-[10px] text-white/40 block mb-1">Kundens Meddelande:</span>
-                    "{order.note}"
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm italic mt-2">
+                    <span className="font-bold uppercase text-[10px] text-amber-700 block mb-1">Kundens Meddelande:</span>
+                    <span className="text-amber-900 font-medium">"{order.note}"</span>
                   </div>
                )}
             </div>
@@ -144,13 +144,13 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                    <>
                       <button 
                         onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "REJECTED"); }} 
-                        className="px-4 py-4 bg-dark-500 border border-white/10 rounded-2xl font-black text-white/50 text-[10px] uppercase w-1/3 hover:bg-red-500/10 hover:text-red-500 transition-all flex items-center justify-center gap-1"
+                        className="px-4 py-3 bg-white border border-slate-300 shadow-sm rounded-xl font-bold text-slate-600 text-[11px] uppercase w-1/3 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all flex items-center justify-center gap-1"
                       >
                         <XCircle size={14} /> Neka
                       </button>
                       <button 
                         onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} 
-                        className="w-2/3 py-4 bg-gold-500 text-dark-500 rounded-2xl font-black text-sm uppercase shadow-lg shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="w-2/3 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm uppercase shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
                       >
                         <CheckCircle size={16} /> Godkänn Order
                       </button>
@@ -158,21 +158,14 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                  ) : order.status === "PREPARING" || order.status === "ACCEPTED" ? (
                    <button 
                       onClick={(e) => { e.stopPropagation(); updateStatus(order.id, order.type === "PICKUP" ? "READY" : "DELIVERING"); }}
-                      className="w-full py-4 bg-gold-500 text-dark-500 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm uppercase flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
                    >
                      Markera som {order.type === "PICKUP" ? "Klar" : "På väg"}
                    </button>
-                 ) : order.status === "READY" || order.status === "DELIVERING" ? (
-                   <button 
-                      onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "DELIVERED"); }}
-                      className="w-full py-4 bg-emerald-500 text-dark-500 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-2 active:scale-95"
-                   >
-                     Markera som Levererad
-                   </button>
                  ) : null}
                  
-                 <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${order.id}`, "_blank"); }} className="px-4 py-4 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center w-1/4">
-                    <Printer size={18} className="text-white/40" />
+                 <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${order.id}`, "_blank"); }} className="px-4 py-3 bg-white border border-slate-200 shadow-sm hover:bg-slate-50 rounded-xl flex items-center justify-center w-1/4 transition-colors">
+                    <Printer size={18} className="text-slate-600" />
                  </button>
               </div>
             )}
@@ -196,7 +189,6 @@ const AdminOrdersPage = () => {
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
 
   useEffect(() => {
-    // Sätt upp ljud för notifikationer
     if (typeof window !== "undefined") {
       audioRef.current = new Audio("/notification.mp3");
     }
@@ -273,7 +265,7 @@ const AdminOrdersPage = () => {
       );
       setAcceptDialog(null);
       if (status === "PREPARING") {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#D4A74A', '#FFFFFF'] });
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 }, colors: ['#0ea5e9', '#38bdf8'] });
       }
       await fetchData();
     } catch {
@@ -282,7 +274,7 @@ const AdminOrdersPage = () => {
   };
 
   const pendingOrders = orders.filter((o) => o.status === "PENDING");
-  const activeOrders = orders.filter((o) => ["ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(o.status));
+  const activeOrders = orders.filter((o) => ["ACCEPTED", "PREPARING"].includes(o.status));
   
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -290,7 +282,7 @@ const AdminOrdersPage = () => {
   yesterday.setDate(yesterday.getDate() - 1);
 
   const pastOrdersFiltered = orders.filter((o) => {
-    if (!["DELIVERED", "DELIVERY_FAILED", "CANCELLED", "REJECTED"].includes(o.status)) return false;
+    if (!["READY", "DELIVERING", "DELIVERED", "DELIVERY_FAILED", "CANCELLED", "REJECTED"].includes(o.status)) return false;
     const orderDate = new Date(o.createdAt);
     return orderDate >= yesterday;
   });
@@ -301,19 +293,19 @@ const AdminOrdersPage = () => {
       {/* Accept Dialog */}
       <AnimatePresence>
         {acceptDialog && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-dark-500/90 p-6 backdrop-blur-md">
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-dark-400 border border-white/10 rounded-3xl p-8 w-full max-w-sm text-center">
-               <h3 className="text-xl font-black uppercase mb-6">Hur lång tid tar det?</h3>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-6 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-2xl">
+               <h3 className="text-xl font-black uppercase text-slate-800 mb-6 tracking-tight">Hur lång tid tar det?</h3>
                <div className="grid grid-cols-3 gap-3 mb-8">
                  {[15, 20, 25, 30, 45, 60].map(t => (
-                   <button key={t} onClick={() => setAcceptDialog({ ...acceptDialog, time: t })} className={`py-3 rounded-xl font-black ${acceptDialog.time === t ? 'bg-gold-500 text-dark-500' : 'bg-white/5 text-white/50 border border-white/10'}`}>
+                   <button key={t} onClick={() => setAcceptDialog({ ...acceptDialog, time: t })} className={`py-3 rounded-lg font-bold text-sm ${acceptDialog.time === t ? 'bg-blue-500 text-white ring-2 ring-blue-500 ring-offset-2' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}>
                      {t}
                    </button>
                  ))}
                </div>
                <div className="flex gap-3">
-                 <button onClick={() => setAcceptDialog(null)} className="w-1/3 py-4 bg-white/5 border border-white/10 rounded-xl font-black text-xs uppercase text-white/50">Avbryt</button>
-                 <button onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)} className="w-2/3 py-4 bg-gold-500 text-dark-500 rounded-xl font-black text-sm uppercase">OK {acceptDialog.time} min</button>
+                 <button onClick={() => setAcceptDialog(null)} className="w-1/3 py-3.5 bg-white border border-slate-200 text-slate-500 rounded-lg font-bold text-xs uppercase hover:bg-slate-50">Avbryt</button>
+                 <button onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)} className="w-2/3 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm uppercase shadow-md shadow-blue-500/20">OK {acceptDialog.time} min</button>
                </div>
             </motion.div>
           </motion.div>
@@ -321,21 +313,25 @@ const AdminOrdersPage = () => {
       </AnimatePresence>
 
       <div className="flex items-center justify-between px-2">
-        <h1 className="text-2xl font-black uppercase flex items-center gap-3">
-           {!selectedRestaurantId ? <Globe size={24} className="text-gold-500"/> : <Store size={24} className="text-gold-500"/>}
+        <h1 className="text-2xl font-black uppercase tracking-tight text-slate-800 flex items-center gap-3">
+           {!selectedRestaurantId ? <Globe size={24} className="text-blue-500"/> : <Store size={24} className="text-blue-500"/>}
            Live Ordrar
         </h1>
-        <button onClick={fetchData} className="p-3 bg-white/5 rounded-full text-white/50"><RefreshCw size={16} className={loading?"animate-spin":""}/></button>
+        <button onClick={fetchData} className="p-2.5 bg-white shadow-sm border border-slate-200 hover:bg-slate-50 rounded-lg text-slate-500 transition-colors">
+          <RefreshCw size={18} className={loading?"animate-spin":""} />
+        </button>
       </div>
 
       {loading && orders.length === 0 ? (
-        <div className="py-20 text-center text-white/20 uppercase font-black tracking-widest text-[10px]"><Loader2 className="mx-auto animate-spin mb-4" size={24}/>Hämtar ordrar...</div>
+        <div className="py-20 text-center text-slate-400 uppercase font-bold tracking-widest text-xs flex flex-col items-center">
+          <Loader2 className="animate-spin mb-4 text-blue-500" size={28}/>Hämtar ordrar...
+        </div>
       ) : (
         <div className="space-y-12">
           {pendingOrders.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-yellow-400 px-2 flex items-center gap-2">
-                 <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" /> Nya Ordrar!
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-blue-600 px-2 flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" /> Nya Ordrar!
               </h2>
               <div className="space-y-3">
                  {pendingOrders.map(o => (
@@ -356,7 +352,7 @@ const AdminOrdersPage = () => {
 
           {activeOrders.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2">Pågående</h2>
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-500 px-2">Tillagas</h2>
               <div className="space-y-3">
                  {activeOrders.map(o => (
                    <OrderCard 
@@ -375,8 +371,8 @@ const AdminOrdersPage = () => {
 
           {pastOrdersFiltered.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2">Tidigare idag / Igår</h2>
-              <div className="space-y-3 opacity-60">
+              <h2 className="text-[11px] font-bold uppercase tracking-widest text-slate-400 px-2">Föregående</h2>
+              <div className="space-y-3 opacity-70">
                  {pastOrdersFiltered.slice(0, 10).map(o => (
                    <OrderCard 
                      key={o.id} 
@@ -393,8 +389,9 @@ const AdminOrdersPage = () => {
           )}
           
           {orders.length === 0 && (
-             <div className="py-12 border-2 border-dashed border-white/10 rounded-3xl text-center text-white/30 font-black uppercase text-[10px] tracking-widest">
-               Inga ordrar än idag
+             <div className="py-16 bg-white border border-slate-200 shadow-sm rounded-2xl text-center text-slate-400 font-bold uppercase text-[11px] tracking-widest flex flex-col items-center">
+               <Store size={32} className="text-slate-300 mb-3" />
+               Inga ordrar hittades
              </div>
           )}
         </div>

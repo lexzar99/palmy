@@ -104,25 +104,26 @@ const Sidebar = () => {
   };
 
   const links = [
-    { href: "/overview", label: "Översikt", icon: BarChart3 },
-    { href: "/orders", label: "Nya Ordrar", icon: ShoppingCart },
-    { href: "/history", label: "Gamla Ordrar", icon: Clock },
-    { href: "/menu", label: "Meny", icon: Utensils },
-    { href: "/cities", label: "Utkörning", icon: MapPin },
-    { href: "/stats", label: "Data", icon: Activity },
-    { href: "/settings/printing", label: "Utskrift", icon: Printer },
-    { href: "/settings/global", label: "System", icon: Settings },
+    { href: "/overview", label: "Översikt", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { href: "/orders", label: "Nya Ordrar", icon: ShoppingCart, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { href: "/history", label: "Gamla Ordrar", icon: Clock, color: "text-slate-500", bg: "bg-slate-500/10" },
+    { href: "/menu", label: "Meny", icon: Utensils, color: "text-rose-500", bg: "bg-rose-500/10" },
+    ...(isSuperAdmin ? [{ href: "/cities", label: "Utkörning", icon: MapPin, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+    { href: "/stats", label: "Statistik", icon: Activity, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { href: "/settings/printing", label: "Utskrift", icon: Printer, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+    { href: "/settings/global", label: "System", icon: Settings, color: "text-neutral-500", bg: "bg-neutral-500/10" },
   ];
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-black text-white">
+    <div className="flex flex-col h-full bg-white text-slate-800 shadow-xl">
       {/* Header Profile */}
-      <div className="p-6 pb-2 border-b border-white/10">
+      <div className="p-6 pb-4 border-b border-slate-100">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="font-black text-xl tracking-tight uppercase">Admin</div>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex justify-center items-center text-white font-bold text-lg shadow-md shadow-blue-500/20">P</div>
+            <div className="font-extrabold text-lg tracking-tight">Admin<span className="text-blue-500">Panel</span></div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-lg">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 hover:bg-slate-100 rounded-lg text-slate-500">
             <X size={20} />
           </button>
         </div>
@@ -132,26 +133,26 @@ const Sidebar = () => {
           <div className="mb-4">
             <button
               onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all border ${
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all border ${
                 !selectedRestaurantId 
-                  ? "bg-white text-black border-white" 
-                  : "bg-transparent border-white/20 text-white/50 hover:bg-white/5"
+                  ? "bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-800/10" 
+                  : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
               }`}
             >
               <Globe size={16} />
-              <span className="text-xs font-bold uppercase">Sök Alla Ordrar</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest">Sök Alla Ordrar</span>
             </button>
             <Link
               href="/restaurants"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`mt-2 flex items-center gap-3 px-4 py-2 rounded-lg transition-all border ${
+              className={`mt-2 flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all border ${
                 pathname === "/restaurants"
-                  ? "bg-white text-black border-white"
-                  : "bg-transparent border-white/20 text-white/50 hover:bg-white/5"
+                  ? "bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-800/10"
+                  : "bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
               }`}
             >
               <LayoutGrid size={16} />
-              <span className="text-xs font-bold uppercase">Alla Restauranger</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest">Enheter</span>
             </Link>
           </div>
         )}
@@ -170,14 +171,14 @@ const Sidebar = () => {
                     if (r) setRestaurant(r.id, r.name);
                   }
                 }}
-                className="w-full bg-black border border-white/20 rounded-lg px-4 py-2 text-xs font-bold text-white uppercase appearance-none cursor-pointer focus:outline-none focus:border-white transition-all" 
+                className="w-full bg-slate-50 border border-slate-200 outline-none rounded-xl px-4 py-3 text-[11px] tracking-widest font-bold text-slate-700 uppercase appearance-none cursor-pointer focus:border-blue-400 focus:bg-blue-50/50 transition-all shadow-sm" 
               >
-                <option value="" className="bg-black text-white">Välj Enhet...</option>
+                <option value="">Välj Enhet...</option>
                 {restaurants.map(r => (
-                  <option key={r.id} value={r.id} className="bg-black text-white">{r.name}</option>
+                  <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/50">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
                 <ChevronDown size={14} />
               </div>
             </div>
@@ -189,14 +190,14 @@ const Sidebar = () => {
         <button
           onClick={toggleOpen}
           disabled={toggling}
-          className={`flex items-center gap-3 p-3 rounded-lg border mb-4 w-full transition-all group ${
-            isOpen ? "bg-white text-black border-white" : "bg-transparent border-white/20 text-white/50"
+          className={`flex items-center gap-3 p-4 rounded-2xl border transition-all shadow-sm group ${
+            isOpen ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"
           } ${toggling ? "opacity-50" : ""}`}
         >
-          {isOpen ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-          <div className="text-left flex-1 flex items-center justify-between">
-            <div className="text-xs font-bold uppercase">{isOpen ? "ÖPPEN" : "STÄNGD"}</div>
-            <div className="text-[10px] uppercase font-bold truncate max-w-[100px] opacity-70">
+          {isOpen ? <ToggleRight size={26} className="text-emerald-500" /> : <ToggleLeft size={26} className="text-red-500" />}
+          <div className="text-left flex-1 flex flex-col justify-center">
+            <div className="text-[11px] tracking-widest font-black uppercase">{isOpen ? "Öppen" : "Stängd"}</div>
+            <div className={`text-[10px] font-bold truncate max-w-[130px] ${isOpen ? "text-emerald-600/70" : "text-red-600/70"} uppercase`}>
               {selectedRestaurantName}
             </div>
           </div>
@@ -205,7 +206,7 @@ const Sidebar = () => {
       </div>
 
       {/* Main Nav */}
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href;
@@ -214,13 +215,15 @@ const Sidebar = () => {
               key={link.href} 
               href={link.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-xs uppercase ${
+              className={`flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all font-bold text-[12px] uppercase tracking-widest ${
                 isActive 
-                  ? "bg-white text-black" 
-                  : "text-white/60 hover:text-white hover:bg-white/10"
+                  ? "bg-slate-100 text-slate-900 shadow-sm border border-slate-200/60" 
+                  : "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
               }`}
             >
-              <Icon size={16} />
+              <div className={`p-1.5 rounded-lg ${isActive ? link.color + " " + link.bg : "text-slate-400"}`}>
+                <Icon size={16} />
+              </div>
               {link.label}
             </Link>
           );
@@ -228,14 +231,14 @@ const Sidebar = () => {
       </nav>
 
       {/* Footer / Account */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-slate-100">
         <button
           onClick={() => {
             localStorage.removeItem("palmyra_token");
             localStorage.removeItem("palmyra_admin");
             window.location.href = "/login";
           }}
-          className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-lg transition-all font-bold text-xs uppercase"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3.5 text-red-500/70 hover:bg-red-50 hover:text-red-600 rounded-xl transition-all font-bold text-[11px] uppercase tracking-widest"
         >
           <LogOut size={16} />
           Logga Ut
@@ -247,11 +250,12 @@ const Sidebar = () => {
   return (
     <>
       {/* Mobile Top Bar */}
-      <div className="lg:hidden fixed top-0 w-full h-16 bg-black border-b border-white/10 z-40 flex items-center justify-between px-6">
+      <div className="lg:hidden fixed top-0 w-full h-16 bg-white border-b border-slate-200 z-40 flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="font-black text-white text-xl tracking-tighter uppercase">Admin</div>
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex justify-center items-center text-white font-bold text-lg shadow-md shadow-blue-500/20">P</div>
+          <div className="font-extrabold text-lg tracking-tight text-slate-800">Admin<span className="text-blue-500">Panel</span></div>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-white hover:bg-white/10 rounded-lg">
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
           <Menu size={24} />
         </button>
       </div>
@@ -265,14 +269,14 @@ const Sidebar = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+              className="lg:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
             />
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-              className="lg:hidden fixed top-0 left-0 bottom-0 w-[280px] bg-black border-r border-white/10 z-50"
+              className="lg:hidden fixed top-0 left-0 bottom-0 w-[280px] bg-white border-r border-slate-200 z-50 shadow-2xl"
             >
               {sidebarContent}
             </motion.div>
@@ -281,7 +285,7 @@ const Sidebar = () => {
       </AnimatePresence>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block fixed top-0 left-0 bottom-0 w-[240px] bg-black border-r border-white/10 z-40">
+      <div className="hidden lg:block fixed top-0 left-0 bottom-0 w-[260px] bg-white border-r border-slate-200 z-40">
         {sidebarContent}
       </div>
     </>

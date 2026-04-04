@@ -18,25 +18,23 @@ declare module "next-auth/jwt" {
 }
 const API_URL = process.env.API_URL || "https://api-production-eb5f.up.railway.app";
 
-// Force NEXTAUTH_URL if missing or pointing to localhost in prod
-if (!process.env.NEXTAUTH_URL || process.env.NEXTAUTH_URL.includes("localhost")) {
-  if (process.env.NODE_ENV === "production") {
-    process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
-  }
+if (process.env.NODE_ENV === "production" && (!process.env.NEXTAUTH_URL || process.env.NEXTAUTH_URL.includes("localhost"))) {
+  process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
 }
 
 const handler = NextAuth({
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID || "PLACEHOLDER",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "PLACEHOLDER",
     }),
     FacebookProvider({
-      clientId: process.env.FACEBOOK_CLIENT_ID!,
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET!,
+      clientId: process.env.FACEBOOK_CLIENT_ID || "PLACEHOLDER",
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "PLACEHOLDER",
     }),
   ],
-  secret: process.env.NEXTAUTH_SECRET || "change-me-in-production",
+  secret: process.env.NEXTAUTH_SECRET || "palmy-secret-123",
+  debug: process.env.NODE_ENV === "development",
   callbacks: {
     async jwt({ token, account, user }) {
       if (account && user?.email) {
