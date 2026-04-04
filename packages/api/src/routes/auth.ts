@@ -61,7 +61,6 @@ router.post('/login', async (req, res) => {
     let restaurantSlug: string | null = null;
     let restaurantName: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
-      // Restaurant admins log in with their restaurant slug (stored in AdminUser.email).
       const restaurant = await prisma.restaurant.findFirst({
         where: { slug: admin.email.toLowerCase() },
         select: { id: true, slug: true, name: true },
@@ -83,18 +82,9 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      admin: {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
-        restaurantId,
-        restaurantSlug,
-        restaurantName,
-      },
+      admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName },
     });
   } catch (error) {
-    console.error('Login error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -134,44 +124,26 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-export default router;
-
 // POST /api/auth/register-user
 router.post('/register-user', async (req, res) => {
   try {
     const { name, phone, password, email } = req.body;
-    
     if (!name || !phone || !password) {
       return res.status(400).json({ error: 'Namn, telefon och lösenord krävs' });
     }
-
     const existing = await (prisma as any).user.findFirst({
       where: { OR: [{ phone }, { email: email || undefined }] }
     });
-
     if (existing) {
       return res.status(400).json({ error: 'Telefonnumret eller e-posten används redan' });
     }
-
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await (prisma as any).user.create({
-      data: {
-        name,
-        phone,
-        email,
-        password: hashedPassword,
-      }
+      data: { name, phone, email, password: hashedPassword }
     });
-
-    const token = jwt.sign(
-      { id: user.id, phone: user.phone, role: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
+    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
   } catch (error) {
-    console.error('Register error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -179,47 +151,28 @@ router.post('/register-user', async (req, res) => {
 // POST /api/auth/login-user
 router.post('/login-user', async (req, res) => {
   try {
-    const { identifier, password } = req.body; // identifier = phone or email
-    
+    const { identifier, password } = req.body;
     const user = await (prisma as any).user.findFirst({
-      where: { 
-        OR: [
-          { phone: identifier },
-          { email: identifier }
-        ],
-        isActive: true 
-      }
+      where: { OR: [{ phone: identifier }, { email: identifier }], isActive: true }
     });
-
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Felaktigt lösenord eller användare' });
     }
-
-    const token = jwt.sign(
-      { id: user.id, phone: user.phone, role: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
+    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
 
-// POST /api/auth/oauth-token — Called by NextAuth after Google/Facebook login
+// POST /api/auth/oauth-token
 router.post('/oauth-token', async (req, res) => {
   try {
     const { email, name, provider, providerId, image } = req.body;
-    if (!email) { res.status(400).json({ error: 'E-post krävs' }); return; }
+    if (!email) return res.status(400).json({ error: 'E-post krävs' });
 
     let user = await (prisma as any).user.findFirst({
-      where: {
-        OR: [
-          { email: email.toLowerCase() },
-          { oauthProvider: provider, oauthId: providerId },
-        ]
-      }
+      where: { OR: [{ email: email.toLowerCase() }, { oauthProvider: provider, oauthId: String(providerId) }] }
     });
 
     if (!user) {
@@ -241,42 +194,27 @@ router.post('/oauth-token', async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { id: user.id, phone: user.phone, role: 'USER' },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
-    res.json({
-      token,
-      user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone }
-    });
+    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone } });
   } catch (error) {
-    console.error('OAuth token error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });
 
-// PATCH /api/auth/add-phone — Add/link phone number to an OAuth account
+// PATCH /api/auth/add-phone
 router.patch('/add-phone', authenticateUser, async (req: any, res: any) => {
   try {
     const { phone } = req.body;
-    if (!phone) { res.status(400).json({ error: 'Telefonnummer krävs' }); return; }
-
+    if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
     const existing = await (prisma as any).user.findFirst({ where: { phone } });
     if (existing && existing.id !== req.user.id) {
-      res.status(400).json({ error: 'Det numret används redan av ett annat konto' });
-      return;
+      return res.status(400).json({ error: 'Det numret används redan' });
     }
-
-    await (prisma as any).user.update({
-      where: { id: req.user.id },
-      data: { phone }
-    });
-
+    await (prisma as any).user.update({ where: { id: req.user.id }, data: { phone } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
 
+export default router;
