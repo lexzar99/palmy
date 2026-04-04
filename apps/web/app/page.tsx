@@ -135,7 +135,6 @@ export default function HomePage() {
   };
 
   const getCardImage = (r: Restaurant) => {
-    if (r.slug === "palmyra") return getImageSrc("/hero-palmyra.svg");
     return getImageSrc(r.heroImageUrl || r.imageUrl || "");
   };
 
@@ -452,11 +451,15 @@ export default function HomePage() {
               exit={{ scale: 0.96, y: 30 }}
               className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl text-center"
             >
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
-                <span className="text-3xl">🔒</span>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center text-dark-500 font-bold shadow-lg shadow-gold-500/20">
+                   <span className="text-xl">🍣</span>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 leading-none mb-1">Admin Panel</div>
+                  <div className="font-black tracking-tight text-white uppercase leading-none">MATGO <span className="text-gold-500">SUSHI</span></div>
+                </div>
               </div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-400 mb-2">Stängt just nu</p>
-              <h2 className="text-xl font-black tracking-tight text-zinc-100 uppercase mb-2">{closedRestaurant.name}</h2>
               <p className="text-zinc-400 text-sm mb-6 font-medium">Restaurangen är stängd just nu. Vill du ändå se menyn?</p>
               <div className="flex gap-3">
                 <button
