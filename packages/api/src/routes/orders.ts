@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
 import { io } from '../index';
+import jwt from 'jsonwebtoken';
 import {
   DEFAULT_DELIVERY_FEE,
   DEFAULT_ESTIMATED_DELIVERY_TIME,
@@ -12,7 +13,14 @@ import {
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 
 const router = Router();
-class OrderValidationError extends Error {}
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+
+class OrderValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OrderValidationError';
+  }
+}
 
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || '';
 const stripe = stripeSecretKey
@@ -99,6 +107,25 @@ router.post('/', async (req: Request, res: Response) => {
     if (!hasPaymentIntent || !data.stripePaymentIntentId) {
       res.status(400).json({ error: 'Betalning krävs för att slutföra ordern' });
       return;
+    }
+
+    // 0. Check for auth user to link account
+    let authenticatedUserId: string | null = null;
+    let authUser: any = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split(' ')[1];
+        const payload = jwt.verify(token, JWT_SECRET) as any;
+        authUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
+        if (authUser) {
+          authenticatedUserId = authUser.id;
+          // Force use official profile phone to prevent discount abuse
+          data.customerPhone = authUser.phone;
+        }
+      } catch (e) {
+        // Token invalid, proceed as guest
+      }
     }
 
     // Resolve restaurant
@@ -409,6 +436,7 @@ router.post('/', async (req: Request, res: Response) => {
         paymentStatus: 'PAID',
         paymentMethod: 'ONLINE',
         estimatedTime,
+        userId: authenticatedUserId,
 
         items: {
           create: orderItems,

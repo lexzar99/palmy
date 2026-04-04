@@ -17,6 +17,7 @@ import settingsRoutes from './routes/settings';
 import dealsRoutes from './routes/deals';
 import restaurantsRoutes from './routes/restaurants';
 import citiesRoutes from './routes/cities';
+import profileRoutes from './routes/profile';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 
 const app = express();
@@ -92,6 +93,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/restaurants', restaurantsRoutes);
 app.use('/api/cities', citiesRoutes);
+app.use('/api/profile', profileRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {

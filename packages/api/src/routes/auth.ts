@@ -6,6 +6,33 @@ import prisma from '../lib/prisma';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
+// Middleware for user authentication
+export const authenticateUser = (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return res.status(401).json({ error: 'Logga in först' });
+  const token = authHeader.split(' ')[1];
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    req.user = payload;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Session utgången' });
+  }
+};
+
+// GET /api/auth/me - Hämta profil
+router.get('/me', authenticateUser, async (req: any, res: any) => {
+  try {
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true }
+    });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
