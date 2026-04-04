@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { ShoppingCart, User, Phone, MapPin, Check, X, Loader2, RefreshCw, Hash, Truck, Store, Clock, Printer, Bike, Smile } from "lucide-react";
+import { ShoppingCart, User, Phone, MapPin, Check, X, Loader2, RefreshCw, Hash, Truck, Store, Clock, Printer, Bike, Smile, Globe } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "Väntande",
@@ -62,15 +63,12 @@ interface Order {
 const ACTIVE_ORDER_STATUSES = new Set(["PENDING", "ACCEPTED", "PREPARING", "READY"]);
 const COMPACT_ORDER_STATUSES = new Set(["READY", "DELIVERING", "DELIVERED", "DELIVERY_FAILED", "REJECTED", "CANCELLED"]);
 
-import { useRestaurantStore } from "@/store/restaurantStore";
-
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [expandedCompactOrderId, setExpandedCompactOrderId] = useState<string | null>(null);
-  // Track which order IDs have the accept dialog open
   const [acceptDialog, setAcceptDialog] = useState<{ orderId: string; time: number } | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
@@ -91,7 +89,8 @@ const AdminOrdersPage = () => {
   }, []);
 
   const fetchData = useCallback(async () => {
-    if (!selectedRestaurantId) return;
+    if (!selectedRestaurantId && !isSuperAdmin) return;
+    setLoading(true);
     try {
       const restaurantParam = isSuperAdmin ? (selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : "") : `&restaurantId=${selectedRestaurantId}`;
       const [ordersRes, statsRes] = await Promise.allSettled([
@@ -118,7 +117,7 @@ const AdminOrdersPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedRestaurantId]);
+  }, [selectedRestaurantId, isSuperAdmin]);
 
   useEffect(() => {
     if (!selectedRestaurantId && !isSuperAdmin) return;
@@ -134,6 +133,7 @@ const AdminOrdersPage = () => {
       timeout: 10000,
     });
     socketRef.current = socket;
+    
     const joinAdminRoom = () => {
       socket.emit("join:admin", { restaurantId: selectedRestaurantId });
       void fetchData();
@@ -146,10 +146,7 @@ const AdminOrdersPage = () => {
     socket.emit("join:admin", { restaurantId: selectedRestaurantId });
 
     socket.on("order:new", (order: any) => {
-      // If super admin and no specific restaurant selected, show all. 
-      // If specific restaurant selected (or regular admin), check match.
       const shouldShow = isSuperAdmin ? (!selectedRestaurantId || order.restaurantId === selectedRestaurantId) : (order.restaurantId === selectedRestaurantId);
-      
       if (shouldShow) {
         setOrders((prev) => {
           const merged = [order as Order, ...prev.filter((existing) => existing.id !== order.id)];
@@ -169,7 +166,8 @@ const AdminOrdersPage = () => {
     });
 
     socket.on("order:updated", (data: any) => {
-      if (!data.restaurantId || data.restaurantId === selectedRestaurantId) {
+      const shouldRefresh = isSuperAdmin ? (!selectedRestaurantId || data.restaurantId === selectedRestaurantId) : (!data.restaurantId || data.restaurantId === selectedRestaurantId);
+      if (shouldRefresh) {
         void fetchData();
       }
     });
@@ -236,7 +234,7 @@ const AdminOrdersPage = () => {
     const extras = parseExtras(item.selectedExtras);
     const { sizeExtras } = splitExtras(extras);
     return sizeExtras.length > 0
-      ? `${item.productName} - ${sizeExtras.map((extra) => extra.extraName || extra.name).join(", ")}`
+      ? `${item.productName} - ${sizeExtras.map((extra: any) => extra.extraName || extra.name).join(", ")}`
       : item.productName;
   };
 
@@ -249,7 +247,6 @@ const AdminOrdersPage = () => {
 
   const getCountdown = (order: Order) => {
     if (!order.estimatedTime) return null;
-
     const promisedAt = new Date(order.createdAt).getTime() + order.estimatedTime * 60_000;
     const diffMs = promisedAt - now;
     const minutes = diffMs >= 0 ? Math.ceil(diffMs / 60_000) : Math.floor(diffMs / 60_000);
@@ -263,19 +260,11 @@ const AdminOrdersPage = () => {
         ? `${hours} h${remainingMinutes > 0 ? ` ${remainingMinutes} min` : ""} sen`
         : `${absoluteMinutes} min sen`;
 
-    return {
-      minutes,
-      isLate: minutes < 0,
-      label,
-    };
+    return { minutes, isLate: minutes < 0, label };
   };
 
-  const showCountdown = (order: Order) =>
-    ACTIVE_ORDER_STATUSES.has(order.status) && order.status !== "READY";
-
-  const isCompactOrder = (order: Order) =>
-    COMPACT_ORDER_STATUSES.has(order.status);
-
+  const showCountdown = (order: Order) => ACTIVE_ORDER_STATUSES.has(order.status) && order.status !== "READY";
+  const isCompactOrder = (order: Order) => COMPACT_ORDER_STATUSES.has(order.status);
   const activeOrders = orders.filter((order) => !isCompactOrder(order));
   const compactOrders = orders.filter((order) => isCompactOrder(order));
 
@@ -283,13 +272,23 @@ const AdminOrdersPage = () => {
     <div className="space-y-10 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Beställningar</h1>
-          <p className="text-white/40 font-medium">En renare ordervy med tydliga storlekar, såser och leveranssteg.</p>
+        <div className="flex items-center gap-6">
+          <div className="w-16 h-16 bg-gold-500 rounded-[1.5rem] flex items-center justify-center text-dark-500 shadow-xl shadow-gold-500/20">
+            {!selectedRestaurantId ? <Globe size={32} /> : <ShoppingCart size={32} />}
+          </div>
+          <div>
+            <h1 className="text-4xl font-black uppercase tracking-tight mb-1 flex items-center gap-3">
+              {!selectedRestaurantId ? "Global Översikt" : "Beställningar"}
+              {!selectedRestaurantId && <span className="text-xs bg-gold-500/10 text-gold-500 px-3 py-1 rounded-full font-black tracking-widest border border-gold-500/20">LIVE</span>}
+            </h1>
+            <p className="text-white/40 font-bold uppercase text-[10px] tracking-[0.3em]">
+              {!selectedRestaurantId ? "Övervakar alla anslutna restauranger" : `Hanterar beställningar för ${orders[0]?.restaurantName || "enheten"}`}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={fetchData} className="p-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all border border-white/5">
-            <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
+          <button onClick={fetchData} className="p-5 bg-white/5 hover:bg-white/10 rounded-[1.5rem] transition-all border border-white/10 hover:border-gold-500/20 group">
+            <RefreshCw size={22} className={`${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
           </button>
         </div>
       </div>
@@ -297,12 +296,13 @@ const AdminOrdersPage = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
         {statCards.map((card) => (
-          <div key={card.label} className={`p-6 rounded-[1.5rem] bg-white/5 border transition-all ${card.pulse ? "border-yellow-400/40 shadow-[0_0_20px_rgba(250,204,21,0.1)]" : "border-white/5"}`}>
-            <div className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+          <div key={card.label} className={`p-8 rounded-[2rem] bg-dark-400 border transition-all relative overflow-hidden group ${card.pulse ? "border-gold-500/50 shadow-[0_20px_50px_rgba(231,178,75,0.1)] ring-1 ring-gold-500/20" : "border-white/5"}`}>
+             {card.pulse && <div className="absolute inset-0 bg-gold-500/[0.03] animate-pulse" />}
+            <div className="text-white/30 text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
               {card.label}
-              {card.pulse && <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse inline-block" />}
+              {card.pulse && <span className="w-2 h-2 rounded-full bg-gold-500 animate-ping inline-block" />}
             </div>
-            <div className="text-3xl font-black text-gold-500">{card.value}</div>
+            <div className="text-4xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tighter">{card.value}</div>
           </div>
         ))}
       </div>
@@ -314,27 +314,30 @@ const AdminOrdersPage = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-dark-500/80 backdrop-blur-xl p-6"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-dark-500/90 backdrop-blur-md p-6"
           >
             <motion.div
-              initial={{ scale: 0.9 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0.9 }}
-              className="bg-dark-400 border border-white/10 rounded-[2rem] p-10 w-full max-w-md shadow-2xl"
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-dark-400 border-2 border-white/10 rounded-[3rem] p-12 w-full max-w-lg shadow-[0_50px_200px_rgba(0,0,0,0.8)]"
             >
-              <h3 className="text-2xl font-black uppercase mb-2">Godkänn order</h3>
-              <p className="text-white/40 mb-8 text-sm">Välj beräknad tid och bekräfta.</p>
+              <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] flex items-center justify-center text-gold-500 mb-8">
+                <Clock size={40} />
+              </div>
+              <h3 className="text-3xl font-black uppercase mb-3 tracking-tighter">Beräkna Tid</h3>
+              <p className="text-white/40 mb-10 text-sm font-bold uppercase tracking-widest leading-relaxed">Välj hur lång tid restaurangen behöver på sig.</p>
 
-              <div className="grid grid-cols-4 gap-3 mb-8 max-h-48 overflow-y-auto pr-2 pb-2">
-                {[10, 15, 20, 25, 30, 45, 50, 55, 60, 65, 70, 75].map((t) => (
+              <div className="grid grid-cols-4 gap-4 mb-10 overflow-x-auto pr-2 pb-2">
+                {[15, 20, 25, 30, 45, 60].map((t) => (
                   <button
                     key={t}
                     onClick={() => setAcceptDialog({ ...acceptDialog, time: t })}
-                    className={`py-3 rounded-2xl font-black text-sm lg:text-base transition-all border ${
-                      acceptDialog.time === t ? "bg-gold-500 text-dark-500 border-gold-500" : "bg-white/5 border-white/5 hover:bg-white/10"
+                    className={`h-20 rounded-[1.5rem] font-black text-lg transition-all border-2 ${
+                      acceptDialog.time === t ? "bg-gold-500 text-dark-500 border-gold-500 shadow-xl shadow-gold-500/20" : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
                     }`}
                   >
-                    {t} min
+                    {t}
                   </button>
                 ))}
               </div>
@@ -342,17 +345,17 @@ const AdminOrdersPage = () => {
               <div className="flex gap-4">
                 <button
                   onClick={() => setAcceptDialog(null)}
-                  className="flex-1 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold uppercase tracking-widest text-[10px] text-white/60 hover:bg-white/10 hover:text-white transition-all"
+                  className="flex-1 py-6 bg-white/5 border border-white/10 rounded-[2rem] font-black uppercase tracking-widest text-xs text-white/40 hover:bg-white/10 transition-all"
                 >
-                  Stäng
+                  Avbryt
                 </button>
                 <button
                   onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)}
                   disabled={!!actionLoading}
-                  className="flex-2 px-8 py-4 bg-gold-500 hover:bg-gold-400 text-dark-500 rounded-2xl font-black uppercase tracking-widest text-sm transition-all flex items-center gap-2 disabled:opacity-50"
+                  className="flex-[2] py-6 bg-gold-500 hover:bg-gold-400 text-dark-500 rounded-[2rem] font-black uppercase tracking-widest text-sm transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-2xl shadow-gold-500/20"
                 >
-                  {actionLoading ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
-                  Bekräfta {acceptDialog.time} min
+                  {actionLoading ? <Loader2 size={22} className="animate-spin" /> : <Check size={22} />}
+                  BEKRÄFTA {acceptDialog.time} MIN
                 </button>
               </div>
             </motion.div>
@@ -366,19 +369,19 @@ const AdminOrdersPage = () => {
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-lg"
+            className="fixed top-12 left-1/2 -translate-x-1/2 z-[100] w-full max-w-xl px-6"
           >
-            <div className="bg-gold-500 text-dark-500 p-8 rounded-[2.5rem] shadow-[0_30px_100px_rgba(212,167,74,0.4)] border-4 border-white/20 text-center">
-              <div className="text-[10px] font-black uppercase tracking-[0.4em] mb-4 opacity-70">
-                Ny Inkommande Beställning
+            <div className="bg-gold-500 text-dark-500 p-10 rounded-[3rem] shadow-[0_50px_150px_rgba(212,167,74,0.4)] border-8 border-white/20 text-center relative overflow-hidden group">
+               <div className="absolute inset-0 bg-white/10 animate-pulse pointer-events-none" />
+              <div className="text-[11px] font-black uppercase tracking-[0.5em] mb-6 opacity-70">
+                NY INKOMMANDE BESTÄLLNING
               </div>
-              <div className="text-4xl font-black uppercase tracking-tighter mb-4 leading-tight">
-                🏠 {newOrderNotification.restaurantName || "Okänd Restaurang"}
+              <div className="text-5xl font-black uppercase tracking-tighter mb-6 leading-none">
+                🏠 {newOrderNotification.restaurantName || "Okänd Enhet"}
               </div>
-              <div className="text-sm font-black uppercase tracking-widest bg-dark-500/10 py-3 px-6 rounded-2xl inline-block">
+              <div className="text-md font-black uppercase tracking-widest bg-dark-500/10 py-4 px-8 rounded-2xl inline-block border border-dark-500/5">
                 Order #{newOrderNotification.orderNumber} · {newOrderNotification.total.toFixed(0)} KR
               </div>
-              <div className="mt-4 text-xs font-bold uppercase opacity-60">Visas i listan nedan</div>
             </div>
           </motion.div>
         )}
@@ -386,51 +389,129 @@ const AdminOrdersPage = () => {
 
       {/* Orders list */}
       {loading && orders.length === 0 ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="animate-spin text-gold-500" size={40} />
+        <div className="flex flex-col items-center justify-center py-48 gap-6 text-white/20">
+          <Loader2 className="animate-spin text-gold-500" size={60} />
+          <p className="font-black uppercase tracking-[0.3em] text-sm">Hämtar färsk data...</p>
         </div>
       ) : activeOrders.length === 0 && compactOrders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-white/20">
-          <ShoppingCart size={48} className="mb-4" />
-          <p className="uppercase font-black tracking-widest text-sm">Inga beställningar ännu</p>
+        <div className="flex flex-col items-center justify-center py-32 text-white/10 bg-white/[0.02] border-2 border-dashed border-white/[0.05] rounded-[3rem]">
+          <Smile size={80} className="mb-8" />
+          <p className="uppercase font-black tracking-[0.4em] text-lg">Helt lugnt just nu</p>
         </div>
       ) : (
-        <div className="space-y-10">
+        <div className="space-y-12">
           {activeOrders.length === 0 && compactOrders.length > 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center rounded-[2rem] border border-white/10 bg-white/5">
-              <Smile size={56} className="mb-4 text-gold-500" />
-              <p className="text-2xl font-black uppercase tracking-widest">Inga nya beställningar</p>
-              <p className="mt-3 max-w-md text-sm text-white/35">
-                Alla aktuella ordrar är redan markerade som kompakta här nere.
-              </p>
+            <div className="flex flex-col items-center justify-center py-20 text-center rounded-[3rem] border-2 border-dashed border-white/[0.05] bg-white/[0.02]">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-[2rem] flex items-center justify-center text-emerald-500 mb-6">
+                <Check size={40} />
+              </div>
+              <p className="text-3xl font-black uppercase tracking-tight">Alla beställningar hanterade</p>
             </div>
           )}
 
-          <div className="space-y-6">
+          <div className="space-y-8">
             <AnimatePresence initial={false}>
               {orders.map((order) => {
-              const isPending = order.status === "PENDING";
-              const isCompact = isCompactOrder(order);
-              const isCompactExpanded = expandedCompactOrderId === order.id;
+                const isPending = order.status === "PENDING";
+                const isCompact = isCompactOrder(order);
+                const isCompactExpanded = expandedCompactOrderId === order.id;
 
-              if (isCompact) {
-                const isDelivered = order.status === "DELIVERED";
-                const isFailed = order.status === "DELIVERY_FAILED" || order.status === "REJECTED" || order.status === "CANCELLED";
-                const accentClass = isDelivered
-                  ? "border-green-500/20 shadow-[0_0_30px_rgba(34,197,94,0.08)]"
-                  : isFailed
-                    ? "border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.08)]"
-                    : "border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.08)]";
-                const iconClass = isDelivered
-                  ? "bg-green-500/10 text-green-300"
-                  : isFailed
-                    ? "bg-red-500/10 text-red-300"
-                    : "bg-indigo-500/10 text-indigo-300";
-                const titleClass = isDelivered
-                  ? "text-green-300"
-                  : isFailed
-                    ? "text-red-300"
-                    : "text-indigo-300";
+                if (isCompact) {
+                  const isDelivered = order.status === "DELIVERED";
+                  const isFailed = ["DELIVERY_FAILED", "REJECTED", "CANCELLED"].includes(order.status);
+                  
+                  return (
+                    <motion.div
+                      key={order.id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      className={`bg-dark-400/50 backdrop-blur-xl border-2 rounded-[2rem] p-6 sm:p-8 transition-all relative group ${
+                        isDelivered ? "border-emerald-500/20 hover:border-emerald-500/40" : 
+                        isFailed ? "border-red-500/20 hover:border-red-400/40" : "border-white/5 hover:border-white/10"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                        <div className="flex items-center gap-6 min-w-0 flex-1">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border-2 ${
+                            isDelivered ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : 
+                            isFailed ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-white/5 text-white/40 border-white/5"
+                          }`}>
+                            {isDelivered ? <Smile size={24} /> : isFailed ? <X size={24} /> : <Truck size={24} />}
+                          </div>
+                          <div className="min-w-0">
+                            <div className={`text-[10px] font-black uppercase tracking-[0.3em] mb-2 ${isDelivered ? "text-emerald-400" : isFailed ? "text-red-400" : "text-white/30"}`}>
+                              {STATUS_LABELS[order.status] || order.status}
+                            </div>
+                            <div className="text-2xl font-black uppercase tracking-tight truncate">{order.customerName}</div>
+                            <div className="flex items-center gap-3 mt-3">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-white/30">#{order.orderNumber}</span>
+                              <span className="w-1 h-1 rounded-full bg-white/10" />
+                              <span className="text-[10px] font-bold text-white/30 uppercase">{order.restaurantName}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0 w-full sm:w-auto">
+                          <button
+                            onClick={() => setExpandedCompactOrderId(prev => prev === order.id ? null : order.id)}
+                            className="flex-1 sm:flex-none px-8 py-4 bg-white/5 border border-white/10 rounded-2xl font-black uppercase text-[10px] tracking-widest text-white/60 hover:bg-white/10 transition-all hover:text-white"
+                          >
+                            {isCompactExpanded ? "Dölj Detaljer" : "Se Detaljer"}
+                          </button>
+                        </div>
+                      </div>
+
+                      <AnimatePresence>
+                        {isCompactExpanded && (
+                          <motion.div 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="mt-8 pt-8 border-t border-white/5 space-y-6 overflow-hidden"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                               <div className="bg-white/5 p-5 rounded-2xl">
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Telefon</div>
+                                  <a href={`tel:${order.customerPhone}`} className="font-bold text-white hover:text-gold-500 transition-colors uppercase tracking-widest">{order.customerPhone}</a>
+                               </div>
+                               <div className="bg-white/5 p-5 rounded-2xl md:col-span-2">
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Leveransadress</div>
+                                  <div className="font-bold text-white uppercase tracking-widest text-sm">{order.deliveryStreet}, {order.deliveryZip} {order.deliveryCity}</div>
+                               </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                               {order.items?.map((item) => (
+                                 <div key={item.id} className="bg-white/[0.03] p-5 rounded-2xl flex items-center justify-between gap-4">
+                                    <div className="flex gap-4">
+                                       <span className="font-black text-gold-500">{item.quantity}×</span>
+                                       <div>
+                                          <div className="font-black uppercase text-sm tracking-tight">{getDisplayName(item)}</div>
+                                          {item.note && <div className="text-[10px] font-bold text-yellow-400 mt-1 uppercase tracking-widest">OBS! {item.note}</div>}
+                                       </div>
+                                    </div>
+                                    <div className="font-black uppercase tracking-widest text-xs text-white/30">{item.subtotal} KR</div>
+                                 </div>
+                               ))}
+                            </div>
+
+                            <div className="flex justify-between items-center bg-gold-500/5 p-6 rounded-2xl border border-gold-500/10">
+                               <div className="text-xl font-black text-gold-500 uppercase tracking-tighter">Totalt: {order.total.toFixed(0)} KR</div>
+                               <button
+                                 onClick={() => window.open(`/receipt?orderId=${order.id}`, "_blank")}
+                                 className="flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-black uppercase text-[10px] tracking-[0.2em] transition-all"
+                               >
+                                 <Printer size={16} /> SKRIV UT
+                               </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                }
 
                 return (
                   <motion.div
@@ -439,363 +520,153 @@ const AdminOrdersPage = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className={`bg-white/5 border rounded-[1.75rem] p-5 sm:p-6 transition-all relative overflow-hidden ${accentClass}`}
+                    className={`bg-dark-400 border-2 rounded-[3rem] p-10 sm:p-12 transition-all relative overflow-hidden ${
+                      isPending ? "border-yellow-400/60 shadow-[0_40px_100px_rgba(250,204,21,0.15)] ring-4 ring-yellow-400/10" : "border-white/5 hover:border-gold-500/20"
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setExpandedCompactOrderId((prev) => (prev === order.id ? null : order.id))}
-                        className="flex min-w-0 flex-1 items-start gap-4 text-left"
-                      >
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${iconClass}`}>
-                          {isDelivered ? <Check size={18} /> : isFailed ? <X size={18} /> : <Truck size={18} />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className={`text-[10px] sm:text-[11px] font-black uppercase tracking-[0.3em] mb-2 ${titleClass}`}>
-                            {STATUS_LABELS[order.status] || order.status}
+                    {isPending && <div className="absolute inset-x-0 top-0 h-2 bg-yellow-400 animate-pulse" />}
+                    <div className="flex flex-col lg:flex-row gap-16">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-10 flex-wrap gap-8">
+                          <div className="flex items-center gap-6">
+                            <div className="w-16 h-16 bg-gold-500 rounded-[1.5rem] flex items-center justify-center text-dark-500 shadow-xl shadow-gold-500/20">
+                              <span className="text-3xl font-black">#{order.orderNumber}</span>
+                            </div>
+                            <div>
+                               <div className="text-3xl font-black uppercase tracking-tighter mb-1">{order.customerName}</div>
+                               <div className="text-[11px] font-black text-white/30 uppercase tracking-[0.4em] flex items-center gap-3">
+                                  {order.restaurantName} <span className="w-1 h-1 rounded-full bg-white/10" /> {new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+                               </div>
+                            </div>
                           </div>
-                          <div className="truncate text-xl font-black uppercase">{order.customerName}</div>
-                          <div className="mt-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.25em] text-white/35">
-                            #{order.orderNumber} · {order.deliveryStreet}, {order.deliveryZip}
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2 text-xs text-white/50">
-                            <span className="rounded-full bg-white/5 px-4 py-2">{order.customerPhone}</span>
-                            <span className="rounded-full bg-white/5 px-4 py-2">{order.total.toFixed(0)} kr</span>
-                            {isSuperAdmin && order.restaurantName && (
-                              <span className="rounded-full bg-gold-500/10 text-gold-500 border border-gold-500/20 px-4 py-2 font-black uppercase">
-                                {order.restaurantName}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setExpandedCompactOrderId((prev) => (prev === order.id ? null : order.id))}
-                        className="rounded-full border border-white/10 bg-dark-500 px-5 py-4 text-[10px] sm:text-[11px] font-black uppercase tracking-[0.25em] text-white/70 min-w-[120px]"
-                      >
-                        {isCompactExpanded ? "Dölj detaljer" : "Visa detaljer"}
-                      </button>
-                    </div>
-
-                    {isCompactExpanded && (
-                      <div className="mt-5 rounded-2xl border border-white/10 bg-dark-500 p-4 sm:p-5 space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="rounded-2xl bg-white/5 px-4 py-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Kund</div>
-                            <div className="mt-1 font-bold">{order.customerName}</div>
-                          </div>
-                          <a href={`tel:${order.customerPhone}`} className="rounded-2xl bg-white/5 px-4 py-3">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Telefon</div>
-                            <div className="mt-1 font-bold">{order.customerPhone}</div>
-                          </a>
-                          <div className="rounded-2xl bg-white/5 px-4 py-3 sm:col-span-2">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">Adress</div>
-                            <div className="mt-1 font-bold">{order.deliveryStreet}, {order.deliveryZip} {order.deliveryCity}</div>
+                          <div className={`px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.3em] flex items-center gap-3 border shadow-sm ${STATUS_COLORS[order.status] || "bg-white/5 border-white/10"}`}>
+                             {isPending && <span className="w-2.5 h-2.5 bg-current rounded-full animate-ping" />}
+                             {STATUS_LABELS[order.status] || order.status}
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          {order.items?.map((item) => {
-                            const extras = parseExtras(item.selectedExtras);
-                            const { sauceExtras, otherExtras } = splitExtras(extras);
-                            return (
-                              <div key={item.id} className="rounded-2xl bg-white/5 px-4 py-3">
-                                <div className="flex items-start justify-between gap-4">
-                                  <div className="min-w-0">
-                                    <div className="text-sm font-black uppercase">{item.quantity}× {getDisplayName(item)}</div>
-                                    {otherExtras.length > 0 && (
-                                      <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-white/35">
-                                        {otherExtras.map((e: any) => e.extraName || e.name).join(" · ")}
-                                      </div>
-                                    )}
-                                    {sauceExtras.length > 0 && (
-                                      <div className="mt-1 space-y-1">
-                                        {sauceExtras.map((e: any, idx: number) => (
-                                          <div key={`${item.id}-sauce-${idx}`} className="text-[10px] font-bold uppercase tracking-widest text-red-400">
-                                            {e.groupName}: {e.extraName || e.name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
+                        <div className="space-y-4 mb-10">
+                          {order.items?.map((item) => (
+                            <div key={item.id} className="flex items-start justify-between gap-6 p-6 bg-white/[0.03] rounded-[2rem] border border-white/5 hover:border-white/10 transition-colors">
+                              <div className="flex gap-6">
+                                <span className="text-2xl font-black text-gold-500">{item.quantity}×</span>
+                                <div>
+                                  <div className="text-xl font-black uppercase tracking-tight">{getDisplayName(item)}</div>
+                                  <div className="mt-2 text-[11px] font-bold text-white/30 uppercase tracking-[0.2em]">
+                                     {parseExtras(item.selectedExtras).map((e: any) => e.extraName || e.name).join(" · ")}
                                   </div>
-                                  <div className="font-bold text-white/50 text-sm whitespace-nowrap">{item.subtotal} kr</div>
+                                  {item.note && <div className="mt-3 bg-yellow-400/10 text-yellow-500 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border border-yellow-400/10">NOTERING: {item.note}</div>}
                                 </div>
                               </div>
-                            );
-                          })}
+                              <div className="text-lg font-black text-white/40 uppercase tracking-tighter">{item.subtotal} KR</div>
+                            </div>
+                          ))}
                         </div>
 
-                        {order.note && (
-                          <div className="rounded-2xl border border-white/5 bg-white/5 p-4">
-                            <div className="text-[9px] text-white/20 uppercase font-black tracking-widest mb-1">Not</div>
-                            <p className="text-xs text-white/60 italic">{order.note}</p>
-                          </div>
-                        )}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-8 pt-10 border-t border-white/5">
+                            <div className="text-5xl font-black text-white tracking-tighter">
+                               {order.total.toFixed(0)} <span className="text-2xl text-gold-500">KR</span>
+                            </div>
 
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => window.open(`/receipt?orderId=${order.id}`, "_blank")}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:bg-white/10 transition-all"
-                          >
-                            <Printer size={14} />
-                            Skriv ut
-                          </button>
+                            <div className="flex items-center gap-4 w-full sm:w-auto">
+                               {isPending && !isSuperAdmin ? (
+                                <div className="flex items-center gap-4 grow sm:grow-0">
+                                   <button 
+                                     onClick={() => { if(confirm("Neka order?")) updateStatus(order.id, "REJECTED"); }}
+                                     className="p-6 bg-red-500/10 text-red-500 border-2 border-red-500/20 rounded-[2rem] hover:bg-red-500 hover:text-white transition-all shadow-xl shadow-red-500/5 group"
+                                   >
+                                      <X size={28} className="group-active:scale-75 transition-transform" />
+                                   </button>
+                                   <button 
+                                     onClick={() => setAcceptDialog({ orderId: order.id, time: 20 })}
+                                     className="grow px-12 py-6 bg-emerald-500 hover:bg-emerald-400 text-dark-500 rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm transition-all shadow-2xl shadow-emerald-500/20 active:scale-95"
+                                   >
+                                      Godkänn Order
+                                   </button>
+                                </div>
+                               ) : isSuperAdmin ? (
+                                  <div className="px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest text-white/20">
+                                     Endast övervakning
+                                  </div>
+                               ) : (
+                                 <div className="flex items-center gap-4 grow">
+                                    {order.status === "PREPARING" && (
+                                       <button 
+                                         onClick={() => updateStatus(order.id, order.type === "PICKUP" ? "READY" : "DELIVERING")}
+                                         className="grow px-12 py-6 bg-gold-500 hover:bg-gold-400 text-dark-500 rounded-[2rem] font-black uppercase tracking-[0.2em] text-sm transition-all shadow-2xl shadow-gold-500/20"
+                                       >
+                                          Markera {order.type === "PICKUP" ? "Klar" : "På väg"}
+                                       </button>
+                                    )}
+                                    <button 
+                                      onClick={() => window.open(`/receipt?orderId=${order.id}`, "_blank")}
+                                      className="p-6 bg-white/5 hover:bg-white/10 border-2 border-white/10 rounded-[2rem] transition-all group"
+                                    >
+                                       <Printer size={28} className="text-white/40 group-hover:text-white transition-colors" />
+                                    </button>
+                                 </div>
+                               )}
+                            </div>
                         </div>
                       </div>
-                    )}
+
+                      <div className="lg:w-80 space-y-10 shrink-0">
+                         <div className="bg-white/[0.02] border-2 border-white/5 rounded-[2.5rem] p-8 space-y-8">
+                            <div className="flex gap-6">
+                               <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center shrink-0">
+                                  <User size={24} className="text-white/30" />
+                               </div>
+                               <div>
+                                  <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Levereras till</div>
+                                  <div className="font-black text-white uppercase text-sm leading-tight">{order.customerName}</div>
+                                  <a href={`tel:${order.customerPhone}`} className="text-xs font-bold text-gold-500/60 block mt-2 hover:text-gold-500 transition-colors">{order.customerPhone}</a>
+                               </div>
+                            </div>
+
+                            {order.type === "DELIVERY" && (
+                              <div className="flex gap-6 pt-8 border-t border-white/5">
+                                 <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center shrink-0">
+                                    <MapPin size={24} className="text-white/30" />
+                                 </div>
+                                 <div className="min-w-0">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Adress</div>
+                                    <div className="font-black text-white uppercase text-sm leading-relaxed truncate">{order.deliveryStreet}</div>
+                                    <div className="font-bold text-xs text-white/30 uppercase">{order.deliveryZip} {order.deliveryCity}</div>
+                                 </div>
+                              </div>
+                            )}
+
+                            {order.estimatedTime && (
+                              <div className="flex gap-6 pt-8 border-t border-white/5">
+                                 <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center shrink-0 text-gold-500">
+                                    <Clock size={24} />
+                                 </div>
+                                 <div>
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-1">Utlovad Tid</div>
+                                    <div className="font-black text-gold-500 text-3xl tracking-tighter leading-none">{order.estimatedTime} MIN</div>
+                                    <div className={`mt-3 text-[11px] font-black uppercase tracking-widest ${getCountdown(order)?.isLate ? "text-red-400" : "text-emerald-400"}`}>
+                                       {getCountdown(order)?.label}
+                                    </div>
+                                 </div>
+                              </div>
+                            )}
+                         </div>
+
+                         {order.note && (
+                            <div className="bg-red-500/5 border-2 border-red-500/20 rounded-[2rem] p-8 ring-4 ring-red-500/5">
+                               <div className="text-[10px] font-black uppercase tracking-[0.3em] text-red-400/50 mb-3">Viktig Notering</div>
+                               <p className="text-sm font-bold text-red-300 italic leading-relaxed uppercase">"{order.note}"</p>
+                            </div>
+                         )}
+
+                         <div className="flex items-center gap-4 px-6 py-4 bg-white/5 rounded-2xl border border-white/10 uppercase font-black text-[10px] tracking-widest text-white/40">
+                            {order.type === "DELIVERY" ? <Truck size={14} className="text-gold-500" /> : <Store size={14} className="text-gold-500" />}
+                            {order.type === "DELIVERY" ? "Hemleverans" : "Avhämtning i butik"}
+                         </div>
+                      </div>
+                    </div>
                   </motion.div>
                 );
-              }
-
-              return (
-                <motion.div
-                  key={order.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className={`bg-white/5 border rounded-[2.5rem] p-8 transition-all relative overflow-hidden ${
-                    isPending
-                      ? "border-yellow-400/50 shadow-[0_0_40px_rgba(250,204,21,0.15)] ring-2 ring-yellow-400/20"
-                      : "border-white/10 hover:border-gold-500/20"
-                  }`}
-                >
-                  {isPending && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: [0.05, 0.15, 0.05] }}
-                      transition={{ duration: 2, repeat: Infinity }}
-                      className="absolute inset-0 bg-yellow-400 pointer-events-none"
-                    />
-                  )}
-                  <div className="flex flex-col lg:flex-row gap-10">
-                    {/* Left: order details */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500">
-                            <Hash size={22} />
-                          </div>
-                          <div>
-                            <div className="text-xl font-black uppercase">Order #{order.orderNumber}</div>
-                            <div className="text-[10px] font-bold text-white/40 uppercase tracking-[0.2em] mb-2">
-                              {new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
-                            </div>
-                            {isSuperAdmin && order.restaurantName && (
-                              <div className="mb-4 text-3xl font-black text-gold-500 uppercase tracking-tighter bg-gold-500/5 p-4 rounded-3xl border border-gold-500/10">
-                                🏠 {order.restaurantName}
-                              </div>
-                            )}
-                            {order.type === "DELIVERY" ? (
-                              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-black uppercase tracking-widest">
-                                <Truck size={14} /> UTKÖRNING
-                              </div>
-                            ) : (
-                              <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-lg text-xs font-black uppercase tracking-widest">
-                                <Store size={14} /> AVHÄMTNING
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${STATUS_COLORS[order.status] || "bg-white/10 text-white/40"}`}>
-                          {isPending && <span className="w-2 h-2 bg-current rounded-full animate-pulse" />}
-                          {STATUS_LABELS[order.status] || order.status}
-                        </div>
-                      </div>
-
-                      {/* Items */}
-                      <div className="space-y-4 mb-6">
-                        {order.items?.map((item) => {
-                          const extras = parseExtras(item.selectedExtras);
-                          const { sauceExtras, otherExtras } = splitExtras(extras);
-                          return (
-                            <div key={item.id} className="flex items-start justify-between gap-4">
-                              <div className="flex gap-3">
-                                <span className="font-black text-gold-500 text-lg">{item.quantity}×</span>
-                                <div>
-                                  <div className="font-bold uppercase text-sm">{getDisplayName(item)}</div>
-                                  {otherExtras.length > 0 && (
-                                    <div className="text-[10px] text-white/30 uppercase font-bold tracking-widest mt-1">
-                                      {otherExtras.map((e: any) => e.extraName || e.name).join(" · ")}
-                                    </div>
-                                  )}
-                                  {sauceExtras.length > 0 && (
-                                    <div className="mt-1 space-y-1">
-                                      {sauceExtras.map((e: any, idx: number) => (
-                                        <div key={`${item.id}-sauce-${idx}`} className="text-[10px] text-red-400 font-bold uppercase tracking-widest">
-                                          {e.groupName}: {e.extraName || e.name}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  {item.note && (
-                                    <div className="text-[11px] text-yellow-400 font-bold uppercase tracking-widest mt-1 bg-yellow-400/10 px-2 py-1 rounded inline-block max-w-[200px] break-words">
-                                      OBS! {item.note}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="font-bold text-white/50 text-sm whitespace-nowrap">{item.subtotal} kr</div>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {order.note && (
-                        <div className="bg-white/5 border border-white/5 rounded-2xl p-4 mb-6">
-                          <div className="text-[9px] text-white/20 uppercase font-black tracking-widest mb-1">Not</div>
-                          <p className="text-xs text-white/60 italic">{order.note}</p>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between pt-6 border-t border-white/5 flex-wrap gap-4">
-                        <div className="text-3xl font-black text-gold-500">{order.total.toFixed(0)} KR</div>
-
-                        {isPending && !isSuperAdmin && (
-                          <div className="flex items-center gap-3">
-                            <button
-                               onClick={() => { if(confirm("Vill du verkligen NEKA denna order?")) updateStatus(order.id, "REJECTED"); }}
-                               disabled={actionLoading === order.id}
-                               className="flex items-center gap-2 px-6 py-3 bg-red-500/20 text-red-300 border border-red-500/30 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
-                             >
-                               {actionLoading === order.id ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                               Avböj Order
-                            </button>
-                            <button
-                              onClick={() => setAcceptDialog({ orderId: order.id, time: 20 })}
-                              className="flex items-center gap-2 px-10 py-4 bg-gold-500 text-dark-500 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
-                            >
-                              <Check size={18} />
-                              Godkänn
-                            </button>
-                          </div>
-                        )}
-                        {isPending && isSuperAdmin && (
-                          <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white/40 text-[10px] font-black uppercase tracking-[0.2em]">
-                            Endast visning (SUPER_ADMIN)
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 lg:ml-auto">
-                          {!isSuperAdmin && order.status === "PREPARING" && order.type === "PICKUP" && (
-                            <button
-                               onClick={() => updateStatus(order.id, "READY")}
-                               disabled={actionLoading === order.id}
-                               className="flex items-center gap-2 px-6 py-3 bg-green-500 hover:bg-green-400 text-dark-500 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg shadow-green-500/20"
-                             >
-                               {actionLoading === order.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} 
-                               Markera Klar
-                             </button>
-                          )}
-                          {!isSuperAdmin && order.status === "PREPARING" && order.type === "DELIVERY" && (
-                            <button
-                              onClick={() => updateStatus(order.id, "DELIVERING")}
-                              disabled={actionLoading === order.id}
-                              className={`flex items-center gap-2 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg ${
-                                (getCountdown(order)?.isLate ?? false)
-                                  ? "bg-red-500 hover:bg-red-400 text-white shadow-red-500/20"
-                                  : "bg-indigo-500 hover:bg-indigo-400 text-white shadow-indigo-500/20"
-                              }`}
-                            >
-                              {actionLoading === order.id ? <Loader2 size={16} className="animate-spin" /> : <Bike size={16} />}
-                              Markera På Väg
-                            </button>
-                          )}
-                          {order.status === "READY" && (
-                            <div className="px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-[10px] font-black uppercase tracking-[0.2em]">
-                              Klar för hämtning
-                            </div>
-                          )}
-                          {order.status === "DELIVERING" && (
-                            <div className="px-4 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[10px] font-black uppercase tracking-[0.2em]">
-                              På väg till kund
-                            </div>
-                          )}
-                          {order.status === "DELIVERY_FAILED" && (
-                            <div className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-[10px] font-black uppercase tracking-[0.2em]">
-                              Bud kunde inte leverera
-                            </div>
-                          )}
-                          <button
-                            onClick={() => window.open(`/receipt?orderId=${order.id}`, '_blank')}
-                            className="flex items-center gap-2 px-4 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/10 text-white/60 hover:text-white"
-                            title="Skriv ut kvitto"
-                          >
-                            <Printer size={16} />
-                            <span className="text-xs font-bold uppercase tracking-widest">Skriv ut</span>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="w-px bg-white/5 hidden lg:block flex-shrink-0" />
-
-                    {/* Right: Customer info */}
-                    <div className="lg:w-72 space-y-6 flex-shrink-0">
-                      <div className="space-y-5">
-                        <div className="flex gap-4">
-                          <User size={18} className="text-white/20 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <div className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-1">Kund</div>
-                            <div className="font-bold">{order.customerName}</div>
-                          </div>
-                        </div>
-                        <div className="flex gap-4">
-                          <Phone size={18} className="text-white/20 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <div className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-1">Telefon</div>
-                            <a href={`tel:${order.customerPhone}`} className="font-bold hover:text-gold-500 transition-colors">{order.customerPhone}</a>
-                          </div>
-                        </div>
-                        {order.type === "DELIVERY" && order.deliveryStreet && (
-                          <div className="flex gap-4">
-                            <MapPin size={18} className="text-white/20 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <div className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-1">Adress</div>
-                              <div className="font-bold text-sm leading-relaxed">{order.deliveryStreet}, {order.deliveryZip}</div>
-                            </div>
-                          </div>
-                        )}
-                        {order.estimatedTime && showCountdown(order) && (
-                          <div className="flex gap-4">
-                            <Clock size={18} className="text-white/20 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <div className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-1">Utlovad tid</div>
-                              <div className="font-black text-gold-500">{order.estimatedTime} min</div>
-                              {getCountdown(order) && (
-                                <div className={`mt-1 text-sm font-black ${
-                                  getCountdown(order)?.isLate ? "text-red-400" : "text-emerald-300"
-                                }`}>
-                                  {getCountdown(order)!.label}
-                                </div>
-                              )}
-                              {order.type === "DELIVERY" && order.status === "PREPARING" && (getCountdown(order)?.minutes ?? 1) <= 0 && (
-                                <div className="mt-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-red-300">
-                                  Dags att markera på väg
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {order.estimatedTime && !showCountdown(order) && (
-                          <div className="flex gap-4">
-                            <Clock size={18} className="text-white/20 mt-0.5 flex-shrink-0" />
-                            <div>
-                              <div className="text-[10px] text-white/20 uppercase font-black tracking-widest mb-1">Utlovad tid</div>
-                              <div className="font-black text-white/60">
-                                {order.status === "DELIVERING" ? "På väg" : "Avslutad"}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
               })}
             </AnimatePresence>
           </div>

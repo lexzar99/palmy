@@ -18,7 +18,9 @@ import {
   Menu,
   X,
   Store,
-  ChevronDown
+  ChevronDown,
+  LayoutGrid,
+  Globe
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -57,13 +59,11 @@ const Sidebar = () => {
     }
 
     if (isSuperAdmin) {
-      // Fetch all restaurants for the dropdown (super admin only)
       axios.get(`${API_URL}/api/restaurants`).then(res => {
         setRestaurants(res.data);
       }).catch(() => {});
     }
 
-    // Fetch status for the selected restaurant
     if (selectedRestaurantId) {
       axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`).then(res => {
          setIsOpen(res.data.isOpen ?? true);
@@ -112,135 +112,117 @@ const Sidebar = () => {
   ];
 
   const sidebarContent = (
-    <div className="flex flex-col h-full p-8">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Palmyra Logo" className="w-8 h-8 object-contain" />
-          <span className="font-bold tracking-tight text-white/80 uppercase">ADMIN <span className="text-gold-500 text-sm">MATGO SUSHI</span></span>
+    <div className="flex flex-col h-full">
+      {/* Header Profile */}
+      <div className="p-8 pb-4">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center text-dark-500 font-bold shadow-lg shadow-gold-500/20">
+              <span className="text-xl">🍣</span>
+            </div>
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 leading-none mb-1">Admin Panel</div>
+              <div className="font-black tracking-tight text-white uppercase leading-none">MATGO <span className="text-gold-500">SUSHI</span></div>
+            </div>
+          </div>
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white bg-white/5 rounded-lg">
+            <X size={20} />
+          </button>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white">
-          <X size={20} />
-        </button>
-      </div>
 
-      {isSuperAdmin && (
-      <div className="mb-6 rounded-xl border border-white/10 bg-white/5">
-        <button
-          onClick={() => setRestaurantSectionOpen((o) => !o)}
-          className="flex w-full items-center justify-between px-4 py-3 text-sm font-semibold text-white/70 hover:text-white transition-colors"
-        >
-          <span className="flex items-center gap-3 text-gold-500">
-            <Store size={20} />
-            <span className="font-black uppercase tracking-widest text-[#fff]">SYSTEMÖVERSIKT</span>
-          </span>
-          <ChevronDown
-            size={18}
-            className={`transition-transform text-white/40 ${restaurantSectionOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-        <AnimatePresence>
-          {restaurantSectionOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
+        {/* Super Admin Global Tools */}
+        {isSuperAdmin && (
+          <div className="space-y-2 mb-8">
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-3">Systemöversikt</div>
+            
+            <button
+              onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
+              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all border ${
+                !selectedRestaurantId 
+                  ? "bg-gold-500 text-dark-500 border-gold-500 shadow-lg shadow-gold-500/20" 
+                  : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
+              }`}
             >
-              <div className="flex flex-col border-t border-white/5">
-                <button
-                  onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
-                  className={`px-4 py-3.5 text-xs text-left font-black uppercase tracking-widest ${
-                    !selectedRestaurantId
-                      ? "bg-gold-500/15 text-gold-500"
-                      : "text-white/40 hover:bg-white/5"
-                  }`}
-                >
-                  Alla ordrar (Global)
-                </button>
-                <Link
-                  href="/restaurants"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`px-4 py-3.5 text-xs font-black uppercase tracking-widest ${
-                    pathname === "/restaurants"
-                      ? "bg-gold-500/15 text-gold-500"
-                      : "text-white/40 hover:bg-white/5"
-                  }`}
-                >
-                  Alla restauranger
-                </Link>
-                <Link
-                  href="/settings/global"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`px-4 py-3.5 text-xs font-black uppercase tracking-widest ${
-                    pathname === "/settings/global"
-                      ? "bg-gold-500/15 text-gold-500"
-                      : "text-white/40 hover:bg-white/5"
-                  }`}
-                >
-                  Globala Inställningar
-                </Link>
+              <Globe size={20} className={!selectedRestaurantId ? "text-dark-500" : "text-gold-500"} />
+              <div className="text-left leading-tight">
+                <div className="text-xs font-black uppercase tracking-widest">Global Order</div>
+                <div className={`text-[9px] font-bold uppercase opacity-60 ${!selectedRestaurantId ? "text-dark-500" : "text-white/40"}`}>Alla restauranger</div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-      )}
+            </button>
 
-      {/* Restaurant Selector Dropdown */}
-      {isSuperAdmin && (
-      <div className="relative mb-6">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-2 ml-1">Välj Restaurang</p>
-        <div className="relative group">
-          <select 
-            value={selectedRestaurantId || ""} 
-            onChange={(e) => {
-              if (e.target.value === "") {
-                setRestaurant(null, null);
-              } else {
-                const r = restaurants.find(res => res.id === e.target.value);
-                if (r) setRestaurant(r.id, r.name);
-              }
-            }}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/[0.08]" 
-          >
-            <option value="" className="bg-dark-500 text-white font-bold italic">-- Alla restauranger --</option>
-            {restaurants.map(r => (
-              <option key={r.id} value={r.id} className="bg-dark-500 text-white font-bold">{r.name}</option>
-            ))}
-          </select>
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/30 group-hover:text-gold-500 transition-colors">
-            <ChevronDown size={18} />
+            <Link
+              href="/restaurants"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-all border ${
+                pathname === "/restaurants"
+                  ? "bg-white/15 border-white/20 text-white"
+                  : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
+              }`}
+            >
+              <LayoutGrid size={20} className="text-gold-500" />
+              <div className="text-[10px] font-black uppercase tracking-widest">Hantera Restauranger</div>
+            </Link>
           </div>
-        </div>
-      </div>
-      )}
-
-      {/* Global Open/Closed Toggle */}
-      <button
-        onClick={toggleOpen}
-        disabled={toggling || !selectedRestaurantId}
-        className={`flex items-center gap-4 p-4 rounded-2xl border mb-8 w-full transition-all ${
-          isOpen
-            ? "bg-green-500/10 border-green-500/20 hover:bg-green-500/20"
-            : "bg-red-500/10 border-red-500/20 hover:bg-red-500/20"
-        } ${toggling ? "opacity-50" : ""}`}
-      >
-        {isOpen ? (
-          <ToggleRight size={28} className="text-green-400 flex-shrink-0" />
-        ) : (
-          <ToggleLeft size={28} className="text-red-400 flex-shrink-0" />
         )}
-        <div className="text-left">
-          <div className={`text-sm font-black uppercase ${isOpen ? "text-green-400" : "text-red-400"}`}>
-            {isOpen ? "ÖPPEN" : "STÄNGD"}
-          </div>
-          <div className="text-[9px] text-white/30 uppercase tracking-widest font-bold truncate max-w-[120px]">
-            {selectedRestaurantName || "Restaurang"}
-          </div>
-        </div>
-      </button>
 
-      <nav className="flex-1 space-y-2">
+        {/* Restaurant Selection Dropdown */}
+        {isSuperAdmin && (
+          <div className="mb-8">
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-3 text-center">Fokusera på enhet</div>
+            <div className="relative group">
+              <select 
+                value={selectedRestaurantId || ""} 
+                onChange={(e) => {
+                  if (e.target.value === "") {
+                    setRestaurant(null, null);
+                  } else {
+                    const r = restaurants.find(res => res.id === e.target.value);
+                    if (r) setRestaurant(r.id, r.name);
+                  }
+                }}
+                className="w-full bg-dark-500 border-2 border-white/5 rounded-2xl px-5 py-4 text-xs font-black text-white appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/5 uppercase tracking-widest text-center" 
+              >
+                <option value="" className="bg-dark-500 text-white">-- Alla enheter --</option>
+                {restaurants.map(r => (
+                  <option key={r.id} value={r.id} className="bg-dark-500 text-white">{r.name}</option>
+                ))}
+              </select>
+              <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
+                <ChevronDown size={14} />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Open/Closed Toggle */}
+        {selectedRestaurantId && (
+        <button
+          onClick={toggleOpen}
+          disabled={toggling}
+          className={`flex items-center gap-4 p-5 rounded-[2rem] border mb-8 w-full transition-all group ${
+            isOpen
+              ? "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20"
+              : "bg-red-500/10 border-red-500/20 hover:bg-red-500/20"
+          } ${toggling ? "opacity-50" : ""}`}
+        >
+          <div className={`p-2 rounded-full ${isOpen ? "bg-emerald-500 text-white" : "bg-red-500 text-white"} transition-transform group-active:scale-90`}>
+            {isOpen ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+          </div>
+          <div className="text-left">
+            <div className={`text-xs font-black uppercase tracking-[0.2em] ${isOpen ? "text-emerald-400" : "text-red-400"}`}>
+              {isOpen ? "ÖPPEN" : "STÄNGD"}
+            </div>
+            <div className="text-[10px] text-white/30 uppercase font-bold tracking-tighter truncate max-w-[120px]">
+              {selectedRestaurantName}
+            </div>
+          </div>
+        </button>
+        )}
+      </div>
+
+      {/* Main Nav */}
+      <nav className="flex-1 px-8 space-y-2 overflow-y-auto overflow-x-hidden pt-4 pb-10 custom-scrollbar">
+        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-4">Administration</div>
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href;
@@ -249,45 +231,55 @@ const Sidebar = () => {
               key={link.href} 
               href={link.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-4 py-3 rounded-xl transition-all font-medium text-sm ${
+              className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-black text-[11px] uppercase tracking-widest ${
                 isActive 
-                  ? "bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20" 
-                  : "text-white/40 hover:text-white hover:bg-white/5"
+                  ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/30 ring-1 ring-white/20" 
+                  : "text-white/40 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5"
               }`}
             >
-              <Icon size={20} />
+              <Icon size={18} className={isActive ? "text-dark-500" : "text-gold-500/60"} />
               {link.label}
             </Link>
           );
         })}
       </nav>
 
-      <button
-        onClick={() => {
-          localStorage.removeItem("palmyra_token");
-          localStorage.removeItem("palmyra_admin");
-          window.location.href = "/login";
-        }}
-        className="flex items-center gap-4 px-4 py-3 rounded-xl text-white/20 hover:text-red-500 hover:bg-red-500/5 transition-all font-medium text-sm mt-4 pt-4 border-t border-white/5"
-      >
-        <LogOut size={20} />
-        Logga ut
-      </button>
+      {/* Footer / Account */}
+      <div className="p-8 pt-0 mt-auto border-t border-white/5 bg-dark-500/50 backdrop-blur-xl">
+        <button
+          onClick={() => {
+            localStorage.removeItem("palmyra_token");
+            localStorage.removeItem("palmyra_admin");
+            window.location.href = "/login";
+          }}
+          className="w-full flex items-center gap-4 px-5 py-5 text-red-400/50 hover:text-red-400 transition-all font-black text-[10px] uppercase tracking-[0.2em] group"
+        >
+          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
+          Avsluta Session
+        </button>
+      </div>
     </div>
   );
 
   return (
     <>
-      <div className="lg:hidden fixed top-4 left-4 z-[60]">
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+      `}</style>
+
+      <div className="lg:hidden fixed top-6 left-6 z-[60]">
         <button 
           onClick={() => setIsMobileMenuOpen(true)}
-          className="p-3 bg-dark-400 border border-white/10 rounded-2xl text-gold-500 shadow-xl"
+          className="p-4 bg-dark-400 border border-white/10 rounded-[1.5rem] text-gold-500 shadow-2xl backdrop-blur-xl"
         >
           <Menu size={24} />
         </button>
       </div>
 
-      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 bg-dark-400 border-r border-white/5 flex-col z-50">
+      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-80 bg-dark-400 border-r border-white/5 flex-col z-50">
+        <div className="absolute inset-0 bg-gradient-to-b from-gold-500/[0.03] to-transparent pointer-events-none" />
         {sidebarContent}
       </aside>
 
@@ -299,15 +291,16 @@ const Sidebar = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
             <motion.aside
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-72 bg-dark-400 shadow-2xl overflow-y-auto"
+              transition={{ type: "spring", damping: 25, stiffness: 180 }}
+              className="absolute left-0 top-0 bottom-0 w-[85%] max-w-sm bg-dark-400 shadow-2xl overflow-hidden flex flex-col"
             >
+              <div className="absolute inset-0 bg-gradient-to-b from-gold-500/[0.05] to-transparent pointer-events-none" />
               {sidebarContent}
             </motion.aside>
           </div>
