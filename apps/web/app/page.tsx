@@ -263,16 +263,16 @@ export default function HomePage() {
                 <h2 className="text-lg font-black uppercase tracking-[0.3em] text-zinc-100 italic">Populära val just nu</h2>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="flex lg:grid lg:grid-cols-4 gap-4 lg:gap-6 overflow-x-auto lg:overflow-visible pb-6 lg:pb-0 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
               {featured.map((r) => (
                 <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group relative rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-gold-500/40 transition-all shadow-2xl cursor-pointer bg-zinc-900 hover:scale-[1.02] flex flex-col"
+                  className="group relative shrink-0 w-[280px] lg:w-auto rounded-[2rem] lg:rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-gold-500/40 transition-all shadow-2xl cursor-pointer bg-zinc-900 hover:scale-[1.02] flex flex-col"
                 >
                   {/* Cover image */}
-                  <div className="h-56 w-full bg-white/5 relative overflow-hidden">
+                  <div className="h-44 lg:h-56 w-full bg-white/5 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
                         src={getCardImage(r)}
@@ -282,31 +282,32 @@ export default function HomePage() {
                     ) : (
                       <div className="h-full w-full flex items-center justify-center text-5xl">🍽️</div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                     {r.isOpen === false && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                         <span className="px-3 py-1 rounded-full bg-red-500/80 text-white text-[9px] font-black uppercase tracking-wider">Stängt</span>
                       </div>
                     )}
-                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 rounded-full px-2 py-0.5">
+                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 rounded-full px-2 py-0.5">
                       <Star size={10} className="fill-gold-500 text-gold-500" />
-                      <span className="text-[9px] font-black text-white/90">{(r.rating ?? 4.6).toFixed(1)}</span>
+                      <span className="text-[10px] font-black text-white/90">{(r.rating ?? 4.6).toFixed(1)}</span>
                     </div>
                     {r.isOpen !== false && (
-                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                        <div className="px-2 py-0.5 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
-                          <div className="w-1 h-1 rounded-full bg-zinc-900 animate-pulse" />
+                      <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                        <div className="px-2 py-1 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
+                          <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
                            Öppet
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="p-6 bg-zinc-900 flex-1">
-                    <div className="font-black uppercase tracking-tight text-xl group-hover:text-gold-600 transition-colors leading-none mb-2 text-zinc-100">
+                  {/* Info */}
+                  <div className="p-5 lg:p-6 bg-zinc-900 flex-1">
+                    <div className="font-black uppercase tracking-tight text-lg lg:text-xl group-hover:text-gold-600 transition-colors leading-none mb-2 text-zinc-100 truncate">
                       {r.name}
                     </div>
-                    <p className="text-xs text-zinc-400 mb-4 font-bold uppercase tracking-widest">{r.cuisine}</p>
-                    <div className="flex items-center gap-5 text-[11px] text-zinc-400/50 font-black uppercase tracking-wide">
+                    <p className="text-[10px] lg:text-xs text-zinc-400 mb-4 font-bold uppercase tracking-widest truncate">{r.cuisine}</p>
+                    <div className="flex items-center gap-4 text-[10px] lg:text-[11px] text-zinc-400/50 font-black uppercase tracking-wide">
                       <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
                       <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR</span>
                     </div>
@@ -336,16 +337,16 @@ export default function HomePage() {
               <p className="font-black uppercase tracking-widest">Inga restauranger hittades</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
               {filtered.map((r) => (
                 <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group flex overflow-hidden rounded-[2.5rem] bg-zinc-900 border border-white/5 hover:border-gold-500/30 transition-all shadow-2xl cursor-pointer h-52 lg:h-56"
+                  className="group flex flex-col lg:flex-row overflow-hidden rounded-[2rem] lg:rounded-[2.5rem] bg-zinc-900 border border-white/5 hover:border-gold-500/30 transition-all shadow-2xl cursor-pointer"
                 >
                   {/* Cover image */}
-                  <div className="w-52 lg:w-64 shrink-0 relative overflow-hidden">
+                  <div className="w-full lg:w-64 h-48 lg:h-auto shrink-0 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
                         src={getCardImage(r)}
@@ -360,26 +361,32 @@ export default function HomePage() {
                         <span className="text-xs font-black text-red-400 uppercase tracking-widest bg-dark-500/80 px-4 py-2 rounded-xl">Stängt</span>
                       </div>
                     )}
+                    {/* Rating on mobile image */}
+                    <div className="lg:hidden absolute top-4 right-4 flex items-center gap-1 bg-black/60 rounded-full px-3 py-1">
+                      <Star size={12} className="fill-gold-500 text-gold-500" />
+                      <span className="text-xs font-black text-white">{(r.rating ?? 4.6).toFixed(1)}</span>
+                    </div>
                   </div>
 
                   {/* Info */}
-                  <div className="flex-1 p-8 min-w-0 flex flex-col justify-center">
+                  <div className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col justify-center">
                     <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="text-2xl font-black uppercase tracking-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
+                      <h3 className="text-xl lg:text-2xl font-black uppercase tracking-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
                         {r.name}
                       </h3>
-                      <div className="flex items-center gap-1.5 shrink-0 text-gold-500 text-sm font-black">
+                      <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-gold-500 text-sm font-black">
                         <Star size={18} className="fill-gold-500" />
                         {(r.rating ?? 4.6).toFixed(1)}
                         <span className="text-zinc-600 ml-1 font-bold">({r.ratingCount ?? 120})</span>
                       </div>
                     </div>
-                    <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest line-clamp-1 mb-4 italic">
+                    <p className="text-[10px] lg:text-xs text-zinc-400 font-bold uppercase tracking-widest line-clamp-1 mb-4 italic">
                       {r.description || r.cuisine}
                     </p>
-                    <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400/30 mb-4">
+                    <div className="flex items-center gap-4 lg:gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400/30 mb-5">
                       <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
-                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR LEVERANS</span>
+                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR</span>
+                      <span className="hidden lg:inline text-zinc-800">|</span>
                       {(r.minOrderAmount ?? 0) > 0 && (
                         <span>MIN {r.minOrderAmount} KR</span>
                       )}
@@ -387,21 +394,21 @@ export default function HomePage() {
                     
                     <div className="flex flex-wrap items-center gap-3">
                       {r.tags && (Array.isArray(r.tags) ? r.tags : []).slice(0, 3).map((tag: string) => (
-                        <span key={tag} className="text-[10px] font-black text-zinc-400/30 bg-white/5 px-3 py-1 rounded-full uppercase">
+                        <span key={tag} className="text-[9px] lg:text-[10px] font-black text-white/20 bg-white/5 border border-white/5 px-3 py-1 rounded-full uppercase">
                           {tag}
                         </span>
                       ))}
-                      <div className={`ml-auto px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${
+                      <div className={`ml-auto px-4 py-1.5 rounded-full text-[9px] lg:text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${
                         r.isOpen !== false
                           ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                           : "bg-red-500/10 text-red-400 border border-red-500/20"
                       }`}>
-                         {r.isOpen !== false ? "Aktiv & Öppen" : "Stängd för tillfället"}
+                         {r.isOpen !== false ? "Öppen" : "Stängd"}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center pr-8 text-zinc-800 group-hover:text-gold-500 transition-colors">
+                  <div className="hidden lg:flex items-center pr-8 text-zinc-800 group-hover:text-gold-500 transition-colors">
                     <ChevronRight size={32} />
                   </div>
                 </a>
