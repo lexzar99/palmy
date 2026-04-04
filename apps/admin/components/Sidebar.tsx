@@ -60,11 +60,6 @@ const Sidebar = () => {
       // Fetch all restaurants for the dropdown (super admin only)
       axios.get(`${API_URL}/api/restaurants`).then(res => {
         setRestaurants(res.data);
-        // Default to Palmyra if nothing selected
-        if (!selectedRestaurantId && res.data.length > 0) {
-          const palmyra = res.data.find((r: any) => r.slug === "palmyra");
-          if (palmyra) setRestaurant(palmyra.id, palmyra.name);
-        }
       }).catch(() => {});
     }
 
@@ -96,8 +91,6 @@ const Sidebar = () => {
     setToggling(true);
     try {
       const newVal = !isOpen;
-      // Note: We'd ideally have an endpoint that takes restaurantId
-      // For now we assume the standard patch works or we'd need to update the API
       await axios.patch(`${API_URL}/api/restaurants/${selectedRestaurantId}`, { isOpen: newVal }, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
@@ -123,7 +116,7 @@ const Sidebar = () => {
       <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Palmyra Logo" className="w-8 h-8 object-contain" />
-          <span className="font-bold tracking-tight text-white/80 uppercase">ADMIN <span className="text-gold-500 text-sm">MATGO</span></span>
+          <span className="font-bold tracking-tight text-white/80 uppercase">ADMIN <span className="text-gold-500 text-sm">MATGO SUSHI</span></span>
         </div>
         <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white">
           <X size={20} />
@@ -138,7 +131,7 @@ const Sidebar = () => {
         >
           <span className="flex items-center gap-3 text-gold-500">
             <Store size={20} />
-            <span className="font-black uppercase tracking-widest text-[#fff]">GLOBAL HANTERING</span>
+            <span className="font-black uppercase tracking-widest text-[#fff]">SYSTEMÖVERSIKT</span>
           </span>
           <ChevronDown
             size={18}
@@ -154,6 +147,16 @@ const Sidebar = () => {
               className="overflow-hidden"
             >
               <div className="flex flex-col border-t border-white/5">
+                <button
+                  onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
+                  className={`px-4 py-3.5 text-xs text-left font-black uppercase tracking-widest ${
+                    !selectedRestaurantId
+                      ? "bg-gold-500/15 text-gold-500"
+                      : "text-white/40 hover:bg-white/5"
+                  }`}
+                >
+                  Alla ordrar (Global)
+                </button>
                 <Link
                   href="/restaurants"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -191,11 +194,16 @@ const Sidebar = () => {
           <select 
             value={selectedRestaurantId || ""} 
             onChange={(e) => {
-              const r = restaurants.find(res => res.id === e.target.value);
-              if (r) setRestaurant(r.id, r.name);
+              if (e.target.value === "") {
+                setRestaurant(null, null);
+              } else {
+                const r = restaurants.find(res => res.id === e.target.value);
+                if (r) setRestaurant(r.id, r.name);
+              }
             }}
-            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/[0.08]"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-sm font-bold text-white appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/[0.08]" 
           >
+            <option value="" className="bg-dark-500 text-white font-bold italic">-- Alla restauranger --</option>
             {restaurants.map(r => (
               <option key={r.id} value={r.id} className="bg-dark-500 text-white font-bold">{r.name}</option>
             ))}
@@ -252,8 +260,6 @@ const Sidebar = () => {
             </Link>
           );
         })}
-
-
       </nav>
 
       <button
@@ -272,7 +278,6 @@ const Sidebar = () => {
 
   return (
     <>
-      {/* Mobile Toggle Button */}
       <div className="lg:hidden fixed top-4 left-4 z-[60]">
         <button 
           onClick={() => setIsMobileMenuOpen(true)}
@@ -282,12 +287,10 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* Desktop Sidebar */}
       <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-64 bg-dark-400 border-r border-white/5 flex-col z-50">
         {sidebarContent}
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-[70] lg:hidden">

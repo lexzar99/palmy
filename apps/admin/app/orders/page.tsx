@@ -93,9 +93,10 @@ const AdminOrdersPage = () => {
   const fetchData = useCallback(async () => {
     if (!selectedRestaurantId) return;
     try {
+      const restaurantParam = isSuperAdmin ? (selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : "") : `&restaurantId=${selectedRestaurantId}`;
       const [ordersRes, statsRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/api/admin/orders?limit=100&restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/stats?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/orders?limit=100${restaurantParam}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/stats?${restaurantParam.replace('&', '')}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       ]);
 
       if (ordersRes.status === "fulfilled") {
@@ -120,7 +121,7 @@ const AdminOrdersPage = () => {
   }, [selectedRestaurantId]);
 
   useEffect(() => {
-    if (!selectedRestaurantId) return;
+    if (!selectedRestaurantId && !isSuperAdmin) return;
     fetchData();
 
     const socket = socketIO(SOCKET_URL, {
@@ -145,7 +146,11 @@ const AdminOrdersPage = () => {
     socket.emit("join:admin", { restaurantId: selectedRestaurantId });
 
     socket.on("order:new", (order: any) => {
-      if (order.restaurantId === selectedRestaurantId) {
+      // If super admin and no specific restaurant selected, show all. 
+      // If specific restaurant selected (or regular admin), check match.
+      const shouldShow = isSuperAdmin ? (!selectedRestaurantId || order.restaurantId === selectedRestaurantId) : (order.restaurantId === selectedRestaurantId);
+      
+      if (shouldShow) {
         setOrders((prev) => {
           const merged = [order as Order, ...prev.filter((existing) => existing.id !== order.id)];
           return merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -177,7 +182,7 @@ const AdminOrdersPage = () => {
       window.clearInterval(refreshInterval);
       socket.disconnect();
     };
-  }, [fetchData, selectedRestaurantId]);
+  }, [fetchData, selectedRestaurantId, isSuperAdmin]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 30000);

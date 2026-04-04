@@ -14,7 +14,7 @@ const defaultSettings = {
   showFooter: true,
   showMap: true,
   showLogo: false,
-  customHeader: "Palmyra Lund",
+  customHeader: "MatGo Sushi",
   customFooter: "Tack för din beställning!\nVälkommen åter",
   layoutType: "standard",
 };
@@ -176,7 +176,7 @@ const ReceiptPage = () => {
               <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Anpassad Text</h3>
               <div>
                 <label className="block text-xs font-bold mb-2">Rubrik (Restaurangnamn)</label>
-                <input value={settings.customHeader} onChange={(e) => setSettings({...settings, customHeader: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm" placeholder="Palmyra Lund" />
+                <input value={settings.customHeader} onChange={(e) => setSettings({...settings, customHeader: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm" placeholder="MatGo Sushi" />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-2">Fotnot (Tack-meddelande)</label>
@@ -251,10 +251,10 @@ const ReceiptPage = () => {
                      <span className="text-4xl grayscale">🍕</span>
                   </div>
                 )}
-                <h2 className="font-extrabold text-2xl mb-1 uppercase">{settings.customHeader || "Palmyra Lund"}</h2>
+                <h2 className="font-extrabold text-2xl mb-1 uppercase">{settings.customHeader || order.restaurantName || "Restaurang"}</h2>
                 <div className="font-medium text-gray-600">
-                  <p>Kiliansgatan 14, 223 50 Lund</p>
-                  <p>046120612</p>
+                  <p>{order.restaurant?.address || order.restaurantAddress || ""}</p>
+                  <p>{order.restaurant?.phone || order.restaurantPhone || ""}</p>
                 </div>
               </div>
             )}

@@ -571,8 +571,8 @@ export default function RestaurantsPage() {
                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Användarnamn (Slug)</label>
                             <input 
                               value={form.slug} 
-                              disabled
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none opacity-50 font-mono text-sm" 
+                              onChange={e => setForm({...form, slug: e.target.value})}
+                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
                             />
                          </div>
                          <div className="space-y-2">
