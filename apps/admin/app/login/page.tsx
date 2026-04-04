@@ -41,29 +41,28 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 font-sans">
-      <div className="w-full max-w-md">
-        <div className="flex items-center gap-3 justify-center mb-10">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black text-white text-xl shadow-lg shadow-blue-500/20">P</div>
-          <div className="text-xl font-extrabold tracking-tight text-slate-800">
-            ADMIN <span className="text-blue-600">PANEL</span>
+    <div className="min-h-screen bg-[#07080d] flex items-center justify-center px-6 font-sans relative overflow-hidden">
+      {/* Background Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold-600/5 rounded-full blur-[120px]" />
+
+      <div className="w-full max-w-md relative z-10">
+        <div className="flex flex-col items-center justify-center mb-10">
+          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-dark-500 text-3xl shadow-2xl shadow-gold-500/20 mb-6">P</div>
+          <div className="text-center">
+            <div className="text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60 mb-2">Authenticated Access</div>
+            <div className="text-2xl font-black tracking-tighter text-white uppercase italic">Palmyra <span className="text-gold-500">Admin</span></div>
           </div>
         </div>
 
         <form
           onSubmit={handleLogin}
-          className="bg-white border border-slate-200 shadow-2xl shadow-blue-900/5 rounded-[2.5rem] p-8 sm:p-12 space-y-8"
+          className="bg-[#0f111a] border border-white/5 shadow-2xl rounded-[3rem] p-10 sm:p-14 space-y-10"
         >
-          <div>
-            <h1 className="text-3xl font-black text-slate-900 mb-2">Välkommen</h1>
-            <p className="text-slate-400 text-sm font-medium">Logga in på kontrollpanelen</p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-[11px] font-bold uppercase text-slate-400 mb-2 ml-1 tracking-widest">Användarnamn</label>
+          <div className="space-y-8">
+            <div className="group">
+              <label className="block text-[11px] font-black uppercase text-white/20 mb-3 ml-2 tracking-widest group-focus-within:text-gold-500 transition-colors">Credential ID</label>
               <div className="relative">
-                <User size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                <User size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-gold-500 transition-all" />
                 <input
                   required
                   type="text"
@@ -72,47 +71,43 @@ export default function LoginPage() {
                   spellCheck={false}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-6 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all text-slate-700 font-medium"
+                  className="w-full bg-[#07080d] border border-white/5 rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-white font-bold"
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase text-slate-400 mb-2 ml-1 tracking-widest">Lösenord</label>
+            <div className="group">
+              <label className="block text-[11px] font-black uppercase text-white/20 mb-3 ml-2 tracking-widest group-focus-within:text-gold-500 transition-colors">Access Code</label>
               <div className="relative">
-                <Lock size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                <Lock size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-white/10 group-focus-within:text-gold-500 transition-all" />
                 <input
                   required
                   type={showPw ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-14 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition-all text-slate-700 font-medium"
+                  className="w-full bg-[#07080d] border border-white/5 rounded-2xl py-5 pl-14 pr-16 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-white font-bold"
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors">
-                  {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
+                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-5 top-1/2 -translate-y-1/2 text-white/10 hover:text-white transition-colors">
+                  {showPw ? <EyeOff size={22} /> : <Eye size={22} />}
                 </button>
               </div>
             </div>
           </div>
 
           {error && (
-            <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-500 text-xs font-bold uppercase tracking-wide flex items-center gap-2">
-              <span className="text-base">⚠️</span> {error}
+            <div className="p-5 bg-rose-500/5 border border-rose-500/10 rounded-2xl text-rose-500 text-xs font-black uppercase tracking-widest text-center animate-shake">
+              ⚠️ {error}
             </div>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black rounded-2xl transition-all shadow-xl shadow-blue-500/25 uppercase tracking-widest flex items-center justify-center gap-3 active:scale-[0.98]"
+            className="w-full py-6 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-dark-500 font-black rounded-2xl transition-all shadow-2xl shadow-gold-500/10 uppercase tracking-widest flex items-center justify-center gap-4 active:scale-[0.98] text-sm"
           >
-            {loading ? <Loader2 size={20} className="animate-spin" /> : <Lock size={20} />}
-            {loading ? "Loggar in..." : "Logga in"}
+            {loading ? <Loader2 size={24} className="animate-spin" /> : <Lock size={24} />}
+            {loading ? "Decrypting..." : "Initialize Admin"}
           </button>
-
-          <div className="text-center">
-            <p className="text-slate-300 text-[10px] font-bold uppercase tracking-tighter italic">system v2.0 • secure access</p>
-          </div>
         </form>
       </div>
     </div>
