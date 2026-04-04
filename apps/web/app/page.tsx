@@ -119,9 +119,14 @@ export default function HomePage() {
         query.trim().length === 0 ||
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
-      return matchCuisine && matchQuery;
+      
+      // City filtering for PICKUP mode
+      const matchCity = orderType === "PICKUP" ? 
+        (!address || (r.city || "").toLowerCase().includes(address.toLowerCase())) : true;
+
+      return matchCuisine && matchQuery && matchCity;
     });
-  }, [restaurants, activeCuisine, query]);
+  }, [restaurants, activeCuisine, query, address, orderType]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -211,7 +216,7 @@ export default function HomePage() {
               <input
                 value={address}
                 onChange={(e) => saveAddress(e.target.value)}
-                placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten?" : "Ange din stad..."}
+                placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten?" : "I vilken stad vill du hämta?"}
                 className="w-full bg-transparent text-lg placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
               />
               {address && (
