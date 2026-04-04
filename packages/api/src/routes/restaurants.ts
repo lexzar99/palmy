@@ -38,7 +38,7 @@ const restaurantSchema = z.object({
   ratingCount: z.any().optional(),
   openingHours: z.any().optional(),
   adminPassword: z.string().optional(),
-  internalInfo: z.string().optional(),
+  internalInfo: z.string().nullable().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => ({
