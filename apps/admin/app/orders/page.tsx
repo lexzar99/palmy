@@ -281,9 +281,19 @@ const AdminOrdersPage = () => {
     }
   };
 
-  const pendingOrders = orders.filter(o => o.status === "PENDING");
-  const activeOrders = orders.filter(o => ["ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(o.status));
-  const pastOrders = orders.filter(o => ["DELIVERED", "DELIVERY_FAILED", "CANCELLED", "REJECTED"].includes(o.status));
+  const pendingOrders = orders.filter((o) => o.status === "PENDING");
+  const activeOrders = orders.filter((o) => ["ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(o.status));
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const pastOrdersFiltered = orders.filter((o) => {
+    if (!["DELIVERED", "DELIVERY_FAILED", "CANCELLED", "REJECTED"].includes(o.status)) return false;
+    const orderDate = new Date(o.createdAt);
+    return orderDate >= yesterday;
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-8 pb-32 pt-4 px-2 sm:px-0">
@@ -363,11 +373,11 @@ const AdminOrdersPage = () => {
             </div>
           )}
 
-          {pastOrders.length > 0 && (
+          {pastOrdersFiltered.length > 0 && (
             <div className="space-y-4">
-              <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2">Tidigare idag</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-widest text-white/30 px-2">Tidigare idag / Igår</h2>
               <div className="space-y-3 opacity-60">
-                 {pastOrders.slice(0, 10).map(o => (
+                 {pastOrdersFiltered.slice(0, 10).map(o => (
                    <OrderCard 
                      key={o.id} 
                      order={o} 

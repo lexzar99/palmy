@@ -37,7 +37,6 @@ const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [restaurantSectionOpen, setRestaurantSectionOpen] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -105,72 +104,61 @@ const Sidebar = () => {
   };
 
   const links = [
-    { href: "/overview", label: "Daglig Översikt", icon: BarChart3 },
-    { href: "/orders", label: "Beställningar", icon: ShoppingCart },
-    { href: "/history", label: "Föregående beställningar", icon: Clock },
-    { href: "/menu", label: "Menyhantering", icon: Utensils },
-    { href: "/cities", label: "Stadshantering", icon: MapPin },
-    { href: "/stats", label: "Statistik / Utdrag", icon: Activity },
+    { href: "/overview", label: "Översikt", icon: BarChart3 },
+    { href: "/orders", label: "Nya Ordrar", icon: ShoppingCart },
+    { href: "/history", label: "Gamla Ordrar", icon: Clock },
+    { href: "/menu", label: "Meny", icon: Utensils },
+    { href: "/cities", label: "Utkörning", icon: MapPin },
+    { href: "/stats", label: "Data", icon: Activity },
     { href: "/settings/printing", label: "Utskrift", icon: Printer },
-    { href: "/settings/global", label: "Inställningar", icon: Settings },
+    { href: "/settings/global", label: "System", icon: Settings },
   ];
 
   const sidebarContent = (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-black text-white">
       {/* Header Profile */}
-      <div className="p-8 pb-4">
-        <div className="flex items-center justify-between mb-8">
+      <div className="p-6 pb-2 border-b border-white/10">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center text-dark-500 font-bold shadow-lg shadow-gold-500/20">
-              <span className="text-xl">🍣</span>
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 leading-none mb-1">Admin Panel</div>
-              <div className="font-black tracking-tight text-white uppercase leading-none">MATGO <span className="text-gold-500">SUSHI</span></div>
-            </div>
+            <div className="font-black text-xl tracking-tight uppercase">Admin</div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/40 hover:text-white bg-white/5 rounded-lg">
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 hover:bg-white/10 rounded-lg">
             <X size={20} />
           </button>
         </div>
 
         {/* Super Admin Global Tools */}
         {isSuperAdmin && (
-          <div className="space-y-1.5 mb-6">
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10 ml-1 mb-2 italic">Översikt</div>
-            
+          <div className="mb-4">
             <button
               onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all border ${
+              className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all border ${
                 !selectedRestaurantId 
-                  ? "bg-gold-500 text-dark-500 border-gold-500 shadow-lg shadow-gold-500/20" 
-                  : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                  ? "bg-white text-black border-white" 
+                  : "bg-transparent border-white/20 text-white/50 hover:bg-white/5"
               }`}
             >
-              <Globe size={18} className={!selectedRestaurantId ? "text-dark-500" : "text-gold-500"} />
-              <div className="text-left leading-tight">
-                <div className="text-[10px] font-black uppercase tracking-widest">Global Order</div>
-              </div>
+              <Globe size={16} />
+              <span className="text-xs font-bold uppercase">Sök Alla Ordrar</span>
             </button>
-
             <Link
               href="/restaurants"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-5 py-3 rounded-xl transition-all border ${
+              className={`mt-2 flex items-center gap-3 px-4 py-2 rounded-lg transition-all border ${
                 pathname === "/restaurants"
-                  ? "bg-white/10 border-white/20 text-white"
-                  : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
+                  ? "bg-white text-black border-white"
+                  : "bg-transparent border-white/20 text-white/50 hover:bg-white/5"
               }`}
             >
-              <LayoutGrid size={18} className="text-gold-500" />
-              <div className="text-[10px] font-black uppercase tracking-widest">Enheter</div>
+              <LayoutGrid size={16} />
+              <span className="text-xs font-bold uppercase">Alla Restauranger</span>
             </Link>
           </div>
         )}
 
         {/* Restaurant Selection Dropdown */}
         {isSuperAdmin && (
-          <div className="mb-6">
+          <div className="mb-4">
             <div className="relative group">
               <select 
                 value={selectedRestaurantId || ""} 
@@ -182,15 +170,15 @@ const Sidebar = () => {
                     if (r) setRestaurant(r.id, r.name);
                   }
                 }}
-                className="w-full bg-dark-500 border border-white/10 rounded-xl px-5 py-3 text-[10px] font-black text-white/60 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/5 uppercase tracking-widest" 
+                className="w-full bg-black border border-white/20 rounded-lg px-4 py-2 text-xs font-bold text-white uppercase appearance-none cursor-pointer focus:outline-none focus:border-white transition-all" 
               >
-                <option value="" className="bg-dark-500 text-white">Välj Enhet...</option>
+                <option value="" className="bg-black text-white">Välj Enhet...</option>
                 {restaurants.map(r => (
-                  <option key={r.id} value={r.id} className="bg-dark-500 text-white">{r.name}</option>
+                  <option key={r.id} value={r.id} className="bg-black text-white">{r.name}</option>
                 ))}
               </select>
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
-                <ChevronDown size={12} />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/50">
+                <ChevronDown size={14} />
               </div>
             </div>
           </div>
@@ -201,20 +189,14 @@ const Sidebar = () => {
         <button
           onClick={toggleOpen}
           disabled={toggling}
-          className={`flex items-center gap-4 p-5 rounded-[2rem] border mb-8 w-full transition-all group ${
-            isOpen
-              ? "bg-emerald-500/10 border-emerald-500/20 hover:bg-emerald-500/20"
-              : "bg-red-500/10 border-red-500/20 hover:bg-red-500/20"
+          className={`flex items-center gap-3 p-3 rounded-lg border mb-4 w-full transition-all group ${
+            isOpen ? "bg-white text-black border-white" : "bg-transparent border-white/20 text-white/50"
           } ${toggling ? "opacity-50" : ""}`}
         >
-          <div className={`p-2 rounded-full ${isOpen ? "bg-emerald-500 text-white" : "bg-red-500 text-white"} transition-transform group-active:scale-90`}>
-            {isOpen ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-          </div>
-          <div className="text-left">
-            <div className={`text-xs font-black uppercase tracking-[0.2em] ${isOpen ? "text-emerald-400" : "text-red-400"}`}>
-              {isOpen ? "ÖPPEN" : "STÄNGD"}
-            </div>
-            <div className="text-[10px] text-white/30 uppercase font-bold tracking-tighter truncate max-w-[120px]">
+          {isOpen ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
+          <div className="text-left flex-1 flex items-center justify-between">
+            <div className="text-xs font-bold uppercase">{isOpen ? "ÖPPEN" : "STÄNGD"}</div>
+            <div className="text-[10px] uppercase font-bold truncate max-w-[100px] opacity-70">
               {selectedRestaurantName}
             </div>
           </div>
@@ -223,8 +205,7 @@ const Sidebar = () => {
       </div>
 
       {/* Main Nav */}
-      <nav className="flex-1 px-8 space-y-1 overflow-y-auto overflow-x-hidden pt-4 pb-6 custom-scrollbar">
-        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10 ml-1 mb-2 italic">Meny</div>
+      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href;
@@ -233,13 +214,13 @@ const Sidebar = () => {
               key={link.href} 
               href={link.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all font-black text-[11px] uppercase tracking-widest ${
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-bold text-xs uppercase ${
                 isActive 
-                  ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/20" 
-                  : "text-white/30 hover:text-white hover:bg-white/5"
+                  ? "bg-white text-black" 
+                  : "text-white/60 hover:text-white hover:bg-white/10"
               }`}
             >
-              <Icon size={16} className={isActive ? "text-dark-500" : "text-gold-500/40"} />
+              <Icon size={16} />
               {link.label}
             </Link>
           );
@@ -247,17 +228,17 @@ const Sidebar = () => {
       </nav>
 
       {/* Footer / Account */}
-      <div className="p-8 pt-0 mt-auto border-t border-white/5 bg-dark-500/50 backdrop-blur-xl">
+      <div className="p-4 border-t border-white/10">
         <button
           onClick={() => {
             localStorage.removeItem("palmyra_token");
             localStorage.removeItem("palmyra_admin");
             window.location.href = "/login";
           }}
-          className="w-full flex items-center gap-4 px-5 py-5 text-red-400/50 hover:text-red-400 transition-all font-black text-[10px] uppercase tracking-[0.2em] group"
+          className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-lg transition-all font-bold text-xs uppercase"
         >
-          <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" />
-          Avsluta Session
+          <LogOut size={16} />
+          Logga Ut
         </button>
       </div>
     </div>
@@ -265,49 +246,44 @@ const Sidebar = () => {
 
   return (
     <>
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
-      `}</style>
-
-      <div className="lg:hidden fixed top-6 left-6 z-[60]">
-        <button 
-          onClick={() => setIsMobileMenuOpen(true)}
-          className="p-4 bg-dark-400 border border-white/10 rounded-[1.5rem] text-gold-500 shadow-2xl backdrop-blur-xl"
-        >
+      {/* Mobile Top Bar */}
+      <div className="lg:hidden fixed top-0 w-full h-16 bg-black border-b border-white/10 z-40 flex items-center justify-between px-6">
+        <div className="flex items-center gap-3">
+          <div className="font-black text-white text-xl tracking-tighter uppercase">Admin</div>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-white hover:bg-white/10 rounded-lg">
           <Menu size={24} />
         </button>
       </div>
 
-      <aside className="hidden lg:flex fixed left-0 top-0 bottom-0 w-80 bg-dark-400 border-r border-white/5 flex-col z-50">
-        <div className="absolute inset-0 bg-gradient-to-b from-gold-500/[0.03] to-transparent pointer-events-none" />
-        {sidebarContent}
-      </aside>
-
+      {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {isMobileMenuOpen && (
-          <div className="fixed inset-0 z-[70] lg:hidden">
-            <motion.div 
+          <>
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMobileMenuOpen(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             />
-            <motion.aside
+            <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 180 }}
-              className="absolute left-0 top-0 bottom-0 w-[85%] max-w-sm bg-dark-400 shadow-2xl overflow-hidden flex flex-col"
+              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+              className="lg:hidden fixed top-0 left-0 bottom-0 w-[280px] bg-black border-r border-white/10 z-50"
             >
-              <div className="absolute inset-0 bg-gradient-to-b from-gold-500/[0.05] to-transparent pointer-events-none" />
               {sidebarContent}
-            </motion.aside>
-          </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block fixed top-0 left-0 bottom-0 w-[240px] bg-black border-r border-white/10 z-40">
+        {sidebarContent}
+      </div>
     </>
   );
 };

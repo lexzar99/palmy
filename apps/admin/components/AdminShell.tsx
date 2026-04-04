@@ -93,29 +93,29 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--color-dark-500)",
+        background: "#000",
         flexDirection: "column",
         gap: "24px",
         padding: "20px",
         textAlign: "center"
       }}>
         <div style={{
-          width: 40,
-          height: 40,
-          border: "3px solid rgba(212,167,74,0.1)",
-          borderTopColor: "#d4a74a",
+          width: 32,
+          height: 32,
+          border: "2px solid rgba(255,255,255,0.1)",
+          borderTopColor: "#fff",
           borderRadius: "50%",
-          animation: "spin 0.8s linear infinite"
+          animation: "spin 0.6s linear infinite"
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, letterSpacing: "0.3em", textTransform: "uppercase", fontWeight: 800, margin: 0 }}>
-            Palmyra Admin
+          <p style={{ color: "#fff", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", fontWeight: 800, margin: 0 }}>
+            Laddar
           </p>
           {showRetry && (
-            <p style={{ color: "rgba(255,255,255,0.2)", fontSize: 13, margin: 0 }}>
-              Det tar ovanligt lång tid att ladda...
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, margin: 0 }}>
+              Det tar ovanligt lång tid...
             </p>
           )}
         </div>
@@ -125,19 +125,18 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <button 
               onClick={() => window.location.reload()}
               style={{
-                background: "#d4a74a",
-                color: "#0d0d0d",
+                background: "#fff",
+                color: "#000",
                 border: "none",
-                padding: "12px 24px",
-                borderRadius: "12px",
+                padding: "10px 20px",
+                borderRadius: "8px",
                 fontWeight: 900,
                 textTransform: "uppercase",
-                fontSize: 12,
-                letterSpacing: "0.1em",
+                fontSize: 11,
                 cursor: "pointer"
               }}
             >
-              Ladda om sidan
+              Ladda om
             </button>
             <p style={{ color: "rgba(255,255,255,0.15)", fontSize: 10 }}>
               API: {API_URL}
@@ -148,13 +147,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     );
   }
 
-
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "var(--color-dark-500)", overflowX: "hidden" }}>
+    <div className="flex min-h-screen bg-black text-white overflow-x-hidden">
       <AdminRealtimeBridge />
       <Sidebar />
-      <main className="flex-1 p-6 lg:p-12 lg:ml-80 transition-all duration-300">
-        <div className="max-w-[1600px] mx-auto">
+      <main className="flex-1 p-6 lg:p-12 lg:ml-[240px] pt-24 lg:pt-12 transition-all duration-300">
+        <div className="max-w-[1200px] mx-auto">
           {children}
         </div>
       </main>

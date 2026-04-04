@@ -4,17 +4,14 @@
   --color-gold-400: #f3c96e;
   --color-gold-500: #e7b24b;
   --color-gold-600: #c7922d;
-  --color-dark-400: #10182e;
-  --color-dark-500: #070c18;
-  --color-sky-500: #38bdf8;
+  --color-dark-300: #1a1a1a;
+  --color-dark-400: #0a0a0a;
+  --color-dark-500: #000000;
 }
 
 @layer base {
   body {
-    background:
-      radial-gradient(800px 600px at 10% -10%, color-mix(in srgb, var(--color-gold-500) 22%, transparent) 0%, transparent 60%),
-      radial-gradient(900px 650px at 120% 10%, color-mix(in srgb, var(--color-sky-500) 14%, transparent) 0%, transparent 60%),
-      var(--color-dark-500);
-    color: white;
+    background-color: #000000;
+    color: #ffffff;
   }
 }
