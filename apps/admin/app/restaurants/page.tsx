@@ -259,15 +259,15 @@ export default function RestaurantsPage() {
                  {/* Hero Header */}
                  <div className="h-44 w-full bg-dark-500 relative">
                     {r.heroImageUrl ? (
-                      <img src={r.heroImageUrl.startsWith('/') ? `${API_URL}${r.heroImageUrl}` : r.heroImageUrl} className="h-full w-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={r.name} />
+                      <img src={r.heroImageUrl.startsWith('http') ? r.heroImageUrl : (r.heroImageUrl.startsWith('/') ? `${API_URL}${r.heroImageUrl}` : r.heroImageUrl)} className="h-full w-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={r.name} />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center opacity-10"><ImageIcon size={48} /></div>
+                      <div className="h-full w-full flex items-center justify-center opacity-10 font-black uppercase tracking-widest text-[10px]">Saknar Cover</div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/40 to-transparent" />
                     
                     {/* Floating Avatar */}
-                    <div className="absolute -bottom-6 left-8 h-20 w-20 rounded-2xl border-4 border-[#0d0d0d] overflow-hidden bg-dark-400 shadow-2xl shadow-black/50">
-                       {r.imageUrl ? <img src={r.imageUrl.startsWith('/') ? `${API_URL}${r.imageUrl}` : r.imageUrl} className="h-full w-full object-cover" alt="" /> : <div className="h-full w-full flex items-center justify-center opacity-20"><Sparkles /></div>}
+                    <div className="absolute -bottom-6 left-8 h-20 w-20 rounded-2xl border-4 border-[#0d0d0d] overflow-hidden bg-dark-400 shadow-2xl shadow-black/50 ring-1 ring-white/5">
+                       {r.imageUrl ? <img src={r.imageUrl.startsWith('http') ? r.imageUrl : (r.imageUrl.startsWith('/') ? `${API_URL}${r.imageUrl}` : r.imageUrl)} className="h-full w-full object-cover" alt="" /> : <div className="h-full w-full flex items-center justify-center opacity-20"><Sparkles /></div>}
                     </div>
 
                     {/* Featured Badge */}

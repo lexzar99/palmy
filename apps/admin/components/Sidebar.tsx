@@ -134,43 +134,41 @@ const Sidebar = () => {
 
         {/* Super Admin Global Tools */}
         {isSuperAdmin && (
-          <div className="space-y-2 mb-8">
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-3">Systemöversikt</div>
+          <div className="space-y-1.5 mb-6">
+            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10 ml-1 mb-2 italic">Översikt</div>
             
             <button
               onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }}
-              className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all border ${
+              className={`w-full flex items-center gap-4 px-5 py-3 rounded-xl transition-all border ${
                 !selectedRestaurantId 
                   ? "bg-gold-500 text-dark-500 border-gold-500 shadow-lg shadow-gold-500/20" 
-                  : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
+                  : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
               }`}
             >
-              <Globe size={20} className={!selectedRestaurantId ? "text-dark-500" : "text-gold-500"} />
+              <Globe size={18} className={!selectedRestaurantId ? "text-dark-500" : "text-gold-500"} />
               <div className="text-left leading-tight">
-                <div className="text-xs font-black uppercase tracking-widest">Global Order</div>
-                <div className={`text-[9px] font-bold uppercase opacity-60 ${!selectedRestaurantId ? "text-dark-500" : "text-white/40"}`}>Alla restauranger</div>
+                <div className="text-[10px] font-black uppercase tracking-widest">Global Order</div>
               </div>
             </button>
 
             <Link
               href="/restaurants"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-all border ${
+              className={`flex items-center gap-4 px-5 py-3 rounded-xl transition-all border ${
                 pathname === "/restaurants"
-                  ? "bg-white/15 border-white/20 text-white"
-                  : "bg-white/5 border-white/5 text-white/50 hover:bg-white/10"
+                  ? "bg-white/10 border-white/20 text-white"
+                  : "bg-white/5 border-white/5 text-white/40 hover:bg-white/10"
               }`}
             >
-              <LayoutGrid size={20} className="text-gold-500" />
-              <div className="text-[10px] font-black uppercase tracking-widest">Hantera Restauranger</div>
+              <LayoutGrid size={18} className="text-gold-500" />
+              <div className="text-[10px] font-black uppercase tracking-widest">Enheter</div>
             </Link>
           </div>
         )}
 
         {/* Restaurant Selection Dropdown */}
         {isSuperAdmin && (
-          <div className="mb-8">
-            <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-3 text-center">Fokusera på enhet</div>
+          <div className="mb-6">
             <div className="relative group">
               <select 
                 value={selectedRestaurantId || ""} 
@@ -182,15 +180,15 @@ const Sidebar = () => {
                     if (r) setRestaurant(r.id, r.name);
                   }
                 }}
-                className="w-full bg-dark-500 border-2 border-white/5 rounded-2xl px-5 py-4 text-xs font-black text-white appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/5 uppercase tracking-widest text-center" 
+                className="w-full bg-dark-500 border border-white/10 rounded-xl px-5 py-3 text-[10px] font-black text-white/60 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all hover:bg-white/5 uppercase tracking-widest" 
               >
-                <option value="" className="bg-dark-500 text-white">-- Alla enheter --</option>
+                <option value="" className="bg-dark-500 text-white">Välj Enhet...</option>
                 {restaurants.map(r => (
                   <option key={r.id} value={r.id} className="bg-dark-500 text-white">{r.name}</option>
                 ))}
               </select>
-              <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
-                <ChevronDown size={14} />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/20 group-hover:text-gold-500 transition-colors">
+                <ChevronDown size={12} />
               </div>
             </div>
           </div>
@@ -223,8 +221,8 @@ const Sidebar = () => {
       </div>
 
       {/* Main Nav */}
-      <nav className="flex-1 px-8 space-y-2 overflow-y-auto overflow-x-hidden pt-4 pb-10 custom-scrollbar">
-        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/20 ml-1 mb-4">Administration</div>
+      <nav className="flex-1 px-8 space-y-1 overflow-y-auto overflow-x-hidden pt-4 pb-6 custom-scrollbar">
+        <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10 ml-1 mb-2 italic">Meny</div>
         {links.map((link) => {
           const Icon = link.icon;
           const isActive = pathname === link.href;
@@ -233,13 +231,13 @@ const Sidebar = () => {
               key={link.href} 
               href={link.href}
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-4 px-5 py-4 rounded-2xl transition-all font-black text-[11px] uppercase tracking-widest ${
+              className={`flex items-center gap-4 px-5 py-3.5 rounded-xl transition-all font-black text-[11px] uppercase tracking-widest ${
                 isActive 
-                  ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/30 ring-1 ring-white/20" 
-                  : "text-white/40 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5"
+                  ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/20" 
+                  : "text-white/30 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Icon size={18} className={isActive ? "text-dark-500" : "text-gold-500/60"} />
+              <Icon size={16} className={isActive ? "text-dark-500" : "text-gold-500/40"} />
               {link.label}
             </Link>
           );
