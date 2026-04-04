@@ -56,8 +56,11 @@ const CitiesPage = () => {
     try {
       const res = await axios.get(`${API_URL}/api/cities`);
       setCities(res.data);
-      if (res.data.length > 0 && !selectedCityId) {
-        setSelectedCityId(res.data[0].id);
+      // Auto-select first city if nothing selected or if previous selection not in new data
+      if (res.data.length > 0) {
+        if (!selectedCityId || !res.data.find((c: City) => c.id === selectedCityId)) {
+          setSelectedCityId(res.data[0].id);
+        }
       }
     } catch (err) {
       console.error("Cities fetch error:", err);
