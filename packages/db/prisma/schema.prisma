@@ -253,3 +253,25 @@ model OrderDraft {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
 }
+
+model City {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  slug         String   @unique
+  isActive     Boolean  @default(true)
+  deliveryMode String   @default("ALL") // ALL, ONLY_PICKUP, ONLY_DELIVERY
+  zones        String   @default("[]")   // JSON string of DeliveryZone[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model City {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  slug         String   @unique
+  isActive     Boolean  @default(true)
+  deliveryMode String   @default("ALL")
+  zones        String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

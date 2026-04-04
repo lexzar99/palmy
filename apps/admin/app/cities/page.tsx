@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
 import { 
   MapPin, 
   Settings, 
@@ -34,67 +35,87 @@ interface City {
   name: string;
   slug: string;
   isActive: boolean;
-  allowDelivery: boolean;
-  allowPickup: boolean;
   deliveryMode: "ALL" | "ONLY_PICKUP" | "ONLY_DELIVERY";
-  zones: DeliveryZone[];
+  zones: string | DeliveryZone[];
 }
 
-const CitiesPage = () => {
-  const [cities, setCities] = useState<City[]>([
-    {
-      id: "1",
-      name: "Lund",
-      slug: "lund",
-      isActive: true,
-      allowDelivery: true,
-      allowPickup: true,
-      deliveryMode: "ALL",
-      zones: [
-        { id: "z1", name: "Centrum", radiusKm: 3, deliveryFee: 0, minOrder: 150 },
-        { id: "z2", name: "Utkant", radiusKm: 6, deliveryFee: 49, minOrder: 250 },
-      ]
-    },
-    {
-      id: "2",
-      name: "Malmö",
-      slug: "malmo",
-      isActive: true,
-      allowDelivery: false,
-      allowPickup: true,
-      deliveryMode: "ONLY_PICKUP",
-      zones: []
-    }
-  ]);
+import { API_URL } from "@/lib/api";
 
-  const [selectedCityId, setSelectedCityId] = useState<string | null>(cities[0].id);
+const CitiesPage = () => {
+  const [cities, setCities] = useState<City[]>([]);
+  const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const selectedCity = cities.find(c => c.id === selectedCityId);
 
+  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [showAddCityModal, setShowAddCityModal] = useState(false);
   const [newCityName, setNewCityName] = useState("");
 
-  const handleAddCity = () => {
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/cities`);
+      setCities(res.data);
+      if (res.data.length > 0 && !selectedCityId) {
+        setSelectedCityId(res.data[0].id);
+      }
+    } catch (err) {
+      console.error("Cities fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCityId]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleAddCity = async () => {
     if (!newCityName.trim()) return;
-    const newCity: City = {
-      id: Math.random().toString(),
-      name: newCityName,
-      slug: newCityName.toLowerCase().replace(/\s+/g, "-"),
-      isActive: true,
-      allowDelivery: true,
-      allowPickup: true,
-      deliveryMode: "ALL",
-      zones: []
-    };
-    setCities([...cities, newCity]);
-    setSelectedCityId(newCity.id);
-    setNewCityName("");
-    setShowAddCityModal(false);
+    try {
+      setIsSaving(true);
+      const res = await axios.post(`${API_URL}/api/cities`, {
+        name: newCityName,
+        slug: newCityName.toLowerCase().replace(/\s+/g, "-"),
+        deliveryMode: "ALL",
+        zones: [],
+        isActive: true
+      });
+      setCities([...cities, res.data]);
+      setSelectedCityId(res.data.id);
+      setNewCityName("");
+      setShowAddCityModal(false);
+    } catch (err) {
+      alert("Kunde inte skapa stad");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!selectedCity) return;
     setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 1000);
+    try {
+      await axios.post(`${API_URL}/api/cities`, {
+        ...selectedCity,
+        zones: typeof selectedCity.zones === 'string' ? selectedCity.zones : JSON.stringify(selectedCity.zones)
+      });
+      setTimeout(() => setIsSaving(false), 800);
+    } catch (err) {
+      alert("Kunde inte spara");
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteCity = async (id: string) => {
+    if (!confirm("Radera staden permanent?")) return;
+    try {
+      await axios.delete(`${API_URL}/api/cities/${id}`);
+      setCities(cities.filter(c => c.id !== id));
+      if (selectedCityId === id) setSelectedCityId(null);
+    } catch (err) {
+      alert("Kunde inte radera");
+    }
   };
 
   const addZone = () => {
@@ -111,15 +132,22 @@ const CitiesPage = () => {
 
   const updateZone = (zoneId: string, field: keyof DeliveryZone, value: any) => {
     if (!selectedCityId) return;
-    setCities(cities.map(c => c.id === selectedCityId ? {
-      ...c,
-      zones: c.zones.map(z => z.id === zoneId ? { ...z, [field]: value } : z)
-    } : c));
+    setCities(cities.map(c => {
+      if (c.id !== selectedCityId) return c;
+      const zones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
+      const newZones = (zones || []).map((z: any) => z.id === zoneId ? { ...z, [field]: value } : z);
+      return { ...c, zones: newZones };
+    }));
   };
 
   const removeZone = (zoneId: string) => {
     if (!selectedCityId) return;
-    setCities(cities.map(c => c.id === selectedCityId ? { ...c, zones: c.zones.filter(z => z.id !== zoneId) } : c));
+    setCities(cities.map(c => {
+      if (c.id !== selectedCityId) return c;
+      const zones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
+      const newZones = (zones || []).filter((z: any) => z.id !== zoneId);
+      return { ...c, zones: newZones };
+    }));
   };
 
   return (
@@ -149,22 +177,29 @@ const CitiesPage = () => {
         <div className="space-y-4">
           <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 space-y-3">
              <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-white/20 italic">Aktiva Städer</div>
-             {cities.map(city => (
-               <button
-                 key={city.id}
-                 onClick={() => setSelectedCityId(city.id)}
-                 className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${
-                   selectedCityId === city.id ? "bg-sky-500/10 border-sky-500/40" : "bg-white/5 border-transparent hover:bg-white/10"
-                 }`}
-               >
-                 <div className="text-left">
-                    <div className="text-lg font-black uppercase tracking-tight mb-1">{city.name}</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
-                       {city.deliveryMode === "ALL" ? "Full Service" : "Endast Avhämtning"}
-                    </div>
-                 </div>
-                 <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-white/10"} />
-               </button>
+             {loading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-white/10" /></div> : cities.map(city => (
+               <div key={city.id} className="relative group/item">
+                 <button
+                   onClick={() => setSelectedCityId(city.id)}
+                   className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${
+                     selectedCityId === city.id ? "bg-sky-500/10 border-sky-500/40" : "bg-white/5 border-transparent hover:bg-white/10"
+                   }`}
+                 >
+                   <div className="text-left">
+                      <div className="text-lg font-black uppercase tracking-tight mb-1">{city.name}</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+                         {city.deliveryMode === "ALL" ? "Full Service" : "Endast Avhämtning"}
+                      </div>
+                   </div>
+                   <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-white/10"} />
+                 </button>
+                 <button 
+                   onClick={() => handleDeleteCity(city.id)}
+                   className="absolute top-4 right-4 opacity-0 group-hover/item:opacity-100 p-2 text-red-500 hover:scale-110 transition-all"
+                 >
+                   <Trash2 size={14} />
+                 </button>
+               </div>
              ))}
           </div>
 
@@ -259,7 +294,7 @@ const CitiesPage = () => {
                   </div>
 
                   <div className="space-y-4">
-                     {selectedCity.zones.map((zone, idx) => (
+                     {((typeof selectedCity.zones === 'string' ? JSON.parse(selectedCity.zones || '[]') : selectedCity.zones) || []).map((zone: any, idx: number) => (
                        <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-white/10 grid md:grid-cols-4 gap-8 items-center">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Namn på zon</label>
