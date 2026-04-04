@@ -42,6 +42,14 @@ interface Restaurant {
   phone?: string;
 }
 
+interface City {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  deliveryMode: "ALL" | "ONLY_PICKUP" | "ONLY_DELIVERY";
+}
+
 const cuisineFilters = [
   { label: "Alla", emoji: "🍽️" },
   { label: "Pizza", emoji: "🍕" },
@@ -63,11 +71,16 @@ export default function HomePage() {
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [loading, setLoading] = useState(true);
   
+  // City and filtering state
+  const [cities, setCities] = useState<City[]>([]);
+  const [showCityDropdown, setShowCityDropdown] = useState(false);
+  const [selectedCity, setSelectedCity] = useState<City | null>(null);
+
   // Address modal state
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
-  
+
   // Closed restaurant popup state
   const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
 
@@ -88,11 +101,21 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
-    axios
-      .get(`${API_URL}/api/restaurants`)
-      .then((res) => setRestaurants(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      axios.get(`${API_URL}/api/restaurants`),
+      axios.get(`${API_URL}/api/cities`)
+    ]).then(([resRest, resCities]) => {
+      setRestaurants(resRest.data);
+      setCities(resCities.data);
+      
+      // Auto-set selected city from address if it matches
+      const initialAddress = localStorage.getItem("platform_address") || "";
+      if (initialAddress) {
+        const match = resCities.data.find((c: City) => c.name.toLowerCase() === initialAddress.toLowerCase());
+        if (match) setSelectedCity(match);
+      }
+    }).catch(() => {})
+    .finally(() => setLoading(false));
   }, []);
 
   const saveAddress = (value: string) => {
@@ -103,9 +126,28 @@ export default function HomePage() {
   };
 
   const toggleOrderType = (type: "DELIVERY" | "PICKUP") => {
+    // Check if city allows this type
+    if (selectedCity) {
+      if (type === "DELIVERY" && selectedCity.deliveryMode === "ONLY_PICKUP") return;
+      if (type === "PICKUP" && selectedCity.deliveryMode === "ONLY_DELIVERY") return;
+    }
+
     setOrderType(type);
     if (typeof window !== "undefined") {
       localStorage.setItem(ORDER_TYPE_KEY, type);
+    }
+  };
+
+  const handleCitySelect = (city: City) => {
+    saveAddress(city.name);
+    setSelectedCity(city);
+    setShowCityDropdown(false);
+    
+    // Auto-adjust order type if not supported
+    if (city.deliveryMode === "ONLY_PICKUP" && orderType === "DELIVERY") {
+      toggleOrderType("PICKUP");
+    } else if (city.deliveryMode === "ONLY_DELIVERY" && orderType === "PICKUP") {
+      toggleOrderType("DELIVERY");
     }
   };
 
@@ -120,13 +162,15 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      // City filtering for PICKUP mode
-      const matchCity = orderType === "PICKUP" ? 
-        (!address || (r.city || "").toLowerCase().includes(address.toLowerCase())) : true;
+      // Strict city filtering
+      let matchCity = true;
+      if (address) {
+        matchCity = (r.city || "").toLowerCase() === address.toLowerCase();
+      }
 
       return matchCuisine && matchQuery && matchCity;
     });
-  }, [restaurants, activeCuisine, query, address, orderType]);
+  }, [restaurants, activeCuisine, query, address]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -187,22 +231,24 @@ export default function HomePage() {
           <div className="flex items-center gap-4 mb-10 p-2 bg-zinc-900 rounded-[2.5rem] border border-white/10 shadow-2xl max-w-xl mx-auto lg:mx-0">
             <button
               onClick={() => toggleOrderType("DELIVERY")}
+              disabled={selectedCity?.deliveryMode === "ONLY_PICKUP"}
               className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
                 orderType === "DELIVERY"
                   ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
                   : "text-zinc-500 hover:text-zinc-100"
-              }`}
+              } ${selectedCity?.deliveryMode === "ONLY_PICKUP" ? "opacity-30 cursor-not-allowed" : ""}`}
             >
               <Truck size={20} />
               Leverans
             </button>
             <button
               onClick={() => toggleOrderType("PICKUP")}
+              disabled={selectedCity?.deliveryMode === "ONLY_DELIVERY"}
               className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
                 orderType === "PICKUP"
                   ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
                   : "text-zinc-500 hover:text-zinc-100"
-              }`}
+              } ${selectedCity?.deliveryMode === "ONLY_DELIVERY" ? "opacity-30 cursor-not-allowed" : ""}`}
             >
               <Store size={20} />
               Avhämtning
@@ -211,19 +257,54 @@ export default function HomePage() {
 
           {/* Address + search */}
           <div className="grid gap-4 lg:grid-cols-[1fr,1.5fr]">
-            <div className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 focus-within:border-gold-500 transition-all shadow-2xl">
-              <MapPin className="text-gold-500 shrink-0" size={20} />
-              <input
-                value={address}
-                onChange={(e) => saveAddress(e.target.value)}
-                placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten?" : "I vilken stad vill du hämta?"}
-                className="w-full bg-transparent text-lg placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
-              />
-              {address && (
-                <button onClick={() => saveAddress("")} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-                  <X size={14} />
-                </button>
-              )}
+            <div className="relative group">
+              <div className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 focus-within:border-gold-500 transition-all shadow-2xl">
+                <MapPin className="text-gold-500 shrink-0" size={20} />
+                <input
+                  value={address}
+                  onFocus={() => setShowCityDropdown(true)}
+                  onChange={(e) => {
+                    saveAddress(e.target.value);
+                    const match = cities.find(c => c.name.toLowerCase() === e.target.value.toLowerCase());
+                    if (match) setSelectedCity(match);
+                    else setSelectedCity(null);
+                  }}
+                  placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten? (Stad)" : "I vilken stad vill du hämta?"}
+                  className="w-full bg-transparent text-lg placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
+                />
+                {address && (
+                  <button onClick={() => { saveAddress(""); setSelectedCity(null); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {/* Autocomplete City Dropdown */}
+              <AnimatePresence>
+                {showCityDropdown && cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="absolute z-50 left-0 right-0 mt-2 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                  >
+                    {cities
+                      .filter(c => c.name.toLowerCase().includes(address.toLowerCase()))
+                      .map(city => (
+                        <button
+                          key={city.id}
+                          onClick={() => handleCitySelect(city)}
+                          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gold-500/10 transition-colors border-b border-white/5 last:border-none group"
+                        >
+                          <div className="text-left font-black uppercase text-xs tracking-widest">{city.name}</div>
+                          <div className="text-[10px] font-black uppercase tracking-widest text-white/20 group-hover:text-gold-500">
+                             {city.deliveryMode === "ALL" ? "Hela Utbudet" : "Endast Hämtning"}
+                          </div>
+                        </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
             <Link href="/search" className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 hover:border-gold-500 transition-all cursor-pointer shadow-2xl">
               <Search size={22} className="text-zinc-400/30 shrink-0" />
