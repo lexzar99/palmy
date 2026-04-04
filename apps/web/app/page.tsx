@@ -162,57 +162,57 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen text-zinc-100 bg-zinc-950">
-      <div className="relative mx-auto max-w-2xl px-4 pb-32 pt-8">
+      <div className="relative mx-auto max-w-[1600px] px-6 lg:px-16 pb-32 pt-12">
 
         {/* Header */}
-        <header className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <header className="mb-12">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">Välkommen</p>
-              <h1 className="text-3xl font-black tracking-tighter uppercase leading-none">
-                Vad vill du <span className="text-gold-600">äta</span>?
+              <p className="text-[12px] font-black uppercase tracking-[0.4em] text-gold-600 mb-2">Välkommen till plattformen</p>
+              <h1 className="text-5xl lg:text-7xl font-black tracking-tighter uppercase leading-none">
+                VAD VILL DU <span className="text-gold-600">ÄTA</span>?
               </h1>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-400/20 border border-gold-500/20 text-gold-600 shadow-xl">
-              <Sparkles size={22} />
+            <div className="hidden lg:flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gold-400/20 border border-gold-500/20 text-gold-600 shadow-2xl">
+              <Sparkles size={40} />
             </div>
           </div>
 
           {/* Order type toggle */}
-          <div className="flex items-center gap-2 mb-6 p-1 bg-zinc-800/50 rounded-2xl border border-white/5 shadow-xl">
+          <div className="flex items-center gap-4 mb-10 p-2 bg-zinc-900 rounded-[2.5rem] border border-white/10 shadow-2xl max-w-xl mx-auto lg:mx-0">
             <button
               onClick={() => toggleOrderType("DELIVERY")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+              className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
                 orderType === "DELIVERY"
-                  ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
-                  : "text-zinc-400 hover:text-zinc-100"
+                  ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
+                  : "text-zinc-500 hover:text-zinc-100"
               }`}
             >
-              <Truck size={16} />
+              <Truck size={20} />
               Leverans
             </button>
             <button
               onClick={() => toggleOrderType("PICKUP")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+              className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
                 orderType === "PICKUP"
-                  ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
-                  : "text-zinc-400 hover:text-zinc-100"
+                  ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
+                  : "text-zinc-500 hover:text-zinc-100"
               }`}
             >
-              <Store size={16} />
+              <Store size={20} />
               Avhämtning
             </button>
           </div>
 
           {/* Address + search */}
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-4 py-3.5 focus-within:border-gold-500 transition-all shadow-xl">
-              <MapPin className="text-gold-500 shrink-0" size={16} />
+          <div className="grid gap-4 lg:grid-cols-[1fr,1.5fr]">
+            <div className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 focus-within:border-gold-500 transition-all shadow-2xl">
+              <MapPin className="text-gold-500 shrink-0" size={20} />
               <input
                 value={address}
                 onChange={(e) => saveAddress(e.target.value)}
-                placeholder={orderType === "DELIVERY" ? "Din leveransadress..." : "Ange stad eller område..."}
-                className="w-full bg-transparent text-sm placeholder:text-zinc-400/30 focus:outline-none font-bold text-zinc-100"
+                placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten?" : "Ange din stad..."}
+                className="w-full bg-transparent text-lg placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
               />
               {address && (
                 <button onClick={() => saveAddress("")} className="text-zinc-500 hover:text-zinc-300 transition-colors">
@@ -220,9 +220,9 @@ export default function HomePage() {
                 </button>
               )}
             </div>
-            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-4 py-3.5 hover:border-gold-500 transition-all cursor-pointer shadow-xl">
-              <Search size={16} className="text-zinc-400/30 shrink-0" />
-              <span className="text-sm text-zinc-400/30 font-bold">Sök restaurang eller rätt...</span>
+            <Link href="/search" className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 hover:border-gold-500 transition-all cursor-pointer shadow-2xl">
+              <Search size={22} className="text-zinc-400/30 shrink-0" />
+              <span className="text-lg text-zinc-400/30 font-bold">Hitta restaurang, mat eller kategori...</span>
             </Link>
           </div>
 
@@ -235,19 +235,19 @@ export default function HomePage() {
         </header>
 
         {/* Cuisine filter chips */}
-        <section className="mb-8">
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+        <section className="mb-12">
+          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
             {cuisineFilters.map((c) => (
               <button
                 key={c.label}
                 onClick={() => setActiveCuisine(c.label)}
-                className={`whitespace-nowrap flex items-center gap-1.5 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-widest transition-all border ${
+                className={`whitespace-nowrap flex items-center gap-3 rounded-2xl px-6 py-3 text-xs font-black uppercase tracking-[0.2em] transition-all border-2 ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-white border-gold-500 shadow-lg shadow-gold-500/10"
-                    : "bg-zinc-900 text-zinc-400/60 border-white/5 hover:bg-zinc-800/50"
+                    ? "bg-gold-500 text-white border-gold-500 shadow-2xl shadow-gold-500/20 scale-105"
+                    : "bg-zinc-900 text-zinc-400/60 border-white/5 hover:bg-zinc-800/80"
                 }`}
               >
-                <span>{c.emoji}</span>
+                <span className="text-lg">{c.emoji}</span>
                 {c.label}
               </button>
             ))}
@@ -256,23 +256,23 @@ export default function HomePage() {
 
         {/* Featured restaurants */}
         {featured.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Flame size={16} className="text-gold-600" />
-                <h2 className="text-sm font-black uppercase tracking-widest text-zinc-100">Populära val</h2>
+          <section className="mb-12">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Flame size={20} className="text-gold-600" />
+                <h2 className="text-lg font-black uppercase tracking-[0.3em] text-zinc-100 italic">Populära val just nu</h2>
               </div>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {featured.map((r) => (
                 <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group relative shrink-0 w-56 rounded-2xl overflow-hidden border border-white/5 hover:border-gold-500/30 transition-all shadow-xl cursor-pointer"
+                  className="group relative rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-gold-500/40 transition-all shadow-2xl cursor-pointer bg-zinc-900 hover:scale-[1.02] flex flex-col"
                 >
                   {/* Cover image */}
-                  <div className="h-36 w-full bg-white/5 relative overflow-hidden">
+                  <div className="h-56 w-full bg-white/5 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
                         src={getCardImage(r)}
@@ -301,15 +301,14 @@ export default function HomePage() {
                       </div>
                     )}
                   </div>
-                  {/* Info */}
-                  <div className="p-3 bg-zinc-900">
-                    <div className="font-black uppercase tracking-tighter text-sm group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-zinc-100">
+                  <div className="p-6 bg-zinc-900 flex-1">
+                    <div className="font-black uppercase tracking-tight text-xl group-hover:text-gold-600 transition-colors leading-none mb-2 text-zinc-100">
                       {r.name}
                     </div>
-                    <p className="text-[10px] text-zinc-400 mb-2 font-bold uppercase">{r.cuisine}</p>
-                    <div className="flex items-center gap-3 text-[9px] text-zinc-400/50 font-black uppercase">
-                      <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
-                      <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr</span>
+                    <p className="text-xs text-zinc-400 mb-4 font-bold uppercase tracking-widest">{r.cuisine}</p>
+                    <div className="flex items-center gap-5 text-[11px] text-zinc-400/50 font-black uppercase tracking-wide">
+                      <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
+                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR</span>
                     </div>
                   </div>
                 </a>
@@ -320,7 +319,8 @@ export default function HomePage() {
 
         {/* All restaurants */}
         <section>
-          <h2 className="text-sm font-black uppercase tracking-widest text-zinc-400/50 mb-4">
+          <h2 className="text-lg font-black uppercase tracking-[0.4em] text-zinc-400/50 mb-8 flex items-center gap-4">
+             <span className="w-12 h-[2px] bg-white/10" />
             {activeCuisine === "Alla" ? "Alla restauranger" : activeCuisine} · {filtered.length} st
           </h2>
 
@@ -336,16 +336,16 @@ export default function HomePage() {
               <p className="font-black uppercase tracking-widest">Inga restauranger hittades</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
               {filtered.map((r) => (
                 <a
                   key={r.id}
                   href={getRestaurantHref(r)}
                   onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all shadow-xl cursor-pointer"
+                  className="group flex overflow-hidden rounded-[2.5rem] bg-zinc-900 border border-white/5 hover:border-gold-500/30 transition-all shadow-2xl cursor-pointer h-52 lg:h-56"
                 >
                   {/* Cover image */}
-                  <div className="w-28 h-28 shrink-0 relative overflow-hidden">
+                  <div className="w-52 lg:w-64 shrink-0 relative overflow-hidden">
                     {r.heroImageUrl || r.imageUrl ? (
                       <img
                         src={getCardImage(r)}
@@ -353,58 +353,56 @@ export default function HomePage() {
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                       />
                     ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-zinc-800/50 text-4xl">🍽️</div>
+                      <div className="h-full w-full flex items-center justify-center bg-zinc-800/50 text-5xl">🍽️</div>
                     )}
                     {r.isOpen === false && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="text-[8px] font-black text-red-400 uppercase">Stängt</span>
+                      <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
+                        <span className="text-xs font-black text-red-400 uppercase tracking-widest bg-dark-500/80 px-4 py-2 rounded-xl">Stängt</span>
                       </div>
                     )}
                   </div>
 
                   {/* Info */}
-                  <div className="flex-1 px-4 py-3 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-0.5">
-                      <h3 className="font-black uppercase tracking-tighter leading-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
+                  <div className="flex-1 p-8 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <h3 className="text-2xl font-black uppercase tracking-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
                         {r.name}
                       </h3>
-                      <div className="flex items-center gap-0.5 shrink-0 text-gold-600 text-[10px] font-black">
-                        <Star size={11} className="fill-gold-600" />
+                      <div className="flex items-center gap-1.5 shrink-0 text-gold-500 text-sm font-black">
+                        <Star size={18} className="fill-gold-500" />
                         {(r.rating ?? 4.6).toFixed(1)}
-                        <span className="text-zinc-400/50 ml-0.5 font-bold">({r.ratingCount ?? 120})</span>
+                        <span className="text-zinc-600 ml-1 font-bold">({r.ratingCount ?? 120})</span>
                       </div>
                     </div>
-                    <p className="text-[10px] text-zinc-400 font-bold uppercase line-clamp-1 mb-2">
+                    <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest line-clamp-1 mb-4 italic">
                       {r.description || r.cuisine}
                     </p>
-                    <div className="flex items-center gap-3 text-[9px] text-zinc-400/40 font-black uppercase">
-                      <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes ?? 30} min</span>
-                      <span className="flex items-center gap-1"><Bike size={10} />{r.deliveryFee ?? 0} kr leverans</span>
+                    <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400/30 mb-4">
+                      <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
+                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR LEVERANS</span>
                       {(r.minOrderAmount ?? 0) > 0 && (
-                        <span>Min {r.minOrderAmount} kr</span>
+                        <span>MIN {r.minOrderAmount} KR</span>
                       )}
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                    
+                    <div className="flex flex-wrap items-center gap-3">
                       {r.tags && (Array.isArray(r.tags) ? r.tags : []).slice(0, 3).map((tag: string) => (
-                        <span key={tag} className="text-[8px] font-black text-zinc-400/40 bg-zinc-800/50 px-1.5 py-0.5 rounded-full uppercase">
+                        <span key={tag} className="text-[10px] font-black text-zinc-400/30 bg-white/5 px-3 py-1 rounded-full uppercase">
                           {tag}
                         </span>
                       ))}
-                      <div className="flex items-center gap-1.5 ml-auto">
-                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                          r.isOpen !== false
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : "bg-red-500/10 text-red-400 border border-red-500/20"
-                        }`}>
-                          <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                          {r.isOpen !== false ? "Öppet" : "Stängt"}
-                        </div>
+                      <div className={`ml-auto px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${
+                        r.isOpen !== false
+                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          : "bg-red-500/10 text-red-400 border border-red-500/20"
+                      }`}>
+                         {r.isOpen !== false ? "Aktiv & Öppen" : "Stängd för tillfället"}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center pr-4 text-light-500 group-hover:text-gold-600 transition-colors">
-                    <ChevronRight size={18} />
+                  <div className="flex items-center pr-8 text-zinc-800 group-hover:text-gold-500 transition-colors">
+                    <ChevronRight size={32} />
                   </div>
                 </a>
               ))}
