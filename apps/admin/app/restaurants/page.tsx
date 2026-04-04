@@ -21,7 +21,10 @@ import {
   Sparkles,
   MapPin,
   Phone,
-  Info
+  Info,
+  Lock,
+  Users,
+  Calendar
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -46,6 +49,8 @@ interface Restaurant {
   featuredClass?: number;
   tags?: string; // JSON string from API
   openingHours?: string; // JSON string from API
+  adminPassword?: string;
+  internalInfo?: string;
 }
 
 const emptyForm: Partial<Restaurant> = {
@@ -66,6 +71,8 @@ const emptyForm: Partial<Restaurant> = {
   openingHours: "{}",
   imageUrl: "",
   heroImageUrl: "",
+  adminPassword: "",
+  internalInfo: "",
 };
 
 export default function RestaurantsPage() {
@@ -116,6 +123,7 @@ export default function RestaurantsPage() {
         ...selected,
         tags: typeof selected.tags === 'string' ? selected.tags : JSON.stringify(selected.tags || []),
         openingHours: typeof selected.openingHours === 'string' ? selected.openingHours : JSON.stringify(selected.openingHours || {}),
+        adminPassword: "", // Don't load password
       });
     }
   }, [selected]);
@@ -452,12 +460,156 @@ export default function RestaurantsPage() {
                          </div>
                       </div>
 
-                      <div className="space-y-4">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Öppettider (JSON format)</label>
+                      <div className="space-y-6">
+                         <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Öppettider (Visuell hantering)</label>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                const current = JSON.parse(form.openingHours || "{}");
+                                const next = { ...current };
+                                const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+                                days.forEach(day => {
+                                  if (!next[day]) next[day] = [];
+                                  if (next[day].length === 0) {
+                                    next[day].push({ open: "11:00", close: "22:00" });
+                                  }
+                                });
+                                setForm({ ...form, openingHours: JSON.stringify(next) });
+                              }}
+                              className="text-[10px] font-black uppercase text-gold-500 hover:text-gold-400"
+                            >
+                              Lägg till standardtider
+                            </button>
+                         </div>
+                         
+                         <div className="grid md:grid-cols-2 gap-4">
+                            {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(day => {
+                              let hoursObj: any = {};
+                              try { hoursObj = JSON.parse(form.openingHours || "{}"); } catch { hoursObj = {}; }
+                              const slots = hoursObj[day] || [];
+                              const dayNames: any = { monday: "Måndag", tuesday: "Tisdag", wednesday: "Onsdag", thursday: "Torsdag", friday: "Fredag", saturday: "Lördag", sunday: "Söndag" };
+                              
+                              return (
+                                <div key={day} className="bg-dark-500 rounded-2xl border border-white/5 p-4">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs font-black uppercase tracking-widest text-white/60">{dayNames[day]}</span>
+                                    <button 
+                                      type="button"
+                                      onClick={() => {
+                                        const next = { ...hoursObj };
+                                        if (!next[day]) next[day] = [];
+                                        next[day].push({ open: "11:00", close: "22:00" });
+                                        setForm({ ...form, openingHours: JSON.stringify(next) });
+                                      }}
+                                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-gold-500 transition-all"
+                                    >
+                                      <Plus size={14} />
+                                    </button>
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    {slots.length === 0 ? (
+                                      <div className="text-[10px] font-bold text-red-500/50 uppercase italic px-2 py-1">Stängt</div>
+                                    ) : (
+                                      slots.map((slot: any, idx: number) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                          <input 
+                                            type="time" 
+                                            value={slot.open} 
+                                            onChange={e => {
+                                              const next = { ...hoursObj };
+                                              next[day][idx].open = e.target.value;
+                                              setForm({ ...form, openingHours: JSON.stringify(next) });
+                                            }}
+                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
+                                          />
+                                          <span className="text-white/20">-</span>
+                                          <input 
+                                            type="time" 
+                                            value={slot.close} 
+                                            onChange={e => {
+                                              const next = { ...hoursObj };
+                                              next[day][idx].close = e.target.value;
+                                              setForm({ ...form, openingHours: JSON.stringify(next) });
+                                            }}
+                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
+                                          />
+                                          <button 
+                                            type="button"
+                                            onClick={() => {
+                                              const next = { ...hoursObj };
+                                              next[day].splice(idx, 1);
+                                              setForm({ ...form, openingHours: JSON.stringify(next) });
+                                            }}
+                                            className="p-1.5 text-red-500/30 hover:text-red-500 transition-colors"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                         </div>
+                      </div>
+                   </div>
+
+                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                      <div>
+                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-red-400">
+                           <Lock size={24} />
+                           Admin-inloggning
+                         </h2>
+                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Hantera inloggningsuppgifter för denna restaurang.</p>
+                      </div>
+
+                      <div className="grid md:grid-cols-2 gap-8">
+                         <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Användarnamn (Slug)</label>
+                            <input 
+                              value={form.slug} 
+                              disabled
+                              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none opacity-50 font-mono text-sm" 
+                            />
+                         </div>
+                         <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Nytt Lösenord</label>
+                            <input 
+                              type="password"
+                              value={form.adminPassword || ""} 
+                              onChange={e => setForm({...form, adminPassword: e.target.value})}
+                              className="w-full bg-white/10 border border-gold-500/30 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
+                              placeholder="Lämna tomt för att behålla"
+                            />
+                         </div>
+                      </div>
+                      <div className="p-4 bg-gold-500/5 border border-gold-500/10 rounded-2xl flex items-start gap-3">
+                        <Info size={16} className="text-gold-500 mt-0.5" />
+                        <p className="text-[10px] font-medium leading-relaxed uppercase opacity-50">
+                          Restaurangens admin loggar in med användarnamnet <span className="text-gold-500 font-black">{form.slug}</span> och det lösenord du anger här.
+                        </p>
+                      </div>
+                   </div>
+
+                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                      <div>
+                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-sky-400">
+                           <Users size={24} />
+                           Endast Superior (Intern Info)
+                         </h2>
+                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Information som endast du som Super Admin kan se.</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Interna anteckningar</label>
                         <textarea 
-                           value={form.openingHours} 
-                           onChange={e => setForm({...form, openingHours: e.target.value})}
-                           className="w-full bg-white/5 border border-white/5 rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-xs h-32" 
+                          value={form.internalInfo || ""} 
+                          onChange={e => setForm({...form, internalInfo: e.target.value})}
+                          className="w-full bg-white/5 border border-white/5 rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none border-l-4 border-l-sky-500" 
+                          placeholder="T.ex. Kontaktperson, Avtalsdetaljer, Swish-nummer..."
                         />
                       </div>
                    </div>
@@ -559,8 +711,8 @@ export default function RestaurantsPage() {
                         disabled={saving}
                         className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-dark-500 font-extrabold rounded-2xl shadow-2xl transition-all shadow-gold-500/20 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
                       >
-                         {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                         Publicera ändringar
+                        {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                        Publicera ändringar
                       </button>
                    </div>
 
