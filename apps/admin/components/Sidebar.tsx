@@ -20,7 +20,8 @@ import {
   Store,
   ChevronDown,
   LayoutGrid,
-  Globe
+  Globe,
+  BarChart3
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -103,6 +104,7 @@ const Sidebar = () => {
   };
 
   const links = [
+    { href: "/overview", label: "Daglig Översikt", icon: BarChart3 },
     { href: "/orders", label: "Beställningar", icon: ShoppingCart },
     { href: "/history", label: "Föregående beställningar", icon: Clock },
     { href: "/menu", label: "Menyhantering", icon: Utensils },
