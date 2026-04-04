@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // GET /api/cities
 router.get('/', async (req, res) => {
   try {
-    const cities = await prisma.city.findMany({ 
+    const cities = await (prisma as any).city.findMany({ 
       where: { isActive: true } 
     });
     res.json(cities);
@@ -21,7 +20,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { name, slug, deliveryMode, zones, isActive } = req.body;
-    const city = await prisma.city.upsert({
+    const city = await (prisma as any).city.upsert({
       where: { slug },
       update: {
         name,
@@ -47,7 +46,7 @@ router.post('/', async (req, res) => {
 // DELETE /api/cities/:id
 router.delete('/:id', async (req, res) => {
   try {
-    await prisma.city.delete({ where: { id: req.params.id } });
+    await (prisma as any).city.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte radera stad' });
