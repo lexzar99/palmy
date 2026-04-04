@@ -181,15 +181,6 @@ export default function ProfilePage() {
     }
   }, [status, session, token, fetchData]);
 
-      setEditEmail(profileRes.data.email || "");
-      setOrders(ordersRes.data || []);
-    } catch {
-      handleLogout();
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
     if (visited) setHasVisited(true);
