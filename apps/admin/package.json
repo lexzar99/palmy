@@ -9,6 +9,7 @@
     "lint": "echo 'Lint check bypassed' && exit 0"
   },
   "dependencies": {
+    "@supabase/auth-helpers-react": "^0.15.0",
     "axios": "^1.14.0",
     "canvas-confetti": "^1.9.4",
     "framer-motion": "^12.38.0",

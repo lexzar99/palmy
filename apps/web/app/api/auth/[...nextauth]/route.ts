@@ -16,7 +16,7 @@ declare module "next-auth/jwt" {
     platformUser?: { id: string; name: string; phone?: string; email?: string };
   }
 }
-const API_URL = process.env.API_URL || "https://api-production-eb5f.up.railway.app";
+const API_URL = process.env.API_URL || "https://palmy-production-2021.up.railway.app";
 
 // NextAuth uses NEXTAUTH_URL from environment variables in production.
 // If it's missing, we set a smart fallback to prevent redirect_uri_mismatch errors.

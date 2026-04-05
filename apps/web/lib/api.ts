@@ -5,7 +5,7 @@ export const getApiUrl = () => {
 
   // Final fallback (production)
   if (process.env.NODE_ENV === "production" || (typeof window !== "undefined" && !window.location.hostname.includes("localhost"))) {
-    return "https://api-production-eb5f.up.railway.app";
+    return "https://palmy-production-2021.up.railway.app";
   }
  
   // Fallback for client-side local dev

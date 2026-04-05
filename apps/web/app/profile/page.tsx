@@ -83,12 +83,10 @@ function SocialButton({
   provider,
   label,
   icon,
-  onSuccess,
 }: {
   provider: "google" | "facebook";
   label: string;
   icon: React.ReactNode;
-  onSuccess: (token: string, user: any) => void;
 }) {
   const [loading, setLoading] = useState(false);
 
@@ -173,10 +171,8 @@ export default function ProfilePage() {
         setUser(pUser);
         fetchData(pToken);
         
-        // If OAuth user has no phone, show add-phone prompt
-        if (pUser?.needsPhone) {
-          setShowAddPhone(true);
-        }
+        // Removed the automatic showAddPhone prompt to make the Google login completely seamless.
+        // Users can still add their phone number via the banner on their profile if they want to.
       }
     }
   }, [status, session, token, fetchData]);
@@ -215,13 +211,6 @@ export default function ProfilePage() {
       setIsLoggingIn(false);
     }
   };
-
-  const handleOAuthSuccess = useCallback((nt: string, u: any) => {
-    setToken(nt);
-    fetchData(nt);
-    // If OAuth user has no phone, show add-phone prompt
-    if (u?.needsPhone) setShowAddPhone(true);
-  }, [fetchData]);
 
   const handleAddPhone = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,6 +292,7 @@ export default function ProfilePage() {
                 <input
                   required
                   type="tel"
+                  autoComplete="tel"
                   value={loginPhone}
                   onChange={(e) => setLoginPhone(e.target.value)}
                   placeholder="070 000 00 00"
@@ -315,6 +305,7 @@ export default function ProfilePage() {
               <input
                 required
                 type="password"
+                autoComplete="current-password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 placeholder="Ditt lösenord"
@@ -350,7 +341,6 @@ export default function ProfilePage() {
             <SocialButton
               provider="google"
               label="Google"
-              onSuccess={handleOAuthSuccess}
               icon={
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#EA4335" d="M5.27 9.76A7.08 7.08 0 0 1 12 5c1.69 0 3.21.6 4.4 1.59L19.9 3.1A11.94 11.94 0 0 0 12 0C8.16 0 4.82 2 2.86 5.01l2.41 2.75z"/>
@@ -363,7 +353,6 @@ export default function ProfilePage() {
             <SocialButton
               provider="facebook"
               label="Facebook"
-              onSuccess={handleOAuthSuccess}
               icon={
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path fill="#1877F2" d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.389 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.61 23.094 24 18.1 24 12.073z"/>
@@ -402,6 +391,7 @@ export default function ProfilePage() {
               <input
                 required
                 type="tel"
+                autoComplete="tel"
                 value={addPhoneNum}
                 onChange={e => setAddPhoneNum(e.target.value)}
                 placeholder="070 000 00 00"
