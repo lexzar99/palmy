@@ -134,9 +134,9 @@ export default function CartPage() {
 
   const handleApplyPromo = () => {
     const code = promoCodeInput.trim().toLowerCase();
-    if (code === "test") {
+    if (code === "test" || code === "testa") {
       setSelectedPersonalDeal({ 
-        code: "test", 
+        code: code, 
         campaign: { 
           discountType: "FIXED", 
           discountValue: 0, 
@@ -228,7 +228,8 @@ export default function CartPage() {
 
     setLoading(true);
     try {
-      if (selectedPersonalDeal?.code === "test") {
+      const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+      if (isTestFlow) {
         await submitOrder("TEST_PAYMENT");
         return;
       }
