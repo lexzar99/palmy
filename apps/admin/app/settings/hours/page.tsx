@@ -52,7 +52,7 @@ export default function HoursSelectionHub() {
   if (loading) return <div className="min-h-screen bg-[#02040a] flex items-center justify-center"><div className="w-10 h-10 border-2 border-gold-500/20 border-t-gold-500 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
+    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-16">
           <div>
@@ -63,12 +63,12 @@ export default function HoursSelectionHub() {
             <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase italic leading-none">
               ÖPPETTIDER <span className="text-gold-500">HUB</span>
             </h1>
-            <p className="text-white/20 text-[11px] font-black uppercase tracking-widest mt-4 ml-1">Hantera scheman och speciella öppettider för alla enheter</p>
+            <p className="text-[var(--text-primary)]/20 text-[11px] font-black uppercase tracking-widest mt-4 ml-1">Hantera scheman och speciella öppettider för alla enheter</p>
           </div>
 
           <div className="relative group min-w-[300px]">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={18} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang..." className="w-full bg-[#0a0c14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl" />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang..." className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl" />
           </div>
         </div>
 
@@ -80,19 +80,19 @@ export default function HoursSelectionHub() {
                   setRestaurant(r.id, r.name);
                   router.push(`/settings/hours/${r.id}`);
                }}
-               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
+               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
              >
                 <div className="flex items-start justify-between mb-8">
-                   <div className="p-4 bg-white/5 rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Clock size={24} /></div>
+                   <div className="p-4 bg-[var(--border-subtle)] rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Clock size={24} /></div>
                    <div className="text-right">
-                      <span className="text-[10px] font-black uppercase text-white/10 tracking-widest italic">{r.city?.name || "Lund"}</span>
+                      <span className="text-[10px] font-black uppercase text-[var(--text-primary)]/10 tracking-widest italic">{r.city?.name || "Lund"}</span>
                    </div>
                 </div>
                 <div className="mt-auto">
                    <h3 className="text-2xl font-black uppercase italic leading-none truncate group-hover:text-gold-500 transition-colors">{r.name}</h3>
                    <div className="flex items-center justify-between mt-4">
-                      <span className="text-[10px] font-black uppercase text-white/20 tracking-widest">Hantera Schema</span>
-                      <div className="w-10 h-10 rounded-full border border-white/5 flex items-center justify-center text-white/10 group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:border-gold-500 transition-all">
+                      <span className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest">Hantera Schema</span>
+                      <div className="w-10 h-10 rounded-full border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/10 group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:border-gold-500 transition-all">
                          <ChevronRight size={18} />
                       </div>
                    </div>

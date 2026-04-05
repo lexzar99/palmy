@@ -98,7 +98,7 @@ const GlobalSettingsPage = () => {
 
   if (!selectedRestaurantId) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-white/20">
+      <div className="flex flex-col items-center justify-center py-24 text-[var(--text-primary)]/20">
         <Store size={48} className="mb-4" />
         <p className="uppercase font-black tracking-widest text-sm">Välj en restaurang i menyn för att hantera dess inställningar</p>
       </div>
@@ -114,7 +114,7 @@ const GlobalSettingsPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Globala <span className="text-gold-500">Inställningar</span></h1>
-          <p className="text-white/40 font-medium tracking-wide">Du hanterar nu: <span className="text-white font-bold">{selectedRestaurantName}</span></p>
+          <p className="text-[var(--text-primary)]/40 font-medium tracking-wide">Du hanterar nu: <span className="text-[var(--text-primary)] font-bold">{selectedRestaurantName}</span></p>
         </div>
         <button
           onClick={handleSave}
@@ -127,50 +127,50 @@ const GlobalSettingsPage = () => {
       </div>
 
       {/* Main Status */}
-      <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-white/20">Status & Tillgänglighet</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Status & Tillgänglighet</h2>
         <button
           onClick={() => setSettings({ ...settings, isOpen: !settings.isOpen })}
           className={`group flex items-center gap-8 p-8 rounded-3xl border transition-all w-full text-left ${
             settings.isOpen ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"
           }`}
         >
-          <div className={`p-4 rounded-2xl ${settings.isOpen ? "bg-emerald-500 text-dark-500" : "bg-red-500 text-white"}`}>
+          <div className={`p-4 rounded-2xl ${settings.isOpen ? "bg-emerald-500 text-dark-500" : "bg-red-500 text-[var(--text-primary)]"}`}>
             {settings.isOpen ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
           </div>
           <div>
             <div className={`text-2xl font-black uppercase tracking-tight ${settings.isOpen ? "text-emerald-400" : "text-red-400"}`}>
               {settings.isOpen ? "Öppen för beställning" : "Stängd för tillfället"}
             </div>
-            <p className="text-white/30 text-sm font-bold uppercase tracking-widest mt-1">Klicka för att ändra butikens status direkt</p>
+            <p className="text-[var(--text-primary)]/30 text-sm font-bold uppercase tracking-widest mt-1">Klicka för att ändra butikens status direkt</p>
           </div>
         </button>
       </div>
 
       {/* Operations */}
-      <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-white/20">Leverans & Tider</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Leverans & Tider</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Leveransavgift (kr)</label>
-              <input type="number" value={settings.deliveryFee} onChange={e => setSettings({...settings, deliveryFee: Number(e.target.value)})} className="w-full bg-dark-500 border border-white/5 rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Leveransavgift (kr)</label>
+              <input type="number" value={settings.deliveryFee} onChange={e => setSettings({...settings, deliveryFee: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
            </div>
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Minsta order (kr)</label>
-              <input type="number" value={settings.minOrderAmount} onChange={e => setSettings({...settings, minOrderAmount: Number(e.target.value)})} className="w-full bg-dark-500 border border-white/5 rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Minsta order (kr)</label>
+              <input type="number" value={settings.minOrderAmount} onChange={e => setSettings({...settings, minOrderAmount: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
            </div>
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Hämtningstid (min)</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Hämtningstid (min)</label>
               <div className="relative">
-                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" size={20} />
-                <input type="number" value={settings.estimatedPickupTime} onChange={e => setSettings({...settings, estimatedPickupTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-white/5 rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
+                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={20} />
+                <input type="number" value={settings.estimatedPickupTime} onChange={e => setSettings({...settings, estimatedPickupTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
               </div>
            </div>
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Leveranstid (min)</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Leveranstid (min)</label>
               <div className="relative">
-                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" size={20} />
-                <input type="number" value={settings.estimatedDeliveryTime} onChange={e => setSettings({...settings, estimatedDeliveryTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-white/5 rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
+                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={20} />
+                <input type="number" value={settings.estimatedDeliveryTime} onChange={e => setSettings({...settings, estimatedDeliveryTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
               </div>
            </div>
         </div>

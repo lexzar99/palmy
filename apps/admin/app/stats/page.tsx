@@ -152,7 +152,7 @@ const StatsPage = () => {
     <div className="space-y-10 pb-24">
       <div>
         <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Statistik & <span className="text-gold-500">Rapporter</span></h1>
-        <p className="text-white/40 font-medium">Se läget just nu och skriv ut tydliga orderutdrag som PDF.</p>
+        <p className="text-[var(--text-primary)]/40 font-medium">Se läget just nu och skriv ut tydliga orderutdrag som PDF.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
@@ -162,37 +162,37 @@ const StatsPage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
-            className="p-8 rounded-[2rem] bg-white/5 border border-white/5 hover:border-gold-500/20 transition-all group"
+            className="p-8 rounded-[2rem] bg-[var(--border-subtle)] border border-[var(--border-subtle)] hover:border-gold-500/20 transition-all group"
           >
-            <div className={`p-4 rounded-2xl bg-white/5 w-fit mb-6 ${card.color}`}>
+            <div className={`p-4 rounded-2xl bg-[var(--border-subtle)] w-fit mb-6 ${card.color}`}>
               <card.icon size={24} />
             </div>
-            <div className="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">{card.label}</div>
-            <div className="text-4xl font-black text-white">{card.value}</div>
+            <div className="text-[10px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest mb-2">{card.label}</div>
+            <div className="text-4xl font-black text-[var(--text-primary)]">{card.value}</div>
           </motion.div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         {reportCards.map((card) => (
-          <div key={card.label} className="p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-white/10 relative overflow-hidden">
+          <div key={card.label} className="p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-[var(--border-strong)] relative overflow-hidden">
             <div className="text-gold-500 text-[10px] font-black uppercase tracking-[0.3em] mb-6">{card.period}</div>
             <h3 className="text-3xl font-black mb-10">{card.label}</h3>
             <div className="grid grid-cols-2 gap-10">
               <div>
-                <div className="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Total Omsättning</div>
-                <div className="text-5xl font-black text-white">{card.revenue.toFixed(0)} <span className="text-sm text-white/40">KR</span></div>
+                <div className="text-[10px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest mb-2">Total Omsättning</div>
+                <div className="text-5xl font-black text-[var(--text-primary)]">{card.revenue.toFixed(0)} <span className="text-sm text-[var(--text-primary)]/40">KR</span></div>
               </div>
               <div>
-                <div className="text-[10px] text-white/20 font-black uppercase tracking-widest mb-2">Antal Ordrar</div>
-                <div className="text-5xl font-black text-white">{card.count} <span className="text-sm text-white/40">ST</span></div>
+                <div className="text-[10px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest mb-2">Antal Ordrar</div>
+                <div className="text-5xl font-black text-[var(--text-primary)]">{card.count} <span className="text-sm text-[var(--text-primary)]/40">ST</span></div>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="rounded-[3rem] border border-white/10 bg-white/5 p-8 space-y-8">
+      <div className="rounded-[3rem] border border-[var(--border-strong)] bg-[var(--border-subtle)] p-8 space-y-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">PDF-utdrag</div>
@@ -209,30 +209,30 @@ const StatsPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-4">
-            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2">Från</label>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Från</label>
             <input
               type="date"
               value={filters.dateFrom}
               onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 outline-none"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-4 py-3 outline-none"
             />
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-4">
-            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2">Till</label>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Till</label>
             <input
               type="date"
               value={filters.dateTo}
               onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 outline-none"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-4 py-3 outline-none"
             />
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-4">
-            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-white/20 mb-2">Betalsätt</label>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+            <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Betalsätt</label>
             <select
               value={filters.paymentMethod}
               onChange={(e) => setFilters({ ...filters, paymentMethod: e.target.value })}
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 outline-none"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-4 py-3 outline-none"
             >
               {paymentMethods.map((method) => (
                 <option key={method} value={method}>{method}</option>
@@ -241,7 +241,7 @@ const StatsPage = () => {
           </div>
           <button
             onClick={() => fetchReport(filters)}
-            className="mt-auto inline-flex h-[54px] items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-6 text-sm font-black uppercase tracking-[0.2em] hover:bg-white/10"
+            className="mt-auto inline-flex h-[54px] items-center justify-center gap-2 rounded-2xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-6 text-sm font-black uppercase tracking-[0.2em] hover:bg-white/10"
           >
             {reportLoading ? <Loader2 size={16} className="animate-spin" /> : <Filter size={16} />}
             Filtrera
@@ -249,44 +249,44 @@ const StatsPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-white/10 bg-dark-500 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Rader</div>
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Rader</div>
             <div className="text-3xl font-black text-gold-500">{reportRows.length}</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-dark-500 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Total Summa</div>
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Total Summa</div>
             <div className="text-3xl font-black text-gold-500">{reportTotal.toFixed(0)} kr</div>
           </div>
-          <div className="rounded-2xl border border-white/10 bg-dark-500 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Aktivt Filter</div>
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Aktivt Filter</div>
             <div className="text-lg font-black text-gold-500">{filters.paymentMethod}</div>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-3xl border border-white/10">
+        <div className="overflow-x-auto rounded-3xl border border-[var(--border-strong)]">
           <table className="min-w-full text-left">
-            <thead className="bg-white/5">
+            <thead className="bg-[var(--border-subtle)]">
               <tr>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Ordernummer</th>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Kundnummer</th>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Summa</th>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Betalsätt</th>
-                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Datum</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30">Ordernummer</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30">Kundnummer</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30">Summa</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30">Betalsätt</th>
+                <th className="px-4 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30">Datum</th>
               </tr>
             </thead>
             <tbody>
               {reportRows.map((row) => (
-                <tr key={row.id} className="border-t border-white/5">
+                <tr key={row.id} className="border-t border-[var(--border-subtle)]">
                   <td className="px-4 py-4 font-black text-gold-500">#{row.orderNumber}</td>
                   <td className="px-4 py-4 font-bold">{row.customerPhone}</td>
                   <td className="px-4 py-4 font-bold">{row.total.toFixed(0)} kr</td>
-                  <td className="px-4 py-4 text-white/70">{row.paymentMethod}</td>
-                  <td className="px-4 py-4 text-white/50">{new Date(row.createdAt).toLocaleDateString("sv-SE")}</td>
+                  <td className="px-4 py-4 text-[var(--text-primary)]/70">{row.paymentMethod}</td>
+                  <td className="px-4 py-4 text-[var(--text-primary)]/50">{new Date(row.createdAt).toLocaleDateString("sv-SE")}</td>
                 </tr>
               ))}
               {reportRows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-white/30">
+                  <td colSpan={5} className="px-4 py-12 text-center text-[var(--text-primary)]/30">
                     Inga ordrar hittades för valt intervall.
                   </td>
                 </tr>

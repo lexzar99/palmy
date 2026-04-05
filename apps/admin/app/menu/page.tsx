@@ -72,7 +72,7 @@ export default function MenuSelectionHub() {
   }
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
+    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto">
         
         {/* Header */}
@@ -85,16 +85,16 @@ export default function MenuSelectionHub() {
             <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase italic leading-none">
               MENY <span className="text-gold-500">HUBBEN</span>
             </h1>
-            <p className="text-white/20 text-[11px] font-black uppercase tracking-widest mt-4 ml-1">Välj en restaurang för att hantera produkter och kategorier</p>
+            <p className="text-[var(--text-primary)]/20 text-[11px] font-black uppercase tracking-widest mt-4 ml-1">Välj en restaurang för att hantera produkter och kategorier</p>
           </div>
 
           <div className="relative group min-w-[300px]">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={18} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
             <input 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Sök restaurang eller stad..."
-              className="w-full bg-[#0a0c14] border border-white/5 rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl"
+              className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl"
             />
           </div>
         </div>
@@ -105,8 +105,8 @@ export default function MenuSelectionHub() {
               <div className="relative z-10">
                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6 font-black"><Layers size={24} /></div>
                  <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-2">Restaurangcenter</h3>
-                 <p className="text-[11px] font-black uppercase text-white/30 tracking-widest leading-relaxed max-w-[200px]">Hantera menyer och sortiment individuellt per restaurang.</p>
-                 <button onClick={() => router.push('/restaurants')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-white transition-all">Gå till Restauranger <ArrowRight size={14} /></button>
+                 <p className="text-[11px] font-black uppercase text-[var(--text-primary)]/30 tracking-widest leading-relaxed max-w-[200px]">Hantera menyer och sortiment individuellt per restaurang.</p>
+                 <button onClick={() => router.push('/restaurants')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-[var(--text-primary)] transition-all">Gå till Restauranger <ArrowRight size={14} /></button>
               </div>
               <Layers size={140} className="absolute -bottom-10 -right-10 text-emerald-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
            </div>
@@ -115,8 +115,8 @@ export default function MenuSelectionHub() {
               <div className="relative z-10">
                  <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mb-6 font-black ml-auto"><Globe size={24} /></div>
                  <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-2">Globala Inställningar</h3>
-                 <p className="text-[11px] font-black uppercase text-white/30 tracking-widest leading-relaxed max-w-[200px] ml-auto">Hantera priskonfigurationer och skatteinställningar för hela kedjan.</p>
-                 <button onClick={() => router.push('/settings/global')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-white transition-all">Restauranginställningar <ArrowRight size={14} /></button>
+                 <p className="text-[11px] font-black uppercase text-[var(--text-primary)]/30 tracking-widest leading-relaxed max-w-[200px] ml-auto">Hantera priskonfigurationer och skatteinställningar för hela kedjan.</p>
+                 <button onClick={() => router.push('/settings/global')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-[var(--text-primary)] transition-all">Restauranginställningar <ArrowRight size={14} /></button>
               </div>
               <Globe size={140} className="absolute -bottom-10 -left-10 text-gold-500/5 -rotate-12 group-hover:rotate-0 transition-transform duration-700" />
            </div>
@@ -131,12 +131,12 @@ export default function MenuSelectionHub() {
                   setRestaurant(r.id, r.name);
                   router.push(`/menu/${r.id}`);
                }}
-               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
+               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
              >
                 <div className="flex items-start justify-between mb-8">
-                   <div className="p-4 bg-white/5 rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Store size={24} /></div>
+                   <div className="p-4 bg-[var(--border-subtle)] rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Store size={24} /></div>
                    <div className="flex flex-col items-end">
-                      <span className="text-[10px] font-black uppercase text-white/10 tracking-widest italic">{r.city?.name || "Lund"}</span>
+                      <span className="text-[10px] font-black uppercase text-[var(--text-primary)]/10 tracking-widest italic">{r.city?.name || "Lund"}</span>
                       <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full mt-2 animate-pulse" />
                    </div>
                 </div>
@@ -145,11 +145,11 @@ export default function MenuSelectionHub() {
                    <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-4">
                          <div className="flex flex-col">
-                            <span className="text-[8px] font-black uppercase text-white/20 tracking-widest">Artiklar</span>
-                            <span className="text-xs font-black text-white/60">Hantera Meny</span>
+                            <span className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest">Artiklar</span>
+                            <span className="text-xs font-black text-[var(--text-primary)]/60">Hantera Meny</span>
                          </div>
                       </div>
-                      <div className="w-10 h-10 rounded-full border border-white/5 flex items-center justify-center text-white/10 group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:border-gold-500 transition-all">
+                      <div className="w-10 h-10 rounded-full border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/10 group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:border-gold-500 transition-all">
                          <ChevronRight size={18} />
                       </div>
                    </div>
@@ -158,8 +158,8 @@ export default function MenuSelectionHub() {
            ))}
 
            {filtered.length === 0 && (
-              <div className="col-span-full py-32 text-center bg-[#0a0c14] border border-dashed border-white/5 rounded-[3rem]">
-                 <p className="text-[11px] font-black uppercase tracking-[0.5em] text-white/5">Inga restauranger matchar sökningen</p>
+              <div className="col-span-full py-32 text-center bg-[#0a0c14] border border-dashed border-[var(--border-subtle)] rounded-[3rem]">
+                 <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[var(--text-primary)]/5">Inga restauranger matchar sökningen</p>
               </div>
            )}
         </div>

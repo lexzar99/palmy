@@ -149,7 +149,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="flex min-h-screen text-text-primary bg-bg-primary overflow-x-hidden font-sans selection:bg-gold-500/30 selection:text-white">
+    <div className="flex min-h-screen text-text-primary bg-bg-primary overflow-x-hidden font-sans selection:bg-gold-500/30 selection:text-[var(--text-primary)]">
       <AdminRealtimeBridge />
       <Sidebar />
       <main className="flex-1 p-6 lg:p-12 lg:ml-[260px] pt-24 lg:pt-12 transition-all duration-500 overflow-x-hidden">

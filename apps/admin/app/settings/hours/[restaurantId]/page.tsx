@@ -177,17 +177,17 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
   if (loading) return <div className="min-h-screen bg-[#02040a] flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" size={40} /></div>;
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
+    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto space-y-12 pb-32">
         
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
            <div className="space-y-4">
-              <Link href="/settings/hours" className="flex items-center gap-2 text-white/20 hover:text-white transition-all text-xs font-black uppercase tracking-widest pl-1">
+              <Link href="/settings/hours" className="flex items-center gap-2 text-[var(--text-primary)]/20 hover:text-[var(--text-primary)] transition-all text-xs font-black uppercase tracking-widest pl-1">
                  <ChevronLeft size={14} /> Tillbaka till urval
               </Link>
               <div>
                  <h1 className="text-4xl lg:text-5xl font-black uppercase tracking-tighter italic leading-none">{restaurantName} <span className="text-gold-500">Schema</span></h1>
-                 <p className="text-white/40 text-[11px] font-black uppercase tracking-widest mt-3 ml-1">Hantera skift, nattöppet och specialtider</p>
+                 <p className="text-[var(--text-primary)]/40 text-[11px] font-black uppercase tracking-widest mt-3 ml-1">Hantera skift, nattöppet och specialtider</p>
               </div>
            </div>
 
@@ -203,14 +203,14 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
            
            {/* Regular Hours with Shifts */}
-           <div className="bg-[#0a0c14] border border-white/5 rounded-[3rem] p-10 overflow-hidden relative">
+           <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10 overflow-hidden relative">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
               
               <div className="flex items-center gap-3 mb-10 relative z-10">
-                 <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40"><Clock size={20} /></div>
+                 <div className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/40"><Clock size={20} /></div>
                  <div>
                     <h2 className="text-xl font-black uppercase tracking-tight italic">Veckoschema <span className="text-gold-500">(2 skift)</span></h2>
-                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">Stöd för delade pass och nattöppet.</p>
+                    <p className="text-[10px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest mt-1">Stöd för delade pass och nattöppet.</p>
                  </div>
               </div>
 
@@ -218,12 +218,12 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                 {DAYS.map((day) => {
                   const dayData = settings.openingHours[day.key] || { closed: false, shifts: [{ ...defaultShift }] };
                   return (
-                    <div key={day.key} className={`p-6 rounded-[2rem] transition-all border ${dayData.closed ? "bg-rose-500/5 border-rose-500/20" : "bg-white/2 border-white/5"}`}>
+                    <div key={day.key} className={`p-6 rounded-[2rem] transition-all border ${dayData.closed ? "bg-rose-500/5 border-rose-500/20" : "bg-white/2 border-[var(--border-subtle)]"}`}>
                       <div className="flex items-center justify-between mb-4 px-2">
-                         <div className="text-[11px] font-black uppercase tracking-widest text-white/40">{day.label}</div>
+                         <div className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">{day.label}</div>
                          <button 
                            onClick={() => updateDayStatus(day.key, !dayData.closed)} 
-                           className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${dayData.closed ? "bg-rose-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                           className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${dayData.closed ? "bg-rose-500 text-[var(--text-primary)]" : "bg-[var(--border-subtle)] text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"}`}
                          >
                            {dayData.closed ? "Stängd" : "Öppen"}
                          </button>
@@ -232,14 +232,14 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                       {!dayData.closed && (
                         <div className="space-y-3">
                            {dayData.shifts.map((shift: any, idx: number) => (
-                             <div key={idx} className="flex flex-col md:flex-row md:items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5 group">
+                             <div key={idx} className="flex flex-col md:flex-row md:items-center gap-4 bg-black/40 p-4 rounded-2xl border border-[var(--border-subtle)] group">
                                 <div className="flex items-center gap-3 flex-1">
-                                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/20 text-[9px] font-black">{idx + 1}</div>
+                                   <div className="w-8 h-8 rounded-lg bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 text-[9px] font-black">{idx + 1}</div>
                                    <div className="flex items-center gap-2 flex-1">
-                                      <input type="time" value={shift.open} onChange={(e) => updateShift(day.key, idx, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
-                                      <span className="text-white/10">-</span>
+                                      <input type="time" value={shift.open} onChange={(e) => updateShift(day.key, idx, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                                      <span className="text-[var(--text-primary)]/10">-</span>
                                       <div className="flex-1 relative">
-                                        <input type="time" value={shift.close} onChange={(e) => updateShift(day.key, idx, "close", e.target.value)} className="w-full bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                                        <input type="time" value={shift.close} onChange={(e) => updateShift(day.key, idx, "close", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                                         {shift.close < shift.open && shift.close !== "00:00" && (
                                            <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>
                                         )}
@@ -265,13 +265,13 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
            </div>
 
            {/* Special Hours */}
-           <div className="bg-[#0a0c14] border border-white/5 rounded-[3rem] p-10">
+           <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10">
               <div className="flex items-center justify-between mb-10">
                  <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500"><CalendarDays size={20} /></div>
                     <div>
                        <h2 className="text-xl font-black uppercase tracking-tight italic">Speciella <span className="text-gold-500">Dagar</span></h2>
-                       <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">Högtider, röda dagar eller event.</p>
+                       <p className="text-[10px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest mt-1">Högtider, röda dagar eller event.</p>
                     </div>
                  </div>
                  <button onClick={() => setSettings((p:any)=>({...p, specialHours: [...p.specialHours, { date: "", open: "11:00", close: "22:00", closed: false, note: "" }]}))} className="p-3 bg-gold-500 text-dark-500 rounded-xl hover:bg-gold-400 transition-all font-black uppercase text-[10px]"><Plus size={16} /></button>
@@ -279,14 +279,14 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
 
               <div className="space-y-4 max-h-[800px] overflow-y-auto custom-scrollbar">
                  {settings.specialHours.map((sh: any, i: number) => (
-                   <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} key={i} className="p-6 rounded-2xl bg-white/2 border border-white/5 space-y-4">
+                   <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} key={i} className="p-6 rounded-2xl bg-white/2 border border-[var(--border-subtle)] space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-1">
-                            <label className="text-[8px] font-black uppercase text-white/20 ml-2">Datum</label>
-                            <input type="date" value={sh.date} onChange={(e) => updateSpecialHour(i, "date", e.target.value)} className="w-full bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                            <label className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 ml-2">Datum</label>
+                            <input type="date" value={sh.date} onChange={(e) => updateSpecialHour(i, "date", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                          </div>
                          <div className="space-y-1">
-                            <label className="text-[8px] font-black uppercase text-white/20 ml-2">Status</label>
+                            <label className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 ml-2">Status</label>
                             <button onClick={() => updateSpecialHour(i, "closed", !sh.closed)} className={`w-full py-2.5 rounded-xl text-[9px] font-black uppercase transition-all ${sh.closed ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-emerald-500"}`}>
                                {sh.closed ? "Helt Stängd" : "Specialtider"}
                             </button>
@@ -295,26 +295,26 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                       
                       {!sh.closed && (
                         <div className="flex items-center gap-3">
-                           <input type="time" value={sh.open} onChange={(e) => updateSpecialHour(i, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
-                           <span className="text-white/10">-</span>
+                           <input type="time" value={sh.open} onChange={(e) => updateSpecialHour(i, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                           <span className="text-[var(--text-primary)]/10">-</span>
                            <div className="flex-1 relative">
-                             <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="w-full bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                             <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                              {sh.close < sh.open && sh.close !== "00:00" && <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>}
                            </div>
                         </div>
                       )}
 
                       <div className="flex items-center gap-4">
-                         <input placeholder="Kommentar (t.ex Påskdagen)" value={sh.note} onChange={(e) => updateSpecialHour(i, "note", e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-medium text-white/60 focus:border-gold-500/40 outline-none" />
+                         <input placeholder="Kommentar (t.ex Påskdagen)" value={sh.note} onChange={(e) => updateSpecialHour(i, "note", e.target.value)} className="flex-1 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-medium text-[var(--text-primary)]/60 focus:border-gold-500/40 outline-none" />
                          <button onClick={() => setSettings((p:any)=>({...p, specialHours: p.specialHours.filter((_:any,idx:number)=>idx!==i)}))} className="p-2.5 bg-rose-500/5 hover:bg-rose-500/10 rounded-xl text-rose-500/40 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
                       </div>
                    </motion.div>
                  ))}
 
                  {settings.specialHours.length === 0 && (
-                    <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-3xl flex flex-col items-center">
-                       <AlertCircle size={32} className="text-white/5 mb-4" />
-                       <p className="text-[10px] font-black uppercase text-white/10 tracking-[0.2em]">Inga specialtider tillagda</p>
+                    <div className="py-20 text-center border-2 border-dashed border-[var(--border-subtle)] rounded-3xl flex flex-col items-center">
+                       <AlertCircle size={32} className="text-[var(--text-primary)]/5 mb-4" />
+                       <p className="text-[10px] font-black uppercase text-[var(--text-primary)]/10 tracking-[0.2em]">Inga specialtider tillagda</p>
                     </div>
                  )}
               </div>

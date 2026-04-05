@@ -1,11 +1,13 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gold-400: #ffd43b;
-  --color-gold-500: #e7b24b;
-  --color-gold-600: #c7922d;
-  --color-obsidian: #09090b;
-  --color-zinc-glass: rgba(255, 255, 255, 0.02);
+  /* We maintain the "gold" naming in TSX but redefine the colors to our bold Saffron Orange */
+  --color-gold-400: #ff8e5a;
+  --color-gold-500: #FF6B35;
+  --color-gold-600: #e55217;
+  
+  --color-obsidian: #0f1115; /* Subtly lighter than pure black for depth */
+  --color-zinc-glass: rgba(255, 255, 255, 0.03);
 }
 
 @layer base {
@@ -18,42 +20,45 @@
 
   body {
     background-color: var(--color-obsidian);
-    color: #f4f4f5;
+    color: #f8fafc; /* Brighter text base */
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
   }
 }
 
-/* Glassmorphism Classes */
+/* Glassmorphism Classes - adding shadows so it isn't flat */
 .glass-panel {
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2);
   transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 .glass-card:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border-color: rgba(231, 178, 75, 0.2);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.04) 100%);
+  border-color: rgba(255, 107, 53, 0.4);
   transform: translateY(-4px);
+  box-shadow: 0 12px 24px -4px rgba(255, 107, 53, 0.15);
 }
 
 /* Typography Effects */
 .text-gradient {
-  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.4) 100%);
+  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.6) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gold-gradient {
-  background: linear-gradient(135deg, #f3c96e 0%, #e7b24b 45%, #c7922d 100%);
+  background: linear-gradient(135deg, #ff8e5a 0%, #FF6B35 45%, #e55217 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -79,6 +84,6 @@
 }
 
 .bg-dot-pattern {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 32px 32px;
 }

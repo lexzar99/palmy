@@ -149,7 +149,7 @@ const ReceiptPage = () => {
     <div className={`min-h-screen ${showSettings ? 'flex' : ''} bg-gray-100`}>
       {/* Settings Sidebar (Göm vid utskrift) */}
       {showSettings && (
-        <div className="w-96 bg-dark-500 min-h-screen p-8 border-r border-white/10 no-print flex flex-col h-full overflow-y-auto print:hidden shrink-0">
+        <div className="w-96 bg-dark-500 min-h-screen p-8 border-r border-[var(--border-strong)] no-print flex flex-col h-full overflow-y-auto print:hidden shrink-0">
           <div className="flex items-center gap-3 mb-8 text-gold-500">
             <Settings2 size={24} />
             <h1 className="text-2xl font-black uppercase tracking-widest">Kvittolayout</h1>
@@ -157,65 +157,65 @@ const ReceiptPage = () => {
 
           <div className="space-y-8 flex-1">
             <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Sektionsvisning</h3>
-              <label className="flex items-center gap-3 bg-white/5 p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-white/5">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">Sektionsvisning</h3>
+              <label className="flex items-center gap-3 bg-[var(--border-subtle)] p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-[var(--border-subtle)]">
                 <input type="checkbox" checked={settings.showHeader} onChange={(e) => setSettings({...settings, showHeader: e.target.checked})} className="w-4 h-4 accent-gold-500" />
                 <span className="font-bold text-sm">Visa Restauranghuvud</span>
               </label>
-              <label className="flex items-center gap-3 bg-white/5 p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-white/5">
+              <label className="flex items-center gap-3 bg-[var(--border-subtle)] p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-[var(--border-subtle)]">
                 <input type="checkbox" checked={settings.showFooter} onChange={(e) => setSettings({...settings, showFooter: e.target.checked})} className="w-4 h-4 accent-gold-500" />
                 <span className="font-bold text-sm">Visa Fotnot</span>
               </label>
-              <label className="flex items-center gap-3 bg-white/5 p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-white/5">
+              <label className="flex items-center gap-3 bg-[var(--border-subtle)] p-4 rounded-xl cursor-pointer hover:bg-white/10 transition-colors border border-[var(--border-subtle)]">
                 <input type="checkbox" checked={settings.showLogo} onChange={(e) => setSettings({...settings, showLogo: e.target.checked})} className="w-4 h-4 accent-gold-500" />
                 <span className="font-bold text-sm">Visa Logotyp-ikon / Emoji</span>
               </label>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-white/5">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Anpassad Text</h3>
+            <div className="space-y-4 pt-4 border-t border-[var(--border-subtle)]">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">Anpassad Text</h3>
               <div>
                 <label className="block text-xs font-bold mb-2">Rubrik (Restaurangnamn)</label>
-                <input value={settings.customHeader} onChange={(e) => setSettings({...settings, customHeader: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm" placeholder="MatGo Sushi" />
+                <input value={settings.customHeader} onChange={(e) => setSettings({...settings, customHeader: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm" placeholder="MatGo Sushi" />
               </div>
               <div>
                 <label className="block text-xs font-bold mb-2">Fotnot (Tack-meddelande)</label>
-                <textarea value={settings.customFooter} onChange={(e) => setSettings({...settings, customFooter: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm h-20" placeholder="Tack för din beställning!" />
+                <textarea value={settings.customFooter} onChange={(e) => setSettings({...settings, customFooter: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm h-20" placeholder="Tack för din beställning!" />
               </div>
             </div>
 
-            <div className="space-y-4 pt-4 border-t border-white/5">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Textstorlekar</h3>
+            <div className="space-y-4 pt-4 border-t border-[var(--border-subtle)]">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">Textstorlekar</h3>
               <div>
                 <label className="block text-xs font-bold mb-2">Huvud / Rubriker</label>
-                <select value={settings.fontSizeHeader} onChange={(e) => setSettings({...settings, fontSizeHeader: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm">
+                <select value={settings.fontSizeHeader} onChange={(e) => setSettings({...settings, fontSizeHeader: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm">
                   {FONT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-bold mb-2">Artiklar / Beställning</label>
-                <select value={settings.fontSizeItems} onChange={(e) => setSettings({...settings, fontSizeItems: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm">
+                <select value={settings.fontSizeItems} onChange={(e) => setSettings({...settings, fontSizeItems: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm">
                   {FONT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-bold mb-2">Fotnot</label>
-                <select value={settings.fontSizeFooter} onChange={(e) => setSettings({...settings, fontSizeFooter: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm">
+                <select value={settings.fontSizeFooter} onChange={(e) => setSettings({...settings, fontSizeFooter: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm">
                   {FONT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </div>
             </div>
             
-            <div className="space-y-4 pt-4 border-t border-white/5">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-white/40">Layout</h3>
-              <select value={settings.layoutType} onChange={(e) => setSettings({...settings, layoutType: e.target.value})} className="w-full bg-dark-400 border border-white/10 rounded-lg p-3 outline-none text-sm">
+            <div className="space-y-4 pt-4 border-t border-[var(--border-subtle)]">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40">Layout</h3>
+              <select value={settings.layoutType} onChange={(e) => setSettings({...settings, layoutType: e.target.value})} className="w-full bg-dark-400 border border-[var(--border-strong)] rounded-lg p-3 outline-none text-sm">
                 <option value="standard">Standard (Bred)</option>
                 <option value="compact">Kompakt (Smalt termopapper)</option>
               </select>
             </div>
           </div>
 
-          <div className="mt-8 space-y-3 pt-4 border-t border-white/5">
+          <div className="mt-8 space-y-3 pt-4 border-t border-[var(--border-subtle)]">
             <button
               onClick={saveSettings}
               className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${saveStatus ? 'bg-green-500 text-dark-500' : 'bg-gold-500 text-dark-500 hover:bg-gold-400'}`}
@@ -225,7 +225,7 @@ const ReceiptPage = () => {
             </button>
             <button
               onClick={() => window.print()}
-              className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 bg-[var(--border-subtle)] hover:bg-white/10 border border-[var(--border-strong)] rounded-xl font-bold transition-all flex items-center justify-center gap-2"
             >
               <Printer size={18} />
               Testutskrift

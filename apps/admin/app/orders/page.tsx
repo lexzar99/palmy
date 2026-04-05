@@ -83,14 +83,14 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
       }`}
     >
       {isTest && (
-        <div className="absolute top-0 right-10 bg-rose-500 text-white text-[8px] font-black uppercase px-4 py-1.5 rounded-b-2xl tracking-[0.2em] shadow-lg z-10 animate-pulse">
+        <div className="absolute top-0 right-10 bg-rose-500 text-[var(--text-primary)] text-[8px] font-black uppercase px-4 py-1.5 rounded-b-2xl tracking-[0.2em] shadow-lg z-10 animate-pulse">
            Bot / Test Order
         </div>
       )}
 
       <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex items-center justify-between gap-4 cursor-pointer">
         <div className="flex items-center gap-5 flex-1">
-          <div className={`w-12 h-12 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-xs ${isTest ? 'bg-rose-500 text-white' : isNew ? 'bg-gold-500 text-zinc-950 scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
+          <div className={`w-12 h-12 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-xs ${isTest ? 'bg-rose-500 text-[var(--text-primary)]' : isNew ? 'bg-gold-500 text-zinc-950 scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
              {String(order.orderNumber).replace("PX-", "")}
           </div>
           <div className="flex-1 min-w-0">
@@ -166,7 +166,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                  {order.items?.map((it:any, idx: number) => (
                     <div key={idx} className="flex justify-between items-center bg-bg-primary/50 p-4 rounded-2xl border border-border-subtle hover:bg-bg-primary transition-colors">
                        <div className="font-black text-text-primary text-[11px] uppercase tracking-tight flex items-center gap-4">
-                          <span className="w-8 h-8 rounded-lg bg-zinc-950 flex items-center justify-center text-gold-500 text-[10px]">{it.quantity}x</span>
+                          <span className="w-8 h-8 rounded-lg glass flex items-center justify-center text-gold-500 text-[10px]">{it.quantity}x</span>
                           {getDisplayName(it)}
                        </div>
                        <div className="text-text-secondary text-[11px] font-bold italic">{it.subtotal / 100} KR</div>
@@ -308,16 +308,16 @@ const AdminOrdersPage = () => {
       {/* Time Dialog */}
       <AnimatePresence>
         {acceptDialog && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/90 backdrop-blur-3xl p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center glass/90 backdrop-blur-3xl p-6">
             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="bg-bg-secondary border border-border-subtle rounded-[3rem] p-12 w-full max-w-sm text-center shadow-[0_40px_100px_rgba(0,0,0,0.6)]">
-               <h3 className="text-2xl font-black uppercase text-white mb-10 italic tracking-tight underline decoration-gold-500/30 underline-offset-8">Välj Tid</h3>
+               <h3 className="text-2xl font-black uppercase text-[var(--text-primary)] mb-10 italic tracking-tight underline decoration-gold-500/30 underline-offset-8">Välj Tid</h3>
                <div className="grid grid-cols-3 gap-3 mb-12">
                  {[15, 20, 25, 30, 45, 60].map(t => (
                     <button key={t} onClick={() => setAcceptDialog({ ...acceptDialog, time: t })} className={`py-5 rounded-2xl font-black text-[13px] transition-all active:scale-90 ${acceptDialog.time === t ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'bg-bg-primary text-text-secondary border border-border-subtle'}`}>{t}m</button>
                  ))}
                </div>
                <div className="flex gap-4">
-                 <button onClick={() => setAcceptDialog(null)} className="flex-1 py-5 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-colors">Stäng</button>
+                 <button onClick={() => setAcceptDialog(null)} className="flex-1 py-5 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-[var(--text-primary)] transition-colors">Stäng</button>
                  <button onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)} className="flex-[2] py-5 bg-gold-500 text-zinc-950 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Bekräfta</button>
                </div>
             </motion.div>
@@ -325,11 +325,11 @@ const AdminOrdersPage = () => {
         )}
 
         {editingOrder && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/95 backdrop-blur-2xl p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center glass/95 backdrop-blur-2xl p-4">
              <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-bg-secondary border border-border-subtle rounded-[3.5rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] relative">
                 <div className="p-10 border-b border-border-subtle flex items-center justify-between">
-                   <h2 className="text-2xl font-black uppercase italic tracking-tight text-white leading-none">Hantera order <span className="text-gold-500 ml-4 font-mono">#{editingOrder.orderNumber}</span></h2>
-                   <button onClick={() => setEditingOrder(null)} className="w-12 h-12 rounded-full glass-panel flex items-center justify-center text-text-secondary hover:text-white transition-all"><X size={24} /></button>
+                   <h2 className="text-2xl font-black uppercase italic tracking-tight text-[var(--text-primary)] leading-none">Hantera order <span className="text-gold-500 ml-4 font-mono">#{editingOrder.orderNumber}</span></h2>
+                   <button onClick={() => setEditingOrder(null)} className="w-12 h-12 rounded-full glass-panel flex items-center justify-center text-text-secondary hover:text-[var(--text-primary)] transition-all"><X size={24} /></button>
                 </div>
                 <form 
                   onSubmit={async (e) => {
@@ -352,7 +352,7 @@ const AdminOrdersPage = () => {
                       <div className="space-y-2"><label className="text-[9px] font-black uppercase tracking-[0.3em] text-text-secondary ml-2">Transaktionsmetod</label><input name="paymentMethod" defaultValue={editingOrder.paymentMethod} className="w-full bg-bg-primary border border-border-subtle rounded-2xl px-6 py-5 text-sm font-black focus:border-gold-500/50 outline-none transition-all" /></div>
                    </div>
                    <div className="pt-8 flex gap-4">
-                      <button type="button" onClick={() => setEditingOrder(null)} className="flex-1 py-5 text-[11px] font-black uppercase tracking-widest text-text-secondary hover:text-white transition-colors">Avbryt</button>
+                      <button type="button" onClick={() => setEditingOrder(null)} className="flex-1 py-5 text-[11px] font-black uppercase tracking-widest text-text-secondary hover:text-[var(--text-primary)] transition-colors">Avbryt</button>
                       <button type="submit" className="flex-1 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Spara Ändringar</button>
                    </div>
                 </form>

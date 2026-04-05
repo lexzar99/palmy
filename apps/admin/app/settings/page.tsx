@@ -94,7 +94,7 @@ const AdminSettingsPage = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Inställningar</h1>
-          <p className="text-white/40 font-medium">Restaurangens öppettider, leverans och tider.</p>
+          <p className="text-[var(--text-primary)]/40 font-medium">Restaurangens öppettider, leverans och tider.</p>
         </div>
         <button
           onClick={handleSave}
@@ -107,8 +107,8 @@ const AdminSettingsPage = () => {
       </div>
 
       {/* Open/Closed toggle */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-white/60">Restaurangstatus</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Restaurangstatus</h2>
         <button
           onClick={() => setSettings({ ...settings, isOpen: !settings.isOpen })}
           className={`flex items-center gap-6 p-6 rounded-2xl border w-full transition-all ${
@@ -124,88 +124,88 @@ const AdminSettingsPage = () => {
             <div className={`text-2xl font-black uppercase ${settings.isOpen ? "text-green-400" : "text-red-400"}`}>
               {settings.isOpen ? "ÖPPEN FÖR BESTÄLLNING" : "STÄNGD"}
             </div>
-            <div className="text-white/40 text-sm mt-1">Klicka för att ändra status</div>
+            <div className="text-[var(--text-primary)]/40 text-sm mt-1">Klicka för att ändra status</div>
           </div>
         </button>
       </div>
 
       {/* Delivery settings */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-white/60">Leverans & Tider</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Leverans & Tider</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div>
-            <label className="block text-[10px] font-black uppercase text-white/20 mb-3">Leveransavgift (kr)</label>
+            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Leveransavgift (kr)</label>
             <input
               type="number"
               value={settings.deliveryFee}
               onChange={(e) => setSettings({ ...settings, deliveryFee: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase text-white/20 mb-3">Minsta order (kr)</label>
+            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Minsta order (kr)</label>
             <input
               type="number"
               value={settings.minOrderAmount}
               onChange={(e) => setSettings({ ...settings, minOrderAmount: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase text-white/20 mb-3">Leveransradie (km)</label>
+            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Leveransradie (km)</label>
             <input
               type="number"
               value={settings.deliveryRadius}
               onChange={(e) => setSettings({ ...settings, deliveryRadius: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase text-white/20 mb-3">Avhämtningstid (min)</label>
+            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Avhämtningstid (min)</label>
             <div className="flex items-center gap-3">
               <Clock size={18} className="text-gold-500" />
               <input
                 type="number"
                 value={settings.estimatedPickupTime}
                 onChange={(e) => setSettings({ ...settings, estimatedPickupTime: parseInt(e.target.value) || 20 })}
-                className="flex-1 bg-dark-500 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+                className="flex-1 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
               />
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-black uppercase text-white/20 mb-3">Leveranstid (min)</label>
+            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Leveranstid (min)</label>
             <div className="flex items-center gap-3">
               <Clock size={18} className="text-gold-500" />
               <input
                 type="number"
                 value={settings.estimatedDeliveryTime}
                 onChange={(e) => setSettings({ ...settings, estimatedDeliveryTime: parseInt(e.target.value) || 35 })}
-                className="flex-1 bg-dark-500 border border-white/5 rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+                className="flex-1 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
               />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-white/60">Ljudnotiser</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Ljudnotiser</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {SOUND_OPTIONS.map((sound) => (
             <button
               key={sound.id}
               type="button"
               onClick={() => setSettings({ ...settings, notificationSound: sound.id })}
-              className={`rounded-2xl border p-5 text-left transition-all ${settings.notificationSound === sound.id ? "border-gold-500 bg-gold-500/10 text-gold-500" : "border-white/10 bg-dark-500 hover:bg-white/5"}`}
+              className={`rounded-2xl border p-5 text-left transition-all ${settings.notificationSound === sound.id ? "border-gold-500 bg-gold-500/10 text-gold-500" : "border-[var(--border-strong)] bg-dark-500 hover:bg-[var(--border-subtle)]"}`}
             >
               <div className="text-sm font-black uppercase tracking-[0.2em]">{sound.label}</div>
               <div className="mt-3 flex items-center justify-between">
-                <span className="text-xs text-white/40">Tryck för att välja</span>
+                <span className="text-xs text-[var(--text-primary)]/40">Tryck för att välja</span>
                 <span
                   onClick={(e) => {
                     e.stopPropagation();
                     void playNotificationSound(sound.id);
                   }}
-                  className="rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-white"
+                  className="rounded-xl border border-[var(--border-strong)] px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]"
                 >
                   Testa
                 </span>
@@ -215,54 +215,54 @@ const AdminSettingsPage = () => {
         </div>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-white/60">Butiksammanfattning</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Butiksammanfattning</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Status</div>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Status</div>
             <div className={`text-lg font-black uppercase ${settings.isOpen ? "text-green-400" : "text-red-400"}`}>
               {settings.isOpen ? "Öppen" : "Stängd"}
             </div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Leveransavgift</div>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransavgift</div>
             <div className="text-lg font-black text-gold-500">{settings.deliveryFee} kr</div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Minimiorder</div>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Minimiorder</div>
             <div className="text-lg font-black text-gold-500">{settings.minOrderAmount} kr</div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-white/5 p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-white/20 mb-2">Leveransradie</div>
+          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransradie</div>
             <div className="text-lg font-black text-gold-500">{settings.deliveryRadius} km</div>
           </div>
         </div>
       </div>
 
       {/* Opening Hours */}
-      <div className="bg-white/5 border border-white/10 rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-white/60">Öppettider</h2>
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Öppettider</h2>
         <div className="space-y-4">
           {DAYS.map((day) => {
             const hours = settings.openingHours[day.key] || defaultHours;
             return (
-              <div key={day.key} className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${hours.closed ? "bg-white/2 opacity-50" : "bg-dark-500 border border-white/5"}`}>
-                <div className="w-28 font-bold uppercase text-sm tracking-widest text-white/60 flex-shrink-0">{day.label}</div>
+              <div key={day.key} className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${hours.closed ? "bg-white/2 opacity-50" : "bg-dark-500 border border-[var(--border-subtle)]"}`}>
+                <div className="w-28 font-bold uppercase text-sm tracking-widest text-[var(--text-primary)]/60 flex-shrink-0">{day.label}</div>
                 <div className="flex items-center gap-4 flex-1">
                   <input
                     type="time"
                     value={hours.open}
                     disabled={hours.closed}
                     onChange={(e) => updateHours(day.key, "open", e.target.value)}
-                    className="bg-dark-500 border border-white/10 rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                    className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
                   />
-                  <span className="text-white/20 font-black">–</span>
+                  <span className="text-[var(--text-primary)]/20 font-black">–</span>
                   <input
                     type="time"
                     value={hours.close}
                     disabled={hours.closed}
                     onChange={(e) => updateHours(day.key, "close", e.target.value)}
-                    className="bg-dark-500 border border-white/10 rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                    className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
                   />
                 </div>
                 <button

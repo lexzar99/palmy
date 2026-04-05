@@ -51,11 +51,11 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-24">
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+      <div className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--border-subtle)] p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div>
-          <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Palmyra Control Center</div>
+          <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-[var(--text-primary)]/20">Palmyra Control Center</div>
           <h1 className="text-4xl font-black uppercase tracking-tight">Översikt</h1>
-          <p className="mt-3 max-w-2xl text-white/40">
+          <p className="mt-3 max-w-2xl text-[var(--text-primary)]/40">
             Meny, avgifter och orderflöde är nu tänkta att styras från samma panel. Härifrån kan du snabbt hoppa vidare till det som behöver uppmärksamhet.
           </p>
         </div>
@@ -95,7 +95,7 @@ export default function Dashboard() {
                  alert("Kunde inte skapa test-order: " + err);
                }
              }}
-             className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-[11px] font-black uppercase tracking-widest text-gold-500 flex items-center gap-3 active:scale-95"
+             className="px-6 py-4 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl hover:bg-white/10 transition-all text-[11px] font-black uppercase tracking-widest text-gold-500 flex items-center gap-3 active:scale-95"
            >
               Skapa Test-Order 🤖
            </button>
@@ -108,41 +108,41 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/20">Beställningar idag</div>
+        <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Beställningar idag</div>
           <div className="mt-3 text-3xl font-black text-gold-500">{stats.ordersToday}</div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/20">Väntar nu</div>
+        <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Väntar nu</div>
           <div className="mt-3 text-3xl font-black text-gold-500">{stats.pendingOrders}</div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/20">Omsättning idag</div>
+        <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Omsättning idag</div>
           <div className="mt-3 text-3xl font-black text-gold-500">{stats.revenueToday} kr</div>
         </div>
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-white/20">Minimiorder / leverans</div>
+        <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+          <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Minimiorder / leverans</div>
           <div className="mt-3 text-xl font-black text-gold-500">{settings.minOrderAmount} kr / {settings.deliveryFee} kr</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Link href="/orders" className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
+        <Link href="/orders" className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
           <ShoppingCart className="text-gold-500" size={24} />
           <h2 className="mt-5 text-2xl font-black uppercase">Beställningar</h2>
-          <p className="mt-2 text-white/40">Hantera inkommande order och följ status i realtid.</p>
+          <p className="mt-2 text-[var(--text-primary)]/40">Hantera inkommande order och följ status i realtid.</p>
           <div className="mt-6 flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-gold-500">Öppna <ArrowRight size={16} /></div>
         </Link>
-        <Link href="/menu" className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
+        <Link href="/menu" className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
           <UtensilsCrossed className="text-gold-500" size={24} />
           <h2 className="mt-5 text-2xl font-black uppercase">Meny & import</h2>
-          <p className="mt-2 text-white/40">Synka Eatsmart-menyn, justera kategorier och koppla tillbehör utan dubbelloggik.</p>
+          <p className="mt-2 text-[var(--text-primary)]/40">Synka Eatsmart-menyn, justera kategorier och koppla tillbehör utan dubbelloggik.</p>
           <div className="mt-6 flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-gold-500">Öppna <ArrowRight size={16} /></div>
         </Link>
-        <Link href="/settings" className="rounded-3xl border border-white/10 bg-white/5 p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
+        <Link href="/settings" className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6 transition-all hover:border-gold-500/30 hover:bg-white/10">
           <Settings className="text-gold-500" size={24} />
           <h2 className="mt-5 text-2xl font-black uppercase">Inställningar</h2>
-          <p className="mt-2 text-white/40">Styr öppetstatus, leveransavgift, minimiorder och tider från en enda källa.</p>
+          <p className="mt-2 text-[var(--text-primary)]/40">Styr öppetstatus, leveransavgift, minimiorder och tider från en enda källa.</p>
           <div className="mt-6 flex items-center gap-2 text-sm font-black uppercase tracking-[0.2em] text-gold-500">Öppna <ArrowRight size={16} /></div>
         </Link>
       </div>

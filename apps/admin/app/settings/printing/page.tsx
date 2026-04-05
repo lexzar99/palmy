@@ -61,7 +61,7 @@ const PrintingSettingsPage = () => {
           </div>
           <div>
             <h1 className="text-4xl font-black uppercase tracking-tight mb-1">Utskriftsinställningar</h1>
-            <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera kvittoskrivare via Bluetooth och Nätverk</p>
+            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera kvittoskrivare via Bluetooth och Nätverk</p>
           </div>
         </div>
         <button 
@@ -77,13 +77,13 @@ const PrintingSettingsPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         {/* Left: Device List */}
         <div className="lg:col-span-2 space-y-6">
-           <div className="bg-white/5 border border-white/5 rounded-[3rem] p-10 space-y-8">
+           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-8">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-3">
                    <HardDrive className="text-gold-500" size={24} />
                    Anslutna Skrivare
                 </h2>
-                <div className="text-[10px] font-black uppercase tracking-widest text-white/20">{devices.length} konfigurerade</div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">{devices.length} konfigurerade</div>
               </div>
 
               <div className="space-y-4">
@@ -95,7 +95,7 @@ const PrintingSettingsPage = () => {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.95 }}
                         className={`p-8 rounded-[2rem] border-2 transition-all flex items-center justify-between gap-6 ${
-                          device.isDefault ? "bg-gold-500/10 border-gold-500/40" : "bg-white/5 border-white/5 hover:border-white/10"
+                          device.isDefault ? "bg-gold-500/10 border-gold-500/40" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                         }`}
                       >
                          <div className="flex items-center gap-6">
@@ -109,10 +109,10 @@ const PrintingSettingsPage = () => {
                                     <span className="px-2 py-0.5 bg-gold-500 text-dark-500 rounded-md text-[8px] font-black uppercase tracking-widest">Standard</span>
                                   )}
                                </div>
-                               <div className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-3">
+                               <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 flex items-center gap-3">
                                   {device.address}
                                   <span className="w-1 h-1 rounded-full bg-white/10" />
-                                  <span className={device.status === "READY" ? "text-emerald-400" : "text-white/20"}>{device.status}</span>
+                                  <span className={device.status === "READY" ? "text-emerald-400" : "text-[var(--text-primary)]/20"}>{device.status}</span>
                                </div>
                             </div>
                          </div>
@@ -121,7 +121,7 @@ const PrintingSettingsPage = () => {
                            {!device.isDefault && (
                              <button 
                                onClick={() => setAsDefault(device.id)}
-                               className="px-4 py-2 bg-white/5 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+                               className="px-4 py-2 bg-[var(--border-subtle)] rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
                              >
                                Sätt som standard
                              </button>
@@ -138,14 +138,14 @@ const PrintingSettingsPage = () => {
                  </AnimatePresence>
 
                  {devices.length === 0 && !isScanning && (
-                   <div className="py-20 text-center border-2 border-dashed border-white/5 rounded-[2rem] flex flex-col items-center justify-center gap-4 text-white/10">
+                   <div className="py-20 text-center border-2 border-dashed border-[var(--border-subtle)] rounded-[2rem] flex flex-col items-center justify-center gap-4 text-[var(--text-primary)]/10">
                       <Search size={48} />
                       <p className="font-black uppercase tracking-widest text-sm">Inga skrivare hittades</p>
                    </div>
                  )}
 
                  {isScanning && (
-                    <div className="py-12 flex flex-col items-center justify-center gap-4 text-white/20 animate-pulse">
+                    <div className="py-12 flex flex-col items-center justify-center gap-4 text-[var(--text-primary)]/20 animate-pulse">
                        <Loader2 className="animate-spin text-gold-500" size={32} />
                        <p className="font-black uppercase tracking-[0.3em] text-[10px]">Söker efter enheter i nätverket...</p>
                     </div>
@@ -154,20 +154,20 @@ const PrintingSettingsPage = () => {
            </div>
 
            {/* Manual Config */}
-           <div className="bg-white/5 border border-white/5 rounded-[3rem] p-10 space-y-8">
+           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-8">
               <div>
                 <h2 className="text-xl font-black uppercase tracking-tight">Manuell konfiguration</h2>
-                <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Om du inte hittar skrivaren automatiskt</p>
+                <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.2em] mt-1">Om du inte hittar skrivaren automatiskt</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">IP-Adress / Bluetooth ID</label>
-                    <input className="w-full bg-dark-500 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" placeholder="192.168.X.X" />
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">IP-Adress / Bluetooth ID</label>
+                    <input className="w-full bg-dark-500 border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" placeholder="192.168.X.X" />
                  </div>
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Modell</label>
-                    <select className="w-full bg-dark-500 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-black uppercase text-xs appearance-none">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Modell</label>
+                    <select className="w-full bg-dark-500 border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-black uppercase text-xs appearance-none">
                        <option>Epson TM-Serien</option>
                        <option>Star Micronics</option>
                        <option>Universal 58mm/80mm</option>
@@ -175,7 +175,7 @@ const PrintingSettingsPage = () => {
                  </div>
               </div>
 
-              <button className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all flex items-center justify-center gap-3">
+              <button className="w-full py-4 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all flex items-center justify-center gap-3">
                  Lägg till manuellt
               </button>
            </div>
@@ -188,7 +188,7 @@ const PrintingSettingsPage = () => {
                  <Zap size={64} className="text-gold-500" />
               </div>
               <h3 className="text-xl font-black uppercase tracking-tight">Status & Test</h3>
-              <p className="text-white/40 text-xs font-medium leading-relaxed uppercase">Kontrollera anslutningen genom att skriva ut ett testkvitto till din standardskrivare.</p>
+              <p className="text-[var(--text-primary)]/40 text-xs font-medium leading-relaxed uppercase">Kontrollera anslutningen genom att skriva ut ett testkvitto till din standardskrivare.</p>
               
               <button className="w-full py-5 bg-gold-500 text-dark-500 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-gold-500/20 active:scale-95 transition-all">
                  <Play size={18} />
@@ -196,31 +196,31 @@ const PrintingSettingsPage = () => {
               </button>
            </div>
 
-           <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-8">
+           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 space-y-8">
               <div className="flex items-center gap-4">
-                 <Info className="text-white/20" size={24} />
+                 <Info className="text-[var(--text-primary)]/20" size={24} />
                  <h3 className="text-sm font-black uppercase tracking-widest">Hjälp</h3>
               </div>
               
               <ul className="space-y-4">
                  <li className="flex gap-3">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1.5 shrink-0" />
-                    <p className="text-[10px] text-white/30 font-bold uppercase leading-relaxed">Bluetooth-skrivare kräver att din webbläsare stöder Web Bluetooth API.</p>
+                    <p className="text-[10px] text-[var(--text-primary)]/30 font-bold uppercase leading-relaxed">Bluetooth-skrivare kräver att din webbläsare stöder Web Bluetooth API.</p>
                  </li>
                  <li className="flex gap-3">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1.5 shrink-0" />
-                    <p className="text-[10px] text-white/30 font-bold uppercase leading-relaxed">Nätverksskrivare måste vara anslutna till samma LAN som denna enhet.</p>
+                    <p className="text-[10px] text-[var(--text-primary)]/30 font-bold uppercase leading-relaxed">Nätverksskrivare måste vara anslutna till samma LAN som denna enhet.</p>
                  </li>
                  <li className="flex gap-3">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold-500 mt-1.5 shrink-0" />
-                    <p className="text-[10px] text-white/30 font-bold uppercase leading-relaxed">Epson-skrivare bör ha ePOS-Print aktiverat.</p>
+                    <p className="text-[10px] text-[var(--text-primary)]/30 font-bold uppercase leading-relaxed">Epson-skrivare bör ha ePOS-Print aktiverat.</p>
                  </li>
               </ul>
            </div>
 
-           <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8">
-              <label className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-4 block text-center">Automatisk utskrift</label>
-              <div className="flex items-center justify-between p-4 bg-dark-500 rounded-2xl border border-white/5">
+           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block text-center">Automatisk utskrift</label>
+              <div className="flex items-center justify-between p-4 bg-dark-500 rounded-2xl border border-[var(--border-subtle)]">
                  <span className="text-[10px] font-black uppercase tracking-widest">Vid ny order</span>
                  <button className="h-6 w-11 rounded-full bg-gold-500 relative">
                     <div className="h-4 w-4 bg-dark-500 rounded-full absolute right-1 top-1" />

@@ -117,7 +117,7 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
+    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1400px] mx-auto">
         
         {/* Header */}
@@ -133,12 +133,12 @@ export default function CustomersPage() {
           </div>
           
           <div className="relative group min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={18} />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
             <input 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Sök namn, telefon..."
-              className="w-full bg-[#0a0c14] border border-white/5 rounded-2xl pl-12 pr-6 py-4 text-sm font-bold placeholder:text-white/10 focus:outline-none focus:border-gold-500/30 transition-all shadow-xl"
+              className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-12 pr-6 py-4 text-sm font-bold placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/30 transition-all shadow-xl"
             />
           </div>
         </div>
@@ -147,29 +147,29 @@ export default function CustomersPage() {
           
           {/* List Section */}
           <div className="xl:col-span-1 space-y-3">
-             <div className="px-6 py-4 bg-[#0a0c14] border border-white/5 rounded-2xl mb-4 flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/20">Registrerade Kunder ({filtered.length})</span>
-                <Settings2 size={14} className="text-white/10" />
+             <div className="px-6 py-4 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl mb-4 flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Registrerade Kunder ({filtered.length})</span>
+                <Settings2 size={14} className="text-[var(--text-primary)]/10" />
              </div>
 
              {loading ? (
-                [1,2,3,4,5].map(i => <div key={i} className="h-20 rounded-2xl bg-white/5 animate-pulse" />)
+                [1,2,3,4,5].map(i => <div key={i} className="h-20 rounded-2xl bg-[var(--border-subtle)] animate-pulse" />)
              ) : (
                 <div className="space-y-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
                    {filtered.map(c => (
                       <button 
                         key={c.id} 
                         onClick={() => fetchCustomerDetails(c.id)}
-                        className={`w-full group flex items-center gap-4 p-4 rounded-2xl border transition-all ${selectedCustomer?.id === c.id ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[#0a0c14] border-white/5 hover:border-white/10"}`}
+                        className={`w-full group flex items-center gap-4 p-4 rounded-2xl border transition-all ${selectedCustomer?.id === c.id ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[#0a0c14] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
                       >
-                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedCustomer?.id === c.id ? "bg-dark-500 text-gold-500" : "bg-white/5 text-gold-500"}`}>
+                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedCustomer?.id === c.id ? "bg-dark-500 text-gold-500" : "bg-[var(--border-subtle)] text-gold-500"}`}>
                             {c.name?.charAt(0)}
                          </div>
                          <div className="text-left flex-1 min-w-0">
                             <div className="text-[11px] font-black uppercase truncate">{c.name || "Gäst"}</div>
-                            <div className={`text-[9px] font-bold ${selectedCustomer?.id === c.id ? "text-dark-500/60" : "text-white/20"}`}>{c.phone}</div>
+                            <div className={`text-[9px] font-bold ${selectedCustomer?.id === c.id ? "text-dark-500/60" : "text-[var(--text-primary)]/20"}`}>{c.phone}</div>
                          </div>
-                         <ChevronRight size={14} className={selectedCustomer?.id === c.id ? "text-dark-500" : "text-white/5"} />
+                         <ChevronRight size={14} className={selectedCustomer?.id === c.id ? "text-dark-500" : "text-[var(--text-primary)]/5"} />
                       </button>
                    ))}
                 </div>
@@ -185,7 +185,7 @@ export default function CustomersPage() {
                      initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                      className="space-y-6"
                    >
-                      <div className="bg-[#0a0c14] border border-white/10 rounded-[3rem] p-10 relative overflow-hidden">
+                      <div className="bg-[#0a0c14] border border-[var(--border-strong)] rounded-[3rem] p-10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
                          
                          <div className="flex flex-col lg:flex-row gap-10 items-start">
@@ -201,12 +201,12 @@ export default function CustomersPage() {
                                <div className="flex items-center justify-between mb-8">
                                   <div className="space-y-2">
                                      <h2 className="text-4xl font-black italic tracking-tighter uppercase leading-none">{selectedCustomer.name}</h2>
-                                     <p className="text-[10px] font-black uppercase tracking-widest text-white/20">Medlem sedan {new Date(selectedCustomer.createdAt).toLocaleDateString("sv-SE")}</p>
+                                     <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Medlem sedan {new Date(selectedCustomer.createdAt).toLocaleDateString("sv-SE")}</p>
                                   </div>
                                   <div className="flex items-center gap-3">
                                      <button 
                                        onClick={() => setEditingCustomer(selectedCustomer)}
-                                       className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center hover:bg-white/10 transition-all text-white/40 hover:text-white"
+                                       className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] border border-[var(--border-subtle)] flex items-center justify-center hover:bg-white/10 transition-all text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"
                                      >
                                         <Settings2 size={18} />
                                      </button>
@@ -225,7 +225,7 @@ export default function CustomersPage() {
                                   </div>
                                </div>
 
-                               <div className="flex gap-4 p-1.5 bg-white/5 border border-white/5 rounded-3xl mt-12 mb-8">
+                               <div className="flex gap-4 p-1.5 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl mt-12 mb-8">
                                    {([
                                       { id: "INFO", label: "Profil Info", icon: Users },
                                       { id: "ORDERS", label: "Beställningar", icon: ShoppingBag },
@@ -234,7 +234,7 @@ export default function CustomersPage() {
                                       <button 
                                         key={t.id} 
                                         onClick={() => setActiveTab(t.id)}
-                                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl transition-all text-[10px] font-black uppercase tracking-widest ${activeTab === t.id ? "bg-white/10 text-white shadow-xl" : "text-white/20 hover:text-white/40 hover:bg-white/5"}`}
+                                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl transition-all text-[10px] font-black uppercase tracking-widest ${activeTab === t.id ? "bg-white/10 text-[var(--text-primary)] shadow-xl" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40 hover:bg-[var(--border-subtle)]"}`}
                                       >
                                          <t.icon size={16} /> {t.label}
                                       </button>
@@ -250,11 +250,11 @@ export default function CustomersPage() {
                                           { icon: MapPin, label: "Adress", value: selectedCustomer.address || "Ej angiven" },
                                           { icon: LayoutGrid, label: "Stad", value: selectedCustomer.city || "Ej angiven" },
                                        ].map((item, i) => (
-                                          <div key={i} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-white/5 flex items-center gap-6 group hover:border-gold-500/20 transition-all">
-                                             <div className="w-12 h-12 bg-white/5 rounded-2xl flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform"><item.icon size={20} /></div>
+                                          <div key={i} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center gap-6 group hover:border-gold-500/20 transition-all">
+                                             <div className="w-12 h-12 bg-[var(--border-subtle)] rounded-2xl flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform"><item.icon size={20} /></div>
                                              <div>
-                                                <div className="text-[8px] font-black uppercase tracking-[0.3em] text-white/20 mb-1">{item.label}</div>
-                                                <div className="font-bold text-white/80">{item.value}</div>
+                                                <div className="text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-1">{item.label}</div>
+                                                <div className="font-bold text-[var(--text-primary)]/80">{item.value}</div>
                                              </div>
                                           </div>
                                        ))}
@@ -264,17 +264,17 @@ export default function CustomersPage() {
                                   {activeTab === "ORDERS" && (
                                      <div className="space-y-4">
                                         {selectedCustomer.orders?.map((order: any) => (
-                                           <div key={order.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-white/5 flex items-center justify-between group hover:border-emerald-500/20 transition-all">
+                                           <div key={order.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center justify-between group hover:border-emerald-500/20 transition-all">
                                               <div className="flex items-center gap-6">
                                                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 font-black italic">#{order.orderNumber}</div>
                                                  <div>
                                                     <div className="text-lg font-black uppercase italic tracking-tighter">{order.restaurant?.name}</div>
-                                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-white/20 tracking-widest mt-1">
+                                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mt-1">
                                                        {new Date(order.createdAt).toLocaleDateString()} • {order.total / 100} kr • <span className={order.status === "DELIVERED" ? "text-emerald-500" : "text-gold-500"}>{order.status}</span>
                                                     </div>
                                                  </div>
                                               </div>
-                                              <button className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/20 group-hover:text-gold-500 transition-all"><ChevronRight size={18} /></button>
+                                              <button className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 group-hover:text-gold-500 transition-all"><ChevronRight size={18} /></button>
                                            </div>
                                         ))}
                                         {(!selectedCustomer.orders || selectedCustomer.orders.length === 0) && (
@@ -286,20 +286,20 @@ export default function CustomersPage() {
                                   {activeTab === "DEALS" && (
                                      <div className="space-y-4">
                                         {selectedCustomer.deals?.map((deal: any) => (
-                                           <div key={deal.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-white/5 flex items-center justify-between group hover:border-gold-500/20 transition-all overflow-hidden relative">
+                                           <div key={deal.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center justify-between group hover:border-gold-500/20 transition-all overflow-hidden relative">
                                               {deal.isUsed && <div className="absolute top-0 right-0 p-3 px-6 bg-emerald-500/10 text-emerald-500 font-black text-[8px] uppercase tracking-widest border-b border-l border-emerald-500/20 rounded-bl-3xl">Använd</div>}
                                               <div className="flex items-center gap-6 relative z-10">
                                                  <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500"><Ticket size={24} /></div>
                                                  <div>
                                                     <div className="text-xl font-black uppercase italic tracking-tighter">{deal.campaign?.title}</div>
                                                     <code className="text-[12px] font-black text-gold-500/60 tracking-[0.2em]">{deal.code}</code>
-                                                    <div className="text-[9px] font-black uppercase text-white/10 mt-2">Max {deal.maxUsages} användningar • Använd {deal.usageCount} ggr</div>
+                                                    <div className="text-[9px] font-black uppercase text-[var(--text-primary)]/10 mt-2">Max {deal.maxUsages} användningar • Använd {deal.usageCount} ggr</div>
                                                  </div>
                                               </div>
                                               <div className="flex items-center gap-3 relative z-10">
                                                  <button 
                                                    onClick={() => handleUpdateDeal(deal.id, { isUsed: false, usageCount: 0 })}
-                                                   className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-white transition-all shadow-xl"
+                                                   className="px-6 py-3 rounded-xl bg-[var(--border-subtle)] hover:bg-white/10 text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 hover:text-[var(--text-primary)] transition-all shadow-xl"
                                                  >
                                                     Återställ
                                                  </button>
@@ -323,12 +323,12 @@ export default function CustomersPage() {
                       </div>
                    </motion.div>
                 ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-center p-20 bg-[#0a0c14] border border-white/5 rounded-[4rem]">
-                      <div className="w-32 h-32 bg-white/5 rounded-[3rem] flex items-center justify-center mb-10 text-white/10 animate-pulse">
+                   <div className="h-full flex flex-col items-center justify-center text-center p-20 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[4rem]">
+                      <div className="w-32 h-32 bg-[var(--border-subtle)] rounded-[3rem] flex items-center justify-center mb-10 text-[var(--text-primary)]/10 animate-pulse">
                          <Users size={64} />
                       </div>
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-4 text-white/40">Välj en kund för att hantera</h3>
-                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/10 leading-relaxed max-w-sm">Ändra profiluppgifter, se detaljerad orderhistorik och personliga erbjudanden.</p>
+                      <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-4 text-[var(--text-primary)]/40">Välj en kund för att hantera</h3>
+                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/10 leading-relaxed max-w-sm">Ändra profiluppgifter, se detaljerad orderhistorik och personliga erbjudanden.</p>
                    </div>
                 )}
              </AnimatePresence>
@@ -340,10 +340,10 @@ export default function CustomersPage() {
       <AnimatePresence>
         {editingCustomer && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[#121421] border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-white/5 flex items-center justify-between bg-[#0a0c14]">
+             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[#121421] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[#0a0c14]">
                    <h2 className="text-xl font-black uppercase italic tracking-tighter">Profil <span className="text-gold-500">Editering</span></h2>
-                   <button onClick={() => setEditingCustomer(null)} className="p-2 hover:bg-white/5 rounded-xl"><X size={24} className="text-white/20" /></button>
+                   <button onClick={() => setEditingCustomer(null)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} className="text-[var(--text-primary)]/20" /></button>
                 </div>
                 
                 <form 
@@ -357,33 +357,33 @@ export default function CustomersPage() {
                 >
                    <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Namn</label>
-                         <input name="name" defaultValue={editingCustomer.name} placeholder="Fullständigt namn" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Namn</label>
+                         <input name="name" defaultValue={editingCustomer.name} placeholder="Fullständigt namn" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
                       </div>
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Telefon</label>
-                         <input name="phone" defaultValue={editingCustomer.phone} placeholder="Mobilnummer" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none tracking-widest" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Telefon</label>
+                         <input name="phone" defaultValue={editingCustomer.phone} placeholder="Mobilnummer" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none tracking-widest" />
                       </div>
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">E-post</label>
-                         <input name="email" defaultValue={editingCustomer.email} placeholder="E-postadress" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">E-post</label>
+                         <input name="email" defaultValue={editingCustomer.email} placeholder="E-postadress" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
                       </div>
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Gata / Address</label>
-                         <input name="address" defaultValue={editingCustomer.address} placeholder="Gatuadress" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Gata / Address</label>
+                         <input name="address" defaultValue={editingCustomer.address} placeholder="Gatuadress" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
                       </div>
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Postnr</label>
-                         <input name="zip" defaultValue={editingCustomer.zip} placeholder="XXXXX" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Postnr</label>
+                         <input name="zip" defaultValue={editingCustomer.zip} placeholder="XXXXX" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
                       </div>
                       <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-2">Stad</label>
-                         <input name="city" defaultValue={editingCustomer.city} placeholder="T.ex Lund" className="w-full bg-white/5 border border-white/10 rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none uppercase" />
+                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Stad</label>
+                         <input name="city" defaultValue={editingCustomer.city} placeholder="T.ex Lund" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none uppercase" />
                       </div>
                    </div>
 
                    <div className="pt-6 flex gap-4">
-                      <button type="button" onClick={() => setEditingCustomer(null)} className="flex-1 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
+                      <button type="button" onClick={() => setEditingCustomer(null)} className="flex-1 py-4 bg-[var(--border-subtle)] rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
                       <button type="submit" className="flex-1 py-4 bg-gold-500 text-dark-500 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-gold-500/20">Spara Profil</button>
                    </div>
                 </form>
@@ -401,21 +401,21 @@ export default function CustomersPage() {
                    <Trash2 size={40} />
                 </div>
                 <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Bekräfta <span className="text-rose-500">Radering</span></h2>
-                <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-8 leading-relaxed">
-                   Du är på väg att radera <span className="text-white">{showDeleteModal.name}</span> permanent. För att bekräfta, skriv <span className="text-rose-500">DELETE</span> i fältet nedan.
+                <p className="text-xs font-bold text-[var(--text-primary)]/40 uppercase tracking-widest mb-8 leading-relaxed">
+                   Du är på väg att radera <span className="text-[var(--text-primary)]">{showDeleteModal.name}</span> permanent. För att bekräfta, skriv <span className="text-rose-500">DELETE</span> i fältet nedan.
                 </p>
                 <input 
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value.toUpperCase())}
                   placeholder="Skriv DELETE här..."
-                  className="w-full bg-white/5 border border-rose-500/30 rounded-2xl px-6 py-4 text-center font-black text-sm tracking-[0.3em] outline-none focus:border-rose-500 transition-all mb-8"
+                  className="w-full bg-[var(--border-subtle)] border border-rose-500/30 rounded-2xl px-6 py-4 text-center font-black text-sm tracking-[0.3em] outline-none focus:border-rose-500 transition-all mb-8"
                 />
                 <div className="flex gap-4">
-                   <button onClick={() => { setShowDeleteModal(null); setDeleteConfirmText(""); }} className="flex-1 py-4 bg-white/5 rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
+                   <button onClick={() => { setShowDeleteModal(null); setDeleteConfirmText(""); }} className="flex-1 py-4 bg-[var(--border-subtle)] rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
                    <button 
                      onClick={() => handleDeleteUser(showDeleteModal.id)}
                      disabled={deleteConfirmText !== "DELETE"}
-                     className="flex-1 py-4 bg-rose-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-20 transition-all shadow-2xl shadow-rose-500/20"
+                     className="flex-1 py-4 bg-rose-500 text-[var(--text-primary)] rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-20 transition-all shadow-2xl shadow-rose-500/20"
                    >
                      Radera Kund
                    </button>

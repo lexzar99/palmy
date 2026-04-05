@@ -51,7 +51,7 @@ export default function BulkImportPage() {
       <div className="flex items-center justify-between">
         <button 
           onClick={() => router.back()} 
-          className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-white/40 hover:text-white"
+          className="p-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-2xl transition-all text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"
         >
           <ArrowLeft size={24} />
         </button>
@@ -70,9 +70,9 @@ export default function BulkImportPage() {
           <h3 className="font-bold uppercase tracking-wider text-blue-300">Instruktioner</h3>
           <p className="text-sm text-blue-300/60 leading-relaxed">
             Klistra in dina produkter rad för rad i formatet:<br/>
-            <code className="bg-dark-500 px-2 py-1 rounded text-white/80 font-mono text-xs">Kategori : Produktnamn : Pris : Beskrivning</code>
+            <code className="bg-dark-500 px-2 py-1 rounded text-[var(--text-primary)]/80 font-mono text-xs">Kategori : Produktnamn : Pris : Beskrivning</code>
           </p>
-          <div className="mt-4 p-4 bg-dark-500/50 rounded-xl font-mono text-[10px] text-white/30 border border-white/5 space-y-1">
+          <div className="mt-4 p-4 bg-dark-500/50 rounded-xl font-mono text-[10px] text-[var(--text-primary)]/30 border border-[var(--border-subtle)] space-y-1">
              <div>Pizzor : Margherita : 95 : Tomat, ost</div>
              <div>Pizzor : Vesuvio : 105 : Tomat, ost, skinka</div>
              <div>Sallader : Kebabsallad : 110 : Kebab, isberg, lök, sås</div>
@@ -86,10 +86,10 @@ export default function BulkImportPage() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Klistra in här..."
-          className="w-full h-80 bg-white/5 border border-white/10 rounded-[2rem] p-8 outline-none focus:ring-4 focus:ring-gold-500/20 focus:border-gold-500/50 transition-all font-mono text-sm leading-relaxed"
+          className="w-full h-80 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2rem] p-8 outline-none focus:ring-4 focus:ring-gold-500/20 focus:border-gold-500/50 transition-all font-mono text-sm leading-relaxed"
           disabled={loading}
         />
-        <div className="absolute top-6 right-8 text-[10px] font-black uppercase tracking-widest text-white/10 group-focus-within:text-gold-500/50 transition-colors">
+        <div className="absolute top-6 right-8 text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/10 group-focus-within:text-gold-500/50 transition-colors">
           TXT Import
         </div>
       </div>
@@ -134,7 +134,7 @@ export default function BulkImportPage() {
             </div>
           </div>
           {results.created > 0 && (
-            <div className="sm:col-span-2 text-center text-xs text-white/30 font-bold uppercase tracking-widest py-4">
+            <div className="sm:col-span-2 text-center text-xs text-[var(--text-primary)]/30 font-bold uppercase tracking-widest py-4">
               Produkterna har lagts till i menyn. Du kan nu gå tillbaka och lägga till tillbehör.
             </div>
           )}

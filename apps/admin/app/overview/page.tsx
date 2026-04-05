@@ -125,7 +125,7 @@ const OverviewPage = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-48 gap-6 text-white/20">
+      <div className="flex flex-col items-center justify-center py-48 gap-6 text-[var(--text-primary)]/20">
         <div className="w-16 h-16 border-4 border-gold-500/10 border-t-gold-500 rounded-full animate-spin" />
         <p className="font-black uppercase tracking-[0.3em] text-xs">Uppdaterar dashboard...</p>
       </div>
@@ -147,7 +147,7 @@ const OverviewPage = () => {
            </h1>
         </div>
 
-        <div className="flex gap-2 p-1.5 bg-[#0a0c14] border border-white/5 rounded-2xl shadow-2xl">
+        <div className="flex gap-2 p-1.5 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl shadow-2xl">
            {[
               { id: "today", label: "Idag" },
               { id: "yesterday", label: "Igår" },
@@ -158,7 +158,7 @@ const OverviewPage = () => {
               <button 
                 key={r.id} 
                 onClick={() => setTimeRange(r.id as TimeRange)}
-                className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${timeRange === r.id ? "bg-gold-500 text-dark-500 shadow-xl" : "text-white/20 hover:text-white/40 hover:bg-white/5"}`}
+                className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${timeRange === r.id ? "bg-gold-500 text-dark-500 shadow-xl" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40 hover:bg-[var(--border-subtle)]"}`}
               >
                  {r.label}
               </button>
@@ -170,7 +170,7 @@ const OverviewPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
          
          {/* Total Revenue */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-gold-500/10 flex items-center justify-center text-gold-500"><CreditCard size={20} /></div>
@@ -179,14 +179,14 @@ const OverviewPage = () => {
                      {Math.abs(Math.round(filteredData.revDiff))}%
                   </div>
                </div>
-               <div className="text-[10px] font-black uppercase text-white/20 tracking-widest mb-1">Total Omsättning</div>
-               <div className="text-4xl font-black italic tracking-tighter text-white">{(filteredData.currentRev / 100).toLocaleString()} <span className="text-sm font-black uppercase not-italic text-white/40 ml-1">kr</span></div>
+               <div className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mb-1">Total Omsättning</div>
+               <div className="text-4xl font-black italic tracking-tighter text-[var(--text-primary)]">{(filteredData.currentRev / 100).toLocaleString()} <span className="text-sm font-black uppercase not-italic text-[var(--text-primary)]/40 ml-1">kr</span></div>
             </div>
             <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-gold-500/10 blur-[50px] group-hover:bg-gold-500/20 transition-all" />
          </div>
 
          {/* Total Orders */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><ShoppingBag size={20} /></div>
@@ -195,55 +195,55 @@ const OverviewPage = () => {
                      {Math.abs(Math.round(filteredData.countDiff))}%
                   </div>
                </div>
-               <div className="text-[10px] font-black uppercase text-white/20 tracking-widest mb-1">Antal Beställningar</div>
-               <div className="text-4xl font-black italic tracking-tighter text-white">{filteredData.currentCount.toLocaleString()} <span className="text-sm font-black uppercase not-italic text-white/40 ml-1">st</span></div>
+               <div className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mb-1">Antal Beställningar</div>
+               <div className="text-4xl font-black italic tracking-tighter text-[var(--text-primary)]">{filteredData.currentCount.toLocaleString()} <span className="text-sm font-black uppercase not-italic text-[var(--text-primary)]/40 ml-1">st</span></div>
             </div>
             <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-emerald-500/10 blur-[50px] group-hover:bg-emerald-500/20 transition-all" />
          </div>
 
          {/* Average Order Value */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500"><Zap size={20} /></div>
                </div>
-               <div className="text-[10px] font-black uppercase text-white/20 tracking-widest mb-1">Snittorder</div>
-               <div className="text-4xl font-black italic tracking-tighter text-white">{Math.round(filteredData.avgOrderValue / 100).toLocaleString()} <span className="text-sm font-black uppercase not-italic text-white/40 ml-1">kr</span></div>
+               <div className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mb-1">Snittorder</div>
+               <div className="text-4xl font-black italic tracking-tighter text-[var(--text-primary)]">{Math.round(filteredData.avgOrderValue / 100).toLocaleString()} <span className="text-sm font-black uppercase not-italic text-[var(--text-primary)]/40 ml-1">kr</span></div>
             </div>
             <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-rose-500/10 blur-[50px] group-hover:bg-rose-500/20 transition-all" />
          </div>
 
          {/* Active Campaigns - placeholder logic */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-white/5 relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
-                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-white/40"><Target size={20} /></div>
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/40"><Target size={20} /></div>
                </div>
-               <div className="text-[10px] font-black uppercase text-white/20 tracking-widest mb-1">Aktiva Kampanjer</div>
-               <div className="text-4xl font-black italic tracking-tighter text-white">4 <span className="text-sm font-black uppercase not-italic text-white/40 ml-1">st</span></div>
+               <div className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mb-1">Aktiva Kampanjer</div>
+               <div className="text-4xl font-black italic tracking-tighter text-[var(--text-primary)]">4 <span className="text-sm font-black uppercase not-italic text-[var(--text-primary)]/40 ml-1">st</span></div>
             </div>
-            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-white/5 blur-[50px] group-hover:bg-white/10 transition-all" />
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-[var(--border-subtle)] blur-[50px] group-hover:bg-white/10 transition-all" />
          </div>
       </div>
 
       {/* Recent Activity Mini-Section */}
-      <div className="bg-[#0a0c14] border border-white/5 rounded-[3rem] p-10">
+      <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10">
          <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40"><HistoryIcon size={20} /></div>
+               <div className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/40"><HistoryIcon size={20} /></div>
                <h2 className="text-xl font-black uppercase tracking-tight italic">Senaste <span className="text-gold-500">Händelserna</span></h2>
             </div>
-            <Link href="/orders" className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-500 hover:text-white transition-all flex items-center gap-2">Visa alla ordrar <ChevronRight size={14} /></Link>
+            <Link href="/orders" className="text-[9px] font-black uppercase tracking-[0.2em] text-gold-500 hover:text-[var(--text-primary)] transition-all flex items-center gap-2">Visa alla ordrar <ChevronRight size={14} /></Link>
          </div>
 
          <div className="space-y-4">
             {filteredData.orders.map((o) => (
-               <div key={o.id} className="p-6 rounded-2xl bg-white/2 border border-white/5 flex items-center justify-between">
+               <div key={o.id} className="p-6 rounded-2xl bg-white/2 border border-[var(--border-subtle)] flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                     <div className="w-10 h-10 rounded-xl bg-white/2 flex items-center justify-center text-[10px] font-black text-white/20 italic">#{o.orderNumber}</div>
+                     <div className="w-10 h-10 rounded-xl bg-white/2 flex items-center justify-center text-[10px] font-black text-[var(--text-primary)]/20 italic">#{o.orderNumber}</div>
                      <div>
                         <div className="text-xs font-black uppercase tracking-tight">{o.customerName}</div>
-                        <div className="text-[9px] font-black uppercase text-white/10 tracking-widest">{new Date(o.createdAt).toLocaleTimeString()} • {o.total / 100} kr</div>
+                        <div className="text-[9px] font-black uppercase text-[var(--text-primary)]/10 tracking-widest">{new Date(o.createdAt).toLocaleTimeString()} • {o.total / 100} kr</div>
                      </div>
                   </div>
                   <div className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-widest ${o.status === "DELIVERED" ? "bg-emerald-500/10 text-emerald-500" : "bg-gold-500/10 text-gold-500"}`}>

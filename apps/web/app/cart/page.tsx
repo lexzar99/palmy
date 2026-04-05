@@ -20,6 +20,7 @@ import {
   X,
   CreditCard,
   CheckCircle2,
+  ArrowRight,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";

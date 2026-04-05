@@ -168,12 +168,12 @@ const CitiesPage = () => {
           </div>
           <div>
             <h1 className="text-4xl font-black uppercase tracking-tight mb-1">Stadshantering</h1>
-            <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera zoner, räckvidd och leveranslägen</p>
+            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera zoner, räckvidd och leveranslägen</p>
           </div>
         </div>
         <button 
           onClick={() => setShowAddCityModal(true)}
-          className="flex items-center gap-3 px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all border border-white/5"
+          className="flex items-center gap-3 px-8 py-4 bg-[var(--border-subtle)] hover:bg-white/10 text-[var(--text-primary)] rounded-2xl font-black uppercase tracking-widest text-xs transition-all border border-[var(--border-subtle)]"
         >
           <Plus size={18} />
           Lägg till Stad
@@ -183,23 +183,23 @@ const CitiesPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-10">
         {/* City List Sidebar */}
         <div className="space-y-4">
-          <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 space-y-3">
-             <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-white/20 italic">Aktiva Städer</div>
-             {loading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-white/10" /></div> : cities.map(city => (
+          <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-6 space-y-3">
+             <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20 italic">Aktiva Städer</div>
+             {loading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-[var(--text-primary)]/10" /></div> : cities.map(city => (
                <div key={city.id} className="relative group/item">
                  <button
                    onClick={() => setSelectedCityId(city.id)}
                    className={`w-full flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${
-                     selectedCityId === city.id ? "bg-sky-500/10 border-sky-500/40" : "bg-white/5 border-transparent hover:bg-white/10"
+                     selectedCityId === city.id ? "bg-sky-500/10 border-sky-500/40" : "bg-[var(--border-subtle)] border-transparent hover:bg-white/10"
                    }`}
                  >
                    <div className="text-left">
                       <div className="text-lg font-black uppercase tracking-tight mb-1">{city.name}</div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-white/30 flex items-center gap-2">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 flex items-center gap-2">
                          {city.deliveryMode === "ALL" ? "Full Service" : "Endast Avhämtning"}
                       </div>
                    </div>
-                   <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-white/10"} />
+                   <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-[var(--text-primary)]/10"} />
                  </button>
                  <button 
                    onClick={() => handleDeleteCity(city.id)}
@@ -216,7 +216,7 @@ const CitiesPage = () => {
                 <Info size={18} />
                 <span className="text-xs font-black uppercase tracking-widest">Global Kontroll</span>
              </div>
-             <p className="text-[10px] text-white/40 leading-relaxed uppercase font-bold">
+             <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed uppercase font-bold">
                Här styr du vilka städer plattformen är aktiv i. Du kan stänga av utkörning för en hel stad vid t.ex. dåligt väder eller hög belastning.
              </p>
           </div>
@@ -233,25 +233,25 @@ const CitiesPage = () => {
               className="space-y-8"
             >
                {/* Mode Selection */}
-               <div className="bg-white/5 border border-white/5 rounded-[3rem] p-10 space-y-10">
+               <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
                   <div className="flex items-center justify-between">
                      <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                            <ShieldCheck className="text-sky-500" size={28} />
                            Konfiguration: {selectedCity.name}
                         </h2>
-                        <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Övergripande regler för staden</p>
+                        <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Övergripande regler för staden</p>
                      </div>
-                     <div className="flex items-center gap-3 p-1.5 bg-dark-500 border border-white/5 rounded-2xl">
+                     <div className="flex items-center gap-3 p-1.5 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl">
                         <button 
                           onClick={() => setCities(cities.map(c => c.id === selectedCity.id ? {...c, isActive: true} : c))}
-                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive ? "bg-emerald-500 text-white" : "text-white/20 hover:text-white/40"}`}
+                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive ? "bg-emerald-500 text-[var(--text-primary)]" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
                         >
                           Aktiv
                         </button>
                         <button 
                           onClick={() => setCities(cities.map(c => c.id === selectedCity.id ? {...c, isActive: false} : c))}
-                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedCity.isActive ? "bg-red-500 text-white" : "text-white/20 hover:text-white/40"}`}
+                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedCity.isActive ? "bg-red-500 text-[var(--text-primary)]" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
                         >
                           Inaktiv
                         </button>
@@ -270,15 +270,15 @@ const CitiesPage = () => {
                            setCities(cities.map(c => c.id === selectedCity.id ? {...c, deliveryMode: mode.id as any} : c));
                          }}
                          className={`p-8 rounded-[2.5rem] border-2 text-left transition-all flex flex-col gap-4 ${
-                           selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-white/5 border-white/5 hover:border-white/10"
+                           selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                          }`}
                        >
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedCity.deliveryMode === mode.id ? "bg-sky-500 text-white" : "bg-white/5 text-white/30"}`}>
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedCity.deliveryMode === mode.id ? "bg-sky-500 text-[var(--text-primary)]" : "bg-[var(--border-subtle)] text-[var(--text-primary)]/30"}`}>
                              <mode.icon size={24} />
                           </div>
                           <div>
                              <div className="font-black uppercase tracking-widest text-xs mb-1">{mode.label}</div>
-                             <div className="text-[10px] font-bold text-white/20 uppercase tracking-wide">{mode.desc}</div>
+                             <div className="text-[10px] font-bold text-[var(--text-primary)]/20 uppercase tracking-wide">{mode.desc}</div>
                           </div>
                        </button>
                      ))}
@@ -286,18 +286,18 @@ const CitiesPage = () => {
                </div>
 
                {/* Zones */}
-               <div className="bg-white/5 border border-white/5 rounded-[3rem] p-10 space-y-10">
+               <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
                   <div className="flex items-center justify-between">
                      <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                            <Layers className="text-sky-500" size={28} />
                            Leverans-zoner
                         </h2>
-                        <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Geofencing & prissättning per zon</p>
+                        <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Geofencing & prissättning per zon</p>
                      </div>
                      <button 
                        onClick={addZone}
-                       className="p-4 bg-sky-500 text-white rounded-2xl hover:bg-sky-400 transition-all shadow-xl shadow-sky-500/20"
+                       className="p-4 bg-sky-500 text-[var(--text-primary)] rounded-2xl hover:bg-sky-400 transition-all shadow-xl shadow-sky-500/20"
                      >
                        <Plus size={20} />
                      </button>
@@ -305,49 +305,49 @@ const CitiesPage = () => {
 
                   <div className="space-y-4">
                      {((typeof selectedCity.zones === 'string' ? JSON.parse(selectedCity.zones || '[]') : selectedCity.zones) || []).map((zone: any, idx: number) => (
-                       <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-white/10 grid md:grid-cols-4 gap-8 items-center">
+                       <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-[var(--border-strong)] grid md:grid-cols-4 gap-8 items-center">
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Namn på zon</label>
+                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Namn på zon</label>
                              <input 
-                               className="w-full bg-white/5 border border-white/5 rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-bold text-sm" 
+                               className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-bold text-sm" 
                                value={zone.name}
                                onChange={(e) => updateZone(zone.id, 'name', e.target.value)}
                              />
                           </div>
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Gräns (Radius KM)</label>
+                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gräns (Radius KM)</label>
                              <div className="relative">
                                 <input 
-                                  className="w-full bg-white/5 border border-white/5 rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
+                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
                                   value={zone.radiusKm}
                                   onChange={(e) => updateZone(zone.id, 'radiusKm', parseInt(e.target.value) || 0)}
                                 />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/20">KM</span>
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-[var(--text-primary)]/20">KM</span>
                              </div>
                           </div>
                           <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Avgift (KR)</label>
+                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Avgift (KR)</label>
                              <div className="relative">
                                 <input 
-                                  className="w-full bg-white/5 border border-white/5 rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
+                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
                                   value={zone.deliveryFee}
                                   onChange={(e) => updateZone(zone.id, 'deliveryFee', parseInt(e.target.value) || 0)}
                                 />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/20">KR</span>
+                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-[var(--text-primary)]/20">KR</span>
                              </div>
                           </div>
                           <div className="flex items-center gap-2 mt-4">
                              <div className="flex-1 space-y-2">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-white/20 ml-1">Minsta Order</label>
+                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Minsta Order</label>
                                 <input 
-                                  className="w-full bg-white/5 border border-white/5 rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm" 
+                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm" 
                                   value={zone.minOrder}
                                   onChange={(e) => updateZone(zone.id, 'minOrder', parseInt(e.target.value) || 0)}
                                 />
                              </div>
                              <button 
                                onClick={() => removeZone(zone.id)}
-                               className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 transition-all hover:text-white mt-5"
+                               className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 transition-all hover:text-[var(--text-primary)] mt-5"
                              >
                                 <Trash2 size={16} />
                              </button>
@@ -358,12 +358,12 @@ const CitiesPage = () => {
                </div>
 
                {/* Bottom Actions */}
-              <div className="flex justify-end pt-10 border-t border-white/5">
+              <div className="flex justify-end pt-10 border-t border-[var(--border-subtle)]">
                  <button 
                    onClick={handleSave}
                    disabled={isSaving}
                    className={`flex items-center gap-4 px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] transition-all shadow-2xl ${
-                     isSaving ? "bg-emerald-500 text-white scale-95" : "bg-sky-500 hover:bg-sky-400 text-white hover:scale-105"
+                     isSaving ? "bg-emerald-500 text-[var(--text-primary)] scale-95" : "bg-sky-500 hover:bg-sky-400 text-[var(--text-primary)] hover:scale-105"
                    }`}
                  >
                     {isSaving ? (
@@ -381,7 +381,7 @@ const CitiesPage = () => {
               </div>
             </motion.div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-40 text-white/10 gap-6">
+            <div className="flex flex-col items-center justify-center py-40 text-[var(--text-primary)]/10 gap-6">
                <MapPin size={64} />
                <p className="font-black uppercase tracking-[0.4em] text-sm">Välj en stad för att börja</p>
             </div>
@@ -403,7 +403,7 @@ const CitiesPage = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-[2.5rem] p-10 space-y-8"
+              className="w-full max-w-md bg-zinc-900 border border-[var(--border-strong)] rounded-[2.5rem] p-10 space-y-8"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center space-y-2">
@@ -411,18 +411,18 @@ const CitiesPage = () => {
                     <MapPin size={32} />
                  </div>
                  <h2 className="text-2xl font-black uppercase tracking-tight">Lägg till ny stad</h2>
-                 <p className="text-white/20 text-[10px] font-black uppercase tracking-widest">Ange namnet på staden du vill expandera till</p>
+                 <p className="text-[var(--text-primary)]/20 text-[10px] font-black uppercase tracking-widest">Ange namnet på staden du vill expandera till</p>
               </div>
 
               <div className="space-y-4">
                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Stadsnamn</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Stadsnamn</label>
                     <input 
                       autoFocus
                       value={newCityName}
                       onChange={(e) => setNewCityName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleAddCity()}
-                      className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-sky-500/50 font-bold text-lg" 
+                      className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-sky-500/50 font-bold text-lg" 
                       placeholder="t.ex. Stockholm" 
                     />
                  </div>
@@ -430,13 +430,13 @@ const CitiesPage = () => {
                  <div className="flex gap-4 pt-4">
                     <button 
                       onClick={() => setShowAddCityModal(false)}
-                      className="flex-1 py-4 bg-white/5 hover:bg-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all"
+                      className="flex-1 py-4 bg-[var(--border-subtle)] hover:bg-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all"
                     >
                       Avbryt
                     </button>
                     <button 
                       onClick={handleAddCity}
-                      className="flex-1 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-sky-500/20"
+                      className="flex-1 py-4 bg-sky-500 hover:bg-sky-400 text-[var(--text-primary)] rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-sky-500/20"
                     >
                       Spara stad
                     </button>

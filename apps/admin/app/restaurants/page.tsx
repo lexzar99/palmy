@@ -207,7 +207,7 @@ export default function RestaurantsPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6">
         <Loader2 className="animate-spin text-gold-500" size={48} />
-        <p className="text-white/40 font-black uppercase tracking-[0.3em] text-xs">Laddar plattformen...</p>
+        <p className="text-[var(--text-primary)]/40 font-black uppercase tracking-[0.3em] text-xs">Laddar plattformen...</p>
       </div>
     );
   }
@@ -223,20 +223,20 @@ export default function RestaurantsPage() {
             </div>
             <div>
                <h1 className="text-4xl font-black uppercase tracking-tight">Plattformsöversikt</h1>
-               <p className="text-white/40 font-medium tracking-wide">Hantera alla anslutna restauranger och deras synlighet.</p>
+               <p className="text-[var(--text-primary)]/40 font-medium tracking-wide">Hantera alla anslutna restauranger och deras synlighet.</p>
             </div>
           </div>
           
-          <div className="flex gap-2 p-1 bg-white/5 border border-white/5 rounded-2xl w-fit">
+          <div className="flex gap-2 p-1 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl w-fit">
             <button 
               onClick={() => { setActiveTab("OVERVIEW"); setSelectedId(null); }}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "OVERVIEW" ? "bg-gold-500 text-dark-500" : "text-white/40 hover:text-white"}`}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "OVERVIEW" ? "bg-gold-500 text-dark-500" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"}`}
             >
               Lista
             </button>
             <button 
               onClick={() => { setActiveTab("EDIT"); setForm(emptyForm); setSelectedId(null); }}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "EDIT" && !selectedId ? "bg-gold-500 text-dark-500" : "text-white/40 hover:text-white"}`}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "EDIT" && !selectedId ? "bg-gold-500 text-dark-500" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"}`}
             >
               Lägg till ny
             </button>
@@ -245,12 +245,12 @@ export default function RestaurantsPage() {
 
         <div className="flex items-center gap-4">
            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={18} />
               <input 
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 placeholder="Sök restauranger..."
-                className="bg-white/5 border border-white/10 rounded-2xl py-3 pl-12 pr-6 outline-none focus:ring-2 focus:ring-gold-500/20 transition-all text-sm w-full lg:w-72"
+                className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-3 pl-12 pr-6 outline-none focus:ring-2 focus:ring-gold-500/20 transition-all text-sm w-full lg:w-72"
               />
            </div>
         </div>
@@ -269,7 +269,7 @@ export default function RestaurantsPage() {
               <div 
                 key={r.id} 
                 onClick={() => { setSelectedId(r.id); setActiveTab("EDIT"); }}
-                className="group relative bg-white/5 border border-white/5 rounded-[2.5rem] overflow-hidden hover:border-gold-500/30 transition-all cursor-pointer flex flex-col h-[480px]"
+                className="group relative bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] overflow-hidden hover:border-gold-500/30 transition-all cursor-pointer flex flex-col h-[480px]"
               >
                  {/* Hero Header */}
                  <div className="h-44 w-full bg-dark-500 relative">
@@ -289,8 +289,8 @@ export default function RestaurantsPage() {
                     <div className="absolute top-4 right-6 flex flex-col items-end gap-2">
                        <span className={`rounded-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest ${
                          r.featuredClass === 1 ? "bg-gold-500 text-dark-500 shadow-[0_0_20px_rgba(212,167,74,0.4)]" : 
-                         r.featuredClass === 2 ? "bg-white/10 text-white/50 backdrop-blur-md" : 
-                         "bg-white/5 text-white/20 border border-white/5"
+                         r.featuredClass === 2 ? "bg-white/10 text-[var(--text-primary)]/50 backdrop-blur-md" : 
+                         "bg-[var(--border-subtle)] text-[var(--text-primary)]/20 border border-[var(--border-subtle)]"
                        }`}>
                           {r.featuredClass === 1 ? "Premium" : r.featuredClass === 2 ? "Standard" : "Dold"}
                        </span>
@@ -303,39 +303,39 @@ export default function RestaurantsPage() {
                           <h3 className="text-2xl font-black uppercase tracking-tight">{r.name}</h3>
                           <p className="text-xs text-gold-500 font-black uppercase tracking-[0.2em] mt-1">{r.cuisine || "Okänd genre"}</p>
                        </div>
-                       <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg border border-white/5">
+                       <div className="flex items-center gap-1 bg-[var(--border-subtle)] px-2 py-1 rounded-lg border border-[var(--border-subtle)]">
                           <Star className="fill-gold-500 text-gold-500" size={14} />
                           <span className="text-xs font-black">{(r.rating ?? 4.6).toFixed(1)}</span>
                        </div>
                     </div>
 
-                    <p className="text-sm text-white/40 line-clamp-2 mb-6 flex-1 italic leading-relaxed">
+                    <p className="text-sm text-[var(--text-primary)]/40 line-clamp-2 mb-6 flex-1 italic leading-relaxed">
                        {r.description || "Ingen beskrivning tillagd."}
                     </p>
 
                     <div className="grid grid-cols-2 gap-4 mb-8">
-                       <div className="flex items-center gap-3 text-white/30">
+                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
                           <Clock size={16} className="text-gold-500" />
                           <span className="text-[10px] font-black uppercase tracking-widest">{r.etaMinutes} MIN</span>
                        </div>
-                       <div className="flex items-center gap-3 text-white/30">
+                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
                           <Bike size={16} className="text-gold-500" />
                           <span className="text-[10px] font-black uppercase tracking-widest">{r.deliveryFee} KR</span>
                        </div>
-                       <div className="flex items-center gap-3 text-white/30">
+                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
                           <MapPin size={16} className="text-gold-500" />
                           <span className="text-[10px] font-black uppercase tracking-widest truncate">{r.city || "Lund"}</span>
                        </div>
-                       <div className="flex items-center gap-3 text-white/30">
+                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
                           <Check size={16} className={r.isOpen ? "text-emerald-500" : "text-red-500"} />
                           <span className="text-[10px] font-black uppercase tracking-widest">{r.isOpen ? "Aktiv" : "Stängd"}</span>
                        </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-6 border-t border-white/10 mt-auto">
+                    <div className="flex items-center justify-between pt-6 border-t border-[var(--border-strong)] mt-auto">
                        <div className="flex gap-2">
                           <button 
-                            className="p-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all"
+                            className="p-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-xl transition-all"
                             onClick={(e) => { e.stopPropagation(); setSelectedId(r.id); setActiveTab("EDIT"); }}
                           >
                              <Settings size={16} />
@@ -358,13 +358,13 @@ export default function RestaurantsPage() {
             {/* Add New Card */}
             <div 
               onClick={() => { setActiveTab("EDIT"); setForm(emptyForm); setSelectedId(null); }}
-              className="group border-4 border-dashed border-white/5 rounded-[2.5rem] flex flex-col items-center justify-center p-12 hover:border-gold-500/30 transition-all bg-white/[0.02]"
+              className="group border-4 border-dashed border-[var(--border-subtle)] rounded-[2.5rem] flex flex-col items-center justify-center p-12 hover:border-gold-500/30 transition-all bg-white/[0.02]"
             >
-               <div className="w-20 h-20 rounded-3xl bg-white/5 flex items-center justify-center text-white/20 group-hover:text-gold-500 group-hover:scale-110 transition-all mb-6">
+               <div className="w-20 h-20 rounded-3xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 group-hover:text-gold-500 group-hover:scale-110 transition-all mb-6">
                   <Plus size={40} />
                </div>
-               <h3 className="text-xl font-black uppercase tracking-tight text-white/20 group-hover:text-white transition-colors">Lägg till Restaurang</h3>
-               <p className="text-white/10 text-xs font-bold uppercase tracking-widest mt-2">Expansion</p>
+               <h3 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]/20 group-hover:text-[var(--text-primary)] transition-colors">Lägg till Restaurang</h3>
+               <p className="text-[var(--text-primary)]/10 text-xs font-bold uppercase tracking-widest mt-2">Expansion</p>
             </div>
           </motion.div>
         ) : (
@@ -377,40 +377,40 @@ export default function RestaurantsPage() {
              <div className="grid lg:grid-cols-[1fr,380px] gap-10">
                 {/* Main Form */}
                 <div className="space-y-8">
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
                       <div>
                          <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3">
                            <Sparkles className="text-gold-500" size={24} />
                            Grundlig information
                          </h2>
-                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Hur restaurangen presenteras för kunderna.</p>
+                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Hur restaurangen presenteras för kunderna.</p>
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-8">
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Restaurangnamn</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Restaurangnamn</label>
                             <input 
                               value={form.name} 
                               onChange={e => setForm({...form, name: e.target.value})}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
+                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
                               placeholder="t.ex. MatGo Sushi"
                             />
                          </div>
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Sökord / Hashtags (Kebab, Pizza, m.m.)</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Sökord / Hashtags (Kebab, Pizza, m.m.)</label>
                             <input 
                               value={form.cuisine} 
                               onChange={e => setForm({...form, cuisine: e.target.value})}
-                              className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
+                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
                               placeholder="t.ex. Kebab, Pizza, Falafel"
                             />
                          </div>
                          <div className="md:col-span-2 space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Kort Pitch / Beskrivning</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Kort Pitch / Beskrivning</label>
                             <textarea 
                               value={form.description} 
                               onChange={e => setForm({...form, description: e.target.value})}
-                              className="w-full bg-white/5 border border-white/5 rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none" 
+                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none" 
                               placeholder="Fånga kundens intresse..."
                             />
                          </div>
@@ -418,9 +418,9 @@ export default function RestaurantsPage() {
 
                       <div className="grid md:grid-cols-3 gap-8">
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">City / Stad</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">City / Stad</label>
                             <div className="relative">
-                               <MapPin size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" />
+                               <MapPin size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" />
                                <select 
                                  value={form.city} 
                                  onChange={e => {
@@ -430,7 +430,7 @@ export default function RestaurantsPage() {
                                    }
                                    setForm({...form, city: e.target.value});
                                  }} 
-                                 className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold appearance-none uppercase text-xs"
+                                 className="w-full bg-white/2 border border-[var(--border-subtle)] rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold appearance-none uppercase text-xs"
                                >
                                  <option value="">Välj stad...</option>
                                  {cities.map(city => (
@@ -441,59 +441,59 @@ export default function RestaurantsPage() {
                             </div>
                          </div>
                           <div className="space-y-2">
-                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Telefonnummer</label>
+                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Telefonnummer</label>
                              <div className="relative">
-                                <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" />
-                                <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="046-XXX XXX" />
+                                <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" />
+                                <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="046-XXX XXX" />
                              </div>
                           </div>
                           <div className="space-y-2">
-                             <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Postnummer</label>
-                             <input value={form.zip || ""} onChange={e => setForm({...form, zip: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="222 10" />
+                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Postnummer</label>
+                             <input value={form.zip || ""} onChange={e => setForm({...form, zip: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="222 10" />
                           </div>
                        </div>
                        <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Adress</label>
-                          <input value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10" />
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Adress</label>
+                          <input value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10" />
                        </div>
                    </div>
 
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
                       <div>
                          <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3">
                            <Bike className="text-gold-500" size={24} />
                            Logistik & Operations
                          </h2>
-                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Leveransvillkor och räckvidd.</p>
+                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Leveransvillkor och räckvidd.</p>
                       </div>
 
                       <div className="grid md:grid-cols-3 gap-6">
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-white/5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-4 block">Minsta Order</label>
+                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">Minsta Order</label>
                             <div className="flex items-end gap-2">
                                <input type="number" value={form.minOrderAmount} onChange={e => setForm({...form, minOrderAmount: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-white/20 mb-1">KR</span>
+                               <span className="font-black text-[var(--text-primary)]/20 mb-1">KR</span>
                             </div>
                          </div>
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-white/5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-4 block">Leveransavgift</label>
+                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">Leveransavgift</label>
                             <div className="flex items-end gap-2">
                                <input type="number" value={form.deliveryFee} onChange={e => setForm({...form, deliveryFee: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-white/20 mb-1">KR</span>
+                               <span className="font-black text-[var(--text-primary)]/20 mb-1">KR</span>
                             </div>
                          </div>
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-white/5">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/20 mb-4 block">ETA (Minuter)</label>
+                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">ETA (Minuter)</label>
                             <div className="flex items-end gap-2">
                                <input type="number" value={form.etaMinutes} onChange={e => setForm({...form, etaMinutes: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-white/20 mb-1">MIN</span>
+                               <span className="font-black text-[var(--text-primary)]/20 mb-1">MIN</span>
                             </div>
                          </div>
                       </div>
 
                       <div className="space-y-6">
                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Öppettider (Visuell hantering)</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Öppettider (Visuell hantering)</label>
                             <button 
                               type="button"
                               onClick={() => {
@@ -522,9 +522,9 @@ export default function RestaurantsPage() {
                               const dayNames: any = { monday: "Måndag", tuesday: "Tisdag", wednesday: "Onsdag", thursday: "Torsdag", friday: "Fredag", saturday: "Lördag", sunday: "Söndag" };
                               
                               return (
-                                <div key={day} className="bg-dark-500 rounded-2xl border border-white/5 p-4">
+                                <div key={day} className="bg-dark-500 rounded-2xl border border-[var(--border-subtle)] p-4">
                                   <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xs font-black uppercase tracking-widest text-white/60">{dayNames[day]}</span>
+                                    <span className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]/60">{dayNames[day]}</span>
                                     <button 
                                       type="button"
                                       onClick={() => {
@@ -533,7 +533,7 @@ export default function RestaurantsPage() {
                                         next[day].push({ open: "11:00", close: "22:00" });
                                         setForm({ ...form, openingHours: JSON.stringify(next) });
                                       }}
-                                      className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-gold-500 transition-all"
+                                      className="p-1.5 bg-[var(--border-subtle)] hover:bg-white/10 rounded-lg text-gold-500 transition-all"
                                     >
                                       <Plus size={14} />
                                     </button>
@@ -553,9 +553,9 @@ export default function RestaurantsPage() {
                                               next[day][idx].open = e.target.value;
                                               setForm({ ...form, openingHours: JSON.stringify(next) });
                                             }}
-                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
+                                            className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
                                           />
-                                          <span className="text-white/20">-</span>
+                                          <span className="text-[var(--text-primary)]/20">-</span>
                                           <input 
                                             type="time" 
                                             value={slot.close} 
@@ -564,7 +564,7 @@ export default function RestaurantsPage() {
                                               next[day][idx].close = e.target.value;
                                               setForm({ ...form, openingHours: JSON.stringify(next) });
                                             }}
-                                            className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
+                                            className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
                                           />
                                           <button 
                                             type="button"
@@ -588,26 +588,26 @@ export default function RestaurantsPage() {
                       </div>
                    </div>
 
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
                       <div>
                          <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-red-400">
                            <Lock size={24} />
                            Admin-inloggning
                          </h2>
-                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Hantera inloggningsuppgifter för denna restaurang.</p>
+                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Hantera inloggningsuppgifter för denna restaurang.</p>
                       </div>
 
                       <div className="grid md:grid-cols-2 gap-8">
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Användarnamn (Slug)</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Användarnamn (Slug)</label>
                             <input 
                               value={form.slug} 
                               onChange={e => setForm({...form, slug: e.target.value})}
-                              className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
+                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
                             />
                          </div>
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Nytt Lösenord</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Nytt Lösenord</label>
                             <input 
                               type="password"
                               value={form.adminPassword || ""} 
@@ -625,21 +625,21 @@ export default function RestaurantsPage() {
                       </div>
                    </div>
 
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-10 space-y-10">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
                       <div>
                          <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-sky-400">
                            <Users size={24} />
                            Endast Superior (Intern Info)
                          </h2>
-                         <p className="text-white/30 text-xs font-medium uppercase tracking-[0.2em]">Information som endast du som Super Admin kan se.</p>
+                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Information som endast du som Super Admin kan se.</p>
                       </div>
 
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Interna anteckningar</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Interna anteckningar</label>
                         <textarea 
                           value={form.internalInfo || ""} 
                           onChange={e => setForm({...form, internalInfo: e.target.value})}
-                          className="w-full bg-white/5 border border-white/5 rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none border-l-4 border-l-sky-500" 
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none border-l-4 border-l-sky-500" 
                           placeholder="T.ex. Kontaktperson, Avtalsdetaljer, Swish-nummer..."
                         />
                       </div>
@@ -649,28 +649,28 @@ export default function RestaurantsPage() {
                 {/* Sidebar Controls */}
                 <div className="space-y-8">
                    {/* Coverage Images */}
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-10 shadow-2xl">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 space-y-10 shadow-2xl">
                       <div>
                         <h3 className="text-xl font-black uppercase tracking-tight mb-6 italic">Visuellt</h3>
                         
                         {/* Cover (Hero) Photo */}
                         <div className="space-y-4 mb-8">
-                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Cover Photo (Banner)</label>
+                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 ml-1">Cover Photo (Banner)</label>
                            <div 
                              onClick={() => heroInputRef.current?.click()}
-                             className="group relative h-40 w-full rounded-2xl border-2 border-dashed border-white/10 overflow-hidden bg-white/5 flex flex-col items-center justify-center cursor-pointer hover:border-gold-500/30 transition-all shadow-xl"
+                             className="group relative h-40 w-full rounded-2xl border-2 border-dashed border-[var(--border-strong)] overflow-hidden bg-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-gold-500/30 transition-all shadow-xl"
                            >
                               {form.heroImageUrl ? (
                                 <>
                                   <img src={form.heroImageUrl.startsWith('data:') ? form.heroImageUrl : (form.heroImageUrl.startsWith('/') ? `${API_URL}${form.heroImageUrl}` : form.heroImageUrl)} className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-all" alt="" />
                                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all">
-                                     <Upload className="text-white" />
+                                     <Upload className="text-[var(--text-primary)]" />
                                   </div>
                                 </>
                               ) : (
                                 <>
-                                   <ImageIcon className="text-white/10 group-hover:text-gold-500 mb-2" size={32} />
-                                   <span className="text-[10px] font-black text-white/20 uppercase">Byt Cover</span>
+                                   <ImageIcon className="text-[var(--text-primary)]/10 group-hover:text-gold-500 mb-2" size={32} />
+                                   <span className="text-[10px] font-black text-[var(--text-primary)]/20 uppercase">Byt Cover</span>
                                 </>
                               )}
                               <input ref={heroInputRef} type="file" className="hidden" onChange={e => handleImageUpload(e, 'heroImageUrl')} />
@@ -679,14 +679,14 @@ export default function RestaurantsPage() {
 
                         {/* Profile Photo */}
                         <div className="space-y-4">
-                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">Logo / Avatar</label>
+                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 ml-1">Logo / Avatar</label>
                            <div className="flex items-center gap-6">
-                              <div className="h-24 w-24 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden shadow-2xl ring-1 ring-white/5 leading-none">
-                                {form.imageUrl ? <img src={form.imageUrl.startsWith('data:') ? form.imageUrl : (form.imageUrl.startsWith('/') ? `${API_URL}${form.imageUrl}` : form.imageUrl)} className="h-full w-full object-cover" alt="" /> : <Plus className="text-white/10" />}
+                              <div className="h-24 w-24 rounded-2xl bg-[var(--border-subtle)] border border-[var(--border-strong)] flex items-center justify-center shrink-0 overflow-hidden shadow-2xl ring-1 ring-white/5 leading-none">
+                                {form.imageUrl ? <img src={form.imageUrl.startsWith('data:') ? form.imageUrl : (form.imageUrl.startsWith('/') ? `${API_URL}${form.imageUrl}` : form.imageUrl)} className="h-full w-full object-cover" alt="" /> : <Plus className="text-[var(--text-primary)]/10" />}
                               </div>
                               <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 text-[10px] font-black uppercase tracking-widest transition-all"
+                                className="flex-1 py-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-widest transition-all"
                               >
                                 Välj Bild
                               </button>
@@ -697,11 +697,11 @@ export default function RestaurantsPage() {
                    </div>
 
                    {/* Visibility Controls */}
-                   <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-8">
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 space-y-8">
                       <div>
                         <h3 className="text-xl font-black uppercase tracking-tight mb-4">Synlighet</h3>
                         <div className="space-y-4">
-                           <div className="flex items-center justify-between p-4 bg-dark-500 rounded-2xl border border-white/5">
+                           <div className="flex items-center justify-between p-4 bg-dark-500 rounded-2xl border border-[var(--border-subtle)]">
                               <div className="flex items-center gap-3">
                                 <span className="text-xs font-black uppercase tracking-widest">Öppen för köp</span>
                               </div>
@@ -716,14 +716,14 @@ export default function RestaurantsPage() {
                               </button>
                            </div>
 
-                           <div className="p-4 bg-dark-500 rounded-2xl border border-white/5 space-y-4">
-                              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-white/30 block">Featured Class (Nivå)</label>
+                           <div className="p-4 bg-dark-500 rounded-2xl border border-[var(--border-subtle)] space-y-4">
+                              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 block">Featured Class (Nivå)</label>
                               <div className="flex gap-2">
                                  {[1, 2, 3].map(cls => (
                                     <button 
                                       key={cls}
                                       onClick={() => setForm({...form, featuredClass: cls})}
-                                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${form.featuredClass === cls ? 'bg-gold-500 text-dark-500 shadow-[0_0_15px_rgba(212,167,74,0.3)]' : 'bg-white/5 text-white/30'}`}
+                                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${form.featuredClass === cls ? 'bg-gold-500 text-dark-500 shadow-[0_0_15px_rgba(212,167,74,0.3)]' : 'bg-[var(--border-subtle)] text-[var(--text-primary)]/30'}`}
                                     >
                                        {cls === 1 ? '🥇' : cls === 2 ? '🥈' : '🥉'}
                                     </button>
