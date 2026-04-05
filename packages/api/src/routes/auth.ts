@@ -83,17 +83,30 @@ router.post('/verify-otp', async (req, res) => {
     // Handle User creation/login/update
     let user = null;
 
-    // Check if we are currently authenticated via OAuth
+    // Check if we are currently authenticated (e.g. via Google OAuth)
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       try {
         const payload = jwt.verify(authHeader.split(' ')[1], JWT_SECRET) as any;
+        
+        // Before updating, check if this phone is already taken by another account
+        const existingWithPhone = await (prisma as any).user.findUnique({ where: { phone } });
+        
+        if (existingWithPhone && existingWithPhone.id !== payload.id) {
+          // If the existing account is just a guest (no Google/Email), we can "consume" its phone number
+          if (!existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password) {
+             await (prisma as any).user.delete({ where: { id: existingWithPhone.id } });
+          } else {
+             return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto' });
+          }
+        }
+
         user = await (prisma as any).user.update({
           where: { id: payload.id },
           data: { phone, isVerified: true }
         });
       } catch (e) {
-        // Token invalid, proceed as guest login/register
+        console.error('Link phone error:', e);
       }
     }
 
