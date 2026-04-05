@@ -410,9 +410,6 @@ export default function ProfilePage() {
             >
               {addPhoneLoading ? <Loader2 className="animate-spin" size={20} /> : "Spara nummer"}
             </button>
-            <button type="button" onClick={() => setShowAddPhone(false)} className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors">
-              Hoppa över för nu
-            </button>
           </form>
         </motion.div>
       </div>
