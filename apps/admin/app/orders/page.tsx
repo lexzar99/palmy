@@ -236,10 +236,11 @@ const AdminOrdersPage = () => {
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socket.on("connect", () => socket.emit("join:admin", { restaurantId: selectedRestaurantId }));
     socket.on("order:new", (order: any) => {
+      console.log("📥 Ny order via socket:", order);
       const shouldShow = isSuperAdmin ? (!selectedRestaurantId || order.restaurantId === selectedRestaurantId) : (order.restaurantId === selectedRestaurantId);
       if (shouldShow) {
         setOrders((prev) => [order as Order, ...prev.filter(o => o.id !== order.id)].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        audioRef.current?.play().catch(() => {});
+        audioRef.current?.play().catch((err) => console.warn("Ljudfel:", err));
       }
     });
     socket.on("order:updated", () => fetchData());
@@ -340,8 +341,20 @@ const AdminOrdersPage = () => {
 
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div>
-          <div className="text-[9px] items-center gap-2 font-black uppercase tracking-[0.3em] text-gold-500/50 flex mb-1 italic"><div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live Monitoring</div>
-          <h1 className="text-4xl font-black uppercase tracking-tighter text-white italic">{selectedRestaurantName || "Central"} <span className="text-gold-500">Hub</span></h1>
+          <div className="text-[9px] items-center gap-2 font-black uppercase tracking-[0.3em] text-gold-500/50 flex mb-1 italic">
+            <div className={`w-1.5 h-1.5 rounded-full ${loading ? 'bg-amber-500 animate-spin' : 'bg-emerald-500 animate-pulse'}`} /> 
+            Live Monitoring
+          </div>
+          <div className="flex items-center gap-4">
+            <h1 className="text-4xl font-black uppercase tracking-tighter text-white italic">{selectedRestaurantName || "Central"} <span className="text-gold-500">Hub</span></h1>
+            <button 
+              onClick={fetchData} 
+              disabled={loading}
+              className={`p-2 transition-all rounded-xl border border-white/5 bg-[#0a0c14] hover:bg-white/5 ${loading ? 'opacity-50' : ''}`}
+            >
+              <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
         <div className="grid grid-cols-2 lg:flex gap-4">
            <div className="bg-[#0a0c14] border border-white/5 p-6 rounded-[2rem] min-w-[160px] shadow-2xl">

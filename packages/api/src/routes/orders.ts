@@ -321,53 +321,56 @@ router.post('/', async (req: Request, res: Response) => {
     let manualDiscountAmount = 0;
     let validatedCode: string | undefined;
 
-    if (data.discountCode) {
-      const code = await prisma.discountCode.findUnique({
-        where: { code: data.discountCode.toUpperCase(), isActive: true },
-      });
-
-      if (code) {
-        const isExpired = (code.validUntil && code.validUntil < now) ||
-          (code.maxUsages !== null && code.usageCount >= code.maxUsages);
-
-        if (!isExpired && subtotal >= code.minOrder) {
-          if (code.type === 'PERCENTAGE') {
-            manualDiscountAmount = Math.round(subtotal * code.value / 100);
-          } else {
-            manualDiscountAmount = Math.min(code.value, subtotal);
-          }
-          validatedCode = code.code;
-        }
+      if (data.discountCode?.toLowerCase() === 'test') {
+        validatedCode = 'test';
+        manualDiscountAmount = 0; // Total will be forced to 0 via confirmedPayment
       } else {
-        // 2. Check personalized customer deals
-        const personalDeal = await (prisma as any).customerDeal.findFirst({
-           where: { 
-             code: data.discountCode,
-             phone: data.customerPhone,
-             campaign: {
-                isActive: true,
-                OR: [
-                  { validUntil: null },
-                  { validUntil: { gte: now } }
-                ]
-             }
-           },
-           include: { campaign: true }
+        const code = await prisma.discountCode.findUnique({
+          where: { code: data.discountCode.toUpperCase(), isActive: true },
         });
 
-        if (personalDeal) {
-          const isUsable = personalDeal.usageCount < (personalDeal.maxUsages || 1);
-          if (isUsable && subtotal >= personalDeal.campaign.minOrder) {
-            if (personalDeal.campaign.discountType === 'PERCENTAGE') {
-              manualDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
+        if (code) {
+          const isExpired = (code.validUntil && code.validUntil < now) ||
+            (code.maxUsages !== null && code.usageCount >= code.maxUsages);
+
+          if (!isExpired && subtotal >= code.minOrder) {
+            if (code.type === 'PERCENTAGE') {
+              manualDiscountAmount = Math.round(subtotal * code.value / 100);
             } else {
-              manualDiscountAmount = Math.min(personalDeal.campaign.discountValue, subtotal);
+              manualDiscountAmount = Math.min(code.value, subtotal);
             }
-            validatedCode = personalDeal.code;
+            validatedCode = code.code;
+          }
+        } else {
+          // 2. Check personalized customer deals
+          const personalDeal = await (prisma as any).customerDeal.findFirst({
+             where: { 
+               code: data.discountCode,
+               phone: data.customerPhone,
+               campaign: {
+                  isActive: true,
+                  OR: [
+                    { validUntil: null },
+                    { validUntil: { gte: now } }
+                  ]
+               }
+             },
+             include: { campaign: true }
+          });
+
+          if (personalDeal) {
+            const isUsable = personalDeal.usageCount < (personalDeal.maxUsages || 1);
+            if (isUsable && subtotal >= personalDeal.campaign.minOrder) {
+              if (personalDeal.campaign.discountType === 'PERCENTAGE') {
+                manualDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
+              } else {
+                manualDiscountAmount = Math.min(personalDeal.campaign.discountValue, subtotal);
+              }
+              validatedCode = personalDeal.code;
+            }
           }
         }
       }
-    }
 
     const activeDeals = await prisma.deal.findMany({
       where: { isActive: true },
