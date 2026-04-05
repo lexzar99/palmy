@@ -51,15 +51,55 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-24">
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Palmyra Control Center</div>
-            <h1 className="text-4xl font-black uppercase tracking-tight">Översikt</h1>
-            <p className="mt-3 max-w-2xl text-white/40">
-              Meny, avgifter och orderflöde är nu tänkta att styras från samma panel. Härifrån kan du snabbt hoppa vidare till det som behöver uppmärksamhet.
-            </p>
-          </div>
+      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+        <div>
+          <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-white/20">Palmyra Control Center</div>
+          <h1 className="text-4xl font-black uppercase tracking-tight">Översikt</h1>
+          <p className="mt-3 max-w-2xl text-white/40">
+            Meny, avgifter och orderflöde är nu tänkta att styras från samma panel. Härifrån kan du snabbt hoppa vidare till det som behöver uppmärksamhet.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-4">
+           {/* Quick Test Action */}
+           <button 
+             onClick={async () => {
+               if (!selectedRestaurantId) return;
+               const confirmTest = confirm("Vill du skapa en automatisk test-order för att se till att systemet och aviseringar fungerar?");
+               if (!confirmTest) return;
+               
+               try {
+                 const productsRes = await axios.get(`${API_URL}/api/menu?restaurantId=${selectedRestaurantId}`);
+                 const products = productsRes.data.flatMap((c: any) => c.products);
+                 if (products.length === 0) throw new Error("Hittade inga produkter");
+                 
+                 const randomProduct = products[Math.floor(Math.random() * products.length)];
+                 
+                 await axios.post(`${API_URL}/api/orders`, {
+                   restaurantId: selectedRestaurantId,
+                   type: "PICKUP",
+                   customerName: "TEST ORDER 🤖",
+                   customerPhone: "0700101010",
+                   customerEmail: "test@vincents.ai",
+                   discountCode: "test",
+                   stripePaymentIntentId: "TEST_PAYMENT",
+                   items: [{
+                     productId: randomProduct.id,
+                     quantity: 1,
+                     selectedExtras: [],
+                     note: "Detta är en automatisk test-order"
+                   }]
+                 });
+                 alert("KLART! Test-order skapad. Kontrollera 'Beställningar' nu.");
+               } catch (err) {
+                 alert("Kunde inte skapa test-order: " + err);
+               }
+             }}
+             className="px-6 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all text-[11px] font-black uppercase tracking-widest text-gold-500 flex items-center gap-3 active:scale-95"
+           >
+              Skapa Test-Order 🤖
+           </button>
+
           <div className={`rounded-2xl border px-5 py-4 ${settings.isOpen ? "border-green-500/20 bg-green-500/10 text-green-300" : "border-red-500/20 bg-red-500/10 text-red-300"}`}>
             <div className="text-[10px] uppercase tracking-[0.3em] opacity-70">Status</div>
             <div className="mt-1 text-xl font-black uppercase">{settings.isOpen ? "Öppen" : "Stängd"}</div>

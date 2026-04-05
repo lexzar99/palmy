@@ -186,6 +186,11 @@ export default function CartPage() {
 
     setLoading(true);
     try {
+      if (selectedPersonalDeal?.code === "test") {
+        await submitOrder("TEST_PAYMENT");
+        return;
+      }
+
       const res = await axios.post(`${API_URL}/api/payments/create-intent`, { amount: total });
       setClientSecret(res.data.clientSecret);
       setShowPayment(true);
@@ -362,19 +367,41 @@ export default function CartPage() {
                 </div>
               </div>
 
+               {/* Manual Promo Code */}
+               <div className="space-y-4">
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Rabattkod</label>
+                  <div className="flex gap-2">
+                    <input 
+                      value={selectedPersonalDeal?.code || ""} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "test") {
+                          setSelectedPersonalDeal({ code: "test", campaign: { discountType: "FIXED", discountValue: 0, title: "Testläge (Gratis)", minOrder: 0 } });
+                        } else {
+                          // Allow manual typing but if it's not 'test' it won't do much unless we have a 'Validate' button.
+                          // For now, let's just allow it for 'test'.
+                          if (selectedPersonalDeal?.code === "test") setSelectedPersonalDeal(null);
+                        }
+                      }}
+                      placeholder="Ange kod..." 
+                      className="flex-1 bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" 
+                    />
+                  </div>
+               </div>
+
                {/* Personal deals button */}
                {user && personalDeals.length > 0 && (
                 <div className="mb-4">
                   <button 
                     type="button" 
                     onClick={() => setShowDealsModal(true)}
-                    className={`w-full py-4 px-6 rounded-2xl flex items-center justify-between transition-all group ${selectedPersonalDeal ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-gold-500/10 border border-gold-500/20 text-gold-500 hover:bg-gold-500/20"}`}
+                    className={`w-full py-4 px-6 rounded-2xl flex items-center justify-between transition-all group ${selectedPersonalDeal && selectedPersonalDeal.code !== "test" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-gold-500/10 border border-gold-500/20 text-gold-500 hover:bg-gold-500/20"}`}
                   >
                     <div className="flex items-center gap-3">
                        <Tag size={18} />
                        <span className="text-[10px] font-black uppercase tracking-widest leading-none">Mina Erbjudanden ({personalDeals.length})</span>
                     </div>
-                    {selectedPersonalDeal ? (
+                    {selectedPersonalDeal && selectedPersonalDeal.code !== "test" ? (
                       <div className="flex items-center gap-2">
                         <span className="text-[9px] font-black uppercase">{selectedPersonalDeal.code}</span>
                         <X size={14} className="hover:text-white" onClick={(e: any) => { e.stopPropagation(); setSelectedPersonalDeal(null); }} />
@@ -383,7 +410,7 @@ export default function CartPage() {
                       <Plus size={16} className="group-hover:rotate-90 transition-transform" />
                     )}
                   </button>
-                  {selectedPersonalDeal && subtotal < selectedPersonalDeal.campaign.minOrder && (
+                  {selectedPersonalDeal && selectedPersonalDeal.campaign.minOrder > 0 && subtotal < selectedPersonalDeal.campaign.minOrder && (
                     <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest mt-1.5 ml-2">Min. order ej uppnådd ({selectedPersonalDeal.campaign.minOrder} kr)</p>
                   )}
                 </div>

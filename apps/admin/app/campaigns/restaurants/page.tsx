@@ -196,25 +196,83 @@ export default function RestaurantCampaignsPage() {
                         <p className="text-sm font-bold text-white/40 mb-10 leading-relaxed max-w-md">{selectedDeal.description || "Ingen beskrivning angiven."}</p>
 
                         <div className="grid grid-cols-2 gap-4 mb-10">
-                           {[
-                              { label: "Värde", val: `${selectedDeal.discountValue}${selectedDeal.discountType === "PERCENTAGE" ? "%" : " kr"}` },
-                              { label: "Minsta Order", val: `${selectedDeal.minOrder} kr` },
-                              { label: "Prioritet (Sjö)", val: selectedDeal.sortOrder },
-                              { label: "Synlig på sajt", val: selectedDeal.showOnSite ? "Ja" : "Nej" }
-                           ].map(stat => (
-                             <div key={stat.label} className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                                <div className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-1">{stat.label}</div>
-                                <div className="text-xs font-black uppercase tracking-tight text-white/80">{stat.val}</div>
-                             </div>
-                           ))}
+                           <div className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Rabattvärde</label>
+                              <div className="flex bg-white/5 rounded-2xl border border-white/5 p-2 overflow-hidden items-center">
+                                <input 
+                                  type="number"
+                                  value={selectedDeal.discountValue}
+                                  onChange={e => setSelectedDeal({ ...selectedDeal, discountValue: Number(e.target.value) })}
+                                  className="bg-transparent flex-1 outline-none px-4 text-sm font-black"
+                                />
+                                <div className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black uppercase">
+                                  {selectedDeal.discountType === "PERCENTAGE" ? "%" : "kr"}
+                                </div>
+                              </div>
+                           </div>
+                           <div className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Minsta Order</label>
+                              <div className="flex bg-white/5 rounded-2xl border border-white/5 p-2 overflow-hidden items-center">
+                                <input 
+                                  type="number"
+                                  value={selectedDeal.minOrder}
+                                  onChange={e => setSelectedDeal({ ...selectedDeal, minOrder: Number(e.target.value) })}
+                                  className="bg-transparent flex-1 outline-none px-4 text-sm font-black"
+                                />
+                                <div className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                                  KR
+                                </div>
+                              </div>
+                           </div>
+                           <div className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Sortering (Högst först)</label>
+                              <input 
+                                type="number"
+                                value={selectedDeal.sortOrder}
+                                onChange={e => setSelectedDeal({ ...selectedDeal, sortOrder: Number(e.target.value) })}
+                                className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-black outline-none focus:ring-1 focus:ring-emerald-500/50"
+                              />
+                           </div>
+                           <div className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Synlighet</label>
+                              <div className="flex gap-2">
+                                 <button 
+                                   onClick={() => setSelectedDeal({ ...selectedDeal, showOnSite: !selectedDeal.showOnSite })}
+                                   className={`flex-1 py-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${selectedDeal.showOnSite ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-white/5 border-white/10 text-white/20"}`}
+                                 >
+                                    Produktion
+                                 </button>
+                                 <button 
+                                   onClick={() => setSelectedDeal({ ...selectedDeal, isGlobal: !selectedDeal.isGlobal })}
+                                   className={`flex-1 py-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${selectedDeal.isGlobal ? "bg-sky-500/10 border-sky-500/30 text-sky-500" : "bg-white/5 border-white/10 text-white/20"}`}
+                                 >
+                                    Global
+                                 </button>
+                              </div>
+                           </div>
                         </div>
 
                         <div className="space-y-4">
                            <button 
+                             onClick={async () => {
+                               try {
+                                 const { restaurant, ...cleanDeal } = selectedDeal;
+                                 await axios.patch(`${API_URL}/api/admin/deals/${selectedDeal.id}`, cleanDeal, {
+                                   headers: { Authorization: `Bearer ${getToken()}` }
+                                 });
+                                 fetchData();
+                                 alert("Spara lyckades!");
+                               } catch { alert("Kunde inte spara"); }
+                             }}
+                             className="w-full py-5 bg-emerald-500 text-dark-500 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20"
+                           >
+                              Spara Ändringar
+                           </button>
+                           <button 
                              onClick={() => toggleDealStatus(selectedDeal.id, selectedDeal.isActive)}
                              className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedDeal.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"}`}
                            >
-                              {selectedDeal.isActive ? "Avaktivera Erbjudande" : "Aktivera Erbjudande"}
+                              {selectedDeal.isActive ? "Pausa tillfälligt" : "Aktivera nu"}
                            </button>
                            <button 
                              onClick={() => handleDeleteDeal(selectedDeal.id)}

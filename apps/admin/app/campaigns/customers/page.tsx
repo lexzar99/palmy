@@ -244,40 +244,81 @@ export default function CustomerCampaignsPage() {
 
                         <p className="text-sm font-bold text-white/40 mb-10 leading-relaxed max-w-md">{selectedCampaign.description || "Ingen beskrivning angiven."}</p>
 
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
-                           {[
-                              { label: "Typ", val: selectedCampaign.discountType },
-                              { label: "Värde", val: `${selectedCampaign.discountValue}${selectedCampaign.discountType === "PERCENTAGE" ? "%" : " kr"}` },
-                              { label: "Minsta Order", val: `${selectedCampaign.minOrder} kr` },
-                              { label: "Max/Kund", val: `${selectedCampaign.maxUsagesPerCustomer} gånger` },
-                              { label: "Totalt Genererade", val: `${selectedCampaign._count.deals} st` },
-                              { label: "Status", val: selectedCampaign.isActive ? "Aktiv" : "Pausad" }
-                           ].map(stat => (
-                             <div key={stat.label} className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                                <div className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-1">{stat.label}</div>
-                                <div className="text-xs font-black uppercase tracking-tight text-white/80">{stat.val}</div>
-                             </div>
-                           ))}
-                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mb-10">
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Rabattvärde</label>
+                               <div className="flex bg-white/5 rounded-2xl border border-white/5 p-2 overflow-hidden items-center">
+                                 <input 
+                                   type="number"
+                                   value={selectedCampaign.discountValue}
+                                   onChange={e => setSelectedCampaign({ ...selectedCampaign, discountValue: Number(e.target.value) })}
+                                   className="bg-transparent flex-1 outline-none px-4 text-sm font-black"
+                                 />
+                                 <div className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black uppercase">
+                                   {selectedCampaign.discountType === "PERCENTAGE" ? "%" : "kr"}
+                                 </div>
+                               </div>
+                            </div>
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Minsta Order</label>
+                               <div className="flex bg-white/5 rounded-2xl border border-white/5 p-2 overflow-hidden items-center">
+                                 <input 
+                                   type="number"
+                                   value={selectedCampaign.minOrder}
+                                   onChange={e => setSelectedCampaign({ ...selectedCampaign, minOrder: Number(e.target.value) })}
+                                   className="bg-transparent flex-1 outline-none px-4 text-sm font-black"
+                                 />
+                                 <div className="px-4 py-2 bg-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                                   KR
+                                 </div>
+                               </div>
+                            </div>
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Gånger per kund</label>
+                               <input 
+                                 type="number"
+                                 value={selectedCampaign.maxUsagesPerCustomer}
+                                 onChange={e => setSelectedCampaign({ ...selectedCampaign, maxUsagesPerCustomer: Number(e.target.value) })}
+                                 className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-black outline-none focus:ring-1 focus:ring-gold-500/50"
+                               />
+                            </div>
+                            <div className="space-y-4">
+                               <label className="text-[10px] font-black uppercase tracking-widest text-white/20 ml-1">Status</label>
+                               <div className="flex items-center gap-3 bg-white/5 border border-white/5 rounded-2xl p-4">
+                                 <div className={`w-3 h-3 rounded-full ${selectedCampaign.isActive ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-rose-500'}`} />
+                                 <span className="text-[10px] font-black uppercase tracking-widest">{selectedCampaign.isActive ? 'Aktiv' : 'Pausad'}</span>
+                               </div>
+                            </div>
+                         </div>
 
-                        <div className="space-y-4">
-                           <div className="space-y-4">
-                           <button 
-                             onClick={() => handleUpdateCampaign(selectedCampaign.id, { isActive: !selectedCampaign.isActive })}
-                             className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedCampaign.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"}`}
-                           >
-                              {selectedCampaign.isActive ? "Avaktivera Kampanj" : "Aktivera Kampanj"}
-                           </button>
-                           <button 
-                             onClick={() => handleDeleteCampaign(selectedCampaign.id)}
-                             className="w-full py-5 rounded-2xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[11px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-3"
-                           >
-                              <Trash2 size={16} /> Radera Kampanj
-                           </button>
-                        </div>
-                        </div>
-                     </div>
-                  </motion.div>
+                         <div className="space-y-4">
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  const { _count, ...cleanData } = selectedCampaign;
+                                  await handleUpdateCampaign(selectedCampaign.id, cleanData);
+                                  alert("Sparat!");
+                                } catch { alert("Fel vid sparning"); }
+                              }}
+                              className="w-full py-5 bg-gold-500 text-dark-500 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-gold-400 transition-all shadow-xl shadow-gold-500/20"
+                            >
+                               Spara Ändringar
+                            </button>
+                            <button 
+                              onClick={() => handleUpdateCampaign(selectedCampaign.id, { isActive: !selectedCampaign.isActive })}
+                              className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedCampaign.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"}`}
+                            >
+                               {selectedCampaign.isActive ? "Avaktivera Kampanj" : "Aktivera Kampanj"}
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteCampaign(selectedCampaign.id)}
+                              className="w-full py-5 rounded-2xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[11px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-3"
+                            >
+                               <Trash2 size={16} /> Radera Kampanj
+                            </button>
+                         </div>
+                      </div>
+                   </motion.div>
                 ) : (
                   <div className="sticky top-10 h-[500px] border border-dashed border-white/10 rounded-[2.5rem] bg-[#0a0c14] flex flex-col items-center justify-center text-center p-10">
                      <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mb-6"><Sparkles className="text-white/10" size={40} /></div>
