@@ -94,6 +94,7 @@ app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/restaurants', restaurantsRoutes);
+app.use('/api/cities', citiesRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
