@@ -460,6 +460,7 @@ export default function ProfilePage() {
 
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="min-h-screen bg-zinc-950 pt-20 pb-32 px-6">
       <div className="max-w-xl mx-auto space-y-8">
 
@@ -686,5 +687,66 @@ export default function ProfilePage() {
         </AnimatePresence>
       </div>
     </div>
+    
+    {/* Global OTP Overlay for Verification */}
+    <AnimatePresence>
+      {showOtp && (
+        <motion.div 
+          initial={{ opacity: 0 }} 
+          animate={{ opacity: 1 }} 
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-zinc-950/90 backdrop-blur-sm"
+        >
+          <motion.div 
+            initial={{ scale: 0.9, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.9, y: 20 }}
+            className="w-full max-w-sm bg-zinc-900 border border-white/5 rounded-[2.5rem] p-8 space-y-8 shadow-2xl"
+          >
+            <div className="text-center space-y-3">
+              <div className="w-16 h-16 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto">
+                <ShieldCheck size={32} />
+              </div>
+              <h2 className="text-2xl font-black uppercase italic text-white">Verifiera kod</h2>
+              <p className="text-zinc-500 text-xs">Vi har skickat en kod till {otpPhone}</p>
+            </div>
+
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Engångskod</label>
+                <input
+                  required
+                  type="text"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="000 000"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-zinc-800 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                />
+              </div>
+              
+              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
+              
+              <button
+                type="submit"
+                disabled={isVerifying}
+                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Bekräfta kod"}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => setShowOtp(false)}
+                className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors"
+              >
+                Avbryt
+              </button>
+            </form>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+    </>
   );
 }
