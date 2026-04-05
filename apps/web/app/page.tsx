@@ -17,6 +17,7 @@ import {
   Flame,
   ArrowRight,
   X,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
@@ -50,13 +51,13 @@ interface City {
 }
 
 const cuisineFilters = [
-  { label: "Alla", emoji: "🍽️" },
+  { label: "Alla", emoji: "📋" },
   { label: "Pizza", emoji: "🍕" },
   { label: "Sushi", emoji: "🍣" },
   { label: "Kebab", emoji: "🥙" },
   { label: "Burgare", emoji: "🍔" },
-  { label: "Thai", emoji: "🌶️" },
-  { label: "Indiskt", emoji: "🍛" },
+  { label: "Pasta", emoji: "🍝" },
+  { label: "Asiatiskt", emoji: "🥢" },
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
@@ -70,17 +71,13 @@ export default function HomePage() {
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [loading, setLoading] = useState(true);
   
-  // City and filtering state
   const [cities, setCities] = useState<City[]>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
-  // Address modal state
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
-
-  // Closed restaurant popup state
   const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
@@ -107,7 +104,6 @@ export default function HomePage() {
       setRestaurants(resRest.data);
       setCities(resCities.data);
       
-      // Auto-set selected city from address if it matches
       const initialAddress = localStorage.getItem("platform_address") || "";
       if (initialAddress) {
         const match = resCities.data.find((c: City) => c.name.toLowerCase() === initialAddress.toLowerCase());
@@ -125,7 +121,6 @@ export default function HomePage() {
   };
 
   const toggleOrderType = (type: "DELIVERY" | "PICKUP") => {
-    // Check if city allows this type
     if (selectedCity) {
       if (type === "DELIVERY" && selectedCity.deliveryMode === "ONLY_PICKUP") return;
       if (type === "PICKUP" && selectedCity.deliveryMode === "ONLY_DELIVERY") return;
@@ -142,7 +137,6 @@ export default function HomePage() {
     setSelectedCity(city);
     setShowCityDropdown(false);
     
-    // Auto-adjust order type if not supported
     if (city.deliveryMode === "ONLY_PICKUP" && orderType === "DELIVERY") {
       toggleOrderType("PICKUP");
     } else if (city.deliveryMode === "ONLY_DELIVERY" && orderType === "PICKUP") {
@@ -161,7 +155,6 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      // Strict city filtering
       let matchCity = true;
       if (address) {
         const cleanAddress = address.trim().toLowerCase();
@@ -190,13 +183,10 @@ export default function HomePage() {
 
   const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
     e.preventDefault();
-
-    // Closed restaurant check
     if (r.isOpen === false) {
       setClosedRestaurant(r);
       return;
     }
-
     router.push(getRestaurantHref(r));
   };
 
@@ -211,53 +201,58 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-zinc-950">
-      <div className="relative mx-auto max-w-[1400px] px-6 lg:px-10 pb-24 pt-8">
+    <div className="min-h-screen text-zinc-100 bg-obsidian bg-dot-pattern pt-10 pb-32">
+      {/* Dynamic Background Glow */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-gold-500/10 blur-[120px]" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-gold-600/5 blur-[100px]" />
+      </div>
 
-        {/* Header */}
-        <header className="mb-8">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-600 mb-1 lg:mb-2 opacity-70">Sök mat & restaurang</p>
-              <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase leading-none truncate">
-                VAD VILL DU <span className="text-gold-600">ÄTA</span>?
+      <div className="relative mx-auto max-w-6xl px-6 lg:px-10">
+        {/* Modern Header */}
+        <header className="mb-12 relative overflow-hidden">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-10 mb-12">
+            <motion.div 
+               initial={{ opacity: 0, x: -20 }}
+               animate={{ opacity: 1, x: 0 }}
+               className="flex-1"
+            >
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
+                <Sparkles size={12} />
+                <span>Smaka Framtiden</span>
+              </div>
+              <h1 className="text-5xl lg:text-7xl font-black tracking-tighter leading-[0.9] text-white">
+                VAD VILL DU <br /> <span className="text-gold-gradient italic">ÄTA</span> IDAG?
               </h1>
-            </div>
+            </motion.div>
 
-            {/* Order type toggle - Moved to right on desktop */}
-            <div className="flex items-center gap-3 p-1.5 bg-zinc-900 rounded-[2rem] border border-white/5 shadow-xl w-full lg:w-[320px] shrink-0">
-              <button
-                onClick={() => toggleOrderType("DELIVERY")}
-                disabled={selectedCity?.deliveryMode === "ONLY_PICKUP"}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  orderType === "DELIVERY"
-                    ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20 scale-[1.02]"
-                    : "text-zinc-500 hover:text-zinc-100"
-                } ${selectedCity?.deliveryMode === "ONLY_PICKUP" ? "opacity-30 cursor-not-allowed" : ""}`}
-              >
-                <Truck size={16} />
-                Leverans
-              </button>
-              <button
-                onClick={() => toggleOrderType("PICKUP")}
-                disabled={selectedCity?.deliveryMode === "ONLY_DELIVERY"}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  orderType === "PICKUP"
-                    ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20 scale-[1.02]"
-                    : "text-zinc-500 hover:text-zinc-100"
-                } ${selectedCity?.deliveryMode === "ONLY_DELIVERY" ? "opacity-30 cursor-not-allowed" : ""}`}
-              >
-                <Store size={16} />
-                Hämtning
-              </button>
+            {/* Premium Order Type Toggle */}
+            <div className="relative p-1 glass-panel rounded-[2rem] flex items-center lg:w-[340px] shrink-0 active:scale-[0.98] transition-transform">
+               <div className="absolute inset-y-1 h-auto bg-gold-500 rounded-[1.8rem] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-lg shadow-gold-500/20" 
+                  style={{ 
+                    width: 'calc(50% - 4px)', 
+                    left: orderType === 'DELIVERY' ? '4px' : 'calc(50%)' 
+                  }} 
+               />
+               <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                  <Truck size={16} /> Leverans
+               </button>
+               <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                  <Store size={16} /> Hämtning
+               </button>
             </div>
           </div>
 
-          {/* Address + search - More compact */}
-          <div className="grid gap-3 lg:grid-cols-[1.2fr,1.4fr] bg-zinc-900/50 p-2 rounded-[1.5rem] border border-white/5">
-            <div className="relative group flex-1">
-              <div className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-5 py-3.5 focus-within:border-gold-500/50 transition-all shadow-lg">
-                <MapPin className="text-gold-500 shrink-0" size={16} />
+          {/* New Search & Address Bar */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
+          >
+            <div className="relative group">
+              <div className="flex items-center gap-3 rounded-[2rem] bg-zinc-950/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
+                <MapPin className="text-gold-500 shrink-0" size={18} />
                 <input
                   value={address}
                   onFocus={() => setShowCityDropdown(true)}
@@ -267,339 +262,233 @@ export default function HomePage() {
                     if (match) setSelectedCity(match);
                     else setSelectedCity(null);
                   }}
-                  placeholder={orderType === "DELIVERY" ? "Välj din stad..." : "Välj stad..."}
-                  className="w-full bg-transparent text-sm placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
+                  placeholder="Hitta din stad..."
+                  className="w-full bg-transparent text-sm placeholder:text-zinc-600 focus:outline-none font-bold text-white"
                 />
-                {address && (
-                  <button onClick={() => { saveAddress(""); setSelectedCity(null); }} className="text-zinc-600 hover:text-zinc-400">
-                    <X size={12} />
-                  </button>
-                )}
               </div>
               
-              {/* Autocomplete Dropdown - Updated for compact view */}
               <AnimatePresence>
                 {showCityDropdown && cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).length > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, y: -5 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -5 }}
-                    className="absolute z-50 left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute z-50 left-0 right-0 mt-2 p-2 glass-panel rounded-[2rem] shadow-2xl overflow-hidden"
                   >
-                    {cities
-                      .filter(c => c.name.toLowerCase().includes(address.toLowerCase()))
-                      .map(city => (
-                        <button
-                          key={city.id}
-                          onClick={() => handleCitySelect(city)}
-                          className="w-full flex items-center justify-between px-5 py-3 hover:bg-gold-500/5 transition-colors border-b border-white/5 last:border-none group"
-                        >
-                          <div className="text-left font-black uppercase text-[10px] tracking-widest">{city.name}</div>
-                        </button>
+                    {cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).map(city => (
+                      <button key={city.id} onClick={() => handleCitySelect(city)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/5 rounded-2xl transition-colors group">
+                        <span className="text-xs font-black uppercase tracking-widest">{city.name}</span>
+                        <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0" />
+                      </button>
                     ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
 
-            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-5 py-3.5 hover:border-gold-500/50 transition-all cursor-pointer shadow-lg group">
-              <Search size={16} className="text-zinc-400/30 group-hover:text-gold-500/50 transition-colors shrink-0" />
-              <span className="text-sm text-zinc-400/30 group-hover:text-zinc-400/50 font-bold">Hitta restaurang eller mat...</span>
+            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-zinc-950/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
+               <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
+               <span className="text-sm text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
+               <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all">
+                  <ArrowRight size={20} />
+               </div>
             </Link>
-          </div>
-
-          {address && (
-            <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
-              <MapPin size={10} />
-              {address}
-            </div>
-          )}
+          </motion.div>
         </header>
 
-        {/* Cuisine filter chips */}
-        <section className="mb-12">
+        {/* Cuisine Selector */}
+        <section className="mb-16">
           <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-            {cuisineFilters.map((c) => (
-              <button
+            {cuisineFilters.map((c, i) => (
+              <motion.button
                 key={c.label}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 + i * 0.05 }}
                 onClick={() => setActiveCuisine(c.label)}
-                className={`whitespace-nowrap flex items-center gap-3 rounded-2xl px-6 py-3 text-xs font-black uppercase tracking-[0.2em] transition-all border-2 ${
+                className={`whitespace-nowrap flex items-center gap-3 rounded-[1.5rem] px-7 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all border-2 active:scale-95 ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-white border-gold-500 shadow-2xl shadow-gold-500/20 scale-105"
-                    : "bg-zinc-900 text-zinc-400/60 border-white/5 hover:bg-zinc-800/80"
+                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_15px_30px_rgba(231,178,75,0.2)]"
+                    : "bg-zinc-950/20 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
                 }`}
               >
-                <span className="text-lg">{c.emoji}</span>
-                {c.label}
-              </button>
+                <span className="text-lg grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
+                <span>{c.label}</span>
+              </motion.button>
             ))}
           </div>
         </section>
 
-        {/* Featured restaurants */}
+        {/* Featured Section */}
         {featured.length > 0 && (
-          <section className="mb-12">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <Flame size={20} className="text-gold-600" />
-                <h2 className="text-lg font-black uppercase tracking-[0.3em] text-zinc-100 italic">Populära val just nu</h2>
-              </div>
+          <section className="mb-20">
+            <div className="flex items-end justify-between mb-8 px-4">
+               <div>
+                  <h2 className="text-gold-gradient text-3xl font-black tracking-tight leading-none italic uppercase">HETA LISTAN</h2>
+                  <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em] mt-2">Toppvalen i din stad just nu</p>
+               </div>
+               <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-200 border-b border-gold-500/50 pb-1 hover:text-gold-500 transition-all">Visa Alla</Link>
             </div>
-            <div className="flex lg:grid lg:grid-cols-4 gap-4 lg:gap-6 overflow-x-auto lg:overflow-visible pb-6 lg:pb-0 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-              {featured.map((r) => (
-                <a
+            <div className="flex lg:grid lg:grid-cols-4 gap-6 overflow-x-auto lg:overflow-visible pb-10 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+              {featured.map((r, i) => (
+                <motion.div
                   key={r.id}
-                  href={getRestaurantHref(r)}
-                  onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group relative shrink-0 w-[280px] lg:w-auto rounded-[2rem] lg:rounded-[2.5rem] overflow-hidden border border-white/5 hover:border-gold-500/40 transition-all shadow-2xl cursor-pointer bg-zinc-900 hover:scale-[1.02] flex flex-col"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.1 }}
                 >
-                  {/* Cover image */}
-                  <div className="h-44 lg:h-56 w-full bg-white/5 relative overflow-hidden">
-                    {r.heroImageUrl || r.imageUrl ? (
-                      <img
-                        src={getCardImage(r)}
-                        alt={r.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-5xl">🍽️</div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    {r.isOpen === false && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="px-3 py-1 rounded-full bg-red-500/80 text-white text-[9px] font-black uppercase tracking-wider">Stängt</span>
-                      </div>
-                    )}
-                    <div className="absolute top-3 right-3 flex items-center gap-1 bg-black/60 rounded-full px-2 py-0.5">
-                      <Star size={10} className="fill-gold-500 text-gold-500" />
-                      <span className="text-[10px] font-black text-white/90">{(r.rating ?? 4.6).toFixed(1)}</span>
-                    </div>
-                    {r.isOpen !== false && (
-                      <div className="absolute top-3 left-3 flex items-center gap-1.5">
-                        <div className="px-2 py-1 rounded-full bg-emerald-500/80 backdrop-blur-sm text-white text-[8px] font-black uppercase tracking-wider flex items-center gap-1">
-                          <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                           Öppet
+                  <Link
+                    href={getRestaurantHref(r)}
+                    onClick={(e) => handleRestaurantClick(e, r)}
+                    className="group relative block w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col"
+                  >
+                    <div className="h-44 lg:h-56 w-full rounded-[2.2rem] bg-zinc-950/50 relative overflow-hidden mb-6">
+                      {r.heroImageUrl || r.imageUrl ? (
+                        <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-4xl">🍴</div>
+                      )}
+                      
+                      <div className="absolute top-4 left-4">
+                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-xl border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${r.isOpen !== false ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100" : "bg-rose-500/30 border-rose-500/30 text-rose-100"}`}>
+                           <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                           {r.isOpen !== false ? "Live Nu" : "Väntar"}
                         </div>
                       </div>
-                    )}
-                  </div>
-                  {/* Info */}
-                  <div className="p-5 lg:p-6 bg-zinc-900 flex-1">
-                    <div className="font-black uppercase tracking-tight text-lg lg:text-xl group-hover:text-gold-600 transition-colors leading-none mb-2 text-zinc-100 truncate">
-                      {r.name}
+
+                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-xl flex items-center gap-1">
+                        <Star size={12} className="fill-gold-500 text-gold-500" />
+                        <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
+                      </div>
                     </div>
-                    <p className="text-[10px] lg:text-xs text-zinc-400 mb-4 font-bold uppercase tracking-widest truncate">{r.cuisine}</p>
-                    <div className="flex items-center gap-4 text-[10px] lg:text-[11px] text-zinc-400/50 font-black uppercase tracking-wide">
-                      <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
-                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR</span>
+
+                    <div className="px-3 pb-4">
+                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none mb-2">{r.name}</h3>
+                       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
+                       
+                       <div className="flex items-center justify-between border-t border-white/5 pt-5">
+                          <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-wider text-zinc-400">
+                             <span className="flex items-center gap-1.5"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
+                             <span className="flex items-center gap-1.5"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
+                          </div>
+                          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
+                             <ChevronRight size={18} />
+                          </div>
+                       </div>
                     </div>
-                  </div>
-                </a>
+                  </Link>
+                </motion.div>
               ))}
             </div>
           </section>
         )}
 
-        {/* All restaurants */}
+        {/* Dynamic List Section */}
         <section>
-          <h2 className="text-lg font-black uppercase tracking-[0.4em] text-zinc-400/50 mb-8 flex items-center gap-4">
-             <span className="w-12 h-[2px] bg-white/10" />
-            {activeCuisine === "Alla" ? "Alla restauranger" : activeCuisine} · {filtered.length} st
-          </h2>
+          <div className="flex items-center justify-between mb-10 px-4">
+            <h2 className="text-xl font-black tracking-[0.2em] uppercase text-zinc-600">
+              {activeCuisine === "Alla" ? "Alla Kök" : activeCuisine} <span className="text-zinc-800 ml-2">/ {filtered.length} st</span>
+            </h2>
+          </div>
 
           {loading ? (
-            <div className="space-y-3">
+            <div className="space-y-6">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-32 rounded-2xl bg-zinc-900 animate-pulse border border-white/5" />
+                <div key={i} className="h-44 rounded-[3rem] glass-panel animate-pulse shadow-sm" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-zinc-400/30">
-              <p className="text-4xl mb-4">😕</p>
-              <p className="font-black uppercase tracking-widest">Inga restauranger hittades</p>
+            <div className="py-24 text-center">
+              <div className="w-20 h-20 bg-zinc-950/60 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/5">
+                <Search size={32} className="text-zinc-800" />
+              </div>
+              <p className="text-2xl font-black uppercase tracking-tight text-white mb-2">Ingen träff</p>
+              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest">Här ekar det tomt just nu.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
-              {filtered.map((r) => (
-                <a
+            <div className="grid grid-cols-1 md:grid-cols-1 xl:grid-cols-2 gap-8">
+              {filtered.map((r, i) => (
+                <motion.div
                   key={r.id}
-                  href={getRestaurantHref(r)}
-                  onClick={(e) => handleRestaurantClick(e, r)}
-                  className="group flex flex-col lg:flex-row overflow-hidden rounded-[2rem] lg:rounded-[2.5rem] bg-zinc-900 border border-white/5 hover:border-gold-500/30 transition-all shadow-2xl cursor-pointer"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.05 }}
                 >
-                  {/* Cover image */}
-                  <div className="w-full lg:w-64 h-48 lg:h-auto shrink-0 relative overflow-hidden">
-                    {r.heroImageUrl || r.imageUrl ? (
-                      <img
-                        src={getCardImage(r)}
-                        alt={r.name}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center bg-zinc-800/50 text-5xl">🍽️</div>
-                    )}
-                    {r.isOpen === false && (
-                      <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-                        <span className="text-xs font-black text-red-400 uppercase tracking-widest bg-dark-500/80 px-4 py-2 rounded-xl">Stängt</span>
-                      </div>
-                    )}
-                    {/* Rating on mobile image */}
-                    <div className="lg:hidden absolute top-4 right-4 flex items-center gap-1 bg-black/60 rounded-full px-3 py-1">
-                      <Star size={12} className="fill-gold-500 text-gold-500" />
-                      <span className="text-xs font-black text-white">{(r.rating ?? 4.6).toFixed(1)}</span>
-                    </div>
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 p-6 lg:p-8 min-w-0 flex flex-col justify-center">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="text-xl lg:text-2xl font-black uppercase tracking-tight group-hover:text-gold-600 transition-colors truncate text-zinc-100">
-                        {r.name}
-                      </h3>
-                      <div className="hidden lg:flex items-center gap-1.5 shrink-0 text-gold-500 text-sm font-black">
-                        <Star size={18} className="fill-gold-500" />
-                        {(r.rating ?? 4.6).toFixed(1)}
-                        <span className="text-zinc-600 ml-1 font-bold">({r.ratingCount ?? 120})</span>
-                      </div>
-                    </div>
-                    <p className="text-[10px] lg:text-xs text-zinc-400 font-bold uppercase tracking-widest line-clamp-1 mb-4 italic">
-                      {r.description || r.cuisine}
-                    </p>
-                    <div className="flex items-center gap-4 lg:gap-6 text-[10px] font-black uppercase tracking-widest text-zinc-400/30 mb-5">
-                      <span className="flex items-center gap-2"><Clock size={12} />{r.etaMinutes ?? 30} MIN</span>
-                      <span className="flex items-center gap-2"><Bike size={12} />{r.deliveryFee ?? 0} KR</span>
-                      <span className="hidden lg:inline text-zinc-800">|</span>
-                      {(r.minOrderAmount ?? 0) > 0 && (
-                        <span>MIN {r.minOrderAmount} KR</span>
+                  <Link
+                    href={getRestaurantHref(r)}
+                    onClick={(e) => handleRestaurantClick(e, r)}
+                    className="group flex flex-col sm:flex-row glass-panel rounded-[3rem] p-4 gap-6 hover:border-gold-500/20 hover:bg-white/5 transition-all active:scale-[0.99]"
+                  >
+                    <div className="w-full sm:w-52 h-44 sm:h-auto shrink-0 rounded-[2.5rem] overflow-hidden relative">
+                      {r.imageUrl ? (
+                        <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all" />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center bg-zinc-950 text-4xl">🍱</div>
+                      )}
+                      
+                      {r.isOpen === false && (
+                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center">
+                          <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest border border-rose-500/30 px-5 py-2 rounded-2xl">Stängt för dagen</span>
+                        </div>
                       )}
                     </div>
-                    
-                    <div className="flex flex-wrap items-center gap-3">
-                      {r.tags && (Array.isArray(r.tags) ? r.tags : []).slice(0, 3).map((tag: string) => (
-                        <span key={tag} className="text-[9px] lg:text-[10px] font-black text-white/20 bg-white/5 border border-white/5 px-3 py-1 rounded-full uppercase">
-                          {tag}
-                        </span>
-                      ))}
-                      <div className={`ml-auto px-4 py-1.5 rounded-full text-[9px] lg:text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 ${
-                        r.isOpen !== false
-                          ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                          : "bg-red-500/10 text-red-400 border border-red-500/20"
-                      }`}>
-                         {r.isOpen !== false ? "Öppen" : "Stängd"}
+
+                    <div className="flex-1 py-4 pr-6 flex flex-col justify-center min-w-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="text-2xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none truncate">{r.name}</h3>
+                        <div className="flex items-center gap-1.5 text-gold-500 font-black italic">
+                          <Star size={14} className="fill-gold-500" />
+                          <span className="text-xs">{(r.rating ?? 4.6).toFixed(1)}</span>
+                        </div>
+                      </div>
+                      
+                      <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest line-clamp-1 mb-8">{r.description || r.cuisine}</p>
+                      
+                      <div className="flex items-center flex-wrap gap-4 text-[9px] font-black uppercase text-zinc-500 bg-white/5 p-4 rounded-3xl border border-white/5">
+                        <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
+                        <span className="w-1 h-1 rounded-full bg-zinc-800" />
+                        <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
+                        <span className="w-1 h-1 rounded-full bg-zinc-800" />
+                        <span>MIN {r.minOrderAmount ?? 0} KR</span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="hidden lg:flex items-center pr-8 text-zinc-800 group-hover:text-gold-500 transition-colors">
-                    <ChevronRight size={32} />
-                  </div>
-                </a>
+                  </Link>
+                </motion.div>
               ))}
             </div>
           )}
         </section>
 
-        {/* PWA promo */}
-        <section className="mt-12 rounded-2xl border border-white/5 bg-zinc-900 p-6 flex items-center gap-4 shadow-xl">
-          <div className="p-3 rounded-xl bg-gold-400/20 border border-gold-500/20 text-gold-600 shrink-0">
-            <ArrowRight size={20} />
-          </div>
-          <div>
-            <p className="text-sm font-black uppercase tracking-tight text-zinc-100">Installera MatGo</p>
-            <p className="text-[10px] text-zinc-400 font-bold uppercase opacity-40">Snabb åtkomst till alla restauranger direkt från hemskärmen.</p>
-          </div>
+        {/* Promo Footer */}
+        <section className="mt-24 rounded-[3.5rem] bg-gradient-to-r from-gold-500 to-amber-600 p-12 relative overflow-hidden group shadow-2xl shadow-gold-500/10">
+           <div className="absolute right-[-50px] top-[-50px] w-[200px] h-[200px] bg-white/20 rounded-full blur-[80px]" />
+           <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
+              <div className="text-center lg:text-left">
+                 <h2 className="text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-4 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
+                 <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
+              </div>
+              <button className="px-10 py-5 bg-zinc-950 text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5">Hämta Appen</button>
+           </div>
         </section>
-
-        <div className="h-8" />
       </div>
 
-      {/* Address modal */}
-      <AddressModal
-        isOpen={showAddressModal}
-        onClose={() => { setShowAddressModal(false); setPendingHref(null); }}
-        onConfirm={handleAddressConfirmed}
-        orderType={orderType}
-        setOrderType={toggleOrderType}
-      />
+      <AddressModal isOpen={showAddressModal} onClose={() => { setShowAddressModal(false); setPendingHref(null); }} onConfirm={handleAddressConfirmed} orderType={orderType} setOrderType={toggleOrderType} />
 
-      {/* Closed restaurant modal */}
+      {/* Closed popup handling */}
       <AnimatePresence>
         {closedRestaurant && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-950/85 backdrop-blur-xl px-4 pb-6 sm:pb-0"
-            onClick={(e) => { if (e.target === e.currentTarget) setClosedRestaurant(null); }}
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 30 }}
-              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl text-center"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-gold-500 flex items-center justify-center text-dark-500 font-bold shadow-lg shadow-gold-500/20">
-                   <span className="text-xl">🍣</span>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-6" onClick={() => setClosedRestaurant(null)}>
+             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border border-white/10" onClick={e => e.stopPropagation()}>
+                <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
+                   <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
                 </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 leading-none mb-1">Admin Panel</div>
-                  <div className="font-black tracking-tight text-white uppercase leading-none">MATGO <span className="text-gold-500">SUSHI</span></div>
+                <h3 className="text-2xl font-black text-white uppercase tracking-tight italic mb-2">{closedRestaurant.name}</h3>
+                <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed">Tyvärr är köket stängt för dagen. <br /> Vill du se menyn ändå?</p>
+                <div className="flex flex-col gap-3">
+                   <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">Se Meny</button>
+                   <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 text-zinc-500 font-black uppercase text-[10px] tracking-widest hover:text-zinc-300">Stäng</button>
                 </div>
-              </div>
-              <p className="text-zinc-400 text-sm mb-6 font-medium">Restaurangen är stängd just nu. Vill du ändå se menyn?</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setClosedRestaurant(null)}
-                  className="flex-1 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-black transition-all"
-                >
-                  Avbryt
-                </button>
-                <button
-                  onClick={() => {
-                    const href = getRestaurantHref(closedRestaurant);
-                    setClosedRestaurant(null);
-                    router.push(href);
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-gold-500 hover:bg-gold-400 text-white text-sm font-black transition-all"
-                >
-                  Visa menyn
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Delivery Error Modal */}
-      <AnimatePresence>
-        {deliveryError && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-zinc-950/85 backdrop-blur-xl px-4"
-            onClick={() => setDeliveryError(null)}
-          >
-            <motion.div
-              initial={{ scale: 0.96, y: 30 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.96, y: 30 }}
-              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl text-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center">
-                <span className="text-3xl">😞</span>
-              </div>
-              <h2 className="text-xl font-black tracking-tight text-zinc-100 uppercase mb-2">Tyvärr!</h2>
-              <p className="text-zinc-400 text-sm mb-6 font-medium">{deliveryError}</p>
-              <button
-                onClick={() => setDeliveryError(null)}
-                className="w-full py-3 rounded-xl bg-gold-500 hover:bg-gold-400 text-white text-sm font-black transition-all shadow-lg"
-              >
-                Okej, jag förstår
-              </button>
-            </motion.div>
+             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

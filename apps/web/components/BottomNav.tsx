@@ -1,47 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { Home, Search, ShoppingBag, User } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { Home, Search, ShoppingBag, User } from "lucide-react";
+import { motion } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 
 const BottomNav = () => {
   const pathname = usePathname();
-  const items = useCartStore((s) => s.items);
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
+  const items = useCartStore((state) => state.items);
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
-  const links = [
-    { href: "/", icon: Home, label: "Hem" },
-    { href: "/search", icon: Search, label: "Sök" },
-    { href: "/cart", icon: ShoppingBag, label: "Kasse" },
-    { href: "/profile", icon: User, label: "Profil" },
+  const navItems = [
+    { href: "/", label: "Hem", icon: Home },
+    { href: "/search", label: "Sök", icon: Search },
+    { href: "/cart", label: "Kasse", icon: ShoppingBag, count: itemCount },
+    { href: "/profile", label: "Profil", icon: User },
   ];
 
   return (
-    <div className="fixed bottom-4 left-0 right-0 mx-auto flex max-w-md items-center justify-between rounded-2xl bg-zinc-900 border border-white/5 px-6 py-3 text-zinc-100 shadow-xl z-50">
-      {links.map(({ href, icon: Icon, label }) => {
-        const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]);
-        const isCart = href === "/cart";
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={`relative flex flex-col items-center gap-1 text-[10px] font-black uppercase tracking-widest transition-all ${
-              isActive ? "text-gold-600 scale-110" : "text-zinc-400/50 hover:text-zinc-100"
-            }`}
-          >
-            <div className="relative">
-              <Icon size={20} />
-              {isCart && totalItems > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-gold-500 text-white text-[8px] font-black px-1">
-                  {totalItems}
-                </span>
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-48px)] max-w-md">
+      <nav className="glass-panel rounded-[2.5rem] p-2 flex items-center justify-between shadow-2xl shadow-black/50 border border-white/10">
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`relative flex flex-col items-center justify-center py-3 px-6 rounded-[2rem] transition-all duration-500 group ${
+                isActive ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-500 hover:text-zinc-100"
+              }`}
+            >
+              <div className="relative">
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="transition-transform group-active:scale-95" />
+                {item.count !== undefined && item.count > 0 && !isActive && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-gold-500 text-zinc-950 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-zinc-950">
+                    {item.count}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] font-black uppercase tracking-widest mt-1.5 transition-all ${
+                isActive ? "opacity-100 scale-100" : "opacity-0 scale-50 h-0 w-0 pointer-events-none"
+              }`}>
+                {item.label}
+              </span>
+              
+              {isActive && (
+                <motion.div
+                  layoutId="activeTab"
+                  className="absolute inset-0 bg-gold-500 rounded-[2rem] -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
               )}
-            </div>
-            {label}
-          </Link>
-        );
-      })}
+            </Link>
+          );
+        })}
+      </nav>
     </div>
   );
 };

@@ -3,6 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import AdminShell from "@/components/AdminShell";
 
+import { ThemeProvider } from "@/components/ThemeProvider";
+
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -22,9 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="sv">
-      <body className={`${inter.className} text-white min-h-screen antialiased`}>
-        <AdminShell>{children}</AdminShell>
+    <html lang="sv" suppressHydrationWarning>
+      <body className={`${inter.className} min-h-screen antialiased transition-colors duration-500`}>
+        <ThemeProvider>
+          <AdminShell>{children}</AdminShell>
+        </ThemeProvider>
       </body>
     </html>
   );

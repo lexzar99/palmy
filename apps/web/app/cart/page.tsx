@@ -18,6 +18,8 @@ import {
   ShieldCheck,
   Tag,
   X,
+  CreditCard,
+  CheckCircle2,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -25,7 +27,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import StripeCheckout from "@/components/StripeCheckout";
 import DealSpotlight from "@/components/DealSpotlight";
-import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
+import { PublicDeal, pickBestDeal } from "@/lib/deals";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
@@ -103,7 +105,6 @@ export default function CartPage() {
         setRestaurantSettings((prev) => ({ ...prev, ...settingsRes.data }));
       }
       
-      // Override with specific restaurant settings if available
       if (restaurantRes.data) {
         setRestaurantSettings((prev) => ({ 
           ...prev, 
@@ -147,7 +148,6 @@ export default function CartPage() {
       return;
     }
     
-    // Check personal deals
     const matched = personalDeals.find(d => d.code.toLowerCase() === code);
     if (matched) {
       setSelectedPersonalDeal(matched);
@@ -247,7 +247,7 @@ export default function CartPage() {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center">
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -255,307 +255,217 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen pt-32 pb-24 text-center px-6">
-        <div className="w-20 h-20 bg-white/5 rounded-[2rem] border border-white/5 flex items-center justify-center mx-auto mb-8">
-          <ShoppingBag size={40} className="text-zinc-700" />
+      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 bg-zinc-950/40 rounded-[3rem] border border-white/5 flex items-center justify-center mb-8">
+          <ShoppingBag size={48} className="text-zinc-800" />
         </div>
-        <h1 className="text-3xl font-black uppercase tracking-tight text-white">
-          Din kasse är <span className="text-gold-500">tom</span>
-        </h1>
-        <p className="text-zinc-600 mt-3 text-sm">Lägg till något gott från menyn!</p>
-        <Link href="/" className="mt-8 inline-block px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-xl shadow-gold-500/20">
-          Till menyn
-        </Link>
+        <h1 className="text-4xl font-black uppercase text-white italic tracking-tight mb-4">Din kasse är <span className="text-gold-500">tom</span></h1>
+        <p className="text-zinc-600 text-xs font-bold uppercase tracking-[0.3em] mb-12">Det ser lite tomt ut här. Lägg till något gott!</p>
+        <Link href="/" className="px-12 py-6 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-gold-500/10 active:scale-95 transition-all">Gå till menyn</Link>
       </div>
     );
   }
 
   return (
-    <div className="pt-28 pb-32 px-6 max-w-5xl mx-auto">
-      <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-10 text-white">
-        Din <span className="text-gold-500">Kasse</span>
-      </h1>
-
-      {/* Not logged in — Auth banner */}
-      {!user && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-gold-500/15 to-amber-500/5 border border-gold-500/25 p-8 rounded-[2.5rem] mb-10 shadow-2xl"
-        >
-          <div className="flex items-start gap-5 mb-6">
-            <div className="w-12 h-12 bg-gold-500/20 rounded-2xl flex items-center justify-center text-gold-500 shrink-0">
-              <Lock size={24} />
-            </div>
-            <div>
-              <h2 className="text-xl font-black uppercase italic tracking-tight text-white">Logga in för att beställa</h2>
-              <p className="text-zinc-500 text-sm mt-1 leading-relaxed">
-                Du behöver ett konto för att genomföra köp och spara din orderhistorik.
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Link
-              href="/profile"
-              className="flex items-center justify-center py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs hover:bg-gold-400 transition-all active:scale-95 shadow-xl shadow-gold-500/20"
-            >
-              Logga in
-            </Link>
-            <Link
-              href="/register"
-              className="flex items-center justify-center py-5 bg-white/5 border border-white/15 text-white rounded-3xl font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all active:scale-95"
-            >
-              Registrera dig
-            </Link>
-          </div>
-        </motion.div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Cart items */}
-        <div className="lg:col-span-7 space-y-4">
-          {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
-          {items.map((item) => (
-            <div key={item.cartItemId} className="bg-white/5 border border-white/5 rounded-[2rem] p-6 flex items-center justify-between group hover:bg-white/8 transition-all">
-              <div className="flex gap-4 items-center">
-                <div className="w-10 h-10 bg-gold-500/10 border border-gold-500/20 rounded-xl flex items-center justify-center text-gold-500 font-black text-sm">
-                  {item.quantity}
-                </div>
-                <div>
-                  <p className="font-bold uppercase text-sm italic text-white">{item.name}</p>
-                  {item.extras.length > 0 && (
-                    <p className="text-[10px] text-zinc-600 mt-0.5">
-                      {item.extras.map((e) => e.name).join(", ")}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 bg-white/5 rounded-xl px-3 py-2 border border-white/5">
-                  <button onClick={() => updateQuantity(item.cartItemId, -1)} className="text-zinc-500 hover:text-white transition-colors"><Minus size={14} /></button>
-                  <span className="font-black text-white w-4 text-center">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-white transition-colors"><Plus size={14} /></button>
-                </div>
-                <span className="font-black text-gold-500 w-16 text-right">{(item.price * item.quantity).toFixed(0)} kr</span>
-                <button onClick={() => removeItem(item.cartItemId)} className="text-zinc-700 hover:text-red-500 transition-colors p-1">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
+    <div className="min-h-screen bg-obsidian bg-dot-pattern pt-24 pb-48 px-6">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex items-end justify-between mb-12 px-4">
+           <div>
+              <h1 className="text-4xl md:text-6xl font-black text-white uppercase italic tracking-tighter leading-none mb-3">Din <span className="text-gold-gradient">Kasse</span></h1>
+              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
+           </div>
+           <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors flex items-center gap-2 mb-2 group">
+              Lägg till mer <Plus size={14} className="group-hover:rotate-90 transition-transform" />
+           </Link>
         </div>
 
-        {/* Checkout form or payment */}
-        <div className="lg:col-span-5">
-          {showPayment && clientSecret ? (
-            <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#d4a74a" } } }}>
-              <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8">
-                <div className="flex items-center gap-2 text-gold-500 text-[10px] font-black uppercase tracking-widest mb-6">
-                  <ShieldCheck size={14} /> Säker betalning
-                </div>
-                <StripeCheckout amount={total} onSuccess={submitOrder} />
-                <button
-                  type="button"
-                  onClick={() => setShowPayment(false)}
-                  className="w-full mt-6 py-4 text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors"
-                >
-                  ← Tillbaka
-                </button>
-              </div>
-            </Elements>
-          ) : (
-            <form onSubmit={startCheckout} className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-6">
-              {/* Order type toggle */}
-              <div className="flex gap-3 bg-zinc-900 p-1.5 rounded-2xl">
-                {(["DELIVERY", "PICKUP"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setOrderType(t)}
-                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${
-                      orderType === t ? "bg-white/10 text-gold-500" : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    {t === "DELIVERY" ? <Truck size={16} /> : <Store size={16} />}
-                    {t === "DELIVERY" ? "Hemkörning" : "Avhämtning"}
-                  </button>
-                ))}
-              </div>
-
-              {/* Fields */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Namn</label>
-                  <input required value={formData.customerName} onChange={(e) => setFormData({ ...formData, customerName: e.target.value })} placeholder="Ditt namn" className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
-                </div>
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Telefon</label>
-                  <input required value={formData.customerPhone} onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })} placeholder="070-xxx xx xx" className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
-                </div>
-                {orderType === "DELIVERY" && (
-                  <>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Gatuadress</label>
-                      <input required value={formData.deliveryStreet} onChange={(e) => setFormData({ ...formData, deliveryStreet: e.target.value })} placeholder="Gatunamn och nummer" className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Postnummer</label>
-                      <input required value={formData.deliveryZip} onChange={(e) => setFormData({ ...formData, deliveryZip: e.target.value })} placeholder="22x xx" className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
-                    </div>
-                  </>
-                )}
-                <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Övrigt (valfritt)</label>
-                  <textarea rows={2} value={formData.note} onChange={(e) => setFormData({ ...formData, note: e.target.value })} placeholder="Allergier, portkod..." className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40 resize-none" />
-                </div>
-              </div>
-
-               {/* Manual Promo Code */}
-               <div className="space-y-4">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Rabattkod</label>
-                  <div className="flex gap-2">
-                    <input 
-                      value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
-                      onChange={(e) => {
-                        if (selectedPersonalDeal) setSelectedPersonalDeal(null);
-                        setPromoCodeInput(e.target.value);
-                      }}
-                      placeholder={selectedPersonalDeal ? "Kod tillämpad" : "Ange kod..."} 
-                      className={`flex-1 bg-white/5 border rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40 transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-white"}`} 
-                    />
-                    {selectedPersonalDeal ? (
-                      <button 
-                        type="button"
-                        onClick={() => { setSelectedPersonalDeal(null); setPromoCodeInput(""); }}
-                        className="px-6 py-4 bg-rose-500/10 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all"
-                      >
-                        Ta bort
-                      </button>
-                    ) : (
-                      <button 
-                        type="button"
-                        onClick={handleApplyPromo}
-                        className="px-6 py-4 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all"
-                      >
-                        Aktivera
-                      </button>
-                    )}
-                  </div>
+        {!user && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-10 rounded-[3rem] mb-12 border-gold-500/10 shadow-2xl relative overflow-hidden group">
+            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[80%] bg-gold-500/5 blur-[80px] rounded-full" />
+            <div className="flex flex-col sm:flex-row items-center gap-8 relative z-10">
+               <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 shadow-xl shadow-gold-500/5 group-hover:scale-110 transition-transform">
+                  <Lock size={32} />
                </div>
+               <div className="text-center sm:text-left flex-1">
+                  <h2 className="text-2xl font-black text-white uppercase italic tracking-tight mb-2">Logga in för att beställa</h2>
+                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed opacity-60">Du behöver ett konto för att slutföra ditt köp och för att kunna följa din order i realtid.</p>
+               </div>
+               <div className="flex gap-4 w-full sm:w-auto">
+                  <Link href="/profile" className="px-8 py-5 bg-gold-500 text-zinc-950 rounded-[1.8rem] font-black uppercase tracking-widest text-[10px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Logga In</Link>
+                  <Link href="/register" className="px-8 py-5 border border-white/5 bg-white/3 text-white rounded-[1.8rem] font-black uppercase tracking-widest text-[10px] hover:bg-white/5 active:scale-95 transition-all">Skapa Konto</Link>
+               </div>
+            </div>
+          </motion.div>
+        )}
 
-               {/* Personal deals button */}
-               {user && personalDeals.length > 0 && (
-                <div className="mb-4">
-                  <button 
-                    type="button" 
-                    onClick={() => setShowDealsModal(true)}
-                    className={`w-full py-4 px-6 rounded-2xl flex items-center justify-between transition-all group ${selectedPersonalDeal && selectedPersonalDeal.code !== "test" ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-gold-500/10 border border-gold-500/20 text-gold-500 hover:bg-gold-500/20"}`}
-                  >
-                    <div className="flex items-center gap-3">
-                       <Tag size={18} />
-                       <span className="text-[10px] font-black uppercase tracking-widest leading-none">Mina Erbjudanden ({personalDeals.length})</span>
-                    </div>
-                    {selectedPersonalDeal && selectedPersonalDeal.code !== "test" ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-black uppercase">{selectedPersonalDeal.code}</span>
-                        <X size={14} className="hover:text-white" onClick={(e: any) => { e.stopPropagation(); setSelectedPersonalDeal(null); }} />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          {/* Cart items list */}
+          <div className="lg:col-span-12 xl:col-span-7 space-y-4">
+            {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
+            <div className="space-y-4">
+              {items.map((item) => (
+                <motion.div key={item.cartItemId} layout className="glass-panel p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-white/5 transition-all group">
+                   <div className="flex items-center gap-6">
+                      <div className="w-14 h-14 bg-zinc-950 border border-white/5 rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner">
+                         {item.quantity}x
                       </div>
-                    ) : (
-                      <Plus size={16} className="group-hover:rotate-90 transition-transform" />
-                    )}
-                  </button>
-                  {selectedPersonalDeal && selectedPersonalDeal.campaign.minOrder > 0 && subtotal < selectedPersonalDeal.campaign.minOrder && (
-                    <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest mt-1.5 ml-2">Min. order ej uppnådd ({selectedPersonalDeal.campaign.minOrder} kr)</p>
-                  )}
-                </div>
-              )}
+                      <div>
+                         <h3 className="text-lg font-black text-white uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase">{item.name}</h3>
+                         {item.extras.length > 0 && (
+                           <div className="flex flex-wrap gap-2">
+                              {item.extras.map(e => (
+                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 bg-zinc-950/40 px-2 py-0.5 rounded-md border border-white/5">{e.name}</span>
+                              ))}
+                           </div>
+                         )}
+                      </div>
+                   </div>
+                   <div className="flex items-center justify-between sm:justify-end gap-10">
+                      <div className="flex items-center gap-6 glass-panel px-4 py-3 rounded-2xl border-white/5">
+                         <button onClick={() => updateQuantity(item.cartItemId, -1)} className="text-zinc-600 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
+                         <span className="text-base font-black text-white w-4 text-center italic">{item.quantity}</span>
+                         <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-600 hover:text-white transition-colors active:scale-75"><Plus size={18} /></button>
+                      </div>
+                      <div className="flex items-center gap-8">
+                         <div className="text-lg font-black italic text-white flex flex-col items-end">
+                            <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
+                            <span className="text-[8px] uppercase tracking-widest text-zinc-800 leading-none">SEK</span>
+                         </div>
+                         <button onClick={() => removeItem(item.cartItemId)} className="w-10 h-10 rounded-xl bg-bg-primary flex items-center justify-center text-zinc-900 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90">
+                            <Trash2 size={18} />
+                         </button>
+                      </div>
+                   </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
 
-              {/* Summary */}
-              <div className="border-t border-white/5 pt-6 space-y-3">
-                <div className="flex justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
-                  <span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span>
-                </div>
-                {orderType === "DELIVERY" && (
-                  <div className="flex justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
-                    <span>Leverans</span><span>{deliveryFee.toFixed(0)} KR</span>
-                  </div>
-                )}
-                {(automaticDeal.discountAmount > 0 || personalDiscount > 0) && (
-                  <div className="flex justify-between text-emerald-400 text-[10px] font-black uppercase tracking-widest">
-                    <span>Rabatt ({personalDiscount > automaticDeal.discountAmount ? "Erbjudande" : "Automatisk"})</span>
-                    <span>-{finalDiscount.toFixed(0)} KR</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center pt-2">
-                  <span className="text-lg font-black uppercase italic text-white">Totalt</span>
-                  <span className="text-3xl font-black text-gold-500">{total.toFixed(0)} KR</span>
-                </div>
-              </div>
+          {/* Form & Payment */}
+          <div className="lg:col-span-12 xl:col-span-5">
+             <AnimatePresence mode="wait">
+               {showPayment && clientSecret ? (
+                 <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-10 rounded-[3.5rem] border-white/10 shadow-2xl">
+                    <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
+                       <CreditCard size={18} /> Betala Tryggt
+                    </div>
+                    <div className="bg-zinc-950/40 rounded-3xl p-6 mb-10 border border-white/5">
+                       <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#e7b24b', colorBackground: '#09090b', colorText: '#ffffff' } } }}>
+                          <StripeCheckout amount={total} onSuccess={submitOrder} />
+                       </Elements>
+                    </div>
+                    <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest text-zinc-700 hover:text-white transition-colors">← Tillbaka till uppgifter</button>
+                 </motion.div>
+               ) : (
+                 <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-10 rounded-[3.5rem] shadow-2xl relative">
+                    <div className="flex gap-4 p-1.5 glass-panel rounded-[1.8rem] mb-10">
+                       {(['DELIVERY', 'PICKUP'] as const).map(type => (
+                          <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-600 hover:text-zinc-200'}`}>
+                             {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
+                             {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
+                          </button>
+                       ))}
+                    </div>
 
-              {error && (
-                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-[11px] font-bold">
-                  {error}
-                </div>
-              )}
+                    <div className="space-y-8">
+                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Ditt Namn</label>
+                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Namn" />
+                          </div>
+                          <div className="space-y-2">
+                             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Telefon</label>
+                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Nummer" />
+                          </div>
+                       </div>
 
-              <button
-                type="submit"
-                disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen}
-                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 flex items-center justify-center gap-3"
-              >
-                {loading ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : subtotal < minOrder ? (
-                  `Handla för ${(minOrder - subtotal).toFixed(0)} kr till`
-                ) : (
-                  <><ChevronRight size={20} /> Gå till betalning</>
-                )}
-              </button>
+                       {orderType === 'DELIVERY' && (
+                          <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Gatuadress</label>
+                                <input value={formData.deliveryStreet} onChange={e => setFormData({...formData, deliveryStreet: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Gatan 1" />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Postnummer</label>
+                                <input value={formData.deliveryZip} onChange={e => setFormData({...formData, deliveryZip: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="123 45" />
+                             </div>
+                          </div>
+                       )}
 
-              {!restaurantSettings.isOpen && (
-                <p className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
-                  Restaurangen är stängd just nu
-                </p>
-              )}
-            </form>
-          )}
+                       <div className="space-y-2">
+                          <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Extranotering</label>
+                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
+                       </div>
+
+                       {/* Promo Code Integrated */}
+                       <div className="relative group">
+                          <Tag size={16} className="absolute left-6 top-[54px] text-gold-500/40 group-focus-within:text-gold-500 transition-colors" />
+                          <input 
+                             value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
+                             onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
+                             className={`w-full bg-zinc-950/60 border rounded-2xl py-5 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-400 focus:border-gold-500/40"}`}
+                             placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
+                          />
+                          <button 
+                             type="button" 
+                             onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
+                             className={`absolute right-2 top-[35px] px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-white/5 text-zinc-500 hover:bg-white/10"}`}
+                          >
+                             {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
+                          </button>
+                       </div>
+                    </div>
+
+                    <div className="border-t border-white/5 mt-10 pt-10 space-y-4">
+                       <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
+                       {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Frakt</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
+                       {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
+                       <div className="flex justify-between items-center mt-6">
+                          <span className="text-3xl font-black text-white italic uppercase tracking-tighter">TOTALT</span>
+                          <span className="text-5xl font-black text-white italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic">SEK</span></span>
+                       </div>
+                    </div>
+
+                    {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
+
+                    <button 
+                       onClick={startCheckout} 
+                       disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen}
+                       className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
+                    >
+                       {loading ? <Loader2 className="animate-spin" size={24} /> : subtotal < minOrder ? `Köp för ${minOrder - subtotal} kr till` : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                    </button>
+                 </motion.div>
+               )}
+             </AnimatePresence>
+          </div>
         </div>
       </div>
 
-      {/* Deals Modal */}
+      {/* Modern Deals Modal */}
       <AnimatePresence>
         {showDealsModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[3rem] overflow-hidden"
-            >
-              <div className="p-8 border-b border-white/5 flex items-center justify-between">
-                 <h2 className="text-xl font-black uppercase italic tracking-tighter">Mina <span className="text-gold-500">Deals</span></h2>
-                 <button onClick={() => setShowDealsModal(false)} className="p-2 hover:bg-white/5 rounded-xl"><X size={24} className="text-white/20" /></button>
-              </div>
-              <div className="p-6 space-y-3 max-h-[400px] overflow-y-auto">
-                 {personalDeals.map((deal) => {
-                   const isEligible = subtotal >= deal.campaign.minOrder;
-                   const isSelected = selectedPersonalDeal?.id === deal.id;
-                   return (
-                     <button 
-                       key={deal.id}
-                       disabled={!isEligible}
-                       onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }}
-                       className={`w-full text-left p-6 rounded-3xl border transition-all ${isSelected ? "bg-gold-500 border-gold-500 text-dark-500" : isEligible ? "bg-white/5 border-white/10 text-white" : "opacity-30 grayscale cursor-not-allowed border-white/5"}`}
-                     >
-                       <div className="text-[9px] font-black uppercase tracking-widest opacity-50 mb-1">{deal.campaign.title}</div>
-                       <div className="text-xl font-black uppercase italic tracking-tight">{deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}</div>
-                       {!isEligible && (
-                         <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-amber-500">Kräver {deal.campaign.minOrder} kr</div>
-                       )}
-                     </button>
-                   );
-                 })}
-              </div>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-6" onClick={() => setShowDealsModal(false)}>
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
+               <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 text-zinc-800 hover:text-white transition-colors"><X size={24}/></button>
+               <h2 className="text-2xl font-black uppercase text-white italic tracking-tight mb-8">Dina <span className="text-gold-gradient">Erbjudanden</span></h2>
+               <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
+                  {personalDeals.map(deal => {
+                    const isEligible = subtotal >= deal.campaign.minOrder;
+                    return (
+                       <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all ${isEligible ? "bg-white/3 border-white/5 hover:border-gold-500/40 group active:scale-[0.98]" : "opacity-30 border-white/2 grayscale"}`}>
+                          <div className="flex items-center justify-between mb-4">
+                             <div className="text-[9px] font-black uppercase tracking-widest text-zinc-700">{deal.campaign.title}</div>
+                             {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}
+                          </div>
+                          <div className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-2 group-hover:text-gold-500 transition-colors">
+                             {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
+                          </div>
+                          <div className="text-[9px] font-bold text-zinc-800 uppercase tracking-widest">Gäller vid köp över {deal.campaign.minOrder} kr</div>
+                       </button>
+                    );
+                  })}
+               </div>
             </motion.div>
           </div>
         )}

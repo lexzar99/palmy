@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star } from "lucide-react";
+import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -43,6 +43,45 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params: any = {};
+      if (restaurantId) params.restaurantId = restaurantId;
+      if (restaurantSlug) params.slug = restaurantSlug;
+
+      const [menuRes, restaurantRes, dealsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/menu/categories`, { params }),
+        restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
+        axios.get(`${API_URL}/api/deals`),
+      ]);
+
+      setCategories(menuRes.data);
+      setDeals(dealsRes.data);
+      if (restaurantRes.data) {
+        setRestaurant(restaurantRes.data);
+      } else {
+        const settingsRes = await axios.get(`${API_URL}/api/settings`);
+        setRestaurant({
+          name: "Palmyra Lund",
+          isOpen: settingsRes.data.isOpen ?? true,
+          deliveryFee: settingsRes.data.deliveryFee ?? 49,
+          minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
+          etaMinutes: settingsRes.data.estimatedDeliveryTime ?? 35,
+        });
+      }
+
+      if (menuRes.data.length > 0) setActiveCategory(menuRes.data[0].id);
+    } catch (err) {
+      console.error("Error fetching menu data:", err);
+      setError("Kunde inte ladda menyn. Kontrollera din anslutning.");
+    } finally {
+      setLoading(false);
+    }
+  }, [restaurantId, restaurantSlug]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("platform_address");
@@ -50,45 +89,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       const storedType = localStorage.getItem("platform_order_type");
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
     }
-
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        const params: any = {};
-        if (restaurantId) params.restaurantId = restaurantId;
-        if (restaurantSlug) params.slug = restaurantSlug;
-
-        const [menuRes, restaurantRes, dealsRes] = await Promise.all([
-          axios.get(`${API_URL}/api/menu/categories`, { params }),
-          restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
-          axios.get(`${API_URL}/api/deals`),
-        ]);
-
-        setCategories(menuRes.data);
-        setDeals(dealsRes.data);
-        if (restaurantRes.data) {
-          setRestaurant(restaurantRes.data);
-        } else {
-          const settingsRes = await axios.get(`${API_URL}/api/settings`);
-          setRestaurant({
-            name: "Palmyra Lund",
-            isOpen: settingsRes.data.isOpen ?? true,
-            deliveryFee: settingsRes.data.deliveryFee ?? 49,
-            minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
-            etaMinutes: settingsRes.data.estimatedDeliveryTime ?? 35,
-          });
-        }
-
-        if (menuRes.data.length > 0) setActiveCategory(menuRes.data[0].id);
-      } catch (err) {
-        console.error("Error fetching menu data:", err);
-        setError("Kunde inte ladda menyn. Kontrollera din anslutning eller försök igen senare.");
-      } finally {
-        setLoading(false);
-      }
-    };
 
     fetchData();
 
@@ -112,10 +112,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       }
     });
 
-    return () => {
-      socket.disconnect();
-    };
-  }, [restaurantSlug, restaurantId]);
+    return () => { socket.disconnect(); };
+  }, [restaurantSlug, restaurantId, fetchData]);
 
   const filteredCategories = categories
     .map((cat) => ({
@@ -130,26 +128,24 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-gold-500" size={40} />
+      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center">
+        <div className="w-12 h-12 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
+          <Loader2 className="animate-spin text-gold-500" size={24} />
+        </div>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.4em] text-gold-500/60 animate-pulse">Laddar Menyn</p>
       </div>
     );
   }
 
   if (error || (!restaurant && !loading)) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
-        <div className="flex mb-6 items-center justify-center w-16 h-16 rounded-full bg-red-500/10 text-red-500">
-          <Info size={32} />
+      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] border border-rose-500/20 flex items-center justify-center mb-8">
+          <X size={40} className="text-rose-500" />
         </div>
-        <h2 className="text-xl font-bold mb-4 uppercase">Ett fel uppstod</h2>
-        <p className="text-white/60 mb-8 max-w-sm">{error || "Restaurangen hittades inte"}</p>
-        <Link
-          href="/"
-          className="px-8 py-4 bg-gold-500 hover:bg-gold-400 text-dark-500 rounded-xl font-bold uppercase tracking-wider transition-all"
-        >
-          Tillbaka till hem
-        </Link>
+        <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mb-2">Ett fel uppstod</h2>
+        <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-10 max-w-sm">{error || "Restaurangen hittades inte"}</p>
+        <Link href="/" className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Gå Hem</Link>
       </div>
     );
   }
@@ -157,353 +153,220 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 bg-zinc-950">
-      {/* Hero cover image (Foodora-style) */}
-      {isStandalone && heroImage && (
-        <div className="relative w-full h-52 overflow-hidden">
-          <img src={heroImage} alt={restaurant?.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-transparent" />
-          <Link
-            href="/"
-            className="absolute top-4 left-4 flex items-center gap-1.5 text-zinc-100/80 hover:text-gold-600 text-xs font-black uppercase tracking-widest bg-white/80 backdrop-blur px-3 py-2 rounded-full transition-colors shadow-xl"
-          >
-            <ChevronLeft size={14} />
-            Tillbaka
-          </Link>
-        </div>
-      )}
-
-      <div className={`px-4 max-w-4xl mx-auto ${isStandalone && heroImage ? "pt-6" : isStandalone ? "pt-12" : "pt-32"}`}>
-        {isStandalone && !heroImage && (
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-zinc-400 hover:text-gold-600 transition-colors text-xs font-bold uppercase tracking-widest mb-6"
-          >
-            <ChevronLeft size={16} />
-            Tillbaka
-          </Link>
+    <div className="pb-32 bg-obsidian selection:bg-gold-500/30">
+      {/* Dynamic Cover Image with Parallax-ish feel */}
+      <div className="relative w-full h-[50vh] overflow-hidden">
+        {heroImage ? (
+           <img src={heroImage} alt={restaurant?.name} className="w-full h-full object-cover scale-105" />
+        ) : (
+           <div className="w-full h-full bg-gradient-to-b from-zinc-900 to-obsidian" />
         )}
+        <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/40 to-transparent" />
+        
+        {/* Glass Back Button */}
+        <Link
+          href="/"
+          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group active:scale-90 transition-all opacity-90 hover:opacity-100"
+        >
+          <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-white">Tillbaka</span>
+        </Link>
 
-        {/* Restaurant header */}
-        <div className="mb-6">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-start gap-4 mb-3"
-          >
-            {!heroImage && restaurant.imageUrl && (
-              <div className="w-16 h-16 rounded-2xl overflow-hidden border border-white/5 shadow-xl shrink-0">
-                <img
-                  src={restaurant.slug === "palmyra" ? "/hero-palmyra.svg" : restaurant.imageUrl}
-                  alt={restaurant.name}
-                  className="w-full h-full object-cover"
-                />
+        {/* Header Content in Overlap */}
+        <div className="absolute bottom-10 left-0 w-full px-6 lg:px-12 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
+              <div className="flex items-center gap-4 mb-3">
+                 <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] text-white italic">
+                    {restaurant.name.split(" ")[0]}{" "}
+                    <span className="text-gold-gradient">{restaurant.name.split(" ").slice(1).join(" ")}</span>
+                 </h1>
+                 <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400"}`}>
+                    <div className={`w-1 h-1 rounded-full ${restaurant.isOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant.isOpen ? "Öppen" : "Stängd"}</span>
+                 </div>
               </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <h1 className="text-3xl md:text-4xl font-black tracking-tighter uppercase leading-none mb-1 text-zinc-100">
-                {restaurant.name.split(" ")[0]}{" "}
-                <span className="text-gold-600">{restaurant.name.split(" ").slice(1).join(" ")}</span>
-              </h1>
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">
-                  {restaurant.cuisine || "Restaurang"}
-                </span>
-                {restaurant.rating && (
-                  <div className="flex items-center gap-1 text-gold-600 font-bold text-[10px]">
-                    <Star size={10} className="fill-gold-600" />
-                    {restaurant.rating}{" "}
-                    <span className="text-zinc-400/50 font-medium">({restaurant.ratingCount})</span>
-                  </div>
-                )}
+              <div className="flex items-center gap-5 flex-wrap">
+                 <p className="text-[10px] font-black uppercase italic tracking-widest text-white/40">{restaurant.cuisine || "Restaurang"}</p>
+                 <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[11px]">
+                    <Star size={12} className="fill-gold-500" />
+                    {(restaurant.rating || 4.6).toFixed(1)}
+                    <span className="text-white/20 font-black ml-1">({restaurant.ratingCount || 120})</span>
+                 </div>
               </div>
-            </div>
-            <div className="flex flex-col items-end gap-2 shrink-0">
-              <div
-                className={`px-3 py-1.5 rounded-full border flex items-center gap-1.5 ${
-                  restaurant.isOpen
-                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600"
-                    : "border-red-500/30 bg-red-500/10 text-red-600"
-                }`}
-              >
-                <div
-                  className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                    restaurant.isOpen ? "bg-emerald-500" : "bg-red-500"
-                  }`}
-                />
-                <span className="text-[9px] font-black uppercase tracking-widest">
-                  {restaurant.isOpen ? "Öppet" : "Stängt"}
-                </span>
-              </div>
+           </motion.div>
+
+           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
+              <button onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-3 hover:bg-white/5 shadow-xl transition-all active:scale-95">
+                 <Info size={16} className="text-gold-500/60" /> Info
+              </button>
               {restaurant.phone && (
-                <a
-                  href={`tel:${String(restaurant.phone).replace(/\\s+/g, "")}`}
-                  className="px-3 py-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-600 hover:bg-sky-500/20 transition-colors flex items-center gap-1.5 shadow-xl"
-                >
-                  <Phone size={14} />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Ring</span>
-                </a>
+                 <a href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-3 shadow-xl hover:bg-gold-400 transition-all active:scale-95">
+                    <Phone size={16} /> Kontakt
+                 </a>
               )}
-              {/* Removign old ring button block since merged above */}
-            </div>
-          </motion.div>
-
-          {restaurant.description && (
-            <p className="text-zinc-400 text-sm leading-relaxed mb-4 max-w-lg">{restaurant.description}</p>
-          )}
-
-          {/* Info chips */}
-          <div className="flex flex-wrap gap-2 mb-3">
-            <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-zinc-900 flex items-center gap-1.5 shadow-xl">
-              <Bike size={12} className="text-gold-600" />
-              <span className="text-[9px] font-black text-zinc-400 uppercase tracking-wider">
-                Leverans {restaurant.deliveryFee} kr
-              </span>
-            </div>
-            <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-zinc-900 flex items-center gap-1.5 shadow-xl">
-              <Clock size={12} className="text-gold-600" />
-              <span className="text-[9px] font-black text-zinc-400 uppercase tracking-wider">
-                ~{restaurant.etaMinutes} min
-              </span>
-            </div>
-            {restaurant.minOrderAmount > 0 && (
-              <div className="px-3 py-1.5 rounded-xl border border-white/5 bg-zinc-900 flex items-center gap-1.5 shadow-xl">
-                <Store size={12} className="text-gold-600" />
-                <span className="text-[9px] font-black text-zinc-400 uppercase tracking-wider">
-                  Min. order {restaurant.minOrderAmount} kr
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-3 mt-6">
-            {restaurant.phone && (
-              <a
-                href={`tel:${String(restaurant.phone).replace(/\\s+/g, "")}`}
-                className="flex-1 py-3.5 rounded-2xl bg-zinc-900 border border-white/5 hover:border-sky-500/30 hover:bg-sky-500/10 hover:text-sky-400 transition-all text-zinc-300 font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 shadow-xl"
-              >
-                <Phone size={16} />
-                Ring restaurang
-              </a>
-            )}
-            <button
-              onClick={() => setShowInfoModal(true)}
-              className="flex-1 py-3.5 rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/30 hover:bg-gold-500/10 hover:text-gold-400 transition-all text-zinc-300 font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2 shadow-xl"
-            >
-              <Info size={16} />
-              Mer Info
-            </button>
-          </div>
-        </div>
-
-        {/* Deals */}
-        {deals.length > 0 && restaurantSlug && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
-            {deals.slice(0, 4).map((deal) => (
-              <div
-                key={deal.id}
-                className="rounded-2xl border border-white/5 bg-zinc-900 p-4 relative overflow-hidden group hover:border-gold-600/20 transition-all shadow-xl"
-              >
-                <div className="flex items-start justify-between gap-3 relative z-10">
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 rounded-full bg-gold-400/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1.5">
-                      <Sparkles size={8} />
-                      {deal.badgeText || "Deal"}
-                    </div>
-                    <h3 className="text-sm font-black tracking-tight leading-none mb-0.5 text-zinc-100">{deal.title}</h3>
-                    <p className="text-zinc-400 text-[9px] line-clamp-1">{deal.description || formatDealReward(deal)}</p>
-                  </div>
-                  <div className="text-lg font-black text-gold-600">{formatDealReward(deal)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Search + category nav */}
-        <div className="sticky top-0 z-40 bg-zinc-950/80 backdrop-blur-xl py-3 -mx-4 px-4 mb-6 border-b border-white/5">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1 max-w-[180px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400/50" size={12} />
-              <input
-                type="text"
-                placeholder="Sök i menyn..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-zinc-900 border border-white/5 rounded-lg py-2 pl-8 pr-3 text-xs focus:outline-none focus:ring-1 focus:ring-gold-500/30 transition-all placeholder:text-zinc-400/30 shadow-xl"
-              />
-            </div>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {categories.map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => {
-                    setActiveCategory(cat.id);
-                    const element = document.getElementById(cat.id);
-                    if (element) {
-                      const offset = 120;
-                      const bodyRect = document.body.getBoundingClientRect().top;
-                      const elementRect = element.getBoundingClientRect().top;
-                      const elementPosition = elementRect - bodyRect;
-                      const offsetPosition = elementPosition - offset;
-                      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-                    }
-                  }}
-                  className={`whitespace-nowrap px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                    activeCategory === cat.id
-                      ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20"
-                      : "bg-zinc-900 text-zinc-400/60 hover:bg-zinc-800/50 shadow-xl border border-white/5"
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Menu Grid */}
-        <div className="space-y-16">
-          {filteredCategories.map((cat) => (
-            <section key={cat.id} id={cat.id} className="scroll-mt-32">
-              <div className="mb-6 flex items-center gap-4">
-                <h2 className="text-xl font-black uppercase tracking-widest text-zinc-100 whitespace-nowrap">
-                  {cat.name}
-                </h2>
-                <div className="h-px bg-gradient-to-r from-light-500 to-transparent flex-1" />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {cat.products.map((p: any) => (
-                  <motion.div
-                    key={p.id}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      if (!address.trim()) {
-                        setPendingProduct(p);
-                        setShowAddressModal(true);
-                      } else {
-                        setSelectedProduct(p);
-                      }
-                    }}
-                    className="group bg-zinc-900 border border-white/5 rounded-2xl p-4 cursor-pointer hover:border-gold-500/30 hover:bg-light-100 transition-all flex items-center gap-4 active:scale-95 shadow-xl"
-                  >
-                    {p.imageUrl && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-800/50 flex-shrink-0 border border-white/5">
-                        <img
-                          src={p.imageUrl}
-                          alt={p.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500"
-                        />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-black truncate uppercase tracking-tight group-hover:text-gold-600 transition-colors leading-tight mb-0.5 text-zinc-100">
-                        {p.name}
-                      </h3>
-                      <p className="text-zinc-400 text-[10px] line-clamp-2 leading-relaxed font-medium">
-                        {p.description}
-                      </p>
-                      <div className="flex items-center gap-1.5 mt-2">
-                        {p.isVegan && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Vegan" />}
-                        {p.isVegetarian && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" title="Vegetarian" />}
-                        {p.isGlutenFree && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" title="Glutenfri" />}
-                      </div>
-                    </div>
-                    <div className="text-xl font-black text-gold-600 group-hover:scale-110 transition-transform whitespace-nowrap ml-2">
-                      {p.price}
-                      <span className="text-[10px] ml-0.5 opacity-30">kr</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          ))}
+           </motion.div>
         </div>
       </div>
 
-      {/* Product Modal */}
+      <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12">
+        {/* Quick Stats Grid */}
+        <div className="grid grid-cols-3 gap-3 mb-16">
+           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+              <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
+              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Avgift</div>
+              <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.deliveryFee} KR</div>
+           </div>
+           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+              <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
+              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Väntetid</div>
+              <div className="text-sm font-black text-white italic uppercase tracking-tighter">~{restaurant.etaMinutes} MIN</div>
+           </div>
+           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+              <Store size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
+              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Minsta Order</div>
+              <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.minOrderAmount} KR</div>
+           </div>
+        </div>
+
+        {/* Sticky Search & Categories Navigation */}
+        <div className="sticky top-6 z-40 mb-16">
+           <div className="glass-panel rounded-[2.5rem] p-2 flex items-center gap-3 shadow-2xl border-white/5">
+              <div className="relative flex-1 group">
+                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-gold-500 transition-colors" />
+                 <input 
+                    type="text" 
+                    placeholder="Vad är du sugen på?" 
+                    value={searchTerm} 
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full bg-zinc-950/40 border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold text-white focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-800"
+                 />
+              </div>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
+                 {categories.map(cat => (
+                    <button 
+                       key={cat.id} 
+                       onClick={() => {
+                          setActiveCategory(cat.id);
+                          const element = document.getElementById(cat.id);
+                          if (element) {
+                             const offset = 120;
+                             window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                          }
+                       }}
+                       className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-600 hover:text-zinc-300 hover:bg-white/5"}`}
+                    >
+                       {cat.name}
+                    </button>
+                 ))}
+              </div>
+           </div>
+        </div>
+
+        {/* Menu Sections Grid */}
+        <div className="space-y-24">
+           {filteredCategories.map((cat, catIdx) => (
+              <motion.section 
+                 key={cat.id} 
+                 id={cat.id} 
+                 initial={{ opacity: 0, y: 20 }}
+                 whileInView={{ opacity: 1, y: 0 }}
+                 viewport={{ once: true }}
+                 transition={{ delay: catIdx * 0.1 }}
+              >
+                 <div className="flex items-center justify-between mb-10 px-4">
+                    <h2 className="text-3xl font-black tracking-tight text-white uppercase italic leading-none truncate max-w-[200px] lg:max-w-none">
+                       {cat.name} <span className="text-zinc-800 ml-4">/ {cat.products.length}</span>
+                    </h2>
+                    <div className="h-px bg-white/5 flex-1 mx-8 hidden lg:block" />
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
+                    {cat.products.map((p: any) => (
+                       <motion.div
+                          key={p.id}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={() => {
+                             if (!address.trim()) {
+                                setPendingProduct(p);
+                                setShowAddressModal(true);
+                             } else {
+                                setSelectedProduct(p);
+                             }
+                          }}
+                          className="group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 cursor-pointer active:scale-95"
+                       >
+                          {p.imageUrl && (
+                             <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">
+                                <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                             </div>
+                          )}
+                          <div className="flex-1 min-w-0 py-2">
+                             <div className="flex items-start justify-between gap-4 mb-2">
+                                <h3 className="text-base font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none">{p.name}</h3>
+                                <div className="text-[9px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-2 py-1 rounded-md border border-gold-500/20">{p.price} KR</div>
+                             </div>
+                             <p className="text-zinc-600 text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4">{p.description}</p>
+                             
+                             <div className="flex items-center gap-1.5 opacity-40">
+                                {p.isVegan && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                                {p.isVegetarian && <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                                {p.isGlutenFree && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                             </div>
+                          </div>
+                       </motion.div>
+                    ))}
+                 </div>
+              </motion.section>
+           ))}
+        </div>
+      </div>
+
+      {/* Overlays / Modals */}
       <AnimatePresence>
         {selectedProduct && (
-          <ProductModal 
-            product={selectedProduct} 
-            restaurantId={restaurant?.id || "palmyra"}
-            onClose={() => setSelectedProduct(null)} 
-          />
+          <ProductModal product={selectedProduct} restaurantId={restaurant?.id || "palmyra"} onClose={() => setSelectedProduct(null)} />
         )}
       </AnimatePresence>
 
-      {/* Info Modal */}
       <AnimatePresence>
         {showInfoModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/80 backdrop-blur-xl p-4"
-            onClick={() => setShowInfoModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 20 }}
-              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl relative"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                onClick={() => setShowInfoModal(false)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <ChevronLeft size={16} className="rotate-180" />
-              </button>
-
-              <div className="w-12 h-12 bg-gold-500/10 text-gold-500 rounded-2xl flex items-center justify-center mb-4">
-                <Info size={24} />
-              </div>
-              <h2 className="text-2xl font-black uppercase tracking-tight text-white mb-6">Om restaurangen</h2>
-
-              <div className="space-y-4">
-                {restaurant.address && (
-                  <div className="flex items-start gap-3">
-                    <MapPin className="text-zinc-500 mt-0.5" size={16} />
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Adress</div>
-                      <div className="text-sm font-bold text-zinc-300">{restaurant.address}</div>
-                      <div className="text-sm font-bold text-zinc-300">{restaurant.zip} {restaurant.city}</div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-6" onClick={() => setShowInfoModal(false)}>
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
+               <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
+                  <Info size={32} />
+               </div>
+               <h2 className="text-3xl font-black uppercase italic italic text-white mb-8">Restaurang Info</h2>
+               
+               <div className="space-y-8">
+                  {restaurant.address && (
+                    <div className="flex items-start gap-4">
+                      <MapPin className="text-zinc-700 mt-1" size={18} />
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Hitta Hit</div>
+                        <div className="text-sm font-black text-white italic uppercase">{restaurant.address}</div>
+                        <div className="text-sm font-black text-white italic uppercase opacity-40">{restaurant.zip} {restaurant.city}</div>
+                      </div>
                     </div>
-                  </div>
-                )}
-
-                {restaurant.phone && (
-                  <div className="flex items-start gap-3">
-                    <Phone className="text-zinc-500 mt-0.5" size={16} />
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Telefon</div>
-                      <a href={`tel:${restaurant.phone}`} className="text-sm font-bold text-gold-500 hover:underline">
-                        {restaurant.phone}
-                      </a>
+                  )}
+                  {restaurant.phone && (
+                    <div className="flex items-start gap-4">
+                      <Phone className="text-zinc-700 mt-1" size={18} />
+                      <div className="min-w-0">
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Ring Oss</div>
+                        <a href={`tel:${restaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-400 transition-colors">{restaurant.phone}</a>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+               </div>
 
-                {(restaurant.description || restaurant.cuisine) && (
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="text-zinc-500 mt-0.5" size={16} />
-                    <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Om</div>
-                      <div className="text-sm text-zinc-400">{restaurant.description || restaurant.cuisine}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
+               <button onClick={() => setShowInfoModal(false)} className="absolute top-10 right-10 text-zinc-700 hover:text-white transition-colors">
+                  <X size={24} />
+               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      <DealSpotlight deals={deals.filter((deal) => deal.popupEnabled)} subtotal={subtotal} productIds={productIds} floating />
-      <FloatingCartButton />
 
       <AddressModal
         isOpen={showAddressModal}
@@ -521,15 +384,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             setPendingProduct(null);
           }
         }}
-        onFail={(reason) => {
-          if (typeof window !== "undefined") {
-            localStorage.setItem("platform_address_error", reason);
-          }
-          router.push("/");
-        }}
         orderType={orderType}
         setOrderType={setOrderType}
       />
+
+      <DealSpotlight deals={deals.filter(d => d.popupEnabled)} subtotal={subtotal} productIds={productIds} floating />
+      <FloatingCartButton />
     </div>
   );
 };

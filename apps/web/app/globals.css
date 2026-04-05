@@ -2,35 +2,83 @@
 
 @theme {
   --color-gold-400: #ffd43b;
-  --color-gold-500: #fcc419;
-  --color-gold-600: #f08c00;
-
-  /* Premium Dark Gray Theme Palette */
-  --color-sky-500: #339af0;
-  --color-coral-500: #ff6b6b;
-  --color-lime-500: #51cf66;
+  --color-gold-500: #e7b24b;
+  --color-gold-600: #c7922d;
+  --color-obsidian: #09090b;
+  --color-zinc-glass: rgba(255, 255, 255, 0.02);
 }
 
 @layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    background: 
-      radial-gradient(at 0% 0%, color-mix(in srgb, var(--color-gold-500) 8%, transparent) 0%, transparent 60%),
-      radial-gradient(at 100% 0%, color-mix(in srgb, var(--color-sky-500) 5%, transparent) 0%, transparent 50%),
-      #18181b; /* zinc-900 */
-    color: #f4f4f5; /* zinc-100 */
-    min-height: 100vh;
+    background-color: var(--color-obsidian);
+    color: #f4f4f5;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
 }
 
-/* Custom shadow for premium cards */
-.premium-shadow {
-  box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+/* Glassmorphism Classes */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.glass-card:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border-color: rgba(231, 178, 75, 0.2);
+  transform: translateY(-4px);
+}
+
+/* Typography Effects */
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.4) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #f3c96e 0%, #e7b24b 45%, #c7922d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Utilities */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+.bg-dot-pattern {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
