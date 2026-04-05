@@ -118,21 +118,26 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings">("overview");
   const [hasVisited, setHasVisited] = useState(false);
 
-  // Login
+  // Auth (Phone OTP)
+  const [showOtp, setShowOtp] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otpPhone, setOtpPhone] = useState(""); // Stores phone after sending OTP
+
   const [countryCode, setCountryCode] = useState("+46");
   const [loginPhone, setLoginPhone] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState("");
 
-  // Edit
+  // Edit profile
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editShowNameInput, setEditShowNameInput] = useState(false); // For new phone users
   const [editEmail, setEditEmail] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
  
-  // Add phone for OAuth users
+  // Add phone for OAuth users (Transition to OTP)
   const [showAddPhone, setShowAddPhone] = useState(false);
   const [addPhoneCountry, setAddPhoneCountry] = useState("+46");
   const [addPhoneNum, setAddPhoneNum] = useState("");
@@ -171,13 +176,13 @@ export default function ProfilePage() {
         setUser(pUser);
         fetchData(pToken);
         
-        // If OAuth user has no phone, show add-phone prompt
-        if (pUser?.needsPhone) {
+        // If OAuth user has no phone AND we haven't loaded a phone from the backend fetchData yet
+        if (pUser?.needsPhone && !user?.phone) {
           setShowAddPhone(true);
         }
       }
     }
-  }, [status, session, token, fetchData]);
+  }, [status, session, token, user, fetchData]);
 
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
@@ -193,40 +198,60 @@ export default function ProfilePage() {
     }
   }, [fetchData]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e: React.FormEvent, customPhone?: string) => {
+    if (e) e.preventDefault();
     setIsLoggingIn(true);
     setLoginError("");
-    const fullPhone = `${countryCode}${loginPhone.replace(/^0/, "")}`;
+    const phoneToUse = customPhone || `${countryCode}${loginPhone.replace(/^0/, "")}`;
+    setOtpPhone(phoneToUse);
+
     try {
-      const res = await axios.post(`${API_URL}/api/account/login-user`, {
-        identifier: fullPhone,
-        password: loginPassword,
-      });
-      const { token: nt } = res.data;
-      localStorage.setItem("platform_user_token", nt);
-      setToken(nt);
-      fetchData(nt);
+      await axios.post(`${API_URL}/api/auth/send-otp`, { phone: phoneToUse });
+      setShowOtp(true);
+      if (showAddPhone) setShowAddPhone(false); // If we were in OAuth add-phone
     } catch (err: any) {
-      setLoginError(err.response?.data?.error || "Fel telefonnummer eller lösenord");
+      setLoginError(err.response?.data?.error || "Kunde inte skicka kod");
+      if (showAddPhone) setAddPhoneError(err.response?.data?.error || "Kunde inte skicka kod");
     } finally {
       setIsLoggingIn(false);
     }
   };
 
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsVerifying(true);
+    setLoginError("");
+    try {
+      const res = await axios.post(`${API_URL}/api/auth/verify-otp`, {
+        phone: otpPhone,
+        code: otpCode,
+      }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      const { token: newToken, user: newUser } = res.data;
+      localStorage.setItem("platform_user_token", newToken);
+      setToken(newToken);
+      setUser(newUser);
+      fetchData(newToken);
+      setShowOtp(false);
+    } catch (err: any) {
+      setLoginError(err.response?.data?.error || "Felaktig kod");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const handleAddPhone = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fullPhone = `${addPhoneCountry}${addPhoneNum.replace(/^0/, "")}`;
     setAddPhoneLoading(true);
     setAddPhoneError("");
-    const fullPhone = `${addPhoneCountry}${addPhoneNum.replace(/^0/, "")}`;
     try {
-      await axios.patch(`${API_URL}/api/account/add-phone`, { phone: fullPhone }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setShowAddPhone(false);
-      fetchData(token!);
+      // Instead of direct add, send OTP
+      await handleSendOtp(e, fullPhone);
     } catch (err: any) {
-      setAddPhoneError(err.response?.data?.error || "Kunde inte spara");
+      setAddPhoneError(err.response?.data?.error || "Kunde inte verifiera nummer");
     } finally {
       setAddPhoneLoading(false);
     }
@@ -287,46 +312,60 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          {/* Phone login form */}
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Telefonnummer</label>
-              <div className="flex gap-2">
-                <CountryPicker value={countryCode} onChange={setCountryCode} />
+          {/* Phone login / OTP form */}
+          {showOtp ? (
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Verifieringskod</label>
                 <input
                   required
-                  type="tel"
-                  autoComplete="tel"
-                  value={loginPhone}
-                  onChange={(e) => setLoginPhone(e.target.value)}
-                  placeholder="070 000 00 00"
-                  className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  type="text"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="000 000"
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-zinc-800 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
                 />
               </div>
-            </div>
-            <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Lösenord</label>
-              <input
-                required
-                type="password"
-                autoComplete="current-password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Ditt lösenord"
-                className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 px-7 text-white font-bold placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-              />
-            </div>
-            {loginError && (
-              <p className="text-red-500 text-[11px] font-black uppercase tracking-widest text-center">{loginError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="w-full bg-gold-500 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
-            >
-              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Logga in med telefon"}
-            </button>
-          </form>
+              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
+              <button
+                type="submit"
+                disabled={isVerifying}
+                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+              >
+                {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Verifiera"}
+              </button>
+              <button type="button" onClick={() => setShowOtp(false)} className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors">
+                Ändra telefonnummer
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSendOtp} className="space-y-4">
+              <div>
+                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Telefonnummer</label>
+                <div className="flex gap-2">
+                  <CountryPicker value={countryCode} onChange={setCountryCode} />
+                  <input
+                    required
+                    type="tel"
+                    autoComplete="tel"
+                    value={loginPhone}
+                    onChange={(e) => setLoginPhone(e.target.value)}
+                    placeholder="070 000 00 00"
+                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  />
+                </div>
+              </div>
+              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+              >
+                {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Fortsätt"}
+              </button>
+            </form>
+          )}
 
           {/* Divider */}
           <div className="relative">

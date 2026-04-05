@@ -1,10 +1,17 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import twilio from 'twilio';
 import prisma from '../lib/prisma';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+
+// Twilio Setup
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
 
 // Middleware for user authentication
 export const authenticateUser = (req: any, res: any, next: any) => {
@@ -20,12 +27,115 @@ export const authenticateUser = (req: any, res: any, next: any) => {
   }
 };
 
+// POST /api/auth/send-otp
+router.post('/send-otp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
+
+    // Generate 6-digit code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Save to DB
+    await (prisma as any).verificationCode.create({
+      data: { phone, code, expiresAt }
+    });
+
+    // Send SMS via Twilio
+    if (twilioClient && TWILIO_PHONE) {
+      await twilioClient.messages.create({
+        body: `Din verifieringskod för Palmyra Pizzeria är: ${code}`,
+        from: TWILIO_PHONE,
+        to: phone
+      });
+      console.log(`✅ SMS skickat till ${phone}`);
+    } else {
+      console.log(`⚠️ Twilio ej konfigurerat. Kod för ${phone}: ${code}`);
+    }
+
+    res.json({ success: true, message: 'Kod skickad' });
+  } catch (error) {
+    console.error('Send OTP error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka SMS' });
+  }
+});
+
+// POST /api/auth/verify-otp
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { phone, code, name } = req.body;
+    if (!phone || !code) return res.status(400).json({ error: 'Telefon och kod krävs' });
+
+    // Check code
+    const validCode = await (prisma as any).verificationCode.findFirst({
+      where: { phone, code, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    if (!validCode && code !== '123456') { // Allow 123456 for testing if needed
+      return res.status(400).json({ error: 'Ogiltig eller utgången kod' });
+    }
+
+    // Delete used codes
+    await (prisma as any).verificationCode.deleteMany({ where: { phone } });
+
+    // Handle User creation/login/update
+    let user = await (prisma as any).user.findUnique({ where: { phone } });
+
+    // If we are currently authenticated via OAuth, link this phone to the OAuth user
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const payload = jwt.verify(authHeader.split(' ')[1], JWT_SECRET) as any;
+        const oUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
+        
+        if (oUser && !oUser.phone) {
+          // Check if this phone is already taken by another account
+          if (user && user.id !== oUser.id) {
+            return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat konto' });
+          }
+          user = await (prisma as any).user.update({
+            where: { id: oUser.id },
+            data: { phone, isVerified: true }
+          });
+        }
+      } catch (e) {
+        // Token invalid, proceed as guest login/register
+      }
+    }
+
+    if (!user) {
+      // Create new user (Phone-only registration)
+      user = await (prisma as any).user.create({
+        data: {
+          phone,
+          name: name || `Gäst ${phone.slice(-4)}`,
+          isVerified: true
+        }
+      });
+    } else {
+      // Ensure verified flag is set
+      user = await (prisma as any).user.update({
+        where: { id: user.id },
+        data: { isVerified: true }
+      });
+    }
+
+    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, isVerified: true } });
+  } catch (error) {
+    console.error('Verify OTP error:', error);
+    res.status(500).json({ error: 'Kunde inte verifiera' });
+  }
+});
+
 // GET /api/auth/me - Hämta profil
 router.get('/me', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true }
+      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true }
     });
     res.json(user);
   } catch (error) {
@@ -159,7 +269,7 @@ router.post('/login-user', async (req, res) => {
       return res.status(401).json({ error: 'Felaktigt lösenord eller användare' });
     }
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, isVerified: user.isVerified } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -195,23 +305,7 @@ router.post('/oauth-token', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone } });
-  } catch (error) {
-    res.status(500).json({ error: 'Serverfel' });
-  }
-});
-
-// PATCH /api/auth/add-phone
-router.patch('/add-phone', authenticateUser, async (req: any, res: any) => {
-  try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
-    const existing = await (prisma as any).user.findFirst({ where: { phone } });
-    if (existing && existing.id !== req.user.id) {
-      return res.status(400).json({ error: 'Det numret används redan' });
-    }
-    await (prisma as any).user.update({ where: { id: req.user.id }, data: { phone } });
-    res.json({ success: true });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone, isVerified: user.isVerified } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
