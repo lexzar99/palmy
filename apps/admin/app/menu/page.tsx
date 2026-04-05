@@ -104,9 +104,9 @@ export default function MenuSelectionHub() {
            <div className="p-8 rounded-[3rem] bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20 group hover:border-emerald-500/40 transition-all relative overflow-hidden">
               <div className="relative z-10">
                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 mb-6 font-black"><Layers size={24} /></div>
-                 <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-2">Mass-uppdatering</h3>
-                 <p className="text-[11px] font-black uppercase text-white/30 tracking-widest leading-relaxed max-w-[200px]">Importera menyer i bulk eller synka med externa plattformar.</p>
-                 <button onClick={() => router.push('/menu/import')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-white transition-all">Gå till Import <ArrowRight size={14} /></button>
+                 <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-2">Restaurangcenter</h3>
+                 <p className="text-[11px] font-black uppercase text-white/30 tracking-widest leading-relaxed max-w-[200px]">Hantera menyer och sortiment individuellt per restaurang.</p>
+                 <button onClick={() => router.push('/restaurants')} className="mt-8 flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-emerald-500 hover:text-white transition-all">Gå till Restauranger <ArrowRight size={14} /></button>
               </div>
               <Layers size={140} className="absolute -bottom-10 -right-10 text-emerald-500/5 rotate-12 group-hover:rotate-0 transition-transform duration-700" />
            </div>

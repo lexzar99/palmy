@@ -95,6 +95,7 @@ const Sidebar = () => {
     { href: "/restaurants", label: "Restauranger", icon: Store },
     { href: "/customers", label: "Kundhantering", icon: Users },
     { href: "/campaigns", label: "Kampanjer", icon: Target },
+    { href: "/settings/hours", label: "Öppettider Hub", icon: Clock },
     { href: "/cities", label: "Zoner / Stad", icon: MapPin },
   ] : [];
 
@@ -124,20 +125,38 @@ const Sidebar = () => {
       <div className="p-8 border-b border-white/5 bg-[#0a0c14]">
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-4">
-             <div className="w-10 h-10 rounded-2xl bg-gold-400 flex items-center justify-center text-dark-500 font-black shadow-xl shadow-gold-500/10 rotate-3"><span className="text-xl italic">P</span></div>
-             <div className="text-left"><div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 mb-0.5">Kontroll</div><div className="font-black tracking-tighter text-white text-lg uppercase italic">Palmyra<span className="text-gold-500 ml-1">Lund</span></div></div>
+             <div className="w-10 h-10 rounded-2xl bg-gold-400 flex items-center justify-center text-dark-500 font-black shadow-xl shadow-gold-500/10 rotate-3"><span className="text-xl italic">M</span></div>
+             <div className="text-left">
+                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-500/60 mb-0.5 font-black">Kontroll</div>
+                <div className="font-black tracking-tighter text-white text-lg uppercase italic">Matgo<span className="text-gold-500 ml-1">Admin</span></div>
+             </div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/20 bg-white/5 rounded-xl transition-all"><X size={20}/></button>
         </div>
 
         {isSuperAdmin && (
-          <div className="space-y-2 mb-8">
-            <button onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all border ${!selectedRestaurantId ? "bg-gold-500 text-dark-500 border-gold-500" : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10"}`}>
-               <Globe size={16}/> <span className="text-[10px] font-black uppercase tracking-widest leading-none">Global Sök</span>
+          <div className="space-y-3 mb-8">
+            <button 
+              onClick={() => { setRestaurant(null, null); setIsMobileMenuOpen(false); }} 
+              className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl transition-all border ${!selectedRestaurantId ? "bg-gold-500 text-dark-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-white/5 border-white/10 text-white/40 hover:bg-white/10 hover:border-white/20"}`}
+            >
+               <span className="text-[10px] font-black uppercase tracking-widest leading-none">Global Sök</span>
+               <Globe size={14} className={!selectedRestaurantId ? "text-dark-500" : "text-gold-500/40"} />
             </button>
+            
             <div className="relative group">
-              <select value={selectedRestaurantId || ""} onChange={(e) => { const r = restaurants.find(res => res.id === e.target.value); setRestaurant(r?.id || null, r?.name || null); }} className="w-full bg-[#121421] border border-white/5 rounded-xl px-4 py-4 text-[10px] font-black text-white/60 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 uppercase tracking-widest"><option value="">Välj Restaurang...</option>{restaurants.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}</select>
-              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/10"/>
+              <select 
+                value={selectedRestaurantId || ""} 
+                onChange={(e) => { 
+                  const r = restaurants.find(res => res.id === e.target.value); 
+                  setRestaurant(r?.id || null, r?.name || null); 
+                }} 
+                className="w-full bg-dark-500 border border-white/10 rounded-2xl px-5 py-4 text-[10px] font-black text-white/80 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/50 hover:border-white/20 transition-all uppercase tracking-widest"
+              >
+                <option value="">Välj Butik...</option>
+                {restaurants.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}
+              </select>
+              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gold-500/40 group-hover:text-gold-500 transition-colors"/>
             </div>
           </div>
         )}

@@ -176,45 +176,7 @@ const GlobalSettingsPage = () => {
         </div>
       </div>
 
-      {/* Opening Hours */}
-      <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-white/20">Öppettider per dag</h2>
-        <div className="space-y-4">
-          {DAYS.map((day) => {
-            const hours = settings.openingHours[day.key] || defaultHours;
-            return (
-              <div key={day.key} className={`flex items-center gap-6 p-6 rounded-3xl transition-all ${hours.closed ? "bg-red-500/5 border border-red-500/10 opacity-60" : "bg-dark-500 border border-white/5"}`}>
-                <div className="w-32 font-black uppercase text-xs tracking-widest text-white/40">{day.label}</div>
-                <div className="flex items-center gap-4 flex-1">
-                  <input
-                    type="time"
-                    value={hours.open}
-                    disabled={hours.closed}
-                    onChange={(e) => updateHours(day.key, "open", e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-gold-500/30 outline-none disabled:opacity-20"
-                  />
-                  <span className="text-white/10 font-bold">-</span>
-                  <input
-                    type="time"
-                    value={hours.close}
-                    disabled={hours.closed}
-                    onChange={(e) => updateHours(day.key, "close", e.target.value)}
-                    className="bg-white/5 border border-white/10 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-gold-500/30 outline-none disabled:opacity-20"
-                  />
-                </div>
-                <button
-                  onClick={() => updateHours(day.key, "closed", !hours.closed)}
-                  className={`px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    hours.closed ? "bg-red-500 text-white" : "bg-white/5 text-white/40 hover:bg-red-500/20 hover:text-red-400"
-                  }`}
-                >
-                  {hours.closed ? "Stängd" : "Öppen"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Opening Hours removed - handled in /settings/hours hub */}
     </div>
   );
 };

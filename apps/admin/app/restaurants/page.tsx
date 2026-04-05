@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
 import { 
@@ -24,7 +25,11 @@ import {
   Info,
   Lock,
   Users,
-  Calendar
+  Calendar,
+  CreditCard,
+  History as HistoryIcon,
+  Ticket,
+  LayoutGrid
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -76,6 +81,7 @@ const emptyForm: Partial<Restaurant> = {
 };
 
 export default function RestaurantsPage() {
+  const router = useRouter();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,8 +107,17 @@ export default function RestaurantsPage() {
     }
   };
 
-  useEffect(() => {
+  const [cities, setCities] = useState<any[]>([]);
+  const fetchCities = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/cities`);
+      setCities(res.data);
+    } catch {}
+  };
+
+  useEffect(() => { 
     fetchRestaurants();
+    fetchCities();
   }, []);
 
   const filteredRestaurants = useMemo(() => {
@@ -382,12 +397,12 @@ export default function RestaurantsPage() {
                             />
                          </div>
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Kök / Genre</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">Sökord / Hashtags (Kebab, Pizza, m.m.)</label>
                             <input 
                               value={form.cuisine} 
                               onChange={e => setForm({...form, cuisine: e.target.value})}
                               className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
-                              placeholder="t.ex. Japanskt & Fusion"
+                              placeholder="t.ex. Kebab, Pizza, Falafel"
                             />
                          </div>
                          <div className="md:col-span-2 space-y-2">
@@ -403,10 +418,26 @@ export default function RestaurantsPage() {
 
                       <div className="grid md:grid-cols-3 gap-8">
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">City</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-white/30 ml-1">City / Stad</label>
                             <div className="relative">
                                <MapPin size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-white/20" />
-                               <input value={form.city} onChange={e => setForm({...form, city: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" />
+                               <select 
+                                 value={form.city} 
+                                 onChange={e => {
+                                   if (e.target.value === "ADD_NEW") {
+                                     router.push("/cities");
+                                     return;
+                                   }
+                                   setForm({...form, city: e.target.value});
+                                 }} 
+                                 className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold appearance-none uppercase text-xs"
+                               >
+                                 <option value="">Välj stad...</option>
+                                 {cities.map(city => (
+                                   <option key={city.id} value={city.name}>{city.name}</option>
+                                 ))}
+                                 <option value="ADD_NEW" className="text-gold-500 font-bold">+ Lägg till ny stad...</option>
+                               </select>
                             </div>
                          </div>
                           <div className="space-y-2">

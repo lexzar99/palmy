@@ -400,9 +400,15 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
                     </button>
                  ))}
               </div>
+
+              <div className="flex gap-2 p-1.5 bg-white/5 border border-white/10 rounded-2xl group">
+                 <button onClick={() => router.push('/menu/import')} className="p-2.5 hover:bg-white/5 rounded-xl transition-all text-white/40 hover:text-gold-500" title="Bulk Import"><Upload size={16} /></button>
+                 <button onClick={() => {/* handle sync */}} className="p-2.5 hover:bg-white/5 rounded-xl transition-all text-white/40 hover:text-gold-500" title="Synka externa tjänster"><Layers size={16} /></button>
+              </div>
+
               <div className="relative group">
                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-gold-500 transition-colors" size={16} />
-                 <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Sök..." className="bg-white/5 border border-white/10 rounded-2xl py-3 pl-10 pr-6 outline-none focus:border-gold-500/40 transition-all text-xs w-48 lg:w-64" />
+                 <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Sök..." className="bg-white/5 border border-white/10 rounded-2xl py-3 pl-10 pr-6 outline-none focus:border-gold-500/40 transition-all text-xs w-40 lg:w-48" />
               </div>
               <button 
                 onClick={() => {
@@ -413,7 +419,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
                 }}
                 className="flex items-center gap-2 px-6 py-3 bg-gold-500 text-dark-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-gold-400 transition-all"
               >
-                <Plus size={16} /> Lägg till
+                <Plus size={16} /> Ny
               </button>
            </div>
         </div>
