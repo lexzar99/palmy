@@ -154,7 +154,15 @@ export default function ProfilePage() {
       setEditName(profileRes.data.name || "");
       setEditEmail(profileRes.data.email || "");
       setOrders(ordersRes.data || []);
-    } catch {
+      
+      // If user has no phone and we are not in the middle of verifying one, prompt them
+      if (!profileRes.data.phone) {
+        setShowAddPhone(true);
+      } else {
+        setShowAddPhone(false);
+        setShowOtp(false);
+      }
+    } catch (err: any) {
       handleLogout();
     } finally {
       setLoading(false);
@@ -169,20 +177,15 @@ export default function ProfilePage() {
       const pToken = (session as any).platformToken as string;
       const pUser = (session as any).platformUser as any;
       
-      // Only update if we don't already have this token to avoid loops
+      // Only update if we don't already have this token
       if (token !== pToken) {
         localStorage.setItem("platform_user_token", pToken);
         setToken(pToken);
-        setUser(pUser);
+        // Don't setUser(pUser) here as it might be stale. Let fetchData do it.
         fetchData(pToken);
-        
-        // If OAuth user has no phone AND we haven't loaded a phone from the backend fetchData yet
-        if (pUser?.needsPhone && !user?.phone) {
-          setShowAddPhone(true);
-        }
       }
     }
-  }, [status, session, token, user, fetchData]);
+  }, [status, session, token, fetchData]);
 
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
