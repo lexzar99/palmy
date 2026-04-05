@@ -212,7 +212,7 @@ export default function RestaurantCampaignsPage() {
                         <div className="space-y-4">
                            <button 
                              onClick={() => toggleDealStatus(selectedDeal.id, selectedDeal.isActive)}
-                             className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedDeal.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5"}`}
+                             className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedDeal.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"}`}
                            >
                               {selectedDeal.isActive ? "Avaktivera Erbjudande" : "Aktivera Erbjudande"}
                            </button>

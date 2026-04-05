@@ -96,7 +96,7 @@ export default function CustomerCampaignsPage() {
       setShowGenerateModal(null);
       setSelectedUserIds([]);
       fetchCampaigns();
-      alert(`Klart! Genererade ${res.data.generated} unika koder.`);
+      alert(res.data.message || `Klart! Genererade ${res.data.generated} koder.`);
     } catch { alert("Gick inte att generera koder"); }
   };
 
@@ -107,9 +107,34 @@ export default function CustomerCampaignsPage() {
   };
 
   const filteredCustomers = customers.filter(c => 
-    c.name?.toLowerCase().includes(customerSearch.toLowerCase()) || 
-    c.phone?.toLowerCase().includes(customerSearch.toLowerCase())
+    c.phone && (
+      c.name?.toLowerCase().includes(customerSearch.toLowerCase()) || 
+      c.phone?.toLowerCase().includes(customerSearch.toLowerCase())
+    )
   );
+
+  const handleUpdateCampaign = async (id: string, data: any) => {
+    try {
+      await axios.patch(`${API_URL}/api/campaigns/${id}`, data, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      fetchCampaigns();
+      if (selectedCampaign?.id === id) {
+        setSelectedCampaign({ ...selectedCampaign, ...data });
+      }
+    } catch { alert("Kunde inte uppdatera kampanj"); }
+  };
+
+  const handleDeleteCampaign = async (id: string) => {
+    if (!confirm("Är du säker på att du vill radera denna kampanj och alla tillhörande koder?")) return;
+    try {
+      await axios.delete(`${API_URL}/api/campaigns/${id}`, {
+        headers: { Authorization: `Bearer ${getToken()}` }
+      });
+      setSelectedCampaign(null);
+      fetchCampaigns();
+    } catch { alert("Kunde inte radera kampanj"); }
+  };
 
   return (
     <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
@@ -236,9 +261,20 @@ export default function CustomerCampaignsPage() {
                         </div>
 
                         <div className="space-y-4">
-                           <button className="w-full py-5 rounded-2xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[11px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-3">
+                           <div className="space-y-4">
+                           <button 
+                             onClick={() => handleUpdateCampaign(selectedCampaign.id, { isActive: !selectedCampaign.isActive })}
+                             className={`w-full py-5 rounded-2xl border text-[11px] font-black uppercase tracking-widest transition-all ${selectedCampaign.isActive ? "border-rose-500/20 text-rose-500 bg-rose-500/5 hover:bg-rose-500/10" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 hover:bg-emerald-500/10"}`}
+                           >
+                              {selectedCampaign.isActive ? "Avaktivera Kampanj" : "Aktivera Kampanj"}
+                           </button>
+                           <button 
+                             onClick={() => handleDeleteCampaign(selectedCampaign.id)}
+                             className="w-full py-5 rounded-2xl border border-rose-500/20 text-rose-500 bg-rose-500/5 text-[11px] font-black uppercase tracking-widest hover:bg-rose-500/10 transition-all flex items-center justify-center gap-3"
+                           >
                               <Trash2 size={16} /> Radera Kampanj
                            </button>
+                        </div>
                         </div>
                      </div>
                   </motion.div>
