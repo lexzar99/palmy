@@ -73,14 +73,43 @@ interface Order {
 
 const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin, isPast, setEditingOrder }: any) => {
   const isExpanded = expandedOrderId === order.id;
+  const isTest = order.stripePaymentIntentId === "TEST_PAYMENT" || order.discountCode === "test";
+
   return (
-    <motion.div layout className={`rounded-[2.5rem] p-6 transition-all relative overflow-hidden ${isNew ? 'bg-gold-500/10 border border-gold-500/30' : 'bg-[#0a0c14] border border-white/5 shadow-2xl'}`}>
+    <motion.div 
+      layout 
+      className={`rounded-[2.5rem] p-6 transition-all relative overflow-hidden ${
+        isTest 
+          ? 'bg-rose-500/10 border border-rose-500/30' 
+          : isNew 
+            ? 'bg-gold-500/10 border border-gold-500/30' 
+            : 'bg-[#0a0c14] border border-white/5 shadow-2xl'
+      }`}
+    >
+      {isTest && (
+        <div className="absolute top-0 right-10 bg-rose-500 text-white text-[8px] font-black uppercase px-3 py-1 rounded-b-xl tracking-widest shadow-lg z-10">
+          TEST ORDER 🤖
+        </div>
+      )}
+
       <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex items-center justify-between gap-4 cursor-pointer">
         <div className="flex items-center gap-4 flex-1">
-          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm ${isNew ? 'bg-gold-500 text-dark-500' : 'bg-white/5 text-gold-500'}`}>#{order.orderNumber}</div>
-          <div>
-            <div className={`text-[10px] font-black uppercase tracking-widest ${isNew ? 'text-gold-500' : 'text-white/20'}`}>{(new Date(order.createdAt)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · {STATUS_LABELS[order.status] || order.status}</div>
-            <h3 className="text-base font-black uppercase text-white truncate max-w-[180px] italic">{order.customerName}</h3>
+          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black text-sm ${isTest ? 'bg-rose-500 text-white' : isNew ? 'bg-gold-500 text-dark-500' : 'bg-white/5 text-gold-500'}`}>#{order.orderNumber}</div>
+          <div className="flex-1 min-w-0">
+            <div className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${isTest ? 'text-rose-400' : isNew ? 'text-gold-500' : 'text-white/20'}`}>
+              {(new Date(order.createdAt)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · {STATUS_LABELS[order.status] || order.status}
+              <span className={`px-2 py-0.5 rounded-md text-[8px] border ${order.type === "DELIVERY" ? "border-sky-500/30 text-sky-400 bg-sky-500/5" : "border-emerald-500/30 text-emerald-400 bg-emerald-500/5"}`}>
+                {order.type === "DELIVERY" ? "UTKÖRNING" : "AVHÄMTNING"}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+               <h3 className="text-base font-black uppercase text-white truncate italic">{order.customerName}</h3>
+               {order.type === "DELIVERY" && order.deliveryStreet && (
+                 <div className="flex items-center gap-2 text-[10px] font-black text-sky-400/80 uppercase truncate bg-sky-500/5 px-3 py-1 rounded-lg border border-sky-500/10">
+                   <MapPin size={10} /> {order.deliveryStreet}
+                 </div>
+               )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-6">
@@ -92,7 +121,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                 <Edit2 size={14} />
               </button>
            )}
-           <div className={`text-lg font-black tabular-nums transition-colors ${isPast ? 'text-white/30' : 'text-gold-500'}`}>{order.total / 100} <span className="text-[10px]">KR</span></div>
+           <div className={`text-lg font-black tabular-nums transition-colors ${isPast ? 'text-white/30' : isTest ? 'text-rose-400' : 'text-gold-500'}`}>{order.total / 100} <span className="text-[10px]">KR</span></div>
            <ChevronDown size={18} className={`text-white/10 transition-transform ${isExpanded ? 'rotate-180 text-gold-500' : ''}`} />
         </div>
       </div>
@@ -101,20 +130,18 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
         {isExpanded && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mt-6 pt-6 border-t border-white/5 space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-               <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                  <div className="text-[8px] text-white/20 uppercase font-black mb-1">Metod</div>
-                  <div className="text-xs font-black text-white flex items-center gap-2 uppercase tracking-tight">{order.type === "DELIVERY" ? <Truck size={12}/> : <Store size={12}/>} {order.type === "DELIVERY" ? "Utkörning" : "Hämtas"}</div>
+               <div className={`p-4 rounded-2xl border ${order.type === "DELIVERY" ? "bg-sky-500/5 border-sky-500/20" : "bg-emerald-500/5 border-emerald-500/20"}`}>
+                  <div className={`text-[8px] uppercase font-black mb-1 ${order.type === "DELIVERY" ? "text-sky-400/40" : "text-emerald-400/40"}`}>Metod</div>
+                  <div className={`text-xs font-black flex items-center gap-2 uppercase tracking-tight ${order.type === "DELIVERY" ? "text-sky-400" : "text-emerald-400"}`}>{order.type === "DELIVERY" ? <Truck size={12}/> : <Store size={12}/>} {order.type === "DELIVERY" ? "Utkörning" : "Hämta i butik"}</div>
                </div>
                <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
                   <div className="text-[8px] text-white/20 uppercase font-black mb-1">Kontakt</div>
                   <div className="text-xs font-black text-white tracking-widest">{order.customerPhone}</div>
                </div>
-               {isSuperAdmin && (
-                  <div className="bg-white/5 p-4 rounded-2xl border border-white/5 col-span-2 lg:col-span-1">
-                     <div className="text-[8px] text-white/20 uppercase font-black mb-1">Adress</div>
-                     <div className="text-[10px] font-black text-white/80 italic truncate">{order.deliveryStreet || "Ej utkörning"}</div>
-                  </div>
-               )}
+               <div className={`p-4 rounded-2xl border col-span-2 lg:col-span-1 ${order.type === "DELIVERY" ? "bg-sky-500/10 border-sky-500/30 shadow-lg shadow-sky-500/5" : "bg-white/5 border-white/5"}`}>
+                  <div className={`text-[8px] uppercase font-black mb-1 ${order.type === "DELIVERY" ? "text-sky-400" : "text-white/20"}`}>Adress</div>
+                  <div className={`text-[10px] font-black italic truncate ${order.type === "DELIVERY" ? "text-white" : "text-white/40"}`}>{order.deliveryStreet ? `${order.deliveryStreet}, ${order.deliveryCity || ""}` : "Ej utkörning"}</div>
+               </div>
             </div>
 
             {order.note && <div className="bg-amber-500/5 border border-amber-500/10 p-5 rounded-2xl text-[10px] font-black uppercase text-amber-500 italic flex gap-3"><AlertCircle size={14} /> Obs: {order.note}</div>}
@@ -212,7 +239,7 @@ const AdminOrdersPage = () => {
       const shouldShow = isSuperAdmin ? (!selectedRestaurantId || order.restaurantId === selectedRestaurantId) : (order.restaurantId === selectedRestaurantId);
       if (shouldShow) {
         setOrders((prev) => [order as Order, ...prev.filter(o => o.id !== order.id)].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-        if (!isSuperAdmin) audioRef.current?.play().catch(() => {});
+        audioRef.current?.play().catch(() => {});
       }
     });
     socket.on("order:updated", () => fetchData());

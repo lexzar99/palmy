@@ -516,6 +516,8 @@ router.post('/', async (req: Request, res: Response) => {
       estimatedTime,
       createdAt: order.createdAt,
       paymentMethod: order.paymentMethod,
+      discountCode: order.discountCode,
+      stripePaymentIntentId: order.stripePaymentIntentId,
       items: order.items.map((i: any) => ({
         ...i,
         basePrice: i.basePrice / 100,
