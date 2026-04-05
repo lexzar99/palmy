@@ -173,9 +173,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                        <button onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} className="p-4 bg-gold-500 hover:bg-gold-400 text-dark-500 rounded-xl text-[10px] font-black uppercase transition-all flex-[2] shadow-lg shadow-gold-500/20">Godkänn</button>
                     </>
                  ) : (order.status === "PREPARING" || order.status === "ACCEPTED") ? (
-                    <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, order.type === "PICKUP" ? "READY" : "DELIVERING"); }} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-dark-500 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">Markera som {order.type === "PICKUP" ? "Färdig" : "På väg"}</button>
-                 ) : (order.status === "READY" || order.status === "DELIVERING") ? (
-                    <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "DELIVERED"); }} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-dark-500 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">Slutför Order</button>
+                    <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "DELIVERED"); }} className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-dark-500 rounded-xl text-[10px] font-black uppercase shadow-lg shadow-emerald-500/20 transition-all">Markera som {order.type === "PICKUP" ? "Färdig (Hämtad)" : "På väg (Slutförd)"}</button>
                  ) : null}
                  <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${order.id}`, "_blank"); }} className="p-4 bg-white/5 hover:bg-white/10 rounded-xl"><Printer size={16} className="text-white/30"/></button>
               </div>

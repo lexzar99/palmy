@@ -85,7 +85,7 @@ model Extra {
 
 model Order {
   id                    String      @id @default(cuid())
-  orderNumber           Int         @unique
+  orderNumber           String      @unique
   status                String      @default("PENDING")
   type                  String
   customerName          String

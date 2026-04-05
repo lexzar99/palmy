@@ -434,14 +434,15 @@ router.post('/', async (req: Request, res: Response) => {
       throw new OrderValidationError('Kunde inte verifiera betalningen');
     }
 
-    // Skapa order
-    // SQLite workaround: Generate orderNumber
-    const lastOrder = await prisma.order.findFirst({ orderBy: { orderNumber: 'desc' } });
-    const nextNumber = (lastOrder?.orderNumber || 1000) + 1;
+    // Generate alphanumeric orderNumber
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let randomSuffix = '';
+    for (let i = 0; i < 4; i++) randomSuffix += chars[Math.floor(Math.random() * chars.length)];
+    const orderNumber = `PX-${randomSuffix}`;
 
     const order: any = await prisma.order.create({
       data: {
-        orderNumber: nextNumber,
+        orderNumber,
         status: 'PENDING',
         type: data.type,
         customerName: data.customerName,
@@ -475,10 +476,10 @@ router.post('/', async (req: Request, res: Response) => {
       },
     });
 
-    // Uppdatera rabattkods-räknare
-    if (validatedCode) {
-      await prisma.discountCode.update({
-        where: { code: validatedCode },
+    // Uppdatera rabattkods-räknare (Skip for 'test' mock)
+    if (validatedCode && validatedCode !== 'test' && validatedCode !== 'testa') {
+      await prisma.discountCode.updateMany({
+        where: { code: validatedCode.toUpperCase() },
         data: { usageCount: { increment: 1 } },
       });
     }
