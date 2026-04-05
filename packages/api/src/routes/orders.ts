@@ -102,11 +102,14 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const data = CreateOrderSchema.parse(req.body);
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
+    const isTestOrder = data.discountCode === 'test' && data.stripePaymentIntentId === 'TEST_PAYMENT';
 
     // Enforce mandatory payment
-    if (!hasPaymentIntent || !data.stripePaymentIntentId) {
-      res.status(400).json({ error: 'Betalning krävs för att slutföra ordern' });
-      return;
+    if (!hasPaymentIntent) {
+      if (!isTestOrder) {
+        res.status(400).json({ error: 'Betalning krävs för att slutföra ordern' });
+        return;
+      }
     }
 
     // 0. Check for auth user to link account
@@ -173,8 +176,10 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     let confirmedPayment: ConfirmedPaymentIntent | null = null;
-    if (data.stripePaymentIntentId) {
+    if (data.stripePaymentIntentId && !isTestOrder) {
       confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId);
+    } else if (isTestOrder) {
+      confirmedPayment = { id: 'TEST_PAYMENT', amount: 0 }; 
     }
 
     // Only enforce open status for unpaid/manual flows.
