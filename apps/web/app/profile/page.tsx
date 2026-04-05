@@ -5,7 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
-  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check
+  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -123,6 +123,7 @@ export default function ProfilePage() {
   const [otpCode, setOtpCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [otpPhone, setOtpPhone] = useState(""); // Stores phone after sending OTP
+  const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
 
   const [countryCode, setCountryCode] = useState("+46");
   const [loginPhone, setLoginPhone] = useState("");
@@ -143,6 +144,7 @@ export default function ProfilePage() {
   const [addPhoneNum, setAddPhoneNum] = useState("");
   const [addPhoneLoading, setAddPhoneLoading] = useState(false);
   const [addPhoneError, setAddPhoneError] = useState("");
+  const [isChangingPhone, setIsChangingPhone] = useState(false); // Link to edit phone number
 
   const fetchData = useCallback(async (authToken: string) => {
     try {
@@ -173,7 +175,7 @@ export default function ProfilePage() {
   const { data: session, status } = useSession();
  
   useEffect(() => {
-    if (status === "authenticated" && (session as any)?.platformToken) {
+    if (status === "authenticated" && (session as any)?.platformToken && !isLoggingOut) {
       const pToken = (session as any).platformToken as string;
       const pUser = (session as any).platformUser as any;
       
@@ -185,7 +187,7 @@ export default function ProfilePage() {
         fetchData(pToken);
       }
     }
-  }, [status, session, token, fetchData]);
+  }, [status, session, token, fetchData, isLoggingOut]);
 
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
@@ -278,12 +280,17 @@ export default function ProfilePage() {
   };
 
   const handleLogout = async () => {
-    localStorage.removeItem("platform_user_token");
-    setToken(null);
-    setUser(null);
-    setOrders([]);
-    // Sign out from NextAuth if they logged in via Google/Facebook
-    await signOut({ redirect: false });
+    setIsLoggingOut(true);
+    try {
+      localStorage.removeItem("platform_user_token");
+      setToken(null);
+      setUser(null);
+      setOrders([]);
+      // Log out from NextAuth
+      await signOut({ redirect: false });
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   // ─── Loading ──────────────────────────────────────────────────────────────
@@ -517,12 +524,18 @@ export default function ProfilePage() {
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">Åtgärd krävs</p>
-                <p className="text-white font-bold text-sm mt-0.5">Verifiera ditt nummer</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-bold text-sm">{user.phone}</p>
+                </div>
               </div>
             </div>
             <button 
-              onClick={() => handleSendOtp(null as any, user.phone)}
-              className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+              onClick={() => {
+                setAddPhoneNum(user.phone.replace("+46", ""));
+                setAddPhoneCountry(user.phone.startsWith("+") ? user.phone.slice(0, 3) : "+46");
+                setShowAddPhone(true);
+              }}
+              className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-red-500/20"
             >
               Fixa nu
             </button>
@@ -560,12 +573,19 @@ export default function ProfilePage() {
                   </div>
                   {user.isVerified ? (
                     <span className="text-[8px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
-                      <Check size={8} /> Verifierad
+                      <Lock size={8} /> Låst
                     </span>
                   ) : (
-                    <span className="text-[8px] bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1.5 rounded-full uppercase font-black">
-                      Låst
-                    </span>
+                    <button 
+                      onClick={() => {
+                        setAddPhoneNum(user.phone?.replace("+46", "") || "");
+                        setAddPhoneCountry(user.phone?.startsWith("+") ? user.phone.slice(0, 3) : "+46");
+                        setShowAddPhone(true);
+                      }}
+                      className="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-full uppercase font-black hover:bg-amber-500/20 transition-all flex items-center gap-1"
+                    >
+                      <Edit2 size={8} /> Ändra
+                    </button>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
