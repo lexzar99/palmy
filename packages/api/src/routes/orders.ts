@@ -434,15 +434,16 @@ router.post('/', async (req: Request, res: Response) => {
       throw new OrderValidationError('Kunde inte verifiera betalningen');
     }
 
-    // Generate alphanumeric orderNumber
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let randomSuffix = '';
-    for (let i = 0; i < 4; i++) randomSuffix += chars[Math.floor(Math.random() * chars.length)];
-    const orderNumber = `PX-${randomSuffix}`;
+    // Generate next order number (Sequential Int)
+    const lastOrder = await prisma.order.findFirst({
+      orderBy: { orderNumber: 'desc' },
+      select: { orderNumber: true }
+    });
+    const nextNumber = (lastOrder?.orderNumber ?? 1000) + 1;
 
     const order: any = await prisma.order.create({
       data: {
-        orderNumber,
+        orderNumber: nextNumber,
         status: 'PENDING',
         type: data.type,
         customerName: data.customerName,
