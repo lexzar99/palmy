@@ -475,9 +475,17 @@ export default function ProfilePage() {
             </div>
             <div>
               <h1 className="text-xl font-black uppercase italic tracking-tight text-white">{user.name}</h1>
-              <p className="text-[10px] font-black uppercase tracking-widest text-gold-500 opacity-70">
-                {user.oauthProvider ? `${user.oauthProvider.charAt(0).toUpperCase() + user.oauthProvider.slice(1)} konto` : "Verified Member"}
-              </p>
+              {user.isVerified ? (
+                <div className="flex items-center gap-1.5 mt-1 text-emerald-400">
+                  <ShieldCheck size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Verifierad</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 mt-1 text-red-500">
+                  <Lock size={14} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Ej verifierad</span>
+                </div>
+              )}
             </div>
           </div>
           <button onClick={handleLogout} className="p-3 bg-white/5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-2xl transition-all">
@@ -499,16 +507,24 @@ export default function ProfilePage() {
           </button>
         )}
 
-        {/* Verify phone banner */}
+        {/* Verify phone banner - ONLY if they have a phone but not verified (legacy or fail) */}
         {user.phone && !user.isVerified && (
-          <div className="bg-red-500/10 border border-red-500/20 p-5 rounded-[2rem] flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">Krävs</p>
-              <p className="text-white font-bold text-sm mt-0.5">Verifiera ditt telefonnummer</p>
+          <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-[2.5rem] flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-red-500/20 rounded-xl flex items-center justify-center text-red-500">
+                <Bell size={20} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-red-400 tracking-widest">Åtgärd krävs</p>
+                <p className="text-white font-bold text-sm mt-0.5">Verifiera ditt nummer</p>
+              </div>
             </div>
-            <Link href="/verify-phone" className="px-5 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest">
+            <button 
+              onClick={() => handleSendOtp(null as any, user.phone)}
+              className="px-6 py-3 bg-red-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+            >
               Fixa nu
-            </Link>
+            </button>
           </div>
         )}
 
@@ -541,7 +557,15 @@ export default function ProfilePage() {
                     <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Telefon</p>
                     <p className="font-bold text-white text-sm">{user.phone || "Ej angivet"}</p>
                   </div>
-                  {user.phone && <span className="text-[8px] bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-1 rounded-full uppercase font-black">Låst</span>}
+                  {user.isVerified ? (
+                    <span className="text-[8px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
+                      <Check size={8} /> Verifierad
+                    </span>
+                  ) : (
+                    <span className="text-[8px] bg-red-500/10 text-red-500 border border-red-500/20 px-3 py-1.5 rounded-full uppercase font-black">
+                      Låst
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   <Mail size={16} className="text-zinc-600 shrink-0" />
