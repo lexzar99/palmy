@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
@@ -171,8 +171,10 @@ export default function ProfilePage() {
         setUser(pUser);
         fetchData(pToken);
         
-        // Removed the automatic showAddPhone prompt to make the Google login completely seamless.
-        // Users can still add their phone number via the banner on their profile if they want to.
+        // If OAuth user has no phone, show add-phone prompt
+        if (pUser?.needsPhone) {
+          setShowAddPhone(true);
+        }
       }
     }
   }, [status, session, token, fetchData]);
@@ -247,11 +249,13 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     localStorage.removeItem("platform_user_token");
     setToken(null);
     setUser(null);
     setOrders([]);
+    // Sign out from NextAuth if they logged in via Google/Facebook
+    await signOut({ redirect: false });
   };
 
   // ─── Loading ──────────────────────────────────────────────────────────────

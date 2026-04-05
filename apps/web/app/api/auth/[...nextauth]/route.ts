@@ -33,6 +33,11 @@ const handler = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "PLACEHOLDER",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "PLACEHOLDER",
+      authorization: {
+        params: {
+          prompt: "consent select_account",
+        },
+      },
     }),
     FacebookProvider({
       clientId: process.env.FACEBOOK_CLIENT_ID || "PLACEHOLDER",
