@@ -206,7 +206,7 @@ export default function ProfilePage() {
     setOtpPhone(phoneToUse);
 
     try {
-      await axios.post(`${API_URL}/api/auth/send-otp`, { phone: phoneToUse });
+      await axios.post(`${API_URL}/api/account/send-otp`, { phone: phoneToUse });
       setShowOtp(true);
       if (showAddPhone) setShowAddPhone(false); // If we were in OAuth add-phone
     } catch (err: any) {
@@ -222,7 +222,7 @@ export default function ProfilePage() {
     setIsVerifying(true);
     setLoginError("");
     try {
-      const res = await axios.post(`${API_URL}/api/auth/verify-otp`, {
+      const res = await axios.post(`${API_URL}/api/account/verify-otp`, {
         phone: otpPhone,
         code: otpCode,
       }, {
