@@ -11,7 +11,11 @@ import {
   CalendarDays,
   Plus,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Moon,
+  Sun,
+  PlusCircle,
+  MinusCircle
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,7 +31,7 @@ const DAYS = [
   { key: "sunday", label: "Söndag" },
 ];
 
-const defaultHours = { open: "11:00", close: "22:00", closed: false };
+const defaultShift = { open: "11:00", close: "22:00" };
 
 export default function RestaurantHoursPage({ params }: { params: Promise<{ restaurantId: string }> }) {
   const { restaurantId } = use(params);
@@ -36,7 +40,10 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
   const [restaurantName, setRestaurantName] = useState("");
   
   const [settings, setSettings] = useState<any>({
-    openingHours: DAYS.reduce((acc, d) => ({ ...acc, [d.key]: { ...defaultHours } }), {}),
+    openingHours: DAYS.reduce((acc, d) => ({ 
+      ...acc, 
+      [d.key]: { closed: false, shifts: [{ ...defaultShift }] } 
+    }), {}),
     specialHours: [] as { date: string; open: string; close: string; closed: boolean; note?: string }[],
   });
 
@@ -57,11 +64,26 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
           try { oh = JSON.parse(oh); } catch { oh = {}; }
         }
 
+        const rawRegular = oh?.regular || oh || {};
+        
+        // Migrate old format to new shift format if needed
+        const migratedHours: any = {};
+        DAYS.forEach(day => {
+          const dData = rawRegular[day.key];
+          if (dData?.shifts) {
+            migratedHours[day.key] = dData;
+          } else if (dData?.open) {
+            migratedHours[day.key] = { 
+              closed: dData.closed || false, 
+              shifts: [{ open: dData.open, close: dData.close }] 
+            };
+          } else {
+            migratedHours[day.key] = { closed: false, shifts: [{ ...defaultShift }] };
+          }
+        });
+
         setSettings({
-          openingHours: {
-            ...DAYS.reduce((acc, d) => ({ ...acc, [d.key]: { ...defaultHours } }), {}),
-            ...(oh?.regular || oh || {}),
-          },
+          openingHours: migratedHours,
           specialHours: oh?.special || [],
         });
       } catch (err) {
@@ -94,28 +116,55 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
     }
   };
 
-  const updateHours = (day: string, field: string, value: string | boolean) => {
+  const updateDayStatus = (day: string, closed: boolean) => {
     setSettings((prev: any) => ({
       ...prev,
       openingHours: {
         ...prev.openingHours,
-        [day]: { ...prev.openingHours[day], [field]: value },
-      },
+        [day]: { ...prev.openingHours[day], closed }
+      }
     }));
   };
 
-  const addSpecialHour = () => {
-    setSettings((prev: any) => ({
-      ...prev,
-      specialHours: [...prev.specialHours, { date: "", open: "11:00", close: "22:00", closed: false, note: "" }]
-    }));
+  const updateShift = (day: string, index: number, field: string, value: string) => {
+    setSettings((prev: any) => {
+       const shifts = [...prev.openingHours[day].shifts];
+       shifts[index] = { ...shifts[index], [field]: value };
+       return {
+         ...prev,
+         openingHours: {
+           ...prev.openingHours,
+           [day]: { ...prev.openingHours[day], shifts }
+         }
+       };
+    });
   };
 
-  const removeSpecialHour = (index: number) => {
-    setSettings((prev: any) => ({
-      ...prev,
-      specialHours: prev.specialHours.filter((_: any, i: number) => i !== index)
-    }));
+  const addShift = (day: string) => {
+    setSettings((prev: any) => {
+      const shifts = [...prev.openingHours[day].shifts];
+      if (shifts.length >= 2) return prev;
+      return {
+        ...prev,
+        openingHours: {
+          ...prev.openingHours,
+          [day]: { ...prev.openingHours[day], shifts: [...shifts, { open: "17:00", close: "22:00" }] }
+        }
+      };
+    });
+  };
+
+  const removeShift = (day: string, index: number) => {
+    setSettings((prev: any) => {
+       const shifts = prev.openingHours[day].shifts.filter((_: any, i: number) => i !== index);
+       return {
+         ...prev,
+         openingHours: {
+           ...prev.openingHours,
+           [day]: { ...prev.openingHours[day], shifts: shifts.length > 0 ? shifts : [{ ...defaultShift }] }
+         }
+       };
+    });
   };
 
   const updateSpecialHour = (index: number, field: string, value: any) => {
@@ -129,7 +178,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
 
   return (
     <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-white font-sans">
-      <div className="max-w-[1000px] mx-auto space-y-12 pb-32">
+      <div className="max-w-[1200px] mx-auto space-y-12 pb-32">
         
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
            <div className="space-y-4">
@@ -138,7 +187,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
               </Link>
               <div>
                  <h1 className="text-4xl lg:text-5xl font-black uppercase tracking-tighter italic leading-none">{restaurantName} <span className="text-gold-500">Schema</span></h1>
-                 <p className="text-white/40 text-[11px] font-black uppercase tracking-widest mt-3 ml-1">Hantera ordinarie och speciella öppettider</p>
+                 <p className="text-white/40 text-[11px] font-black uppercase tracking-widest mt-3 ml-1">Hantera skift, nattöppet och specialtider</p>
               </div>
            </div>
 
@@ -151,32 +200,64 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
            </button>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
            
-           {/* Regular Hours */}
-           <div className="bg-[#0a0c14] border border-white/5 rounded-[3rem] p-10">
-              <div className="flex items-center gap-3 mb-10">
+           {/* Regular Hours with Shifts */}
+           <div className="bg-[#0a0c14] border border-white/5 rounded-[3rem] p-10 overflow-hidden relative">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
+              
+              <div className="flex items-center gap-3 mb-10 relative z-10">
                  <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-white/40"><Clock size={20} /></div>
                  <div>
-                    <h2 className="text-xl font-black uppercase tracking-tight italic">Ordinarie <span className="text-gold-500">Öppet</span></h2>
-                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">Veckoschema som upprepas varje vecka.</p>
+                    <h2 className="text-xl font-black uppercase tracking-tight italic">Veckoschema <span className="text-gold-500">(2 skift)</span></h2>
+                    <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">Stöd för delade pass och nattöppet.</p>
                  </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-6 relative z-10">
                 {DAYS.map((day) => {
-                  const hours = settings.openingHours[day.key] || defaultHours;
+                  const dayData = settings.openingHours[day.key] || { closed: false, shifts: [{ ...defaultShift }] };
                   return (
-                    <div key={day.key} className={`flex items-center gap-4 p-5 rounded-2xl transition-all border ${hours.closed ? "bg-red-500/5 border-red-500/20" : "bg-white/2 border-white/5"}`}>
-                      <div className="w-24 font-black uppercase text-[10px] tracking-widest text-white/40">{day.label}</div>
-                      <div className="flex items-center gap-3 flex-1 px-4">
-                        <input type="time" value={hours.open} disabled={hours.closed} onChange={(e) => updateHours(day.key, "open", e.target.value)} className="bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white/80 focus:border-gold-500/40 outline-none disabled:opacity-20" />
-                        <span className="text-white/10">-</span>
-                        <input type="time" value={hours.close} disabled={hours.closed} onChange={(e) => updateHours(day.key, "close", e.target.value)} className="bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white/80 focus:border-gold-500/40 outline-none disabled:opacity-20" />
+                    <div key={day.key} className={`p-6 rounded-[2rem] transition-all border ${dayData.closed ? "bg-rose-500/5 border-rose-500/20" : "bg-white/2 border-white/5"}`}>
+                      <div className="flex items-center justify-between mb-4 px-2">
+                         <div className="text-[11px] font-black uppercase tracking-widest text-white/40">{day.label}</div>
+                         <button 
+                           onClick={() => updateDayStatus(day.key, !dayData.closed)} 
+                           className={`px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all ${dayData.closed ? "bg-rose-500 text-white" : "bg-white/5 text-white/40 hover:text-white"}`}
+                         >
+                           {dayData.closed ? "Stängd" : "Öppen"}
+                         </button>
                       </div>
-                      <button onClick={() => updateHours(day.key, "closed", !hours.closed)} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${hours.closed ? "bg-rose-500/10 text-rose-500" : "bg-emerald-500/10 text-emerald-500"}`}>
-                        {hours.closed ? "Stängd" : "Öppen"}
-                      </button>
+
+                      {!dayData.closed && (
+                        <div className="space-y-3">
+                           {dayData.shifts.map((shift: any, idx: number) => (
+                             <div key={idx} className="flex flex-col md:flex-row md:items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5 group">
+                                <div className="flex items-center gap-3 flex-1">
+                                   <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/20 text-[9px] font-black">{idx + 1}</div>
+                                   <div className="flex items-center gap-2 flex-1">
+                                      <input type="time" value={shift.open} onChange={(e) => updateShift(day.key, idx, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                                      <span className="text-white/10">-</span>
+                                      <div className="flex-1 relative">
+                                        <input type="time" value={shift.close} onChange={(e) => updateShift(day.key, idx, "close", e.target.value)} className="w-full bg-[#02040a] border border-white/10 rounded-xl px-3 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                                        {shift.close < shift.open && shift.close !== "00:00" && (
+                                           <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>
+                                        )}
+                                      </div>
+                                   </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                   {dayData.shifts.length > 1 && (
+                                      <button onClick={() => removeShift(day.key, idx)} className="p-2.5 bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500/20 transition-all"><MinusCircle size={14}/></button>
+                                   )}
+                                   {dayData.shifts.length === 1 && idx === 0 && (
+                                      <button onClick={() => addShift(day.key)} className="p-2.5 bg-gold-500/10 text-gold-500 rounded-xl hover:bg-gold-500/20 transition-all flex items-center gap-2 text-[8px] font-black uppercase"><PlusCircle size={14}/> Extra skift</button>
+                                   )}
+                                </div>
+                             </div>
+                           ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -193,10 +274,10 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                        <p className="text-[10px] font-black text-white/20 uppercase tracking-widest mt-1">Högtider, röda dagar eller event.</p>
                     </div>
                  </div>
-                 <button onClick={addSpecialHour} className="p-3 bg-gold-500 text-dark-500 rounded-xl hover:bg-gold-400 transition-all font-black uppercase text-[10px]"><Plus size={16} /></button>
+                 <button onClick={() => setSettings((p:any)=>({...p, specialHours: [...p.specialHours, { date: "", open: "11:00", close: "22:00", closed: false, note: "" }]}))} className="p-3 bg-gold-500 text-dark-500 rounded-xl hover:bg-gold-400 transition-all font-black uppercase text-[10px]"><Plus size={16} /></button>
               </div>
 
-              <div className="space-y-4 max-h-[500px] overflow-y-auto no-scrollbar">
+              <div className="space-y-4 max-h-[800px] overflow-y-auto custom-scrollbar">
                  {settings.specialHours.map((sh: any, i: number) => (
                    <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} key={i} className="p-6 rounded-2xl bg-white/2 border border-white/5 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -216,13 +297,16 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                         <div className="flex items-center gap-3">
                            <input type="time" value={sh.open} onChange={(e) => updateSpecialHour(i, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
                            <span className="text-white/10">-</span>
-                           <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="flex-1 bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                           <div className="flex-1 relative">
+                             <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="w-full bg-[#02040a] border border-white/10 rounded-xl px-4 py-2 text-xs font-black text-white focus:border-gold-500/40 outline-none" />
+                             {sh.close < sh.open && sh.close !== "00:00" && <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>}
+                           </div>
                         </div>
                       )}
 
                       <div className="flex items-center gap-4">
                          <input placeholder="Kommentar (t.ex Påskdagen)" value={sh.note} onChange={(e) => updateSpecialHour(i, "note", e.target.value)} className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs font-medium text-white/60 focus:border-gold-500/40 outline-none" />
-                         <button onClick={() => removeSpecialHour(i)} className="p-2.5 bg-rose-500/5 hover:bg-rose-500/10 rounded-xl text-rose-500/40 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
+                         <button onClick={() => setSettings((p:any)=>({...p, specialHours: p.specialHours.filter((_:any,idx:number)=>idx!==i)}))} className="p-2.5 bg-rose-500/5 hover:bg-rose-500/10 rounded-xl text-rose-500/40 hover:text-rose-500 transition-all"><Trash2 size={16} /></button>
                       </div>
                    </motion.div>
                  ))}
