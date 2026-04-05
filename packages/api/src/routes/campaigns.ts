@@ -102,35 +102,50 @@ router.post('/:id/generate', authenticate, requireSuperAdmin, async (req, res) =
       });
     }
 
-    if (users.length === 0) return res.json({ success: true, generated: 0, message: 'Inga matchande kunder hittades' });
+    if (users.length === 0) return res.json({ success: true, generated: 0, message: 'Inga matchande kunder hittades.' });
+
+    // Filter out users without phones just in case
+    const eligibleUsers = users.filter(u => u.phone);
+    if (eligibleUsers.length === 0) return res.json({ success: true, generated: 0, message: 'Inga av de valda kunderna har ett registrerat telefonnummer.' });
 
     // Generate deals
-    const batchSize = 100; // Small batches for large user sets
     let createdCount = 0;
+    let alreadyHadCount = 0;
     
-    for (const u of users) {
+    for (const u of eligibleUsers) {
       // Check if user already has a deal for this campaign
       const existing = await prisma.customerDeal.findFirst({
         where: { campaignId, phone: u.phone! }
       });
-      if (existing) continue;
+      if (existing) {
+        alreadyHadCount++;
+        continue;
+      }
 
       // Unique code: [CAMPAIGN_PREFIX][RANDOM] or specific pattern
       const code = `DEAL-${campaignId.slice(-4)}-${u.phone!.slice(-4)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
       
-      await prisma.customerDeal.create({
-        data: {
-          campaignId,
-          userId: u.id,
-          phone: u.phone!,
-          code,
-          maxUsages: campaign.maxUsagesPerCustomer
-        }
-      });
-      createdCount++;
+      try {
+        await prisma.customerDeal.create({
+          data: {
+            campaignId,
+            userId: u.id,
+            phone: u.phone!,
+            code,
+            maxUsages: campaign.maxUsagesPerCustomer
+          }
+        });
+        createdCount++;
+      } catch (e) {
+        console.error('Failed to create deal for user', u.id, e);
+      }
     }
 
-    res.json({ success: true, generated: createdCount });
+    const message = createdCount === 0 && alreadyHadCount > 0 
+      ? `Alla valda kunder (${alreadyHadCount} st) har redan aktiva koder för denna kampanj.` 
+      : `Klart! Genererade ${createdCount} unika koder. ${alreadyHadCount > 0 ? `(${alreadyHadCount} kunder hade redan koder)` : ""}`;
+
+    res.json({ success: true, generated: createdCount, message });
   } catch (error) {
     console.error('Generate error:', error);
     res.status(500).json({ error: 'Kunde inte generera erbjudanden' });

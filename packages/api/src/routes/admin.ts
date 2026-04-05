@@ -396,6 +396,32 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
+// Admin: PATCH /api/admin/orders/:id - Update order details (Super Admin etc)
+router.patch('/orders/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, status, paymentMethod } = req.body;
+    
+    // Scoping check (already handled by common routes, but good to be explicit for Super Admin)
+    const order = await prisma.order.update({
+      where: { id },
+      data: {
+        customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, status, paymentMethod
+      },
+    });
+
+    const io = req.app.get('io');
+    io.emit('order:updated', { id: order.id, status: order.status });
+    if (order.restaurantId) {
+      io.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: order.id });
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte uppdatera order' });
+  }
+});
+
 // Admin: reports/orders (scoped by restaurantId)
 router.get('/reports/orders', async (req, res) => {
   try {

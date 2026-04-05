@@ -67,4 +67,29 @@ router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   }
 });
 
+// Granular Deal Management
+router.delete('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    await prisma.customerDeal.delete({
+      where: { id: req.params.dealId }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte radera erbjudandet' });
+  }
+});
+
+router.patch('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { isUsed, usageCount } = req.body;
+    const deal = await prisma.customerDeal.update({
+      where: { id: req.params.dealId },
+      data: { isUsed, usageCount: Number(usageCount) }
+    });
+    res.json(deal);
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte uppdatera erbjudandet' });
+  }
+});
+
 export default router;
