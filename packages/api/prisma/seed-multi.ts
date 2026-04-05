@@ -7,22 +7,18 @@ const kr = (amount: number) => amount * 100;
 async function main() {
   console.log('🌱 Starting Multi-Restaurant Seed...');
 
-  // 1. Clear existing data (Careful in prod, but this is a fresh setup)
-  // We clean the specific models we're about to populate for these restaurants
-  const restaurantSlugs = ['palmyra', 'sushi-nori', 'burger-mansion', 'mcdonalds'];
-  
-  await prisma.category.deleteMany({
-    where: { restaurant: { slug: { in: restaurantSlugs } } }
-  });
-
-  // 2. Clear Palmyra default categories (those with restaurantId null) for clean slate
-  await prisma.category.deleteMany({
-    where: { restaurantId: null }
-  });
-
-  await prisma.restaurant.deleteMany({
-    where: { slug: { in: restaurantSlugs } }
-  });
+  // 1. Clear existing data in correct order
+  console.log('🗑️  Cleaning existing data...');
+  await prisma.productExtraGroup.deleteMany({});
+  await prisma.extra.deleteMany({});
+  await prisma.extraGroup.deleteMany({});
+  await prisma.orderItem.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.product.deleteMany({});
+  await prisma.category.deleteMany({});
+  await prisma.customerDeal.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.restaurant.deleteMany({});
 
   // --------------------------------------------------------------------------
   // PALMYRA PIZZERIA
@@ -39,7 +35,7 @@ async function main() {
       deliveryFee: kr(39),
       minOrderAmount: kr(120),
       etaMinutes: 25,
-      isFeatured: true,
+      featuredClass: 1,
       tags: JSON.stringify(['Pizza', 'Kebab', 'Lund']),
     }
   });

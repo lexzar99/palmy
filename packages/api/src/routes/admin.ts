@@ -961,7 +961,7 @@ router.post('/extra-groups', async (req, res) => {
             extraGroupId: group.id,
             position: 999,
           })),
-          skipDuplicates: true,
+          
         });
       }
     }
@@ -1028,7 +1028,7 @@ router.patch('/extra-groups/:id', async (req, res) => {
             extraGroupId: group.id,
             position: 999,
           })),
-          skipDuplicates: true,
+          
         });
       }
     }
