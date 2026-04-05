@@ -63,7 +63,10 @@ export default function CartPage() {
     note: "",
   });
 
+  const [promoCodeInput, setPromoCodeInput] = useState("");
+
   const subtotal = getTotal();
+  const currentRestaurantId = useCartStore((s) => s.restaurantId);
   const deliveryFee = orderType === "DELIVERY" ? restaurantSettings.deliveryFee : 0;
   const minOrder = restaurantSettings.minOrderAmount;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
@@ -87,15 +90,29 @@ export default function CartPage() {
     try {
       const token = localStorage.getItem("platform_user_token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const [settingsRes, dealsRes, userRes, pDealsRes] = await Promise.all([
+      
+      const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
         axios.get(`${API_URL}/api/deals`).catch(() => ({ data: [] })),
         token ? axios.get(`${API_URL}/api/profile`, { headers }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
         token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       ]);
+
       if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
         setRestaurantSettings((prev) => ({ ...prev, ...settingsRes.data }));
       }
+      
+      // Override with specific restaurant settings if available
+      if (restaurantRes.data) {
+        setRestaurantSettings((prev) => ({ 
+          ...prev, 
+          deliveryFee: restaurantRes.data.deliveryFee || prev.deliveryFee,
+          minOrderAmount: restaurantRes.data.minOrderAmount || prev.minOrderAmount,
+          isOpen: restaurantRes.data.isOpen ?? prev.isOpen
+        }));
+      }
+
       setDeals(dealsRes.data || []);
       setPersonalDeals(pDealsRes.data || []);
       if (userRes.data) {
@@ -113,7 +130,32 @@ export default function CartPage() {
     } finally {
       setPageLoading(false);
     }
-  }, []);
+  }, [currentRestaurantId]);
+
+  const handleApplyPromo = () => {
+    const code = promoCodeInput.trim().toLowerCase();
+    if (code === "test") {
+      setSelectedPersonalDeal({ 
+        code: "test", 
+        campaign: { 
+          discountType: "FIXED", 
+          discountValue: 0, 
+          title: "Testläge (Gratis)", 
+          minOrder: 0 
+        } 
+      });
+      return;
+    }
+    
+    // Check personal deals
+    const matched = personalDeals.find(d => d.code.toLowerCase() === code);
+    if (matched) {
+      setSelectedPersonalDeal(matched);
+      return;
+    }
+
+    setError("Ogiltig rabattkod.");
+  };
 
   useEffect(() => {
     fetchContext();
@@ -372,20 +414,31 @@ export default function CartPage() {
                   <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Rabattkod</label>
                   <div className="flex gap-2">
                     <input 
-                      value={selectedPersonalDeal?.code || ""} 
+                      value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
                       onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "test") {
-                          setSelectedPersonalDeal({ code: "test", campaign: { discountType: "FIXED", discountValue: 0, title: "Testläge (Gratis)", minOrder: 0 } });
-                        } else {
-                          // Allow manual typing but if it's not 'test' it won't do much unless we have a 'Validate' button.
-                          // For now, let's just allow it for 'test'.
-                          if (selectedPersonalDeal?.code === "test") setSelectedPersonalDeal(null);
-                        }
+                        if (selectedPersonalDeal) setSelectedPersonalDeal(null);
+                        setPromoCodeInput(e.target.value);
                       }}
-                      placeholder="Ange kod..." 
-                      className="flex-1 bg-white/5 border border-white/5 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" 
+                      placeholder={selectedPersonalDeal ? "Kod tillämpad" : "Ange kod..."} 
+                      className={`flex-1 bg-white/5 border rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40 transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-white"}`} 
                     />
+                    {selectedPersonalDeal ? (
+                      <button 
+                        type="button"
+                        onClick={() => { setSelectedPersonalDeal(null); setPromoCodeInput(""); }}
+                        className="px-6 py-4 bg-rose-500/10 text-rose-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-500/20 transition-all"
+                      >
+                        Ta bort
+                      </button>
+                    ) : (
+                      <button 
+                        type="button"
+                        onClick={handleApplyPromo}
+                        className="px-6 py-4 bg-white/10 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all"
+                      >
+                        Aktivera
+                      </button>
+                    )}
                   </div>
                </div>
 

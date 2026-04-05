@@ -188,7 +188,46 @@ const Sidebar = () => {
         </div>
       </nav>
 
-      <div className="p-8 border-t border-white/5 bg-[#07080d]">
+      <div className="p-8 border-t border-white/5 bg-[#07080d] space-y-2">
+        {selectedRestaurantId && (
+          <button 
+            onClick={async () => {
+              if (!selectedRestaurantId) return;
+              const confirmTest = confirm("Vill du skapa en automatisk test-order för att se till att systemet och aviseringar fungerar?");
+              if (!confirmTest) return;
+              
+              try {
+                const productsRes = await axios.get(`${API_URL}/api/menu?restaurantId=${selectedRestaurantId}`);
+                const products = productsRes.data.flatMap((c: any) => c.products);
+                if (products.length === 0) throw new Error("Hittade inga produkter i menyn för denna restaurang.");
+                
+                const randomProduct = products[Math.floor(Math.random() * products.length)];
+                
+                await axios.post(`${API_URL}/api/orders`, {
+                  restaurantId: selectedRestaurantId,
+                  type: "PICKUP",
+                  customerName: "TEST ORDER 🤖",
+                  customerPhone: "0700101010",
+                  customerEmail: "test@vincents.ai",
+                  discountCode: "test",
+                  stripePaymentIntentId: "TEST_PAYMENT",
+                  items: [{
+                    productId: randomProduct.id,
+                    quantity: 1,
+                    selectedExtras: [],
+                    note: "Detta är en automatisk test-order från sidebar"
+                  }]
+                });
+                alert("KLART! Test-order skapad. Kontrollera listan nu.");
+              } catch (err) {
+                alert("Kunde inte skapa test-order: " + err);
+              }
+            }}
+            className="w-full flex items-center gap-4 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-gold-500/60 hover:text-gold-500 hover:bg-white/10 transition-all font-black text-[9px] uppercase tracking-widest active:scale-95"
+          >
+             <Zap size={16} /> Skapa Testorder
+          </button>
+        )}
         <button onClick={() => { localStorage.removeItem("palmyra_token"); localStorage.removeItem("palmyra_admin"); window.location.href = "/login"; }} className="w-full flex items-center gap-4 px-4 py-3 text-rose-500/40 hover:text-rose-500 transition-all font-black text-[10px] uppercase tracking-widest group">
           <LogOut size={18} className="group-hover:-translate-x-1 transition-transform" /> Logga Ut
         </button>
