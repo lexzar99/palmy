@@ -81,45 +81,35 @@ router.post('/verify-otp', async (req, res) => {
     await (prisma as any).verificationCode.deleteMany({ where: { phone } });
 
     // Handle User creation/login/update
-    let user = await (prisma as any).user.findUnique({ where: { phone } });
+    let user = null;
 
-    // If we are currently authenticated via OAuth, link this phone to the OAuth user
+    // Check if we are currently authenticated via OAuth
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
       try {
         const payload = jwt.verify(authHeader.split(' ')[1], JWT_SECRET) as any;
-        const oUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
-        
-        if (oUser && !oUser.phone) {
-          // Check if this phone is already taken by another account
-          if (user && user.id !== oUser.id) {
-            return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat konto' });
-          }
-          user = await (prisma as any).user.update({
-            where: { id: oUser.id },
-            data: { phone, isVerified: true }
-          });
-        }
+        user = await (prisma as any).user.update({
+          where: { id: payload.id },
+          data: { phone, isVerified: true }
+        });
       } catch (e) {
         // Token invalid, proceed as guest login/register
       }
     }
 
     if (!user) {
-      // Create new user (Phone-only registration)
-      user = await (prisma as any).user.create({
-        data: {
-          phone,
-          name: name || `Gäst ${phone.slice(-4)}`,
-          isVerified: true
-        }
-      });
-    } else {
-      // Ensure verified flag is set
-      user = await (prisma as any).user.update({
-        where: { id: user.id },
-        data: { isVerified: true }
-      });
+      // Phone-only login/registration
+      user = await (prisma as any).user.findUnique({ where: { phone } });
+      if (!user) {
+        user = await (prisma as any).user.create({
+          data: { phone, name: name || `Gäst ${phone.slice(-4)}`, isVerified: true }
+        });
+      } else {
+        user = await (prisma as any).user.update({
+          where: { id: user.id },
+          data: { isVerified: true }
+        });
+      }
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });

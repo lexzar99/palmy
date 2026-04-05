@@ -179,15 +179,17 @@ export default function ProfilePage() {
       const pToken = (session as any).platformToken as string;
       const pUser = (session as any).platformUser as any;
       
-      // Only update if we don't already have this token
-      if (token !== pToken) {
+      // Only sync from session if we don't have a token OR if the session user is different
+      // and we haven't already verified our phone (to prevent stale session overwriting our new verified token)
+      const isVerifiedLocally = user?.isVerified === true;
+      if (token !== pToken && !isVerifiedLocally) {
         localStorage.setItem("platform_user_token", pToken);
         setToken(pToken);
-        // Don't setUser(pUser) here as it might be stale. Let fetchData do it.
+        // Don't setUser(pUser) as it might be stale.
         fetchData(pToken);
       }
     }
-  }, [status, session, token, fetchData, isLoggingOut]);
+  }, [status, session, token, user, fetchData, isLoggingOut]);
 
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
