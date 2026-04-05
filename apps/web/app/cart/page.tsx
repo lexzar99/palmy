@@ -84,7 +84,7 @@ export default function CartPage() {
   }, [selectedPersonalDeal, subtotal]);
 
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount);
-  const total = Math.max(0, subtotal + deliveryFee - finalDiscount);
+  const total = selectedPersonalDeal?.code === "test" ? 0 : Math.max(0, subtotal + deliveryFee - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
@@ -107,8 +107,8 @@ export default function CartPage() {
       if (restaurantRes.data) {
         setRestaurantSettings((prev) => ({ 
           ...prev, 
-          deliveryFee: restaurantRes.data.deliveryFee || prev.deliveryFee,
-          minOrderAmount: restaurantRes.data.minOrderAmount || prev.minOrderAmount,
+          deliveryFee: restaurantRes.data.deliveryFee !== undefined ? restaurantRes.data.deliveryFee : prev.deliveryFee,
+          minOrderAmount: restaurantRes.data.minOrderAmount !== undefined ? restaurantRes.data.minOrderAmount : prev.minOrderAmount,
           isOpen: restaurantRes.data.isOpen ?? prev.isOpen
         }));
       }

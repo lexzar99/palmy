@@ -197,7 +197,7 @@ const Sidebar = () => {
               if (!confirmTest) return;
               
               try {
-                const productsRes = await axios.get(`${API_URL}/api/menu?restaurantId=${selectedRestaurantId}`);
+                const productsRes = await axios.get(`${API_URL}/api/menu/categories?restaurantId=${selectedRestaurantId}`);
                 const products = productsRes.data.flatMap((c: any) => c.products);
                 if (products.length === 0) throw new Error("Hittade inga produkter i menyn för denna restaurang.");
                 
