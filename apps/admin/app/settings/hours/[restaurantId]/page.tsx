@@ -6,10 +6,7 @@ import axios from "axios";
 import { 
   Loader2, 
   Save, 
-  ToggleLeft, 
-  ToggleRight, 
   Clock, 
-  Store,
   ChevronLeft,
   CalendarDays,
   Plus,
