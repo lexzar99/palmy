@@ -58,7 +58,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           if (admin?.role !== "SUPER_ADMIN") {
             const isRestaurantAdminBlocked =
               pathname.startsWith("/restaurants") ||
-              ((pathname === "/settings" || pathname.startsWith("/settings/")) && !pathname.startsWith("/settings/global"));
+              ((pathname === "/settings" || pathname.startsWith("/settings/")) && !pathname.startsWith("/settings/global") && !pathname.startsWith("/settings/printing"));
             if (isRestaurantAdminBlocked) {
               router.replace("/orders");
               return;

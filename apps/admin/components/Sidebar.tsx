@@ -24,7 +24,9 @@ import {
   BarChart3,
   MapPin,
   Users,
-  Sparkles
+  Sparkles,
+  Zap,
+  Target
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -83,30 +85,47 @@ const Sidebar = () => {
     } catch { alert("Kunde inte ändra status"); } finally { setToggling(false); }
   };
 
-  const links = [
+  const mainLinks = [
     { href: "/overview", label: "Dashboard", icon: BarChart3 },
-    { href: "/orders", label: "Nya Ordrar", icon: ShoppingCart },
-    { href: "/history", label: "Gamla Ordrar", icon: Clock },
+    { href: "/orders", label: "Ordrar", icon: ShoppingCart },
     { href: "/menu", label: "Meny", icon: Utensils },
-    ...(isSuperAdmin ? [
-      { href: "/customers", label: "Kunder", icon: Users },
-      { href: "/campaigns", label: "Kampanjer", icon: Sparkles },
-      { href: "/cities", label: "Utkörning", icon: MapPin }
-    ] : []),
-    { href: "/stats", label: "Statistik", icon: Activity },
+  ];
+
+  const adminLinks = isSuperAdmin ? [
+    { href: "/restaurants", label: "Restauranger", icon: Store },
+    { href: "/customers", label: "Kundhantering", icon: Users },
+    { href: "/campaigns", label: "Kampanjer", icon: Target },
+    { href: "/cities", label: "Zoner / Stad", icon: MapPin },
+  ] : [];
+
+  const systemLinks = [
     { href: "/settings/printing", label: "Utskrift", icon: Printer },
     { href: "/settings/global", label: "System", icon: Settings },
   ];
 
   if (!isMounted) return null;
 
+  const NavItem = ({ link }: { link: any }) => {
+    const Icon = link.icon;
+    const isActive = pathname === link.href || (link.href !== "/overview" && pathname.startsWith(link.href));
+    return (
+      <Link 
+        href={link.href} 
+        onClick={() => setIsMobileMenuOpen(false)} 
+        className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black text-[11px] uppercase tracking-widest hover:pl-8 ${isActive ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/10 translate-x-2" : "text-white/20 hover:text-white/60 hover:bg-white/5"}`}
+      >
+        <Icon size={16} className={isActive ? "text-dark-500" : "text-gold-500/60"} /> {link.label}
+      </Link>
+    );
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[#07080d] text-white border-r border-white/5">
-      <div className="p-8 border-b border-white/5">
+      <div className="p-8 border-b border-white/5 bg-[#0a0c14]">
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-4">
-             <div className="w-10 h-10 rounded-2xl bg-gold-500 flex items-center justify-center text-dark-500 font-black shadow-xl shadow-gold-500/10"><span className="text-xl">P</span></div>
-             <div className="text-left"><div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 mb-0.5">Admin</div><div className="font-black tracking-tighter text-white text-lg uppercase italic">Palmyra<span className="text-gold-500 ml-1">Lund</span></div></div>
+             <div className="w-10 h-10 rounded-2xl bg-gold-400 flex items-center justify-center text-dark-500 font-black shadow-xl shadow-gold-500/10 rotate-3"><span className="text-xl italic">P</span></div>
+             <div className="text-left"><div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/20 mb-0.5">Kontroll</div><div className="font-black tracking-tighter text-white text-lg uppercase italic">Palmyra<span className="text-gold-500 ml-1">Lund</span></div></div>
           </div>
           <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-white/20 bg-white/5 rounded-xl transition-all"><X size={20}/></button>
         </div>
@@ -117,7 +136,7 @@ const Sidebar = () => {
                <Globe size={16}/> <span className="text-[10px] font-black uppercase tracking-widest leading-none">Global Sök</span>
             </button>
             <div className="relative group">
-              <select value={selectedRestaurantId || ""} onChange={(e) => { const r = restaurants.find(res => res.id === e.target.value); setRestaurant(r?.id || null, r?.name || null); }} className="w-full bg-[#121421] border border-white/5 rounded-xl px-4 py-3 text-[10px] font-black text-white/60 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 uppercase tracking-widest"><option value="">Välj Restaurang...</option>{restaurants.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}</select>
+              <select value={selectedRestaurantId || ""} onChange={(e) => { const r = restaurants.find(res => res.id === e.target.value); setRestaurant(r?.id || null, r?.name || null); }} className="w-full bg-[#121421] border border-white/5 rounded-xl px-4 py-4 text-[10px] font-black text-white/60 appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 uppercase tracking-widest"><option value="">Välj Restaurang...</option>{restaurants.map(r => (<option key={r.id} value={r.id}>{r.name}</option>))}</select>
               <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-white/10"/>
             </div>
           </div>
@@ -131,16 +150,23 @@ const Sidebar = () => {
         )}
       </div>
 
-      <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto custom-scrollbar">
-        {links.map((link) => {
-          const Icon = link.icon;
-          const isActive = pathname === link.href;
-          return (
-            <Link key={link.href} href={link.href} onClick={() => setIsMobileMenuOpen(false)} className={`flex items-center gap-4 px-6 py-4 rounded-2xl transition-all font-black text-[11px] uppercase tracking-widest hover:pl-8 ${isActive ? "bg-gold-500 text-dark-500 shadow-xl shadow-gold-500/10 translate-x-2" : "text-white/20 hover:text-white/60 hover:bg-white/5"}`}>
-              <Icon size={16} className={isActive ? "text-dark-500" : "text-gold-500/60"} /> {link.label}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-4 py-8 space-y-8 overflow-y-auto custom-scrollbar">
+        <div className="space-y-1">
+           <div className="px-6 text-[8px] font-black uppercase tracking-[0.4em] text-white/10 mb-4">Huvudmeny</div>
+           {mainLinks.map(link => <NavItem key={link.href} link={link} />)}
+        </div>
+
+        {isSuperAdmin && (
+           <div className="space-y-1">
+              <div className="px-6 text-[8px] font-black uppercase tracking-[0.4em] text-white/10 mb-4">Administration</div>
+              {adminLinks.map(link => <NavItem key={link.href} link={link} />)}
+           </div>
+        )}
+
+        <div className="space-y-1">
+           <div className="px-6 text-[8px] font-black uppercase tracking-[0.4em] text-white/10 mb-4">Inställningar</div>
+           {systemLinks.map(link => <NavItem key={link.href} link={link} />)}
+        </div>
       </nav>
 
       <div className="p-8 border-t border-white/5 bg-[#07080d]">
@@ -153,9 +179,9 @@ const Sidebar = () => {
 
   return (
     <>
-      <div className="lg:hidden fixed top-0 w-full h-16 bg-[#07080d] border-b border-white/5 z-40 flex items-center justify-between px-6 shadow-2xl">
+      <div className="lg:hidden fixed top-0 w-full h-16 bg-[#0a0c14] border-b border-white/5 z-40 flex items-center justify-between px-6 shadow-2xl">
         <div className="flex items-center gap-3">
-           <div className="w-8 h-8 rounded-xl bg-gold-400 flex items-center justify-center text-dark-500 font-black">P</div>
+           <div className="w-8 h-8 rounded-xl bg-gold-400 flex items-center justify-center text-dark-500 font-black rotate-3 italic">P</div>
            <div className="font-black text-white text-lg tracking-tighter uppercase italic">Admin<span className="text-gold-500 ml-1">Nu</span></div>
         </div>
         <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-white/40 bg-white/5 border border-white/10 rounded-xl"><Menu size={24}/></button>
