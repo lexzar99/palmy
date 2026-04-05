@@ -311,6 +311,7 @@ router.post('/', async (req: Request, res: Response) => {
     let manualDiscountAmount = 0;
     let validatedCode: string | undefined;
 
+    if (data.discountCode) {
       const codeVal = data.discountCode?.toLowerCase();
       if (codeVal === 'test' || codeVal === 'testa') {
         validatedCode = codeVal;
@@ -362,6 +363,7 @@ router.post('/', async (req: Request, res: Response) => {
           }
         }
       }
+    }
 
     const activeDeals = await prisma.deal.findMany({
       where: { isActive: true },
@@ -439,7 +441,7 @@ router.post('/', async (req: Request, res: Response) => {
       orderBy: { orderNumber: 'desc' },
       select: { orderNumber: true }
     });
-    const nextNumber = (lastOrder?.orderNumber ?? 1000) + 1;
+    const nextNumber = ((lastOrder?.orderNumber as any) || 1000) + 1;
 
     const order: any = await prisma.order.create({
       data: {
