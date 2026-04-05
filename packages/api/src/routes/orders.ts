@@ -102,7 +102,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const data = CreateOrderSchema.parse(req.body);
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
-    const isTestOrder = data.discountCode === 'test' && data.stripePaymentIntentId === 'TEST_PAYMENT';
+    const isTestOrder = (data.discountCode === 'test' || data.discountCode === 'testa') && data.stripePaymentIntentId === 'TEST_PAYMENT';
 
     // Enforce mandatory payment
     if (!hasPaymentIntent) {
@@ -153,7 +153,8 @@ router.post('/', async (req: Request, res: Response) => {
       : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
 
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
-    const existingOrder = await prisma.order.findFirst({
+    // Skip for TEST_PAYMENT to allow multiple tests.
+    const existingOrder = (data.stripePaymentIntentId && data.stripePaymentIntentId !== 'TEST_PAYMENT') ? await prisma.order.findFirst({
       where: { stripePaymentIntentId: data.stripePaymentIntentId },
       select: {
         id: true,
@@ -162,18 +163,7 @@ router.post('/', async (req: Request, res: Response) => {
         appliedDealTitle: true,
         estimatedTime: true,
       },
-    });
-
-    if (existingOrder) {
-      res.status(200).json({
-        orderId: existingOrder.id,
-        orderNumber: existingOrder.orderNumber,
-        total: existingOrder.total / 100,
-        appliedDealTitle: existingOrder.appliedDealTitle,
-        estimatedTime: existingOrder.estimatedTime ?? estimatedTime,
-      });
-      return;
-    }
+    }) : null;
 
     let confirmedPayment: ConfirmedPaymentIntent | null = null;
     if (data.stripePaymentIntentId && !isTestOrder) {
@@ -321,8 +311,9 @@ router.post('/', async (req: Request, res: Response) => {
     let manualDiscountAmount = 0;
     let validatedCode: string | undefined;
 
-      if (data.discountCode?.toLowerCase() === 'test') {
-        validatedCode = 'test';
+      const codeVal = data.discountCode?.toLowerCase();
+      if (codeVal === 'test' || codeVal === 'testa') {
+        validatedCode = codeVal;
         manualDiscountAmount = 0; // Total will be forced to 0 via confirmedPayment
       } else {
         const code = await prisma.discountCode.findUnique({
