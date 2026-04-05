@@ -18,6 +18,8 @@ import dealsRoutes from './routes/deals';
 import restaurantsRoutes from './routes/restaurants';
 import citiesRoutes from './routes/cities';
 import profileRoutes from './routes/profile';
+import customerRoutes from './routes/customers';
+import campaignRoutes from './routes/campaigns';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 
 const app = express();
@@ -92,8 +94,9 @@ app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/deals', dealsRoutes);
 app.use('/api/restaurants', restaurantsRoutes);
-app.use('/api/cities', citiesRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/campaigns', campaignRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {

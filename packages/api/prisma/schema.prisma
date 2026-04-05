@@ -261,8 +261,39 @@ model User {
   oauthId      String?
   image        String?
   orders       Order[]
+  deals        CustomerDeal[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Campaign {
+  id                    String         @id @default(cuid())
+  title                 String
+  description           String?
+  discountType          String         @default("PERCENTAGE") // PERCENTAGE or FIXED
+  discountValue         Int
+  minOrder              Int            @default(0)
+  maxUsagesPerCustomer  Int            @default(1)
+  isActive              Boolean        @default(true)
+  validFrom             DateTime?
+  validUntil            DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  deals                 CustomerDeal[]
+}
+
+model CustomerDeal {
+  id           String    @id @default(cuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone        String
+  code         String    @unique
+  usageCount   Int       @default(0)
+  maxUsages    Int       @default(1)
+  isUsed       Boolean   @default(false)
+  createdAt    DateTime  @default(now())
 }
 
 model VerificationCode {

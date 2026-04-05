@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2,
   ShoppingBag,
@@ -16,6 +16,8 @@ import {
   Plus,
   Minus,
   ShieldCheck,
+  Tag,
+  X,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -39,6 +41,9 @@ export default function CartPage() {
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
+  const [personalDeals, setPersonalDeals] = useState<any[]>([]);
+  const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
+  const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
 
@@ -61,23 +66,38 @@ export default function CartPage() {
   const subtotal = getTotal();
   const deliveryFee = orderType === "DELIVERY" ? restaurantSettings.deliveryFee : 0;
   const minOrder = restaurantSettings.minOrderAmount;
-  const total = subtotal + deliveryFee;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
+
+  const personalDiscount = useMemo(() => {
+    if (!selectedPersonalDeal) return 0;
+    const { campaign } = selectedPersonalDeal;
+    if (subtotal < (campaign.minOrder || 0)) return 0;
+    
+    if (campaign.discountType === "PERCENTAGE") {
+      return (subtotal * campaign.discountValue) / 100;
+    }
+    return campaign.discountValue;
+  }, [selectedPersonalDeal, subtotal]);
+
+  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount);
+  const total = Math.max(0, subtotal + deliveryFee - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
       const token = localStorage.getItem("platform_user_token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const [settingsRes, dealsRes, userRes] = await Promise.all([
+      const [settingsRes, dealsRes, userRes, pDealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
         axios.get(`${API_URL}/api/deals`).catch(() => ({ data: [] })),
         token ? axios.get(`${API_URL}/api/profile`, { headers }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
       ]);
       if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
         setRestaurantSettings((prev) => ({ ...prev, ...settingsRes.data }));
       }
       setDeals(dealsRes.data || []);
+      setPersonalDeals(pDealsRes.data || []);
       if (userRes.data) {
         setUser(userRes.data);
         setFormData((prev) => ({
@@ -111,6 +131,8 @@ export default function CartPage() {
         deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
         note: formData.note || undefined,
         stripePaymentIntentId: paymentIntentId,
+        discountCode: selectedPersonalDeal?.code || undefined,
+        appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
         restaurantId: useCartStore.getState().restaurantId || undefined,
         items: items.map((i) => ({
           productId: i.productId,
@@ -340,6 +362,33 @@ export default function CartPage() {
                 </div>
               </div>
 
+               {/* Personal deals button */}
+               {user && personalDeals.length > 0 && (
+                <div className="mb-4">
+                  <button 
+                    type="button" 
+                    onClick={() => setShowDealsModal(true)}
+                    className={`w-full py-4 px-6 rounded-2xl flex items-center justify-between transition-all group ${selectedPersonalDeal ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400" : "bg-gold-500/10 border border-gold-500/20 text-gold-500 hover:bg-gold-500/20"}`}
+                  >
+                    <div className="flex items-center gap-3">
+                       <Tag size={18} />
+                       <span className="text-[10px] font-black uppercase tracking-widest leading-none">Mina Erbjudanden ({personalDeals.length})</span>
+                    </div>
+                    {selectedPersonalDeal ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase">{selectedPersonalDeal.code}</span>
+                        <X size={14} className="hover:text-white" onClick={(e: any) => { e.stopPropagation(); setSelectedPersonalDeal(null); }} />
+                      </div>
+                    ) : (
+                      <Plus size={16} className="group-hover:rotate-90 transition-transform" />
+                    )}
+                  </button>
+                  {selectedPersonalDeal && subtotal < selectedPersonalDeal.campaign.minOrder && (
+                    <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest mt-1.5 ml-2">Min. order ej uppnådd ({selectedPersonalDeal.campaign.minOrder} kr)</p>
+                  )}
+                </div>
+              )}
+
               {/* Summary */}
               <div className="border-t border-white/5 pt-6 space-y-3">
                 <div className="flex justify-between text-zinc-500 text-[10px] font-black uppercase tracking-widest">
@@ -350,9 +399,10 @@ export default function CartPage() {
                     <span>Leverans</span><span>{deliveryFee.toFixed(0)} KR</span>
                   </div>
                 )}
-                {automaticDeal.discountAmount > 0 && (
+                {(automaticDeal.discountAmount > 0 || personalDiscount > 0) && (
                   <div className="flex justify-between text-emerald-400 text-[10px] font-black uppercase tracking-widest">
-                    <span>Rabatt</span><span>-{automaticDeal.discountAmount.toFixed(0)} KR</span>
+                    <span>Rabatt ({personalDiscount > automaticDeal.discountAmount ? "Erbjudande" : "Automatisk"})</span>
+                    <span>-{finalDiscount.toFixed(0)} KR</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2">
@@ -390,6 +440,45 @@ export default function CartPage() {
           )}
         </div>
       </div>
+
+      {/* Deals Modal */}
+      <AnimatePresence>
+        {showDealsModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-6">
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm bg-zinc-900 border border-white/10 rounded-[3rem] overflow-hidden"
+            >
+              <div className="p-8 border-b border-white/5 flex items-center justify-between">
+                 <h2 className="text-xl font-black uppercase italic tracking-tighter">Mina <span className="text-gold-500">Deals</span></h2>
+                 <button onClick={() => setShowDealsModal(false)} className="p-2 hover:bg-white/5 rounded-xl"><X size={24} className="text-white/20" /></button>
+              </div>
+              <div className="p-6 space-y-3 max-h-[400px] overflow-y-auto">
+                 {personalDeals.map((deal) => {
+                   const isEligible = subtotal >= deal.campaign.minOrder;
+                   const isSelected = selectedPersonalDeal?.id === deal.id;
+                   return (
+                     <button 
+                       key={deal.id}
+                       disabled={!isEligible}
+                       onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }}
+                       className={`w-full text-left p-6 rounded-3xl border transition-all ${isSelected ? "bg-gold-500 border-gold-500 text-dark-500" : isEligible ? "bg-white/5 border-white/10 text-white" : "opacity-30 grayscale cursor-not-allowed border-white/5"}`}
+                     >
+                       <div className="text-[9px] font-black uppercase tracking-widest opacity-50 mb-1">{deal.campaign.title}</div>
+                       <div className="text-xl font-black uppercase italic tracking-tight">{deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}</div>
+                       {!isEligible && (
+                         <div className="mt-2 text-[8px] font-black uppercase tracking-widest text-amber-500">Kräver {deal.campaign.minOrder} kr</div>
+                       )}
+                     </button>
+                   );
+                 })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

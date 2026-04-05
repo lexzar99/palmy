@@ -15,7 +15,6 @@ import {
   Store,
   Truck,
   Flame,
-  Sparkles,
   ArrowRight,
   X,
 } from "lucide-react";
@@ -213,55 +212,52 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen text-zinc-100 bg-zinc-950">
-      <div className="relative mx-auto max-w-[1600px] px-6 lg:px-16 pb-32 pt-12">
+      <div className="relative mx-auto max-w-[1400px] px-6 lg:px-10 pb-24 pt-8">
 
         {/* Header */}
-        <header className="mb-12">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <p className="text-[12px] font-black uppercase tracking-[0.4em] text-gold-600 mb-2">Välkommen till plattformen</p>
-              <h1 className="text-5xl lg:text-7xl font-black tracking-tighter uppercase leading-none">
+        <header className="mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-8">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-600 mb-1 lg:mb-2 opacity-70">Sök mat & restaurang</p>
+              <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase leading-none truncate">
                 VAD VILL DU <span className="text-gold-600">ÄTA</span>?
               </h1>
             </div>
-            <div className="hidden lg:flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gold-400/20 border border-gold-500/20 text-gold-600 shadow-2xl">
-              <Sparkles size={40} />
+
+            {/* Order type toggle - Moved to right on desktop */}
+            <div className="flex items-center gap-3 p-1.5 bg-zinc-900 rounded-[2rem] border border-white/5 shadow-xl w-full lg:w-[320px] shrink-0">
+              <button
+                onClick={() => toggleOrderType("DELIVERY")}
+                disabled={selectedCity?.deliveryMode === "ONLY_PICKUP"}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  orderType === "DELIVERY"
+                    ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20 scale-[1.02]"
+                    : "text-zinc-500 hover:text-zinc-100"
+                } ${selectedCity?.deliveryMode === "ONLY_PICKUP" ? "opacity-30 cursor-not-allowed" : ""}`}
+              >
+                <Truck size={16} />
+                Leverans
+              </button>
+              <button
+                onClick={() => toggleOrderType("PICKUP")}
+                disabled={selectedCity?.deliveryMode === "ONLY_DELIVERY"}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  orderType === "PICKUP"
+                    ? "bg-gold-500 text-white shadow-lg shadow-gold-500/20 scale-[1.02]"
+                    : "text-zinc-500 hover:text-zinc-100"
+                } ${selectedCity?.deliveryMode === "ONLY_DELIVERY" ? "opacity-30 cursor-not-allowed" : ""}`}
+              >
+                <Store size={16} />
+                Hämtning
+              </button>
             </div>
           </div>
 
-          {/* Order type toggle */}
-          <div className="flex items-center gap-4 mb-10 p-2 bg-zinc-900 rounded-[2.5rem] border border-white/10 shadow-2xl max-w-xl mx-auto lg:mx-0">
-            <button
-              onClick={() => toggleOrderType("DELIVERY")}
-              disabled={selectedCity?.deliveryMode === "ONLY_PICKUP"}
-              className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
-                orderType === "DELIVERY"
-                  ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
-                  : "text-zinc-500 hover:text-zinc-100"
-              } ${selectedCity?.deliveryMode === "ONLY_PICKUP" ? "opacity-30 cursor-not-allowed" : ""}`}
-            >
-              <Truck size={20} />
-              Leverans
-            </button>
-            <button
-              onClick={() => toggleOrderType("PICKUP")}
-              disabled={selectedCity?.deliveryMode === "ONLY_DELIVERY"}
-              className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all ${
-                orderType === "PICKUP"
-                  ? "bg-gold-500 text-white shadow-xl shadow-gold-500/25 scale-[1.02]"
-                  : "text-zinc-500 hover:text-zinc-100"
-              } ${selectedCity?.deliveryMode === "ONLY_DELIVERY" ? "opacity-30 cursor-not-allowed" : ""}`}
-            >
-              <Store size={20} />
-              Avhämtning
-            </button>
-          </div>
-
-          {/* Address + search */}
-          <div className="grid gap-4 lg:grid-cols-[1fr,1.5fr]">
-            <div className="relative group">
-              <div className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 focus-within:border-gold-500 transition-all shadow-2xl">
-                <MapPin className="text-gold-500 shrink-0" size={20} />
+          {/* Address + search - More compact */}
+          <div className="grid gap-3 lg:grid-cols-[1.2fr,1.4fr] bg-zinc-900/50 p-2 rounded-[1.5rem] border border-white/5">
+            <div className="relative group flex-1">
+              <div className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-5 py-3.5 focus-within:border-gold-500/50 transition-all shadow-lg">
+                <MapPin className="text-gold-500 shrink-0" size={16} />
                 <input
                   value={address}
                   onFocus={() => setShowCityDropdown(true)}
@@ -271,24 +267,24 @@ export default function HomePage() {
                     if (match) setSelectedCity(match);
                     else setSelectedCity(null);
                   }}
-                  placeholder={orderType === "DELIVERY" ? "Var ska vi leverera maten? (Stad)" : "I vilken stad vill du hämta?"}
-                  className="w-full bg-transparent text-lg placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
+                  placeholder={orderType === "DELIVERY" ? "Välj din stad..." : "Välj stad..."}
+                  className="w-full bg-transparent text-sm placeholder:text-zinc-400/20 focus:outline-none font-bold text-zinc-100"
                 />
                 {address && (
-                  <button onClick={() => { saveAddress(""); setSelectedCity(null); }} className="text-zinc-500 hover:text-zinc-300 transition-colors">
-                    <X size={14} />
+                  <button onClick={() => { saveAddress(""); setSelectedCity(null); }} className="text-zinc-600 hover:text-zinc-400">
+                    <X size={12} />
                   </button>
                 )}
               </div>
-
-              {/* Autocomplete City Dropdown */}
+              
+              {/* Autocomplete Dropdown - Updated for compact view */}
               <AnimatePresence>
                 {showCityDropdown && cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).length > 0 && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
+                    initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute z-50 left-0 right-0 mt-2 bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl"
+                    exit={{ opacity: 0, y: -5 }}
+                    className="absolute z-50 left-0 right-0 mt-1 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-xl"
                   >
                     {cities
                       .filter(c => c.name.toLowerCase().includes(address.toLowerCase()))
@@ -296,21 +292,19 @@ export default function HomePage() {
                         <button
                           key={city.id}
                           onClick={() => handleCitySelect(city)}
-                          className="w-full flex items-center justify-between px-6 py-4 hover:bg-gold-500/10 transition-colors border-b border-white/5 last:border-none group"
+                          className="w-full flex items-center justify-between px-5 py-3 hover:bg-gold-500/5 transition-colors border-b border-white/5 last:border-none group"
                         >
-                          <div className="text-left font-black uppercase text-xs tracking-widest">{city.name}</div>
-                          <div className="text-[10px] font-black uppercase tracking-widest text-white/20 group-hover:text-gold-500">
-                             {city.deliveryMode === "ALL" ? "Hela Utbudet" : "Endast Hämtning"}
-                          </div>
+                          <div className="text-left font-black uppercase text-[10px] tracking-widest">{city.name}</div>
                         </button>
                     ))}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            <Link href="/search" className="flex items-center gap-4 rounded-2xl bg-zinc-900 border border-white/10 px-6 py-5 hover:border-gold-500 transition-all cursor-pointer shadow-2xl">
-              <Search size={22} className="text-zinc-400/30 shrink-0" />
-              <span className="text-lg text-zinc-400/30 font-bold">Hitta restaurang, mat eller kategori...</span>
+
+            <Link href="/search" className="flex items-center gap-3 rounded-xl bg-zinc-900 border border-white/5 px-5 py-3.5 hover:border-gold-500/50 transition-all cursor-pointer shadow-lg group">
+              <Search size={16} className="text-zinc-400/30 group-hover:text-gold-500/50 transition-colors shrink-0" />
+              <span className="text-sm text-zinc-400/30 group-hover:text-zinc-400/50 font-bold">Hitta restaurang eller mat...</span>
             </Link>
           </div>
 

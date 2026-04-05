@@ -333,6 +333,34 @@ router.post('/', async (req: Request, res: Response) => {
           }
           validatedCode = code.code;
         }
+      } else {
+        // 2. Check personalized customer deals
+        const personalDeal = await (prisma as any).customerDeal.findFirst({
+           where: { 
+             code: data.discountCode,
+             phone: data.customerPhone,
+             campaign: {
+                isActive: true,
+                OR: [
+                  { validUntil: null },
+                  { validUntil: { gte: now } }
+                ]
+             }
+           },
+           include: { campaign: true }
+        });
+
+        if (personalDeal) {
+          const isUsable = personalDeal.usageCount < (personalDeal.maxUsages || 1);
+          if (isUsable && subtotal >= personalDeal.campaign.minOrder) {
+            if (personalDeal.campaign.discountType === 'PERCENTAGE') {
+              manualDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
+            } else {
+              manualDiscountAmount = Math.min(personalDeal.campaign.discountValue, subtotal);
+            }
+            validatedCode = personalDeal.code;
+          }
+        }
       }
     }
 
@@ -496,12 +524,36 @@ router.post('/', async (req: Request, res: Response) => {
       io.to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
     }
 
-    res.status(201).json({
+    // 5. Update discount usage
+    if (validatedCode) {
+      await prisma.discountCode.updateMany({
+        where: { code: validatedCode.toUpperCase() },
+        data: { usageCount: { increment: 1 } }
+      });
+      
+      const updatedPersonal = await (prisma as any).customerDeal.findFirst({
+        where: { code: validatedCode, phone: data.customerPhone }
+      });
+      
+      if (updatedPersonal) {
+        const newCount = updatedPersonal.usageCount + 1;
+        const max = updatedPersonal.maxUsages || 1;
+        await (prisma as any).customerDeal.update({
+          where: { id: updatedPersonal.id },
+          data: { 
+            usageCount: newCount,
+            isUsed: newCount >= max
+          }
+        });
+      }
+    }
+
+    res.status(200).json({
       orderId: order.id,
       orderNumber: order.orderNumber,
       total: order.total / 100,
       appliedDealTitle: order.appliedDealTitle,
-      estimatedTime,
+      estimatedTime: order.estimatedTime || estimatedTime,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

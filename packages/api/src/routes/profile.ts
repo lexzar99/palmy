@@ -46,4 +46,40 @@ router.patch('/', authenticateUser, async (req: any, res: any) => {
   }
 });
 
+// GET /api/profile/deals - Fetch current user's deals
+router.get('/deals', authenticateUser, async (req: any, res: any) => {
+  try {
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true }
+    });
+
+    if (!user?.phone) return res.json([]);
+
+    const deals = await (prisma as any).customerDeal.findMany({
+      where: {
+        OR: [
+          { userId: req.user.id },
+          { phone: user.phone }
+        ],
+        isUsed: false,
+        usageCount: { lt: (prisma as any).customerDeal.fields?.maxUsages ?? 1 },
+        campaign: {
+          isActive: true,
+          OR: [
+            { validUntil: null },
+            { validUntil: { gte: new Date() } }
+          ]
+        }
+      },
+      include: { campaign: true }
+    });
+
+    res.json(deals);
+  } catch (error) {
+    console.error('Fetch deals error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta erbjudanden' });
+  }
+});
+
 export default router;

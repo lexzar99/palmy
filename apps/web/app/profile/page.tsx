@@ -5,7 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
-  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2
+  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -114,8 +114,9 @@ export default function ProfilePage() {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals">("overview");
   const [hasVisited, setHasVisited] = useState(false);
 
   // Auth (Phone OTP)
@@ -148,14 +149,16 @@ export default function ProfilePage() {
 
   const fetchData = useCallback(async (authToken: string) => {
     try {
-      const [profileRes, ordersRes] = await Promise.all([
+      const [profileRes, ordersRes, dealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/profile`, { headers: { Authorization: `Bearer ${authToken}` } }),
         axios.get(`${API_URL}/api/profile/orders`, { headers: { Authorization: `Bearer ${authToken}` } }),
+        axios.get(`${API_URL}/api/profile/deals`, { headers: { Authorization: `Bearer ${authToken}` } }),
       ]);
       setUser(profileRes.data);
       setEditName(profileRes.data.name || "");
       setEditEmail(profileRes.data.email || "");
       setOrders(ordersRes.data || []);
+      setDeals(dealsRes.data || []);
       
       // If user has no phone and we are not in the middle of verifying one, prompt them
       if (!profileRes.data.phone) {
@@ -288,6 +291,7 @@ export default function ProfilePage() {
       setToken(null);
       setUser(null);
       setOrders([]);
+      setDeals([]);
       // Log out from NextAuth
       await signOut({ redirect: false });
     } finally {
@@ -545,9 +549,10 @@ export default function ProfilePage() {
         )}
 
         {/* Tabs */}
-        <div className="grid grid-cols-3 bg-white/5 border border-white/5 p-1.5 rounded-[2rem]">
+        <div className="grid grid-cols-4 bg-white/5 border border-white/5 p-1.5 rounded-[2rem]">
           {[
             { id: "overview", icon: User, label: "Hem" },
+            { id: "deals", icon: Sparkles, label: "Deals" },
             { id: "orders", icon: History, label: "Ordrar" },
             { id: "settings", icon: Settings, label: "Inställn" },
           ].map((tab) => (
@@ -563,6 +568,49 @@ export default function ProfilePage() {
         </div>
 
         <AnimatePresence mode="wait">
+          {/* Deals Tab */}
+          {activeTab === "deals" && (
+            <motion.div key="deals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+               {deals.length === 0 ? (
+                 <div className="py-20 text-center bg-white/2 rounded-[2.5rem] border border-dashed border-white/5">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 text-white/10"><Tag size={32} /></div>
+                    <p className="font-black uppercase tracking-widest text-zinc-600">Inga erbjudanden tillgängliga</p>
+                    <p className="text-[10px] uppercase font-bold text-zinc-800 mt-2">Dina framtida belöningar dyker upp här</p>
+                 </div>
+               ) : (
+                 deals.map((deal: any) => (
+                   <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/20 shadow-2xl relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/10 blur-2xl group-hover:bg-gold-500/20 transition-all" />
+                      <div className="flex items-start justify-between mb-6">
+                         <div className="flex-1 pr-4">
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-500 mb-1">{deal.campaign.title}</div>
+                            <h3 className="text-2xl font-black italic tracking-tighter uppercase text-white leading-tight">
+                                {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
+                            </h3>
+                         </div>
+                         <div className="w-12 h-12 bg-gold-500 text-dark-500 rounded-2xl flex items-center justify-center shadow-xl shrink-0"><Ticket size={24} /></div>
+                      </div>
+                      
+                      <div className="p-4 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between mb-6">
+                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">KOD: <span className="text-white select-all">{deal.code}</span></div>
+                         <button 
+                            onClick={() => { navigator.clipboard.writeText(deal.code); }} 
+                            className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-white transition-colors"
+                          >
+                            Kopiera
+                          </button>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
+                         <div className="text-zinc-600">Min. order: {deal.campaign.minOrder} kr</div>
+                         <div className="text-zinc-600">Giltig till: {deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
+                      </div>
+                   </div>
+                 ))
+               )}
+            </motion.div>
+          )}
+
           {/* Overview */}
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">

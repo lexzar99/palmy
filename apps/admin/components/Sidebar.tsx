@@ -22,7 +22,9 @@ import {
   LayoutGrid,
   Globe,
   BarChart3,
-  MapPin
+  MapPin,
+  Users,
+  Sparkles
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -86,7 +88,11 @@ const Sidebar = () => {
     { href: "/orders", label: "Nya Ordrar", icon: ShoppingCart },
     { href: "/history", label: "Gamla Ordrar", icon: Clock },
     { href: "/menu", label: "Meny", icon: Utensils },
-    ...(isSuperAdmin ? [{ href: "/cities", label: "Utkörning", icon: MapPin }] : []),
+    ...(isSuperAdmin ? [
+      { href: "/customers", label: "Kunder", icon: Users },
+      { href: "/campaigns", label: "Kampanjer", icon: Sparkles },
+      { href: "/cities", label: "Utkörning", icon: MapPin }
+    ] : []),
     { href: "/stats", label: "Statistik", icon: Activity },
     { href: "/settings/printing", label: "Utskrift", icon: Printer },
     { href: "/settings/global", label: "System", icon: Settings },
