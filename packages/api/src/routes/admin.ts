@@ -1108,6 +1108,49 @@ router.post('/deals', async (req, res) => {
   }
 });
 
+router.patch('/deals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { restaurantId, ...data } = req.body;
+    
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.deal.findUnique({ where: { id } });
+      if (!existing || existing.restaurantId !== rid) {
+        return res.status(403).json({ error: 'Ej behörig' });
+      }
+    }
+
+    const deal = await prisma.deal.update({
+      where: { id },
+      data
+    });
+    res.json(deal);
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+router.delete('/deals/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      const existing = await prisma.deal.findUnique({ where: { id } });
+      if (!existing || existing.restaurantId !== rid) {
+        return res.status(403).json({ error: 'Ej behörig' });
+      }
+    }
+
+    await prisma.deal.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 
 // =====================
 // MENYIMPORT

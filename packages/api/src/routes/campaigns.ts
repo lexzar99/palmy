@@ -61,12 +61,14 @@ router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 // PATCH /api/campaigns/:id - Update campaign
 router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
+    const { id, _count, deals, createdAt, updatedAt, ...data } = req.body;
     const campaign = await prisma.campaign.update({
       where: { id: req.params.id },
-      data: req.body
+      data
     });
     res.json(campaign);
   } catch (error) {
+    console.error('Update campaign error:', error);
     res.status(500).json({ error: 'Kunde inte uppdatera kampanj' });
   }
 });

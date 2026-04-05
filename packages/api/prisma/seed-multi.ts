@@ -18,6 +18,7 @@ async function main() {
   await prisma.category.deleteMany({});
   await prisma.customerDeal.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.city.deleteMany({});
   await prisma.restaurant.deleteMany({});
 
   // --------------------------------------------------------------------------
@@ -244,7 +245,63 @@ async function main() {
     }
   });
 
-  console.log('✅ Multi-Restaurant Seed Completed!');
+  // --------------------------------------------------------------------------
+  // CITIES
+  // --------------------------------------------------------------------------
+  console.log('🏙️  Seeding Cities...');
+  await prisma.city.createMany({
+    data: [
+      { name: 'Lund', slug: 'lund', isActive: true, deliveryMode: 'ALL' },
+      { name: 'Malmö', slug: 'malmo', isActive: true, deliveryMode: 'ALL' },
+      { name: 'Stockholm', slug: 'stockholm', isActive: true, deliveryMode: 'ALL' }
+    ]
+  });
+
+  // --------------------------------------------------------------------------
+  // USERS & ADMINS
+  // --------------------------------------------------------------------------
+  console.log('👤 Seeding Users...');
+  const users = [
+    { name: 'Lexar', email: 'lexar@example.com', phone: '0711111111', isActive: true, isVerified: true, city: 'Lund' },
+    { name: 'Jarir', email: 'jarir@example.com', phone: '0722222222', isActive: true, isVerified: true, city: 'Lund' },
+    { name: 'Test Kund', email: 'kund@example.com', phone: '0700000000', isActive: true, isVerified: true, city: 'Lund' }
+  ];
+
+  const seededUsers = [];
+  for (const userData of users) {
+    const u = await prisma.user.create({ data: userData });
+    seededUsers.push(u);
+  }
+
+  const testUser = seededUsers[2];
+
+  // --------------------------------------------------------------------------
+  // CAMPAIGNS & DEALS
+  // --------------------------------------------------------------------------
+  console.log('🎁 Seeding Campaigns...');
+  const campaign = await prisma.campaign.create({
+    data: {
+      title: 'Välkomstbonus',
+      description: '50% rabatt på första köpet!',
+      discountType: 'PERCENTAGE',
+      discountValue: 50,
+      minOrder: kr(100),
+      isActive: true,
+    }
+  });
+
+  await prisma.customerDeal.create({
+    data: {
+      campaignId: campaign.id,
+      userId: testUser.id,
+      phone: testUser.phone!,
+      code: 'WELCOME50',
+      maxUsages: 1,
+      isUsed: false
+    }
+  });
+
+  console.log('✅ Multi-Restaurant FULL Seed Completed!');
 }
 
 main()
