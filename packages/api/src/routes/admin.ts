@@ -1082,7 +1082,7 @@ router.get('/deals', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const deals = await prisma.deal.findMany({
-      where: { restaurantId: scopedRestaurantId } as any,
+      where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } as any : {},
       orderBy: { sortOrder: 'asc' },
     });
     res.json(deals);

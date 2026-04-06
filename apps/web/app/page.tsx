@@ -19,6 +19,7 @@ import {
   X,
   Sparkles,
   Tag,
+  Percent,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
@@ -160,10 +161,9 @@ export default function HomePage() {
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
       let matchCity = true;
-      if (address) {
-        const cleanAddress = address.trim().toLowerCase();
+      if (address && selectedCity) {
         const restaurantCity = (r.city || "").trim().toLowerCase();
-        matchCity = restaurantCity === cleanAddress;
+        matchCity = restaurantCity === selectedCity.name.toLowerCase();
       }
 
       return matchCuisine && matchQuery && matchCity;
