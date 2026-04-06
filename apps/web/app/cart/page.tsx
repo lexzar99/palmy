@@ -231,7 +231,7 @@ export default function CartPage() {
     try {
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
       if (isTestFlow) {
-        await submitOrder("TEST_PAYMENT");
+        await submitOrder("FREE_PROMO");
         return;
       }
 
