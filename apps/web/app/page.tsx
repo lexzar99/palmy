@@ -18,6 +18,7 @@ import {
   ArrowRight,
   X,
   Sparkles,
+  Tag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
@@ -146,6 +147,7 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     return restaurants.filter((r) => {
+      const matchCity = !selectedCity || r.city === selectedCity.name;
       const matchCuisine =
         activeCuisine === "Alla" ||
         (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
@@ -155,16 +157,9 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      let matchCity = true;
-      if (address) {
-        const cleanAddress = address.trim().toLowerCase();
-        const restaurantCity = (r.city || "").trim().toLowerCase();
-        matchCity = restaurantCity === cleanAddress;
-      }
-
-      return matchCuisine && matchQuery && matchCity;
+      return matchCity && matchCuisine && matchQuery;
     });
-  }, [restaurants, activeCuisine, query, address]);
+  }, [restaurants, selectedCity, activeCuisine, query]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -239,14 +234,13 @@ export default function HomePage() {
 
           {/* New Search & Address Bar */}
           <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
+            className="grid lg:grid-cols-[1fr,1.3fr] gap-2 p-1.5 rounded-[2.5rem] glass-panel shadow-2xl relative z-20 max-w-3xl mx-auto"
           >
             <div className="relative group">
-              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
-                <MapPin className="text-gold-500 shrink-0" size={18} />
+              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-5 py-3.5 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
+                <MapPin className="text-gold-500 shrink-0" size={16} />
                 <input
                   value={address}
                   onFocus={() => setShowCityDropdown(true)}
@@ -280,11 +274,17 @@ export default function HomePage() {
               </AnimatePresence>
             </div>
 
-            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
-               <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
-               <span className="text-sm text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
-               <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all">
-                  <ArrowRight size={20} />
+            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-5 py-3.5 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
+               <Search size={16} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
+               <span className="text-xs text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
+               <div className="ml-auto flex items-center gap-2">
+                 <div className="px-2.5 py-1 bg-gold-500/10 border border-gold-500/20 rounded-full flex items-center gap-2 text-gold-500">
+                    <Tag size={10} strokeWidth={3} />
+                    <span className="text-[9px] font-black uppercase tracking-widest text-nowrap">Hitta Deals</span>
+                 </div>
+                 <div className="w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0 shadow-lg shadow-gold-500/20">
+                    <ArrowRight size={16} />
+                 </div>
                </div>
             </Link>
           </motion.div>
@@ -424,8 +424,15 @@ export default function HomePage() {
                         <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
                       )}
                       
-                      {r.isOpen === false && (
-                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center">
+                      {r.isOpen !== false ? (
+                         <div className="absolute top-4 right-4 z-10">
+                            <div className="px-3 py-1 bg-emerald-500/10 backdrop-blur-md border border-emerald-500/30 rounded-full flex items-center gap-1.5 shadow-lg">
+                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                               <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Öppet</span>
+                            </div>
+                         </div>
+                      ) : (
+                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center z-10">
                           <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest border border-rose-500/30 px-5 py-2 rounded-2xl">Stängt för dagen</span>
                         </div>
                       )}

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
-import { Search as SearchIcon, Star, Clock, Bike, ChevronRight, Utensils, Phone } from "lucide-react";
+import { Search as SearchIcon, Star, Clock, Bike, ChevronRight, Utensils, Phone, Tag, Sparkles, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 interface Restaurant {
@@ -59,17 +59,27 @@ export default function SearchPage() {
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Sök i plattformen</p>
           <h1 className="text-3xl font-black uppercase tracking-tighter mb-6">Upptäck <span className="text-gold-600">mat</span></h1>
           
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400/30 group-focus-within:text-gold-600 transition-colors">
-              <SearchIcon size={20} />
+          <div className="flex flex-col gap-4">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400/30 group-focus-within:text-gold-600 transition-colors">
+                <SearchIcon size={20} />
+              </div>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Sök restaurang eller matkategori..."
+                className="w-full bg-zinc-900 border border-white/5 rounded-[2rem] py-5 pl-12 pr-4 text-lg font-bold placeholder:text-zinc-600 focus:outline-none focus:border-gold-500 transition-all shadow-2xl text-zinc-100"
+              />
             </div>
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Sök restaurang eller matkategori..."
-              className="w-full bg-zinc-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold placeholder:text-zinc-400/20 focus:outline-none focus:border-gold-500 transition-all shadow-xl shadow-xl text-zinc-100"
-            />
+
+            <Link href="/profile" className="flex items-center gap-3 rounded-[2rem] bg-gold-500/5 px-6 py-4 border border-gold-500/20 hover:border-gold-500/50 transition-all group shadow-sm">
+                <Tag size={18} className="text-gold-500" />
+                <span className="text-sm text-zinc-400 font-bold uppercase tracking-widest">Se dina personliga deals</span>
+                <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shadow-lg shadow-gold-500/20">
+                    <ArrowRight size={20} />
+                </div>
+            </Link>
           </div>
         </header>
 

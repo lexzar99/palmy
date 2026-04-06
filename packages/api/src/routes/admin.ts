@@ -1103,7 +1103,7 @@ router.post('/deals', async (req, res) => {
       data: { ...rest, restaurantId: scopedRestaurantId },
     });
     res.status(201).json(deal);
-  } catch {
+  } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -1124,7 +1124,11 @@ router.patch('/deals/:id', async (req, res) => {
 
     const deal = await prisma.deal.update({
       where: { id },
-      data
+      data: {
+        ...data,
+        // Ensure RID is never accidentally changed by PATCH unless Super Admin explicitly provides it
+        ...(isSuperAdmin(req as AuthRequest) && restaurantId !== undefined ? { restaurantId: restaurantId ? String(restaurantId) : null } : {})
+      }
     });
     res.json(deal);
   } catch (error) {
