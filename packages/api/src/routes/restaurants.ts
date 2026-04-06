@@ -59,7 +59,14 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
   deliveryFee: fromOre(restaurant.deliveryFee),
   minOrderAmount: fromOre(restaurant.minOrderAmount),
   etaMinutes: restaurant.etaMinutes ?? 30,
-  isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
+  isOpen: (() => {
+    try {
+      return restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
+    } catch (e) {
+      console.error('Error calculating isOpen:', e);
+      return restaurant.isOpen; // Fallback to manual status
+    }
+  })(),
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
@@ -309,9 +316,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     io.emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
-      isOpen: restaurant.isOpen,
-      deliveryFee: restaurant.deliveryFee,
-      minOrderAmount: restaurant.minOrderAmount,
+      isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
+      deliveryFee: fromOre(restaurant.deliveryFee),
+      minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,
     });
 

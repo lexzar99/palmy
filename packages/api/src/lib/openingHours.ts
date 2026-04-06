@@ -7,10 +7,10 @@ export interface OpeningHours {
 
 export type WeeklyOpeningHours = Record<string, OpeningHours>;
 
-export function isRestaurantOpen(openingHours: WeeklyOpeningHours | string | null | undefined): boolean {
+export function isRestaurantOpen(openingHours: any | string | null | undefined): boolean {
   if (!openingHours) return true;
   
-  let hours: WeeklyOpeningHours;
+  let hours: any;
   if (typeof openingHours === 'string') {
     try {
       hours = JSON.parse(openingHours);
@@ -21,12 +21,27 @@ export function isRestaurantOpen(openingHours: WeeklyOpeningHours | string | nul
     hours = openingHours;
   }
 
-  const now = new Date();
+  // Use Sweden (Europe/Stockholm) time
+  const nowInSweden = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
+  const todayStr = nowInSweden.toISOString().split('T')[0];
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayKey = dayNames[now.getDay()];
-  const todayData = hours[dayKey];
+  const dayKey = dayNames[nowInSweden.getDay()];
 
-  if (!todayData) return false;
+  // Check Special Hours (Exceptions)
+  if (hours.specialHours && Array.isArray(hours.specialHours)) {
+    const special = hours.specialHours.find((sh: any) => sh.date === todayStr);
+    if (special) {
+      if (special.closed) return false;
+      if (special.open && special.close) {
+        return isWithinSlot(nowInSweden, special.open, special.close);
+      }
+    }
+  }
+
+  const todayData = hours[dayKey] || hours.regular?.[dayKey];
+
+  // If no hours set at all, default to open
+  if (!todayData) return true;
 
   // Handle { closed: true, shifts: [...] } format
   if ((todayData as any).closed === true) return false;
@@ -43,23 +58,28 @@ export function isRestaurantOpen(openingHours: WeeklyOpeningHours | string | nul
 
   for (const slot of slots) {
     if (!slot.open || !slot.close) continue;
-
-    const [openH, openM] = slot.open.split(':').map(Number);
-    const [closeH, closeM] = slot.close.split(':').map(Number);
-    
-    const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
-    const openTimeInMinutes = openH * 60 + openM;
-    let closeTimeInMinutes = closeH * 60 + closeM;
-
-    // Handle closing time after midnight (e.g., 02:00)
-    if (closeTimeInMinutes <= openTimeInMinutes) {
-      closeTimeInMinutes += 24 * 60;
-    }
-
-    if (currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes) {
-      return true;
-    }
+    if (isWithinSlot(nowInSweden, slot.open, slot.close)) return true;
   }
 
   return false;
+}
+
+function isWithinSlot(now: Date, open: any, close: any): boolean {
+  if (typeof open !== 'string' || typeof close !== 'string') return false;
+  if (!open.includes(':') || !close.includes(':')) return false;
+
+  const [openH, openM] = open.split(':').map(Number);
+  const [closeH, closeM] = close.split(':').map(Number);
+  
+  if (isNaN(openH) || isNaN(openM) || isNaN(closeH) || isNaN(closeM)) return false;
+  
+  const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+  const openTimeInMinutes = openH * 60 + openM;
+  let closeTimeInMinutes = closeH * 60 + closeM;
+
+  if (closeTimeInMinutes <= openTimeInMinutes) {
+    closeTimeInMinutes += 24 * 60;
+  }
+
+  return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
 }
