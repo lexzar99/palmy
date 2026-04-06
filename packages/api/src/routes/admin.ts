@@ -328,10 +328,7 @@ router.get('/orders/:id', async (req, res) => {
 router.patch('/orders/:id/status', async (req, res) => {
   try {
     // SUPER_ADMIN can monitor all restaurants, but cannot accept/handle orders.
-    if (isSuperAdmin(req as AuthRequest)) {
-      res.status(403).json({ error: 'SUPER_ADMIN kan inte ta emot/uppdatera beställningar' });
-      return;
-    }
+    // Super Admin can monitor and handle all orders.
 
     const { status, estimatedTime } = req.body;
     const validStatuses = ['ACCEPTED', 'PREPARING', 'READY', 'DELIVERING', 'DELIVERED', 'DELIVERY_FAILED', 'REJECTED', 'CANCELLED'];
@@ -354,7 +351,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
-    if (existing.restaurantId !== adminRestaurantId) {
+    if (!isSuperAdmin(req as AuthRequest) && existing.restaurantId !== adminRestaurantId) {
       res.status(403).json({ error: 'Du kan bara uppdatera orders för din restaurang' });
       return;
     }
@@ -618,6 +615,27 @@ router.post('/categories', async (req, res) => {
     res.status(201).json(category);
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// DELETE /api/admin/orders/:id - Ta bort en order permanent (Endast Super Admin)
+router.delete('/orders/:id', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Kräver super admin-behörighet' });
+      return;
+    }
+
+    await prisma.order.delete({
+      where: { id: req.params.id },
+    });
+
+    // Notifiera alla om att ordern är borta
+    io.to('admin-room').emit('order:updated', { orderId: req.params.id });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Kunde inte radera order' });
   }
 });
 

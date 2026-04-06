@@ -333,9 +333,16 @@ const AdminOrdersPage = () => {
     }
   };
 
-  const deleteTestOrder = (orderId: string) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-    setExpandedOrderId(null);
+  const onDeleteTestOrder = async (orderId: string) => {
+    try {
+      const token = localStorage.getItem("palmyra_token");
+      await axios.delete(`${API_URL}/api/admin/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      setExpandedOrderId(null);
+      confetti({ particleCount: 50, spread: 60, origin: { y: 0.8 }, colors: ['#ff0000', '#ff4d4d'] });
+    } catch {
+      setConfirmDialog({ message: "Kunde inte radera testorder", onConfirm: () => setConfirmDialog(null) });
+    }
   };
 
   const sums = useMemo(() => {
@@ -453,14 +460,14 @@ const AdminOrdersPage = () => {
           {sums.pending.length > 0 && (
             <div className="space-y-6">
               <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-500 italic">Nya Inkomna ({sums.pending.length})</h2><div className="flex-1 h-px bg-gold-500/10" /></div>
-              <div className="grid grid-cols-1 gap-4">{sums.pending.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} setAcceptDialog={setAcceptDialog} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} />)}</div>
+              <div className="grid grid-cols-1 gap-4">{sums.pending.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} setAcceptDialog={setAcceptDialog} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} onDeleteTestOrder={onDeleteTestOrder} />)}</div>
             </div>
           )}
 
           {sums.active.length > 0 && (
             <div className="space-y-6">
               <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary italic">Aktiva Ordrar ({sums.active.length})</h2><div className="flex-1 h-px bg-border-subtle" /></div>
-              <div className="grid grid-cols-1 gap-4">{sums.active.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} onDeleteTestOrder={deleteTestOrder} />)}</div>
+              <div className="grid grid-cols-1 gap-4">{sums.active.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} onDeleteTestOrder={onDeleteTestOrder} />)}</div>
             </div>
           )}
 
