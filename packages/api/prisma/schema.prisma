@@ -148,29 +148,31 @@ model DiscountCode {
 }
 
 model Deal {
-  id                 String      @id @default(cuid())
-  title              String
-  description        String?
-  badgeText          String?
-  triggerType        String      @default("NONE")
-  discountType       String      @default("PERCENTAGE")
-  discountValue      Int
-  minOrder           Int         @default(0)
-  comboProductIds    String      @default("[]")
-  isActive           Boolean     @default(true)
-  showOnSite         Boolean     @default(true)
-  popupEnabled       Boolean     @default(true)
-  maxUsages          Int?
-  maxUsesPerCustomer Int?
-  usageCount         Int         @default(0)
-  validFrom          DateTime?
-  validUntil         DateTime?
-  sortOrder          Int         @default(0)
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-  restaurantId       String?
-  isGlobal           Boolean     @default(false)
-  restaurant         Restaurant? @relation(fields: [restaurantId], references: [id])
+  id                    String      @id @default(cuid())
+  title                 String
+  description           String?
+  imageUrl              String?
+  badgeText             String?
+  triggerType           String      @default("NONE")
+  discountType          String      @default("PERCENTAGE")
+  discountValue         Int
+  minOrder              Int         @default(0)
+  comboProductIds       String      @default("[]")
+  isActive              Boolean     @default(true)
+  showOnSite            Boolean     @default(true)
+  popupEnabled          Boolean     @default(true)
+  maxUsages             Int?
+  maxUsesPerCustomer    Int?
+  usageCount            Int         @default(0)
+  validFrom             DateTime?
+  validUntil            DateTime?
+  sortOrder             Int         @default(0)
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+  restaurantId          String?
+  isGlobal              Boolean     @default(false)
+  applicableRestaurantIds String    @default("[]")
+  restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }
 
 model AdminUser {

@@ -315,14 +315,11 @@ export default function HomePage() {
           <section className="mb-10">
             <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
               {deals.map((deal, i) => (
-                <motion.div
-                  key={deal.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="shrink-0"
-                >
-                  <div className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group">
+                  <Link
+                    key={deal.id}
+                    href={deal.restaurant?.slug ? (deal.restaurant.slug === 'palmyra' ? '/menu' : `/restaurants/${deal.restaurant.slug}`) : '/search'}
+                    className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group transition-all hover:border-emerald-500/50 hover:-translate-y-1"
+                  >
                      <div className="absolute top-[-20px] right-[-20px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
                      <div className="flex items-center gap-2 mb-1">
                         <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center text-dark-500">
@@ -331,9 +328,10 @@ export default function HomePage() {
                         <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erbjudande</span>
                      </div>
                      <h4 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none">{deal.title}</h4>
-                     <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{deal.restaurant?.name || "Gäller alla kök"}</p>
-                  </div>
-                </motion.div>
+                     <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                        {deal.isGlobal ? (deal.badgeText || "Gäller alla kök") : (deal.restaurant?.name || "Gäller utvalda kök")}
+                     </p>
+                  </Link>
               ))}
             </div>
           </section>

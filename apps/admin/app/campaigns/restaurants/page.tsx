@@ -15,7 +15,9 @@ import {
   Settings2,
   ArrowLeft,
   CheckCircle2,
-  XCircle
+  XCircle,
+  ImageIcon,
+  Upload
 } from "lucide-react";
 import Link from "next/link";
 import { API_URL } from "@/lib/api";
@@ -53,6 +55,9 @@ export default function RestaurantCampaignsPage() {
     const formData = new FormData(e.currentTarget);
     const data: any = Object.fromEntries(formData.entries());
     
+    // Get all selected restaurant IDs from checkboxes
+    const selectedRestaurantIds = Array.from(formData.getAll('restaurantIds'));
+    
     try {
       await axios.post(`${API_URL}/api/admin/deals`, {
         ...data,
@@ -61,7 +66,8 @@ export default function RestaurantCampaignsPage() {
         sortOrder: Number(data.sortOrder || 0),
         isActive: true,
         showOnSite: true,
-        isGlobal: !data.restaurantId
+        isGlobal: selectedRestaurantIds.length === 0,
+        applicableRestaurantIds: JSON.stringify(selectedRestaurantIds)
       }, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
@@ -233,17 +239,81 @@ export default function RestaurantCampaignsPage() {
                                 className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl p-4 text-sm font-black outline-none focus:ring-1 focus:ring-emerald-500/50"
                               />
                            </div>
-                           <div className="space-y-4">
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Tillhörighet</label>
-                              <select 
-                                value={selectedDeal.restaurantId || ""}
-                                onChange={e => setSelectedDeal({ ...selectedDeal, restaurantId: e.target.value || null, isGlobal: !e.target.value })}
-                                className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl p-4 text-xs font-black outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none"
-                              >
-                                <option value="">Global (Alla)</option>
-                                {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                              </select>
+                           <div className="space-y-4 col-span-2">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Erbjudande Bild (Frivillig)</label>
+                              <div className="flex items-center gap-4">
+                                <div className="h-20 w-20 rounded-2xl bg-[var(--border-subtle)] border border-[var(--border-subtle)] overflow-hidden flex items-center justify-center text-emerald-500/20">
+                                   {selectedDeal.imageUrl ? <img src={selectedDeal.imageUrl} className="w-full h-full object-cover" /> : <ImageIcon size={30} />}
+                                </div>
+                                <div className="flex-1">
+                                   <input 
+                                     type="text"
+                                     value={selectedDeal.imageUrl || ""}
+                                     onChange={e => setSelectedDeal({ ...selectedDeal, imageUrl: e.target.value })}
+                                     placeholder="Bild URL (t.ex. /burger.png)"
+                                     className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl p-3 text-xs font-bold outline-none mb-2"
+                                   />
+                                   <div className="flex items-center gap-2">
+                                      <button 
+                                        className="text-[9px] font-black uppercase text-emerald-500 hover:text-emerald-400 transition-all flex items-center gap-1"
+                                        onClick={() => {
+                                          const input = document.createElement('input');
+                                          input.type = 'file';
+                                          input.accept = 'image/*';
+                                          input.onchange = (e: any) => {
+                                            const file = e.target.files[0];
+                                            if (file) {
+                                              const reader = new FileReader();
+                                              reader.onload = () => setSelectedDeal({ ...selectedDeal, imageUrl: reader.result });
+                                              reader.readAsDataURL(file);
+                                            }
+                                          };
+                                          input.click();
+                                        }}
+                                      >
+                                         <Upload size={12} /> Ladda upp bild
+                                      </button>
+                                   </div>
+                                </div>
+                              </div>
                            </div>
+
+                           <div className="space-y-4 col-span-2">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Kopplade Restauranger</label>
+                              <div className="p-4 bg-[var(--border-subtle)] rounded-2xl border border-[var(--border-subtle)] max-h-40 overflow-y-auto space-y-2 no-scrollbar">
+                                 <label className="flex items-center gap-3 cursor-pointer group">
+                                    <input 
+                                      type="checkbox"
+                                      checked={selectedDeal.isGlobal}
+                                      onChange={() => setSelectedDeal({ ...selectedDeal, isGlobal: !selectedDeal.isGlobal, applicableRestaurantIds: "[]" })}
+                                      className="w-5 h-5 rounded-lg border-2 border-[var(--border-strong)] bg-obsidian text-emerald-500 focus:ring-emerald-500/50"
+                                    />
+                                    <span className="text-[11px] font-black uppercase tracking-widest group-hover:text-emerald-500 transition-colors">Global (Alla restauranger)</span>
+                                 </label>
+                                 {!selectedDeal.isGlobal && (
+                                   <div className="pt-2 border-t border-[var(--border-strong)] space-y-2">
+                                      {restaurants.map(r => {
+                                         const ids = JSON.parse(selectedDeal.applicableRestaurantIds || "[]");
+                                         return (
+                                           <label key={r.id} className="flex items-center gap-3 cursor-pointer group">
+                                              <input 
+                                                type="checkbox"
+                                                checked={ids.includes(r.id)}
+                                                onChange={() => {
+                                                   const newIds = ids.includes(r.id) ? ids.filter((id: string) => id !== r.id) : [...ids, r.id];
+                                                   setSelectedDeal({ ...selectedDeal, applicableRestaurantIds: JSON.stringify(newIds) });
+                                                }}
+                                                className="w-5 h-5 rounded-lg border-2 border-[var(--border-strong)] bg-obsidian text-emerald-500 focus:ring-emerald-500/50"
+                                              />
+                                              <span className="text-[10px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 group-hover:text-emerald-500 transition-all">{r.name}</span>
+                                           </label>
+                                         );
+                                      })}
+                                   </div>
+                                 )}
+                              </div>
+                           </div>
+                           
                            <div className="space-y-4">
                               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Visa i Produktion</label>
                               <button 

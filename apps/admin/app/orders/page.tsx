@@ -20,7 +20,8 @@ import {
   X,
   Ticket,
   Zap,
-  ArrowRight
+  ArrowRight,
+  Trash2
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
@@ -72,7 +73,7 @@ const formatOrderNumber = (num: any) => {
 
 const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin, isPast, setEditingOrder, onDeleteTestOrder }: any) => {
   const isExpanded = expandedOrderId === order.id;
-  const isTest = order.stripePaymentIntentId === "TEST_PAYMENT";
+  const isTest = order.stripePaymentIntentId === "TEST_PAYMENT" || order.stripePaymentIntentId === "BOT_ORDER";
   const isAccepted = ["ACCEPTED", "PREPARING", "READY"].includes(order.status);
 
   return (
@@ -207,7 +208,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
 
             {!isPast && (
               <div className="flex flex-col gap-3 pt-2">
-                 {!isSuperAdmin && (
+                 {!isSuperAdmin ? (
                    <>
                      {order.status === "PENDING" ? (
                         <div className="flex gap-3">
@@ -234,6 +235,13 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                         </button>
                      ) : null}
                    </>
+                 ) : isTest && (
+                   <button 
+                     onClick={(e) => { e.stopPropagation(); onDeleteTestOrder(order.id); }}
+                     className="w-full py-5 bg-rose-500/10 border border-rose-500/30 text-rose-500 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-rose-500 hover:text-white transition-all shadow-xl shadow-rose-500/5 active:scale-95 flex items-center justify-center gap-3"
+                   >
+                      Radera Testorder <Trash2 size={16} />
+                   </button>
                  )}
                  
                  <div className="flex gap-3">
