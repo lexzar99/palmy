@@ -155,6 +155,9 @@ export default function RestaurantsPage() {
         zip: form.zip || "",
         phone: form.phone || "",
         address: form.address || "",
+        imageUrl: form.imageUrl || "",
+        heroImageUrl: form.heroImageUrl || "",
+        internalInfo: form.internalInfo || "",
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
         openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
@@ -731,10 +734,7 @@ export default function RestaurantsPage() {
                                     </button>
                                  ))}
                               </div>
-                              <div className="flex items-start gap-2 pt-2 opacity-40">
-                                 <Info size={12} className="shrink-0 mt-0.5" />
-                                 <p className="text-[9px] font-medium leading-relaxed uppercase">Klass 1 & 2 syns på sidan. Klass 3 är dold plattform-vid.</p>
-                              </div>
+                                  <p className="text-[9px] font-medium leading-relaxed uppercase">Välj synlighetsnivå för restaurangen på plattformen.</p>
                            </div>
                         </div>
                       </div>
