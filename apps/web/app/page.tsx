@@ -44,6 +44,8 @@ interface Restaurant {
   featuredClass?: number;
   tags?: string[];
   phone?: string;
+  address?: string;
+  zip?: string;
 }
 
 interface City {
