@@ -103,7 +103,7 @@ export default function HomePage() {
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
       axios.get(`${API_URL}/api/cities`),
-      axios.get(`${API_URL}/api/admin/deals`)
+      axios.get(`${API_URL}/api/deals`)
     ]).then(([resRest, resCities, resDeals]) => {
       setRestaurants(resRest.data);
       setCities(resCities.data);

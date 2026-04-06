@@ -26,19 +26,29 @@ export function isRestaurantOpen(openingHours: WeeklyOpeningHours | string | nul
   const dayKey = dayNames[now.getDay()];
   const todayHours = hours[dayKey];
 
-  if (!todayHours || todayHours.closed) return false;
+  if (!todayHours || (todayHours as any).closed) return false;
 
-  const [openH, openM] = todayHours.open.split(':').map(Number);
-  const [closeH, closeM] = todayHours.close.split(':').map(Number);
-  
-  const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
-  const openTimeInMinutes = openH * 60 + openM;
-  let closeTimeInMinutes = closeH * 60 + closeM;
+  const slots = Array.isArray(todayHours) ? todayHours : [todayHours];
 
-  // Handle closing time after midnight (e.g., 02:00)
-  if (closeTimeInMinutes <= openTimeInMinutes) {
-    closeTimeInMinutes += 24 * 60;
+  for (const slot of slots) {
+    if (!slot.open || !slot.close) continue;
+
+    const [openH, openM] = slot.open.split(':').map(Number);
+    const [closeH, closeM] = slot.close.split(':').map(Number);
+    
+    const currentTimeInMinutes = now.getHours() * 60 + now.getMinutes();
+    const openTimeInMinutes = openH * 60 + openM;
+    let closeTimeInMinutes = closeH * 60 + closeM;
+
+    // Handle closing time after midnight (e.g., 02:00)
+    if (closeTimeInMinutes <= openTimeInMinutes) {
+      closeTimeInMinutes += 24 * 60;
+    }
+
+    if (currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes) {
+      return true;
+    }
   }
 
-  return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
+  return false;
 }
