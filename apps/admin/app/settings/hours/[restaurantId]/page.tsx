@@ -59,7 +59,11 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
         const data = res.data;
         setRestaurantName(data.name);
         
-        let oh = data.openingHours || {};
+        let oh = data.openingHours;
+        if (typeof oh === "string") {
+          try { oh = JSON.parse(oh); } catch { oh = {}; }
+        }
+        oh = oh || {};
         const rawRegular = oh.regular || oh || {};
         
         // Migrate old format to new shift format if needed
@@ -113,24 +117,28 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
   };
 
   const updateDayStatus = (day: string, closed: boolean) => {
-    setSettings((prev: any) => ({
-      ...prev,
-      openingHours: {
-        ...prev.openingHours,
-        [day]: { ...prev.openingHours[day], closed }
-      }
-    }));
+    setSettings((prev: any) => {
+      const dayData = prev.openingHours[day] || { closed: false, shifts: [{ ...defaultShift }] };
+      return {
+        ...prev,
+        openingHours: {
+          ...prev.openingHours,
+          [day]: { ...dayData, closed }
+        }
+      };
+    });
   };
 
   const updateShift = (day: string, index: number, field: string, value: string) => {
     setSettings((prev: any) => {
-       const shifts = [...prev.openingHours[day].shifts];
+       const dayData = prev.openingHours[day] || { closed: false, shifts: [{ ...defaultShift }] };
+       const shifts = [...dayData.shifts];
        shifts[index] = { ...shifts[index], [field]: value };
        return {
          ...prev,
          openingHours: {
            ...prev.openingHours,
-           [day]: { ...prev.openingHours[day], shifts }
+           [day]: { ...dayData, shifts }
          }
        };
     });
@@ -138,13 +146,14 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
 
   const addShift = (day: string) => {
     setSettings((prev: any) => {
-      const shifts = [...prev.openingHours[day].shifts];
+      const dayData = prev.openingHours[day] || { closed: false, shifts: [{ ...defaultShift }] };
+      const shifts = [...dayData.shifts];
       if (shifts.length >= 2) return prev;
       return {
         ...prev,
         openingHours: {
           ...prev.openingHours,
-          [day]: { ...prev.openingHours[day], shifts: [...shifts, { open: "17:00", close: "22:00" }] }
+          [day]: { ...dayData, shifts: [...shifts, { open: "17:00", close: "22:00" }] }
         }
       };
     });
@@ -152,14 +161,16 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
 
   const removeShift = (day: string, index: number) => {
     setSettings((prev: any) => {
-       const shifts = prev.openingHours[day].shifts.filter((_: any, i: number) => i !== index);
-       return {
-         ...prev,
-         openingHours: {
-           ...prev.openingHours,
-           [day]: { ...prev.openingHours[day], shifts: shifts.length > 0 ? shifts : [{ ...defaultShift }] }
-         }
-       };
+      const dayData = prev.openingHours[day];
+      if (!dayData) return prev;
+      const shifts = dayData.shifts.filter((_: any, i: number) => i !== index);
+      return {
+        ...prev,
+        openingHours: {
+          ...prev.openingHours,
+          [day]: { ...dayData, shifts: shifts.length > 0 ? shifts : [{ ...defaultShift }] }
+        }
+      };
     });
   };
 

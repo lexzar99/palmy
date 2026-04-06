@@ -26,7 +26,8 @@ import {
   Target,
   Sun,
   Moon,
-  LayoutDashboard
+  LayoutDashboard,
+  RefreshCw
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -134,7 +135,19 @@ const Sidebar = () => {
                 <div className="font-black tracking-tight text-text-primary text-lg uppercase italic leading-none">Food<span className="text-gold-500">Hub</span></div>
              </div>
           </div>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-2 text-text-secondary hover:text-text-primary transition-all"><X size={20}/></button>
+          <div className="flex items-center gap-2">
+            {isSuperAdmin && (
+              <button 
+                onClick={() => {
+                   axios.get(`${API_URL}/api/restaurants`).then(res => setRestaurants(res.data)).catch(() => {});
+                }}
+                className="p-3 bg-bg-secondary hover:bg-bg-primary rounded-2xl border border-border-subtle group transition-all"
+              >
+                 <RefreshCw size={16} className="text-text-secondary group-hover:text-gold-500 group-active:rotate-180 transition-all duration-500" />
+              </button>
+            )}
+            <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden p-3 text-text-secondary hover:text-text-primary transition-all rounded-2xl bg-bg-secondary border border-border-subtle"><X size={20}/></button>
+          </div>
         </div>
 
         {/* Theme Toggle Button */}
