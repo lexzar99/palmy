@@ -3,11 +3,18 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 
-// GET /api/cities
+// GET /api/cities — include restaurants linked to each city
 router.get('/', async (req, res) => {
   try {
+    const all = req.query.all === 'true'; // ?all=true shows inactive too (for admin)
     const cities = await (prisma as any).city.findMany({ 
-      where: { isActive: true } 
+      where: all ? {} : { isActive: true },
+      include: {
+        restaurants: {
+          select: { id: true, name: true, slug: true, isOpen: true, city: true }
+        }
+      },
+      orderBy: { name: 'asc' }
     });
     res.json(cities);
   } catch (error) {
@@ -16,24 +23,38 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/cities (Admin only in real app, but open for simplicity here as we define the sync)
+// POST /api/cities — upsert city with zones, GPS, and linked restaurants
 router.post('/', async (req, res) => {
   try {
-    const { name, slug, deliveryMode, zones, isActive } = req.body;
+    const { id, name, slug, deliveryMode, zones, isActive, latitude, longitude, freeDeliveryAbove, restaurantIds } = req.body;
+    
+    const citySlug = slug || name.toLowerCase().replace(/[^a-zåäö0-9]+/gi, '-').replace(/^-|-$/g, '');
+    
+    const data: any = {
+      name,
+      deliveryMode: deliveryMode || 'ALL',
+      zones: typeof zones === 'string' ? zones : JSON.stringify(zones || []),
+      isActive: isActive !== undefined ? isActive : true,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      freeDeliveryAbove: freeDeliveryAbove || 0,
+    };
+
+    // If restaurantIds provided, update restaurant links
+    if (restaurantIds && Array.isArray(restaurantIds)) {
+      data.restaurants = {
+        set: restaurantIds.map((rid: string) => ({ id: rid }))
+      };
+    }
+
     const city = await (prisma as any).city.upsert({
-      where: { slug },
-      update: {
-        name,
-        deliveryMode,
-        zones: typeof zones === 'string' ? zones : JSON.stringify(zones),
-        isActive: isActive !== undefined ? isActive : true
-      },
-      create: {
-        name,
-        slug,
-        deliveryMode: deliveryMode || 'ALL',
-        zones: typeof zones === 'string' ? zones : JSON.stringify(zones || []),
-        isActive: isActive !== undefined ? isActive : true
+      where: { slug: citySlug },
+      update: data,
+      create: { ...data, slug: citySlug },
+      include: {
+        restaurants: {
+          select: { id: true, name: true, slug: true, isOpen: true, city: true }
+        }
       }
     });
     res.json(city);

@@ -3,22 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { 
-  MapPin, 
-  Settings, 
-  Trash2, 
-  Plus, 
-  Check, 
-  X, 
-  Bike, 
-  Store, 
-  Navigation, 
-  Layers, 
-  Info,
-  ShieldCheck,
-  ChevronRight,
-  Loader2,
-  Save,
-  Globe
+  MapPin, Trash2, Plus, Check, X, Bike, Store, Navigation, Layers, Info,
+  ShieldCheck, ChevronRight, Loader2, Save, Globe, DollarSign, Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -30,6 +16,13 @@ interface DeliveryZone {
   minOrder: number;
 }
 
+interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  isOpen: boolean;
+}
+
 interface City {
   id: string;
   name: string;
@@ -37,12 +30,22 @@ interface City {
   isActive: boolean;
   deliveryMode: "ALL" | "ONLY_PICKUP" | "ONLY_DELIVERY";
   zones: string | DeliveryZone[];
+  latitude: number | null;
+  longitude: number | null;
+  freeDeliveryAbove: number;
+  restaurants: Restaurant[];
 }
 
 import { API_URL } from "@/lib/api";
 
+const getZones = (city: City): DeliveryZone[] => {
+  if (!city.zones) return [];
+  return typeof city.zones === 'string' ? JSON.parse(city.zones || '[]') : city.zones;
+};
+
 const CitiesPage = () => {
   const [cities, setCities] = useState<City[]>([]);
+  const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
   const selectedCity = cities.find(c => c.id === selectedCityId);
 
@@ -54,13 +57,15 @@ const CitiesPage = () => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/cities`);
-      setCities(res.data);
-      // Auto-select first city if nothing selected or if previous selection not in new data
-      if (res.data.length > 0) {
-        if (!selectedCityId || !res.data.find((c: City) => c.id === selectedCityId)) {
-          setSelectedCityId(res.data[0].id);
-        }
+      const token = localStorage.getItem("matgo_token") || "";
+      const [citiesRes, restRes] = await Promise.all([
+        axios.get(`${API_URL}/api/cities?all=true`),
+        axios.get(`${API_URL}/api/restaurants`),
+      ]);
+      setCities(citiesRes.data);
+      setAllRestaurants(restRes.data);
+      if (citiesRes.data.length > 0 && (!selectedCityId || !citiesRes.data.find((c: City) => c.id === selectedCityId))) {
+        setSelectedCityId(citiesRes.data[0].id);
       }
     } catch (err) {
       console.error("Cities fetch error:", err);
@@ -69,9 +74,7 @@ const CitiesPage = () => {
     }
   }, [selectedCityId]);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const handleAddCity = async () => {
     if (!newCityName.trim()) return;
@@ -99,14 +102,24 @@ const CitiesPage = () => {
     if (!selectedCity) return;
     setIsSaving(true);
     try {
+      const zones = getZones(selectedCity);
+      const restaurantIds = (selectedCity.restaurants || []).map(r => r.id);
       await axios.post(`${API_URL}/api/cities`, {
-        ...selectedCity,
-        zones: typeof selectedCity.zones === 'string' ? selectedCity.zones : JSON.stringify(selectedCity.zones)
+        id: selectedCity.id,
+        name: selectedCity.name,
+        slug: selectedCity.slug,
+        deliveryMode: selectedCity.deliveryMode,
+        isActive: selectedCity.isActive,
+        latitude: selectedCity.latitude,
+        longitude: selectedCity.longitude,
+        freeDeliveryAbove: selectedCity.freeDeliveryAbove,
+        zones: JSON.stringify(zones),
+        restaurantIds,
       });
       setTimeout(() => setIsSaving(false), 1200);
     } catch (err) {
       console.error("Save error:", err);
-      alert("Kunde inte spara ändringar. Kontrollera anslutningen.");
+      alert("Kunde inte spara ändringar.");
       setIsSaving(false);
     }
   };
@@ -117,15 +130,18 @@ const CitiesPage = () => {
       await axios.delete(`${API_URL}/api/cities/${id}`);
       setCities(cities.filter(c => c.id !== id));
       if (selectedCityId === id) setSelectedCityId(null);
-    } catch (err) {
-      alert("Kunde inte radera");
-    }
+    } catch { alert("Kunde inte radera"); }
+  };
+
+  const updateCity = (field: string, value: any) => {
+    if (!selectedCityId) return;
+    setCities(cities.map(c => c.id === selectedCityId ? { ...c, [field]: value } : c));
   };
 
   const addZone = () => {
     if (!selectedCityId) return;
     const newZone: DeliveryZone = {
-      id: Math.random().toString(),
+      id: Math.random().toString(36).slice(2),
       name: "Ny Zon",
       radiusKm: 5,
       deliveryFee: 39,
@@ -133,8 +149,8 @@ const CitiesPage = () => {
     };
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
-      const currentZones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
-      return { ...c, zones: [...(currentZones || []), newZone] as any };
+      const current = getZones(c);
+      return { ...c, zones: [...current, newZone] as any };
     }));
   };
 
@@ -142,9 +158,8 @@ const CitiesPage = () => {
     if (!selectedCityId) return;
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
-      const zones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
-      const newZones = (zones || []).map((z: any) => z.id === zoneId ? { ...z, [field]: value } : z);
-      return { ...c, zones: newZones };
+      const zones = getZones(c);
+      return { ...c, zones: zones.map(z => z.id === zoneId ? { ...z, [field]: value } : z) as any };
     }));
   };
 
@@ -152,11 +167,28 @@ const CitiesPage = () => {
     if (!selectedCityId) return;
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
-      const zones = typeof c.zones === 'string' ? JSON.parse(c.zones || '[]') : c.zones;
-      const newZones = (zones || []).filter((z: any) => z.id !== zoneId);
-      return { ...c, zones: newZones };
+      return { ...c, zones: getZones(c).filter(z => z.id !== zoneId) as any };
     }));
   };
+
+  const toggleRestaurant = (restaurantId: string) => {
+    if (!selectedCityId) return;
+    setCities(cities.map(c => {
+      if (c.id !== selectedCityId) return c;
+      const linked = c.restaurants || [];
+      const exists = linked.some(r => r.id === restaurantId);
+      if (exists) {
+        return { ...c, restaurants: linked.filter(r => r.id !== restaurantId) };
+      } else {
+        const full = allRestaurants.find(r => r.id === restaurantId);
+        if (!full) return c;
+        return { ...c, restaurants: [...linked, full] };
+      }
+    }));
+  };
+
+  const zones = selectedCity ? getZones(selectedCity) : [];
+  const linkedIds = selectedCity ? (selectedCity.restaurants || []).map(r => r.id) : [];
 
   return (
     <div className="space-y-10 pb-24">
@@ -168,7 +200,7 @@ const CitiesPage = () => {
           </div>
           <div>
             <h1 className="text-4xl font-black uppercase tracking-tight mb-1">Stadshantering</h1>
-            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera zoner, räckvidd och leveranslägen</p>
+            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">Hantera zoner, räckvidd, restauranger och leveranslägen</p>
           </div>
         </div>
         <button 
@@ -194,9 +226,16 @@ const CitiesPage = () => {
                    }`}
                  >
                    <div className="text-left">
-                      <div className="text-lg font-black uppercase tracking-tight mb-1">{city.name}</div>
+                      <div className="text-lg font-black uppercase tracking-tight mb-1 flex items-center gap-2">
+                        {city.name}
+                        {!city.isActive && <span className="text-[8px] px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full font-black">INAKTIV</span>}
+                      </div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 flex items-center gap-2">
-                         {city.deliveryMode === "ALL" ? "Full Service" : "Endast Avhämtning"}
+                         {city.deliveryMode === "ALL" ? "Full Service" : city.deliveryMode === "ONLY_DELIVERY" ? "Endast Utkörning" : "Endast Avhämtning"}
+                         <span className="text-[var(--text-primary)]/10">·</span>
+                         <span>{(city.restaurants || []).length} restauranger</span>
+                         <span className="text-[var(--text-primary)]/10">·</span>
+                         <span>{getZones(city).length} zoner</span>
                       </div>
                    </div>
                    <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-[var(--text-primary)]/10"} />
@@ -214,10 +253,10 @@ const CitiesPage = () => {
           <div className="bg-sky-500/5 border border-sky-500/10 rounded-[2.5rem] p-8 space-y-4">
              <div className="flex items-center gap-3 text-sky-400">
                 <Info size={18} />
-                <span className="text-xs font-black uppercase tracking-widest">Global Kontroll</span>
+                <span className="text-xs font-black uppercase tracking-widest">Så fungerar zoner</span>
              </div>
              <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed uppercase font-bold">
-               Här styr du vilka städer plattformen är aktiv i. Du kan stänga av utkörning för en hel stad vid t.ex. dåligt väder eller hög belastning.
+               Varje stad har en GPS-mittpunkt och radiuszoner. Kunder utanför alla zoner kan inte beställa leverans. Avgift och minimiorder sätts per zon.
              </p>
           </div>
         </div>
@@ -238,20 +277,20 @@ const CitiesPage = () => {
                      <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                            <ShieldCheck className="text-sky-500" size={28} />
-                           Konfiguration: {selectedCity.name}
+                           {selectedCity.name}
                         </h2>
                         <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Övergripande regler för staden</p>
                      </div>
                      <div className="flex items-center gap-3 p-1.5 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl">
                         <button 
-                          onClick={() => setCities(cities.map(c => c.id === selectedCity.id ? {...c, isActive: true} : c))}
-                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive ? "bg-emerald-500 text-[var(--text-primary)]" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
+                          onClick={() => updateCity('isActive', true)}
+                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive ? "bg-emerald-500 text-white" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
                         >
                           Aktiv
                         </button>
                         <button 
-                          onClick={() => setCities(cities.map(c => c.id === selectedCity.id ? {...c, isActive: false} : c))}
-                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedCity.isActive ? "bg-red-500 text-[var(--text-primary)]" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
+                          onClick={() => updateCity('isActive', false)}
+                          className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!selectedCity.isActive ? "bg-red-500 text-white" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
                         >
                           Inaktiv
                         </button>
@@ -266,14 +305,12 @@ const CitiesPage = () => {
                      ].map(mode => (
                        <button
                          key={mode.id}
-                         onClick={() => {
-                           setCities(cities.map(c => c.id === selectedCity.id ? {...c, deliveryMode: mode.id as any} : c));
-                         }}
+                         onClick={() => updateCity('deliveryMode', mode.id)}
                          className={`p-8 rounded-[2.5rem] border-2 text-left transition-all flex flex-col gap-4 ${
                            selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
                          }`}
                        >
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedCity.deliveryMode === mode.id ? "bg-sky-500 text-[var(--text-primary)]" : "bg-[var(--border-subtle)] text-[var(--text-primary)]/30"}`}>
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedCity.deliveryMode === mode.id ? "bg-sky-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-primary)]/30"}`}>
                              <mode.icon size={24} />
                           </div>
                           <div>
@@ -285,97 +322,211 @@ const CitiesPage = () => {
                   </div>
                </div>
 
+               {/* GPS Center & Delivery Settings */}
+               <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
+                  <div>
+                     <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Target className="text-emerald-500" size={28} />
+                        GPS & Leveransregler
+                     </h2>
+                     <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Stadens mittpunkt för radie-beräkning</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-3 gap-8">
+                     <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Latitude (GPS)</label>
+                        <input 
+                          type="number" step="any"
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
+                          value={selectedCity.latitude || ""}
+                          onChange={(e) => updateCity('latitude', parseFloat(e.target.value) || null)}
+                          placeholder="t.ex. 55.70"
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Longitude (GPS)</label>
+                        <input 
+                          type="number" step="any"
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
+                          value={selectedCity.longitude || ""}
+                          onChange={(e) => updateCity('longitude', parseFloat(e.target.value) || null)}
+                          placeholder="t.ex. 13.19"
+                        />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gratis leverans över (kr)</label>
+                        <input 
+                          type="number"
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold text-sm text-emerald-500" 
+                          value={selectedCity.freeDeliveryAbove || 0}
+                          onChange={(e) => updateCity('freeDeliveryAbove', parseInt(e.target.value) || 0)}
+                          placeholder="0 = ej gratis"
+                        />
+                     </div>
+                  </div>
+
+                  {selectedCity.latitude && selectedCity.longitude && (
+                    <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl flex items-center gap-4">
+                      <MapPin className="text-emerald-500 shrink-0" size={20} />
+                      <p className="text-xs font-bold text-emerald-400">
+                        GPS-center: {selectedCity.latitude.toFixed(4)}, {selectedCity.longitude.toFixed(4)} — 
+                        Alla zoner beräknas som radie från denna punkt.
+                      </p>
+                    </div>
+                  )}
+               </div>
+
+               {/* Linked Restaurants */}
+               <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
+                  <div>
+                     <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <Store className="text-gold-500" size={28} />
+                        Kopplade Restauranger
+                     </h2>
+                     <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Vilka restauranger som levererar i {selectedCity.name}</p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                     {allRestaurants.map(r => {
+                       const isLinked = linkedIds.includes(r.id);
+                       return (
+                         <button
+                           key={r.id}
+                           onClick={() => toggleRestaurant(r.id)}
+                           className={`p-6 rounded-3xl border-2 text-left transition-all flex items-center gap-4 ${
+                             isLinked 
+                               ? "bg-gold-500/10 border-gold-500/40" 
+                               : "bg-[var(--border-subtle)] border-transparent hover:border-[var(--border-strong)]"
+                           }`}
+                         >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
+                              isLinked ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"
+                            }`}>
+                              {isLinked ? <Check size={18} /> : <Plus size={18} />}
+                            </div>
+                            <div>
+                               <div className="text-sm font-black uppercase tracking-tight">{r.name}</div>
+                               <div className="text-[9px] font-bold text-[var(--text-primary)]/20 uppercase tracking-widest">
+                                 {r.isOpen ? "🟢 Öppen" : "⚪ Stängd"}
+                               </div>
+                            </div>
+                         </button>
+                       );
+                     })}
+                     {allRestaurants.length === 0 && (
+                       <div className="col-span-full py-10 text-center opacity-20 font-black text-xs uppercase tracking-widest border border-dashed border-white/10 rounded-3xl">
+                         Inga restauranger att koppla
+                       </div>
+                     )}
+                  </div>
+               </div>
+
                {/* Zones */}
                <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
                   <div className="flex items-center justify-between">
                      <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                            <Layers className="text-sky-500" size={28} />
-                           Leverans-zoner
+                           Leveranszoner
                         </h2>
                         <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Geofencing & prissättning per zon</p>
                      </div>
                      <button 
                        onClick={addZone}
-                       className="p-4 bg-sky-500 text-[var(--text-primary)] rounded-2xl hover:bg-sky-400 transition-all shadow-xl shadow-sky-500/20"
+                       className="flex items-center gap-2 px-6 py-3 bg-sky-500 text-white rounded-2xl hover:bg-sky-400 transition-all shadow-xl shadow-sky-500/20 font-black text-[10px] uppercase tracking-widest"
                      >
-                       <Plus size={20} />
+                       <Plus size={16} /> Lägg till zon
                      </button>
                   </div>
 
                   <div className="space-y-4">
-                     {((typeof selectedCity.zones === 'string' ? JSON.parse(selectedCity.zones || '[]') : selectedCity.zones) || []).map((zone: any, idx: number) => (
-                       <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-[var(--border-strong)] grid md:grid-cols-4 gap-8 items-center">
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Namn på zon</label>
-                             <input 
-                               className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-bold text-sm" 
-                               value={zone.name}
-                               onChange={(e) => updateZone(zone.id, 'name', e.target.value)}
-                             />
+                     {zones.length === 0 && (
+                       <div className="py-16 text-center opacity-20 font-black text-xs uppercase tracking-widest border border-dashed border-white/10 rounded-3xl">
+                         Inga zoner skapade — Lägg till en zon för att definiera leveransräckvidd
+                       </div>
+                     )}
+                     {zones.map((zone, idx) => (
+                       <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-[var(--border-strong)] space-y-6">
+                          <div className="flex items-center justify-between">
+                             <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${
+                                  idx === 0 ? "bg-emerald-500/20 text-emerald-500" : idx === 1 ? "bg-amber-500/20 text-amber-500" : "bg-red-500/20 text-red-500"
+                                }`}>
+                                  Z{idx + 1}
+                                </div>
+                                <span className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]/40">Radie: {zone.radiusKm} km</span>
+                             </div>
+                             <button 
+                               onClick={() => removeZone(zone.id)}
+                               className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 transition-all hover:text-white"
+                             >
+                                <Trash2 size={14} />
+                             </button>
                           </div>
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gräns (Radius KM)</label>
-                             <div className="relative">
+                          <div className="grid md:grid-cols-4 gap-6">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Zonnamn</label>
                                 <input 
+                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-bold text-sm" 
+                                  value={zone.name}
+                                  onChange={(e) => updateZone(zone.id, 'name', e.target.value)}
+                                />
+                             </div>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Radie (KM)</label>
+                                <input 
+                                  type="number"
                                   className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
                                   value={zone.radiusKm}
-                                  onChange={(e) => updateZone(zone.id, 'radiusKm', parseInt(e.target.value) || 0)}
+                                  onChange={(e) => updateZone(zone.id, 'radiusKm', parseFloat(e.target.value) || 0)}
                                 />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-[var(--text-primary)]/20">KM</span>
                              </div>
-                          </div>
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Avgift (KR)</label>
-                             <div className="relative">
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Leveransavgift (KR)</label>
                                 <input 
-                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-sky-400" 
+                                  type="number"
+                                  className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm text-emerald-400" 
                                   value={zone.deliveryFee}
                                   onChange={(e) => updateZone(zone.id, 'deliveryFee', parseInt(e.target.value) || 0)}
                                 />
-                                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-black text-[var(--text-primary)]/20">KR</span>
                              </div>
-                          </div>
-                          <div className="flex items-center gap-2 mt-4">
-                             <div className="flex-1 space-y-2">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Minsta Order</label>
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Minimiorder (KR)</label>
                                 <input 
+                                  type="number"
                                   className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl py-3 px-4 outline-none focus:ring-1 focus:ring-sky-500/30 font-black text-sm" 
                                   value={zone.minOrder}
                                   onChange={(e) => updateZone(zone.id, 'minOrder', parseInt(e.target.value) || 0)}
                                 />
                              </div>
-                             <button 
-                               onClick={() => removeZone(zone.id)}
-                               className="p-3 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500 transition-all hover:text-[var(--text-primary)] mt-5"
-                             >
-                                <Trash2 size={16} />
-                             </button>
                           </div>
                        </div>
                      ))}
                   </div>
+
+                  {zones.length > 0 && (
+                    <div className="p-6 bg-sky-500/5 border border-sky-500/10 rounded-3xl space-y-3">
+                       <h4 className="text-[10px] font-black uppercase tracking-widest text-sky-400 flex items-center gap-2"><Info size={14} /> Zon-prioritet</h4>
+                       <p className="text-[9px] text-[var(--text-primary)]/30 font-bold leading-relaxed uppercase">
+                         Zonerna matchas i ordning efter radie (minsta först). En kund inom 3 km matchar zon 1, en kund inom 8 km matchar zon 2 osv. Kunder utanför alla zoner kan inte beställa leverans.
+                       </p>
+                    </div>
+                  )}
                </div>
 
-               {/* Bottom Actions */}
+               {/* Save */}
               <div className="flex justify-end pt-10 border-t border-[var(--border-subtle)]">
                  <button 
                    onClick={handleSave}
                    disabled={isSaving}
                    className={`flex items-center gap-4 px-12 py-5 rounded-[2rem] font-black uppercase tracking-[0.2em] transition-all shadow-2xl ${
-                     isSaving ? "bg-emerald-500 text-[var(--text-primary)] scale-95" : "bg-sky-500 hover:bg-sky-400 text-[var(--text-primary)] hover:scale-105"
+                     isSaving ? "bg-emerald-500 text-white scale-95" : "bg-sky-500 hover:bg-sky-400 text-white hover:scale-105"
                    }`}
                  >
                     {isSaving ? (
-                      <>
-                        <Check size={20} />
-                        Sparat!
-                      </>
+                      <><Check size={20} /> Sparat!</>
                     ) : (
-                      <>
-                        <Save size={20} />
-                        Spara ändringar
-                      </>
+                      <><Save size={20} /> Spara ändringar</>
                     )}
                  </button>
               </div>
@@ -436,7 +587,7 @@ const CitiesPage = () => {
                     </button>
                     <button 
                       onClick={handleAddCity}
-                      className="flex-1 py-4 bg-sky-500 hover:bg-sky-400 text-[var(--text-primary)] rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-sky-500/20"
+                      className="flex-1 py-4 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-sky-500/20"
                     >
                       Spara stad
                     </button>

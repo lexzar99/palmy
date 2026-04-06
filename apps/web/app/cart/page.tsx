@@ -206,6 +206,18 @@ export default function CartPage() {
     fetchContext();
   }, [fetchContext]);
 
+  // Auto-fill delivery address from homepage selection
+  useEffect(() => {
+    const storedAddress = localStorage.getItem("platform_address");
+    if (storedAddress && !formData.deliveryStreet) {
+      setFormData(prev => ({ ...prev, deliveryStreet: storedAddress }));
+    }
+    const storedType = localStorage.getItem("platform_order_type");
+    if (storedType === "PICKUP" || storedType === "DELIVERY") {
+      setOrderType(storedType as "PICKUP" | "DELIVERY");
+    }
+  }, []);
+
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
     try {
