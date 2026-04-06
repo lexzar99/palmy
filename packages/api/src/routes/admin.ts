@@ -1480,6 +1480,24 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
   }
 });
 
+router.delete('/orders/:id', async (req: any, res: any) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!isSuperAdmin(authReq)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+
+    await prisma.order.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Order raderad' });
+  } catch (error: any) {
+    console.error('Delete order error:', error);
+    res.status(500).json({ error: 'Kunde inte radera order' });
+  }
+});
+
 // ─── Receipt Data (JSON for Flutter/Printers) ───────────────────────────────
 
 router.get('/orders/:id/receipt-data', async (req: any, res: any) => {

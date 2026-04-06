@@ -103,7 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const data = CreateOrderSchema.parse(req.body);
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
-    const isTestOrder = (data.discountCode === 'test' || data.discountCode === 'testa') && data.stripePaymentIntentId === 'TEST_PAYMENT';
+    const isTestOrder = (data.discountCode === 'test' || data.discountCode === 'testa') && (data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO');
 
     // Enforce mandatory payment
     if (!hasPaymentIntent) {
@@ -170,7 +170,7 @@ router.post('/', async (req: Request, res: Response) => {
     if (data.stripePaymentIntentId && !isTestOrder) {
       confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId);
     } else if (isTestOrder) {
-      confirmedPayment = { id: 'TEST_PAYMENT', amount: 0 }; 
+      confirmedPayment = { id: data.stripePaymentIntentId || 'TEST_PAYMENT', amount: 0 }; 
     }
 
     // Only enforce open status for unpaid/manual flows.
