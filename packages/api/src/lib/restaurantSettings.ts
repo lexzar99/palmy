@@ -48,3 +48,27 @@ export const parseOpeningHours = (value?: string | null) => {
     return { ...defaultOpeningHours };
   }
 };
+
+export const isRestaurantOpen = (isOpenFlag: boolean, openingHours: any, now = new Date()) => {
+  if (!isOpenFlag) return false;
+  
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayKey = dayNames[now.getDay()];
+  const hours = openingHours[dayKey];
+  
+  if (!hours || hours.closed) return false;
+  
+  const currentTime = now.getHours() * 60 + now.getMinutes();
+  const [openH, openM] = hours.open.split(':').map(Number);
+  const [closeH, closeM] = hours.close.split(':').map(Number);
+  
+  const openMinutes = openH * 60 + openM;
+  let closeMinutes = closeH * 60 + closeM;
+  
+  // Handle closing after midnight (e.g. 02:00)
+  if (closeMinutes <= openMinutes) {
+    closeMinutes += 24 * 60;
+  }
+  
+  return currentTime >= openMinutes && currentTime < closeMinutes;
+};

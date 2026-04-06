@@ -357,7 +357,11 @@ export default function HomePage() {
                     </div>
 
                     <div className="px-3 pb-4">
-                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none mb-2">{r.name}</h3>
+                       <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none">{r.name}</h3>
+                          {/* If has specific deal, show it */}
+                          {/* Note: In a real app we'd fetch these or have them in the restaurant object */}
+                       </div>
                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
                        
                        <div className="flex items-center justify-between border-t border-white/5 pt-5">

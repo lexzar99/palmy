@@ -5,6 +5,7 @@ import { io } from '../index';
 import {
   defaultRestaurantSettings,
   parseOpeningHours,
+  isRestaurantOpen,
   DEFAULT_DELIVERY_FEE,
   DEFAULT_MIN_ORDER_AMOUNT,
   DEFAULT_ESTIMATED_PICKUP_TIME,
@@ -27,7 +28,7 @@ router.get('/', async (_req, res) => {
     }
 
     res.json({
-      isOpen: settings.isOpen,
+      isOpen: isRestaurantOpen(settings.isOpen, parseOpeningHours(settings.openingHours as string)),
       deliveryFee: settings.deliveryFee / 100,
       minOrderAmount: settings.minOrderAmount / 100,
       deliveryRadius: settings.deliveryRadius,

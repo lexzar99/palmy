@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { io } from '../index';
+import { isRestaurantOpen } from '../lib/restaurantSettings';
 
 const router = Router();
 
@@ -58,7 +59,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
   deliveryFee: fromOre(restaurant.deliveryFee),
   minOrderAmount: fromOre(restaurant.minOrderAmount),
   etaMinutes: restaurant.etaMinutes ?? 30,
-  isOpen: restaurant.isOpen ?? true,
+  isOpen: isRestaurantOpen(restaurant.isOpen ?? true, parseJson<Record<string, any>>(restaurant.openingHours, {})),
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, unknown>>(restaurant.openingHours, {}),
