@@ -97,6 +97,7 @@ const UnifiedMenuPage = () => {
     maxUsages: "",
     maxUsesPerCustomer: "",
     validUntil: "",
+    isGlobal: false,
     sortOrder: 0,
   });
 
@@ -345,6 +346,7 @@ const UnifiedMenuPage = () => {
         maxUsages: deal.maxUsages?.toString() || "",
         maxUsesPerCustomer: deal.maxUsesPerCustomer?.toString() || "",
         validUntil: deal.validUntil ? new Date(deal.validUntil).toISOString().slice(0, 16) : "",
+        isGlobal: deal.isGlobal ?? false,
         sortOrder: deal.sortOrder || 0,
       });
     } else {
@@ -364,6 +366,7 @@ const UnifiedMenuPage = () => {
         maxUsages: "",
         maxUsesPerCustomer: "",
         validUntil: "",
+        isGlobal: false,
         sortOrder: deals.length,
       });
     }
@@ -390,7 +393,8 @@ const UnifiedMenuPage = () => {
       maxUsesPerCustomer: dealForm.maxUsesPerCustomer ? Number(dealForm.maxUsesPerCustomer) : null,
       validUntil: dealForm.validUntil ? new Date(dealForm.validUntil).toISOString() : null,
       sortOrder: dealForm.sortOrder,
-      restaurantId: selectedRestaurantId,
+      isGlobal: dealForm.isGlobal,
+      restaurantId: dealForm.isGlobal ? null : selectedRestaurantId,
     };
 
     try {
@@ -1070,11 +1074,12 @@ const UnifiedMenuPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   {[
                     { key: "isActive", label: "Aktiv nu" },
                     { key: "showOnSite", label: "Visa på sidan" },
                     { key: "popupEnabled", label: "Visa popup" },
+                    { key: "isGlobal", label: "Global Deal" },
                   ].map((option) => (
                     <button
                       key={option.key}

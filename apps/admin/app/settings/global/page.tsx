@@ -164,13 +164,17 @@ const GlobalSettingsPage = () => {
         </div>
       </div>
 
-       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Integrationer</h2>
-        <div className="grid grid-cols-1 gap-8">
+      {/* Other Settings */}
+      <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Om MatGo</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Stripe Secret Key</label>
-              <input type="password" placeholder="sk_test_..." className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
-              <p className="text-[9px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest pl-2 pt-1">Hanterar betalningar på webben (Visa, Mastercard, AMEX)</p>
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Support Telefon</label>
+              <input type="text" placeholder="08-XXX XXX XX" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+           </div>
+           <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Instagram URL</label>
+              <input type="text" placeholder="https://instagram.com/..." className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
         </div>
       </div>

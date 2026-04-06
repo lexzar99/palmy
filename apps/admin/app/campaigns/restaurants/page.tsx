@@ -234,21 +234,24 @@ export default function RestaurantCampaignsPage() {
                               />
                            </div>
                            <div className="space-y-4">
-                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Synlighet</label>
-                              <div className="flex gap-2">
-                                 <button 
-                                   onClick={() => setSelectedDeal({ ...selectedDeal, showOnSite: !selectedDeal.showOnSite })}
-                                   className={`flex-1 py-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${selectedDeal.showOnSite ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"}`}
-                                 >
-                                    Produktion
-                                 </button>
-                                 <button 
-                                   onClick={() => setSelectedDeal({ ...selectedDeal, isGlobal: !selectedDeal.isGlobal })}
-                                   className={`flex-1 py-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${selectedDeal.isGlobal ? "bg-sky-500/10 border-sky-500/30 text-sky-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"}`}
-                                 >
-                                    Global
-                                 </button>
-                              </div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Tillhörighet</label>
+                              <select 
+                                value={selectedDeal.restaurantId || ""}
+                                onChange={e => setSelectedDeal({ ...selectedDeal, restaurantId: e.target.value || null, isGlobal: !e.target.value })}
+                                className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl p-4 text-xs font-black outline-none focus:ring-1 focus:ring-emerald-500/50 appearance-none"
+                              >
+                                <option value="">Global (Alla)</option>
+                                {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                              </select>
+                           </div>
+                           <div className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Visa i Produktion</label>
+                              <button 
+                                onClick={() => setSelectedDeal({ ...selectedDeal, showOnSite: !selectedDeal.showOnSite })}
+                                className={`w-full py-4 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all ${selectedDeal.showOnSite ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"}`}
+                              >
+                                 {selectedDeal.showOnSite ? "Aktiv på Sidan" : "Dold på Sidan"}
+                              </button>
                            </div>
                         </div>
 

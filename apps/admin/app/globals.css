@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gold-400: #fb923c;
-  --color-gold-500: #f97316;
-  --color-gold-600: #ea580c;
+  --color-gold-400: #ff8e5a;
+  --color-gold-500: #FF6B35;
+  --color-gold-600: #e55217;
   
   /* Theme variables mapped to tailwind config */
   --color-bg-primary: var(--bg-primary);
@@ -11,17 +11,15 @@
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-border-subtle: var(--border-subtle);
-  --color-border-strong: var(--border-strong);
 }
 
 :root {
-  /* Dark Mode: deep charcoal obsidian */
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
+  /* Dark Mode: elevated, premium obsidian matching web */
+  --bg-primary: #18181b;
+  --bg-secondary: #27272a;
   --text-primary: #f8fafc;
-  --text-secondary: #71717a;
-  --border-subtle: rgba(255, 255, 255, 0.05);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --text-secondary: #a1a1aa;
+  --border-subtle: rgba(255, 255, 255, 0.08);
 }
 
 .light {

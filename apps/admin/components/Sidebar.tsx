@@ -129,7 +129,7 @@ const Sidebar = () => {
       <div className="p-6 pb-4">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-             <div className="w-10 h-10 rounded-2xl bg-gold-500 flex items-center justify-center text-zinc-950 font-black shadow-xl shadow-gold-500/20 rotate-2 active:rotate-0 transition-transform"><span className="text-xl italic">M</span></div>
+             <div className="w-10 h-10 rounded-2xl bg-gold-400 flex items-center justify-center text-[var(--text-secondary)] font-black shadow-xl shadow-gold-500/10 rotate-2 active:rotate-0 transition-transform"><span className="text-xl italic">M</span></div>
              <div className="text-left">
                 <div className="text-[8px] font-black uppercase tracking-[0.4em] text-gold-500/60 mb-0.5">Control</div>
                 <div className="font-black tracking-tight text-text-primary text-lg uppercase italic leading-none">Food<span className="text-gold-500">Hub</span></div>
@@ -263,7 +263,7 @@ const Sidebar = () => {
            <div className="w-8 h-8 rounded-xl bg-gold-400 flex items-center justify-center text-[var(--text-secondary)] font-black rotate-2 italic">M</div>
            <div className="font-black text-text-primary text-base tracking-tight uppercase italic">Admin<span className="text-gold-500 ml-0.5">Hub</span></div>
         </div>
-        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-text-secondary bg-bg-secondary border border-border-strong rounded-xl shadow-sm active:scale-90 transition-transform"><Menu size={20}/></button>
+        <button onClick={() => setIsMobileMenuOpen(true)} className="p-2 text-text-secondary bg-bg-secondary border border-border-subtle rounded-xl shadow-sm active:scale-90 transition-transform"><Menu size={20}/></button>
       </div>
 
       <AnimatePresence>

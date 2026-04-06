@@ -4,7 +4,7 @@ import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { io } from '../index';
-import { isRestaurantOpen } from '../lib/restaurantSettings';
+import { isRestaurantOpen } from '../lib/openingHours';
 
 const router = Router();
 
@@ -59,10 +59,10 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
   deliveryFee: fromOre(restaurant.deliveryFee),
   minOrderAmount: fromOre(restaurant.minOrderAmount),
   etaMinutes: restaurant.etaMinutes ?? 30,
-  isOpen: isRestaurantOpen(restaurant.isOpen ?? true, parseJson<Record<string, any>>(restaurant.openingHours, {})),
+  isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
-  openingHours: parseJson<Record<string, unknown>>(restaurant.openingHours, {}),
+  openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
   internalInfo: restaurant.internalInfo,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
@@ -404,7 +404,12 @@ router.get('/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const restaurant = await prisma.restaurant.findFirst({
-      where: { slug },
+      where: {
+        OR: [
+          { slug },
+          { id: slug }
+        ]
+      },
       include: {
         categories: {
           orderBy: { position: 'asc' },

@@ -73,6 +73,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   
   const [cities, setCities] = useState<City[]>([]);
+  const [deals, setDeals] = useState<any[]>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
@@ -100,10 +101,12 @@ export default function HomePage() {
     setLoading(true);
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
-      axios.get(`${API_URL}/api/cities`)
-    ]).then(([resRest, resCities]) => {
+      axios.get(`${API_URL}/api/cities`),
+      axios.get(`${API_URL}/api/admin/deals`)
+    ]).then(([resRest, resCities, resDeals]) => {
       setRestaurants(resRest.data);
       setCities(resCities.data);
+      setDeals(resDeals.data.filter((d: any) => d.isActive && d.showOnSite));
       
       const initialAddress = localStorage.getItem("platform_address") || "";
       if (initialAddress) {
@@ -147,7 +150,6 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     return restaurants.filter((r) => {
-      const matchCity = !selectedCity || r.city === selectedCity.name;
       const matchCuisine =
         activeCuisine === "Alla" ||
         (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
@@ -157,9 +159,16 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      return matchCity && matchCuisine && matchQuery;
+      let matchCity = true;
+      if (address) {
+        const cleanAddress = address.trim().toLowerCase();
+        const restaurantCity = (r.city || "").trim().toLowerCase();
+        matchCity = restaurantCity === cleanAddress;
+      }
+
+      return matchCuisine && matchQuery && matchCity;
     });
-  }, [restaurants, selectedCity, activeCuisine, query]);
+  }, [restaurants, activeCuisine, query, address]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -234,13 +243,14 @@ export default function HomePage() {
 
           {/* New Search & Address Bar */}
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="grid lg:grid-cols-[1fr,1.3fr] gap-2 p-1.5 rounded-[2.5rem] glass-panel shadow-2xl relative z-20 max-w-3xl mx-auto"
+            transition={{ delay: 0.1 }}
+            className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
           >
             <div className="relative group">
-              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-5 py-3.5 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
-                <MapPin className="text-gold-500 shrink-0" size={16} />
+              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
+                <MapPin className="text-gold-500 shrink-0" size={18} />
                 <input
                   value={address}
                   onFocus={() => setShowCityDropdown(true)}
@@ -274,25 +284,48 @@ export default function HomePage() {
               </AnimatePresence>
             </div>
 
-            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-5 py-3.5 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
-               <Search size={16} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
-               <span className="text-xs text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
-               <div className="ml-auto flex items-center gap-2">
-                 <div className="px-2.5 py-1 bg-gold-500/10 border border-gold-500/20 rounded-full flex items-center gap-2 text-gold-500">
-                    <Tag size={10} strokeWidth={3} />
-                    <span className="text-[9px] font-black uppercase tracking-widest text-nowrap">Hitta Deals</span>
-                 </div>
-                 <div className="w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0 shadow-lg shadow-gold-500/20">
-                    <ArrowRight size={16} />
-                 </div>
+            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
+               <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
+               <span className="text-sm text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
+               <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all">
+                  <ArrowRight size={20} />
                </div>
             </Link>
           </motion.div>
         </header>
 
+        {/* Deals Selector */}
+        {deals.length > 0 && (
+          <section className="mb-10">
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+              {deals.map((deal, i) => (
+                <motion.div
+                  key={deal.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.1 }}
+                  className="shrink-0"
+                >
+                  <div className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group">
+                     <div className="absolute top-[-20px] right-[-20px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
+                     <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center text-dark-500">
+                           <Percent size={12} strokeWidth={3} />
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erbjudande</span>
+                     </div>
+                     <h4 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none">{deal.title}</h4>
+                     <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">{deal.restaurant?.name || "Gäller alla kök"}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Cuisine Selector */}
         <section className="mb-16">
-          <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
             {cuisineFilters.map((c, i) => (
               <motion.button
                 key={c.label}
@@ -300,14 +333,14 @@ export default function HomePage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.1 + i * 0.05 }}
                 onClick={() => setActiveCuisine(c.label)}
-                className={`whitespace-nowrap flex items-center gap-3 rounded-[1.5rem] px-7 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all border-2 active:scale-95 ${
+                className={`whitespace-nowrap flex items-center gap-2 rounded-[1.1rem] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all border-2 active:scale-95 ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_15px_30px_rgba(231,178,75,0.2)]"
+                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(231,178,75,0.1)]"
                     : "bg-obsidian/20 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
                 }`}
               >
-                <span className="text-lg grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
-                <span>{c.label}</span>
+                <span className="text-base grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
+                <span>{c.label === "Alla" ? "Alla Restauranger" : c.label}</span>
               </motion.button>
             ))}
           </div>
@@ -350,18 +383,22 @@ export default function HomePage() {
                         </div>
                       </div>
 
-                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1">
-                        <Star size={12} className="fill-gold-500 text-gold-500" />
-                        <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
+                      <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                        <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
+                          <Star size={12} className="fill-gold-500 text-gold-500" />
+                          <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
+                        </div>
+                        {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
+                          <div className="px-3 py-1.5 rounded-full bg-emerald-500 text-dark-500 flex items-center gap-1 shadow-lg">
+                             <Percent size={10} strokeWidth={4} />
+                             <span className="text-[8px] font-black uppercase">{deals.find(d => d.isGlobal || d.restaurantId === r.id).title}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div className="px-3 pb-4">
-                       <div className="flex items-center justify-between mb-2">
-                          <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none">{r.name}</h3>
-                          {/* If has specific deal, show it */}
-                          {/* Note: In a real app we'd fetch these or have them in the restaurant object */}
-                       </div>
+                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none mb-2">{r.name}</h3>
                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
                        
                        <div className="flex items-center justify-between border-t border-white/5 pt-5">
@@ -385,7 +422,7 @@ export default function HomePage() {
         <section>
           <div className="flex items-center justify-between mb-10 px-4">
             <h2 className="text-xl font-black tracking-[0.2em] uppercase text-zinc-600">
-              {activeCuisine === "Alla" ? "Alla Kök" : activeCuisine} <span className="text-zinc-800 ml-2">/ {filtered.length} st</span>
+              {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine} <span className="text-zinc-800 ml-2">/ {filtered.length} st</span>
             </h2>
           </div>
 
@@ -424,15 +461,8 @@ export default function HomePage() {
                         <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
                       )}
                       
-                      {r.isOpen !== false ? (
-                         <div className="absolute top-4 right-4 z-10">
-                            <div className="px-3 py-1 bg-emerald-500/10 backdrop-blur-md border border-emerald-500/30 rounded-full flex items-center gap-1.5 shadow-lg">
-                               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                               <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Öppet</span>
-                            </div>
-                         </div>
-                      ) : (
-                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center z-10">
+                      {r.isOpen === false && (
+                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center">
                           <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest border border-rose-500/30 px-5 py-2 rounded-2xl">Stängt för dagen</span>
                         </div>
                       )}
@@ -441,9 +471,16 @@ export default function HomePage() {
                     <div className="flex-1 py-4 pr-6 flex flex-col justify-center min-w-0">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="text-2xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none truncate">{r.name}</h3>
-                        <div className="flex items-center gap-1.5 text-gold-500 font-black italic">
-                          <Star size={14} className="fill-gold-500" />
-                          <span className="text-xs">{(r.rating ?? 4.6).toFixed(1)}</span>
+                        <div className="flex flex-col items-end gap-2">
+                           <div className="flex items-center gap-1.5 text-gold-500 font-black italic">
+                             <Star size={14} className="fill-gold-500" />
+                             <span className="text-xs">{(r.rating ?? 4.6).toFixed(1)}</span>
+                           </div>
+                           {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
+                             <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[8px] font-black uppercase tracking-widest shadow-sm">
+                                {deals.find(d => d.isGlobal || d.restaurantId === r.id).title}
+                             </div>
+                           )}
                         </div>
                       </div>
                       
@@ -451,10 +488,16 @@ export default function HomePage() {
                       
                       <div className="flex items-center flex-wrap gap-4 text-[9px] font-black uppercase text-zinc-500 bg-white/5 p-4 rounded-3xl border border-white/5">
                         <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
-                        <span className="w-1 h-1 rounded-full bg-zinc-800" />
                         <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
-                        <span className="w-1 h-1 rounded-full bg-zinc-800" />
                         <span>MIN {r.minOrderAmount ?? 0} KR</span>
+                        {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
+                          <>
+                            <span className="w-1 h-1 rounded-full bg-zinc-800" />
+                            <span className="flex items-center gap-2 text-emerald-500">
+                               <Tag size={12} /> {deals.find(d => d.isGlobal || d.restaurantId === r.id).title}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </Link>

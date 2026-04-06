@@ -165,17 +165,6 @@ router.post('/', async (req: Request, res: Response) => {
       },
     }) : null;
 
-    if (existingOrder) {
-      res.status(200).json({
-        orderId: existingOrder.id,
-        orderNumber: existingOrder.orderNumber,
-        total: existingOrder.total / 100,
-        appliedDealTitle: existingOrder.appliedDealTitle,
-        estimatedTime: existingOrder.estimatedTime,
-      });
-      return;
-    }
-
     let confirmedPayment: ConfirmedPaymentIntent | null = null;
     if (data.stripePaymentIntentId && !isTestOrder) {
       confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId);
@@ -401,9 +390,6 @@ router.post('/', async (req: Request, res: Response) => {
 
     for (const deal of activeDeals) {
       if (!isDealAvailableNow(deal, now)) continue;
-      
-      // Filter by restaurant if not global
-      if (!deal.isGlobal && deal.restaurantId && deal.restaurantId !== (restaurant?.id || 'palmyra')) continue;
 
       if (
         deal.maxUsesPerCustomer !== null &&
@@ -457,8 +443,8 @@ router.post('/', async (req: Request, res: Response) => {
     
     let nextNum = 1001;
     if (lastOrder?.orderNumber) {
-      const numPart = String(lastOrder.orderNumber).replace(/\D/g, '');
-      if (numPart) nextNum = parseInt(numPart) + 1;
+      const match = lastOrder.orderNumber.match(/\d+/);
+      if (match) nextNum = parseInt(match[0]) + 1;
     }
     const nextNumber = `PX-${nextNum}`;
 

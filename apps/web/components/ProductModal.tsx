@@ -145,15 +145,20 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
 
            {/* Extra Groups */}
            <div className="space-y-16">
-              {[...(product.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => (
+              {[...(product.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
+                 const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
+                 return (
                  <div key={group.id} className="relative">
                     <div className="flex items-center justify-between mb-8">
                        <div>
                           <h3 className="text-xl font-black text-white uppercase italic tracking-tight">{group.name}</h3>
                           <div className="flex items-center gap-2 mt-1">
                              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-700">{group.required ? "Måste väljas" : "Valfritt"}</span>
-                             <div className="w-1 h-1 rounded-full bg-zinc-800" />
-                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-700">Max {group.maxSelections || "∞"}</span>
+                             {group.maxSelections > 1 && (
+                                <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/5">
+                                  <span className="text-[9px] font-black text-gold-500 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-700 not-italic">AV</span> {group.maxSelections}</span>
+                                </div>
+                             )}
                           </div>
                        </div>
                     </div>
@@ -182,9 +187,10 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
                           );
                        })}
                     </div>
-                 </div>
-              ))}
-           </div>
+                  </div>
+               );
+            })}
+         </div>
 
            {/* Notes */}
            <div className="space-y-4">

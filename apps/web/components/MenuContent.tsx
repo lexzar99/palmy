@@ -4,38 +4,16 @@ import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, Gift } from "lucide-react";
+import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import DealSpotlight from "@/components/DealSpotlight";
+import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AddressModal from "@/components/AddressModal";
 import { useCartStore } from "@/store/cartStore";
-
-export interface PublicDeal {
-  id: string;
-  title: string;
-  description?: string | null;
-  badgeText?: string | null;
-  dealType: "PERCENTAGE" | "FIXED" | "MIN_ORDER" | "COMBO";
-  triggerType: "NONE" | "MIN_ORDER" | "COMBO";
-  discountType: "PERCENTAGE" | "FIXED";
-  discountValue: number;
-  minOrder: number;
-  comboProductIds: string[];
-  comboProductNames: string[];
-  isActive: boolean;
-  showOnSite: boolean;
-  popupEnabled: boolean;
-  maxUsages?: number | null;
-  maxUsesPerCustomer?: number | null;
-  usageCount: number;
-  validUntil?: string | null;
-  isGlobal?: boolean;
-  restaurantId?: string | null;
-}
 
 interface MenuContentProps {
   restaurantSlug?: string;
@@ -230,7 +208,20 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12">
+      <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12 relative">
+        {/* Closed Overlay */}
+        {!restaurant?.isOpen && (
+          <div className="absolute inset-0 z-50 bg-obsidian/60 backdrop-blur-[2px] rounded-3xl flex items-start justify-center pt-20 pointer-events-none">
+             <div className="sticky top-40 glass-panel p-10 rounded-[3rem] border border-rose-500/20 text-center shadow-2xl backdrop-blur-xl">
+                <div className="w-16 h-16 bg-rose-500/10 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-rose-500">
+                   <Clock size={32} />
+                </div>
+                <h2 className="text-2xl font-black uppercase italic text-white mb-2">Just nu stängt</h2>
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest max-w-[200px] leading-relaxed">Vi har stängt för tillfället. Välkommen åter när vi öppnar!</p>
+             </div>
+          </div>
+        )}
+
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">
            <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
@@ -249,22 +240,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.minOrderAmount} KR</div>
            </div>
         </div>
-
-        {/* Campaign Banner if restaurant has specific deals */}
-        {deals.some(d => !d.isGlobal && d.restaurantId === restaurant?.id) && (
-           <div className="mb-12 glass-panel p-6 rounded-[2.5rem] border-emerald-500/20 bg-emerald-500/5 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500">
-                    <Gift size={24} />
-                 </div>
-                 <div>
-                    <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-500 mb-1">Dagens Deal</div>
-                    <div className="text-sm font-black text-white italic uppercase">{deals.find(d => !d.isGlobal && d.restaurantId === restaurant?.id)?.title}</div>
-                 </div>
-              </div>
-              <div className="hidden sm:block text-[9px] font-black uppercase tracking-widest text-emerald-500/40">Gäller endast denna restaurang</div>
-           </div>
-        )}
 
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-6 z-40 mb-16">
@@ -322,8 +297,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     {cat.products.map((p: any) => (
                        <motion.div
                           key={p.id}
-                          whileTap={{ scale: 0.98 }}
                           onClick={() => {
+                             if (!restaurant?.isOpen) return;
                              if (!address.trim()) {
                                 setPendingProduct(p);
                                 setShowAddressModal(true);
@@ -331,7 +306,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                 setSelectedProduct(p);
                              }
                           }}
-                          className="group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 cursor-pointer active:scale-95"
+                          className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer active:scale-95"}`}
                        >
                           {p.imageUrl && (
                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">
@@ -341,10 +316,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                           )}
                           <div className="flex-1 min-w-0 py-2">
                              <div className="flex items-start justify-between gap-4 mb-2">
-                                <h3 className="text-lg font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-tight">{p.name}</h3>
-                                <div className="text-sm font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-xl border border-gold-500/20 shadow-lg">{p.price} KR</div>
+                                <h3 className="text-base font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none">{p.name}</h3>
+                                <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
                              </div>
-                             <p className="text-zinc-500 text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4 group-hover:text-zinc-400 transition-colors">{p.description}</p>
+                             <p className="text-zinc-600 text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4">{p.description}</p>
                              
                              <div className="flex items-center gap-1.5 opacity-40">
                                 {p.isVegan && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
