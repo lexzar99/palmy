@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 
@@ -89,6 +89,12 @@ const OrderStatusPage = () => {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<any>(null);
+  const [etaLeft, setEtaLeft] = useState<number | null>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
 
   const fetchOrder = useCallback(async () => {
     if (!orderId) return;
@@ -117,6 +123,45 @@ const OrderStatusPage = () => {
     const interval = setInterval(fetchOrder, 15000);
     return () => { clearInterval(interval); socket.disconnect(); };
   }, [orderId, fetchOrder]);
+
+  // ETA Countdown
+  useEffect(() => {
+    if (!order?.estimatedTime || !order?.createdAt) { setEtaLeft(null); return; }
+    const calc = () => {
+      const elapsed = (Date.now() - new Date(order.createdAt).getTime()) / 60000;
+      const left = Math.max(0, Math.round(order.estimatedTime - elapsed));
+      setEtaLeft(left);
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [order?.estimatedTime, order?.createdAt]);
+
+  // Auto-show review prompt for completed orders
+  useEffect(() => {
+    if (order && ['DELIVERED', 'READY'].includes(order.status) && !order.rating && !reviewDone) {
+      const timer = setTimeout(() => setShowReview(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [order?.status, order?.rating, reviewDone]);
+
+  const submitReview = async () => {
+    if (!reviewRating || !orderId) return;
+    setReviewSubmitting(true);
+    try {
+      const token = localStorage.getItem('platform_user_token');
+      await axios.post(`${API_URL}/api/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText }, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      setReviewDone(true);
+      setShowReview(false);
+      setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Kunde inte spara recension');
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -160,12 +205,16 @@ const OrderStatusPage = () => {
            {order.estimatedTime && !isRejected && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-6 rounded-[2.5rem] flex items-center gap-5 shadow-2xl relative group overflow-hidden">
                  <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                 <div className="w-14 h-14 bg-gold-500 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl shadow-gold-500/20">
+                 <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl ${etaLeft !== null && etaLeft <= 5 ? 'bg-emerald-500 shadow-emerald-500/20 animate-pulse' : 'bg-gold-500 shadow-gold-500/20'}`}>
                     <Clock size={28} />
                  </div>
                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-1">Beräknad Väntetid</div>
-                    <div className="text-2xl font-black text-white italic italic">{order.estimatedTime} MIN</div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-1">
+                      {etaLeft !== null && etaLeft <= 0 ? 'Bör vara klart!' : 'Klar om ungefär'}
+                    </div>
+                    <div className="text-2xl font-black text-white italic">
+                      {etaLeft !== null ? (etaLeft <= 0 ? 'Snart!' : `~${etaLeft} MIN`) : `${order.estimatedTime} MIN`}
+                    </div>
                  </div>
               </motion.div>
            )}
@@ -313,15 +362,62 @@ const OrderStatusPage = () => {
                  </div>
               </div>
 
-              <div className="glass-panel p-10 rounded-[3rem] border-emerald-500/5 shadow-2xl text-center group active:scale-95 transition-all cursor-default">
-                 <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-500 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
-                    <ShieldCheck size={32} />
-                 </div>
-                 <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic mb-2">Tack för förtroendet</h3>
-                 <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
-              </div>
+              {/* Review Card or Thank You */}
+              {order.rating || reviewDone ? (
+                <div className="glass-panel p-10 rounded-[3rem] border-gold-500/10 shadow-2xl text-center">
+                   <div className="flex items-center justify-center gap-1 mb-4">
+                     {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-800'} />)}
+                   </div>
+                   <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic mb-2">Tack för din recension!</h3>
+                   <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Din feedback hjälper oss att bli bättre.</p>
+                </div>
+              ) : (
+                <div className="glass-panel p-10 rounded-[3rem] border-emerald-500/5 shadow-2xl text-center group active:scale-95 transition-all cursor-default">
+                   <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-500 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
+                      <ShieldCheck size={32} />
+                   </div>
+                   <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic mb-2">Tack för förtroendet</h3>
+                   <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
+                </div>
+              )}
            </div>
         </div>
+
+        {/* Review Modal */}
+        <AnimatePresence>
+          {showReview && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm">
+              <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm glass-panel p-10 rounded-[3rem] shadow-2xl border border-white/10 space-y-8">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-black uppercase italic text-white">Betygsätt</h2>
+                  <button onClick={() => setShowReview(false)} className="p-2 text-zinc-600 hover:text-white transition-colors"><X size={20} /></button>
+                </div>
+                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Hur var din upplevelse med {order.restaurantName}?</p>
+                <div className="flex items-center justify-center gap-3">
+                  {[1,2,3,4,5].map(s => (
+                    <button key={s} onClick={() => setReviewRating(s)} className="transition-all active:scale-90 hover:scale-110">
+                      <Star size={36} className={s <= reviewRating ? 'text-gold-500 fill-gold-500 drop-shadow-[0_0_8px_rgba(231,178,75,0.5)]' : 'text-zinc-800 hover:text-zinc-600'} />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={reviewText}
+                  onChange={e => setReviewText(e.target.value)}
+                  placeholder="Berätta mer om din upplevelse (valfritt)..."
+                  rows={3}
+                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40 resize-none"
+                />
+                <button
+                  onClick={submitReview}
+                  disabled={!reviewRating || reviewSubmitting}
+                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+                >
+                  {reviewSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Star size={16} /> Skicka betyg</>}
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

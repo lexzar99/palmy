@@ -33,7 +33,7 @@ const GlobalSettingsPage = () => {
     openingHours: DAYS.reduce((acc, d) => ({ ...acc, [d.key]: { ...defaultHours } }), {}),
   });
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   useEffect(() => {
     if (!selectedRestaurantId) return;

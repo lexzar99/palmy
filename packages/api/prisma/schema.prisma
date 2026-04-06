@@ -95,6 +95,7 @@ model Order {
   deliveryCity          String?
   deliveryZip           String?
   deliveryNote          String?
+  deliveryInstructions  String?     // Preset: RING_DOORBELL, LEAVE_AT_DOOR, MEET_OUTSIDE, ENTER_CODE
   total                 Int
   deliveryFee           Int         @default(0)
   discountAmount        Int         @default(0)
@@ -106,6 +107,12 @@ model Order {
   paymentMethod         String      @default("ONLINE")
   note                  String?
   estimatedTime         Int?
+  refundAmount          Int?        // Partial or full refund in öre
+  refundReason          String?     // Reason for refund
+  refundedAt            DateTime?   // When the refund was issued
+  rating                Int?        // 1-5 star rating from customer
+  review                String?     // Customer review text
+  reviewedAt            DateTime?   // When the review was submitted
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   restaurantId          String?
@@ -113,6 +120,11 @@ model Order {
   items                 OrderItem[]
   userId                String?
   user                  User?       @relation(fields: [userId], references: [id])
+
+  @@index([restaurantId, status, createdAt])
+  @@index([customerPhone])
+  @@index([stripePaymentIntentId])
+  @@index([userId])
 }
 
 model OrderItem {
@@ -249,23 +261,41 @@ model City {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String?  @unique
-  phone        String?  @unique
-  password     String?
-  name         String
-  address      String?
-  city         String?
-  zip          String?
-  isActive     Boolean  @default(true)
-  isVerified   Boolean  @default(false)
-  oauthProvider String?
-  oauthId      String?
-  image        String?
-  orders       Order[]
-  deals        CustomerDeal[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String         @id @default(cuid())
+  email          String?        @unique
+  phone          String?        @unique
+  password       String?
+  name           String
+  address        String?
+  city           String?
+  zip            String?
+  isActive       Boolean        @default(true)
+  isVerified     Boolean        @default(false)
+  isGuest        Boolean        @default(false)
+  oauthProvider  String?
+  oauthId        String?
+  image          String?
+  orders         Order[]
+  deals          CustomerDeal[]
+  savedAddresses SavedAddress[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model SavedAddress {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  label     String   @default("Hem")  // Hem, Jobb, Annat
+  street    String
+  city      String
+  zip       String
+  note      String?  // Door code, floor, etc.
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Campaign {

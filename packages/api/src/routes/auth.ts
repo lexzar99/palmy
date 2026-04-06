@@ -45,7 +45,7 @@ router.post('/send-otp', async (req, res) => {
     // Send SMS via Twilio
     if (twilioClient && TWILIO_PHONE) {
       await twilioClient.messages.create({
-        body: `Din verifieringskod för Palmyra Pizzeria är: ${code}`,
+        body: `Din verifieringskod för MatGo är: ${code}`,
         from: TWILIO_PHONE,
         to: phone
       });

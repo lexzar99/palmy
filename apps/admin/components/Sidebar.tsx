@@ -49,12 +49,12 @@ const Sidebar = () => {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const { selectedRestaurantId, selectedRestaurantName, setRestaurant } = useRestaurantStore();
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   useEffect(() => {
     setIsMounted(true);
     try {
-      const raw = localStorage.getItem("palmyra_admin");
+      const raw = localStorage.getItem("matgo_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
       
@@ -263,7 +263,7 @@ const Sidebar = () => {
              <Zap size={14} /> Skapa Testorder
           </button>
         )}
-        <button onClick={() => { localStorage.removeItem("palmyra_token"); localStorage.removeItem("palmyra_admin"); window.location.href = "/login"; }} className="w-full flex items-center gap-3 px-4 py-3 text-rose-500/60 hover:text-rose-500 hover:bg-rose-500/5 rounded-xl transition-all font-bold text-[9px] uppercase tracking-widest group">
+        <button onClick={() => { localStorage.removeItem("matgo_token"); localStorage.removeItem("matgo_admin"); window.location.href = "/login"; }} className="w-full flex items-center gap-3 px-4 py-3 text-rose-500/60 hover:text-rose-500 hover:bg-rose-500/5 rounded-xl transition-all font-bold text-[9px] uppercase tracking-widest group">
           <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" /> Logga Ut
         </button>
       </div>

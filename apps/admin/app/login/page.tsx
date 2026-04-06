@@ -16,7 +16,7 @@ export default function LoginPage() {
 
   // Auto-redirect if already logged in
   useEffect(() => {
-    const token = localStorage.getItem("palmyra_token");
+    const token = localStorage.getItem("matgo_token");
     if (token) router.replace("/orders");
   }, [router]);
 
@@ -26,8 +26,8 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await axios.post(`${API_URL}/api/account/login`, { identifier, password });
-      localStorage.setItem("palmyra_token", res.data.token);
-      localStorage.setItem("palmyra_admin", JSON.stringify(res.data.admin));
+      localStorage.setItem("matgo_token", res.data.token);
+      localStorage.setItem("matgo_admin", JSON.stringify(res.data.admin));
       if (res.data.admin?.role === "SUPER_ADMIN") {
         router.replace("/restaurants");
       } else {

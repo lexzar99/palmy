@@ -40,7 +40,7 @@ export default function CustomerCampaignsPage() {
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
 
-  const getToken = () => localStorage.getItem("palmyra_token");
+  const getToken = () => localStorage.getItem("matgo_token");
 
   const fetchCampaigns = async () => {
     setLoading(true);

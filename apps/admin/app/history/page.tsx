@@ -52,7 +52,7 @@ const HistoryPage = () => {
   useEffect(() => {
     setIsMounted(true);
     try {
-      const raw = localStorage.getItem("palmyra_admin");
+      const raw = localStorage.getItem("matgo_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
     } catch { setIsSuperAdmin(false); }
@@ -64,7 +64,7 @@ const HistoryPage = () => {
     setError(null);
     setLoading(true);
     try {
-      const token = localStorage.getItem("palmyra_token");
+      const token = localStorage.getItem("matgo_token");
       const restaurantParam = isSuperAdmin ? (selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : "") : `&restaurantId=${selectedRestaurantId}`;
       const res = await axios.get(`${API_URL}/api/admin/orders?limit=300${restaurantParam}`, {
         headers: { Authorization: `Bearer ${token}` }

@@ -40,12 +40,12 @@ const mockOrder = {
   deliveryFee: 49,
   paymentStatus: "PAID",
   paymentMethod: "ONLINE (STRIPE)",
-  restaurantName: "Palmyra Lund",
+  restaurantName: "MatGo Lund",
   restaurantAddress: "Kiliansgatan 12, 223 50 Lund",
   restaurantPhone: "046-12 34 56",
   items: [
     {
-      productName: "Palmyra Special Pizza",
+      productName: "MatGo Special Pizza",
       quantity: 2,
       basePrice: 149,
       subtotal: 298,
@@ -106,7 +106,7 @@ const ReceiptPageContent = () => {
 
   useEffect(() => {
     // Ladda inställningar
-    const saved = localStorage.getItem("palmyra_receipt_settings");
+    const saved = localStorage.getItem("matgo_receipt_settings");
     if (saved) {
       setSettings(JSON.parse(saved));
     }
@@ -115,7 +115,7 @@ const ReceiptPageContent = () => {
     if (orderId) {
       const fetchOrder = async () => {
         try {
-          const token = localStorage.getItem("palmyra_token") || "";
+          const token = localStorage.getItem("matgo_token") || "";
           const res = await axios.get(`${API_URL}/api/admin/orders/${orderId}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
@@ -145,7 +145,7 @@ const ReceiptPageContent = () => {
   }, [loading, orderId, order]);
 
   const saveSettings = () => {
-    localStorage.setItem("palmyra_receipt_settings", JSON.stringify(settings));
+    localStorage.setItem("matgo_receipt_settings", JSON.stringify(settings));
     setSaveStatus(true);
     setTimeout(() => setSaveStatus(false), 2000);
   };

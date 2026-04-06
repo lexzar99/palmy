@@ -104,7 +104,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchData = useCallback(async () => {
     if (!restaurantId) return;

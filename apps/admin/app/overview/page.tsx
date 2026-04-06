@@ -37,7 +37,7 @@ const OverviewPage = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("palmyra_admin");
+      const raw = localStorage.getItem("matgo_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
     } catch {
@@ -45,7 +45,7 @@ const OverviewPage = () => {
     }
   }, []);
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchData = useCallback(async () => {
     setLoading(true);

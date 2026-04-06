@@ -27,7 +27,7 @@ export default function BulkImportPage() {
     setError(null);
 
     try {
-      const token = localStorage.getItem("palmyra_token") || "";
+      const token = localStorage.getItem("matgo_token") || "";
       const res = await axios.post(
         `${API_URL}/api/admin/menu/bulk-import`,
         { text },

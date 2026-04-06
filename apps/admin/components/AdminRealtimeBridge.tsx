@@ -20,7 +20,7 @@ export default function AdminRealtimeBridge() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("palmyra_admin");
+      const raw = localStorage.getItem("matgo_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
       setRestaurantId(admin?.restaurantId || null);
@@ -36,7 +36,7 @@ export default function AdminRealtimeBridge() {
 
   const syncPendingOrders = useCallback(async () => {
     try {
-      const token = localStorage.getItem("palmyra_token") || "";
+      const token = localStorage.getItem("matgo_token") || "";
       const res = await axios.get(`${API_URL}/api/admin/orders?limit=100`, {
         headers: { Authorization: `Bearer ${token}` },
       });

@@ -92,7 +92,7 @@ export default function RestaurantsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchRestaurants = async () => {
     setLoading(true);

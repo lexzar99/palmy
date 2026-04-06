@@ -1434,4 +1434,220 @@ router.patch('/discounts/:id', async (req, res) => {
   }
 });
 
+// ─── Refunds (Super Admin) ──────────────────────────────────────────────────
+
+router.post('/orders/:id/refund', async (req: any, res: any) => {
+  try {
+    const authReq = req as AuthRequest;
+    if (!isSuperAdmin(authReq)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
+    const { amount, reason } = req.body; // amount in kr
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+    if (!order.stripePaymentIntentId || order.stripePaymentIntentId === 'TEST_PAYMENT' || order.stripePaymentIntentId === 'FREE_PROMO') {
+      return res.status(400).json({ error: 'Denna order har ingen Stripe-betalning att återbetala' });
+    }
+    if (order.refundedAt) {
+      return res.status(400).json({ error: 'Denna order har redan återbetalats' });
+    }
+
+    const Stripe = require('stripe');
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+    const refundAmountOre = amount ? Math.round(amount * 100) : order.total;
+    
+    await stripe.refunds.create({
+      payment_intent: order.stripePaymentIntentId,
+      amount: refundAmountOre,
+      reason: 'requested_by_customer',
+    });
+
+    await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        refundAmount: refundAmountOre,
+        refundReason: reason || 'Återbetalning via admin',
+        refundedAt: new Date(),
+        status: 'CANCELLED',
+      }
+    });
+
+    res.json({ success: true, refundedAmount: refundAmountOre / 100 });
+  } catch (error: any) {
+    console.error('Refund error:', error);
+    res.status(500).json({ error: error?.message || 'Kunde inte genomföra återbetalning' });
+  }
+});
+
+// ─── Receipt Data (JSON for Flutter/Printers) ───────────────────────────────
+
+router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
+  try {
+    const order: any = await prisma.order.findUnique({
+      where: { id: req.params.id },
+      include: { items: true, restaurant: true }
+    });
+    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+
+    res.json({
+      header: {
+        restaurantName: order.restaurant?.name || 'MatGo',
+        address: order.restaurant?.address || '',
+        city: order.restaurant?.city || '',
+        zip: order.restaurant?.zip || '',
+        phone: order.restaurant?.phone || '',
+      },
+      orderInfo: {
+        number: order.orderNumber,
+        type: order.type,
+        status: order.status,
+        time: new Date(order.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date(order.createdAt).toLocaleDateString('sv-SE'),
+        estimatedTime: order.estimatedTime,
+        paymentMethod: order.paymentMethod,
+        paymentStatus: order.paymentStatus,
+      },
+      customer: {
+        name: order.customerName,
+        phone: order.customerPhone,
+        email: order.customerEmail,
+        street: order.deliveryStreet,
+        city: order.deliveryCity,
+        zip: order.deliveryZip,
+        instructions: order.deliveryInstructions,
+        note: order.note,
+      },
+      items: order.items.map((item: any) => ({
+        name: item.productName,
+        qty: item.quantity,
+        unitPrice: item.basePrice / 100,
+        subtotal: item.subtotal / 100,
+        extras: (typeof item.selectedExtras === 'string' ? JSON.parse(item.selectedExtras) : item.selectedExtras || [])
+          .map((ex: any) => ({ name: ex.extraName || ex.name, price: ex.priceAddon || 0 })),
+        note: item.note,
+      })),
+      totals: {
+        subtotal: (order.total + order.discountAmount - order.deliveryFee) / 100,
+        deliveryFee: order.deliveryFee / 100,
+        discount: order.discountAmount / 100,
+        discountCode: order.discountCode,
+        dealTitle: order.appliedDealTitle,
+        total: order.total / 100,
+      },
+      footer: 'Tack för din beställning! — MatGo',
+    });
+  } catch (error) {
+    console.error('Receipt data error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta kvittodata' });
+  }
+});
+
+// ─── Analytics Dashboard ────────────────────────────────────────────────────
+
+router.get('/analytics', async (req: any, res: any) => {
+  try {
+    const authReq = req as AuthRequest;
+    const restaurantId = isSuperAdmin(authReq) 
+      ? (req.query.restaurantId as string || undefined)
+      : authReq.admin?.restaurantId || undefined;
+
+    const where: any = {};
+    if (restaurantId) where.restaurantId = restaurantId;
+    
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart);
+    weekStart.setDate(weekStart.getDate() - 7);
+    const monthStart = new Date(todayStart);
+    monthStart.setDate(monthStart.getDate() - 30);
+
+    // Revenue & order counts
+    const [todayStats, weekStats, monthStats, allTimeStats] = await Promise.all([
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: todayStart }, paymentStatus: 'PAID' },
+        _sum: { total: true }, _count: { id: true }, _avg: { total: true }
+      }),
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: weekStart }, paymentStatus: 'PAID' },
+        _sum: { total: true }, _count: { id: true }, _avg: { total: true }
+      }),
+      prisma.order.aggregate({
+        where: { ...where, createdAt: { gte: monthStart }, paymentStatus: 'PAID' },
+        _sum: { total: true }, _count: { id: true }, _avg: { total: true }
+      }),
+      prisma.order.aggregate({
+        where: { ...where, paymentStatus: 'PAID' },
+        _sum: { total: true }, _count: { id: true }, _avg: { total: true }
+      }),
+    ]);
+
+    // Top selling products (last 30 days)
+    const topItems = await prisma.orderItem.groupBy({
+      by: ['productName'],
+      where: { order: { ...where, createdAt: { gte: monthStart }, paymentStatus: 'PAID' } },
+      _sum: { quantity: true, subtotal: true },
+      _count: { id: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 10,
+    });
+
+    // Orders by hour (for heatmap) — last 7 days
+    const recentOrders = await prisma.order.findMany({
+      where: { ...where, createdAt: { gte: weekStart }, paymentStatus: 'PAID' },
+      select: { createdAt: true },
+    });
+    const hourlyDistribution = Array(24).fill(0);
+    recentOrders.forEach(o => { hourlyDistribution[new Date(o.createdAt).getHours()]++; });
+
+    // Revenue per day (last 7 days)
+    const dailyOrders = await prisma.order.findMany({
+      where: { ...where, createdAt: { gte: weekStart }, paymentStatus: 'PAID' },
+      select: { createdAt: true, total: true },
+    });
+    const dailyRevenue: Record<string, number> = {};
+    dailyOrders.forEach(o => {
+      const day = new Date(o.createdAt).toLocaleDateString('sv-SE');
+      dailyRevenue[day] = (dailyRevenue[day] || 0) + o.total;
+    });
+
+    // Order type breakdown
+    const typeBreakdown = await prisma.order.groupBy({
+      by: ['type'],
+      where: { ...where, createdAt: { gte: monthStart }, paymentStatus: 'PAID' },
+      _count: { id: true },
+    });
+
+    // Recent reviews
+    const recentReviews = await prisma.order.findMany({
+      where: { ...where, rating: { not: null } },
+      select: { id: true, orderNumber: true, customerName: true, rating: true, review: true, reviewedAt: true },
+      orderBy: { reviewedAt: 'desc' },
+      take: 10,
+    });
+
+    const fmt = (v: number | null) => ((v || 0) / 100);
+
+    res.json({
+      today: { revenue: fmt(todayStats._sum.total), orders: todayStats._count.id, avgOrder: fmt(todayStats._avg.total) },
+      week: { revenue: fmt(weekStats._sum.total), orders: weekStats._count.id, avgOrder: fmt(weekStats._avg.total) },
+      month: { revenue: fmt(monthStats._sum.total), orders: monthStats._count.id, avgOrder: fmt(monthStats._avg.total) },
+      allTime: { revenue: fmt(allTimeStats._sum.total), orders: allTimeStats._count.id, avgOrder: fmt(allTimeStats._avg.total) },
+      topProducts: topItems.map(p => ({
+        name: p.productName,
+        totalSold: p._sum.quantity || 0,
+        revenue: ((p._sum.subtotal || 0) / 100),
+        orders: p._count.id,
+      })),
+      hourlyDistribution,
+      dailyRevenue: Object.entries(dailyRevenue).map(([date, total]) => ({ date, revenue: total / 100 })).sort((a, b) => a.date.localeCompare(b.date)),
+      orderTypes: typeBreakdown.map(t => ({ type: t.type, count: t._count.id })),
+      recentReviews,
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta statistik' });
+  }
+});
+
 export default router;

@@ -34,7 +34,7 @@ export default function Dashboard() {
     setLoading(true);
     Promise.all([
       axios.get(`${API_URL}/api/admin/stats?restaurantId=${selectedRestaurantId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("palmyra_token") || ""}` },
+        headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token") || ""}` },
       }),
       axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`),
     ]).then(([statsRes, settingsRes]) => {
@@ -59,7 +59,7 @@ export default function Dashboard() {
     <div className="space-y-8 pb-24">
       <div className="rounded-[2rem] border border-[var(--border-strong)] bg-[var(--border-subtle)] p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div>
-          <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-[var(--text-primary)]/20">Palmyra Control Center</div>
+          <div className="mb-3 text-[10px] font-black uppercase tracking-[0.4em] text-[var(--text-primary)]/20">MatGo Control Center</div>
           <h1 className="text-4xl font-black uppercase tracking-tight">Översikt</h1>
           <p className="mt-3 max-w-2xl text-[var(--text-primary)]/40">
             Meny, avgifter och orderflöde är nu tänkta att styras från samma panel. Härifrån kan du snabbt hoppa vidare till det som behöver uppmärksamhet.

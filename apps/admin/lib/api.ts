@@ -5,7 +5,7 @@ export const getApiUrl = () => {
 
   // Fallback for client-side
   if (typeof window !== "undefined") {
-    // If the site is accessed via a hostname (e.g., 192.168.0.x or palmyra.local), 
+    // If the site is accessed via a hostname (e.g., 192.168.0.x or matgo.local), 
     // we should try to use that same hostname for the API on port 4000
     return `http://${window.location.hostname}:4000`;
   }

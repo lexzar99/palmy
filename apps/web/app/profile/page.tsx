@@ -5,12 +5,14 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
-  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag
+  Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
+  Star, RotateCcw, Home, Briefcase, Plus, Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { useCartStore } from "@/store/cartStore";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -116,8 +118,18 @@ export default function ProfilePage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [hasVisited, setHasVisited] = useState(false);
+  const [reorderingId, setReorderingId] = useState<string | null>(null);
+
+  // Saved addresses state
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [newAddrLabel, setNewAddrLabel] = useState("Hem");
+  const [newAddrStreet, setNewAddrStreet] = useState("");
+  const [newAddrCity, setNewAddrCity] = useState("");
+  const [newAddrZip, setNewAddrZip] = useState("");
+  const [newAddrNote, setNewAddrNote] = useState("");
+  const [addrSaving, setAddrSaving] = useState(false);
 
   // Auth (Phone OTP)
   const [showOtp, setShowOtp] = useState(false);
@@ -159,6 +171,14 @@ export default function ProfilePage() {
       setEditEmail(profileRes.data.email || "");
       setOrders(ordersRes.data || []);
       setDeals(dealsRes.data || []);
+
+      // Fetch saved addresses
+      if (authToken) {
+        try {
+          const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers: { Authorization: `Bearer ${authToken}` } });
+          setSavedAddresses(addrRes.data || []);
+        } catch {}
+      }
       
       // If user has no phone and we are not in the middle of verifying one, prompt them
       if (!profileRes.data.phone) {
@@ -548,13 +568,13 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="grid grid-cols-4 bg-white/5 border border-white/5 p-1.5 rounded-[2rem]">
+        <div className="grid grid-cols-5 bg-white/5 border border-white/5 p-1.5 rounded-[2rem]">
           {[
             { id: "overview", icon: User, label: "Hem" },
             { id: "deals", icon: Sparkles, label: "Deals" },
             { id: "orders", icon: History, label: "Ordrar" },
-            { id: "settings", icon: Settings, label: "Inställn" },
+            { id: "addresses", icon: MapPin, label: "Adresser" },
+            { id: "settings", icon: Settings, label: "Inst." },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -670,21 +690,161 @@ export default function ProfilePage() {
                   <p className="font-black uppercase tracking-widest text-sm">Inga ordrar ännu</p>
                 </div>
               ) : orders.map((order) => (
-                <Link key={order.id} href={`/order/${order.id}`} className="block bg-white/5 border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/10 transition-all group">
-                  <div className="flex justify-between items-center">
+                <div key={order.id} className="bg-white/5 border border-white/5 rounded-[2.5rem] p-6 hover:bg-white/10 transition-all group">
+                  <Link href={`/order/${order.id}`} className="flex justify-between items-center">
                     <div>
                       <p className="font-black uppercase italic text-sm">{order.restaurant?.name || "Beställning"}</p>
                       <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">
                         {new Date(order.createdAt).toLocaleDateString("sv-SE")}
+                        {order.rating && (
+                          <span className="ml-3 inline-flex items-center gap-1 text-gold-500">
+                            <Star size={10} className="fill-gold-500" /> {order.rating}/5
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="text-xl font-black text-gold-500">{(order.total || 0).toFixed(0)} kr</p>
                       <ChevronRight size={16} className="text-zinc-600 group-hover:text-gold-500 transition-colors" />
                     </div>
+                  </Link>
+                  <div className="mt-4 flex gap-3">
+                    <button
+                      onClick={async () => {
+                        setReorderingId(order.id);
+                        try {
+                          const res = await axios.get(`${API_URL}/api/profile/orders/${order.id}/reorder`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                          });
+                          const data = res.data;
+                          const cartStore = useCartStore.getState();
+                          cartStore.clearCart();
+                          for (const item of data.items) {
+                            cartStore.addItem(item);
+                          }
+                          if (data.unavailableItems?.length) {
+                            alert(`${data.unavailableItems.length} produkt(er) finns inte längre: ${data.unavailableItems.join(', ')}`);
+                          }
+                          router.push('/cart');
+                        } catch (err: any) {
+                          alert(err.response?.data?.error || 'Kunde inte förbereda ombeställning');
+                        } finally {
+                          setReorderingId(null);
+                        }
+                      }}
+                      disabled={reorderingId === order.id}
+                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-gold-500 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {reorderingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                      Beställ igen
+                    </button>
                   </div>
-                </Link>
+                </div>
               ))}
+            </motion.div>
+          )}
+
+          {/* Addresses Tab */}
+          {activeTab === "addresses" && (
+            <motion.div key="addr" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+              {/* Existing Addresses */}
+              {savedAddresses.length === 0 ? (
+                <div className="py-16 text-center bg-white/2 rounded-[2.5rem] border border-dashed border-white/5">
+                  <MapPin size={36} className="mx-auto mb-4 text-zinc-800" />
+                  <p className="font-black uppercase tracking-widest text-zinc-600 text-sm">Inga sparade adresser</p>
+                  <p className="text-[10px] uppercase font-bold text-zinc-800 mt-2">Lägg till din första adress nedan</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {savedAddresses.map(addr => (
+                    <div key={addr.id} className="bg-white/5 border border-white/5 rounded-[2rem] p-6 flex items-center justify-between group">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-500 border border-gold-500/20' : 'bg-white/5 text-zinc-600'}`}>
+                          {addr.label === 'Hem' ? <Home size={18} /> : addr.label === 'Jobb' ? <Briefcase size={18} /> : <MapPin size={18} />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-black uppercase italic text-sm text-white">{addr.label}</p>
+                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-gold-500/10 text-gold-500 border border-gold-500/20 px-2 py-0.5 rounded-md">Standard</span>}
+                          </div>
+                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
+                          {addr.note && <p className="text-[9px] text-zinc-700 mt-1">{addr.note}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {!addr.isDefault && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await axios.patch(`${API_URL}/api/profile/addresses/${addr.id}`, { isDefault: true }, { headers: { Authorization: `Bearer ${token}` } });
+                                fetchData(token!);
+                              } catch {}
+                            }}
+                            className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-gold-500 transition-colors"
+                            title="Gör till standard"
+                          >
+                            <Check size={14} />
+                          </button>
+                        )}
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Radera denna adress?')) return;
+                            try {
+                              await axios.delete(`${API_URL}/api/profile/addresses/${addr.id}`, { headers: { Authorization: `Bearer ${token}` } });
+                              setSavedAddresses(prev => prev.filter(a => a.id !== addr.id));
+                            } catch {}
+                          }}
+                          className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add New Address */}
+              <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-5">
+                <h3 className="text-sm font-black uppercase italic text-white flex items-center gap-3">
+                  <Plus size={16} className="text-gold-500" /> Lägg till adress
+                </h3>
+                <div className="flex gap-2">
+                  {['Hem', 'Jobb', 'Annat'].map(l => (
+                    <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-500' : 'bg-white/3 border-white/5 text-zinc-600'
+                    }`}>
+                      {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder="Gatuadress" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                <div className="grid grid-cols-2 gap-3">
+                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder="Stad" className="bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder="Postnummer" className="bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                </div>
+                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder="Portkod, våning (valfritt)" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                <button
+                  onClick={async () => {
+                    if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
+                    setAddrSaving(true);
+                    try {
+                      await axios.post(`${API_URL}/api/profile/addresses`, {
+                        label: newAddrLabel, street: newAddrStreet, city: newAddrCity, zip: newAddrZip, note: newAddrNote || undefined, isDefault: savedAddresses.length === 0,
+                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      setNewAddrStreet(''); setNewAddrCity(''); setNewAddrZip(''); setNewAddrNote('');
+                      fetchData(token!);
+                    } catch (err: any) {
+                      alert(err.response?.data?.error || 'Kunde inte spara');
+                    } finally { setAddrSaving(false); }
+                  }}
+                  disabled={addrSaving || !newAddrStreet || !newAddrCity || !newAddrZip}
+                  className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+                >
+                  {addrSaving ? <Loader2 size={16} className="animate-spin" /> : <><Plus size={16} /> Spara adress</>}
+                </button>
+              </div>
             </motion.div>
           )}
 

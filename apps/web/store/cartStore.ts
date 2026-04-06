@@ -79,6 +79,6 @@ export const useCartStore = create<CartStore>()(
         }, 0);
       },
     }),
-    { name: 'palmyra-cart' }
+    { name: 'matgo-cart' }
   )
 );

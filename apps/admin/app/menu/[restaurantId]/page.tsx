@@ -103,7 +103,7 @@ const UnifiedMenuPage = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { selectedRestaurantId } = useRestaurantStore();
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchData = useCallback(async () => {
     if (!selectedRestaurantId) return;

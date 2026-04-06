@@ -88,6 +88,7 @@ const CreateOrderSchema = z.object({
   deliveryCity: z.string().nullable().optional(),
   deliveryZip: z.string().nullable().optional(),
   deliveryNote: z.string().nullable().optional(),
+  deliveryInstructions: z.string().nullable().optional(),
 
   note: z.string().nullable().optional(),
   discountCode: z.string().nullable().optional(),
@@ -461,6 +462,7 @@ router.post('/', async (req: Request, res: Response) => {
         deliveryCity: data.deliveryCity || null,
         deliveryZip: data.deliveryZip || null,
         deliveryNote: data.deliveryNote || null,
+        deliveryInstructions: data.deliveryInstructions || null,
         note: data.note || null,
         discountCode: validatedCode || null,
         appliedDealId: appliedDeal?.id || null,

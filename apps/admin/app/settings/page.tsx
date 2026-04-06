@@ -32,7 +32,7 @@ const AdminSettingsPage = () => {
     openingHours: DAYS.reduce((acc, d) => ({ ...acc, [d.key]: { ...defaultHours } }), {} as Record<string, typeof defaultHours>),
   });
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   useEffect(() => {
     const fetchSettings = async () => {

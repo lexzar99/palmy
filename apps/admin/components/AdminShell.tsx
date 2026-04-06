@@ -35,7 +35,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     let token: string | null = null;
     try {
       if (typeof window !== "undefined") {
-        token = localStorage.getItem("palmyra_token");
+        token = localStorage.getItem("matgo_token");
       }
     } catch (e) {
       console.warn("LocalStorage access failed:", e);
@@ -48,7 +48,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           const verifyRes = await axios.post(`${API_URL}/api/account/verify`, { token });
           if (!verifyRes.data?.valid) throw new Error("invalid");
           const admin = verifyRes.data.admin;
-          localStorage.setItem("palmyra_admin", JSON.stringify(admin));
+          localStorage.setItem("matgo_admin", JSON.stringify(admin));
 
           if (admin?.role !== "SUPER_ADMIN" && admin?.restaurantId) {
             setRestaurant(admin.restaurantId, admin.restaurantName || admin.restaurantSlug || "Restaurang");
@@ -72,8 +72,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             console.warn("Restaurant data missing, clearing store.");
             setRestaurant(null, null);
           }
-          localStorage.removeItem("palmyra_token");
-          localStorage.removeItem("palmyra_admin");
+          localStorage.removeItem("matgo_token");
+          localStorage.removeItem("matgo_admin");
           router.replace("/login");
           setReady(true);
         }

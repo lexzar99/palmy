@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 const kr = (amount: number) => Math.round(amount * 100);
 
 async function main() {
-  console.log('🌱 Seeding Palmyra Lund database (Neon/Postgres)...');
+  console.log('🌱 Seeding MatGo Lund database (Neon/Postgres)...');
 
   // Rensa befintlig data
   await prisma.orderItem.deleteMany().catch(() => {});
@@ -181,7 +181,7 @@ async function main() {
   // ----------------------
   const hashedPassword = await bcrypt.hash('Admin1234!', 12);
   await prisma.adminUser.create({
-    data: { email: 'admin@palmyrapizzeria.se', password: hashedPassword, name: 'Palmyra Admin', role: 'SUPER_ADMIN' },
+    data: { email: 'admin@palmyrapizzeria.se', password: hashedPassword, name: 'MatGo Admin', role: 'SUPER_ADMIN' },
   });
 
   await prisma.restaurantSettings.create({

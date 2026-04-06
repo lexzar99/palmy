@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Phone, MapPin, Mail, Clock } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Kontakta oss | Palmyra Lund",
-  description: "Kontakta Palmyra Lund – telefon, adress och öppettider.",
+  title: "Kontakta oss | MatGo Lund",
+  description: "Kontakta MatGo Lund – telefon, adress och öppettider.",
 };
 
 export default function ContactPage() {

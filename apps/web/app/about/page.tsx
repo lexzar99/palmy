@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Om oss | Palmyra Lund",
-  description: "Lär känna Palmyra Lund och vår resa sedan 2019.",
+  title: "Om oss | MatGo Lund",
+  description: "Lär känna MatGo Lund och vår resa sedan 2019.",
 };
 
 export default function OmOssPage() {
@@ -18,7 +18,7 @@ export default function OmOssPage() {
 
         <div className="space-y-6 text-white/60 text-lg leading-relaxed">
           <p>
-            Palmyra Lund är en modern restaurang i hjärtat av Lund. Sedan 2019 har vi byggt upp ett brett utbud av
+            MatGo Lund är en modern restaurang i hjärtat av Lund. Sedan 2019 har vi byggt upp ett brett utbud av
             pizza, rullar, tallrikar och kvällsmat med <span className="text-white font-medium">snabb service</span>
             och ett tydligt fokus på smak.
           </p>

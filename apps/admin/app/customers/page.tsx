@@ -42,7 +42,7 @@ export default function CustomersPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [activeTab, setActiveTab] = useState<"INFO" | "ORDERS" | "DEALS">("INFO");
 
-  const getToken = () => localStorage.getItem("palmyra_token");
+  const getToken = () => localStorage.getItem("matgo_token");
 
   const fetchCustomers = async () => {
     setLoading(true);

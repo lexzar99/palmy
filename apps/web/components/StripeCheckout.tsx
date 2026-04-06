@@ -82,7 +82,7 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
           <PaymentElement 
             options={{
               layout: 'tabs',
-              business: { name: 'Palmyra Pizzeria' },
+              business: { name: 'MatGo' },
             }}
           />
         </div>
@@ -108,7 +108,7 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
       </button>
       
       <p className="text-[9px] text-center text-white/20 font-black uppercase tracking-widest leading-relaxed">
-        Genom att betala accepterar du Palmyra Pizzerias köpvillkor.<br/>
+        Genom att betala accepterar du MatGos köpvillkor.<br/>
         Säker krypterad anslutning via Stripe.
       </p>
     </form>

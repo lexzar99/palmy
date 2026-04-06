@@ -25,7 +25,7 @@ export default function HoursSelectionHub() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const raw = localStorage.getItem("palmyra_admin");
+    const raw = localStorage.getItem("matgo_admin");
     const admin = raw ? JSON.parse(raw) : null;
     if (admin?.role !== "SUPER_ADMIN") {
       router.replace("/orders");
@@ -34,7 +34,7 @@ export default function HoursSelectionHub() {
 
     const fetchRestaurants = async () => {
       try {
-        const token = localStorage.getItem("palmyra_token");
+        const token = localStorage.getItem("matgo_token");
         const res = await axios.get(`${API_URL}/api/restaurants`, {
           headers: { Authorization: `Bearer ${token}` }
         });

@@ -51,7 +51,7 @@ async function main() {
   // PALMYRA
   const palmyra = await prisma.restaurant.create({
     data: {
-      name: 'Palmyra Pizzeria',
+      name: 'MatGo',
       slug: 'palmyra',
       description: 'Lunds mest älskade restaurang med generösa portioner och fantastisk mat.',
       cuisine: 'Pizza & Kebab',

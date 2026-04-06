@@ -120,7 +120,7 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
       where: { slug: 'palmyra' },
       update: {},
       create: {
-        name: 'Palmyra Lund',
+        name: 'MatGo Lund',
         slug: 'palmyra',
         description: 'Lunds klassiker med pizza, kebab och rullar.',
         cuisine: 'Pizza & Kebab',

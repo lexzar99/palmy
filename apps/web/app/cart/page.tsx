@@ -21,6 +21,14 @@ import {
   CreditCard,
   CheckCircle2,
   ArrowRight,
+  MapPin,
+  Home,
+  Briefcase,
+  DoorOpen,
+  Bell,
+  User as UserIcon,
+  ParkingCircle,
+  KeyRound,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -63,8 +71,11 @@ export default function CartPage() {
     customerPhone: "",
     deliveryStreet: "",
     deliveryZip: "",
+    deliveryInstructions: "",
     note: "",
   });
+
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
 
@@ -126,6 +137,18 @@ export default function CartPage() {
           deliveryStreet: userRes.data.address || prev.deliveryStreet,
           deliveryZip: userRes.data.zip || prev.deliveryZip,
         }));
+        // Load saved addresses
+        if (token) {
+          try {
+            const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers });
+            setSavedAddresses(addrRes.data || []);
+            // Auto-fill default address if no address in form
+            const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
+            if (defaultAddr && !userRes.data.address) {
+              setFormData(prev => ({ ...prev, deliveryStreet: defaultAddr.street, deliveryZip: defaultAddr.zip }));
+            }
+          } catch {}
+        }
       }
     } catch (err) {
       console.error(err);
@@ -173,6 +196,7 @@ export default function CartPage() {
         deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
         deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
         note: formData.note || undefined,
+        deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
         stripePaymentIntentId: paymentIntentId,
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
@@ -382,6 +406,29 @@ export default function CartPage() {
 
                        {orderType === 'DELIVERY' && (
                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                             {/* Saved Address Picker */}
+                             {savedAddresses.length > 0 && (
+                               <div className="space-y-2">
+                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Sparade adresser</label>
+                                 <div className="flex gap-2 flex-wrap">
+                                   {savedAddresses.map(addr => (
+                                     <button
+                                       key={addr.id}
+                                       type="button"
+                                       onClick={() => setFormData(prev => ({ ...prev, deliveryStreet: addr.street, deliveryZip: addr.zip }))}
+                                       className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                         formData.deliveryStreet === addr.street && formData.deliveryZip === addr.zip
+                                           ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                                           : 'bg-white/3 border-white/5 text-zinc-500 hover:text-white hover:border-white/10'
+                                       }`}
+                                     >
+                                       {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
+                                       {addr.label}
+                                     </button>
+                                   ))}
+                                 </div>
+                               </div>
+                             )}
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Gatuadress</label>
                                 <input value={formData.deliveryStreet} onChange={e => setFormData({...formData, deliveryStreet: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Gatan 1" />
@@ -389,6 +436,33 @@ export default function CartPage() {
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Postnummer</label>
                                 <input value={formData.deliveryZip} onChange={e => setFormData({...formData, deliveryZip: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="123 45" />
+                             </div>
+
+                             {/* Delivery Instructions Presets */}
+                             <div className="space-y-2">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Leveransinstruktioner</label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {[
+                                    { value: 'RING_DOORBELL', label: 'Ring på dörren', icon: Bell },
+                                    { value: 'LEAVE_AT_DOOR', label: 'Lämna vid dörren', icon: DoorOpen },
+                                    { value: 'MEET_OUTSIDE', label: 'Möt mig utanför', icon: UserIcon },
+                                    { value: 'ENTER_CODE', label: 'Portkod behövs', icon: KeyRound },
+                                  ].map(opt => (
+                                    <button
+                                      key={opt.value}
+                                      type="button"
+                                      onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
+                                      className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                        formData.deliveryInstructions === opt.value
+                                          ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                                          : 'bg-white/3 border-white/5 text-zinc-600 hover:text-zinc-300 hover:border-white/10'
+                                      }`}
+                                    >
+                                      <opt.icon size={14} />
+                                      {opt.label}
+                                    </button>
+                                  ))}
+                                </div>
                              </div>
                           </div>
                        )}

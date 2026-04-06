@@ -47,7 +47,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
     specialHours: [] as { date: string; open: string; close: string; closed: boolean; note?: string }[],
   });
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   useEffect(() => {
     if (!restaurantId) return;

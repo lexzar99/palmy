@@ -33,7 +33,7 @@ const StatsPage = () => {
     paymentMethod: "ALL",
   });
 
-  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("palmyra_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchReport = async (nextFilters = filters) => {
     setReportLoading(true);

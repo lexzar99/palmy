@@ -30,7 +30,7 @@ export default function RestaurantCampaignsPage() {
   const [selectedDeal, setSelectedDeal] = useState<any>(null);
   const [restaurants, setRestaurants] = useState<any[]>([]);
 
-  const getToken = () => localStorage.getItem("palmyra_token");
+  const getToken = () => localStorage.getItem("matgo_token");
 
   const fetchData = async () => {
     setLoading(true);

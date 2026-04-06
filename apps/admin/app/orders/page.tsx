@@ -290,7 +290,7 @@ const AdminOrdersPage = () => {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("palmyra_admin");
+      const raw = localStorage.getItem("matgo_admin");
       const admin = raw ? JSON.parse(raw) : null;
       setIsSuperAdmin(admin?.role === "SUPER_ADMIN");
     } catch { setIsSuperAdmin(false); }
@@ -301,7 +301,7 @@ const AdminOrdersPage = () => {
     if (!selectedRestaurantId && !isSuperAdmin) { setLoading(false); return; }
     setError(null);
     try {
-      const token = localStorage.getItem("palmyra_token");
+      const token = localStorage.getItem("matgo_token");
       const restaurantParam = isSuperAdmin ? (selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : "") : `&restaurantId=${selectedRestaurantId}`;
       const res = await axios.get(`${API_URL}/api/admin/orders?limit=150${restaurantParam}`, { headers: { Authorization: `Bearer ${token}` } });
       setOrders([...(res.data.orders || [])].sort((a: Order, b: Order) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
@@ -335,7 +335,7 @@ const AdminOrdersPage = () => {
 
   const updateStatus = async (orderId: string, status: string, estimatedTime?: number) => {
     try {
-      const token = localStorage.getItem("palmyra_token");
+      const token = localStorage.getItem("matgo_token");
       await axios.patch(`${API_URL}/api/admin/orders/${orderId}/status`, { status, estimatedTime }, { headers: { Authorization: `Bearer ${token}` } });
       setAcceptDialog(null);
       if (status === "PREPARING") confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#e7b24b', '#f3c96e', '#ffffff'] });
@@ -347,7 +347,7 @@ const AdminOrdersPage = () => {
 
   const onDeleteTestOrder = async (orderId: string) => {
     try {
-      const token = localStorage.getItem("palmyra_token");
+      const token = localStorage.getItem("matgo_token");
       await axios.delete(`${API_URL}/api/admin/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } });
       setOrders(prev => prev.filter(o => o.id !== orderId));
       setExpandedOrderId(null);
@@ -422,7 +422,7 @@ const AdminOrdersPage = () => {
                     const formData = new FormData(e.currentTarget);
                     const data = Object.fromEntries(formData.entries());
                     try {
-                       await axios.patch(`${API_URL}/api/admin/orders/${editingOrder.id}`, data, { headers: { Authorization: `Bearer ${localStorage.getItem("palmyra_token")}` } });
+                       await axios.patch(`${API_URL}/api/admin/orders/${editingOrder.id}`, data, { headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token")}` } });
                        setEditingOrder(null);
                        fetchData();
                     } catch { setConfirmDialog({ message: "Fel vid sparning", onConfirm: () => setConfirmDialog(null) }); }
