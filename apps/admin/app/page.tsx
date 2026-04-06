@@ -7,7 +7,13 @@ import { ArrowRight, Loader2, Settings, ShoppingCart, UtensilsCrossed } from "lu
 import { API_URL } from "@/lib/api";
 import { useRestaurantStore } from "@/store/restaurantStore";
 
+import { useRouter } from "next/navigation";
+
 export default function Dashboard() {
+  const router = useRouter();
+  useEffect(() => {
+    router.push("/orders");
+  }, [router]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     ordersToday: 0,

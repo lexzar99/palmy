@@ -88,8 +88,9 @@ const Sidebar = () => {
   };
 
   const mainLinks = [
-    { href: "/overview", label: "Dashboard", icon: LayoutDashboard },
     { href: "/orders", label: "Ordrar", icon: ShoppingCart },
+    { href: "/overview", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/history", label: "Historik", icon: Clock },
     { href: "/menu", label: "Meny", icon: Utensils },
   ];
 
@@ -101,10 +102,7 @@ const Sidebar = () => {
     { href: "/cities", label: "Städer & Zoner", icon: MapPin },
   ] : [];
 
-  const systemLinks = [
-    { href: "/settings/printing", label: "Skrivare", icon: Printer },
-    { href: "/settings/global", label: "System", icon: Settings },
-  ];
+  const systemLinks: any[] = [];
 
   if (!isMounted) return null;
 
