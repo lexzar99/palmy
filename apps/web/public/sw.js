@@ -9,7 +9,5 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener("fetch", () => {
-  // Pass-through. Add caching later.
-});
+// Removed broken fetch interceptor completely.
 
