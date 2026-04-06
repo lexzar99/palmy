@@ -185,8 +185,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant.isOpen ? "Öppen" : "Stängd"}</span>
                  </div>
               </div>
-              <div className="flex items-center gap-5 flex-wrap">
-                 <p className="text-[10px] font-black uppercase italic tracking-widest text-white/40">{restaurant.cuisine || "Restaurang"}</p>
+        <div className="flex items-center gap-5 flex-wrap">
+           <p className="text-[10px] font-black uppercase italic tracking-widest text-white/40">{restaurant.cuisine || "Restaurang"}</p>
                  <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[11px]">
                     <Star size={12} className="fill-gold-500" />
                     {(restaurant.rating || 4.6).toFixed(1)}
@@ -209,18 +209,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       </div>
 
       <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12 relative">
-        {/* Closed Overlay */}
-        {!restaurant?.isOpen && (
-          <div className="absolute inset-0 z-50 bg-obsidian/60 backdrop-blur-[2px] rounded-3xl flex items-start justify-center pt-20 pointer-events-none">
-             <div className="sticky top-40 glass-panel p-10 rounded-[3rem] border border-rose-500/20 text-center shadow-2xl backdrop-blur-xl">
-                <div className="w-16 h-16 bg-rose-500/10 rounded-[2rem] flex items-center justify-center mx-auto mb-6 text-rose-500">
-                   <Clock size={32} />
-                </div>
-                <h2 className="text-2xl font-black uppercase italic text-white mb-2">Just nu stängt</h2>
-                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest max-w-[200px] leading-relaxed">Vi har stängt för tillfället. Välkommen åter när vi öppnar!</p>
-             </div>
-          </div>
-        )}
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">

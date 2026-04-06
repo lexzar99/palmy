@@ -80,7 +80,7 @@ const StatsPage = () => {
   const currentCards = [
     { label: "Intäkter Idag", value: `${stats?.revenueToday ?? 0} kr`, icon: DollarSign, color: "text-emerald-400" },
     { label: "Ordrar Idag", value: stats?.ordersToday ?? 0, icon: ShoppingBag, color: "text-blue-400" },
-    { label: "Väntande Ordrar", value: stats?.pendingOrders ?? 0, icon: Activity, color: "text-amber-400" },
+    { label: "Väntande Ordrar", value: stats?.pendingOrders ?? 0, icon: Activity, color: "text-gold-500" },
     { label: "Totalt Antal Ordrar", value: stats?.totalOrders ?? 0, icon: Users, color: "text-purple-400" },
   ];
 

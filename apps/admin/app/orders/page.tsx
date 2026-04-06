@@ -155,7 +155,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                   </div>
                   {order.note && (
                     <div className="mt-4 pt-4 border-t border-border-subtle/50">
-                       <div className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-1">Kundmeddelande (Kassa)</div>
+                       <div className="text-[10px] font-black text-gold-500 uppercase tracking-[0.2em] mb-1">Kundmeddelande (Kassa)</div>
                        <div className="text-sm font-bold text-text-primary italic leading-relaxed">{order.note}</div>
                     </div>
                   )}
@@ -203,7 +203,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                <div className="text-2xl font-black italic text-gold-500">{Math.round(order.total)} SEK</div>
             </div>
 
-            {!isSuperAdmin && !isPast && (
+            {!isPast && (
               <div className="flex flex-col gap-3 pt-2">
                  {order.status === "PENDING" ? (
                     <div className="flex gap-3">
@@ -221,7 +221,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                         if (isTest) {
                           onDeleteTestOrder(order.id);
                         } else {
-                          updateStatus(order.id, "DELIVERED"); 
+                          updateStatus(order.id, order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"); 
                         }
                       }} 
                       className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-sky-500/20 transition-all flex items-center justify-center gap-3 active:scale-95"
@@ -320,10 +320,6 @@ const AdminOrdersPage = () => {
   }, [isMounted, selectedRestaurantId, isSuperAdmin, fetchData]);
 
   const updateStatus = async (orderId: string, status: string, estimatedTime?: number) => {
-    if (isSuperAdmin) {
-      setConfirmDialog({ message: "Super Admin har endast läs-åtkomst. Använd Edit för ändringar.", onConfirm: () => setConfirmDialog(null) });
-      return; 
-    }
     try {
       const token = localStorage.getItem("palmyra_token");
       await axios.patch(`${API_URL}/api/admin/orders/${orderId}/status`, { status, estimatedTime }, { headers: { Authorization: `Bearer ${token}` } });
@@ -344,34 +340,17 @@ const AdminOrdersPage = () => {
     const res: {
       pending: Order[],
       active: Order[],
-      today: Order[],
-      yesterday: Order[],
-      activeSum: number,
-      todaySum: number,
-      yesterdaySum: number
-    } = { pending: [], active: [], today: [], yesterday: [], activeSum: 0, todaySum: 0, yesterdaySum: 0 };
+      activeSum: number
+    } = { pending: [], active: [], activeSum: 0 };
     
     if (!isMounted) return res;
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-
-    // Filter out test orders for the previous sections
-    const nonTestOrders = orders.filter(o => {
-      const isTest = o.stripePaymentIntentId === "TEST_PAYMENT" || o.discountCode === "test" || o.discountCode === "testa";
-      return !isTest;
-    });
+    
+    const nowLocal = new Date();
+    const startOfToday = new Date(nowLocal.getFullYear(), nowLocal.getMonth(), nowLocal.getDate());
 
     res.pending = orders.filter((o) => o.status === "PENDING" && new Date(o.createdAt) >= startOfToday);
     res.active = orders.filter((o) => ["ACCEPTED", "PREPARING", "READY"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
-    
-    res.today = nonTestOrders.filter(o => ["DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
-    res.yesterday = nonTestOrders.filter(o => ["DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status) && new Date(o.createdAt) >= startOfYesterday && new Date(o.createdAt) < startOfToday);
-
     res.activeSum = [...res.pending, ...res.active].reduce((acc, o) => acc + o.total, 0);
-    res.todaySum = res.today.reduce((acc, o) => acc + o.total, 0);
-    res.yesterdaySum = res.yesterday.reduce((acc, o) => acc + o.total, 0);
 
     return res;
   }, [orders, isMounted]);
@@ -446,8 +425,8 @@ const AdminOrdersPage = () => {
       </AnimatePresence>
 
       <div className="flex items-center justify-between">
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
-          <div className={`w-3 h-3 rounded-full ${loading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`} /> 
+         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-4">
+          <div className={`w-3 h-3 rounded-full ${loading ? 'bg-gold-500 animate-pulse' : 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]'}`} /> 
           <h1 className="text-2xl font-black uppercase italic tracking-tighter text-text-primary">System Online</h1>
         </motion.div>
         
@@ -483,19 +462,6 @@ const AdminOrdersPage = () => {
             </div>
           )}
 
-          {(sums.today.length > 0 || sums.yesterday.length > 0) && (
-            <div className="space-y-6">
-               <div className="flex items-center justify-between px-1">
-                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary opacity-30 italic">FÖREGÅENDE ({sums.today.length + sums.yesterday.length})</h2>
-                  <div className="text-[10px] font-black text-gold-500 opacity-40 uppercase tabular-nums">{Math.round(sums.todaySum + sums.yesterdaySum)} SEK</div>
-               </div>
-               <div className="h-px bg-border-subtle opacity-30 mt-[-10px]" />
-               <div className="space-y-4">
-                  {[...sums.today, ...sums.yesterday].slice(0, 15).map(o => <OrderCard key={o.id} order={o} isPast={true} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} />)}
-               </div>
-            </div>
-          )}
-          
           {orders.length === 0 && (
              <div className="py-20 flex flex-col items-center justify-center gap-4 glass-panel rounded-[2rem] border-dashed">
                 <ShoppingCart size={32} className="text-text-secondary opacity-10" />

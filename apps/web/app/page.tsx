@@ -207,10 +207,6 @@ export default function HomePage() {
 
   const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
     e.preventDefault();
-    if (r.isOpen === false) {
-      setClosedRestaurant(r);
-      return;
-    }
     router.push(getRestaurantHref(r));
   };
 
@@ -246,7 +242,7 @@ export default function HomePage() {
 
             {/* Premium Order Type Toggle */}
             <div className="relative p-1 glass-panel rounded-[2rem] flex items-center lg:w-[340px] shrink-0 active:scale-[0.98] transition-transform">
-               <div className="absolute inset-y-1 h-auto bg-[#FF6B35] rounded-[1.8rem] transition-all duration-300 ease-out" 
+               <div className="absolute inset-y-1 h-auto bg-gold-500 rounded-[1.8rem] transition-all duration-300 ease-out" 
                   style={{ 
                     width: 'calc(50% - 4px)', 
                     left: orderType === 'DELIVERY' ? '4px' : '50%'

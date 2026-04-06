@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-gold-400: #ff8e5a;
-  --color-gold-500: #FF6B35;
-  --color-gold-600: #e55217;
+  --color-gold-400: #F4D086;
+  --color-gold-500: #E7B24B;
+  --color-gold-600: #C28E2E;
   
   /* Theme variables mapped to tailwind config */
   --color-bg-primary: var(--bg-primary);
@@ -56,7 +56,7 @@
   border-radius: 10px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 107, 53, 0.4);
+  background: rgba(231, 178, 75, 0.4);
 }
 
 /* Glass effect utility -> modified to be solid and clear with shadows */

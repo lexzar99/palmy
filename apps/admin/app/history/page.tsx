@@ -74,7 +74,7 @@ const HistoryPage = () => {
       // Filter out test orders
       fetched = fetched.filter((o: Order) => {
         const isTest = o.stripePaymentIntentId === "TEST_PAYMENT" || o.discountCode === "test" || o.discountCode === "testa";
-        const isPast = ["DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status);
+        const isPast = ["DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status);
         return isPast && !isTest;
       });
       setOrders(fetched);
