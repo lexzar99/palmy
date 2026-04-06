@@ -38,7 +38,7 @@ const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderT
 
     setLoading(true);
     try {
-      const apiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "YOUR_GEOAPIFY_KEY"; // Fallback placeholder
+      const apiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "1ec4188b70ae4a56a1061b9b861f5464"; // Default key for immediate use
       const response = await fetch(
         `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&bias=proximity:13.19,55.70&limit=5&apiKey=${apiKey}`
       );
