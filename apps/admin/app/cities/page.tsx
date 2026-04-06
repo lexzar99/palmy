@@ -21,6 +21,8 @@ interface Restaurant {
   name: string;
   slug: string;
   isOpen: boolean;
+  deliveryZones?: string | DeliveryZone[];
+  freeDeliveryAbove?: number;
 }
 
 interface City {
@@ -53,6 +55,8 @@ const CitiesPage = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showAddCityModal, setShowAddCityModal] = useState(false);
   const [newCityName, setNewCityName] = useState("");
+  const [editingRestaurantId, setEditingRestaurantId] = useState<string | null>(null);
+  const selectedRestaurant = selectedCity?.restaurants?.find(r => r.id === editingRestaurantId);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -104,6 +108,16 @@ const CitiesPage = () => {
     try {
       const zones = getZones(selectedCity);
       const restaurantIds = (selectedCity.restaurants || []).map(r => r.id);
+      
+      // Collect all restaurant specific zones and delivery settings
+      const restaurantZones: Record<string, any> = {};
+      selectedCity.restaurants?.forEach(r => {
+        restaurantZones[r.id] = {
+          zones: typeof r.deliveryZones === 'string' ? r.deliveryZones : JSON.stringify(r.deliveryZones || []),
+          freeDeliveryAbove: r.freeDeliveryAbove
+        };
+      });
+
       await axios.post(`${API_URL}/api/cities`, {
         id: selectedCity.id,
         name: selectedCity.name,
@@ -115,6 +129,7 @@ const CitiesPage = () => {
         freeDeliveryAbove: selectedCity.freeDeliveryAbove,
         zones: JSON.stringify(zones),
         restaurantIds,
+        restaurantZones,
       });
       setTimeout(() => setIsSaving(false), 1200);
     } catch (err) {
@@ -147,8 +162,21 @@ const CitiesPage = () => {
       deliveryFee: 39,
       minOrder: 200
     };
+
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
+      
+      if (editingRestaurantId) {
+        return {
+          ...c,
+          restaurants: (c.restaurants || []).map(r => {
+            if (r.id !== editingRestaurantId) return r;
+            const current = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            return { ...r, deliveryZones: [...current, newZone] };
+          })
+        };
+      }
+
       const current = getZones(c);
       return { ...c, zones: [...current, newZone] as any };
     }));
@@ -158,6 +186,18 @@ const CitiesPage = () => {
     if (!selectedCityId) return;
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
+      
+      if (editingRestaurantId) {
+        return {
+          ...c,
+          restaurants: (c.restaurants || []).map(r => {
+            if (r.id !== editingRestaurantId) return r;
+            const zones = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            return { ...r, deliveryZones: zones.map((z: DeliveryZone) => z.id === zoneId ? { ...z, [field]: value } : z) };
+          })
+        };
+      }
+
       const zones = getZones(c);
       return { ...c, zones: zones.map(z => z.id === zoneId ? { ...z, [field]: value } : z) as any };
     }));
@@ -167,7 +207,29 @@ const CitiesPage = () => {
     if (!selectedCityId) return;
     setCities(cities.map(c => {
       if (c.id !== selectedCityId) return c;
+      
+      if (editingRestaurantId) {
+        return {
+          ...c,
+          restaurants: (c.restaurants || []).map(r => {
+            if (r.id !== editingRestaurantId) return r;
+            const zones = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            return { ...r, deliveryZones: zones.filter((z: DeliveryZone) => z.id !== zoneId) };
+          })
+        };
+      }
+
       return { ...c, zones: getZones(c).filter(z => z.id !== zoneId) as any };
+    }));
+  };
+
+  const updateRestaurantSetting = (restaurantId: string, field: string, value: any) => {
+    setCities(cities.map(c => {
+      if (c.id !== selectedCityId) return c;
+      return {
+        ...c,
+        restaurants: (c.restaurants || []).map(r => r.id === restaurantId ? { ...r, [field]: value } : r)
+      };
     }));
   };
 
@@ -187,7 +249,10 @@ const CitiesPage = () => {
     }));
   };
 
-  const zones = selectedCity ? getZones(selectedCity) : [];
+  const activeZones = editingRestaurantId 
+    ? (typeof selectedRestaurant?.deliveryZones === 'string' ? JSON.parse(selectedRestaurant?.deliveryZones || '[]') : (selectedRestaurant?.deliveryZones || []))
+    : (selectedCity ? getZones(selectedCity) : []);
+
   const linkedIds = selectedCity ? (selectedCity.restaurants || []).map(r => r.id) : [];
 
   return (
@@ -389,28 +454,48 @@ const CitiesPage = () => {
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                      {allRestaurants.map(r => {
                        const isLinked = linkedIds.includes(r.id);
+                       const cityRestaurant = selectedCity.restaurants?.find(cr => cr.id === r.id);
+                       
                        return (
-                         <button
+                         <div
                            key={r.id}
-                           onClick={() => toggleRestaurant(r.id)}
-                           className={`p-6 rounded-3xl border-2 text-left transition-all flex items-center gap-4 ${
+                           className={`p-6 rounded-3xl border-2 transition-all flex flex-col gap-4 ${
                              isLinked 
                                ? "bg-gold-500/10 border-gold-500/40" 
                                : "bg-[var(--border-subtle)] border-transparent hover:border-[var(--border-strong)]"
                            }`}
                          >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
-                              isLinked ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"
-                            }`}>
-                              {isLinked ? <Check size={18} /> : <Plus size={18} />}
+                            <div className="flex items-center gap-4">
+                              <button
+                                onClick={() => toggleRestaurant(r.id)}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
+                                  isLinked ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"
+                                }`}
+                              >
+                                {isLinked ? <Check size={18} /> : <Plus size={18} />}
+                              </button>
+                              <div className="flex-1 min-w-0">
+                                 <div className="text-sm font-black uppercase tracking-tight truncate">{r.name}</div>
+                                 <div className="text-[9px] font-bold text-[var(--text-primary)]/20 uppercase tracking-widest">
+                                   {r.isOpen ? "🟢 Öppen" : "⚪ Stängd"}
+                                 </div>
+                              </div>
                             </div>
-                            <div>
-                               <div className="text-sm font-black uppercase tracking-tight">{r.name}</div>
-                               <div className="text-[9px] font-bold text-[var(--text-primary)]/20 uppercase tracking-widest">
-                                 {r.isOpen ? "🟢 Öppen" : "⚪ Stängd"}
-                               </div>
-                            </div>
-                         </button>
+                            
+                            {isLinked && (
+                              <div className="flex items-center gap-2 pt-2 border-t border-white/5">
+                                 <button
+                                   onClick={() => setEditingRestaurantId(editingRestaurantId === r.id ? null : r.id)}
+                                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                     editingRestaurantId === r.id ? "bg-sky-500 text-white" : "bg-white/5 text-zinc-500 hover:text-white"
+                                   }`}
+                                 >
+                                   <Layers size={12} />
+                                   {editingRestaurantId === r.id ? "Sluta ändra" : "Ändra zoner"}
+                                 </button>
+                              </div>
+                            )}
+                         </div>
                        );
                      })}
                      {allRestaurants.length === 0 && (
@@ -426,8 +511,8 @@ const CitiesPage = () => {
                   <div className="flex items-center justify-between">
                      <div>
                         <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-                           <Layers className="text-sky-500" size={28} />
-                           Leveranszoner
+                            <Layers className={editingRestaurantId ? "text-gold-500" : "text-sky-500"} size={28} />
+                            {editingRestaurantId ? `Zoner: ${selectedRestaurant?.name}` : "Globala Leveranszoner"}
                         </h2>
                         <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Geofencing & prissättning per zon</p>
                      </div>
@@ -440,13 +525,13 @@ const CitiesPage = () => {
                   </div>
 
                   <div className="space-y-4">
-                     {zones.length === 0 && (
+                     {activeZones.length === 0 && (
                        <div className="py-16 text-center opacity-20 font-black text-xs uppercase tracking-widest border border-dashed border-white/10 rounded-3xl">
-                         Inga zoner skapade — Lägg till en zon för att definiera leveransräckvidd
+                         {editingRestaurantId ? "Restaurangen använder globala zoner" : "Inga globala zoner skapade"}
                        </div>
                      )}
-                     {zones.map((zone, idx) => (
-                       <div key={zone.id} className="p-8 rounded-[2.5rem] bg-dark-500 border border-[var(--border-strong)] space-y-6">
+                     {activeZones.map((zone: DeliveryZone, idx: number) => (
+                       <div key={zone.id} className={`p-8 rounded-[2.5rem] bg-dark-500 border space-y-6 ${editingRestaurantId ? "border-gold-500/30" : "border-[var(--border-strong)]"}`}>
                           <div className="flex items-center justify-between">
                              <div className="flex items-center gap-3">
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${
@@ -504,11 +589,15 @@ const CitiesPage = () => {
                      ))}
                   </div>
 
-                  {zones.length > 0 && (
-                    <div className="p-6 bg-sky-500/5 border border-sky-500/10 rounded-3xl space-y-3">
-                       <h4 className="text-[10px] font-black uppercase tracking-widest text-sky-400 flex items-center gap-2"><Info size={14} /> Zon-prioritet</h4>
+                  {activeZones.length > 0 && (
+                    <div className={`p-6 border rounded-3xl space-y-3 ${editingRestaurantId ? "bg-gold-500/5 border-gold-500/10" : "bg-sky-500/5 border-sky-500/10"}`}>
+                       <h4 className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${editingRestaurantId ? "text-gold-500" : "text-sky-400"}`}>
+                         <Info size={14} /> {editingRestaurantId ? "Restaurangens zoner" : "Zon-prioritet"}
+                       </h4>
                        <p className="text-[9px] text-[var(--text-primary)]/30 font-bold leading-relaxed uppercase">
-                         Zonerna matchas i ordning efter radie (minsta först). En kund inom 3 km matchar zon 1, en kund inom 8 km matchar zon 2 osv. Kunder utanför alla zoner kan inte beställa leverans.
+                         {editingRestaurantId 
+                           ? "Dessa zoner gäller endast för denna restaurang och ersätter de globala zonerna." 
+                           : "Zonerna matchas i ordning efter radie (minsta först). Kunder utanför alla zoner kan inte beställa leverans."}
                        </p>
                     </div>
                   )}

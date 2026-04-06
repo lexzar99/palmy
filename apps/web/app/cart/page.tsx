@@ -212,13 +212,17 @@ export default function CartPage() {
     const storedType = localStorage.getItem("platform_order_type");
     
     if (storedAddress) {
-      // Try to extract zip code (Swedish format: 123 45)
+      // Split by comma: "Street 1, 123 45 City, Country"
+      const parts = storedAddress.split(',').map(p => p.trim());
+      const street = parts[0] || "";
+      
+      // Try to find zip in the whole string first
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0] : "";
       
       setFormData(prev => ({
         ...prev,
-        deliveryStreet: storedAddress,
+        deliveryStreet: street,
         deliveryZip: zip || prev.deliveryZip
       }));
     }
