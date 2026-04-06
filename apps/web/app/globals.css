@@ -29,37 +29,37 @@
 
 /* Glassmorphism Classes - optimized for mobile performance */
 .glass-panel {
-  background: rgba(30, 30, 35, 0.85);
-  backdrop-filter: blur(12px); /* Halved for performance */
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+  background: rgba(24, 24, 27, 0.9); /* Slightly more opaque for Safari */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(35, 35, 40, 0.9) 0%, rgba(25, 25, 30, 0.95) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
-  transition: all 0.3s ease;
+  background: rgba(30, 30, 35, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  transition: opacity 0.2s ease;
 }
 
-.glass-card:hover {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.04) 100%);
-  border-color: rgba(255, 107, 53, 0.4);
-  transform: translateY(-4px);
-  box-shadow: 0 12px 24px -4px rgba(255, 107, 53, 0.15);
+@media (hover: hover) {
+  .glass-card:hover {
+    background: rgba(40, 40, 45, 1);
+    border-color: rgba(255, 107, 53, 0.3);
+  }
 }
 
 /* Typography Effects */
 .text-gradient {
   background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.6) 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .text-gold-gradient {
   background: linear-gradient(135deg, #ff8e5a 0%, #FF6B35 45%, #e55217 100%);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

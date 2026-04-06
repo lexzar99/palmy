@@ -201,13 +201,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-obsidian bg-dot-pattern pt-10 pb-32">
-      {/* Dynamic Background Glow */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-gold-500/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-gold-600/5 blur-[100px]" />
-      </div>
-
+    <div className="min-h-screen text-zinc-100 bg-[#18181b] pt-10 pb-32">
       <div className="relative mx-auto max-w-6xl px-6 lg:px-10">
         {/* Modern Header */}
         <header className="mb-12 relative overflow-hidden">
@@ -228,10 +222,10 @@ export default function HomePage() {
 
             {/* Premium Order Type Toggle */}
             <div className="relative p-1 glass-panel rounded-[2rem] flex items-center lg:w-[340px] shrink-0 active:scale-[0.98] transition-transform">
-               <div className="absolute inset-y-1 h-auto bg-gold-500 rounded-[1.8rem] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] shadow-lg shadow-gold-500/20" 
+               <div className="absolute inset-y-1 h-auto bg-[#FF6B35] rounded-[1.8rem] transition-all duration-300 ease-out" 
                   style={{ 
                     width: 'calc(50% - 4px)', 
-                    left: orderType === 'DELIVERY' ? '4px' : 'calc(50%)' 
+                    left: orderType === 'DELIVERY' ? '4px' : '50%'
                   }} 
                />
                <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>

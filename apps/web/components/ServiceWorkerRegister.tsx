@@ -4,16 +4,26 @@ import { useEffect } from "react";
 
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     
-    // Unregister any existing service workers that might be aggressively caching old CSS/HTML hashes
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (const registration of registrations) {
-        registration.unregister().then(unregistered => {
-          if (unregistered) console.log("Unregistered rogue service worker.");
-        });
+    const unregisterAll = async () => {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+        }
+      } catch (err) {
+        console.error("SW Unregister Error:", err);
       }
-    });
+    };
+
+    // Delay registration/unregistration to prioritize main thread in Safari
+    if (document.readyState === "complete") {
+      unregisterAll();
+    } else {
+      window.addEventListener("load", unregisterAll);
+      return () => window.removeEventListener("load", unregisterAll);
+    }
   }, []);
 
   return null;
