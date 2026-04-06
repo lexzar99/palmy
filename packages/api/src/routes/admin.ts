@@ -338,8 +338,13 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
-    const adminRestaurantId = requireRestaurantScope(req as AuthRequest, res);
-    if (!adminRestaurantId) return;
+    let adminRestaurantId: string | null = null;
+    if (isSuperAdmin(req as AuthRequest)) {
+      adminRestaurantId = '__super__';
+    } else {
+      adminRestaurantId = requireRestaurantScope(req as AuthRequest, res);
+      if (!adminRestaurantId) return;
+    }
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
@@ -626,15 +631,22 @@ router.delete('/orders/:id', async (req, res) => {
       return;
     }
 
-    await prisma.order.delete({
-      where: { id: req.params.id },
-    });
+    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
+    if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    // Delete order items first (foreign key constraint)
+    await prisma.orderItem.deleteMany({ where: { orderId: req.params.id } });
+    await prisma.order.delete({ where: { id: req.params.id } });
 
     // Notifiera alla om att ordern är borta
     io.to('admin-room').emit('order:updated', { orderId: req.params.id });
 
-    res.json({ success: true });
+    res.json({ success: true, message: 'Order raderad' });
   } catch (err) {
+    console.error('Delete order error:', err);
     res.status(500).json({ error: 'Kunde inte radera order' });
   }
 });
@@ -1480,23 +1492,9 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
   }
 });
 
-router.delete('/orders/:id', async (req: any, res: any) => {
-  try {
-    const authReq = req as AuthRequest;
-    if (!isSuperAdmin(authReq)) {
-      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
-    }
 
-    const order = await prisma.order.findUnique({ where: { id: req.params.id } });
-    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+// (Duplicate delete handler removed — primary handler is at line ~622)
 
-    await prisma.order.delete({ where: { id: req.params.id } });
-    res.json({ success: true, message: 'Order raderad' });
-  } catch (error: any) {
-    console.error('Delete order error:', error);
-    res.status(500).json({ error: 'Kunde inte radera order' });
-  }
-});
 
 // ─── Receipt Data (JSON for Flutter/Printers) ───────────────────────────────
 

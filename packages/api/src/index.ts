@@ -155,7 +155,7 @@ const PORT = Number(process.env.PORT || 4000);
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 Palmyra API körs på port ${PORT}`);
+    console.log(`\n🚀 MatGo API körs på port ${PORT}`);
     console.log(`📡 Socket.IO redo`);
     console.log(`🌍 Internt: http://localhost:${PORT}`);
     console.log(`🌐 Externt: http://192.168.0.3:${PORT} (kontrollera ifconfig om detta ej funkar)\n`);

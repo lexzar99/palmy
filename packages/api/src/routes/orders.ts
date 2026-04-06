@@ -142,7 +142,7 @@ router.post('/', async (req: Request, res: Response) => {
         ? { id: data.restaurantId } 
         : data.restaurantSlug 
           ? { slug: data.restaurantSlug } 
-          : { slug: 'palmyra' }
+          : {} // No fallback — grab first available
     });
 
     const globalSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
