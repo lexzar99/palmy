@@ -59,12 +59,9 @@ interface Order {
   note?: string;
   total: number;
   createdAt: string;
+  restaurantName?: string;
   items: any[];
   paymentMethod?: string;
-  appliedDealTitle?: string;
-  discountAmount: number;
-  stripePaymentIntentId?: string;
-  discountCode?: string;
 }
 
 const formatOrderNumber = (num: any) => {
@@ -104,6 +101,11 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-black uppercase text-text-primary truncate tracking-tight">{order.customerName}</h3>
+               {isSuperAdmin && order.restaurantName && (
+                 <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-gold-400 text-dark-500 shadow-lg shadow-gold-500/10 uppercase italic">
+                    {order.restaurantName}
+                 </span>
+               )}
               <span className={`px-2 py-0.5 rounded-full text-[8px] font-black border ${order.type === "DELIVERY" ? "border-sky-500/20 text-sky-500 bg-sky-500/5 transition-colors" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 transition-colors"}`}>
                  {order.type === "DELIVERY" ? "UTKÖRNING" : "AVHÄMTNING"}
               </span>

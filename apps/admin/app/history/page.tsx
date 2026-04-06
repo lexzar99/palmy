@@ -32,7 +32,6 @@ interface Order {
   total: number;
   createdAt: string;
   restaurantName?: string;
-  restaurantId?: string;
   items: any[];
   stripePaymentIntentId?: string;
   discountCode?: string;
@@ -115,7 +114,7 @@ const HistoryPage = () => {
       const d = new Date(o.createdAt);
       if (d >= startOfToday) { res.today.orders.push(o); res.today.total += o.total; }
       else if (d >= startOfYesterday) { res.yesterday.orders.push(o); res.yesterday.total += o.total; }
-      else { res.older.orders.push(o); res.older.total += o.total; }
+      else if (isSuperAdmin) { res.older.orders.push(o); res.older.total += o.total; }
     });
     return res;
   }, [orders, search, filterStatus, isMounted]);
@@ -124,6 +123,7 @@ const HistoryPage = () => {
 
   const renderGroup = (label: string, data: any, color: string, badge: string) => {
     if (data.orders.length === 0) return null;
+    if (label === "Äldre" && !isSuperAdmin) return null;
     return (
       <section className="space-y-6">
         <div className="flex items-center justify-between px-3">
@@ -149,7 +149,10 @@ const HistoryPage = () => {
                     <div className="text-[9px] font-black uppercase text-[var(--text-primary)]/20 mb-0.5">
                       {(new Date(o.createdAt)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · {o.status === 'DELIVERED' ? 'KLAR' : o.status}
                     </div>
-                    <div className="font-black text-[var(--text-primary)] uppercase text-base tracking-tight">{o.customerName}</div>
+                     <div className="font-black text-[var(--text-primary)] uppercase text-base tracking-tight">
+                        {o.customerName} 
+                        {isSuperAdmin && o.restaurantName && <span className="ml-3 text-[9px] font-black bg-gold-500/10 text-gold-500 px-3 py-1 rounded-lg border border-gold-500/20 italic">{o.restaurantName}</span>}
+                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-8">
