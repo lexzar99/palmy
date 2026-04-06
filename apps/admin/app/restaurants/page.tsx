@@ -73,7 +73,6 @@ const emptyForm: Partial<Restaurant> = {
   isOpen: true,
   featuredClass: 3,
   tags: "[]",
-  openingHours: "{}",
   imageUrl: "",
   heroImageUrl: "",
   adminPassword: "",
@@ -137,7 +136,6 @@ export default function RestaurantsPage() {
       setForm({
         ...selected,
         tags: typeof selected.tags === 'string' ? selected.tags : JSON.stringify(selected.tags || []),
-        openingHours: typeof selected.openingHours === 'string' ? selected.openingHours : JSON.stringify(selected.openingHours || {}),
         adminPassword: "", // Don't load password
       });
     }
@@ -159,7 +157,6 @@ export default function RestaurantsPage() {
         heroImageUrl: form.heroImageUrl || "",
         internalInfo: form.internalInfo || "",
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
-        openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
 
       if (selectedId) {
@@ -494,123 +491,6 @@ export default function RestaurantsPage() {
                          </div>
                       </div>
 
-                      <div className="space-y-6">
-                         <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Öppettider (Visuell hantering)</label>
-                            <button 
-                              type="button"
-                              onClick={() => {
-                                const current = JSON.parse(form.openingHours || "{}");
-                                const next = { ...current };
-                                const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-                                days.forEach(day => {
-                                  if (!next[day]) next[day] = [];
-                                  if (next[day].length === 0) {
-                                    next[day].push({ open: "11:00", close: "22:00" });
-                                  }
-                                });
-                                setForm({ ...form, openingHours: JSON.stringify(next) });
-                              }}
-                              className="text-[10px] font-black uppercase text-gold-500 hover:text-gold-400"
-                            >
-                              Lägg till standardtider
-                            </button>
-                         </div>
-                         
-                         <div className="grid md:grid-cols-2 gap-4">
-                            {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(day => {
-                               let hoursObj: any = {};
-                               try { 
-                                 hoursObj = typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}); 
-                               } catch { hoursObj = {}; }
-                               
-                               let rawSlots = hoursObj[day] || [];
-                               let slots = Array.isArray(rawSlots) ? rawSlots : (rawSlots.open ? [rawSlots] : []);
-                               if (slots.length === 0 && rawSlots.shifts) slots = rawSlots.shifts;
-                               
-                               const dayNames: any = { monday: "Måndag", tuesday: "Tisdag", wednesday: "Onsdag", thursday: "Torsdag", friday: "Fredag", saturday: "Lördag", sunday: "Söndag" };
-                               
-                               return (
-                                 <div key={day} className="bg-dark-500 rounded-2xl border border-[var(--border-subtle)] p-4">
-                                   <div className="flex items-center justify-between mb-3">
-                                     <span className="text-xs font-black uppercase tracking-widest text-[var(--text-primary)]/60">{dayNames[day]}</span>
-                                     <button 
-                                       type="button"
-                                       onClick={() => {
-                                         const next = { ...hoursObj };
-                                         if (!next[day]) next[day] = [];
-                                         if (Array.isArray(next[day])) {
-                                           next[day].push({ open: "11:00", close: "22:00" });
-                                         } else {
-                                           next[day] = { ...next[day], shifts: [...(next[day].shifts || []), { open: "11:00", close: "22:00" }] };
-                                         }
-                                         setForm({ ...form, openingHours: JSON.stringify(next) });
-                                       }}
-                                       className="p-1.5 bg-[var(--border-subtle)] hover:bg-white/10 rounded-lg text-gold-500 transition-all"
-                                     >
-                                       <Plus size={14} />
-                                     </button>
-                                   </div>
-                                   
-                                   <div className="space-y-2">
-                                     {slots.length === 0 ? (
-                                       <div className="text-[10px] font-bold text-red-500/50 uppercase italic px-2 py-1">Stängt</div>
-                                     ) : (
-                                       slots.map((slot: any, idx: number) => (
-                                         <div key={idx} className="flex items-center gap-2">
-                                           <input 
-                                             type="time" 
-                                             value={slot.open} 
-                                             onChange={e => {
-                                               const next = { ...hoursObj };
-                                               if (Array.isArray(next[day])) {
-                                                 next[day][idx].open = e.target.value;
-                                               } else if (next[day].shifts) {
-                                                 next[day].shifts[idx].open = e.target.value;
-                                               }
-                                               setForm({ ...form, openingHours: JSON.stringify(next) });
-                                             }}
-                                             className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
-                                           />
-                                           <span className="text-[var(--text-primary)]/20">-</span>
-                                           <input 
-                                             type="time" 
-                                             value={slot.close} 
-                                             onChange={e => {
-                                               const next = { ...hoursObj };
-                                               if (Array.isArray(next[day])) {
-                                                 next[day][idx].close = e.target.value;
-                                               } else if (next[day].shifts) {
-                                                 next[day].shifts[idx].close = e.target.value;
-                                               }
-                                               setForm({ ...form, openingHours: JSON.stringify(next) });
-                                             }}
-                                             className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-lg px-3 py-1.5 text-xs font-bold focus:ring-1 focus:ring-gold-500/30 outline-none" 
-                                           />
-                                           <button 
-                                             type="button"
-                                             onClick={() => {
-                                               const next = { ...hoursObj };
-                                               if (Array.isArray(next[day])) {
-                                                 next[day].splice(idx, 1);
-                                               } else if (next[day].shifts) {
-                                                 next[day].shifts.splice(idx, 1);
-                                               }
-                                               setForm({ ...form, openingHours: JSON.stringify(next) });
-                                             }}
-                                             className="p-1.5 text-red-500/30 hover:text-red-500 transition-colors"
-                                           >
-                                             <Trash2 size={14} />
-                                           </button>
-                                         </div>
-                                       ))
-                                     )}
-                                   </div>
-                                 </div>
-                               );
-                             })}
-                         </div>
-                      </div>
                    </div>
 
                    <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">

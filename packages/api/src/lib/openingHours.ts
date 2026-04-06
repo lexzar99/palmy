@@ -24,11 +24,22 @@ export function isRestaurantOpen(openingHours: WeeklyOpeningHours | string | nul
   const now = new Date();
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
   const dayKey = dayNames[now.getDay()];
-  const todayHours = hours[dayKey];
+  const todayData = hours[dayKey];
 
-  if (!todayHours || (todayHours as any).closed) return false;
+  if (!todayData) return false;
 
-  const slots = Array.isArray(todayHours) ? todayHours : [todayHours];
+  // Handle { closed: true, shifts: [...] } format
+  if ((todayData as any).closed === true) return false;
+
+  // Extract slots
+  let slots: any[] = [];
+  if (Array.isArray(todayData)) {
+    slots = todayData;
+  } else if ((todayData as any).shifts && Array.isArray((todayData as any).shifts)) {
+    slots = (todayData as any).shifts;
+  } else {
+    slots = [todayData];
+  }
 
   for (const slot of slots) {
     if (!slot.open || !slot.close) continue;
