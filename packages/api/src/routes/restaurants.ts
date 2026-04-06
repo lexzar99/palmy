@@ -67,6 +67,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
       return restaurant.isOpen; // Fallback to manual status
     }
   })(),
+  manualIsOpen: restaurant.isOpen,
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
@@ -317,6 +318,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
       isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
+      manualIsOpen: restaurant.isOpen,
       deliveryFee: fromOre(restaurant.deliveryFee),
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,

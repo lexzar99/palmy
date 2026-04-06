@@ -70,11 +70,11 @@ const Sidebar = () => {
     }
 
     if (selectedRestaurantId) {
-      axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`).then(res => setIsOpen(res.data.isOpen ?? true)).catch(() => {});
+      axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`).then(res => setIsOpen(res.data.manualIsOpen ?? res.data.isOpen ?? true)).catch(() => {});
     }
 
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
-    socket.on("settings:updated", (data: any) => { if (data.restaurantId === selectedRestaurantId) setIsOpen(data.isOpen ?? true); });
+    socket.on("settings:updated", (data: any) => { if (data.restaurantId === selectedRestaurantId) setIsOpen(data.manualIsOpen ?? data.isOpen ?? true); });
     return () => { socket.disconnect(); };
   }, [selectedRestaurantId, isSuperAdmin]);
 
