@@ -251,7 +251,7 @@ export default function HomePage() {
             className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
           >
             <div className="relative group">
-              <div className="flex items-center gap-3 rounded-[2rem] bg-zinc-950/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
+              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
                 <MapPin className="text-gold-500 shrink-0" size={18} />
                 <input
                   value={address}
@@ -286,7 +286,7 @@ export default function HomePage() {
               </AnimatePresence>
             </div>
 
-            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-zinc-950/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
+            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
                <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
                <span className="text-sm text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
                <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all">
@@ -309,7 +309,7 @@ export default function HomePage() {
                 className={`whitespace-nowrap flex items-center gap-3 rounded-[1.5rem] px-7 py-4 text-[10px] font-black uppercase tracking-[0.2em] transition-all border-2 active:scale-95 ${
                   activeCuisine === c.label
                     ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_15px_30px_rgba(231,178,75,0.2)]"
-                    : "bg-zinc-950/20 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
+                    : "bg-obsidian/20 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
                 }`}
               >
                 <span className="text-lg grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
@@ -342,7 +342,7 @@ export default function HomePage() {
                     onClick={(e) => handleRestaurantClick(e, r)}
                     className="group relative block w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col"
                   >
-                    <div className="h-44 lg:h-56 w-full rounded-[2.2rem] bg-zinc-950/50 relative overflow-hidden mb-6">
+                    <div className="h-44 lg:h-56 w-full rounded-[2.2rem] bg-obsidian/50 relative overflow-hidden mb-6">
                       {r.heroImageUrl || r.imageUrl ? (
                         <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
                       ) : (
@@ -399,7 +399,7 @@ export default function HomePage() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-24 text-center">
-              <div className="w-20 h-20 bg-zinc-950/60 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/5">
+              <div className="w-20 h-20 bg-obsidian/60 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/5">
                 <Search size={32} className="text-zinc-800" />
               </div>
               <p className="text-2xl font-black uppercase tracking-tight text-white mb-2">Ingen träff</p>
@@ -423,7 +423,7 @@ export default function HomePage() {
                       {r.imageUrl ? (
                         <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all" />
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-zinc-950 text-4xl">🍱</div>
+                        <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
                       )}
                       
                       {r.isOpen === false && (
@@ -467,7 +467,7 @@ export default function HomePage() {
                  <h2 className="text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-4 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
                  <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
               </div>
-              <button className="px-10 py-5 bg-zinc-950 text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5">Hämta Appen</button>
+              <button className="px-10 py-5 bg-obsidian text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5">Hämta Appen</button>
            </div>
         </section>
       </div>

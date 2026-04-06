@@ -14,11 +14,11 @@
 }
 
 :root {
-  /* Dark Mode: elevated, premium charcoal */
-  --bg-primary: #12141a;
-  --bg-secondary: #1e2129;
+  /* Dark Mode: elevated, premium obsidian matching web */
+  --bg-primary: #18181b;
+  --bg-secondary: #27272a;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
+  --text-secondary: #a1a1aa;
   --border-subtle: rgba(255, 255, 255, 0.08);
 }
 

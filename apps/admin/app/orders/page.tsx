@@ -88,41 +88,54 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
         </div>
       )}
 
-      <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex items-center justify-between gap-4 cursor-pointer">
-        <div className="flex items-center gap-5 flex-1">
-          <div className={`w-12 h-12 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-xs ${isTest ? 'bg-rose-500 text-[var(--text-primary)]' : isNew ? 'bg-gold-500 text-[var(--text-secondary)] scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
+      <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 cursor-pointer">
+        <div className="flex items-center gap-6 flex-1 w-full">
+           {/* Order Number Badge */}
+          <div className={`w-16 h-16 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-sm ${isTest ? 'bg-rose-500 text-[var(--text-primary)]' : isNew ? 'bg-gold-500 text-zinc-950 scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
              {String(order.orderNumber).replace("PX-", "")}
           </div>
+
           <div className="flex-1 min-w-0">
-            <div className={`text-[9px] font-black uppercase tracking-[0.2em] flex items-center gap-2 mb-1 ${isTest ? 'text-rose-500' : isNew ? 'text-gold-500' : 'text-text-secondary'}`}>
+            {/* Meta Row: Time, Status, Type, and Restaurant Name (Super Admin) */}
+            <div className={`text-[10px] font-black uppercase tracking-[0.2em] flex flex-wrap items-center gap-3 mb-2 ${isTest ? 'text-rose-500' : isNew ? 'text-gold-500' : 'text-text-secondary'}`}>
               {(new Date(order.createdAt)).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})} · {STATUS_LABELS[order.status] || order.status}
-              <span className={`px-2.5 py-0.5 rounded-full text-[8px] border-[1px] ${order.type === "DELIVERY" ? "border-sky-500/20 text-sky-500 bg-sky-500/5" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5"}`}>
+              <span className={`px-3 py-1 rounded-full text-[9px] border-[1px] ${order.type === "DELIVERY" ? "border-sky-500/20 text-sky-500 bg-sky-500/5" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5"}`}>
                  {order.type === "DELIVERY" ? "UTKÖRNING" : "AVHÄMTNING"}
               </span>
+              {isSuperAdmin && order.restaurantName && (
+                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white text-[9px] font-black uppercase shadow-sm">
+                   <Store size={10} className="inline mr-1 mb-[2px]" /> {order.restaurantName}
+                </span>
+              )}
             </div>
+
+            {/* Customer Name & Delivery Address */}
             <div className="flex items-center gap-4">
-               <h3 className="text-lg font-black uppercase text-text-primary truncate italic tracking-tight">{order.customerName}</h3>
+               <h3 className="text-2xl font-black uppercase text-text-primary truncate italic tracking-tighter">{order.customerName}</h3>
                {order.type === "DELIVERY" && order.deliveryStreet && (
-                 <div className="flex items-center gap-1.5 text-[9px] font-black text-sky-500 uppercase truncate bg-sky-500/5 px-3 py-1 rounded-full border border-sky-500/10">
-                    <MapPin size={10} /> {order.deliveryStreet}
+                 <div className="flex items-center gap-1.5 text-[10px] font-black text-sky-500 uppercase truncate bg-sky-500/5 px-3 py-1.5 rounded-full border border-sky-500/10">
+                    <MapPin size={12} /> {order.deliveryStreet}
                  </div>
                )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-8">
+        {/* Action & Price Column */}
+        <div className="flex items-center gap-6 sm:gap-8 ml-22 sm:ml-0">
            {isSuperAdmin && (
               <button 
                 onClick={(e) => { e.stopPropagation(); setEditingOrder(order); }}
-                className="w-10 h-10 rounded-2xl bg-bg-primary border border-border-subtle flex items-center justify-center text-text-secondary hover:text-gold-500 hover:border-gold-500/20 transition-all"
+                className="w-12 h-12 rounded-2xl bg-bg-primary border border-border-subtle flex items-center justify-center text-text-secondary hover:text-gold-500 hover:border-gold-500/20 transition-all shadow-sm"
               >
-                <Edit2 size={16} />
+                <Edit2 size={18} />
               </button>
            )}
-           <div className={`text-xl font-black italic tracking-tighter transition-colors ${isPast ? 'text-text-secondary' : isTest ? 'text-rose-500' : 'text-gold-500'}`}>{order.total / 100} <span className="text-[10px] opacity-40">SEK</span></div>
-           <div className={`w-10 h-10 rounded-full flex items-center justify-center bg-bg-primary border border-border-subtle transition-transform duration-500 ${isExpanded ? 'rotate-180 border-gold-500/40 text-gold-500' : 'text-text-secondary'}`}>
-              <ChevronDown size={20} />
+           <div className={`text-4xl font-black italic tracking-tighter transition-colors ${isPast ? 'text-text-secondary' : isTest ? 'text-rose-500' : 'text-gold-500'}`}>
+              {Math.round(order.total)} <span className="text-sm opacity-40 uppercase not-italic tracking-widest">SEK</span>
+           </div>
+           <div className={`w-12 h-12 rounded-full flex items-center justify-center bg-bg-primary border border-border-subtle transition-transform duration-500 shadow-sm ${isExpanded ? 'rotate-180 border-gold-500/40 text-gold-500' : 'text-text-secondary'}`}>
+              <ChevronDown size={24} />
            </div>
         </div>
       </div>
@@ -169,15 +182,15 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                           <span className="w-8 h-8 rounded-lg glass flex items-center justify-center text-gold-500 text-[10px]">{it.quantity}x</span>
                           {getDisplayName(it)}
                        </div>
-                       <div className="text-text-secondary text-[11px] font-bold italic">{it.subtotal / 100} KR</div>
+                       <div className="text-text-secondary text-[11px] font-bold italic">{Math.round(it.subtotal)} KR</div>
                     </div>
                  ))}
                </div>
                
-               {order.appliedDealTitle && (
+               {order.appliedDealTitle && order.discountAmount > 0 && (
                   <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-[1.5rem] flex items-center justify-between text-[11px] font-black uppercase text-emerald-500 italic">
                      <div className="flex items-center gap-3"><Ticket size={16} /> {order.appliedDealTitle}</div>
-                     <div className="text-base tracking-tighter">-{order.discountAmount / 100} kr</div>
+                     <div className="text-base tracking-tighter">-{Math.round(order.discountAmount)} kr</div>
                   </motion.div>
                )}
             </div>

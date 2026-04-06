@@ -302,7 +302,7 @@ export default function ProfilePage() {
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <div className="min-h-screen bg-obsidian flex items-center justify-center">
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -311,7 +311,7 @@ export default function ProfilePage() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!token || !user) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 pt-20 pb-32">
+      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center px-6 pt-20 pb-32">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-8">
 
           {/* Header */}
@@ -389,7 +389,7 @@ export default function ProfilePage() {
               <div className="w-full border-t border-white/5" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-zinc-950 px-4 text-[10px] font-black uppercase tracking-widest text-zinc-600">
+              <span className="bg-obsidian px-4 text-[10px] font-black uppercase tracking-widest text-zinc-600">
                 Eller med socialt konto
               </span>
             </div>
@@ -435,7 +435,7 @@ export default function ProfilePage() {
   // ─── Add phone prompt (for OAuth users without phone) ─────────────────────
   if (showAddPhone) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
+      <div className="min-h-screen bg-obsidian flex items-center justify-center px-6">
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
@@ -474,7 +474,7 @@ export default function ProfilePage() {
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="min-h-screen bg-zinc-950 pt-20 pb-32 px-6">
+    <div className="min-h-screen bg-obsidian pt-20 pb-32 px-6">
       <div className="max-w-xl mx-auto space-y-8">
 
         {/* Header */}
@@ -765,7 +765,7 @@ export default function ProfilePage() {
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-zinc-950/90 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-obsidian/90 backdrop-blur-sm"
         >
           <motion.div 
             initial={{ scale: 0.9, y: 20 }}

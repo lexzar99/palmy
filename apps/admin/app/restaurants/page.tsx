@@ -518,7 +518,9 @@ export default function RestaurantsPage() {
                             {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map(day => {
                               let hoursObj: any = {};
                               try { hoursObj = JSON.parse(form.openingHours || "{}"); } catch { hoursObj = {}; }
-                              const slots = hoursObj[day] || [];
+                              let rawSlots = hoursObj[day] || [];
+                              // Backwards compatibility for old format: { open: "11:00", close: "22" } instead of [{open, close}]
+                              let slots = Array.isArray(rawSlots) ? rawSlots : (rawSlots.open ? [rawSlots] : []);
                               const dayNames: any = { monday: "Måndag", tuesday: "Tisdag", wednesday: "Onsdag", thursday: "Torsdag", friday: "Fredag", saturday: "Lördag", sunday: "Söndag" };
                               
                               return (

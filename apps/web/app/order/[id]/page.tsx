@@ -173,7 +173,7 @@ const OrderStatusPage = () => {
 
         {/* Live Status Banner */}
         <motion.div key={currentStatus} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`p-10 rounded-[3rem] border transition-all shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10 text-center md:text-left ${statusInfo.colorClass}`}>
-           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-zinc-950/40 border-white/5`}>
+           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-obsidian/40 border-white/5`}>
               <StatusIcon size={40} className={currentStatus === 'PENDING' ? 'animate-pulse' : ''} />
            </div>
            <div className="flex-1">

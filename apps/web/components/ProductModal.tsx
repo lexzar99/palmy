@@ -117,33 +117,31 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-obsidian/95 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
-      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.5 }} className="w-full max-w-2xl bg-zinc-950 border border-white/5 rounded-t-[3rem] sm:rounded-[3.5rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.5)] relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-950/80 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
+      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.4 }} className="w-full max-w-2xl bg-[#1c1c1f] sm:rounded-2xl rounded-t-3xl border border-white/5 overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
         
-        {/* Header Section */}
-        <div className="relative h-64 sm:h-72 shrink-0">
-           {product.imageUrl ? (
-              <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-           ) : (
-              <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-obsidian flex items-center justify-center text-5xl">🍔</div>
-           )}
-           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
-           
-           <button onClick={onClose} className="absolute top-8 right-8 w-12 h-12 rounded-full glass-panel flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-90">
-              <X size={24} />
-           </button>
-           
-           <div className="absolute bottom-8 left-10 right-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/20 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                 <Sparkles size={12} /> Specialité
-              </div>
-              <h2 className="text-4xl sm:text-5xl font-black text-white uppercase italic tracking-tight leading-none truncate">{product.name}</h2>
-           </div>
+        <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all z-20">
+           <X size={20} />
+        </button>
+
+        {/* Conditional Image Header */}
+        {product.imageUrl && (
+        <div className="relative h-56 sm:h-64 shrink-0">
+           <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
+           <div className="absolute inset-0 bg-gradient-to-t from-[#1c1c1f] via-[#1c1c1f]/50 to-transparent" />
         </div>
+        )}
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar p-10 sm:p-12 space-y-12 pb-40">
-           <p className="text-zinc-500 text-sm font-bold uppercase tracking-widest leading-relaxed italic border-l-4 border-gold-500/20 pl-6">{product.description || "Ingen beskrivning tillgänglig."}</p>
+        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-40" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem' }}>
+           
+           <div className="mb-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
+                 <Sparkles size={12} /> Specialité
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-white uppercase italic tracking-tight leading-none mb-4">{product.name}</h2>
+              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4">{product.description || "Ingen beskrivning tillgänglig."}</p>
+           </div>
 
            {/* Extra Groups */}
            <div className="space-y-16">

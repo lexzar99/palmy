@@ -257,7 +257,7 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 bg-zinc-950/40 rounded-[3rem] border border-white/5 flex items-center justify-center mb-8">
+        <div className="w-24 h-24 bg-obsidian/40 rounded-[3rem] border border-white/5 flex items-center justify-center mb-8">
           <ShoppingBag size={48} className="text-zinc-800" />
         </div>
         <h1 className="text-4xl font-black uppercase text-white italic tracking-tight mb-4">Din kasse är <span className="text-gold-500">tom</span></h1>
@@ -307,7 +307,7 @@ export default function CartPage() {
               {items.map((item) => (
                 <motion.div key={item.cartItemId} layout className="glass-panel p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-white/5 transition-all group">
                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-zinc-950 border border-white/5 rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner">
+                      <div className="w-14 h-14 bg-obsidian border border-white/5 rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner">
                          {item.quantity}x
                       </div>
                       <div>
@@ -315,7 +315,7 @@ export default function CartPage() {
                          {item.extras.length > 0 && (
                            <div className="flex flex-wrap gap-2">
                               {item.extras.map(e => (
-                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 bg-zinc-950/40 px-2 py-0.5 rounded-md border border-white/5">{e.name}</span>
+                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 bg-obsidian/40 px-2 py-0.5 rounded-md border border-white/5">{e.name}</span>
                               ))}
                            </div>
                          )}
@@ -350,7 +350,7 @@ export default function CartPage() {
                     <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                        <CreditCard size={18} /> Betala Tryggt
                     </div>
-                    <div className="bg-zinc-950/40 rounded-3xl p-6 mb-10 border border-white/5">
+                    <div className="bg-obsidian/40 rounded-3xl p-6 mb-10 border border-white/5">
                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#e7b24b', colorBackground: '#09090b', colorText: '#ffffff' } } }}>
                           <StripeCheckout amount={total} onSuccess={submitOrder} />
                        </Elements>
@@ -372,11 +372,11 @@ export default function CartPage() {
                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Ditt Namn</label>
-                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Namn" />
+                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Namn" />
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Telefon</label>
-                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Nummer" />
+                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Nummer" />
                           </div>
                        </div>
 
@@ -384,18 +384,18 @@ export default function CartPage() {
                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Gatuadress</label>
-                                <input value={formData.deliveryStreet} onChange={e => setFormData({...formData, deliveryStreet: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Gatan 1" />
+                                <input value={formData.deliveryStreet} onChange={e => setFormData({...formData, deliveryStreet: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Gatan 1" />
                              </div>
                              <div className="space-y-2">
                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Postnummer</label>
-                                <input value={formData.deliveryZip} onChange={e => setFormData({...formData, deliveryZip: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="123 45" />
+                                <input value={formData.deliveryZip} onChange={e => setFormData({...formData, deliveryZip: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="123 45" />
                              </div>
                           </div>
                        )}
 
                        <div className="space-y-2">
                           <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Extranotering</label>
-                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full bg-zinc-950/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
+                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
                        </div>
 
                        {/* Promo Code Integrated */}
@@ -404,7 +404,7 @@ export default function CartPage() {
                           <input 
                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
                              onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-                             className={`w-full bg-zinc-950/60 border rounded-2xl py-5 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-400 focus:border-gold-500/40"}`}
+                             className={`w-full bg-obsidian/60 border rounded-2xl py-5 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-400 focus:border-gold-500/40"}`}
                              placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
                           />
                           <button 

@@ -126,57 +126,54 @@ const GlobalSettingsPage = () => {
         </button>
       </div>
 
-      {/* Main Status */}
+      {/* System Status */}
       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Status & Tillgänglighet</h2>
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Plattforms Kontroll</h2>
         <button
           onClick={() => setSettings({ ...settings, isOpen: !settings.isOpen })}
-          className={`group flex items-center gap-8 p-8 rounded-3xl border transition-all w-full text-left ${
+          className={`group flex flex-col sm:flex-row items-start sm:items-center gap-8 p-8 rounded-3xl border transition-all w-full text-left ${
             settings.isOpen ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"
           }`}
         >
-          <div className={`p-4 rounded-2xl ${settings.isOpen ? "bg-emerald-500 text-dark-500" : "bg-red-500 text-[var(--text-primary)]"}`}>
+          <div className={`p-4 rounded-2xl shrink-0 ${settings.isOpen ? "bg-emerald-500 text-dark-500" : "bg-red-500 text-[var(--text-primary)]"}`}>
             {settings.isOpen ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
           </div>
           <div>
             <div className={`text-2xl font-black uppercase tracking-tight ${settings.isOpen ? "text-emerald-400" : "text-red-400"}`}>
-              {settings.isOpen ? "Öppen för beställning" : "Stängd för tillfället"}
+              {settings.isOpen ? "Plattformen är Online" : "Underhållsläge Aktiverat"}
             </div>
-            <p className="text-[var(--text-primary)]/30 text-sm font-bold uppercase tracking-widest mt-1">Klicka för att ändra butikens status direkt</p>
+            <p className="text-[var(--text-primary)]/40 text-xs font-bold uppercase tracking-widest mt-2 leading-relaxed">
+              Stäng av hela plattformen temporärt om det uppstår panik eller tekniskt fel. Inga beställningar kan läggas.
+            </p>
           </div>
         </button>
       </div>
 
       {/* Operations */}
       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
-        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Leverans & Tider</h2>
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Allmänna Inställningar</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Leveransavgift (kr)</label>
-              <input type="number" value={settings.deliveryFee} onChange={e => setSettings({...settings, deliveryFee: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Support Email</label>
+              <input type="text" placeholder="support@matgo.se" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
            <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Minsta order (kr)</label>
-              <input type="number" value={settings.minOrderAmount} onChange={e => setSettings({...settings, minOrderAmount: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
-           </div>
-           <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Hämtningstid (min)</label>
-              <div className="relative">
-                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={20} />
-                <input type="number" value={settings.estimatedPickupTime} onChange={e => setSettings({...settings, estimatedPickupTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
-              </div>
-           </div>
-           <div className="space-y-3">
-              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Leveranstid (min)</label>
-              <div className="relative">
-                <Clock className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={20} />
-                <input type="number" value={settings.estimatedDeliveryTime} onChange={e => setSettings({...settings, estimatedDeliveryTime: Number(e.target.value)})} className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 pl-16 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-xl" />
-              </div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Företagsnummer / Org.Nr</label>
+              <input type="text" placeholder="559XXX-XXXX" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
         </div>
       </div>
 
-      {/* Opening Hours removed - handled in /settings/hours hub */}
+       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-[2.5rem] p-10">
+        <h2 className="text-sm font-black uppercase tracking-[0.3em] mb-8 text-[var(--text-primary)]/20">Integrationer</h2>
+        <div className="grid grid-cols-1 gap-8">
+           <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Stripe Secret Key</label>
+              <input type="password" placeholder="sk_test_..." className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+              <p className="text-[9px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest pl-2 pt-1">Hanterar betalningar på webben (Visa, Mastercard, AMEX)</p>
+           </div>
+        </div>
+      </div>
     </div>
   );
 };
