@@ -48,9 +48,9 @@ router.post('/', async (req, res) => {
     }
 
     const city = await (prisma as any).city.upsert({
-      where: { slug: citySlug },
+      where: id ? { id } : { slug: citySlug },
       update: data,
-      create: { ...data, slug: citySlug },
+      create: { ...data, slug: citySlug, id: id || undefined },
       include: {
         restaurants: {
           select: { id: true, name: true, slug: true, isOpen: true, city: true }

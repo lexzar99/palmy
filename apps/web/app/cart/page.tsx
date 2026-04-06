@@ -209,14 +209,24 @@ export default function CartPage() {
   // Auto-fill delivery address from homepage selection
   useEffect(() => {
     const storedAddress = localStorage.getItem("platform_address");
-    if (storedAddress && !formData.deliveryStreet) {
-      setFormData(prev => ({ ...prev, deliveryStreet: storedAddress }));
-    }
     const storedType = localStorage.getItem("platform_order_type");
+    
+    if (storedAddress) {
+      // Try to extract zip code (Swedish format: 123 45)
+      const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
+      const zip = zipMatch ? zipMatch[0] : "";
+      
+      setFormData(prev => ({
+        ...prev,
+        deliveryStreet: storedAddress,
+        deliveryZip: zip || prev.deliveryZip
+      }));
+    }
+
     if (storedType === "PICKUP" || storedType === "DELIVERY") {
       setOrderType(storedType as "PICKUP" | "DELIVERY");
     }
-  }, []);
+  }, [pageLoading]); // Run when page content finishes initial loading
 
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
@@ -441,11 +451,23 @@ export default function CartPage() {
 
                        {orderType === 'DELIVERY' && (
                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                             {/* Saved Address Picker */}
-                             {savedAddresses.length > 0 && (
+                             { (savedAddresses.length > 0 || user?.address) && (
                                <div className="space-y-2">
-                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Sparade adresser</label>
+                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Snabbval</label>
                                  <div className="flex gap-2 flex-wrap">
+                                   {user?.address && !savedAddresses.find(a => a.street === user.address) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, deliveryStreet: user.address, deliveryZip: user.zip || "" }))}
+                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                          formData.deliveryStreet === user.address
+                                            ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                                            : 'bg-white/3 border-white/5 text-zinc-500 hover:text-white hover:border-white/10'
+                                        }`}
+                                      >
+                                        <Home size={12} /> Hemadress
+                                      </button>
+                                   )}
                                    {savedAddresses.map(addr => (
                                      <button
                                        key={addr.id}
