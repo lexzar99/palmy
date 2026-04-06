@@ -20,7 +20,6 @@
 
   body {
     background-color: var(--color-obsidian);
-    background-image: radial-gradient(circle at top right, rgba(255, 107, 53, 0.03), transparent 400px), radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.02), transparent 400px);
     color: #ffffff;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
@@ -28,20 +27,20 @@
   }
 }
 
-/* Glassmorphism Classes - adding shadows so it isn't flat */
+/* Glassmorphism Classes - optimized for mobile performance */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(30, 30, 35, 0.85);
+  backdrop-filter: blur(12px); /* Halved for performance */
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
 .glass-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.2);
-  transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+  background: linear-gradient(135deg, rgba(35, 35, 40, 0.9) 0%, rgba(25, 25, 30, 0.95) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
 }
 
 .glass-card:hover {

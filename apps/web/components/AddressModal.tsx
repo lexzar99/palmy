@@ -68,7 +68,7 @@ const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderT
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-950/85 backdrop-blur-xl px-4 pb-6 sm:pb-0"
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-950/85 backdrop-blur-md px-4 pb-6 sm:pb-0"
           onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div

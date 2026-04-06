@@ -446,7 +446,7 @@ export default function CartPage() {
       {/* Modern Deals Modal */}
       <AnimatePresence>
         {showDealsModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-6" onClick={() => setShowDealsModal(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setShowDealsModal(false)}>
             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
                <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 text-zinc-800 hover:text-white transition-colors"><X size={24}/></button>
                <h2 className="text-2xl font-black uppercase text-white italic tracking-tight mb-8">Dina <span className="text-gold-gradient">Erbjudanden</span></h2>

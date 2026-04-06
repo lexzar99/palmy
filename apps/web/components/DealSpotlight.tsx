@@ -27,7 +27,7 @@ const DealSpotlight = ({ deals, subtotal, productIds, floating = false }: DealSp
   const evaluation = evaluateDeal(spotlight, subtotal, productIds);
 
   const body = (
-    <div className={`relative overflow-hidden rounded-[2rem] border ${floating ? "border-white/5 bg-white/95 shadow-xl backdrop-blur-xl" : "border-white/5 bg-zinc-900"} p-6`}>
+    <div className={`relative overflow-hidden rounded-[2rem] border ${floating ? "border-white/5 bg-white/95 shadow-xl backdrop-blur-md" : "border-white/5 bg-zinc-900"} p-6`}>
       {floating && (
         <button onClick={() => setDismissed(true)} className="absolute right-4 top-4 text-zinc-400/30 hover:text-zinc-100 transition-colors">
           <X size={16} />

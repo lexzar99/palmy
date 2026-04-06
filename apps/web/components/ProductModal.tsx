@@ -117,7 +117,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-0 sm:p-6" onClick={onClose}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-obsidian/95 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
       <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.5 }} className="w-full max-w-2xl bg-zinc-950 border border-white/5 rounded-t-[3rem] sm:rounded-[3.5rem] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.5)] relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
         
         {/* Header Section */}

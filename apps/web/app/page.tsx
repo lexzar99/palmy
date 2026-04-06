@@ -350,13 +350,13 @@ export default function HomePage() {
                       )}
                       
                       <div className="absolute top-4 left-4">
-                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-xl border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${r.isOpen !== false ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100" : "bg-rose-500/30 border-rose-500/30 text-rose-100"}`}>
+                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${r.isOpen !== false ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100" : "bg-rose-500/30 border-rose-500/30 text-rose-100"}`}>
                            <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
                            {r.isOpen !== false ? "Live Nu" : "Väntar"}
                         </div>
                       </div>
 
-                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-xl flex items-center gap-1">
+                      <div className="absolute top-4 right-4 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1">
                         <Star size={12} className="fill-gold-500 text-gold-500" />
                         <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
                       </div>
@@ -477,7 +477,7 @@ export default function HomePage() {
       {/* Closed popup handling */}
       <AnimatePresence>
         {closedRestaurant && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-2xl p-6" onClick={() => setClosedRestaurant(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setClosedRestaurant(null)}>
              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border border-white/10" onClick={e => e.stopPropagation()}>
                 <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
