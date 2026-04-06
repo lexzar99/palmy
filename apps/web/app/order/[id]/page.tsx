@@ -228,9 +228,9 @@ const OrderStatusPage = () => {
                              <span className="text-xs font-black text-gold-500 bg-gold-500/5 px-2 py-0.5 rounded-md border border-gold-500/10">{item.quantity}x</span>
                              <h3 className="font-black text-white uppercase italic text-sm tracking-tight">{item.productName}</h3>
                           </div>
-                          {item.selectedExtras && Array.isArray(JSON.parse(item.selectedExtras)) && JSON.parse(item.selectedExtras).length > 0 && (
+                          {item.selectedExtras && Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
                              <div className="flex flex-wrap gap-2 group-hover:pl-2 transition-all">
-                                {JSON.parse(item.selectedExtras).map((e: any, idx: number) => (
+                                {item.selectedExtras.map((e: any, idx: number) => (
                                    <span key={idx} className="text-[9px] font-black uppercase text-zinc-700 bg-white/2 px-2 py-0.5 rounded-md">{e.extraName || e.name}</span>
                                 ))}
                              </div>
@@ -247,7 +247,7 @@ const OrderStatusPage = () => {
                  {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Leveransavgift</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
                  <div className="flex justify-between items-end mt-10 pt-4 border-t border-white/5">
                     <span className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">SUMMA</span>
-                    <span className="text-4xl font-black italic text-white tracking-tighter text-gold-gradient">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
+                    <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
                  </div>
               </div>
            </div>
