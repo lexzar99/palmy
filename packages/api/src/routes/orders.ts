@@ -664,7 +664,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const order: any = await prisma.order.findUnique({
       where: { id: req.params.id },
-      include: { items: true },
+      include: { items: true, restaurant: true },
     });
 
     if (!order) {
@@ -685,6 +685,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime,
       createdAt: order.createdAt,
+      customerPhone: order.customerPhone,
+      deliveryStreet: order.deliveryStreet,
+      restaurantName: order.restaurant?.name || 'Okänd restaurang',
+      restaurantAddress: order.restaurant?.address || '',
+      restaurantZip: order.restaurant?.zip || '',
+      restaurantCity: order.restaurant?.city || '',
+      restaurantPhone: order.restaurant?.phone || '',
       items: order.items.map((item: any) => ({
         id: item.id,
         productName: item.productName,

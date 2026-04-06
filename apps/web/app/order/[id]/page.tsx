@@ -265,20 +265,42 @@ const OrderStatusPage = () => {
                     <div className="flex items-start gap-5">
                        <Phone className="text-gold-500/30 mt-1" size={20} />
                        <div>
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Telefonnummer</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Ditt Nummer</div>
                           <div className="text-base font-black text-white tracking-widest italic">{order.customerPhone}</div>
                        </div>
                     </div>
                     
-                    {order.deliveryStreet && (
-                       <div className="flex items-start gap-5">
-                          <MapPin className="text-sky-500/30 mt-1" size={20} />
-                          <div>
-                             <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Leveransadress</div>
-                             <div className="text-sm font-black text-white uppercase italic leading-tight">{order.deliveryStreet}</div>
-                             <div className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mt-1">LUND</div>
-                          </div>
+                    <div className="flex items-start gap-5">
+                       <Store className="text-gold-500/30 mt-1" size={20} />
+                       <div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Restaurang</div>
+                          <div className="text-base font-black text-white italic uppercase">{order.restaurantName}</div>
+                          {order.restaurantPhone && <div className="text-[10px] font-black text-gold-500/60 mt-1">{order.restaurantPhone}</div>}
                        </div>
+                    </div>
+
+                    {order.type === 'DELIVERY' ? (
+                       order.deliveryStreet && (
+                          <div className="flex items-start gap-5">
+                             <MapPin className="text-sky-500/30 mt-1" size={20} />
+                             <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Leveransadress</div>
+                                <div className="text-sm font-black text-white uppercase italic leading-tight">{order.deliveryStreet}</div>
+                                <div className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
+                             </div>
+                          </div>
+                       )
+                    ) : (
+                       order.restaurantAddress && (
+                          <div className="flex items-start gap-5">
+                             <MapPin className="text-emerald-500/30 mt-1" size={20} />
+                             <div>
+                                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-800 mb-1">Hämta Hos</div>
+                                <div className="text-sm font-black text-white uppercase italic leading-tight">{order.restaurantAddress}</div>
+                                <div className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
+                              </div>
+                          </div>
+                       )
                     )}
 
                     <div className="flex items-start gap-5">

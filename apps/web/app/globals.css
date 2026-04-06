@@ -2,12 +2,12 @@
 
 @theme {
   /* We maintain the "gold" naming in TSX but redefine the colors to our bold Saffron Orange */
-  --color-gold-400: #ff8e5a;
-  --color-gold-500: #FF6B35;
-  --color-gold-600: #e55217;
+  --color-gold-400: #F4D086;
+  --color-gold-500: #E7B24B;
+  --color-gold-600: #C28E2E;
   
-  --color-obsidian: #18181b; /* Pyttelite ljusare mörkgrå för mer kontrast */
-  --color-zinc-glass: rgba(255, 255, 255, 0.05);
+  --color-obsidian: #09090b; /* Deep obsidian */
+  --color-zinc-glass: rgba(255, 255, 255, 0.04);
 }
 
 @layer base {
@@ -57,7 +57,7 @@
 }
 
 .text-gold-gradient {
-  background: linear-gradient(135deg, #ff8e5a 0%, #FF6B35 45%, #e55217 100%);
+  background: linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

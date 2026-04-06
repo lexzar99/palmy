@@ -323,17 +323,17 @@ export default function CartPage() {
                    </div>
                    <div className="flex items-center justify-between sm:justify-end gap-10">
                       <div className="flex items-center gap-6 glass-panel px-4 py-3 rounded-2xl border-white/5">
-                         <button onClick={() => updateQuantity(item.cartItemId, -1)} className="text-zinc-600 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
+                         <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
                          <span className="text-base font-black text-white w-4 text-center italic">{item.quantity}</span>
-                         <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-600 hover:text-white transition-colors active:scale-75"><Plus size={18} /></button>
+                         <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Plus size={18} /></button>
                       </div>
                       <div className="flex items-center gap-8">
                          <div className="text-lg font-black italic text-white flex flex-col items-end">
                             <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
                             <span className="text-[8px] uppercase tracking-widest text-zinc-800 leading-none">SEK</span>
                          </div>
-                         <button onClick={() => removeItem(item.cartItemId)} className="w-10 h-10 rounded-xl bg-bg-primary flex items-center justify-center text-zinc-900 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90">
-                            <Trash2 size={18} />
+                         <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90">
+                            <Trash2 size={20} />
                          </button>
                       </div>
                    </div>
@@ -399,18 +399,18 @@ export default function CartPage() {
                        </div>
 
                        {/* Promo Code Integrated */}
-                       <div className="relative group">
-                          <Tag size={16} className="absolute left-6 top-[54px] text-gold-500/40 group-focus-within:text-gold-500 transition-colors" />
+                       <div className="relative group flex items-center">
+                          <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
                           <input 
                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
                              onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-                             className={`w-full bg-obsidian/60 border rounded-2xl py-5 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-400 focus:border-gold-500/40"}`}
+                             className={`w-full bg-obsidian/60 border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-500 focus:border-gold-500/40"}`}
                              placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
                           />
                           <button 
                              type="button" 
                              onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-                             className={`absolute right-2 top-[35px] px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-white/5 text-zinc-500 hover:bg-white/10"}`}
+                             className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-white/10 text-gold-500 hover:bg-gold-500 hover:text-dark-500"}`}
                           >
                              {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
                           </button>

@@ -20,6 +20,8 @@ import {
   Sparkles,
   Tag,
   Percent,
+  Info,
+  Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
@@ -82,6 +84,7 @@ export default function HomePage() {
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [closedRestaurant, setClosedRestaurant] = useState<Restaurant | null>(null);
+  const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -150,7 +153,7 @@ export default function HomePage() {
   };
 
   const filtered = useMemo(() => {
-    return restaurants.filter((r) => {
+    const list = restaurants.filter((r) => {
       const matchCuisine =
         activeCuisine === "Alla" ||
         (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
@@ -168,7 +171,22 @@ export default function HomePage() {
 
       return matchCuisine && matchQuery && matchCity;
     });
-  }, [restaurants, activeCuisine, query, address]);
+
+    // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
+    return list.sort((a, b) => {
+      const aOpen = a.isOpen !== false ? 1 : 0;
+      const bOpen = b.isOpen !== false ? 1 : 0;
+      
+      if (aOpen !== bOpen) return bOpen - aOpen;
+      
+      const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
+      const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
+      
+      if (aPremium !== bPremium) return bPremium - aPremium;
+      
+      return a.name.localeCompare(b.name);
+    });
+  }, [restaurants, activeCuisine, query, address, selectedCity]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -379,11 +397,17 @@ export default function HomePage() {
                       <div className="absolute top-4 left-4">
                         <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${r.isOpen !== false ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100" : "bg-rose-500/30 border-rose-500/30 text-rose-100"}`}>
                            <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
-                           {r.isOpen !== false ? "Live Nu" : "Väntar"}
+                           {r.isOpen !== false ? "Öppet" : "Stängt"}
                         </div>
                       </div>
 
                       <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                        <button 
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                          className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
+                        >
+                          <Info size={16} />
+                        </button>
                         <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
                           <Star size={12} className="fill-gold-500 text-gold-500" />
                           <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
@@ -470,17 +494,20 @@ export default function HomePage() {
 
                     <div className="flex-1 py-4 pr-6 flex flex-col justify-center min-w-0">
                       <div className="flex items-start justify-between mb-2">
-                        <h3 className="text-2xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none truncate">{r.name}</h3>
+                        <div className="flex items-center gap-4 truncate">
+                           <h3 className="text-2xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none truncate">{r.name}</h3>
+                           <button 
+                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                             className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5"
+                           >
+                             <Info size={16} />
+                           </button>
+                        </div>
                         <div className="flex flex-col items-end gap-2">
                            <div className="flex items-center gap-1.5 text-gold-500 font-black italic">
                              <Star size={14} className="fill-gold-500" />
                              <span className="text-xs">{(r.rating ?? 4.6).toFixed(1)}</span>
                            </div>
-                           {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
-                             <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[8px] font-black uppercase tracking-widest shadow-sm">
-                                {deals.find(d => d.isGlobal || d.restaurantId === r.id).title}
-                             </div>
-                           )}
                         </div>
                       </div>
                       
@@ -490,14 +517,6 @@ export default function HomePage() {
                         <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
                         <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
                         <span>MIN {r.minOrderAmount ?? 0} KR</span>
-                        {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-zinc-800" />
-                            <span className="flex items-center gap-2 text-emerald-500">
-                               <Tag size={12} /> {deals.find(d => d.isGlobal || d.restaurantId === r.id).title}
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
                   </Link>
@@ -506,6 +525,55 @@ export default function HomePage() {
             </div>
           )}
         </section>
+
+        {/* Info Modal Implementation */}
+        <AnimatePresence>
+          {infoRestaurant && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setInfoRestaurant(null)}>
+              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
+                <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
+                    <Info size={32} />
+                </div>
+                <h2 className="text-3xl font-black uppercase italic text-white mb-2">{infoRestaurant.name}</h2>
+                <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest mb-10">Restaurang Information</p>
+                
+                <div className="space-y-8">
+                    {infoRestaurant.description && (
+                      <div className="flex items-start gap-4">
+                          <div className="min-w-0">
+                            <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Beskrivning</div>
+                            <p className="text-xs font-bold text-white/60 leading-relaxed uppercase tracking-wider italic">{infoRestaurant.description}</p>
+                          </div>
+                      </div>
+                    )}
+                    {(infoRestaurant.address || infoRestaurant.city) && (
+                      <div className="flex items-start gap-4">
+                        <MapPin className="text-zinc-700 mt-1" size={18} />
+                        <div className="min-w-0">
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Hitta Hit</div>
+                          <div className="text-sm font-black text-white italic uppercase">{infoRestaurant.address}</div>
+                          <div className="text-sm font-black text-white italic uppercase opacity-40">{infoRestaurant.zip} {infoRestaurant.city}</div>
+                        </div>
+                      </div>
+                    )}
+                    {infoRestaurant.phone && (
+                      <div className="flex items-start gap-4">
+                        <Phone className="text-zinc-700 mt-1" size={18} />
+                        <div className="min-w-0">
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Ring Oss</div>
+                          <a href={`tel:${infoRestaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-400 transition-colors uppercase italic">{infoRestaurant.phone}</a>
+                        </div>
+                      </div>
+                    )}
+                </div>
+
+                <button onClick={() => setInfoRestaurant(null)} className="absolute top-10 right-10 text-zinc-700 hover:text-white transition-colors">
+                    <X size={24} />
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Promo Footer */}
         <section className="mt-24 rounded-[3.5rem] bg-gradient-to-r from-gold-500 to-amber-600 p-12 relative overflow-hidden group shadow-2xl shadow-gold-500/10">

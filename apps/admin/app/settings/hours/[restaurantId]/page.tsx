@@ -59,12 +59,8 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
         const data = res.data;
         setRestaurantName(data.name);
         
-        let oh = data.openingHours;
-        if (typeof oh === 'string') {
-          try { oh = JSON.parse(oh); } catch { oh = {}; }
-        }
-
-        const rawRegular = oh?.regular || oh || {};
+        let oh = data.openingHours || {};
+        const rawRegular = oh.regular || oh || {};
         
         // Migrate old format to new shift format if needed
         const migratedHours: any = {};

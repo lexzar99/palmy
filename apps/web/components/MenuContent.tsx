@@ -349,9 +349,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                   <Info size={32} />
                </div>
-               <h2 className="text-3xl font-black uppercase italic italic text-white mb-8">Restaurang Info</h2>
+               <h2 className="text-3xl font-black uppercase italic text-white mb-8">Restaurang Info</h2>
                
                <div className="space-y-8">
+                  {restaurant.description && (
+                    <div className="flex items-start gap-4">
+                       <div className="min-w-0">
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Beskrivning</div>
+                          <p className="text-xs font-bold text-white/60 leading-relaxed uppercase tracking-wider italic">{restaurant.description}</p>
+                       </div>
+                    </div>
+                  )}
                   {restaurant.address && (
                     <div className="flex items-start gap-4">
                       <MapPin className="text-zinc-700 mt-1" size={18} />
