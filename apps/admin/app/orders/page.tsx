@@ -223,11 +223,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                         <button 
                           onClick={(e) => { 
                             e.stopPropagation(); 
-                            if (isTest) {
-                              onDeleteTestOrder(order.id);
-                            } else {
-                              updateStatus(order.id, order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"); 
-                            }
+                            updateStatus(order.id, order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"); 
                           }} 
                           className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-sky-500/20 transition-all flex items-center justify-center gap-3 active:scale-95"
                         >

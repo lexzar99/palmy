@@ -275,40 +275,17 @@ export default function HomePage() {
             className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
           >
             <div className="relative group">
-              <div className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 group-focus-within:border-gold-500/50 transition-all">
+              <div 
+                onClick={() => setShowAddressModal(true)}
+                className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all cursor-pointer"
+              >
                 <MapPin className="text-gold-500 shrink-0" size={18} />
-                <input
-                  value={address}
-                  onFocus={() => setShowCityDropdown(true)}
-                  onChange={(e) => {
-                    saveAddress(e.target.value);
-                    const match = cities.find(c => c.name.toLowerCase() === e.target.value.toLowerCase());
-                    if (match) setSelectedCity(match);
-                    else setSelectedCity(null);
-                  }}
-                  placeholder="Hitta din stad..."
-                  className="w-full bg-transparent text-sm placeholder:text-zinc-600 focus:outline-none font-bold text-white"
-                />
+                <span className={`w-full text-sm font-bold ${address ? 'text-white' : 'text-zinc-600'} truncate`}>
+                  {address || "Ange din adress..."}
+                </span>
               </div>
-              
-              <AnimatePresence>
-                {showCityDropdown && cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="absolute z-50 left-0 right-0 mt-2 p-2 glass-panel rounded-[2rem] shadow-2xl overflow-hidden"
-                  >
-                    {cities.filter(c => c.name.toLowerCase().includes(address.toLowerCase())).map(city => (
-                      <button key={city.id} onClick={() => handleCitySelect(city)} className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/5 rounded-2xl transition-colors group">
-                        <span className="text-xs font-black uppercase tracking-widest">{city.name}</span>
-                        <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0" />
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
+
 
             <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
                <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
