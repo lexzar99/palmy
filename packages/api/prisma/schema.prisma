@@ -243,6 +243,12 @@ model Restaurant {
   updatedAt      DateTime     @updatedAt
   featuredClass  Int          @default(3)
   internalInfo   String?
+  latitude       Float?
+  longitude      Float?
+  cityId         String?
+  city_relation  City?              @relation(fields: [cityId], references: [id])
+  deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
+  freeDeliveryAbove Int?            // Free delivery if order > this amount in öre (kr*100)
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]
@@ -257,7 +263,8 @@ model City {
   deliveryMode String   @default("ALL")
   zones        String   @default("[]")
   createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt    DateTime     @updatedAt
+  restaurants  Restaurant[]
 }
 
 model User {
@@ -292,6 +299,8 @@ model SavedAddress {
   zip       String
   note      String?  // Door code, floor, etc.
   isDefault Boolean  @default(false)
+  latitude  Float?
+  longitude Float?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -31,9 +31,9 @@ export default function ContactPage() {
           {
             icon: Mail,
             title: "E-post",
-            value: "info@palmyrapizzeria.se",
+            value: "info@matgo.se",
             sub: "Svar inom 24 timmar",
-            href: "mailto:info@palmyrapizzeria.se",
+            href: "mailto:info@matgo.se",
           },
           {
             icon: MapPin,

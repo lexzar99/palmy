@@ -56,6 +56,10 @@ interface Restaurant {
   openingHours?: string; // JSON string from API
   adminPassword?: string;
   internalInfo?: string;
+  latitude?: number;
+  longitude?: number;
+  deliveryZones?: string; // JSON
+  freeDeliveryAbove?: number;
 }
 
 const emptyForm: Partial<Restaurant> = {
@@ -77,6 +81,10 @@ const emptyForm: Partial<Restaurant> = {
   heroImageUrl: "",
   adminPassword: "",
   internalInfo: "",
+  latitude: 0,
+  longitude: 0,
+  deliveryZones: "[]",
+  freeDeliveryAbove: 0,
 };
 
 export default function RestaurantsPage() {
@@ -150,6 +158,10 @@ export default function RestaurantsPage() {
         deliveryFee: Number(form.deliveryFee || 0),
         minOrderAmount: Number(form.minOrderAmount || 0),
         etaMinutes: Number(form.etaMinutes || 30),
+        latitude: Number(form.latitude || 0),
+        longitude: Number(form.longitude || 0),
+        freeDeliveryAbove: Number(form.freeDeliveryAbove || 0),
+        deliveryZones: typeof form.deliveryZones === 'string' ? form.deliveryZones : JSON.stringify(form.deliveryZones || []),
         zip: form.zip || "",
         phone: form.phone || "",
         address: form.address || "",
@@ -190,6 +202,30 @@ export default function RestaurantsPage() {
     } catch (error) {
       alert("Kunde inte radera restaurang");
     }
+  };
+  
+  const setZones = (zones: any[]) => {
+    setForm(prev => ({ ...prev, deliveryZones: JSON.stringify(zones) }));
+  };
+
+  const addZone = () => {
+    const zones = JSON.parse(form.deliveryZones || "[]");
+    zones.push({ id: Math.random().toString(36).substring(7), name: "Ny zon", radiusKm: 5, fee: 39, minOrder: 150, isActive: true });
+    setZones(zones);
+  };
+
+  const updateZone = (id: string, field: string, value: any) => {
+    const zones = JSON.parse(form.deliveryZones || "[]");
+    const idx = zones.findIndex((z: any) => z.id === id);
+    if (idx !== -1) {
+      zones[idx][field] = value;
+      setZones(zones);
+    }
+  };
+
+  const removeZone = (id: string) => {
+    const zones = JSON.parse(form.deliveryZones || "[]");
+    setZones(zones.filter((z: any) => z.id !== id));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'imageUrl' | 'heroImageUrl') => {

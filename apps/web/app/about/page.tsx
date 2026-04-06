@@ -13,7 +13,7 @@ export default function OmOssPage() {
           Sedan 2019
         </div>
         <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight">
-          Om <span className="text-gold-500">Palmyra</span>
+          Om <span className="text-gold-500">MatGo</span>
         </h1>
 
         <div className="space-y-6 text-white/60 text-lg leading-relaxed">

@@ -96,6 +96,10 @@ const CreateOrderSchema = z.object({
   
   // Stripe PaymentIntent ID
   stripePaymentIntentId: z.string().nullable().optional(),
+  
+  // GPS coords for zone validation
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
 });
 
 // POST /api/orders - Skapa ny order
@@ -145,10 +149,35 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Use restaurant specific settings or global fallbacks
     const restaurantOpen = restaurant?.isOpen ?? globalSettings?.isOpen ?? true;
-    const deliveryFee = data.type === 'DELIVERY'
-      ? (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100))
-      : 0;
-    const minOrderAmount = restaurant?.minOrderAmount ?? globalSettings?.minOrderAmount ?? Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100);
+    // Zone validation if delivery
+    let deliveryFee = 0;
+    let minOrderAmount = restaurant?.minOrderAmount ?? globalSettings?.minOrderAmount ?? Math.round(DEFAULT_MIN_ORDER_AMOUNT * 100);
+
+    if (data.type === 'DELIVERY') {
+      const defaultFee = (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100));
+      
+      if (data.lat && data.lng && restaurant?.latitude && restaurant?.longitude) {
+        const { haversineKm, findDeliveryZone } = await import('../utils/geo');
+        const dist = haversineKm(data.lat, data.lng, restaurant.latitude, restaurant.longitude);
+        
+        let zones = [];
+        try { zones = JSON.parse((restaurant as any).deliveryZones || '[]'); } catch { zones = []; }
+        
+        if (zones.length > 0) {
+          const matchedZone = findDeliveryZone(dist, zones);
+          if (!matchedZone) {
+            res.status(400).json({ error: 'Tyvärr levererar vi inte till din adress (utanför täckningsområde).' });
+            return;
+          }
+          deliveryFee = matchedZone.fee;
+          minOrderAmount = matchedZone.minOrder;
+        } else {
+          deliveryFee = defaultFee;
+        }
+      } else {
+        deliveryFee = defaultFee;
+      }
+    }
     const estimatedTime = data.type === 'PICKUP'
       ? (globalSettings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME)
       : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);

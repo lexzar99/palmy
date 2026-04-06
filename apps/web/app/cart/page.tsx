@@ -57,6 +57,8 @@ export default function CartPage() {
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
+  const [checkingDelivery, setCheckingDelivery] = useState(false);
 
   const [restaurantSettings, setRestaurantSettings] = useState({
     isOpen: true,
@@ -142,7 +144,6 @@ export default function CartPage() {
           try {
             const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers });
             setSavedAddresses(addrRes.data || []);
-            // Auto-fill default address if no address in form
             const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
             if (defaultAddr && !userRes.data.address) {
               setFormData(prev => ({ ...prev, deliveryStreet: defaultAddr.street, deliveryZip: defaultAddr.zip }));
@@ -150,12 +151,32 @@ export default function CartPage() {
           } catch {}
         }
       }
+
+      // Delivery check if coords available
+      if (orderType === "DELIVERY" && currentRestaurantId) {
+        const storedCoords = localStorage.getItem("platform_coords");
+        if (storedCoords) {
+          const { lat, lng } = JSON.parse(storedCoords);
+          setCheckingDelivery(true);
+          try {
+            const dRes = await axios.get(`${API_URL}/api/delivery/check`, { params: { lat, lng, restaurantId: currentRestaurantId } });
+            setDeliveryCheck(dRes.data);
+            if (dRes.data.available) {
+              setRestaurantSettings(prev => ({ 
+                ...prev, 
+                deliveryFee: dRes.data.deliveryFee,
+                minOrderAmount: dRes.data.minOrder
+              }));
+            }
+          } catch {} finally { setCheckingDelivery(false); }
+        }
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setPageLoading(false);
     }
-  }, [currentRestaurantId]);
+  }, [currentRestaurantId, orderType]);
 
   const handleApplyPromo = () => {
     const code = promoCodeInput.trim().toLowerCase();
@@ -201,6 +222,8 @@ export default function CartPage() {
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
         restaurantId: useCartStore.getState().restaurantId || undefined,
+        lat: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lat : undefined,
+        lng: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lng : undefined,
         items: items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,

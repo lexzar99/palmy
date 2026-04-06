@@ -1,64 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapPin, X, ArrowRight, Truck, Store, AlertCircle } from "lucide-react";
+import { MapPin, X, ArrowRight, Truck, Store, AlertCircle, Loader2 } from "lucide-react";
 
 interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (address: string, orderType: "DELIVERY" | "PICKUP") => void;
+  onConfirm: (address: string, orderType: "DELIVERY" | "PICKUP", coords?: {lat: number, lng: number}) => void;
   onFail?: (reason: string) => void;
   orderType: "DELIVERY" | "PICKUP";
   setOrderType: (type: "DELIVERY" | "PICKUP") => void;
 }
 
-const ALLOWED_CITIES = ["lund"];
-
-const isAddressAllowed = (address: string) => {
-  const lower = address.toLowerCase().trim();
-  // Check if the address contains any disallowed city explicitly
-  const hasMalmö = lower.includes("malmö") || lower.includes("malmo");
-  const hasHelsingborg = lower.includes("helsingborg");
-  const hasStockholm = lower.includes("stockholm");
-  const hasGöteborg = lower.includes("göteborg") || lower.includes("goteborg");
-  
-  if (hasMalmö || hasHelsingborg || hasStockholm || hasGöteborg) {
-    return { ok: false, reason: "Vi levererar tyvärr inte till din stad ännu. Just nu levererar vi endast i Lund." };
-  }
-  return { ok: true };
-};
-
 const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderType }: AddressModalProps) => {
-  const [address, setAddress] = useState("");
+  const [input, setInput] = useState("");
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [selectedCoords, setSelectedCoords] = useState<{lat: number, lng: number} | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      const storedAddress = localStorage.getItem("platform_address") || "";
+      const storedCoords = localStorage.getItem("platform_coords");
+      setInput(storedAddress);
+      if (storedCoords) setSelectedCoords(JSON.parse(storedCoords));
+    }
+  }, [isOpen]);
+
+  const fetchSuggestions = async (text: string) => {
+    if (text.length < 3) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_GEOAPIFY_KEY || "YOUR_GEOAPIFY_KEY"; // Fallback placeholder
+      const response = await fetch(
+        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&bias=proximity:13.19,55.70&limit=5&apiKey=${apiKey}`
+      );
+      const data = await response.json();
+      setSuggestions(data.features || []);
+    } catch (err) {
+      console.error("Autocomplete error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleInputChange = (val: string) => {
+    setInput(val);
+    setError(null);
+    setSelectedCoords(null);
+    
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 300);
+  };
+
+  const handleSelect = (s: any) => {
+    const formatted = s.properties.formatted;
+    const [lng, lat] = s.geometry.coordinates;
+    setInput(formatted);
+    setSelectedCoords({ lat, lng });
+    setSuggestions([]);
+  };
 
   const handleSubmit = () => {
-    if (!address.trim()) {
+    if (!input.trim()) {
       setError(orderType === "DELIVERY" ? "Ange din leveransadress." : "Ange din stad eller område.");
       return;
     }
 
-    if (orderType === "PICKUP") {
-      const check = isAddressAllowed(address);
-      if (!check.ok) {
-        if (onFail) onFail(check.reason!);
-        else setError(check.reason!);
-        return;
-      }
-      onConfirm(address.trim(), orderType);
-      return;
-    }
-
-    // DELIVERY: check city
-    const check = isAddressAllowed(address);
-    if (!check.ok) {
-      if (onFail) onFail(check.reason!);
-      else setError(check.reason!);
-      return;
-    }
-
-    onConfirm(address.trim(), orderType);
+    // Logic for Lund check could be expanded here using the coordinates
+    onConfirm(input.trim(), orderType, selectedCoords || undefined);
   };
 
   return (
@@ -75,7 +92,7 @@ const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderT
             initial={{ scale: 0.96, y: 30 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.96, y: 30 }}
-            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl"
+            className="w-full max-w-md bg-zinc-900 border border-white/10 rounded-[2rem] p-6 shadow-2xl relative"
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
@@ -112,19 +129,36 @@ const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderT
             </div>
 
             {/* Address input */}
-            <div className="mb-4">
+            <div className="mb-4 relative">
               <div className={`flex items-center gap-3 rounded-xl bg-zinc-800 border px-4 py-3.5 transition-all ${error ? "border-red-500/50" : "border-white/5 focus-within:border-gold-500"}`}>
                 <MapPin className="text-gold-500 shrink-0" size={18} />
                 <input
                   type="text"
-                  value={address}
-                  onChange={(e) => { setAddress(e.target.value); setError(null); }}
+                  value={input}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                   placeholder={orderType === "DELIVERY" ? "Gatuadress, postnummer..." : "Stad eller område..."}
                   className="w-full bg-transparent text-sm font-bold text-zinc-100 placeholder:text-zinc-500 focus:outline-none"
                   autoFocus
                 />
+                {loading && <Loader2 size={16} className="animate-spin text-gold-500" />}
               </div>
+
+              {/* Suggestions Dropdown */}
+              {suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-800 border border-white/10 rounded-2xl overflow-hidden z-[210] shadow-2xl">
+                  {suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleSelect(s)}
+                      className="w-full text-left px-5 py-4 hover:bg-white/5 transition-all flex items-start gap-3 border-b border-white/5 last:border-none"
+                    >
+                      <MapPin size={14} className="text-gold-500 mt-1 shrink-0" />
+                      <span className="text-[11px] font-bold text-zinc-100">{s.properties.formatted}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {error && (
                 <motion.div
@@ -139,7 +173,7 @@ const AddressModal = ({ isOpen, onClose, onConfirm, onFail, orderType, setOrderT
             </div>
 
             <p className="text-[10px] text-zinc-500 font-bold mb-5">
-              Vi levererar för tillfället <span className="text-gold-500">endast i Lund</span>. Ange din adress så kontrollerar vi om vi levererar dit.
+              Vi levererar för tillfället i <span className="text-gold-500 uppercase">Lund och närliggande zoner</span>. Ange din adress för att se alternativ.
             </p>
 
             <button

@@ -101,7 +101,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       const isGlobal = !nextSettings.slug && !nextSettings.restaurantId;
       const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
       
-      if (isMatch || (isGlobal && (!restaurantSlug || restaurantSlug === "palmyra"))) {
+      if (isMatch || (isGlobal && !restaurantSlug)) {
         setRestaurant((prev: any) => ({
           ...prev,
           isOpen: nextSettings.isOpen ?? prev?.isOpen ?? true,
@@ -326,7 +326,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {/* Overlays / Modals */}
       <AnimatePresence>
         {selectedProduct && (
-          <ProductModal product={selectedProduct} restaurantId={restaurant?.id || "palmyra"} onClose={() => setSelectedProduct(null)} />
+          <ProductModal product={selectedProduct} restaurantId={restaurant?.id || ""} onClose={() => setSelectedProduct(null)} />
         )}
       </AnimatePresence>
 

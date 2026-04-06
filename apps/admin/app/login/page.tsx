@@ -47,10 +47,10 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center justify-center mb-10">
-          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-dark-500 text-3xl shadow-2xl shadow-gold-500/20 mb-6">P</div>
+          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-dark-500 text-3xl shadow-2xl shadow-gold-500/20 mb-6">M</div>
           <div className="text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60 mb-2">Authenticated Access</div>
-            <div className="text-2xl font-black tracking-tighter text-[var(--text-primary)] uppercase italic">Palmyra <span className="text-gold-500">Admin</span></div>
+            <div className="text-2xl font-black tracking-tighter text-[var(--text-primary)] uppercase italic">MatGo <span className="text-gold-500">Admin</span></div>
           </div>
         </div>
 

@@ -87,7 +87,7 @@ export default function SearchPage() {
                  filtered.map(r => (
                    <Link
                      key={r.id}
-                     href={r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`}
+                     href={`/restaurants/${r.slug}`}
                      className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all p-3 shadow-xl"
                    >
                      <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden bg-zinc-800/50">

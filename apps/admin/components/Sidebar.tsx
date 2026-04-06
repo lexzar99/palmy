@@ -91,6 +91,7 @@ const Sidebar = () => {
   const mainLinks = [
     { href: "/orders", label: "Ordrar", icon: ShoppingCart },
     { href: "/overview", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/analytics", label: "Analys", icon: BarChart3 },
     { href: "/history", label: "Föregående", icon: Clock },
     { href: "/menu", label: "Meny", icon: Utensils },
     isSuperAdmin && !selectedRestaurantId 

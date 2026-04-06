@@ -192,8 +192,7 @@ export default function HomePage() {
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
-  const getRestaurantHref = (r: Restaurant) =>
-    r.slug === "palmyra" ? "/menu" : `/restaurants/${r.slug}`;
+  const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
 
   const getImageSrc = (path?: string) => {
     if (!path) return "";
@@ -210,9 +209,20 @@ export default function HomePage() {
     router.push(getRestaurantHref(r));
   };
 
-  const handleAddressConfirmed = (newAddress: string, newOrderType: "DELIVERY" | "PICKUP") => {
+  const handleAddressConfirmed = (newAddress: string, newOrderType: "DELIVERY" | "PICKUP", coords?: {lat: number, lng: number}) => {
     saveAddress(newAddress);
     toggleOrderType(newOrderType);
+    if (coords) {
+      localStorage.setItem("platform_coords", JSON.stringify(coords));
+    } else {
+      localStorage.removeItem("platform_coords");
+    }
+
+    // Try to sync city
+    const lower = newAddress.toLowerCase();
+    const cityMatch = cities.find(c => lower.includes(c.name.toLowerCase()));
+    if (cityMatch) setSelectedCity(cityMatch);
+
     setShowAddressModal(false);
     if (pendingHref) {
       router.push(pendingHref);
@@ -317,7 +327,7 @@ export default function HomePage() {
               {deals.map((deal, i) => (
                   <Link
                     key={deal.id}
-                    href={deal.restaurant?.slug ? (deal.restaurant.slug === 'palmyra' ? '/menu' : `/restaurants/${deal.restaurant.slug}`) : '/search'}
+                    href={deal.restaurant?.slug ? `/restaurants/${deal.restaurant.slug}` : '/search'}
                     className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group transition-all hover:border-emerald-500/50 hover:-translate-y-1"
                   >
                      <div className="absolute top-[-20px] right-[-20px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
