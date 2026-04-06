@@ -68,7 +68,9 @@ const addMinutes = (date: Date, minutes: number) => {
   return new Date(date.getTime() + minutes * 60000);
 };
 
-const ReceiptPage = () => {
+import { Suspense } from "react";
+
+const ReceiptPageContent = () => {
   const searchParams = useSearchParams();
   const orderId = searchParams?.get("orderId");
   
@@ -382,4 +384,10 @@ const ReceiptPage = () => {
   );
 }
 
-export default ReceiptPage;
+export default function ReceiptPage() {
+  return (
+    <Suspense fallback={<div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" size={40} /></div>}>
+      <ReceiptPageContent />
+    </Suspense>
+  );
+}
