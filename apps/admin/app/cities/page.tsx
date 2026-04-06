@@ -403,7 +403,7 @@ const CitiesPage = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-zinc-900 border border-[var(--border-strong)] rounded-[2.5rem] p-10 space-y-8"
+              className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[2.5rem] p-10 space-y-8"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center space-y-2">

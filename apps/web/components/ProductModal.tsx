@@ -125,7 +125,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
            {product.imageUrl ? (
               <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-obsidian flex items-center justify-center text-7xl">🍔</div>
+              <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-obsidian flex items-center justify-center text-5xl">🍔</div>
            )}
            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
            

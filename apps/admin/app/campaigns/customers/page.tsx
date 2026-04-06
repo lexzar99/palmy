@@ -137,7 +137,7 @@ export default function CustomerCampaignsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1400px] mx-auto">
         
         {/* Header */}
@@ -169,7 +169,7 @@ export default function CustomerCampaignsPage() {
           
           {/* Campaigns List */}
           <div className="space-y-4">
-             <div className="flex items-center justify-between px-8 py-4 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-3xl mb-4">
+             <div className="flex items-center justify-between px-8 py-4 glass border border-[var(--border-subtle)] rounded-3xl mb-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Målgrupper & Kampanjer ({campaigns.length})</span>
                 <Settings2 size={16} className="text-[var(--text-primary)]/10" />
              </div>
@@ -177,7 +177,7 @@ export default function CustomerCampaignsPage() {
              {loading ? (
                 [1,2,3].map(i => <div key={i} className="h-32 rounded-3xl bg-[var(--border-subtle)] animate-pulse border border-[var(--border-subtle)]" />)
              ) : campaigns.length === 0 ? (
-                <div className="py-20 text-center bg-[#0a0c14] rounded-3xl border border-dashed border-[var(--border-subtle)] flex flex-col items-center">
+                <div className="py-20 text-center glass rounded-3xl border border-dashed border-[var(--border-subtle)] flex flex-col items-center">
                    <div className="w-16 h-16 bg-[var(--border-subtle)] rounded-full flex items-center justify-center mb-4"><Gift className="text-[var(--text-primary)]/10" size={32} /></div>
                    <p className="font-black uppercase tracking-widest text-[var(--text-primary)]/20">Inga kampanjer än</p>
                 </div>
@@ -186,7 +186,7 @@ export default function CustomerCampaignsPage() {
                   <button 
                     key={c.id} 
                     onClick={() => setSelectedCampaign(c)}
-                    className={`w-full text-left group p-8 rounded-[2.5rem] border transition-all hover:pl-10 ${selectedCampaign?.id === c.id ? "bg-gold-500/5 border-gold-500 shadow-2xl" : "bg-[#0a0c14] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
+                    className={`w-full text-left group p-8 rounded-[2.5rem] border transition-all hover:pl-10 ${selectedCampaign?.id === c.id ? "bg-gold-500/5 border-gold-500 shadow-2xl" : "glass border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
                   >
                     <div className="flex items-start justify-between mb-6">
                        <div>
@@ -231,7 +231,7 @@ export default function CustomerCampaignsPage() {
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
                     className="sticky top-10 space-y-6"
                   >
-                     <div className="bg-[#0a0c14] border border-[var(--border-strong)] rounded-[2.5rem] p-10 overflow-hidden relative">
+                     <div className="glass border border-[var(--border-strong)] rounded-[2.5rem] p-10 overflow-hidden relative">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-3xl pointer-events-none" />
                         
                         <div className="flex items-start justify-between mb-8">
@@ -320,7 +320,7 @@ export default function CustomerCampaignsPage() {
                       </div>
                    </motion.div>
                 ) : (
-                  <div className="sticky top-10 h-[500px] border border-dashed border-[var(--border-strong)] rounded-[2.5rem] bg-[#0a0c14] flex flex-col items-center justify-center text-center p-10">
+                  <div className="sticky top-10 h-[500px] border border-dashed border-[var(--border-strong)] rounded-[2.5rem] glass flex flex-col items-center justify-center text-center p-10">
                      <div className="w-20 h-20 bg-[var(--border-subtle)] rounded-full flex items-center justify-center mb-6"><Sparkles className="text-[var(--text-primary)]/10" size={40} /></div>
                      <h3 className="text-xl font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-2">Välj en kampanj</h3>
                      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-primary)]/10 leading-relaxed max-w-[200px]">Skapa unika koder till specifika kunder för att driva försäljning.</p>
@@ -335,7 +335,7 @@ export default function CustomerCampaignsPage() {
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[#0a0c14] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
+             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl glass border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
                 <div className="p-10 border-b border-[var(--border-subtle)] flex items-center justify-between">
                    <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Skapa <span className="text-gold-500">Kundkampanj</span></h2>
                    <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} className="text-[var(--text-primary)]/20" /></button>
@@ -350,7 +350,7 @@ export default function CustomerCampaignsPage() {
                          </div>
                          <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Rabatt-typ</label>
-                            <select name="discountType" className="w-full bg-[#121421] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-gold-500/40 outline-none appearance-none">
+                            <select name="discountType" className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-gold-500/40 outline-none appearance-none">
                                <option value="PERCENTAGE">Procent (%)</option>
                                <option value="FIXED">Fast Pris (kr)</option>
                             </select>
@@ -369,7 +369,7 @@ export default function CustomerCampaignsPage() {
                          </div>
                          <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Slutdatum</label>
-                            <input name="validUntil" type="date" className="w-full bg-[#121421] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-gold-500/40 outline-none text-[var(--text-primary)]/40" />
+                            <input name="validUntil" type="date" className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-gold-500/40 outline-none text-[var(--text-primary)]/40" />
                          </div>
                       </div>
                       <div className="space-y-2">
@@ -391,8 +391,8 @@ export default function CustomerCampaignsPage() {
       <AnimatePresence>
         {showGenerateModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-3xl bg-[#121421] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[#0a0c14]">
+             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-3xl bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between glass">
                    <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500">
                          <Users size={24} />
@@ -440,12 +440,12 @@ export default function CustomerCampaignsPage() {
                                value={customerSearch}
                                onChange={(e) => setCustomerSearch(e.target.value)}
                                placeholder="Sök namn/tel..." 
-                               className="w-full bg-[#0a0c14] border border-[var(--border-strong)] rounded-xl pl-9 pr-4 py-2.5 text-[10px] font-bold focus:outline-none focus:border-gold-500/30 transition-all" 
+                               className="w-full glass border border-[var(--border-strong)] rounded-xl pl-9 pr-4 py-2.5 text-[10px] font-bold focus:outline-none focus:border-gold-500/30 transition-all" 
                              />
                          </div>
                       </div>
 
-                      <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-3xl overflow-hidden max-h-[300px] overflow-y-auto custom-scrollbar">
+                      <div className="glass border border-[var(--border-subtle)] rounded-3xl overflow-hidden max-h-[300px] overflow-y-auto custom-scrollbar">
                          {filteredCustomers.map(c => (
                            <button 
                              key={c.id} 
@@ -470,7 +470,7 @@ export default function CustomerCampaignsPage() {
                    </div>
                 </div>
 
-                <div className="p-8 bg-[#0a0c14] border-t border-[var(--border-strong)] flex items-center justify-between gap-6">
+                <div className="p-8 glass border-t border-[var(--border-strong)] flex items-center justify-between gap-6">
                    <div className="text-left flex-1">
                       <div className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-1">Kodens Regler</div>
                       <div className="text-[11px] font-black text-[var(--text-primary)]/60">{showGenerateModal.discountType === 'PERCENTAGE' ? `${showGenerateModal.discountValue}%` : `${showGenerateModal.discountValue} kr`} rabatt • Min {showGenerateModal.minOrder} kr</div>

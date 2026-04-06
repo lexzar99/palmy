@@ -30,7 +30,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = () => setTheme(prev => (prev === "dark" ? "light" : "dark"));
 
-  if (!mounted) return <div className="bg-[#07080d] min-h-screen" />;
+  if (!mounted) return <div className="bg-[var(--bg-primary)] min-h-screen" />;
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>

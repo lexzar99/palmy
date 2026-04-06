@@ -97,7 +97,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#07080d",
+        background: "var(--bg-primary)",
         flexDirection: "column",
         gap: "24px",
         padding: "20px",
@@ -129,7 +129,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <button 
               onClick={() => window.location.reload()}
               style={{
-                background: "#e7b24b",
+                background: "var(--bg-primary)",
                 color: "#1c1c1c",
                 border: "none",
                 padding: "10px 20px",

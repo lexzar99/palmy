@@ -174,10 +174,10 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
     }));
   };
 
-  if (loading) return <div className="min-h-screen bg-[#02040a] flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" size={40} /></div>;
+  if (loading) return <div className="min-h-screen glass flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" size={40} /></div>;
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto space-y-12 pb-32">
         
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
@@ -203,7 +203,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
            
            {/* Regular Hours with Shifts */}
-           <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10 overflow-hidden relative">
+           <div className="glass border border-[var(--border-subtle)] rounded-[3rem] p-10 overflow-hidden relative">
               <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
               
               <div className="flex items-center gap-3 mb-10 relative z-10">
@@ -236,10 +236,10 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                                 <div className="flex items-center gap-3 flex-1">
                                    <div className="w-8 h-8 rounded-lg bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 text-[9px] font-black">{idx + 1}</div>
                                    <div className="flex items-center gap-2 flex-1">
-                                      <input type="time" value={shift.open} onChange={(e) => updateShift(day.key, idx, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                                      <input type="time" value={shift.open} onChange={(e) => updateShift(day.key, idx, "open", e.target.value)} className="flex-1 glass border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                                       <span className="text-[var(--text-primary)]/10">-</span>
                                       <div className="flex-1 relative">
-                                        <input type="time" value={shift.close} onChange={(e) => updateShift(day.key, idx, "close", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                                        <input type="time" value={shift.close} onChange={(e) => updateShift(day.key, idx, "close", e.target.value)} className="w-full glass border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                                         {shift.close < shift.open && shift.close !== "00:00" && (
                                            <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>
                                         )}
@@ -251,7 +251,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                                       <button onClick={() => removeShift(day.key, idx)} className="p-2.5 bg-rose-500/10 text-rose-500 rounded-xl hover:bg-rose-500/20 transition-all"><MinusCircle size={14}/></button>
                                    )}
                                    {dayData.shifts.length === 1 && idx === 0 && (
-                                      <button onClick={() => addShift(day.key)} className="p-2.5 bg-gold-500/10 text-gold-500 rounded-xl hover:bg-gold-500/20 transition-all flex items-center gap-2 text-[8px] font-black uppercase"><PlusCircle size={14}/> Extra skift</button>
+                                      <button onClick={() => addShift(day.key)} className="p-2.5 bg-gold-500/10 text-gold-500 rounded-xl hover:bg-gold-500/10 transition-all flex items-center gap-2 text-[8px] font-black uppercase"><PlusCircle size={14}/> Extra skift</button>
                                    )}
                                 </div>
                              </div>
@@ -265,7 +265,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
            </div>
 
            {/* Special Hours */}
-           <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10">
+           <div className="glass border border-[var(--border-subtle)] rounded-[3rem] p-10">
               <div className="flex items-center justify-between mb-10">
                  <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500"><CalendarDays size={20} /></div>
@@ -283,7 +283,7 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                       <div className="grid grid-cols-2 gap-4">
                          <div className="space-y-1">
                             <label className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 ml-2">Datum</label>
-                            <input type="date" value={sh.date} onChange={(e) => updateSpecialHour(i, "date", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                            <input type="date" value={sh.date} onChange={(e) => updateSpecialHour(i, "date", e.target.value)} className="w-full glass border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                          </div>
                          <div className="space-y-1">
                             <label className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 ml-2">Status</label>
@@ -295,10 +295,10 @@ export default function RestaurantHoursPage({ params }: { params: Promise<{ rest
                       
                       {!sh.closed && (
                         <div className="flex items-center gap-3">
-                           <input type="time" value={sh.open} onChange={(e) => updateSpecialHour(i, "open", e.target.value)} className="flex-1 bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                           <input type="time" value={sh.open} onChange={(e) => updateSpecialHour(i, "open", e.target.value)} className="flex-1 glass border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                            <span className="text-[var(--text-primary)]/10">-</span>
                            <div className="flex-1 relative">
-                             <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="w-full bg-[#02040a] border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
+                             <input type="time" value={sh.close} onChange={(e) => updateSpecialHour(i, "close", e.target.value)} className="w-full glass border border-[var(--border-strong)] rounded-xl px-4 py-2 text-xs font-black text-[var(--text-primary)] focus:border-gold-500/40 outline-none" />
                              {sh.close < sh.open && sh.close !== "00:00" && <div className="absolute -top-6 right-0 text-[7px] font-black uppercase text-gold-500 flex items-center gap-1"><Moon size={8}/> Nästa dag</div>}
                            </div>
                         </div>

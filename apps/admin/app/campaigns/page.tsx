@@ -14,7 +14,7 @@ import { motion } from "framer-motion";
 
 export default function CampaignsHubPage() {
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1000px] mx-auto">
         
         {/* Header */}
@@ -30,7 +30,7 @@ export default function CampaignsHubPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-           <Link href="/campaigns/restaurants" className="group relative bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-12 overflow-hidden transition-all hover:border-gold-500/30 hover:-translate-y-2">
+           <Link href="/campaigns/restaurants" className="group relative glass border border-[var(--border-subtle)] rounded-[3rem] p-12 overflow-hidden transition-all hover:border-gold-500/30 hover:-translate-y-2">
               <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/5 blur-[80px] group-hover:bg-emerald-500/10 transition-all" />
               <div className="w-16 h-16 bg-emerald-500/10 flex items-center justify-center rounded-2xl text-emerald-500 mb-8 group-hover:scale-110 transition-transform">
                  <Store size={32} />
@@ -42,7 +42,7 @@ export default function CampaignsHubPage() {
               </div>
            </Link>
 
-           <Link href="/campaigns/customers" className="group relative bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-12 overflow-hidden transition-all hover:border-gold-500/30 hover:-translate-y-2">
+           <Link href="/campaigns/customers" className="group relative glass border border-[var(--border-subtle)] rounded-[3rem] p-12 overflow-hidden transition-all hover:border-gold-500/30 hover:-translate-y-2">
               <div className="absolute top-0 right-0 w-40 h-40 bg-gold-500/5 blur-[80px] group-hover:bg-gold-500/10 transition-all" />
               <div className="w-16 h-16 bg-gold-500/10 flex items-center justify-center rounded-2xl text-gold-500 mb-8 group-hover:scale-110 transition-transform">
                  <Users size={32} />

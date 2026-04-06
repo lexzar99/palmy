@@ -147,7 +147,7 @@ const OverviewPage = () => {
            </h1>
         </div>
 
-        <div className="flex gap-2 p-1.5 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl shadow-2xl">
+        <div className="flex gap-2 p-1.5 glass border border-[var(--border-subtle)] rounded-2xl shadow-2xl">
            {[
               { id: "today", label: "Idag" },
               { id: "yesterday", label: "Igår" },
@@ -170,7 +170,7 @@ const OverviewPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
          
          {/* Total Revenue */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-gold-500/10 flex items-center justify-center text-gold-500"><CreditCard size={20} /></div>
@@ -182,11 +182,11 @@ const OverviewPage = () => {
                <div className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mb-1">Total Omsättning</div>
                <div className="text-4xl font-black italic tracking-tighter text-[var(--text-primary)]">{(filteredData.currentRev / 100).toLocaleString()} <span className="text-sm font-black uppercase not-italic text-[var(--text-primary)]/40 ml-1">kr</span></div>
             </div>
-            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-gold-500/10 blur-[50px] group-hover:bg-gold-500/20 transition-all" />
+            <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-gold-500/10 blur-[50px] group-hover:bg-gold-500/10 transition-all" />
          </div>
 
          {/* Total Orders */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500"><ShoppingBag size={20} /></div>
@@ -202,7 +202,7 @@ const OverviewPage = () => {
          </div>
 
          {/* Average Order Value */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500"><Zap size={20} /></div>
@@ -214,7 +214,7 @@ const OverviewPage = () => {
          </div>
 
          {/* Active Campaigns - placeholder logic */}
-         <div className="p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] relative overflow-hidden group">
+         <div className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] relative overflow-hidden group">
             <div className="relative z-10">
                <div className="flex items-center justify-between mb-8">
                   <div className="w-12 h-12 rounded-2xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/40"><Target size={20} /></div>
@@ -227,7 +227,7 @@ const OverviewPage = () => {
       </div>
 
       {/* Recent Activity Mini-Section */}
-      <div className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[3rem] p-10">
+      <div className="glass border border-[var(--border-subtle)] rounded-[3rem] p-10">
          <div className="flex items-center justify-between mb-10">
             <div className="flex items-center gap-3">
                <div className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/40"><HistoryIcon size={20} /></div>

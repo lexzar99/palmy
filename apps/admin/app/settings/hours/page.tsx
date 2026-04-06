@@ -49,10 +49,10 @@ export default function HoursSelectionHub() {
     r.city?.name?.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) return <div className="min-h-screen bg-[#02040a] flex items-center justify-center"><div className="w-10 h-10 border-2 border-gold-500/20 border-t-gold-500 rounded-full animate-spin" /></div>;
+  if (loading) return <div className="min-h-screen glass flex items-center justify-center"><div className="w-10 h-10 border-2 border-gold-500/20 border-t-gold-500 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-16">
           <div>
@@ -68,7 +68,7 @@ export default function HoursSelectionHub() {
 
           <div className="relative group min-w-[300px]">
             <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang..." className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök restaurang..." className="w-full glass border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl" />
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export default function HoursSelectionHub() {
                   setRestaurant(r.id, r.name);
                   router.push(`/settings/hours/${r.id}`);
                }}
-               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
+               className="group text-left p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
              >
                 <div className="flex items-start justify-between mb-8">
                    <div className="p-4 bg-[var(--border-subtle)] rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Clock size={24} /></div>

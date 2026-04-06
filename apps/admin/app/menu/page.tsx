@@ -65,14 +65,14 @@ export default function MenuSelectionHub() {
 
   if (loading) {
      return (
-        <div className="min-h-screen bg-[#02040a] flex items-center justify-center">
+        <div className="min-h-screen glass flex items-center justify-center">
            <div className="w-10 h-10 border-2 border-gold-500/20 border-t-gold-500 rounded-full animate-spin" />
         </div>
      );
   }
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1200px] mx-auto">
         
         {/* Header */}
@@ -94,7 +94,7 @@ export default function MenuSelectionHub() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Sök restaurang eller stad..."
-              className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl"
+              className="w-full glass border border-[var(--border-subtle)] rounded-2xl pl-14 pr-6 py-5 text-sm font-black focus:outline-none focus:border-gold-500/30 transition-all shadow-2xl"
             />
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function MenuSelectionHub() {
                   setRestaurant(r.id, r.name);
                   router.push(`/menu/${r.id}`);
                }}
-               className="group text-left p-8 rounded-[2.5rem] bg-[#0a0c14] border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
+               className="group text-left p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] hover:border-gold-500/30 transition-all hover:bg-gold-500/5 flex flex-col h-64 shadow-xl"
              >
                 <div className="flex items-start justify-between mb-8">
                    <div className="p-4 bg-[var(--border-subtle)] rounded-2xl text-gold-500 group-hover:scale-110 transition-transform"><Store size={24} /></div>
@@ -158,7 +158,7 @@ export default function MenuSelectionHub() {
            ))}
 
            {filtered.length === 0 && (
-              <div className="col-span-full py-32 text-center bg-[#0a0c14] border border-dashed border-[var(--border-subtle)] rounded-[3rem]">
+              <div className="col-span-full py-32 text-center glass border border-dashed border-[var(--border-subtle)] rounded-[3rem]">
                  <p className="text-[11px] font-black uppercase tracking-[0.5em] text-[var(--text-primary)]/5">Inga restauranger matchar sökningen</p>
               </div>
            )}

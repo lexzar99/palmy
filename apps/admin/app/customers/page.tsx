@@ -117,7 +117,7 @@ export default function CustomersPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1400px] mx-auto">
         
         {/* Header */}
@@ -138,7 +138,7 @@ export default function CustomersPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Sök namn, telefon..."
-              className="w-full bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl pl-12 pr-6 py-4 text-sm font-bold placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/30 transition-all shadow-xl"
+              className="w-full glass border border-[var(--border-subtle)] rounded-2xl pl-12 pr-6 py-4 text-sm font-bold placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/30 transition-all shadow-xl"
             />
           </div>
         </div>
@@ -147,7 +147,7 @@ export default function CustomersPage() {
           
           {/* List Section */}
           <div className="xl:col-span-1 space-y-3">
-             <div className="px-6 py-4 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-2xl mb-4 flex items-center justify-between">
+             <div className="px-6 py-4 glass border border-[var(--border-subtle)] rounded-2xl mb-4 flex items-center justify-between">
                 <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Registrerade Kunder ({filtered.length})</span>
                 <Settings2 size={14} className="text-[var(--text-primary)]/10" />
              </div>
@@ -160,7 +160,7 @@ export default function CustomersPage() {
                       <button 
                         key={c.id} 
                         onClick={() => fetchCustomerDetails(c.id)}
-                        className={`w-full group flex items-center gap-4 p-4 rounded-2xl border transition-all ${selectedCustomer?.id === c.id ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[#0a0c14] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
+                        className={`w-full group flex items-center gap-4 p-4 rounded-2xl border transition-all ${selectedCustomer?.id === c.id ? "bg-gold-500 border-gold-500 text-dark-500" : "glass border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
                       >
                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedCustomer?.id === c.id ? "bg-dark-500 text-gold-500" : "bg-[var(--border-subtle)] text-gold-500"}`}>
                             {c.name?.charAt(0)}
@@ -185,7 +185,7 @@ export default function CustomersPage() {
                      initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
                      className="space-y-6"
                    >
-                      <div className="bg-[#0a0c14] border border-[var(--border-strong)] rounded-[3rem] p-10 relative overflow-hidden">
+                      <div className="glass border border-[var(--border-strong)] rounded-[3rem] p-10 relative overflow-hidden">
                          <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
                          
                          <div className="flex flex-col lg:flex-row gap-10 items-start">
@@ -250,7 +250,7 @@ export default function CustomersPage() {
                                           { icon: MapPin, label: "Adress", value: selectedCustomer.address || "Ej angiven" },
                                           { icon: LayoutGrid, label: "Stad", value: selectedCustomer.city || "Ej angiven" },
                                        ].map((item, i) => (
-                                          <div key={i} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center gap-6 group hover:border-gold-500/20 transition-all">
+                                          <div key={i} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center gap-6 group hover:border-gold-500/20 transition-all">
                                              <div className="w-12 h-12 bg-[var(--border-subtle)] rounded-2xl flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform"><item.icon size={20} /></div>
                                              <div>
                                                 <div className="text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-1">{item.label}</div>
@@ -264,7 +264,7 @@ export default function CustomersPage() {
                                   {activeTab === "ORDERS" && (
                                      <div className="space-y-4">
                                         {selectedCustomer.orders?.map((order: any) => (
-                                           <div key={order.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center justify-between group hover:border-emerald-500/20 transition-all">
+                                           <div key={order.id} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center justify-between group hover:border-emerald-500/20 transition-all">
                                               <div className="flex items-center gap-6">
                                                  <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 font-black italic">#{order.orderNumber}</div>
                                                  <div>
@@ -286,7 +286,7 @@ export default function CustomersPage() {
                                   {activeTab === "DEALS" && (
                                      <div className="space-y-4">
                                         {selectedCustomer.deals?.map((deal: any) => (
-                                           <div key={deal.id} className="p-8 rounded-[2.5rem] bg-[#0d0f1a] border border-[var(--border-subtle)] flex items-center justify-between group hover:border-gold-500/20 transition-all overflow-hidden relative">
+                                           <div key={deal.id} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center justify-between group hover:border-gold-500/20 transition-all overflow-hidden relative">
                                               {deal.isUsed && <div className="absolute top-0 right-0 p-3 px-6 bg-emerald-500/10 text-emerald-500 font-black text-[8px] uppercase tracking-widest border-b border-l border-emerald-500/20 rounded-bl-3xl">Använd</div>}
                                               <div className="flex items-center gap-6 relative z-10">
                                                  <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500"><Ticket size={24} /></div>
@@ -323,7 +323,7 @@ export default function CustomersPage() {
                       </div>
                    </motion.div>
                 ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-center p-20 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[4rem]">
+                   <div className="h-full flex flex-col items-center justify-center text-center p-20 glass border border-[var(--border-subtle)] rounded-[4rem]">
                       <div className="w-32 h-32 bg-[var(--border-subtle)] rounded-[3rem] flex items-center justify-center mb-10 text-[var(--text-primary)]/10 animate-pulse">
                          <Users size={64} />
                       </div>
@@ -340,8 +340,8 @@ export default function CustomersPage() {
       <AnimatePresence>
         {editingCustomer && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[#121421] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between bg-[#0a0c14]">
+             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
+                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between glass">
                    <h2 className="text-xl font-black uppercase italic tracking-tighter">Profil <span className="text-gold-500">Editering</span></h2>
                    <button onClick={() => setEditingCustomer(null)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} className="text-[var(--text-primary)]/20" /></button>
                 </div>
@@ -396,7 +396,7 @@ export default function CustomersPage() {
       <AnimatePresence>
         {showDeleteModal && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
-             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md bg-[#121421] border-2 border-rose-500/20 rounded-[3rem] p-10 text-center">
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md bg-[var(--bg-secondary)] border-2 border-rose-500/20 rounded-[3rem] p-10 text-center">
                 <div className="w-20 h-20 bg-rose-500/10 text-rose-500 rounded-3xl mx-auto flex items-center justify-center mb-8">
                    <Trash2 size={40} />
                 </div>

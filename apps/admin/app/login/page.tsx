@@ -41,7 +41,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07080d] flex items-center justify-center px-6 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center px-6 font-sans relative overflow-hidden">
       {/* Background Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold-600/5 rounded-full blur-[120px]" />
 
@@ -71,7 +71,7 @@ export default function LoginPage() {
                   spellCheck={false}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full bg-[#07080d] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
+                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
                 />
               </div>
             </div>
@@ -85,7 +85,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-[#07080d] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-16 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
+                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-16 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
                 />
                 <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/10 hover:text-[var(--text-primary)] transition-colors">
                   {showPw ? <EyeOff size={22} /> : <Eye size={22} />}

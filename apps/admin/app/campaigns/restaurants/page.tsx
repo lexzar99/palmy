@@ -91,7 +91,7 @@ export default function RestaurantCampaignsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1400px] mx-auto">
         
         {/* Header */}
@@ -123,7 +123,7 @@ export default function RestaurantCampaignsPage() {
           
           {/* List Section */}
           <div className="space-y-4">
-             <div className="flex items-center justify-between px-8 py-4 bg-[#0a0c14] border border-[var(--border-subtle)] rounded-3xl mb-4">
+             <div className="flex items-center justify-between px-8 py-4 glass border border-[var(--border-subtle)] rounded-3xl mb-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Aktiva i Menyn ({deals.length})</span>
                 <Settings2 size={16} className="text-[var(--text-primary)]/10" />
              </div>
@@ -131,7 +131,7 @@ export default function RestaurantCampaignsPage() {
              {loading ? (
                 [1,2,3].map(i => <div key={i} className="h-32 rounded-3xl bg-[var(--border-subtle)] animate-pulse border border-[var(--border-subtle)]" />)
              ) : deals.length === 0 ? (
-                <div className="py-20 text-center bg-[#0a0c14] rounded-3xl border border-dashed border-[var(--border-subtle)] flex flex-col items-center">
+                <div className="py-20 text-center glass rounded-3xl border border-dashed border-[var(--border-subtle)] flex flex-col items-center">
                    <div className="w-16 h-16 bg-[var(--border-subtle)] rounded-full flex items-center justify-center mb-4"><Gift className="text-[var(--text-primary)]/10" size={32} /></div>
                    <p className="font-black uppercase tracking-widest text-[var(--text-primary)]/20">Inga erbjudanden än</p>
                 </div>
@@ -140,7 +140,7 @@ export default function RestaurantCampaignsPage() {
                   <button 
                     key={d.id} 
                     onClick={() => setSelectedDeal(d)}
-                    className={`w-full text-left group p-8 rounded-[2.5rem] border transition-all hover:pl-10 ${selectedDeal?.id === d.id ? "bg-emerald-500/5 border-emerald-500 shadow-2xl" : "bg-[#0a0c14] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
+                    className={`w-full text-left group p-8 rounded-[2.5rem] border transition-all hover:pl-10 ${selectedDeal?.id === d.id ? "bg-emerald-500/5 border-emerald-500 shadow-2xl" : "glass border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
                   >
                     <div className="flex items-start justify-between mb-6">
                        <div className="flex-1 min-w-0 pr-4">
@@ -182,7 +182,7 @@ export default function RestaurantCampaignsPage() {
                     initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
                     className="sticky top-10 space-y-6"
                   >
-                     <div className="bg-[#0a0c14] border border-[var(--border-strong)] rounded-[2.5rem] p-10 overflow-hidden relative">
+                     <div className="glass border border-[var(--border-strong)] rounded-[2.5rem] p-10 overflow-hidden relative">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl pointer-events-none" />
                         
                         <div className="flex items-start justify-between mb-8">
@@ -284,7 +284,7 @@ export default function RestaurantCampaignsPage() {
                      </div>
                   </motion.div>
                 ) : (
-                  <div className="sticky top-10 h-[500px] border border-dashed border-[var(--border-strong)] rounded-[2.5rem] bg-[#0a0c14] flex flex-col items-center justify-center text-center p-10">
+                  <div className="sticky top-10 h-[500px] border border-dashed border-[var(--border-strong)] rounded-[2.5rem] glass flex flex-col items-center justify-center text-center p-10">
                      <div className="w-20 h-20 bg-[var(--border-subtle)] rounded-full flex items-center justify-center mb-6"><Gift className="text-[var(--text-primary)]/10" size={40} /></div>
                      <h3 className="text-xl font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-2">Välj ett erbjudande</h3>
                      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-primary)]/10 leading-relaxed max-w-[200px]">Justera villkor och synlighet för dina restaurangerbjudanden.</p>
@@ -299,7 +299,7 @@ export default function RestaurantCampaignsPage() {
       <AnimatePresence>
         {showCreateModal && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[#0a0c14] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
+             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl glass border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
                 <div className="p-10 border-b border-[var(--border-subtle)] flex items-center justify-between">
                    <h2 className="text-2xl font-black uppercase italic tracking-tighter leading-none">Skapa <span className="text-emerald-500">Nytt Deal</span></h2>
                    <button onClick={() => setShowCreateModal(false)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} className="text-[var(--text-primary)]/20" /></button>
@@ -313,14 +313,14 @@ export default function RestaurantCampaignsPage() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Restaurang</label>
-                        <select name="restaurantId" className="w-full bg-[#121421] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none appearance-none">
+                        <select name="restaurantId" className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none appearance-none">
                            <option value="">Global (Alla restauranger)</option>
                            {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                         </select>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Rabatt-typ</label>
-                        <select name="discountType" className="w-full bg-[#121421] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none appearance-none">
+                        <select name="discountType" className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none appearance-none">
                            <option value="PERCENTAGE">Procent (%)</option>
                            <option value="FIXED">Fast Belopp (kr)</option>
                         </select>

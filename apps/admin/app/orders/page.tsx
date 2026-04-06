@@ -90,7 +90,7 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
 
       <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="flex items-center justify-between gap-4 cursor-pointer">
         <div className="flex items-center gap-5 flex-1">
-          <div className={`w-12 h-12 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-xs ${isTest ? 'bg-rose-500 text-[var(--text-primary)]' : isNew ? 'bg-gold-500 text-zinc-950 scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
+          <div className={`w-12 h-12 rounded-[1.2rem] transition-all flex items-center justify-center font-black text-xs ${isTest ? 'bg-rose-500 text-[var(--text-primary)]' : isNew ? 'bg-gold-500 text-[var(--text-secondary)] scale-105 rotate-2 shadow-xl shadow-gold-500/20' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
              {String(order.orderNumber).replace("PX-", "")}
           </div>
           <div className="flex-1 min-w-0">
@@ -189,12 +189,12 @@ const OrderCard = ({ order, isNew, expandedOrderId, setExpandedOrderId, setAccep
                        <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "REJECTED"); }} className="p-5 bg-bg-primary hover:bg-rose-500/10 rounded-2xl text-[10px] font-black uppercase text-rose-500/40 hover:text-rose-500 transition-all sm:w-1/3 border border-border-subtle group">
                           Neka order
                        </button>
-                       <button onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} className="p-5 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-2xl text-[11px] font-black uppercase transition-all flex-1 shadow-xl shadow-gold-500/20 flex items-center justify-center gap-3 group active:scale-95">
+                       <button onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} className="p-5 bg-gold-500 hover:bg-gold-400 text-[var(--text-secondary)] rounded-2xl text-[11px] font-black uppercase transition-all flex-1 shadow-xl shadow-gold-500/20 flex items-center justify-center gap-3 group active:scale-95">
                           Acceptera & Skicka till kök <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
                        </button>
                     </>
                  ) : (order.status === "PREPARING" || order.status === "ACCEPTED") ? (
-                    <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "DELIVERED"); }} className="w-full p-5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-2xl text-[11px] font-black uppercase shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 active:scale-95">
+                    <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "DELIVERED"); }} className="w-full p-5 bg-emerald-500 hover:bg-emerald-400 text-[var(--text-secondary)] rounded-2xl text-[11px] font-black uppercase shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center gap-3 active:scale-95">
                        {order.type === "PICKUP" ? "Slutför & Klar för hämtning" : "Skicka på leverans"} <Zap size={18} />
                     </button>
                  ) : null}
@@ -313,12 +313,12 @@ const AdminOrdersPage = () => {
                <h3 className="text-2xl font-black uppercase text-[var(--text-primary)] mb-10 italic tracking-tight underline decoration-gold-500/30 underline-offset-8">Välj Tid</h3>
                <div className="grid grid-cols-3 gap-3 mb-12">
                  {[15, 20, 25, 30, 45, 60].map(t => (
-                    <button key={t} onClick={() => setAcceptDialog({ ...acceptDialog, time: t })} className={`py-5 rounded-2xl font-black text-[13px] transition-all active:scale-90 ${acceptDialog.time === t ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'bg-bg-primary text-text-secondary border border-border-subtle'}`}>{t}m</button>
+                    <button key={t} onClick={() => setAcceptDialog({ ...acceptDialog, time: t })} className={`py-5 rounded-2xl font-black text-[13px] transition-all active:scale-90 ${acceptDialog.time === t ? 'bg-gold-500 text-[var(--text-secondary)] shadow-lg shadow-gold-500/20' : 'bg-bg-primary text-text-secondary border border-border-subtle'}`}>{t}m</button>
                  ))}
                </div>
                <div className="flex gap-4">
                  <button onClick={() => setAcceptDialog(null)} className="flex-1 py-5 text-[10px] font-black uppercase tracking-widest text-text-secondary hover:text-[var(--text-primary)] transition-colors">Stäng</button>
-                 <button onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)} className="flex-[2] py-5 bg-gold-500 text-zinc-950 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Bekräfta</button>
+                 <button onClick={() => updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time)} className="flex-[2] py-5 bg-gold-500 text-[var(--text-secondary)] rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Bekräfta</button>
                </div>
             </motion.div>
           </div>
@@ -353,7 +353,7 @@ const AdminOrdersPage = () => {
                    </div>
                    <div className="pt-8 flex gap-4">
                       <button type="button" onClick={() => setEditingOrder(null)} className="flex-1 py-5 text-[11px] font-black uppercase tracking-widest text-text-secondary hover:text-[var(--text-primary)] transition-colors">Avbryt</button>
-                      <button type="submit" className="flex-1 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Spara Ändringar</button>
+                      <button type="submit" className="flex-1 py-5 bg-gold-500 text-[var(--text-secondary)] rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Spara Ändringar</button>
                    </div>
                 </form>
              </motion.div>
@@ -398,7 +398,7 @@ const AdminOrdersPage = () => {
            <AlertCircle className="text-rose-500 mx-auto mb-6" size={56}/>
            <h3 className="text-xl font-black uppercase text-text-primary mb-4 italic tracking-tight">Kunde inte ansluta</h3>
            <p className="text-text-secondary text-[11px] font-bold uppercase tracking-widest mb-10">{error}</p>
-           <button onClick={fetchData} className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Ladda om rutan</button>
+           <button onClick={fetchData} className="px-10 py-5 bg-gold-500 text-[var(--text-secondary)] rounded-3xl font-black uppercase tracking-widest text-[11px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Ladda om rutan</button>
         </div>
       ) : loading ? (
         <div className="py-40 flex flex-col items-center justify-center gap-8">
@@ -412,7 +412,7 @@ const AdminOrdersPage = () => {
         <div className="space-y-24">
           {sums.pending.length > 0 && (
             <div className="space-y-10">
-              <div className="flex items-center gap-6"><h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-gold-500 italic">VÄNTANDE</h2><div className="flex-1 h-px bg-gold-500/20" /></div>
+              <div className="flex items-center gap-6"><h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-gold-500 italic">VÄNTANDE</h2><div className="flex-1 h-px bg-gold-500/10" /></div>
               <div className="grid grid-cols-1 gap-8">{sums.pending.map(o => <OrderCard key={o.id} order={o} isNew={true} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} setAcceptDialog={setAcceptDialog} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} />)}</div>
             </div>
           )}

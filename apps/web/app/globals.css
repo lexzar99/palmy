@@ -6,8 +6,8 @@
   --color-gold-500: #FF6B35;
   --color-gold-600: #e55217;
   
-  --color-obsidian: #0f1115; /* Subtly lighter than pure black for depth */
-  --color-zinc-glass: rgba(255, 255, 255, 0.03);
+  --color-obsidian: #18181b; /* Pyttelite ljusare mörkgrå för mer kontrast */
+  --color-zinc-glass: rgba(255, 255, 255, 0.05);
 }
 
 @layer base {
@@ -20,7 +20,8 @@
 
   body {
     background-color: var(--color-obsidian);
-    color: #f8fafc; /* Brighter text base */
+    background-image: radial-gradient(circle at top right, rgba(255, 107, 53, 0.03), transparent 400px), radial-gradient(circle at bottom left, rgba(255, 255, 255, 0.02), transparent 400px);
+    color: #ffffff;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;

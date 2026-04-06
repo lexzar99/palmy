@@ -129,7 +129,7 @@ const HistoryPage = () => {
         </div>
         <div className="space-y-4">
           {data.orders.map((o: Order) => (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={o.id} onClick={() => setExpandedId(expandedId === o.id ? null : o.id)} className="glass border border-[var(--border-subtle)] rounded-[2rem] p-6 cursor-pointer hover:border-gold-500/10 hover:bg-[#121421] transition-all group shadow-2xl relative overflow-hidden">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={o.id} onClick={() => setExpandedId(expandedId === o.id ? null : o.id)} className="glass border border-[var(--border-subtle)] rounded-[2rem] p-6 cursor-pointer hover:border-gold-500/10 hover:bg-[var(--bg-secondary)] transition-all group shadow-2xl relative overflow-hidden">
                {o.status === "DELIVERED" && <Activity size={50} className="absolute top-0 right-0 p-4 opacity-5 scale-150 rotate-12 text-emerald-500"/>}
                <div className="flex items-center justify-between gap-6 relative z-10">
                 <div className="flex items-center gap-5">
@@ -171,7 +171,7 @@ const HistoryPage = () => {
                       <div className="flex flex-col gap-6 md:border-l border-[var(--border-subtle)] md:pl-10">
                          <div className="space-y-4">
                            <div className="text-[9px] font-black uppercase text-[var(--text-primary)]/10 tracking-[0.2em]">Kunduppgifter</div>
-                           <div className="bg-[#07080d] p-5 rounded-2xl border border-[var(--border-subtle)] space-y-3">
+                           <div className="bg-[var(--bg-primary)] p-5 rounded-2xl border border-[var(--border-subtle)] space-y-3">
                               <div className="flex justify-between items-center"><span className="text-[9px] font-black text-[var(--text-primary)]/20 uppercase">Mobil</span><span className="font-black text-sm text-[var(--text-primary)]/80 transition-colors uppercase">{o.customerPhone}</span></div>
                               {o.type === 'DELIVERY' && <div className="flex justify-between items-center"><span className="text-[9px] font-black text-[var(--text-primary)]/20 uppercase">Adress</span><span className="font-black text-[11px] text-[var(--text-primary)]/80 text-right uppercase italic leading-tight">{o.deliveryStreet}, {o.deliveryCity}</span></div>}
                            </div>
@@ -219,10 +219,10 @@ const HistoryPage = () => {
       <div className="glass border border-[var(--border-strong)] p-4 lg:p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-4 shadow-2xl relative z-20">
         <div className="relative flex-1 group">
            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/10 group-focus-within:text-gold-500 transition-colors" size={20} />
-           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök bland historiska ordrar..." className="w-full bg-[#07080d] border border-[var(--border-subtle)] rounded-2xl py-5 pl-16 pr-6 text-sm font-bold text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/40 transition-all" />
+           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök bland historiska ordrar..." className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl py-5 pl-16 pr-6 text-sm font-bold text-[var(--text-primary)] placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/40 transition-all" />
         </div>
         <div className="flex gap-2">
-           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-[#07080d] border border-[var(--border-subtle)] rounded-2xl px-6 py-4 text-[11px] font-black uppercase text-[var(--text-primary)]/30 focus:outline-none focus:border-gold-500/30 cursor-pointer appearance-none min-w-[160px]">
+           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl px-6 py-4 text-[11px] font-black uppercase text-[var(--text-primary)]/30 focus:outline-none focus:border-gold-500/30 cursor-pointer appearance-none min-w-[160px]">
               <option value="ALL">Alla Statusar</option>
               <option value="DELIVERED">Klara Ordrar</option>
               <option value="REJECTED">Nekade</option>

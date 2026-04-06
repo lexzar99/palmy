@@ -374,7 +374,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
   const filteredDeals = deals.filter(d => d.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="min-h-screen bg-[#02040a] p-4 lg:p-10 text-[var(--text-primary)] font-sans">
+    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
       <div className="max-w-[1400px] mx-auto space-y-12 pb-32">
         
         {/* Header */}
@@ -432,7 +432,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
         ) : (
            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {activeTab === "PRODUCTS" && filteredProducts.map(p => (
-                 <div key={p.id} className="bg-[#0a0c14] border border-[var(--border-subtle)] rounded-[2.5rem] p-6 group hover:border-gold-500/30 transition-all flex flex-col h-full">
+                 <div key={p.id} className="glass border border-[var(--border-subtle)] rounded-[2.5rem] p-6 group hover:border-gold-500/30 transition-all flex flex-col h-full">
                     <div className="flex gap-4 mb-6">
                        <div className="w-20 h-20 bg-[var(--border-subtle)] rounded-2xl overflow-hidden flex-shrink-0 flex items-center justify-center border border-[var(--border-subtle)]">
                           {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <ImageIcon size={24} className="text-[var(--text-primary)]/10" />}
@@ -462,7 +462,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
       {/* Product Modal Simplified */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md">
-           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#0a0c14] border border-[var(--border-strong)] rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl">
+           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass border border-[var(--border-strong)] rounded-[3rem] w-full max-w-2xl overflow-hidden shadow-2xl">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase italic tracking-tighter">Hantera <span className="text-gold-500">Artikel</span></h2>
                  <button onClick={() => setIsProductModalOpen(false)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} /></button>
@@ -479,7 +479,7 @@ export default function RestaurantMenuPage({ params }: { params: Promise<{ resta
                     </div>
                     <div className="space-y-2 col-span-2">
                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Kategori</label>
-                       <select value={productForm.categoryId} onChange={e => setProductForm({...productForm, categoryId: e.target.value})} className="w-full bg-[#121421] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none appearance-none">
+                       <select value={productForm.categoryId} onChange={e => setProductForm({...productForm, categoryId: e.target.value})} className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none appearance-none">
                           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                        </select>
                     </div>
