@@ -67,6 +67,12 @@ interface Order {
   discountCode?: string;
 }
 
+const formatOrderNumber = (num: any) => {
+  const n = String(num).replace("PX-", "");
+  const prefix = String.fromCharCode(65 + (parseInt(n) % 26)); // A-Z prefix
+  return `${prefix}${n}`;
+};
+
 const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin, isPast, setEditingOrder, onDeleteTestOrder }: any) => {
   const isExpanded = expandedOrderId === order.id;
   const isTest = order.stripePaymentIntentId === "TEST_PAYMENT" || order.discountCode === "test" || order.discountCode === "testa";
@@ -79,25 +85,25 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
         isAccepted 
           ? 'border-emerald-500 shadow-lg shadow-emerald-500/10' 
           : isTest 
-            ? 'border-rose-500/30' 
+            ? 'border-rose-500/10' 
             : 'border-border-subtle'
-      }`}
+      } ${isPast ? 'opacity-70' : ''}`}
     >
       {isTest && (
-        <div className="absolute top-0 right-10 bg-rose-500 text-[var(--text-primary)] text-[8px] font-black uppercase px-4 py-1.5 rounded-b-2xl tracking-[0.2em] shadow-lg z-10 animate-pulse">
+        <div className="absolute top-0 right-10 bg-rose-500 text-white text-[8px] font-black uppercase px-4 py-1.5 rounded-b-2xl tracking-[0.2em] shadow-lg z-10 animate-pulse">
            Bot / Test Order
         </div>
       )}
 
       <div onClick={() => setExpandedOrderId(isExpanded ? null : order.id)} className="p-5 flex items-center justify-between gap-4 cursor-pointer">
         <div className="flex items-center gap-4 flex-1">
-          <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-sm ${isAccepted ? 'bg-emerald-500 text-white' : isTest ? 'bg-rose-500 text-white' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
-             {String(order.orderNumber).replace("PX-", "")}
+          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-sm ${isAccepted ? 'bg-emerald-500 text-white' : isTest ? 'bg-rose-500 text-white' : 'bg-bg-primary text-gold-500 border border-border-subtle'}`}>
+             {formatOrderNumber(order.orderNumber)}
           </div>
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-black uppercase text-text-primary truncate tracking-tight">{order.customerName}</h3>
+              <h3 className="text-xl font-black uppercase text-text-primary truncate tracking-tight">{order.customerName}</h3>
               <span className={`px-2 py-0.5 rounded-full text-[8px] font-black border ${order.type === "DELIVERY" ? "border-sky-500/20 text-sky-500 bg-sky-500/5 transition-colors" : "border-emerald-500/20 text-emerald-500 bg-emerald-500/5 transition-colors"}`}>
                  {order.type === "DELIVERY" ? "UTKÖRNING" : "AVHÄMTNING"}
               </span>
@@ -137,42 +143,63 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                  </div>
                )}
 
-               <div className="bg-bg-primary border border-border-subtle p-5 rounded-2xl flex items-center justify-between">
-                  <div>
-                    <div className="text-[10px] font-black text-text-secondary uppercase tracking-[0.2em] mb-1">Telefon</div>
-                    <div className="text-xl font-black text-text-primary tracking-widest">{order.customerPhone}</div>
+               <div className="bg-bg-primary border border-border-subtle p-5 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                     <div>
+                       <div className="text-[10px] font-black text-text-secondary uppercase tracking-[0.2em] mb-1">Telefon</div>
+                       <div className="text-xl font-black text-text-primary tracking-widest">{order.customerPhone}</div>
+                     </div>
+                     <a href={`tel:${order.customerPhone}`} className="w-12 h-12 rounded-full bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
+                        <Phone size={20} />
+                     </a>
                   </div>
-                  <a href={`tel:${order.customerPhone}`} className="w-12 h-12 rounded-full bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
-                     <Phone size={20} />
-                  </a>
+                  {order.note && (
+                    <div className="mt-4 pt-4 border-t border-border-subtle/50">
+                       <div className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] mb-1">Kundmeddelande (Kassa)</div>
+                       <div className="text-sm font-bold text-text-primary italic leading-relaxed">{order.note}</div>
+                    </div>
+                  )}
                </div>
             </div>
 
-            {order.note && (
-               <div className="bg-amber-500/5 border border-amber-500/20 p-4 rounded-2xl text-[11px] font-bold text-amber-500 italic flex gap-3">
-                  <AlertCircle size={16} className="shrink-0" />
-                  <div><span className="opacity-40 block text-[9px] mb-0.5 tracking-widest uppercase font-black not-italic">Notering</span> {order.note}</div>
+            <div className="space-y-4">
+               <div className="text-[9px] font-black uppercase tracking-[0.4em] text-text-secondary mb-3 flex items-center gap-3" />
+               <div className="space-y-3">
+                 {order.items?.map((it:any, idx: number) => {
+                    const extras = typeof it.selectedExtras === "string" ? JSON.parse(it.selectedExtras) : (it.selectedExtras || []);
+                    return (
+                      <div key={idx} className="bg-bg-primary/30 p-5 rounded-[1.5rem] border border-border-subtle/50 group hover:border-gold-500/20 transition-all">
+                         <div className="flex justify-between items-start mb-2">
+                            <div className="flex gap-4">
+                               <div className="text-gold-500 font-black text-lg">{it.quantity}x</div>
+                               <div>
+                                  <div className="text-xl font-black text-text-primary uppercase tracking-tight leading-tight mb-1">{it.productName}</div>
+                                  {extras.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                       {extras.map((ex: any, i: number) => (
+                                          <span key={i} className="text-[10px] font-bold bg-white/5 border border-white/10 px-3 py-1 rounded-full text-text-secondary uppercase">
+                                             + {ex.extraName || ex.name}
+                                          </span>
+                                       ))}
+                                    </div>
+                                  )}
+                                  {it.note && (
+                                    <div className="mt-3 text-rose-500 font-black uppercase text-[10px] italic">
+                                       Meddelande: {it.note}
+                                    </div>
+                                  )}
+                               </div>
+                            </div>
+                            <div className="text-text-secondary text-sm font-black italic">{Math.round(it.subtotal)} KR</div>
+                         </div>
+                      </div>
+                    );
+                 })}
                </div>
-            )}
-
-            <div className="space-y-2">
-               <div className="text-[9px] font-black uppercase tracking-[0.3em] text-text-secondary mb-3 flex items-center gap-3">
-                  <span>Beställning</span>
-                  <div className="h-px bg-border-subtle flex-1" />
-               </div>
-               {order.items?.map((it:any, idx: number) => (
-                  <div key={idx} className="flex justify-between items-center bg-bg-primary/30 p-3 rounded-xl border border-border-subtle/50">
-                     <div className="font-black text-text-primary text-[11px] uppercase tracking-tight flex items-center gap-3">
-                        <span className="text-gold-500">{it.quantity}x</span>
-                        {getDisplayName(it)}
-                     </div>
-                     <div className="text-text-secondary text-[10px] font-bold italic">{Math.round(it.subtotal)} KR</div>
-                  </div>
-               ))}
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-border-subtle">
-               <div className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary">Totalt Betalt</div>
+               <div className="text-[10px] font-black uppercase tracking-[0.3em] text-text-secondary">Summa att betala</div>
                <div className="text-2xl font-black italic text-gold-500">{Math.round(order.total)} SEK</div>
             </div>
 
@@ -187,7 +214,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                           Godkänn Order <ArrowRight size={16} />
                        </button>
                     </div>
-                 ) : (order.status === "PREPARING" || order.status === "ACCEPTED") ? (
+                 ) : (order.status === "PREPARING" || order.status === "ACCEPTED" || order.status === "READY") ? (
                     <button 
                       onClick={(e) => { 
                         e.stopPropagation(); 
@@ -199,7 +226,7 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                       }} 
                       className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-sky-500/20 transition-all flex items-center justify-center gap-3 active:scale-95"
                     >
-                       Markera som på väg <Zap size={18} />
+                       Markera som {order.type === "PICKUP" ? "Klar" : "På väg"} <Zap size={18} />
                     </button>
                  ) : null}
                  
@@ -314,23 +341,39 @@ const AdminOrdersPage = () => {
   };
 
   const sums = useMemo(() => {
-    if (!isMounted) return { pending: [], active: [], today: [], yesterday: [], activeSum: 0, todaySum: 0, yesterdaySum: 0 };
+    const res: {
+      pending: Order[],
+      active: Order[],
+      today: Order[],
+      yesterday: Order[],
+      activeSum: number,
+      todaySum: number,
+      yesterdaySum: number
+    } = { pending: [], active: [], today: [], yesterday: [], activeSum: 0, todaySum: 0, yesterdaySum: 0 };
+    
+    if (!isMounted) return res;
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
 
-    const pending = orders.filter((o) => o.status === "PENDING" && new Date(o.createdAt) >= startOfToday);
-    const active = orders.filter((o) => ["ACCEPTED", "PREPARING"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
-    const todayCompl = orders.filter(o => ["READY", "DELIVERING", "DELIVERED", "REJECTED", "CANCELLED"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
-    const yesterday = orders.filter(o => ["READY", "DELIVERING", "DELIVERED", "REJECTED", "CANCELLED"].includes(o.status) && new Date(o.createdAt) >= startOfYesterday && new Date(o.createdAt) < startOfToday);
+    // Filter out test orders for the previous sections
+    const nonTestOrders = orders.filter(o => {
+      const isTest = o.stripePaymentIntentId === "TEST_PAYMENT" || o.discountCode === "test" || o.discountCode === "testa";
+      return !isTest;
+    });
 
-    return {
-      pending, active, today: todayCompl, yesterday,
-      activeSum: [...pending, ...active].reduce((acc, o) => acc + o.total, 0),
-      todaySum: todayCompl.reduce((acc, o) => acc + o.total, 0),
-      yesterdaySum: yesterday.reduce((acc, o) => acc + o.total, 0)
-    };
+    res.pending = orders.filter((o) => o.status === "PENDING" && new Date(o.createdAt) >= startOfToday);
+    res.active = orders.filter((o) => ["ACCEPTED", "PREPARING", "READY"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
+    
+    res.today = nonTestOrders.filter(o => ["DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status) && new Date(o.createdAt) >= startOfToday);
+    res.yesterday = nonTestOrders.filter(o => ["DELIVERING", "DELIVERED", "REJECTED", "CANCELLED", "DELIVERY_FAILED"].includes(o.status) && new Date(o.createdAt) >= startOfYesterday && new Date(o.createdAt) < startOfToday);
+
+    res.activeSum = [...res.pending, ...res.active].reduce((acc, o) => acc + o.total, 0);
+    res.todaySum = res.today.reduce((acc, o) => acc + o.total, 0);
+    res.yesterdaySum = res.yesterday.reduce((acc, o) => acc + o.total, 0);
+
+    return res;
   }, [orders, isMounted]);
 
   if (!isMounted) return null;
@@ -428,21 +471,25 @@ const AdminOrdersPage = () => {
         <div className="space-y-16">
           {sums.pending.length > 0 && (
             <div className="space-y-6">
-              <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-500 italic">Nya Inkomna</h2><div className="flex-1 h-px bg-gold-500/10" /></div>
+              <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-gold-500 italic">Nya Inkomna ({sums.pending.length})</h2><div className="flex-1 h-px bg-gold-500/10" /></div>
               <div className="grid grid-cols-1 gap-4">{sums.pending.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} setAcceptDialog={setAcceptDialog} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} />)}</div>
             </div>
           )}
 
           {sums.active.length > 0 && (
             <div className="space-y-6">
-              <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary italic">Aktiva Ordrar</h2><div className="flex-1 h-px bg-border-subtle" /></div>
+              <div className="flex items-center gap-4"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary italic">Aktiva Ordrar ({sums.active.length})</h2><div className="flex-1 h-px bg-border-subtle" /></div>
               <div className="grid grid-cols-1 gap-4">{sums.active.map(o => <OrderCard key={o.id} order={o} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} onDeleteTestOrder={deleteTestOrder} />)}</div>
             </div>
           )}
 
           {(sums.today.length > 0 || sums.yesterday.length > 0) && (
             <div className="space-y-6">
-               <div className="flex items-center gap-4 px-1"><h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary opacity-30 italic">Föregående</h2><div className="flex-1 h-px bg-border-subtle opacity-30" /></div>
+               <div className="flex items-center justify-between px-1">
+                  <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-text-secondary opacity-30 italic">FÖREGÅENDE ({sums.today.length + sums.yesterday.length})</h2>
+                  <div className="text-[10px] font-black text-gold-500 opacity-40 uppercase tabular-nums">{Math.round(sums.todaySum + sums.yesterdaySum)} SEK</div>
+               </div>
+               <div className="h-px bg-border-subtle opacity-30 mt-[-10px]" />
                <div className="space-y-4">
                   {[...sums.today, ...sums.yesterday].slice(0, 15).map(o => <OrderCard key={o.id} order={o} isPast={true} expandedOrderId={expandedOrderId} setExpandedOrderId={setExpandedOrderId} updateStatus={updateStatus} isSuperAdmin={isSuperAdmin} setEditingOrder={setEditingOrder} />)}
                </div>

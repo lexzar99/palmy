@@ -90,8 +90,9 @@ const Sidebar = () => {
   const mainLinks = [
     { href: "/orders", label: "Ordrar", icon: ShoppingCart },
     { href: "/overview", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/history", label: "Historik", icon: Clock },
+    { href: "/history", label: "Föregående", icon: Clock },
     { href: "/menu", label: "Meny", icon: Utensils },
+    { href: "/settings/printing", label: "Inställningar", icon: Settings },
   ];
 
   const adminLinks = isSuperAdmin ? [
