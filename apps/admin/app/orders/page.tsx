@@ -72,7 +72,7 @@ const formatOrderNumber = (num: any) => {
 
 const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog, updateStatus, isSuperAdmin, isPast, setEditingOrder, onDeleteTestOrder }: any) => {
   const isExpanded = expandedOrderId === order.id;
-  const isTest = order.stripePaymentIntentId === "TEST_PAYMENT" || order.discountCode === "test" || order.discountCode === "testa";
+  const isTest = order.stripePaymentIntentId === "TEST_PAYMENT";
   const isAccepted = ["ACCEPTED", "PREPARING", "READY"].includes(order.status);
 
   return (
@@ -177,11 +177,11 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
                                <div>
                                   <div className="text-xl font-black text-text-primary uppercase tracking-tight leading-tight mb-1">{it.productName}</div>
                                   {extras.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
+                                    <div className="flex flex-col gap-1 mt-1 pl-10">
                                        {extras.map((ex: any, i: number) => (
-                                          <span key={i} className="text-[10px] font-bold bg-white/5 border border-white/10 px-3 py-1 rounded-full text-text-secondary uppercase">
-                                             + {ex.extraName || ex.name}
-                                          </span>
+                                           <span key={i} className="text-[11px] font-bold text-text-secondary uppercase">
+                                              {ex.extraName || ex.name}
+                                           </span>
                                        ))}
                                     </div>
                                   )}
@@ -207,30 +207,34 @@ const OrderCard = ({ order, expandedOrderId, setExpandedOrderId, setAcceptDialog
 
             {!isPast && (
               <div className="flex flex-col gap-3 pt-2">
-                 {order.status === "PENDING" ? (
-                    <div className="flex gap-3">
-                       <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "REJECTED"); }} className="px-6 py-4 bg-bg-primary hover:bg-rose-500/10 rounded-2xl text-[10px] font-black uppercase text-rose-500/40 hover:text-rose-500 transition-all border border-border-subtle">
-                          Neka
-                       </button>
-                       <button onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl text-[11px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95">
-                          Godkänn Order <ArrowRight size={16} />
-                       </button>
-                    </div>
-                 ) : (order.status === "PREPARING" || order.status === "ACCEPTED" || order.status === "READY") ? (
-                    <button 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        if (isTest) {
-                          onDeleteTestOrder(order.id);
-                        } else {
-                          updateStatus(order.id, order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"); 
-                        }
-                      }} 
-                      className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-sky-500/20 transition-all flex items-center justify-center gap-3 active:scale-95"
-                    >
-                       Markera som {order.type === "PICKUP" ? "Klar" : "På väg"} <Zap size={18} />
-                    </button>
-                 ) : null}
+                 {!isSuperAdmin && (
+                   <>
+                     {order.status === "PENDING" ? (
+                        <div className="flex gap-3">
+                           <button onClick={(e) => { e.stopPropagation(); updateStatus(order.id, "REJECTED"); }} className="px-6 py-4 bg-bg-primary hover:bg-rose-500/10 rounded-2xl text-[10px] font-black uppercase text-rose-500/40 hover:text-rose-500 transition-all border border-border-subtle">
+                              Neka
+                           </button>
+                           <button onClick={(e) => { e.stopPropagation(); setAcceptDialog({ orderId: order.id, time: 20 }); }} className="flex-1 py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl text-[11px] font-black uppercase transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 active:scale-95">
+                              Godkänn Order <ArrowRight size={16} />
+                           </button>
+                        </div>
+                     ) : (order.status === "PREPARING" || order.status === "ACCEPTED" || order.status === "READY") ? (
+                        <button 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            if (isTest) {
+                              onDeleteTestOrder(order.id);
+                            } else {
+                              updateStatus(order.id, order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"); 
+                            }
+                          }} 
+                          className="w-full py-5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl text-xs font-black uppercase shadow-xl shadow-sky-500/20 transition-all flex items-center justify-center gap-3 active:scale-95"
+                        >
+                           Markera som {order.type === "PICKUP" ? "Klar" : "På väg"} <Zap size={18} />
+                        </button>
+                     ) : null}
+                   </>
+                 )}
                  
                  <div className="flex gap-3">
                     <button onClick={(e) => { e.stopPropagation(); window.open(`/receipt?orderId=${order.id}`, "_blank"); }} className="flex-1 py-4 bg-bg-primary hover:bg-bg-secondary rounded-2xl border border-border-subtle flex items-center justify-center gap-2 text-[10px] font-black uppercase text-text-secondary hover:text-gold-500 transition-all">

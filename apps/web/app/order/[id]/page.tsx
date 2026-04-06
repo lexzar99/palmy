@@ -120,7 +120,7 @@ const OrderStatusPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center">
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -128,7 +128,7 @@ const OrderStatusPage = () => {
 
   if (!order) {
     return (
-       <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
+       <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center p-6 text-center">
           <AlertCircle size={48} className="text-rose-500 mb-6" />
           <h1 className="text-4xl font-black uppercase text-white italic">Order ej hittad</h1>
           <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">Till startsidan</Link>
@@ -144,7 +144,7 @@ const OrderStatusPage = () => {
   const currentIdx = steps.indexOf(currentStatus);
 
   return (
-    <div className="min-h-screen bg-obsidian bg-dot-pattern pt-24 pb-32 px-6">
+    <div className="min-h-screen bg-bg-primary bg-dot-pattern pt-24 pb-32 px-6">
       <div className="max-w-4xl mx-auto">
         
         {/* Dynamic Header */}
@@ -173,7 +173,7 @@ const OrderStatusPage = () => {
 
         {/* Live Status Banner */}
         <motion.div key={currentStatus} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`p-10 rounded-[3rem] border transition-all shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10 text-center md:text-left ${statusInfo.colorClass}`}>
-           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-obsidian/40 border-white/5`}>
+           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-bg-primary/40 border-white/5`}>
               <StatusIcon size={40} className={currentStatus === 'PENDING' ? 'animate-pulse' : ''} />
            </div>
            <div className="flex-1">
@@ -229,9 +229,9 @@ const OrderStatusPage = () => {
                              <h3 className="font-black text-white uppercase italic text-sm tracking-tight">{item.productName}</h3>
                           </div>
                           {item.selectedExtras && Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
-                             <div className="flex flex-wrap gap-2 group-hover:pl-2 transition-all">
+                             <div className="flex flex-col gap-1 mt-2 pl-12 group-hover:pl-14 transition-all">
                                 {item.selectedExtras.map((e: any, idx: number) => (
-                                   <span key={idx} className="text-[9px] font-black uppercase text-zinc-700 bg-white/2 px-2 py-0.5 rounded-md">{e.extraName || e.name}</span>
+                                   <span key={idx} className="text-[11px] font-bold uppercase text-zinc-500">{e.extraName || e.name}</span>
                                 ))}
                              </div>
                           )}

@@ -23,12 +23,12 @@
 }
 
 .light {
-  /* Light Mode: crisp, clean white */
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --border-subtle: rgba(0, 0, 0, 0.08);
+  /* Light Mode: softer contrast to reduce eye strain */
+  --bg-primary: #e2e8f0;
+  --bg-secondary: #f1f5f9;
+  --text-primary: #020617;
+  --text-secondary: #334155;
+  --border-subtle: rgba(0, 0, 0, 0.15);
 }
 
 @layer base {

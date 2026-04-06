@@ -93,7 +93,9 @@ const Sidebar = () => {
     { href: "/overview", label: "Dashboard", icon: LayoutDashboard },
     { href: "/history", label: "Föregående", icon: Clock },
     { href: "/menu", label: "Meny", icon: Utensils },
-    { href: "/settings/printing", label: "Inställningar", icon: Settings },
+    isSuperAdmin && !selectedRestaurantId 
+      ? { href: "/settings/receipt", label: "Kvittolayout", icon: Printer }
+      : { href: "/settings/printing", label: "Inställningar", icon: Settings },
   ];
 
   const adminLinks = isSuperAdmin ? [
