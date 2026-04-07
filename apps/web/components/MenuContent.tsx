@@ -276,7 +276,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               >
                  <div className="flex items-center justify-between mb-10 px-4">
                     <h2 className="text-3xl font-black tracking-tight text-white uppercase italic leading-none truncate max-w-[200px] lg:max-w-none">
-                       {cat.name} <span className="text-zinc-800 ml-4">/ {cat.products.length}</span>
+                       {cat.name}
                     </h2>
                     <div className="h-px bg-white/5 flex-1 mx-8 hidden lg:block" />
                  </div>
