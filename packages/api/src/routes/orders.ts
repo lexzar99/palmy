@@ -77,8 +77,8 @@ const OrderItemSchema = z.object({
 });
 
 const CreateOrderSchema = z.object({
-  restaurantId: z.string().optional(), // Valfritt, fallback till palmyra
-  restaurantSlug: z.string().optional(),
+  restaurantId: z.string().min(1).optional(),
+  restaurantSlug: z.string().min(1).optional(),
   type: z.enum(['PICKUP', 'DELIVERY']),
   paymentMethod: z.string().nullable().optional(),
   customerName: z.string().min(2).max(100),
@@ -102,6 +102,9 @@ const CreateOrderSchema = z.object({
   // GPS coords for zone validation
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+}).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
+  message: 'restaurantId eller restaurantSlug krävs',
+  path: ['restaurantId'],
 });
 
 // POST /api/orders - Skapa ny order
@@ -138,14 +141,16 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
-    // Resolve restaurant
+    // Resolve restaurant (must be explicit to avoid routing orders to the wrong restaurant)
     const restaurant = await prisma.restaurant.findFirst({
-      where: data.restaurantId 
-        ? { id: data.restaurantId } 
-        : data.restaurantSlug 
-          ? { slug: data.restaurantSlug } 
-          : {} // No fallback — grab first available
+      where: data.restaurantId
+        ? { id: data.restaurantId }
+        : { slug: data.restaurantSlug as string },
     });
+    if (!restaurant) {
+      res.status(400).json({ error: 'Ogiltig restaurang' });
+      return;
+    }
 
     const globalSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
     

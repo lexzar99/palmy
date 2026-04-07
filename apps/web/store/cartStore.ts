@@ -21,9 +21,10 @@ export interface CartItem {
 interface CartStore {
   items: CartItem[];
   restaurantId: string | null;
+  restaurantSlug: string | null;
   lastAddedItemName: string | null;
   lastAddedAt: number;
-  addItem: (item: Omit<CartItem, 'cartItemId'>) => void;
+  addItem: (item: Omit<CartItem, 'cartItemId'> & { restaurantSlug?: string }) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
   clearCart: () => void;
@@ -35,10 +36,12 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       items: [],
       restaurantId: null,
+      restaurantSlug: null,
       lastAddedItemName: null,
       lastAddedAt: 0,
       addItem: (item) => set((state) => {
         const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
+        const nextRestaurantSlug = item.restaurantSlug ?? state.restaurantSlug ?? null;
         
         if (isDifferentRestaurant) {
            // We expect the caller to have already confirmed this via window.confirm
@@ -46,6 +49,7 @@ export const useCartStore = create<CartStore>()(
            return {
              items: [{ ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
              restaurantId: item.restaurantId,
+             restaurantSlug: item.restaurantSlug ?? null,
              lastAddedItemName: item.name,
              lastAddedAt: Date.now(),
            };
@@ -54,6 +58,7 @@ export const useCartStore = create<CartStore>()(
         return {
           items: [...state.items, { ...item, cartItemId: Math.random().toString(36).substr(2, 9) }],
           restaurantId: item.restaurantId,
+          restaurantSlug: nextRestaurantSlug,
           lastAddedItemName: item.name,
           lastAddedAt: Date.now(),
         };
@@ -63,6 +68,7 @@ export const useCartStore = create<CartStore>()(
         return {
           items: remainingItems,
           restaurantId: remainingItems.length > 0 ? state.restaurantId : null,
+          restaurantSlug: remainingItems.length > 0 ? state.restaurantSlug : null,
         };
       }),
       updateQuantity: (id, amount) => set((state) => ({
@@ -70,7 +76,7 @@ export const useCartStore = create<CartStore>()(
           i.cartItemId === id ? { ...i, quantity: Math.max(1, i.quantity + amount) } : i
         ),
       })),
-      clearCart: () => set({ items: [], restaurantId: null, lastAddedItemName: null, lastAddedAt: 0 }),
+      clearCart: () => set({ items: [], restaurantId: null, restaurantSlug: null, lastAddedItemName: null, lastAddedAt: 0 }),
       getTotal: () => {
         const items = get().items;
         return items.reduce((total, item) => {

@@ -250,6 +250,7 @@ export default function CartPage() {
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
         restaurantId: useCartStore.getState().restaurantId || undefined,
+        restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
         lat: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lat : undefined,
         lng: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lng : undefined,
         items: items.map((i) => ({

@@ -9,10 +9,11 @@ import ConfirmModal from "./ConfirmModal";
 interface ProductModalProps {
   product: any;
   restaurantId: string;
+  restaurantSlug?: string;
   onClose: () => void;
 }
 
-const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => {
+const ProductModal = ({ product, restaurantId, restaurantSlug, onClose }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
@@ -107,6 +108,7 @@ const ProductModal = ({ product, restaurantId, onClose }: ProductModalProps) => 
     addItem({
       productId: product.id,
       restaurantId,
+      restaurantSlug,
       name: product.name,
       price: product.price,
       quantity,

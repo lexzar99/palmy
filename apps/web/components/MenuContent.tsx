@@ -326,7 +326,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {/* Overlays / Modals */}
       <AnimatePresence>
         {selectedProduct && (
-          <ProductModal product={selectedProduct} restaurantId={restaurant?.id || ""} onClose={() => setSelectedProduct(null)} />
+          <ProductModal
+            product={selectedProduct}
+            restaurantId={restaurant?.id || ""}
+            restaurantSlug={restaurantSlug}
+            onClose={() => setSelectedProduct(null)}
+          />
         )}
       </AnimatePresence>
 
