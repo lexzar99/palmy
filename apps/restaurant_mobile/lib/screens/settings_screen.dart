@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
+import 'print_settings_screen.dart';
 import '../core/theme.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -13,13 +14,11 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _soundEnabled = true;
-  bool _vibrationEnabled = true;
 
   final List<Map<String, String>> _alarms = [
     {'name': 'Standard Signal', 'file': 'order_notification.mp3'},
     {'name': 'Digital Chime', 'file': 'digital.mp3'},
     {'name': 'Retro Bell', 'file': 'bell.mp3'},
-    {'name': 'Modern Alert', 'file': 'modern.mp3'},
   ];
 
   @override
@@ -52,28 +51,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 children: [
                   Container(
                     width: 55, height: 55,
-                    decoration: BoxDecoration(
-                      color: AppTheme.gold,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [BoxShadow(color: AppTheme.gold.withOpacity(0.1), blurRadius: 10)],
-                    ),
-                    child: const Center(child: Text('M',
-                      style: TextStyle(color: AppTheme.charcoal, fontSize: 28, fontWeight: FontWeight.w900))),
+                    decoration: BoxDecoration(color: AppTheme.gold, borderRadius: BorderRadius.circular(18)),
+                    child: const Center(child: Text('M', style: TextStyle(color: AppTheme.charcoal, fontSize: 28, fontWeight: FontWeight.w900))),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          (user?['name'] ?? user?['restaurantName'] ?? 'MatGo Business').toString().toUpperCase(),
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white),
-                        ),
+                        Text((user?['name'] ?? user?['restaurantName'] ?? 'Business').toString().toUpperCase(),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
                         const SizedBox(height: 4),
-                        Text(
-                          user?['email'] ?? '',
-                          style: const TextStyle(fontSize: 13, color: AppTheme.gold, fontWeight: FontWeight.bold),
-                        ),
+                        Text(user?['email'] ?? '', style: const TextStyle(fontSize: 13, color: AppTheme.gold, fontWeight: FontWeight.bold)),
                       ],
                     ),
                   ),
@@ -83,13 +72,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 40),
 
-            // Notifications
+            // Printing
+            _buildSectionHeader('UTSKRIFTER'),
+            const SizedBox(height: 20),
+            _buildSettingTile(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrintSettingsScreen())),
+              icon: Icons.print_outlined,
+              title: 'Utskriftsinställningar',
+              subtitle: 'Automatiska utskrifter, IP & Kopior',
+              trailing: const Icon(Icons.chevron_right, color: Colors.white24),
+            ),
+
+            const SizedBox(height: 40),
+
+            // Notifications & Audio
             _buildSectionHeader('NOTIFIKATIONER & LJUD'),
             const SizedBox(height: 20),
             _buildSettingTile(
               icon: Icons.notifications_active_outlined,
               title: 'Ljud vid ny order',
-              subtitle: 'Spela upp signal när en order inkommer',
+              subtitle: 'Aktivera signal för nya beställningar',
               trailing: Switch(
                 value: _soundEnabled,
                 onChanged: (v) => setState(() => _soundEnabled = v),
@@ -97,44 +99,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             
-            // SIGNAL SELECTION
             if (_soundEnabled) ...[
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.black26,
-                  borderRadius: BorderRadius.circular(24),
+                  color: Colors.black26, 
+                  borderRadius: BorderRadius.circular(24), 
                   border: Border.all(color: Colors.white10),
                 ),
                 child: Column(
-                  children: _alarms.map((alarm) {
-                    final isSelected = orderProvider.selectedAlarm == alarm['file'];
-                    return ListTile(
-                      onTap: () => orderProvider.setAlarm(alarm['file']!),
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, 
-                        color: isSelected ? AppTheme.gold : Colors.white24, size: 20),
-                      title: Text(alarm['name']!, 
-                        style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold, color: Colors.white)),
-                      trailing: isSelected ? const Icon(Icons.music_note, color: AppTheme.gold, size: 18) : null,
-                    );
-                  }).toList(),
+                  children: [
+                    ..._alarms.map((alarm) {
+                      final isSelected = orderProvider.selectedAlarm == alarm['file'];
+                      return ListTile(
+                        onTap: () => orderProvider.setAlarm(alarm['file']!),
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(isSelected ? Icons.radio_button_checked : Icons.radio_button_off, 
+                          color: isSelected ? AppTheme.gold : Colors.white24, size: 20),
+                        title: Text(alarm['name']!, 
+                          style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.w900 : FontWeight.bold, color: Colors.white)),
+                      );
+                    }),
+                    const Divider(color: Colors.white10),
+                    // AUDIO TEST BUTTON
+                    TextButton.icon(
+                      onPressed: () => orderProvider.playAlarm(),
+                      icon: const Icon(Icons.volume_up, color: AppTheme.gold, size: 18),
+                      label: const Text('TESTA LJUD & AKTIVERA LJUDMOTOR', 
+                        style: TextStyle(color: AppTheme.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                    ),
+                  ],
                 ),
               ),
             ],
-
-            const SizedBox(height: 10),
-            _buildSettingTile(
-              icon: Icons.vibration,
-              title: 'Vibration',
-              subtitle: 'Vibrera enheten vid ny order',
-              trailing: Switch(
-                value: _vibrationEnabled,
-                onChanged: (v) => setState(() => _vibrationEnabled = v),
-                activeColor: AppTheme.gold,
-              ),
-            ),
 
             const SizedBox(height: 40),
 
@@ -144,11 +142,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildSettingTile(
               icon: Icons.info_outline,
               title: 'App Version',
-              subtitle: 'Version 1.12.0',
+              subtitle: 'Version 1.23.0',
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
-                child: const Text('LATEST', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white38)),
+                decoration: BoxDecoration(color: AppTheme.gold.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Text('BETA', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppTheme.gold)),
               ),
             ),
 
@@ -161,7 +159,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => auth.logout(),
                 icon: const Icon(Icons.logout, color: Colors.redAccent),
-                label: const Text('LOGGA UT FRÅN SYSTEMET',
+                label: const Text('LOGGA UT',
                   style: TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.redAccent.withOpacity(0.3), width: 2),
@@ -191,31 +189,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required String title,
     required String subtitle,
     Widget? trailing,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
-      decoration: BoxDecoration(
-        color: AppTheme.zinc,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 24, color: Colors.white38),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.bold)),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppTheme.zinc,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Colors.white.withOpacity(0.04)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 24, color: Colors.white38),
+            const SizedBox(width: 20),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
+                  const SizedBox(height: 4),
+                  Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.bold)),
+                ],
+              ),
             ),
-          ),
-          if (trailing != null) trailing,
-        ],
+            if (trailing != null) trailing,
+          ],
+        ),
       ),
     );
   }

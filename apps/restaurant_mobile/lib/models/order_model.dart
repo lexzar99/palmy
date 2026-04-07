@@ -109,7 +109,6 @@ class OrderItemModel {
   });
 
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
-    // Handle selectedExtras which can be a JSON string or a List
     var extrasRaw = json['selectedExtras'];
     List<dynamic> parsedExtras = [];
     
@@ -118,14 +117,21 @@ class OrderItemModel {
         parsedExtras = jsonDecode(extrasRaw);
       } catch (_) {
         if (extrasRaw.isNotEmpty && extrasRaw != "[]") {
-          parsedExtras = [extrasRaw]; // Use raw if not valid json but not empty
+          parsedExtras = [extrasRaw];
         }
       }
     } else if (extrasRaw is List) {
       parsedExtras = extrasRaw;
     }
 
-    // Try multiple fields for product name as it varies in API responses
+    // MAP EXTRAS TO TEXT
+    final List<String> extraTexts = parsedExtras.map((e) {
+      if (e is Map) {
+        return (e['extraName'] ?? e['name'] ?? "").toString();
+      }
+      return e.toString();
+    }).where((s) => s.isNotEmpty).toList();
+
     String name = json['productName'] ?? 
                  json['product']?['name'] ?? 
                  json['name'] ?? 
@@ -136,7 +142,7 @@ class OrderItemModel {
       quantity: (json['quantity'] as num?)?.toInt() ?? 1,
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       basePrice: (json['basePrice'] as num?)?.toDouble() ?? 0.0,
-      selectedExtras: parsedExtras,
+      selectedExtras: extraTexts, // Now contains actual names like "Ris"
       note: json['note'],
     );
   }

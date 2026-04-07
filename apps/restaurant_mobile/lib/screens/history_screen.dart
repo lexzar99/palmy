@@ -39,8 +39,8 @@ class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProvider
       ),
       body: Consumer<OrderProvider>(
         builder: (context, provider, _) {
-          final todayCompleted = provider.completedTodayOrders;
-          final yesterdayCompleted = provider.completedYesterdayOrders;
+          final todayCompleted = provider.todayHistoryOrders;
+          final yesterdayCompleted = provider.yesterdayHistoryOrders;
 
           return Column(
             children: [

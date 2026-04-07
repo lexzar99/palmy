@@ -20,7 +20,7 @@ class PrintService {
                 pw.Center(
                   child: pw.Text('MATGO ORDER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18)),
                 ),
-                pw.Divider(),
+                pw.Divider(thickness: 1),
                 pw.Text('ORDER #${order.orderNumber}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
                 pw.Text('Typ: ${order.type == "DELIVERY" ? "UTKÖRNING" : "AVHÄMTNING"}'),
                 pw.Text('Datum: ${DateFormat('yyyy-MM-dd HH:mm').format(order.createdAt)}'),
@@ -35,7 +35,7 @@ class PrintService {
                   pw.SizedBox(height: 5),
                   pw.Text('NOTERING: ${order.note}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontStyle: pw.FontStyle.italic)),
                 ],
-                pw.Divider(),
+                pw.Divider(thickness: 1),
                 pw.SizedBox(height: 5),
                 ...order.items.map((item) => pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -60,7 +60,7 @@ class PrintService {
                     pw.SizedBox(height: 5),
                   ],
                 )),
-                pw.Divider(),
+                pw.Divider(thickness: 1),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
