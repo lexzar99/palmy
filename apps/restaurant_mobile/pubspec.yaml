@@ -1,6 +1,6 @@
 name: restaurant_mobile
 description: A professional order taking app for MatGo partners.
-version: 1.0.0+1
+version: 1.15.0+15
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -20,6 +20,8 @@ dependencies:
   flutter_svg: ^2.0.10+1
   audioplayers: ^6.1.0
   cached_network_image: ^3.4.1
+  printing: ^5.13.2
+  pdf: ^3.11.1
 
 dev_dependencies:
   flutter_test:
@@ -28,6 +30,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # assets:
-  #   - assets/images/
-  #   - assets/audio/
+  assets:
+    - assets/audio/
