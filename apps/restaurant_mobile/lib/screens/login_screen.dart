@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import '../providers/auth_provider.dart';
 import '../core/theme.dart';
+import '../core/constants.dart';
 import 'package:dio/dio.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -136,6 +137,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         prefixIcon: Icon(Icons.person_outline, size: 20),
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Använd samma inloggning som i MatGo Admin (din restaurang-användare).',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.35),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     const SizedBox(height: 20),
                     TextField(
                       controller: _passwordController,
@@ -171,6 +183,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _testSoundBridge,
                   icon: const Icon(Icons.volume_up, color: AppTheme.gold, size: 16),
                   label: const Text('TESTA MAC-LARM', style: TextStyle(color: AppTheme.gold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Server: ${AppConstants.baseUrl}',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.25),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
                 ),
               ),
             ],

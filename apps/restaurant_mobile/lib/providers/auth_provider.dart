@@ -40,7 +40,16 @@ class AuthProvider with ChangeNotifier {
         return true;
       }
     } on DioException catch (e) {
-      _error = e.response?.data?['error'] ?? 'Inloggning misslyckades';
+      final responseError = e.response?.data is Map ? (e.response?.data['error'] as String?) : null;
+      if (responseError != null && responseError.trim().isNotEmpty) {
+        _error = responseError;
+      } else if (e.response?.statusCode != null) {
+        _error = 'Inloggning misslyckades (HTTP ${e.response?.statusCode})';
+      } else if (e.message != null && e.message!.trim().isNotEmpty) {
+        _error = 'Inloggning misslyckades: ${e.message}';
+      } else {
+        _error = 'Inloggning misslyckades';
+      }
     } catch (e) {
       _error = 'Ett oväntat fel uppstod';
     }
