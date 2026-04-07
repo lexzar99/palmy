@@ -30,6 +30,7 @@ export const DEFAULT_ORIGINS = [
   'http://localhost:3002',
   'https://web-production-67f45.up.railway.app',
   'https://palmy-production-2021.up.railway.app',
+  'https://admin-production-7b07.up.railway.app',
   'https://matgo-admin.up.railway.app',
   'https://palmyra-admin.up.railway.app',
   'https://palmyra-business.up.railway.app',
