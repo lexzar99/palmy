@@ -22,7 +22,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.post('/api/auth/login', {
+      final res = await _api.post('/api/account/login', {
         'identifier': identifier,
         'password': password,
       });
