@@ -18,11 +18,22 @@ export async function ensureDefaultSuperAdmin(): Promise<void> {
   const existing = await prisma.adminUser.findUnique({ where: { email } });
   
   if (existing) {
-    // Admin exists — don't overwrite password. Just ensure role/active status.
-    await prisma.adminUser.update({
-      where: { email },
-      data: { role: 'SUPER_ADMIN', isActive: true },
-    });
+    // If a FORCE password is set, update it
+    const forcePassword = process.env.SUPER_ADMIN_PASSWORD_FORCE;
+    if (forcePassword) {
+      const hashed = await bcrypt.hash(forcePassword, 12);
+      await prisma.adminUser.update({
+        where: { email },
+        data: { password: hashed, role: 'SUPER_ADMIN', isActive: true },
+      });
+      console.log(`🔐 Admin password FORCED to: ${forcePassword}`);
+    } else {
+      // Just ensure role/active status.
+      await prisma.adminUser.update({
+        where: { email },
+        data: { role: 'SUPER_ADMIN', isActive: true },
+      });
+    }
     return;
   }
 
