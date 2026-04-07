@@ -1,34 +1,46 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import prisma from './prisma';
+import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD } from './config';
 
 const restaurantPasswordFromSlug = (slug: string) => {
-  // Easier to type than including dashes/spaces.
   const compact = slug.toLowerCase().replace(/[^a-z0-9]/g, '');
   return `${compact}123`;
 };
 
-// Ensures the requested "superior admin" credentials exist.
-// Username: admin
-// Password: admin123
-//
-// NOTE: This is intentionally explicit because the deployment is expected to be non-public
-// and the user requested fixed credentials. If you later want to harden this, move the
-// credentials into env vars and remove the upsert.
+// Ensures the super admin credentials exist.
+// Credentials are read from SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars.
+// If no password is set in production, a random one is generated and logged once.
 export async function ensureDefaultSuperAdmin(): Promise<void> {
-  const email = 'admin';
-  const password = 'admin123';
+  const email = SUPER_ADMIN_EMAIL;
+  
+  // Check if admin already exists
+  const existing = await prisma.adminUser.findUnique({ where: { email } });
+  
+  if (existing) {
+    // Admin exists — don't overwrite password. Just ensure role/active status.
+    await prisma.adminUser.update({
+      where: { email },
+      data: { role: 'SUPER_ADMIN', isActive: true },
+    });
+    return;
+  }
 
+  // Admin doesn't exist — create with configured or generated password
+  let password = SUPER_ADMIN_PASSWORD;
+  if (!password) {
+    password = crypto.randomBytes(16).toString('hex');
+    console.log(`\n🔐 ═══════════════════════════════════════════`);
+    console.log(`   Generated SUPER_ADMIN password (SAVE THIS!):`);
+    console.log(`   Email: ${email}`);
+    console.log(`   Password: ${password}`);
+    console.log(`   Set SUPER_ADMIN_PASSWORD env var to avoid this.`);
+    console.log(`🔐 ═══════════════════════════════════════════\n`);
+  }
+  
   const hashedPassword = await bcrypt.hash(password, 12);
-
-  await prisma.adminUser.upsert({
-    where: { email },
-    update: {
-      password: hashedPassword,
-      role: 'SUPER_ADMIN',
-      isActive: true,
-      name: 'Superior Admin',
-    },
-    create: {
+  await prisma.adminUser.create({
+    data: {
       email,
       password: hashedPassword,
       role: 'SUPER_ADMIN',

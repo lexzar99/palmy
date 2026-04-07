@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 
@@ -32,16 +33,38 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
   }
 });
 
+const profileUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  email: z.string().email().optional().nullable(),
+  address: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  zip: z.string().max(10).optional(),
+});
+
 // PATCH /api/profile
 router.patch('/', authenticateUser, async (req: any, res: any) => {
   try {
-    const { name, email, address, city, zip } = req.body;
+    const data = profileUpdateSchema.parse(req.body);
+    
+    // Check email uniqueness if changing
+    if (data.email) {
+      const existing = await (prisma as any).user.findFirst({
+        where: { email: data.email, id: { not: req.user.id } }
+      });
+      if (existing) {
+        return res.status(400).json({ error: 'E-postadressen används redan' });
+      }
+    }
+    
     await (prisma as any).user.update({
       where: { id: req.user.id },
-      data: { name, email, address, city, zip }
+      data
     });
     res.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    if (error.name === 'ZodError') {
+      return res.status(400).json({ error: 'Ogiltiga uppgifter', details: error.errors });
+    }
     res.status(500).json({ error: 'Serverfel' });
   }
 });
@@ -56,14 +79,13 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
 
     if (!user?.phone) return res.json([]);
 
-    const deals = await (prisma as any).customerDeal.findMany({
+    const allDeals = await (prisma as any).customerDeal.findMany({
       where: {
         OR: [
           { userId: req.user.id },
           { phone: user.phone }
         ],
         isUsed: false,
-        usageCount: { lt: (prisma as any).customerDeal.fields?.maxUsages ?? 1 },
         campaign: {
           isActive: true,
           OR: [
@@ -75,7 +97,10 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
       include: { campaign: true }
     });
 
-    res.json(deals);
+    // Application-level filter: only return deals where usageCount < maxUsages
+    const activDeals = allDeals.filter((d: any) => d.usageCount < (d.maxUsages || 1));
+
+    res.json(activDeals);
   } catch (error) {
     console.error('Fetch deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta erbjudanden' });

@@ -6,8 +6,32 @@
   --color-gold-500: #E7B24B;
   --color-gold-600: #C28E2E;
   
-  --color-obsidian: #09090b; /* Deep obsidian */
-  --color-zinc-glass: rgba(255, 255, 255, 0.04);
+  --color-obsidian: var(--bg-deep); /* Dynamic obsidian */
+  --color-zinc-glass: var(--glass-border);
+}
+
+:root {
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-deep: #09090b;
+  --bg-card: rgba(30, 30, 35, 0.95);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --glass-bg: rgba(24, 24, 27, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --border-muted: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='light'] {
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --bg-deep: #e2e8f0;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.05);
+  --border-muted: rgba(0, 0, 0, 0.03);
 }
 
 @layer base {
@@ -19,26 +43,27 @@
   }
 
   body {
-    background-color: var(--color-obsidian);
-    color: #ffffff;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 }
 
 /* Glassmorphism Classes - optimized for mobile performance */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.9); /* Slightly more opaque for Safari */
+  background: var(--glass-bg);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
 }
 
 .glass-card {
-  background: rgba(30, 30, 35, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  transition: opacity 0.2s ease;
+  background: var(--bg-card);
+  border: 1px solid var(--border-muted);
+  transition: opacity 0.2s ease, background 0.2s ease;
 }
 
 @media (hover: hover) {

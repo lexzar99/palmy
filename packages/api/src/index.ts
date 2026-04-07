@@ -24,6 +24,8 @@ import deliveryRoutes from './routes/delivery';
 import reportRoutes from './routes/reports';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
+import { runDailyCleanup } from './lib/cleanup';
+import { getAllowedOrigins } from './lib/config';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -37,8 +39,17 @@ const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Broadly allow all origins dynamically for local network and mobile testing contexts
-    callback(null, true);
+    // Allow requests with no origin (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    const allowed = getAllowedOrigins();
+    // Also allow any localhost or 192.168.x.x for dev
+    const isLocalDev = /^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    if (allowed.includes(origin) || isLocalDev) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
   },
   credentials: true,
 };
@@ -58,21 +69,19 @@ app.use(compression());
 
 // Stripe webhooks need raw body
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '2mb' }));
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Static files
 app.use(express.static('public'));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
+  windowMs: 15 * 60 * 1000,
   max: 200,
   message: { error: 'För många förfrågningar, försök igen om en stund.' },
   skip: (req) => {
-    const isAdminRoute = req.path.startsWith('/admin');
-    const isAuthenticated = req.headers.authorization?.startsWith('Bearer ');
-    return ['GET', 'HEAD', 'OPTIONS'].includes(req.method) || isAdminRoute || Boolean(isAuthenticated);
+    return ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   },
 });
 app.use('/api/', limiter);
@@ -159,20 +168,22 @@ const PORT = Number(process.env.PORT || 4000);
 (async () => {
   try {
     await ensureDefaultSuperAdmin();
-    console.log('🔐 Default SUPER_ADMIN ensured (admin/admin123)');
+    console.log('🔐 Super Admin check complete');
     await ensureRestaurantAdmins();
-    console.log('🏪 Restaurant admin logins ensured (one per restaurant slug)');
+    console.log('🏪 Restaurant admin logins ensured');
 
-    // Run loyalty checks once on startup
+    // Run daily maintenance once on startup
     runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
+    runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
     
-    // Schedule for every 24 hours
+    // Schedule daily jobs
     setInterval(() => {
       runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Scheduled run error:', err));
+      runDailyCleanup().catch(err => console.error('[Cleanup] Scheduled run error:', err));
     }, 24 * 60 * 60 * 1000);
 
   } catch (error) {
-    console.warn('⚠️ Could not ensure default SUPER_ADMIN:', error);
+    console.warn('⚠️ Bootstrap error:', error);
   }
 
   httpServer.listen(PORT, '0.0.0.0', () => {

@@ -17,6 +17,15 @@ const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
   return rid;
 };
 
+// Common where clause to exclude test orders from business reports
+const excludeTestOrders = {
+  AND: [
+    { discountCode: { notIn: ['test', 'testa', 'TEST', 'TESTA'] } },
+    { stripePaymentIntentId: { not: 'TEST_PAYMENT' } },
+    { customerName: { not: 'AUTOTEST' } },
+  ]
+};
+
 // GET /api/admin/reports/bi - Business Intelligence Overview
 router.get('/bi', async (req, res) => {
   try {
@@ -38,6 +47,7 @@ router.get('/bi', async (req, res) => {
         where: {
           ...(scopedId ? { restaurantId: scopedId } : {}),
           status: { notIn: ['CANCELLED', 'REJECTED'] },
+          ...excludeTestOrders,
         }
       }),
       // 2. New Customers (Registered) - Only available for Super Admin or global context
@@ -50,7 +60,8 @@ router.get('/bi', async (req, res) => {
         where: {
           ...(scopedId ? { restaurantId: scopedId } : {}),
           status: { notIn: ['CANCELLED', 'REJECTED'] },
-          createdAt: { gte: startDate }
+          createdAt: { gte: startDate },
+          ...excludeTestOrders,
         },
         _sum: { total: true },
         _count: { id: true }
@@ -64,6 +75,7 @@ router.get('/bi', async (req, res) => {
         order: {
           ...(scopedId ? { restaurantId: scopedId } : {}),
           status: { notIn: ['CANCELLED', 'REJECTED'] },
+          ...excludeTestOrders,
         }
       },
       _count: { id: true },
@@ -125,7 +137,8 @@ router.get('/comparison', async (req, res) => {
         where: {
           ...(scopedId ? { restaurantId: scopedId } : {}),
           status: { notIn: ['CANCELLED', 'REJECTED'] },
-          createdAt: { gte: start, lte: end }
+          createdAt: { gte: start, lte: end },
+          ...excludeTestOrders,
         },
         _sum: { total: true },
         _count: { id: true },
@@ -168,7 +181,10 @@ router.get('/customers', async (req, res) => {
       prisma.user.count({ where: { createdAt: { gte: startDate } } }),
       prisma.order.groupBy({
         by: ['userId'],
-        where: { createdAt: { gte: startDate } },
+        where: { 
+          createdAt: { gte: startDate },
+          ...excludeTestOrders,
+        },
         _count: { id: true }
       })
     ]);

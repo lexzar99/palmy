@@ -42,23 +42,30 @@ const restaurantSchema = z.object({
   internalInfo: z.string().nullable().optional(),
 });
 
-const formatRestaurant = (restaurant: any, includeMenu = false) => ({
-  id: restaurant.id,
-  name: restaurant.name,
-  slug: restaurant.slug,
-  description: restaurant.description,
-  cuisine: restaurant.cuisine,
-  address: restaurant.address,
-  city: restaurant.city,
-  zip: restaurant.zip,
-  phone: restaurant.phone,
-  imageUrl: restaurant.imageUrl,
-  heroImageUrl: restaurant.heroImageUrl,
-  rating: restaurant.rating ?? 4.6,
-  ratingCount: restaurant.ratingCount ?? 120,
-  deliveryFee: fromOre(restaurant.deliveryFee),
-  minOrderAmount: fromOre(restaurant.minOrderAmount),
-  etaMinutes: restaurant.etaMinutes ?? 30,
+const formatRestaurant = (restaurant: any, includeMenu = false) => {
+  const activeOrdersCount = (restaurant.orders || []).length;
+  let dynamicEta = restaurant.etaMinutes ?? 35;
+  if (activeOrdersCount >= 10) dynamicEta += 20;
+  else if (activeOrdersCount >= 5) dynamicEta += 10;
+
+  return {
+    id: restaurant.id,
+    name: restaurant.name,
+    slug: restaurant.slug,
+    description: restaurant.description,
+    cuisine: restaurant.cuisine,
+    address: restaurant.address,
+    city: restaurant.city,
+    zip: restaurant.zip,
+    phone: restaurant.phone,
+    imageUrl: restaurant.imageUrl,
+    heroImageUrl: restaurant.heroImageUrl,
+    rating: (restaurant.ratingCount ?? 0) >= 5 ? (restaurant.rating ?? 4.6) : null,
+    ratingCount: restaurant.ratingCount ?? 0,
+    deliveryFee: fromOre(restaurant.deliveryFee),
+    minOrderAmount: fromOre(restaurant.minOrderAmount),
+    etaMinutes: dynamicEta,
+    activeOrdersCount,
   isOpen: (() => {
     try {
       return restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
@@ -106,7 +113,8 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => ({
         })),
       }))
     : undefined,
-});
+  };
+};
 
 // Seed data
 router.post('/seed', authenticate, async (req: AuthRequest, res) => {
@@ -193,17 +201,28 @@ router.get('/', async (req, res) => {
     const { withMenu, city } = req.query;
     const restaurants = await prisma.restaurant.findMany({
       where: city ? { city: city as string } : {},
-      include: withMenu === '1' ? {
-        categories: {
-          orderBy: { position: 'asc' },
-          include: {
-            products: {
-              where: { isActive: true },
-              orderBy: { position: 'asc' },
+      include: {
+        ...(withMenu === '1' ? {
+          categories: {
+            orderBy: { position: 'asc' },
+            include: {
+              products: {
+                where: { isActive: true },
+                orderBy: { position: 'asc' },
+                include: {
+                  extraGroups: {
+                    include: { extraGroup: { include: { extras: { orderBy: { position: 'asc' } } } } }
+                  }
+                }
+              }
             }
           }
+        } : {}),
+        orders: {
+          where: { status: { in: ['PENDING', 'ACCEPTED', 'COOKING', 'DELIVERING'] } },
+          select: { id: true }
         }
-      } : undefined,
+      },
       orderBy: { featuredClass: 'asc' },
     });
 

@@ -392,8 +392,14 @@ export default function HomePage() {
                           <Info size={16} />
                         </button>
                         <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
-                          <Star size={12} className="fill-gold-500 text-gold-500" />
-                          <span className="text-[10px] font-black italic text-zinc-100">{(r.rating ?? 4.6).toFixed(1)}</span>
+                          {r.rating ? (
+                            <>
+                              <Star size={12} className="fill-gold-500 text-gold-500" />
+                              <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] font-black italic text-emerald-400">NY!</span>
+                          )}
                         </div>
                         {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
                           <div className="px-3 py-1.5 rounded-full bg-emerald-500 text-dark-500 flex items-center gap-1 shadow-lg">
@@ -566,7 +572,12 @@ export default function HomePage() {
                  <h2 className="text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-4 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
                  <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
               </div>
-              <button className="px-10 py-5 bg-obsidian text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5">Hämta Appen</button>
+              <button 
+                onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
+                className="px-10 py-5 bg-obsidian text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
+              >
+                Hämta Appen
+              </button>
            </div>
         </section>
       </div>

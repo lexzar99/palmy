@@ -12,9 +12,9 @@ import {
 } from '../lib/restaurantSettings';
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
+import { JWT_SECRET } from '../lib/config';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
 class OrderValidationError extends Error {
   constructor(message: string) {
@@ -569,13 +569,8 @@ router.post('/', async (req: Request, res: Response) => {
       io.to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
     }
 
-    // 5. Update discount usage
+    // 5. Update personal deal usage (CustomerDeal)
     if (validatedCode) {
-      await prisma.discountCode.updateMany({
-        where: { code: validatedCode.toUpperCase() },
-        data: { usageCount: { increment: 1 } }
-      });
-      
       const updatedPersonal = await (prisma as any).customerDeal.findFirst({
         where: { code: validatedCode, phone: data.customerPhone }
       });

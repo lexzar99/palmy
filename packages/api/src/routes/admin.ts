@@ -398,13 +398,32 @@ router.patch('/orders/:id/status', async (req, res) => {
   }
 });
 
-// Admin: PATCH /api/admin/orders/:id - Update order details (Super Admin etc)
+// Admin: PATCH /api/admin/orders/:id - Update order details
 router.patch('/orders/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Authorization check
+    const existing = await prisma.order.findUnique({
+      where: { id },
+      select: { id: true, restaurantId: true },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      if (existing.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara uppdatera orders för din restaurang' });
+        return;
+      }
+    }
+    
     const { customerName, customerPhone, customerEmail, deliveryStreet, deliveryCity, deliveryZip, note, status, paymentMethod } = req.body;
     
-    // Scoping check (already handled by common routes, but good to be explicit for Super Admin)
     const order = await prisma.order.update({
       where: { id },
       data: {

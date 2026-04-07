@@ -31,7 +31,12 @@ const InstallPWA = () => {
       }
     };
 
+    const handleManualTrigger = () => {
+      setShowPrompt(true);
+    };
+
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+    window.addEventListener("trigger-pwa-install", handleManualTrigger);
 
     // iOS has no beforeinstallprompt; show the instructions banner.
     if (isIOSDevice && !isStandalone && !recentlyDismissed) {
@@ -40,6 +45,7 @@ const InstallPWA = () => {
 
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt as any);
+      window.removeEventListener("trigger-pwa-install", handleManualTrigger);
     };
   }, []);
 

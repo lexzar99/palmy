@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../lib/prisma';
 import { haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /api/delivery/check?lat=X&lng=Y&restaurantId=Z

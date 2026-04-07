@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, User } from "lucide-react";
+import { ShoppingCart, Menu, X, User, Sun, Moon } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
+import { useTheme } from "@/app/providers";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
 import axios from "axios";
@@ -10,6 +11,7 @@ import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 
 const Navbar = () => {
+  const { theme, toggleTheme } = useTheme();
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [isOpen, setIsOpen] = useState(false);
@@ -102,6 +104,13 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-4 relative z-[100]">
+          <button 
+            onClick={toggleTheme}
+            className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+          >
+            {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
+          </button>
+
           <Link 
             href="/cart" 
             className="relative p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors group"
