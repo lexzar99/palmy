@@ -61,25 +61,30 @@ export async function ensureRestaurantAdmins(): Promise<void> {
     restaurants.map(async (r) => {
       const email = r.slug.toLowerCase();
       const existing = await prisma.adminUser.findUnique({ where: { email } });
-      
+      const passwordSnippet = restaurantPasswordFromSlug(r.slug);
+      const hashedPassword = await bcrypt.hash(passwordSnippet, 12);
+
       if (existing) {
-        // Only update name/role, NOT password
+        // FORCE update password during this migration to ensure logins work for the user
         await prisma.adminUser.update({
           where: { email },
-          data: { role: 'STAFF', isActive: true, name: `${r.name} Admin` },
+          data: { 
+            password: hashedPassword,
+            role: 'ADMIN',
+            isActive: true, 
+            name: `${r.name} Business` 
+          },
         });
         return;
       }
 
-      const password = restaurantPasswordFromSlug(r.slug);
-      const hashedPassword = await bcrypt.hash(password, 12);
       await prisma.adminUser.create({
         data: {
           email,
           password: hashedPassword,
-          role: 'STAFF',
+          role: 'ADMIN',
           isActive: true,
-          name: `${r.name} Admin`,
+          name: `${r.name} Business`,
         },
       });
     }),
