@@ -9,20 +9,43 @@ router.get('/categories', async (req, res) => {
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
 
-    const baseWhere: any = {
-      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
-      ...(slug ? { restaurant: { slug: slug as string } } : {}),
-      // Om varken id eller slug anges, hämta globala/default (Palmyra)
-      ...(!restaurantId && !slug ? { restaurantId: null } : {}),
-    };
+    const resolvedRestaurantId = await (async () => {
+      if (restaurantId) return restaurantId as string;
+      if (!slug) return null;
+      const restaurant = await prisma.restaurant.findFirst({
+        where: { slug: slug as string },
+        select: { id: true },
+      });
+      return restaurant?.id ?? null;
+    })();
 
-    const query = async (opts: { onlyActive: boolean }) => {
+    const query = async (opts: { onlyActive: boolean; includeGlobal: boolean }) => {
       const onlyActive = opts.onlyActive;
+      const includeGlobal = opts.includeGlobal;
+
+      const where: any = {
+        // Om varken id eller slug anges, hämta globala/default (Palmyra)
+        ...(!hasRestaurantScope ? { restaurantId: null } : {}),
+        ...(onlyActive ? { isActive: true } : {}),
+      };
+
+      if (hasRestaurantScope) {
+        // Primary: restaurant-scoped menu. Fallback: include global categories too.
+        if (includeGlobal) {
+          where.OR = [
+            ...(resolvedRestaurantId ? [{ restaurantId: resolvedRestaurantId }] : []),
+            { restaurantId: null },
+          ];
+        } else if (resolvedRestaurantId) {
+          where.restaurantId = resolvedRestaurantId;
+        } else {
+          // Unknown slug -> treat as global
+          where.restaurantId = null;
+        }
+      }
+
       return prisma.category.findMany({
-        where: {
-          ...baseWhere,
-          ...(onlyActive ? { isActive: true } : {}),
-        },
+        where,
         orderBy: { position: 'asc' },
         include: {
           products: {
@@ -48,16 +71,24 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    let categories = await query({ onlyActive: true });
+    // 1) Prefer restaurant-linked categories only.
+    let categories = await query({ onlyActive: true, includeGlobal: false });
+    let hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
 
-    // Compatibility fallback: some older datasets have isActive=false for everything
-    // (e.g. after schema changes). If nothing is visible for a restaurant, return
-    // the full menu instead of an empty screen.
-    if (hasRestaurantScope) {
-      const hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
-      if (categories.length === 0 || !hasAnyProducts) {
-        categories = await query({ onlyActive: false });
-      }
+    // 2) If restaurant has no visible menu, include global categories too (common in legacy datasets).
+    if (hasRestaurantScope && (!resolvedRestaurantId || categories.length === 0 || !hasAnyProducts)) {
+      categories = await query({ onlyActive: true, includeGlobal: true });
+      hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
+    }
+
+    // 3) Last-resort compatibility fallback: return even inactive items instead of a blank page.
+    if (hasRestaurantScope && (categories.length === 0 || !hasAnyProducts)) {
+      console.warn('[menu] No active menu found; falling back to include inactive items', {
+        slug,
+        restaurantId,
+        resolvedRestaurantId,
+      });
+      categories = await query({ onlyActive: false, includeGlobal: true });
     }
 
     // Formatera för frontend
