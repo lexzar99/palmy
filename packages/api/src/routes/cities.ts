@@ -52,17 +52,48 @@ router.post('/', async (req, res) => {
 
     // Use a transaction to ensure all updates succeed or fail together
     const city = await (prisma as any).$transaction(async (tx: any) => {
-      // 1. Update/Create city
-      const cityResult = await tx.city.upsert({
-        where: id ? { id } : { slug: citySlug },
-        update: data,
-        create: { ...data, slug: citySlug, id: id || undefined },
-        include: {
-          restaurants: {
-            select: { id: true, name: true, slug: true, isOpen: true, city: true, deliveryZones: true, freeDeliveryAbove: true }
+      // 1. Resolve the city record first
+      let cityRecord;
+      if (id) {
+        cityRecord = await tx.city.findUnique({ where: { id } });
+      } else {
+        cityRecord = await tx.city.findUnique({ where: { slug: citySlug } });
+      }
+
+      if (cityRecord) {
+        // Update existing
+        cityRecord = await tx.city.update({
+          where: { id: cityRecord.id },
+          data: {
+            ...data,
+            restaurants: restaurantIds ? {
+              set: restaurantIds.map((rid: string) => ({ id: rid }))
+            } : undefined
+          },
+          include: {
+            restaurants: {
+              select: { id: true, name: true, slug: true, isOpen: true, city: true, deliveryZones: true, freeDeliveryAbove: true }
+            }
           }
-        }
-      });
+        });
+      } else {
+        // Create new
+        cityRecord = await tx.city.create({
+          data: {
+            ...data,
+            slug: citySlug,
+            id: id || undefined,
+            restaurants: restaurantIds ? {
+              connect: restaurantIds.map((rid: string) => ({ id: rid }))
+            } : undefined
+          },
+          include: {
+            restaurants: {
+              select: { id: true, name: true, slug: true, isOpen: true, city: true, deliveryZones: true, freeDeliveryAbove: true }
+            }
+          }
+        });
+      }
 
       // 2. Update individual restaurant zones if provided
       if (restaurantZones && typeof restaurantZones === 'object') {
@@ -78,7 +109,7 @@ router.post('/', async (req, res) => {
         }
       }
 
-      return cityResult;
+      return cityRecord;
     });
 
     res.json(city);

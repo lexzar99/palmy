@@ -136,8 +136,9 @@ export default function CartPage() {
           ...prev,
           customerName: userRes.data.name || prev.customerName,
           customerPhone: userRes.data.phone || prev.customerPhone,
-          deliveryStreet: userRes.data.address || prev.deliveryStreet,
-          deliveryZip: userRes.data.zip || prev.deliveryZip,
+          // Only pull from profile if form is currently empty
+          deliveryStreet: prev.deliveryStreet || userRes.data.address || "",
+          deliveryZip: prev.deliveryZip || userRes.data.zip || "",
         }));
         // Load saved addresses
         if (token) {
@@ -220,10 +221,11 @@ export default function CartPage() {
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0] : "";
       
+      console.log("[Checkout] Autofilling from storage:", { street, zip });
       setFormData(prev => ({
         ...prev,
         deliveryStreet: street,
-        deliveryZip: zip || prev.deliveryZip
+        deliveryZip: zip
       }));
     }
 

@@ -253,6 +253,7 @@ model Restaurant {
   deals          Deal[]
   extraGroups    ExtraGroup[]
   orders         Order[]
+  groupOrders    GroupOrder[]
 }
 
 model City {
@@ -348,4 +349,36 @@ model VerificationCode {
   createdAt DateTime @default(now())
 
   @@index([phone])
+}
+
+model GroupOrder {
+  id           String           @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id])
+  ownerId      String?
+  ownerName    String
+  ownerPhone   String?
+  status       String           @default("OPEN") // OPEN, LOCKED, COMPLETED, CANCELLED
+  shareCode    String           @unique
+  items        GroupOrderItem[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([restaurantId])
+  @@index([shareCode])
+}
+
+model GroupOrderItem {
+  id           String     @id @default(cuid())
+  groupOrderId String
+  groupOrder   GroupOrder @relation(fields: [groupOrderId], references: [id], onDelete: Cascade)
+  productId    String
+  productName  String
+  userName     String
+  quantity     Int        @default(1)
+  basePrice    Int
+  selectedExtras String   @default("[]")
+  note         String?
+  subtotal     Int
+  createdAt    DateTime   @default(now())
 }
