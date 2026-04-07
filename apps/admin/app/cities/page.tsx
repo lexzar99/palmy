@@ -14,6 +14,7 @@ interface DeliveryZone {
   radiusKm: number;
   deliveryFee: number;
   minOrder: number;
+  isActive?: boolean;
 }
 
 interface Restaurant {
@@ -22,7 +23,7 @@ interface Restaurant {
   slug: string;
   isOpen: boolean;
   deliveryZones?: string | DeliveryZone[];
-  freeDeliveryAbove?: number;
+  freeDeliveryAbove?: number; // kr in UI
 }
 
 interface City {
@@ -34,15 +35,43 @@ interface City {
   zones: string | DeliveryZone[];
   latitude: number | null;
   longitude: number | null;
-  freeDeliveryAbove: number;
+  freeDeliveryAbove: number; // kr in UI
   restaurants: Restaurant[];
 }
 
 import { API_URL } from "@/lib/api";
 
+const toKr = (maybeOre: any): number => {
+  const n = Number(maybeOre || 0);
+  if (!Number.isFinite(n)) return 0;
+  const rounded = Math.round(n);
+  // If it looks like öre (>= 1000), convert to kr.
+  if (rounded >= 1000) return rounded / 100;
+  return n;
+};
+
+const zoneToUi = (z: any): DeliveryZone => ({
+  id: String(z?.id ?? ''),
+  name: String(z?.name ?? ''),
+  radiusKm: Number(z?.radiusKm || 0),
+  deliveryFee: toKr(z?.deliveryFee ?? z?.fee ?? 0),
+  minOrder: toKr(z?.minOrder ?? 0),
+  isActive: z?.isActive === false ? false : true,
+});
+
+const zoneFromUi = (z: DeliveryZone) => ({
+  id: z.id,
+  name: z.name,
+  radiusKm: z.radiusKm,
+  fee: Math.round((Number(z.deliveryFee) || 0) * 100),
+  minOrder: Math.round((Number(z.minOrder) || 0) * 100),
+  isActive: z.isActive === false ? false : true,
+});
+
 const getZones = (city: City): DeliveryZone[] => {
   if (!city.zones) return [];
-  return typeof city.zones === 'string' ? JSON.parse(city.zones || '[]') : city.zones;
+  const raw = typeof city.zones === 'string' ? JSON.parse(city.zones || '[]') : city.zones;
+  return (Array.isArray(raw) ? raw : []).map(zoneToUi);
 };
 
 const CitiesPage = () => {
@@ -66,7 +95,15 @@ const CitiesPage = () => {
         axios.get(`${API_URL}/api/cities?all=true`),
         axios.get(`${API_URL}/api/restaurants`),
       ]);
-      setCities(citiesRes.data);
+      const normalizedCities = (citiesRes.data || []).map((c: any) => ({
+        ...c,
+        freeDeliveryAbove: toKr(c.freeDeliveryAbove),
+        restaurants: (c.restaurants || []).map((r: any) => ({
+          ...r,
+          freeDeliveryAbove: toKr(r.freeDeliveryAbove),
+        })),
+      }));
+      setCities(normalizedCities);
       setAllRestaurants(restRes.data);
       if (citiesRes.data.length > 0 && (!selectedCityId || !citiesRes.data.find((c: City) => c.id === selectedCityId))) {
         setSelectedCityId(citiesRes.data[0].id);
@@ -106,15 +143,17 @@ const CitiesPage = () => {
     if (!selectedCity) return;
     setIsSaving(true);
     try {
-      const zones = getZones(selectedCity);
+      const zones = getZones(selectedCity).map(zoneFromUi);
       const restaurantIds = (selectedCity.restaurants || []).map(r => r.id);
       
       // Collect all restaurant specific zones and delivery settings
       const restaurantZones: Record<string, any> = {};
       selectedCity.restaurants?.forEach(r => {
+        const zonesRaw = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+        const uiZones = (Array.isArray(zonesRaw) ? zonesRaw : []).map(zoneToUi);
         restaurantZones[r.id] = {
-          zones: typeof r.deliveryZones === 'string' ? r.deliveryZones : JSON.stringify(r.deliveryZones || []),
-          freeDeliveryAbove: r.freeDeliveryAbove
+          zones: JSON.stringify(uiZones.map(zoneFromUi)),
+          freeDeliveryAbove: Math.round((Number(r.freeDeliveryAbove || 0)) * 100),
         };
       });
 
@@ -126,8 +165,8 @@ const CitiesPage = () => {
         isActive: selectedCity.isActive,
         latitude: selectedCity.latitude,
         longitude: selectedCity.longitude,
-        freeDeliveryAbove: selectedCity.freeDeliveryAbove,
-        zones: JSON.stringify(zones),
+        freeDeliveryAbove: Math.round((Number(selectedCity.freeDeliveryAbove || 0)) * 100),
+        zones,
         restaurantIds,
         restaurantZones,
       });
@@ -160,7 +199,8 @@ const CitiesPage = () => {
       name: "Ny Zon",
       radiusKm: 5,
       deliveryFee: 39,
-      minOrder: 200
+      minOrder: 200,
+      isActive: true,
     };
 
     setCities(cities.map(c => {
@@ -171,7 +211,8 @@ const CitiesPage = () => {
           ...c,
           restaurants: (c.restaurants || []).map(r => {
             if (r.id !== editingRestaurantId) return r;
-            const current = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const currentRaw = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const current = (Array.isArray(currentRaw) ? currentRaw : []).map(zoneToUi);
             return { ...r, deliveryZones: [...current, newZone] };
           })
         };
@@ -192,7 +233,8 @@ const CitiesPage = () => {
           ...c,
           restaurants: (c.restaurants || []).map(r => {
             if (r.id !== editingRestaurantId) return r;
-            const zones = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const zonesRaw = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const zones = (Array.isArray(zonesRaw) ? zonesRaw : []).map(zoneToUi);
             return { ...r, deliveryZones: zones.map((z: DeliveryZone) => z.id === zoneId ? { ...z, [field]: value } : z) };
           })
         };
@@ -213,7 +255,8 @@ const CitiesPage = () => {
           ...c,
           restaurants: (c.restaurants || []).map(r => {
             if (r.id !== editingRestaurantId) return r;
-            const zones = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const zonesRaw = typeof r.deliveryZones === 'string' ? JSON.parse(r.deliveryZones || '[]') : (r.deliveryZones || []);
+            const zones = (Array.isArray(zonesRaw) ? zonesRaw : []).map(zoneToUi);
             return { ...r, deliveryZones: zones.filter((z: DeliveryZone) => z.id !== zoneId) };
           })
         };
@@ -250,7 +293,12 @@ const CitiesPage = () => {
   };
 
   const activeZones = editingRestaurantId 
-    ? (typeof selectedRestaurant?.deliveryZones === 'string' ? JSON.parse(selectedRestaurant?.deliveryZones || '[]') : (selectedRestaurant?.deliveryZones || []))
+    ? (() => {
+        const raw = typeof selectedRestaurant?.deliveryZones === 'string'
+          ? JSON.parse(selectedRestaurant?.deliveryZones || '[]')
+          : (selectedRestaurant?.deliveryZones || []);
+        return (Array.isArray(raw) ? raw : []).map(zoneToUi);
+      })()
     : (selectedCity ? getZones(selectedCity) : []);
 
   const linkedIds = selectedCity ? (selectedCity.restaurants || []).map(r => r.id) : [];

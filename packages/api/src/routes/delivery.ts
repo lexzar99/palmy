@@ -2,6 +2,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { haversineKm, findDeliveryZone, DeliveryZone } from '../utils/geo';
+import { normalizeDeliveryZones } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -29,8 +30,8 @@ router.get('/check', async (req: Request, res: Response) => {
       return res.json({
         available: true,
         zone: null,
-        deliveryFee: restaurant.deliveryFee,
-        minOrder: restaurant.minOrderAmount,
+        deliveryFee: (restaurant.deliveryFee || 0) / 100,
+        minOrder: (restaurant.minOrderAmount || 0) / 100,
         distanceKm: null,
         message: 'GPS ej konfigurerat för restaurangen. Standardavgift används.'
       });
@@ -41,20 +42,21 @@ router.get('/check', async (req: Request, res: Response) => {
       restaurant.latitude, restaurant.longitude
     );
 
-    let zones: DeliveryZone[] = [];
+    let zonesRaw: any[] = [];
     try {
-      zones = JSON.parse((restaurant as any).deliveryZones || '[]');
+      zonesRaw = JSON.parse((restaurant as any).deliveryZones || '[]');
     } catch {
-      zones = [];
+      zonesRaw = [];
     }
+    const zones: DeliveryZone[] = normalizeDeliveryZones(zonesRaw);
 
     if (zones.length === 0) {
       // No zones configured — use default
       return res.json({
         available: true,
         zone: null,
-        deliveryFee: restaurant.deliveryFee,
-        minOrder: restaurant.minOrderAmount,
+        deliveryFee: (restaurant.deliveryFee || 0) / 100,
+        minOrder: (restaurant.minOrderAmount || 0) / 100,
         distanceKm: Math.round(distanceKm * 10) / 10
       });
     }
@@ -75,9 +77,9 @@ router.get('/check', async (req: Request, res: Response) => {
     return res.json({
       available: true,
       zone: matchedZone.name,
-      deliveryFee: matchedZone.fee,
-      minOrder: matchedZone.minOrder,
-      freeDeliveryAbove: freeAbove || null,
+      deliveryFee: matchedZone.fee / 100,
+      minOrder: matchedZone.minOrder / 100,
+      freeDeliveryAbove: freeAbove ? freeAbove / 100 : null,
       distanceKm: Math.round(distanceKm * 10) / 10
     });
   } catch (err) {

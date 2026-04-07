@@ -5,6 +5,7 @@ import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { io } from '../index';
 import { isRestaurantOpen } from '../lib/openingHours';
+import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -16,6 +17,11 @@ const parseJson = <T>(value: string | null | undefined, fallback: T): T => {
   } catch {
     return fallback;
   }
+};
+
+const safeParseAnyJson = <T>(value: unknown, fallback: T): T => {
+  if (typeof value === 'string') return parseJson<T>(value, fallback);
+  return (value as T) ?? fallback;
 };
 
 const restaurantSchema = z.object({
@@ -40,6 +46,10 @@ const restaurantSchema = z.object({
   openingHours: z.any().optional(),
   adminPassword: z.string().optional(),
   internalInfo: z.string().nullable().optional(),
+  latitude: z.any().optional(),
+  longitude: z.any().optional(),
+  deliveryZones: z.any().optional(),
+  freeDeliveryAbove: z.any().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
@@ -128,7 +138,7 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
       where: { slug: 'palmyra' },
       update: {},
       create: {
-        name: 'MatGo Lund',
+        name: 'Palmyra Pizzeria',
         slug: 'palmyra',
         description: 'Lunds klassiker med pizza, kebab och rullar.',
         cuisine: 'Pizza & Kebab',
@@ -150,7 +160,7 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
       where: { slug: 'sushi-nori' },
       update: {},
       create: {
-        name: 'Sushi Nori',
+        name: 'Sushi Lounge',
         slug: 'sushi-nori',
         description: 'Poké bowls, nigiri och varma rullar.',
         cuisine: 'Sushi',
@@ -171,7 +181,7 @@ router.post('/seed', authenticate, async (req: AuthRequest, res) => {
       where: { slug: 'kebabino' },
       update: {},
       create: {
-        name: 'Kebabino',
+        name: 'Kebab House',
         slug: 'kebabino',
         description: 'Durum, tallrikar och halal kebab.',
         cuisine: 'Kebab',
@@ -262,6 +272,13 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       openingHours: JSON.stringify(payload.openingHours ?? {}),
       internalInfo: payload.internalInfo,
     };
+    if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
+    if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
+    if (payload.freeDeliveryAbove !== undefined) data.freeDeliveryAbove = normalizeMoneyToOre(Number(payload.freeDeliveryAbove || 0));
+    if (payload.deliveryZones !== undefined) {
+      const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
+      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
+    }
 
     const restaurant = await prisma.restaurant.create({
       data: {
@@ -309,6 +326,13 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.tags !== undefined) data.tags = typeof payload.tags === 'string' ? payload.tags : JSON.stringify(payload.tags);
     if (payload.openingHours !== undefined) data.openingHours = typeof payload.openingHours === 'string' ? payload.openingHours : JSON.stringify(payload.openingHours);
     if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;
+    if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
+    if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
+    if (payload.freeDeliveryAbove !== undefined) data.freeDeliveryAbove = normalizeMoneyToOre(Number(payload.freeDeliveryAbove || 0));
+    if (payload.deliveryZones !== undefined) {
+      const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
+      data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
+    }
 
     const restaurant = await prisma.restaurant.update({
       where: { id },

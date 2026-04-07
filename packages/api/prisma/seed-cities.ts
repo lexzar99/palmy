@@ -12,8 +12,8 @@ async function main() {
       deliveryMode: 'ALL',
       isActive: true,
       zones: JSON.stringify([
-        { id: 'z1', name: 'Centrum', radiusKm: 3, deliveryFee: 0, minOrder: 15000 },
-        { id: 'z2', name: 'Utkant', radiusKm: 6, deliveryFee: 4900, minOrder: 25000 },
+        { id: 'z1', name: 'Centrum', radiusKm: 3, fee: 0, minOrder: 15000, isActive: true },
+        { id: 'z2', name: 'Utkant', radiusKm: 6, fee: 4900, minOrder: 25000, isActive: true },
       ])
     },
     create: {
@@ -22,8 +22,8 @@ async function main() {
       deliveryMode: 'ALL',
       isActive: true,
       zones: JSON.stringify([
-        { id: 'z1', name: 'Centrum', radiusKm: 3, deliveryFee: 0, minOrder: 15000 },
-        { id: 'z2', name: 'Utkant', radiusKm: 6, deliveryFee: 4900, minOrder: 25000 },
+        { id: 'z1', name: 'Centrum', radiusKm: 3, fee: 0, minOrder: 15000, isActive: true },
+        { id: 'z2', name: 'Utkant', radiusKm: 6, fee: 4900, minOrder: 25000, isActive: true },
       ])
     }
   });

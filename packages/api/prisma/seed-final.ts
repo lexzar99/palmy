@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
-const kr = (amount: number) => amount * 100;
+const kr = (amount: number) => Math.round(amount * 100);
 
 async function main() {
   console.log('🌱 Starting EMERGENCY SEED To Restore Data...');

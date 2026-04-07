@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -15,7 +16,16 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(campaigns);
+    res.json(
+      campaigns.map((c) => ({
+        ...c,
+        discountValue:
+          c.discountType === 'FIXED'
+            ? normalizeMoneyToOre(Number(c.discountValue || 0)) / 100
+            : c.discountValue,
+        minOrder: normalizeMoneyToOre(Number(c.minOrder || 0)) / 100,
+      })),
+    );
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte hämta kampanjer' });
   }
@@ -25,14 +35,29 @@ router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { title, description, discountType, discountValue, minOrder, maxUsagesPerCustomer, validFrom, validUntil } = req.body;
+    const discountValueDb =
+      discountType === 'FIXED' ? normalizeMoneyToOre(Number(discountValue || 0)) : Math.round(Number(discountValue || 0));
+    const minOrderDb = normalizeMoneyToOre(Number(minOrder || 0));
     const campaign = await prisma.campaign.create({
       data: {
-        title, description, discountType, discountValue, minOrder, maxUsagesPerCustomer,
+        title,
+        description,
+        discountType,
+        discountValue: discountValueDb,
+        minOrder: minOrderDb,
+        maxUsagesPerCustomer,
         validFrom: validFrom ? new Date(validFrom) : null,
         validUntil: validUntil ? new Date(validUntil) : null,
       }
     });
-    res.json(campaign);
+    res.json({
+      ...campaign,
+      discountValue:
+        campaign.discountType === 'FIXED'
+          ? normalizeMoneyToOre(Number(campaign.discountValue || 0)) / 100
+          : campaign.discountValue,
+      minOrder: normalizeMoneyToOre(Number(campaign.minOrder || 0)) / 100,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte skapa kampanj' });
   }
@@ -52,7 +77,14 @@ router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {
       }
     });
     if (!campaign) return res.status(404).json({ error: 'Kampanj hittades inte' });
-    res.json(campaign);
+    res.json({
+      ...campaign,
+      discountValue:
+        campaign.discountType === 'FIXED'
+          ? normalizeMoneyToOre(Number(campaign.discountValue || 0)) / 100
+          : campaign.discountValue,
+      minOrder: normalizeMoneyToOre(Number(campaign.minOrder || 0)) / 100,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte hämta kampanjdetaljer' });
   }
@@ -62,11 +94,36 @@ router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { id, _count, deals, createdAt, updatedAt, ...data } = req.body;
+
+    // If discountValue is provided without discountType, we need the current type to convert correctly.
+    const existing = (data.discountValue !== undefined && data.discountType === undefined)
+      ? await prisma.campaign.findUnique({ where: { id: req.params.id }, select: { discountType: true } })
+      : null;
+    const effectiveDiscountType = data.discountType ?? existing?.discountType;
+
+    const updateData: any = { ...data };
+    if (data.minOrder !== undefined) updateData.minOrder = normalizeMoneyToOre(Number(data.minOrder || 0));
+    if (data.discountValue !== undefined) {
+      updateData.discountValue =
+        effectiveDiscountType === 'FIXED'
+          ? normalizeMoneyToOre(Number(data.discountValue || 0))
+          : Math.round(Number(data.discountValue || 0));
+    }
+    if (data.validFrom !== undefined) updateData.validFrom = data.validFrom ? new Date(data.validFrom) : null;
+    if (data.validUntil !== undefined) updateData.validUntil = data.validUntil ? new Date(data.validUntil) : null;
+
     const campaign = await prisma.campaign.update({
       where: { id: req.params.id },
-      data
+      data: updateData
     });
-    res.json(campaign);
+    res.json({
+      ...campaign,
+      discountValue:
+        campaign.discountType === 'FIXED'
+          ? normalizeMoneyToOre(Number(campaign.discountValue || 0)) / 100
+          : campaign.discountValue,
+      minOrder: normalizeMoneyToOre(Number(campaign.minOrder || 0)) / 100,
+    });
   } catch (error) {
     console.error('Update campaign error:', error);
     res.status(500).json({ error: 'Kunde inte uppdatera kampanj' });

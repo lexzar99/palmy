@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const kr = (amount: number) => amount * 100;
+const kr = (amount: number) => Math.round(amount * 100);
 
 async function main() {
   console.log('🌱 Starting Multi-Restaurant Seed...');
@@ -214,7 +214,7 @@ async function main() {
   // --------------------------------------------------------------------------
   const mcd = await prisma.restaurant.create({
     data: {
-      name: 'Golden Arches',
+      name: "McDonald's",
       slug: 'mcdonalds',
       description: 'Klassiska favoriter som Big Mac och McFeast, snabbt och enkelt.',
       cuisine: 'Snabbmat',

@@ -36,19 +36,19 @@ router.post('/validate', async (req, res) => {
       return;
     }
 
-    const subtotalInOre = Math.round((subtotal || 0) * 100);
-    if (subtotalInOre < discount.minOrder) {
+    const subtotalOre = Math.round((Number(subtotal) || 0) * 100);
+    if (subtotalOre < discount.minOrder) {
       res.status(400).json({
         error: `Minsta ordersumma för denna kod är ${discount.minOrder / 100} kr`,
       });
       return;
     }
 
-    let discountAmount = 0;
+    let discountAmountOre = 0;
     if (discount.type === 'PERCENTAGE') {
-      discountAmount = Math.round(subtotalInOre * discount.value / 100) / 100;
+      discountAmountOre = Math.round(subtotalOre * discount.value / 100);
     } else {
-      discountAmount = Math.min(discount.value / 100, subtotal);
+      discountAmountOre = Math.min(discount.value, subtotalOre);
     }
 
     res.json({
@@ -57,7 +57,8 @@ router.post('/validate', async (req, res) => {
       description: discount.description,
       type: discount.type,
       value: discount.value,
-      discountAmount,
+      // Client expects kr
+      discountAmount: discountAmountOre / 100,
     });
   } catch {
     res.status(500).json({ error: 'Serverfel' });

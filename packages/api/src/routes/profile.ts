@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
+import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -100,7 +101,28 @@ router.get('/deals', authenticateUser, async (req: any, res: any) => {
     // Application-level filter: only return deals where usageCount < maxUsages
     const activDeals = allDeals.filter((d: any) => d.usageCount < (d.maxUsages || 1));
 
-    res.json(activDeals);
+    // NOTE: Client expects kr. Some older rows may have been stored in kr instead of öre.
+    const formatted = activDeals.map((deal: any) => {
+      const campaign = deal.campaign;
+      const discountType = campaign?.discountType;
+      const discountValueRaw = campaign?.discountValue ?? 0;
+      const minOrderOre = normalizeMoneyToOre(campaign?.minOrder ?? 0);
+      const fixedDiscountOre = normalizeMoneyToOre(discountValueRaw);
+
+      return {
+        ...deal,
+        campaign: campaign
+          ? {
+              ...campaign,
+              // FIXED discountValue is stored in öre; PERCENTAGE is stored as percent.
+              discountValue: discountType === 'FIXED' ? fixedDiscountOre / 100 : discountValueRaw,
+              minOrder: minOrderOre / 100,
+            }
+          : campaign,
+      };
+    });
+
+    res.json(formatted);
   } catch (error) {
     console.error('Fetch deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta erbjudanden' });

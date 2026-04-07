@@ -13,6 +13,7 @@ import {
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
+import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -161,8 +162,9 @@ router.post('/', async (req: Request, res: Response) => {
         const { haversineKm, findDeliveryZone } = await import('../utils/geo');
         const dist = haversineKm(data.lat, data.lng, restaurant.latitude, restaurant.longitude);
         
-        let zones = [];
-        try { zones = JSON.parse((restaurant as any).deliveryZones || '[]'); } catch { zones = []; }
+        let zonesRaw: any[] = [];
+        try { zonesRaw = JSON.parse((restaurant as any).deliveryZones || '[]'); } catch { zonesRaw = []; }
+        const zones = normalizeDeliveryZones(zonesRaw);
         
         if (zones.length > 0) {
           const matchedZone = findDeliveryZone(dist, zones);
@@ -383,11 +385,13 @@ router.post('/', async (req: Request, res: Response) => {
 
           if (personalDeal) {
             const isUsable = personalDeal.usageCount < (personalDeal.maxUsages || 1);
-            if (isUsable && subtotal >= personalDeal.campaign.minOrder) {
+            const minOrderOre = normalizeMoneyToOre(personalDeal.campaign.minOrder ?? 0);
+            if (isUsable && subtotal >= minOrderOre) {
               if (personalDeal.campaign.discountType === 'PERCENTAGE') {
                 manualDiscountAmount = Math.round(subtotal * personalDeal.campaign.discountValue / 100);
               } else {
-                manualDiscountAmount = Math.min(personalDeal.campaign.discountValue, subtotal);
+                const fixedDiscountOre = normalizeMoneyToOre(personalDeal.campaign.discountValue ?? 0);
+                manualDiscountAmount = Math.min(fixedDiscountOre, subtotal);
               }
               validatedCode = personalDeal.code;
             }

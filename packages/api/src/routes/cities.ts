@@ -1,7 +1,16 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
+import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
+
+const safeJsonParse = <T>(value: string, fallback: T): T => {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+};
 
 // GET /api/cities — include restaurants linked to each city with their unique delivery zones
 router.get('/', async (req, res) => {
@@ -36,11 +45,15 @@ router.post('/', async (req, res) => {
     const data: any = {
       name,
       deliveryMode: deliveryMode || 'ALL',
-      zones: typeof zones === 'string' ? zones : JSON.stringify(zones || []),
+      zones: (() => {
+        const parsed = typeof zones === 'string' ? safeJsonParse(zones, []) : (zones || []);
+        return JSON.stringify(normalizeDeliveryZones(parsed));
+      })(),
       isActive: isActive !== undefined ? isActive : true,
       latitude: latitude || null,
       longitude: longitude || null,
-      freeDeliveryAbove: freeDeliveryAbove || 0,
+      // Input from admin UI is in kr. Store in öre.
+      freeDeliveryAbove: normalizeMoneyToOre(Number(freeDeliveryAbove || 0)),
     };
 
     // If restaurantIds provided, update restaurant links
@@ -99,11 +112,16 @@ router.post('/', async (req, res) => {
       if (restaurantZones && typeof restaurantZones === 'object') {
         for (const [rid, rdata] of Object.entries(restaurantZones)) {
           const zonePayload: any = rdata as any;
+          const normalizedZones = (() => {
+            const parsed = typeof zonePayload.zones === 'string' ? safeJsonParse(zonePayload.zones, []) : (zonePayload.zones || []);
+            return JSON.stringify(normalizeDeliveryZones(parsed));
+          })();
           await tx.restaurant.update({
             where: { id: rid },
             data: { 
-              deliveryZones: typeof zonePayload.zones === 'string' ? zonePayload.zones : JSON.stringify(zonePayload.zones || []),
-              freeDeliveryAbove: zonePayload.freeDeliveryAbove !== undefined ? zonePayload.freeDeliveryAbove : undefined
+              deliveryZones: normalizedZones,
+              // Input from admin UI is in kr. Store in öre.
+              freeDeliveryAbove: zonePayload.freeDeliveryAbove !== undefined ? normalizeMoneyToOre(Number(zonePayload.freeDeliveryAbove || 0)) : undefined
             }
           });
         }

@@ -6,6 +6,7 @@ import { io } from '../index';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, parseDealProductIds } from '../lib/deals';
+import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 router.use(authenticate);
@@ -1143,6 +1144,82 @@ router.delete('/extra-groups/:id', async (req, res) => {
 // DEALS (scoped by restaurantId)
 // =====================
 
+const parseJsonArray = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((v): v is string => typeof v === 'string');
+  }
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const formatDealForAdmin = (deal: any) => ({
+  ...deal,
+  dealType:
+    deal.triggerType === 'COMBO'
+      ? 'COMBO'
+      : deal.triggerType === 'MIN_ORDER'
+        ? 'MIN_ORDER'
+        : deal.discountType === 'FIXED'
+          ? 'FIXED'
+          : 'PERCENTAGE',
+  discountValue:
+    deal.discountType === 'FIXED'
+      ? normalizeMoneyToOre(Number(deal.discountValue || 0)) / 100
+      : deal.discountValue,
+  minOrder: normalizeMoneyToOre(Number(deal.minOrder || 0)) / 100,
+  comboProductIds: parseDealProductIds(deal.comboProductIds),
+  applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
+});
+
+const normalizeDealInputForDb = (body: any) => {
+  const next: Record<string, unknown> = { ...body };
+
+  if (body.discountValue !== undefined) {
+    const discountType = body.discountType;
+    const discountValueRaw = Number(body.discountValue || 0);
+    next.discountValue =
+      discountType === 'FIXED' ? normalizeMoneyToOre(discountValueRaw) : Math.round(discountValueRaw);
+  }
+
+  if (body.minOrder !== undefined) {
+    const minOrderRaw = Number(body.minOrder || 0);
+    next.minOrder = normalizeMoneyToOre(minOrderRaw);
+  }
+
+  if (body.comboProductIds !== undefined) {
+    next.comboProductIds =
+      typeof body.comboProductIds === 'string'
+        ? body.comboProductIds
+        : JSON.stringify(body.comboProductIds || []);
+  }
+
+  if (body.applicableRestaurantIds !== undefined) {
+    next.applicableRestaurantIds =
+      typeof body.applicableRestaurantIds === 'string'
+        ? body.applicableRestaurantIds
+        : JSON.stringify(body.applicableRestaurantIds || []);
+  }
+
+  if (body.validFrom !== undefined) {
+    const validFrom =
+      body.validFrom && typeof body.validFrom === 'string' ? new Date(body.validFrom) : body.validFrom;
+    next.validFrom = validFrom instanceof Date && Number.isFinite(validFrom.getTime()) ? validFrom : null;
+  }
+
+  if (body.validUntil !== undefined) {
+    const validUntil =
+      body.validUntil && typeof body.validUntil === 'string' ? new Date(body.validUntil) : body.validUntil;
+    next.validUntil = validUntil instanceof Date && Number.isFinite(validUntil.getTime()) ? validUntil : null;
+  }
+
+  return next;
+};
+
 router.get('/deals', async (req, res) => {
   try {
     const { restaurantId } = req.query;
@@ -1155,7 +1232,7 @@ router.get('/deals', async (req, res) => {
       where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } as any : {},
       orderBy: { sortOrder: 'asc' },
     });
-    res.json(deals);
+    res.json(deals.map(formatDealForAdmin));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -1169,10 +1246,14 @@ router.post('/deals', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
+    const normalized = normalizeDealInputForDb(rest);
     const deal = await prisma.deal.create({
-      data: { ...rest, restaurantId: scopedRestaurantId },
+      data: {
+        ...(normalized as any),
+        ...(scopedRestaurantId ? { restaurant: { connect: { id: scopedRestaurantId } } } : {}),
+      },
     });
-    res.status(201).json(deal);
+    res.status(201).json(formatDealForAdmin(deal));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -1194,9 +1275,9 @@ router.patch('/deals/:id', async (req, res) => {
 
     const deal = await prisma.deal.update({
       where: { id },
-      data
+      data: normalizeDealInputForDb(data),
     });
-    res.json(deal);
+    res.json(formatDealForAdmin(deal));
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
