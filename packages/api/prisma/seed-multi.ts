@@ -89,99 +89,42 @@ async function main() {
     }
   });
 
-  // Sushi Categories
-  const s_cat_nigiri = await prisma.category.create({
-    data: {
-      restaurantId: sushi.id,
-      name: 'Nigiri Klassiker',
-      slug: 'nigiri-klassiker',
-      position: 0,
-      products: {
-        create: [
-          { name: 'Lax Nigiri (8st)', slug: 'lax-nigiri-8', description: 'Klassisk handformad sushi med färsk lax.', price: kr(125), position: 0 },
-          { name: 'Mix Nigiri (10st)', slug: 'mix-nigiri-10', description: 'Kockens val av dagens färskaste fiskar.', price: kr(145), position: 1 },
-        ]
-      }
-    }
-  });
-
-  const s_cat_maki = await prisma.category.create({
+  // Category with options
+  const s_cat1 = await prisma.category.create({
     data: {
       restaurantId: sushi.id,
       name: 'Signaturmaki',
       slug: 'signaturmaki',
-      position: 1,
-      products: {
+      position: 0
+    }
+  });
+
+  // Create extras for Sushi
+  const s_extra_group = await prisma.extraGroup.create({
+    data: {
+      name: 'Välj Tillbehör',
+      type: 'CHECKBOX',
+      required: false,
+      extras: {
         create: [
-          {
-            name: 'Salmon Supreme',
-            slug: 'salmon-supreme',
-            description: 'Lax, avocado, gurka toppad med grillad lax och chilimajo.',
-            price: kr(149),
-            position: 0,
-          },
-          {
-            name: 'Spicy Tuna Roll',
-            slug: 'spicy-tuna',
-            description: 'Tonfisk, gurka, sriracha och salladslök.',
-            price: kr(139),
-            position: 1,
-          }
+          { name: 'Extra Ingefära', priceAddon: kr(10) },
+          { name: 'Extra Wasabi', priceAddon: kr(10) },
+          { name: 'Pinnar', priceAddon: 0 }
         ]
       }
     }
   });
 
-  // --------------------------------------------------------------------------
-  // KEBABINO
-  // --------------------------------------------------------------------------
-  const kebabino = await prisma.restaurant.create({
+  const s_prod1 = await prisma.product.create({
     data: {
-      name: 'Kebabino',
-      slug: 'kebabino',
-      description: 'Lunds bästa kebab! Alltid färskt kött och nybakat bröd.',
-      cuisine: 'Kebab & Grillspecialiteter',
-      city: 'Lund',
-      imageUrl: '/kebab-hero.png', // Placeholder
-      heroImageUrl: '/hero.png',
-      deliveryFee: kr(35),
-      minOrderAmount: kr(120),
-      etaMinutes: 25,
-      rating: 4.9,
-      ratingCount: 412,
-      tags: JSON.stringify(['Kebab', 'Grill', 'Falafel']),
-    }
-  });
-
-  await prisma.category.create({
-    data: {
-      restaurantId: kebabino.id,
-      name: 'Kebabfavoriter',
-      slug: 'kebabfavoriter',
-      position: 0,
-      products: {
+      categoryId: s_cat1.id,
+      name: 'Salmon Supreme',
+      slug: 'salmon-supreme',
+      description: 'Lax, avocado, gurka toppad med grillad lax och chilimajo.',
+      price: kr(149),
+      extraGroups: {
         create: [
-          {
-            name: 'Kebabtallrik Deluxe',
-            slug: 'kebabtallrik-deluxe',
-            description: 'Större portion med extra allt: Pommes, färsk sallad och valfri sås.',
-            price: kr(135),
-            position: 0,
-          },
-          {
-            name: 'Kebabrulle XL',
-            slug: 'kebabrulle-xl',
-            description: 'En gigantisk rulle i vårt hembakade tunnbröd.',
-            price: kr(125),
-            position: 1,
-          },
-          {
-            name: 'Kebabino Mix',
-            slug: 'kebabino-mix',
-            description: 'Blandning av Kebabkött och Kycklingkebab för den hungrige.',
-            price: kr(155),
-            position: 2,
-          }
+          { extraGroupId: s_extra_group.id, position: 0 }
         ]
       }
     }
