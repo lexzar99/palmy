@@ -471,7 +471,8 @@ const UnifiedMenuPage = () => {
     if (!confirm("Importera den senaste Eatsmart-menyn och synka kategorier/produkter?")) return;
     setImporting(true);
     try {
-      const res = await axios.post(`${API_URL}/api/admin/menu/import-eatsmart`, {}, {
+      if (!selectedRestaurantId) throw new Error("Ingen restaurang vald");
+      const res = await axios.post(`${API_URL}/api/admin/menu/import-eatsmart`, { restaurantId: selectedRestaurantId }, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       await fetchData();

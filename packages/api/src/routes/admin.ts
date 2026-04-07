@@ -602,13 +602,15 @@ router.get('/categories', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const includeProducts = req.query.includeProducts === 'true';
+    const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
 
     const categories = await prisma.category.findMany({
       where: { 
-        OR: [
-          { restaurantId: scopedRestaurantId },
-          { restaurantId: null }
-        ]
+        ...(scopedRestaurantId
+          ? (includeGlobal
+              ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
+              : { restaurantId: scopedRestaurantId })
+          : {}),
       },
       orderBy: { position: 'asc' },
       include: { 
@@ -787,15 +789,17 @@ router.get('/products', async (req, res) => {
       ? (restaurantId ? (restaurantId as string) : null)
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
 
     const products = await prisma.product.findMany({
       where: {
         ...(categoryId ? { categoryId: categoryId as string } : {}),
         category: {
-          OR: [
-            { restaurantId: scopedRestaurantId },
-            { restaurantId: null }
-          ]
+          ...(scopedRestaurantId
+            ? (includeGlobal
+                ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
+                : { restaurantId: scopedRestaurantId })
+            : {}),
         },
       },
       orderBy: [{ categoryId: 'asc' }, { position: 'asc' }],
@@ -1314,6 +1318,21 @@ router.post('/menu/import-eatsmart', async (req, res) => {
       return;
     }
 
+    const restaurantId = req.body?.restaurantId as string | undefined;
+    if (!restaurantId) {
+      res.status(400).json({ error: 'restaurantId krävs' });
+      return;
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { id: true, slug: true },
+    });
+    if (!restaurant) {
+      res.status(404).json({ error: 'Restaurang hittades inte' });
+      return;
+    }
+
     const groups = await ensureCoreExtraGroups();
     const existingCategories = await prisma.category.findMany({
       select: { id: true, slug: true },
@@ -1333,7 +1352,7 @@ router.post('/menu/import-eatsmart', async (req, res) => {
     let updatedProducts = 0;
 
     for (const [categoryIndex, category] of eatsmartCatalog.entries()) {
-      const categorySlug = slugify(category.name);
+      const categorySlug = `${slugify(category.name)}-${restaurant.slug}`;
       importedCategorySlugs.add(categorySlug);
 
       const savedCategory = await prisma.category.upsert({
@@ -1344,6 +1363,7 @@ router.post('/menu/import-eatsmart', async (req, res) => {
           imageUrl: category.imageUrl,
           position: categoryIndex,
           isActive: true,
+          restaurantId: restaurant.id,
         },
         create: {
           name: category.name,
@@ -1352,6 +1372,7 @@ router.post('/menu/import-eatsmart', async (req, res) => {
           imageUrl: category.imageUrl,
           position: categoryIndex,
           isActive: true,
+          restaurantId: restaurant.id,
         },
       });
 
