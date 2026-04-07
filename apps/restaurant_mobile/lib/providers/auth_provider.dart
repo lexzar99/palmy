@@ -39,12 +39,18 @@ class AuthProvider with ChangeNotifier {
         notifyListeners();
         return true;
       }
+      // Shouldn't normally happen because Dio throws on non-2xx, but keep a fallback.
+      _error = 'Inloggning misslyckades (HTTP ${res.statusCode})';
     } on DioException catch (e) {
       final responseError = e.response?.data is Map ? (e.response?.data['error'] as String?) : null;
       if (responseError != null && responseError.trim().isNotEmpty) {
         _error = responseError;
       } else if (e.response?.statusCode != null) {
         _error = 'Inloggning misslyckades (HTTP ${e.response?.statusCode})';
+      } else if (e.type == DioExceptionType.connectionError) {
+        _error = 'Kunde inte ansluta till servern (DNS/nätverk). Kontrollera internet.';
+      } else if (e.type == DioExceptionType.badCertificate) {
+        _error = 'SSL-certifikatfel. Kontrollera att datum/tid på mobilen är korrekt.';
       } else if (e.message != null && e.message!.trim().isNotEmpty) {
         _error = 'Inloggning misslyckades: ${e.message}';
       } else {
@@ -55,6 +61,7 @@ class AuthProvider with ChangeNotifier {
     }
 
     _isLoading = false;
+    _error ??= 'Inloggning misslyckades';
     notifyListeners();
     return false;
   }

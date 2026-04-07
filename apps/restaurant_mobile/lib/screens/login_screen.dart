@@ -54,6 +54,27 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _testServer() async {
+    try {
+      final res = await Dio().get('${AppConstants.baseUrl}/health');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Server OK (${res.statusCode})'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Server-test misslyckades: $e'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -164,15 +185,44 @@ class _LoginScreenState extends State<LoginScreen> {
               FadeInUp(
                 delay: const Duration(milliseconds: 700),
                 child: Consumer<AuthProvider>(
-                  builder: (context, auth, child) => SizedBox(
-                    width: double.infinity,
-                    height: 65,
-                    child: ElevatedButton(
-                      onPressed: auth.isLoading ? null : _handleLogin,
-                      child: auth.isLoading
-                          ? const CircularProgressIndicator(color: AppTheme.charcoal)
-                          : const Text('LOGGA IN'),
-                    ),
+                  builder: (context, auth, child) => Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 65,
+                        child: ElevatedButton(
+                          onPressed: auth.isLoading ? null : _handleLogin,
+                          child: auth.isLoading
+                              ? const CircularProgressIndicator(color: AppTheme.charcoal)
+                              : const Text('LOGGA IN'),
+                        ),
+                      ),
+                      if (auth.error != null && auth.error!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          auth.error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      TextButton(
+                        onPressed: _testServer,
+                        child: Text(
+                          'TESTA SERVER',
+                          style: TextStyle(
+                            color: AppTheme.gold.withOpacity(0.9),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
