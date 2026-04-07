@@ -7,29 +7,37 @@ const router = Router();
 router.get('/categories', async (req, res) => {
   try {
     const { restaurantId, slug } = req.query;
-    
-    const categories = await prisma.category.findMany({
-      where: { 
-        isActive: true,
-        ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
-        ...(slug ? { restaurant: { slug: slug as string } } : {}),
-        // Om varken id eller slug anges, hämta globala/default (Palmyra)
-        ...(!restaurantId && !slug ? { restaurantId: null } : {}),
-      },
-      orderBy: { position: 'asc' },
-      include: {
-        products: {
-          where: { isActive: true },
-          orderBy: { position: 'asc' },
-          include: {
-            extraGroups: {
-              orderBy: { position: 'asc' },
-              include: {
-                extraGroup: {
-                  include: {
-                    extras: {
-                      where: { isActive: true },
-                      orderBy: { position: 'asc' },
+    const hasRestaurantScope = Boolean(restaurantId || slug);
+
+    const baseWhere: any = {
+      ...(restaurantId ? { restaurantId: restaurantId as string } : {}),
+      ...(slug ? { restaurant: { slug: slug as string } } : {}),
+      // Om varken id eller slug anges, hämta globala/default (Palmyra)
+      ...(!restaurantId && !slug ? { restaurantId: null } : {}),
+    };
+
+    const query = async (opts: { onlyActive: boolean }) => {
+      const onlyActive = opts.onlyActive;
+      return prisma.category.findMany({
+        where: {
+          ...baseWhere,
+          ...(onlyActive ? { isActive: true } : {}),
+        },
+        orderBy: { position: 'asc' },
+        include: {
+          products: {
+            where: onlyActive ? { isActive: true } : {},
+            orderBy: { position: 'asc' },
+            include: {
+              extraGroups: {
+                orderBy: { position: 'asc' },
+                include: {
+                  extraGroup: {
+                    include: {
+                      extras: {
+                        where: onlyActive ? { isActive: true } : {},
+                        orderBy: { position: 'asc' },
+                      },
                     },
                   },
                 },
@@ -37,8 +45,20 @@ router.get('/categories', async (req, res) => {
             },
           },
         },
-      },
-    });
+      });
+    };
+
+    let categories = await query({ onlyActive: true });
+
+    // Compatibility fallback: some older datasets have isActive=false for everything
+    // (e.g. after schema changes). If nothing is visible for a restaurant, return
+    // the full menu instead of an empty screen.
+    if (hasRestaurantScope) {
+      const hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
+      if (categories.length === 0 || !hasAnyProducts) {
+        categories = await query({ onlyActive: false });
+      }
+    }
 
     // Formatera för frontend
     const formatted = categories.map((cat) => ({
