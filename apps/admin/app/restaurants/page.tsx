@@ -155,6 +155,8 @@ export default function RestaurantsPage() {
     try {
       const payload = {
         ...form,
+        // Prevent API validation errors when DB values are null.
+        description: form.description || "",
         deliveryFee: Number(form.deliveryFee || 0),
         minOrderAmount: Number(form.minOrderAmount || 0),
         etaMinutes: Number(form.etaMinutes || 30),

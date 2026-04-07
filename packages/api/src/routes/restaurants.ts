@@ -27,7 +27,8 @@ const safeParseAnyJson = <T>(value: unknown, fallback: T): T => {
 const restaurantSchema = z.object({
   name: z.string().min(2),
   slug: z.string().optional(),
-  description: z.string().optional(),
+  // Some clients send null for optional text fields (e.g. when DB value is null).
+  description: z.string().nullable().optional(),
   cuisine: z.string().optional(),
   address: z.string().optional(),
   city: z.string().optional(),
