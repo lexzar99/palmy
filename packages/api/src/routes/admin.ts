@@ -600,6 +600,8 @@ router.get('/categories', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
+    const includeProducts = req.query.includeProducts === 'true';
+
     const categories = await prisma.category.findMany({
       where: { 
         OR: [
@@ -608,7 +610,26 @@ router.get('/categories', async (req, res) => {
         ]
       },
       orderBy: { position: 'asc' },
-      include: { _count: { select: { products: true } } },
+      include: { 
+        _count: { select: { products: true } },
+        ...(includeProducts ? {
+          products: {
+            orderBy: { position: 'asc' },
+            include: {
+              extraGroups: {
+                orderBy: { position: 'asc' },
+                include: {
+                  extraGroup: {
+                    include: {
+                       extras: { orderBy: { position: 'asc' } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } : {})
+      },
     });
     res.json(categories);
   } catch {

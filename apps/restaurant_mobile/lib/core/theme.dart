@@ -2,66 +2,53 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  static const Color charcoal = Color(0xFF121212);
-  static const Color gold = Color(0xFFE7B24B);
-  static const Color zinc = Color(0xFF1A1A1A);
-  static const Color borderSubtle = Color(0x33FFFFFF);
-  static const Color textSecondary = Colors.white54;
+  // PREMIUM COLORS
+  static const Color charcoal = Color(0xFF161719); // Slightly lighter gray-charcoal
+  static const Color zinc = Color(0xFF1E2024);
+  static const Color gold = Color(0xFFE2B05E); // Refined Champagne Gold
+  static const Color goldAccent = Color(0xFFFFD700);
+  static const Color goldLight = Color(0xFFF3D5A5);
+  static const Color success = Color(0xFF2ECC71);
+  static const Color danger = Color(0xFFE74C3C);
 
-  static ThemeData darkTheme = ThemeData(
-    useMaterial3: true,
-    brightness: Brightness.dark,
-    scaffoldBackgroundColor: charcoal,
-    primaryColor: gold,
-    colorScheme: const ColorScheme.dark(
-      primary: gold,
-      secondary: gold,
-      surface: zinc,
-      onSurface: Colors.white,
-    ),
-    textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).copyWith(
-      displayLarge: GoogleFonts.outfit(
-        color: Colors.white,
-        fontWeight: FontWeight.w900,
-        fontSize: 32,
+  static ThemeData get midnightTheme => _buildTheme(Brightness.dark, charcoal, gold);
+  static ThemeData get lightTheme => _buildTheme(Brightness.light, Colors.white, Color(0xFF916A2D));
+
+  static ThemeData _buildTheme(Brightness brightness, Color bg, Color primary) {
+    bool isDark = brightness == Brightness.dark;
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      scaffoldBackgroundColor: bg,
+      primaryColor: primary,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: primary,
+        brightness: brightness,
+        surface: isDark ? zinc : Colors.grey[50]!,
+        onSurface: isDark ? Colors.white : charcoal,
       ),
-      titleLarge: GoogleFonts.outfit(
-        color: Colors.white,
-        fontWeight: FontWeight.w800,
-        fontSize: 20,
-      ),
-      bodyMedium: GoogleFonts.outfit(
-        color: Colors.white70,
-        fontWeight: FontWeight.w500,
-        fontSize: 16,
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: gold,
-        foregroundColor: charcoal,
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 32),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        textStyle: GoogleFonts.outfit(
+      textTheme: GoogleFonts.outfitTextTheme(isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme),
+      appBarTheme: AppBarTheme(
+        backgroundColor: bg,
+        elevation: 0,
+        centerTitle: false,
+        titleTextStyle: GoogleFonts.outfit(
+          color: isDark ? Colors.white : charcoal,
+          fontSize: 16,
           fontWeight: FontWeight.w900,
-          letterSpacing: 1.2,
+          letterSpacing: 2,
         ),
       ),
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      fillColor: Colors.black,
-      filled: true,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: borderSubtle),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primary;
+          return Colors.grey;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return primary.withOpacity(0.3);
+          return isDark ? Colors.white10 : Colors.black12;
+        }),
       ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: gold, width: 2),
-      ),
-      labelStyle: const TextStyle(color: textSecondary),
-    ),
-  );
+    );
+  }
 }

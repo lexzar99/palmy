@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/theme.dart';
+import '../core/network_scanner.dart';
 
 class PrintSettingsScreen extends StatefulWidget {
   const PrintSettingsScreen({super.key});
@@ -12,6 +13,8 @@ class PrintSettingsScreen extends StatefulWidget {
 class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
   bool _autoPrint = false;
   int _copies = 1;
+  bool _isScanning = false;
+  List<Map<String, String>> _foundPrinters = [];
   final _ipController = TextEditingController();
 
   @override
@@ -25,8 +28,38 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
     setState(() {
       _autoPrint = prefs.getBool('auto_print') ?? false;
       _copies = prefs.getInt('print_copies') ?? 1;
-      _ipController.text = prefs.getString('printer_ip') ?? 'Local Network';
+      _ipController.text = prefs.getString('printer_ip') ?? '';
+      if (_ipController.text.isNotEmpty) {
+        _foundPrinters.add({'name': 'Tidigare Skrivare', 'address': _ipController.text, 'status': 'ONLINE'});
+      }
     });
+  }
+
+  void _startScan() async {
+    setState(() {
+      _isScanning = true;
+      _foundPrinters = [];
+    });
+    
+    try {
+      final ips = await NetworkScanner.discoverPrinters();
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+          _foundPrinters = ips.map((ip) => {'name': 'Nätverksskrivare', 'address': ip, 'status': 'ONLINE'}).toList();
+          
+          if (_ipController.text.isNotEmpty && !ips.contains(_ipController.text)) {
+            _foundPrinters.add({'name': 'Sparad Enhet', 'address': _ipController.text, 'status': 'OFFLINE'});
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isScanning = false;
+        });
+      }
+    }
   }
 
   Future<void> _saveSettings() async {
@@ -48,8 +81,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.charcoal,
         elevation: 0,
-        title: const Text('UTSKRIFTSINSTÄLLNINGAR',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        title: const Text('SKRIVARINSTÄLLNINGAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(25),
@@ -59,8 +91,8 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             _buildSectionHeader('GRUNDINSTÄLLNINGAR'),
             const SizedBox(height: 25),
             _buildSettingCard(
-              title: 'Automatisk utskrift',
-              subtitle: 'Skriv ut kvitto direkt vid ny order',
+              title: 'Auto-print',
+              subtitle: 'Skriv ut direkt vid ny order',
               child: Switch(
                 value: _autoPrint,
                 onChanged: (v) => setState(() => _autoPrint = v),
@@ -70,45 +102,60 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             const SizedBox(height: 15),
             _buildSettingCard(
               title: 'Antal kopior',
-              subtitle: 'Hur många kvitton per order',
+              subtitle: 'Kvitton per order',
               child: Row(
                 children: [
-                  IconButton(onPressed: () => setState(() => _copies = (_copies > 1 ? _copies - 1 : 1)), icon: const Icon(Icons.remove_circle_outline, color: Colors.white38)),
+                  IconButton(onPressed: () => setState(() => _copies = (_copies > 1 ? _copies - 1 : 1)), icon: const Icon(Icons.remove_circle_outline, color: Colors.white24)),
                   Text('$_copies', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
                   IconButton(onPressed: () => setState(() => _copies++), icon: const Icon(Icons.add_circle_outline, color: AppTheme.gold)),
                 ],
               ),
             ),
             const SizedBox(height: 35),
-            _buildSectionHeader('ENHET & NÄTVERK'),
+            _buildSectionHeader('SKANNA LOKALT NÄTVERK'),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: AppTheme.zinc,
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(color: Colors.white.withOpacity(0.04)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('SKRIVARE (IP-ADRESS ELLER NAMN)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white24, letterSpacing: 2)),
-                  const SizedBox(height: 15),
-                  TextField(
-                    controller: _ipController,
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.black26,
-                      hintText: 'T.ex. 192.168.1.50',
-                      hintStyle: const TextStyle(color: Colors.white10),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
-                      prefixIcon: const Icon(Icons.print, color: AppTheme.gold, size: 20),
-                    ),
-                  ),
-                ],
+            
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton.icon(
+                onPressed: _isScanning ? null : _startScan,
+                icon: _isScanning 
+                  ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.network_ping),
+                label: Text(_isScanning ? 'SÖKER SKRIVARE...' : 'SÖK BROTHER SKRIVARE', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.zinc,
+                  foregroundColor: AppTheme.gold,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: AppTheme.gold.withOpacity(0.2))),
+                ),
               ),
             ),
+
+            const SizedBox(height: 20),
+
+            if (_foundPrinters.isNotEmpty) ...[
+              ..._foundPrinters.map((p) => _buildPrinterTile(p)),
+            ] else if (!_isScanning)
+              _buildEmptyState(),
+
+            const SizedBox(height: 20),
+            
+            _buildSectionHeader('MANUELL ANSLUTNING'),
+            const SizedBox(height: 15),
+            TextField(
+              controller: _ipController,
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: AppTheme.zinc,
+                hintText: 'Ange skrivarens IP-adress',
+                hintStyle: const TextStyle(color: Colors.white10),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+                prefixIcon: const Icon(Icons.print_outlined, color: AppTheme.gold, size: 20),
+              ),
+            ),
+
             const SizedBox(height: 60),
             SizedBox(
               width: double.infinity,
@@ -123,6 +170,46 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                 child: const Text('SPARA INSTÄLLNINGAR', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrinterTile(Map<String, String> p) {
+    final isSelected = _ipController.text == p['address'];
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isSelected ? AppTheme.gold.withOpacity(0.05) : AppTheme.zinc,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isSelected ? AppTheme.gold : Colors.white.withOpacity(0.04), width: 1.5),
+      ),
+      child: ListTile(
+        onTap: () => setState(() => _ipController.text = p['address']!),
+        leading: Container(
+          width: 42, height: 42,
+          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
+          child: Icon(Icons.print, color: AppTheme.gold, size: 22),
+        ),
+        title: Text(p['name']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+        subtitle: Text('IP: ${p['address']}', style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold)),
+        trailing: isSelected 
+          ? const Icon(Icons.check_circle, color: AppTheme.gold) 
+          : Text(p['status']!, style: TextStyle(color: p['status'] == 'READY' ? Colors.green : AppTheme.danger, fontSize: 8, fontWeight: FontWeight.w900)),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Column(
+          children: [
+            Icon(Icons.print_disabled, size: 40, color: Colors.white.withOpacity(0.05)),
+            const SizedBox(height: 10),
+            Text('INGA SKRIVARE HITTADES I NÄTVERKET', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ],
         ),
       ),
@@ -154,9 +241,9 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white38, fontWeight: FontWeight.bold)),
+                Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.bold)),
               ],
             ),
           ),

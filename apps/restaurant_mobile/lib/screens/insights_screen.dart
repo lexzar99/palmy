@@ -10,10 +10,10 @@ class InsightsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.charcoal,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        title: const Text('INSIGHTS & STATISTIK',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        title: Text('INSIGHTS & STATISTIK',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
       ),
       body: Consumer<OrderProvider>(
         builder: (context, provider, _) {
@@ -31,6 +31,7 @@ class InsightsScreen extends StatelessWidget {
                 _buildSectionHeader('FÖRSÄLJNINGSÖVERSIKT'),
                 const SizedBox(height: 25),
                 _buildInsightCard(
+                  context,
                   'TOTAL FÖRSÄLJNING IDAG',
                   '${provider.todayTotal.toInt()} KR',
                   '+${todayOrders.length} ordrar',
@@ -39,10 +40,11 @@ class InsightsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 15),
                 _buildInsightCard(
+                  context,
                   'FÖRSÄLJNING IGÅR',
                   '${provider.yesterdayTotal.toInt()} KR',
                   '${yesterdayOrders.length} ordrar',
-                  Colors.white24,
+                  Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.5),
                   false,
                 ),
                 const SizedBox(height: 40),
@@ -51,6 +53,7 @@ class InsightsScreen extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(child: _buildMetricBox(
+                      context,
                       'SNITTORDERVÄRDE (IDAG)',
                       '$avgToday KR',
                       Icons.trending_up,
@@ -58,10 +61,11 @@ class InsightsScreen extends StatelessWidget {
                     )),
                     const SizedBox(width: 15),
                     Expanded(child: _buildMetricBox(
+                      context,
                       'SNITTORDERVÄRDE (IGÅR)',
                       '$avgYesterday KR',
                       Icons.bar_chart_outlined,
-                      Colors.white10,
+                      Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3),
                     )),
                   ],
                 ),
@@ -71,18 +75,18 @@ class InsightsScreen extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(30),
                   decoration: BoxDecoration(
-                    color: AppTheme.zinc,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(28),
-                    border: Border.all(color: Colors.white.withOpacity(0.04)),
+                    border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.04)),
                   ),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('LEVERANS-GRAD', style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.bold)),
+                          Text('LEVERANS-GRAD', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 13, fontWeight: FontWeight.bold)),
                           Text('${todayOrders.where((o) => o.type == 'DELIVERY').length} UTKÖRNINGAR', 
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -90,7 +94,7 @@ class InsightsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
                           value: todayOrders.isEmpty ? 0 : todayOrders.where((o) => o.type == 'DELIVERY').length / todayOrders.length,
-                          backgroundColor: Colors.black,
+                          backgroundColor: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.1),
                           color: AppTheme.gold,
                           minHeight: 10,
                         ),
@@ -99,9 +103,9 @@ class InsightsScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('AVHÄMTNINGS-GRAD', style: TextStyle(color: Colors.white38, fontSize: 13, fontWeight: FontWeight.bold)),
+                          Text('AVHÄMTNINGS-GRAD', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 13, fontWeight: FontWeight.bold)),
                           Text('${todayOrders.where((o) => o.type == 'PICKUP').length} AVHÄMTNINGAR', 
-                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                            style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
                         ],
                       ),
                       const SizedBox(height: 20),
@@ -109,7 +113,7 @@ class InsightsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
                           value: todayOrders.isEmpty ? 0 : todayOrders.where((o) => o.type == 'PICKUP').length / todayOrders.length,
-                          backgroundColor: Colors.black,
+                          backgroundColor: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.1),
                           color: Colors.green,
                           minHeight: 10,
                         ),
@@ -135,14 +139,14 @@ class InsightsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildInsightCard(String label, String amount, String subtitle, Color color, bool highlight) {
+  Widget _buildInsightCard(BuildContext context, String label, String amount, String subtitle, Color color, bool highlight) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
-        color: AppTheme.zinc,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: color.withOpacity(0.15), width: 1.5),
+        border: Border.all(color: color.withOpacity(0.3), width: 1.5),
         gradient: highlight ? LinearGradient(
           colors: [color.withOpacity(0.05), Colors.transparent],
           begin: Alignment.topLeft, end: Alignment.bottomRight,
@@ -153,30 +157,30 @@ class InsightsScreen extends StatelessWidget {
         children: [
           Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 3)),
           const SizedBox(height: 15),
-          Text(amount, style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)),
+          Text(amount, style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
           const SizedBox(height: 6),
-          Text(subtitle, style: const TextStyle(fontSize: 13, color: Colors.white24, fontWeight: FontWeight.bold)),
+          Text(subtitle, style: TextStyle(fontSize: 13, color: Theme.of(context).textTheme.bodySmall?.color, fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 
-  Widget _buildMetricBox(String label, String value, IconData icon, Color color) {
+  Widget _buildMetricBox(BuildContext context, String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppTheme.zinc,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
+        border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.04)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20, color: color),
           const SizedBox(height: 15),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
           const SizedBox(height: 6),
-          Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.white24, letterSpacing: 1)),
+          Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color, letterSpacing: 1)),
         ],
       ),
     );

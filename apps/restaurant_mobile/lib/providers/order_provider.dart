@@ -4,24 +4,26 @@ import 'package:audioplayers/audioplayers.dart';
 import '../core/api_client.dart';
 import '../core/constants.dart';
 import '../models/order_model.dart';
-
+import '../core/audio_helper.dart';
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
-  final AudioPlayer _audioPlayer = AudioPlayer();
   List<OrderModel> _orders = [];
   bool _isLoading = false;
   IO.Socket? _socket;
   String? _restaurantId;
-  String _selectedAlarm = 'order_notification.mp3';
+  String _selectedAlarm = 'notification.mp3';
+  bool _isRestaurantOpen = true;
+  bool _isOffline = false;
+  Timer? _alarmWatchdog;
 
   List<OrderModel> get orders => _orders;
   bool get isLoading => _isLoading;
   String get selectedAlarm => _selectedAlarm;
-
-  void setAlarm(String alarm) {
-    _selectedAlarm = alarm;
-    notifyListeners();
-  }
+  bool get isRestaurantOpen => _isRestaurantOpen;
+  bool get isOffline => _isOffline;
 
   // ORDERS IN LIVE VIEW (Nya och Matlagning)
   List<OrderModel> get pendingOrders =>
@@ -58,6 +60,32 @@ class OrderProvider with ChangeNotifier {
     }).toList();
   }
 
+  void simulateOrder() {
+    final mockOrder = OrderModel(
+      id: 'mock_${DateTime.now().millisecondsSinceEpoch}',
+      orderNumber: (1000 + _orders.length).toString(),
+      customerName: 'Test Jari',
+      customerPhone: '070000000',
+      deliveryStreet: 'Testgatan 1',
+      deliveryCity: 'Testby',
+      deliveryZip: '12345',
+      items: [
+        OrderItemModel(productName: 'Test Pizza', quantity: 1, subtotal: 100, basePrice: 100, selectedExtras: []),
+      ],
+      total: 100,
+      deliveryFee: 0,
+      status: 'PENDING',
+      type: 'DELIVERY',
+      createdAt: DateTime.now(),
+      note: 'Dette är en test-order',
+    );
+    
+    _orders.insert(0, mockOrder);
+    _evaluateAlarms();
+    _saveOrdersToCache();
+    notifyListeners();
+  }
+
   // TOTALS for cards
   double get todayTotal => todayHistoryOrders
       .where((o) => !['CANCELLED', 'REJECTED'].contains(o.status))
@@ -81,23 +109,102 @@ class OrderProvider with ChangeNotifier {
       if (res.statusCode == 200) {
         final List data = res.data['orders'] ?? res.data;
         _orders = data.map((o) => OrderModel.fromJson(o)).toList();
+        debugPrint('✅ FETCHED ${_orders.length} ORDERS. Pending: ${pendingOrders.length}');
+        _saveOrdersToCache();
       }
     } catch (e) {
       debugPrint('Error fetching orders: $e');
+      await _loadOrdersFromCache();
     }
 
     _isLoading = false;
+    _evaluateAlarms(); // Check if we need to start ringing after refresh
     notifyListeners();
+    _fetchRestaurantStatus();
+  }
+
+  Future<void> _saveOrdersToCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final now = DateTime.now();
+      
+      // Filter out completed/cancelled orders older than 2 days
+      final cutoff = now.subtract(const Duration(days: 2));
+      final validOrders = _orders.where((o) {
+        if (!['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].contains(o.status)) return true;
+        return o.createdAt.isAfter(cutoff);
+      }).toList();
+
+      final encoded = jsonEncode(validOrders.map((o) => o.toJson()).toList());
+      await prefs.setString('cached_orders_${_restaurantId}', encoded);
+    } catch (e) {
+      debugPrint('Cache saving error: \$e');
+    }
+  }
+
+  Future<void> _loadOrdersFromCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = prefs.getString('cached_orders_${_restaurantId}');
+      if (encoded != null) {
+        final List data = jsonDecode(encoded);
+        _orders = data.map((o) => OrderModel.fromJson(o)).toList();
+        _evaluateAlarms();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Cache loading error: \$e');
+    }
+  }
+
+  Future<void> _fetchRestaurantStatus() async {
+    if (_restaurantId == null) return;
+    try {
+      final res = await _api.get('/api/restaurants');
+      if (res.statusCode == 200) {
+        final List data = res.data;
+        final current = data.firstWhere((r) => r['id'] == _restaurantId, orElse: () => null);
+        if (current != null) {
+          _isRestaurantOpen = current['isOpen'] ?? true;
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching status: $e');
+    }
+  }
+
+  Future<void> toggleRestaurantStatus() async {
+    if (_restaurantId == null) return;
+    _isRestaurantOpen = !_isRestaurantOpen;
+    notifyListeners();
+
+    try {
+      await _api.patch('/api/restaurants/$_restaurantId', {
+        'isOpen': _isRestaurantOpen,
+      });
+    } catch (e) {
+      debugPrint('Error toggling status: $e');
+      _isRestaurantOpen = !_isRestaurantOpen; // Rollback
+      notifyListeners();
+    }
   }
 
   Future<List<dynamic>> fetchMenu(String restaurantId) async {
     try {
-      // Use the correct API endpoint with restaurantId as query param
-      final res = await _api.get('/api/menu/categories', queryParameters: {
+      // Use ADMIN endpoint to get ALL products (even inactive)
+      final res = await _api.get('/api/admin/categories', queryParameters: {
         'restaurantId': restaurantId,
+        'includeProducts': 'true',
       });
       if (res.statusCode == 200) {
-        return res.data;
+        final data = res.data;
+        if (data is List) {
+          return data;
+        } else if (data is Map && data.containsKey('categories')) {
+          return data['categories'] as List<dynamic>;
+        }
+        return [];
       }
     } catch (e) {
       debugPrint('Error fetching menu: $e');
@@ -105,9 +212,28 @@ class OrderProvider with ChangeNotifier {
     return [];
   }
 
+  Future<void> updateProductStatus(String productId, bool isActive) async {
+    try {
+      await _api.patch('/api/admin/products/$productId', {'isActive': isActive});
+    } catch (e) {
+      debugPrint('Error updating product status: $e');
+    }
+  }
+
+  Future<void> updateExtraStatus(String extraId, bool isActive) async {
+    try {
+      await _api.patch('/api/admin/extras/$extraId', {'isActive': isActive});
+    } catch (e) {
+      debugPrint('Error updating extra status: $e');
+    }
+  }
+
   void initSocket(String restaurantId) {
+    if (_socket != null && _socket!.connected && _restaurantId == restaurantId) {
+      return; // Already initialized for this restaurant
+    }
     _restaurantId = restaurantId;
-    if (_socket != null) _socket!.disconnect();
+    if (_socket != null) _socket!.dispose();
 
     _socket = IO.io(
         AppConstants.socketUrl,
@@ -117,28 +243,53 @@ class OrderProvider with ChangeNotifier {
             .build());
 
     _socket!.onConnect((_) {
+      _isOffline = false;
       _socket!.emit('join:admin', {'restaurantId': restaurantId});
       debugPrint('Connected to socket for restaurant: $restaurantId');
+      notifyListeners();
     });
 
     _socket!.on('order:new', (data) {
+      debugPrint('📩 SOCKET: NEW ORDER RECEIVED: ${data['id']}');
       final newOrder = OrderModel.fromJson(data);
       if (!_orders.any((o) => o.id == newOrder.id)) {
         _orders.insert(0, newOrder);
-        playAlarm(); // Play notification sound
+        _saveOrdersToCache();
+        _evaluateAlarms(); // Evaluates if we need to start ringing
         notifyListeners();
+      } else {
+        debugPrint('📩 SOCKET: ORDER ALREADY EXISTS IN LIST');
       }
     });
 
+    _socket!.onDisconnect((_) {
+      _isOffline = true;
+      notifyListeners();
+    });
+
     _socket!.on('order:updated', (_) => fetchOrders(restaurantId));
+    
+    // Start watchdog
+    _alarmWatchdog?.cancel();
+    _alarmWatchdog = Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
   }
 
-  Future<void> playAlarm() async {
-    try {
-      await _audioPlayer.play(AssetSource('audio/$_selectedAlarm'));
-    } catch (e) {
-      debugPrint('Error playing sound: $e');
+  void _evaluateAlarms() {
+    debugPrint('📢 Watchdog: Evaluating alarms. Pending: ${pendingOrders.length}');
+    if (pendingOrders.isNotEmpty) {
+       AudioHelper.startLooping(_selectedAlarm);
+    } else {
+       AudioHelper.stopLooping();
     }
+  }
+
+  Future<void> playDisconnectAlarm() async {
+     await AudioHelper.playAudio('disconnect.mp3');
+  }
+
+  // Used for settings menu
+  Future<void> testAlarm() async {
+    await AudioHelper.playTest(_selectedAlarm);
   }
 
   Future<bool> updateStatus(String orderId, String status,
@@ -147,17 +298,17 @@ class OrderProvider with ChangeNotifier {
       final body = <String, dynamic>{'status': status};
       if (estimatedTime != null) body['estimatedTime'] = estimatedTime;
 
+      // Handle mock/test orders locally (no API needed)
+      if (orderId.startsWith('mock_')) {
+        _updateLocalOrderStatus(orderId, status, estimatedTime);
+        return true;
+      }
+
       final res =
           await _api.patch('/api/admin/orders/$orderId/status', body);
 
       if (res.statusCode == 200) {
-        // Optimistically update local state
-        final idx = _orders.indexWhere((o) => o.id == orderId);
-        if (idx != -1) {
-          _orders[idx] = _orders[idx]
-              .copyWith(status: status, estimatedTime: estimatedTime);
-          notifyListeners();
-        }
+        _updateLocalOrderStatus(orderId, status, estimatedTime);
         return true;
       }
       return false;
@@ -167,14 +318,26 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
+  void _updateLocalOrderStatus(String orderId, String status, int? estimatedTime) {
+    final idx = _orders.indexWhere((o) => o.id == orderId);
+    if (idx != -1) {
+      _orders[idx] = _orders[idx]
+          .copyWith(status: status, estimatedTime: estimatedTime);
+      _saveOrdersToCache();
+      _evaluateAlarms();
+      notifyListeners();
+    }
+  }
+
   void refresh() {
     if (_restaurantId != null) fetchOrders(_restaurantId!);
   }
 
   @override
   void dispose() {
-    _socket?.disconnect();
-    _audioPlayer.dispose();
+    _socket?.dispose();
+    _alarmWatchdog?.cancel();
+    AudioHelper.stopLooping();
     super.dispose();
   }
 }

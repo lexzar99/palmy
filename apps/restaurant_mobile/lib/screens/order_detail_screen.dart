@@ -136,10 +136,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.charcoal,
         elevation: 0,
         title: Text('ORDER #${order.orderNumber}',
-          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 2)),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
         actions: [
           Container(
             margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
@@ -163,13 +162,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             FadeInDown(child: _buildInfoCard(
               title: 'KUNDUPPGIFTER', icon: Icons.person_outline, color: AppTheme.gold,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(order.customerName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(order.customerName, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.phone, size: 14, color: AppTheme.gold),
+                    Icon(Icons.phone, size: 14, color: Theme.of(context).primaryColor),
                     const SizedBox(width: 8),
-                    Text(order.customerPhone, style: const TextStyle(fontSize: 18, color: AppTheme.gold, fontWeight: FontWeight.bold)),
+                    Text(order.customerPhone, style: TextStyle(fontSize: 18, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ]),
@@ -186,10 +185,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: _buildInfoCard(
                         title: 'ADRESS', icon: Icons.location_on_outlined, color: Colors.blue,
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(order.deliveryStreet ?? 'Ingen adress', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                          Text(order.deliveryStreet ?? 'Ingen adress', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                           if (order.deliveryZip != null || order.deliveryCity != null)
                             Text('${order.deliveryZip ?? ""} ${order.deliveryCity ?? ""}'.trim(),
-                              style: const TextStyle(fontSize: 14, color: Colors.white38, fontWeight: FontWeight.bold)),
+                              style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontWeight: FontWeight.bold)),
                         ]),
                       ),
                     ),
@@ -201,20 +200,40 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       title: 'TYP', icon: order.type == "DELIVERY" ? Icons.delivery_dining : Icons.shopping_bag_outlined, 
                       color: order.type == "DELIVERY" ? Colors.blue : Colors.green,
                       child: Text(order.type == 'DELIVERY' ? 'UTKÖRNING' : 'AVHÄMTNING', 
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                     ),
                   ),
                 ),
               ],
             ),
 
-            // Checkout Note (Crucial for delivery instructions)
-            if (order.note != null && order.note!.isNotEmpty) ...[
+            // Checkout Note and Delivery Instructions
+            if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)) ...[
               const SizedBox(height: 20),
               FadeInDown(delay: const Duration(milliseconds: 200),
                 child: _buildInfoCard(
                   title: 'KUNDMEDDELANDE (VID KASSA)', icon: Icons.notification_important, color: Colors.purpleAccent,
-                  child: Text(order.note!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.withOpacity(0.3))),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.sensor_door, size: 16, color: Colors.blueAccent),
+                              const SizedBox(width: 8),
+                              Text('INSTRUKTION: ${order.deliveryInstructions!}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                            ]
+                          )
+                        ),
+                      if (order.note != null && order.note!.isNotEmpty)
+                        Text(order.note!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
+                    ]
+                  ),
                 ),
               ),
             ],
@@ -236,9 +255,9 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget _buildSectionHeader(String title) {
     return Row(
       children: [
-        Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white24, letterSpacing: 4)),
+        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor.withOpacity(0.5), letterSpacing: 4)),
         const SizedBox(width: 15),
-        Expanded(child: Container(height: 1, color: Colors.white.withOpacity(0.05))),
+        Expanded(child: Container(height: 1, color: Theme.of(context).primaryColor.withOpacity(0.1))),
       ],
     );
   }
@@ -248,7 +267,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppTheme.zinc,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: color.withOpacity(0.2), width: 1.5),
       ),
@@ -269,8 +288,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.black45, borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        color: Theme.of(context).colorScheme.surface, borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.05)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -281,7 +300,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           ),
           const SizedBox(width: 15),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(item.productName.toUpperCase(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white)),
+            Text(item.productName.toUpperCase(), style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
             
             // EXTRAS & SIDE DISHES
             if (item.selectedExtras.isNotEmpty) ...[
@@ -292,29 +311,29 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   final name = e is Map ? (e['name'] ?? "") : "$e";
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
-                    child: Text('+ $name', style: const TextStyle(fontSize: 12, color: Colors.white54, fontWeight: FontWeight.bold)),
+                    decoration: BoxDecoration(color: Theme.of(context).primaryColor.withOpacity(0.05), borderRadius: BorderRadius.circular(6)),
+                    child: Text('+ $name', style: TextStyle(fontSize: 12, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5), fontWeight: FontWeight.bold)),
                   );
                 }).toList(),
               ),
             ],
 
             // ITEM SPECIFIC NOTE
-            // if (item.note != null && item.note!.isNotEmpty) ...[
-            //   const SizedBox(height: 10),
-            //   Container(
-            //     padding: const EdgeInsets.all(10),
-            //     decoration: BoxDecoration(color: Colors.red.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.2))),
-            //     child: Row(children: [
-            //       const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent),
-            //       const SizedBox(width: 8),
-            //       Expanded(child: Text('NOTERING: ${item.note}', style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold))),
-            //     ]),
-            //   ),
-            // ],
+            if (item.note != null && item.note!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.red.withOpacity(0.05), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.withOpacity(0.2))),
+                child: Row(children: [
+                  const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.redAccent),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('NOTERING: ${item.note}', style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold))),
+                ]),
+              ),
+            ],
           ])),
           const SizedBox(width: 10),
-          Text('${item.subtotal.toInt()} KR', style: const TextStyle(color: Colors.white38, fontSize: 16, fontWeight: FontWeight.w900)),
+          Text('${item.subtotal.toInt()} KR', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontSize: 16, fontWeight: FontWeight.w900)),
         ]),
       ]),
     );
@@ -333,13 +352,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('LEVERANSAVGIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white38)),
-              Text('${order.deliveryFee.toInt()} KR', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white38)),
+              Text('LEVERANSAVGIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4))),
+              Text('${order.deliveryFee.toInt()} KR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4))),
             ]),
           ),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('TOTALT ATT BETALA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
-          Text('${order.total.toInt()} KR', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)),
+          Text('TOTALT ATT BETALA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          Text('${order.total.toInt()} KR', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
         ]),
       ]),
     );
@@ -357,7 +376,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 25),
-      color: AppTheme.charcoal,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: SafeArea(
         child: SizedBox(
           width: double.infinity, height: 65,

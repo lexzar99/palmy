@@ -1,213 +1,157 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
-import '../models/order_model.dart';
+import 'package:animate_do/animate_do.dart';
 import '../providers/order_provider.dart';
+import '../models/order_model.dart';
 import '../core/theme.dart';
-import 'order_detail_screen.dart';
+import '../core/print_service.dart';
 
-class HistoryScreen extends StatefulWidget {
+class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
-  State<HistoryScreen> createState() => _HistoryScreenState();
-}
-
-class _HistoryScreenState extends State<HistoryScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppTheme.charcoal,
-        elevation: 0,
-        title: const Text('ORDERHISTORIK',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
-      ),
-      body: Consumer<OrderProvider>(
-        builder: (context, provider, _) {
-          final todayCompleted = provider.todayHistoryOrders;
-          final yesterdayCompleted = provider.yesterdayHistoryOrders;
-
-          return Column(
-            children: [
-              // Summary cards (Always visible at top)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildSummaryCard(
-                      'IDAG',
-                      '${provider.todayTotal.toInt()} KR',
-                      '${todayCompleted.length} ordrar',
-                      AppTheme.gold,
-                    )),
-                    const SizedBox(width: 15),
-                    Expanded(child: _buildSummaryCard(
-                      'IGÅR',
-                      '${provider.yesterdayTotal.toInt()} KR',
-                      '${yesterdayCompleted.length} ordrar',
-                      Colors.white24,
-                    )),
-                  ],
-                ),
-              ),
-
-              // TabBar
-              Container(
-                decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.05))),
-                ),
-                child: TabBar(
-                  controller: _tabController,
-                  indicatorColor: AppTheme.gold,
-                  indicatorWeight: 4,
-                  labelColor: AppTheme.gold,
-                  unselectedLabelColor: Colors.white.withOpacity(0.3),
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1),
-                  tabs: [
-                    Tab(text: 'IDAG (${todayCompleted.length})'),
-                    Tab(text: 'IGÅR (${yesterdayCompleted.length})'),
-                  ],
-                ),
-              ),
-
-              // TabBarView
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildOrderList(todayCompleted, 'Inga avslutade ordrar idag ännu'),
-                    _buildOrderList(yesterdayCompleted, 'Inga ordrar från igår'),
-                  ],
-                ),
-              ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: AppTheme.charcoal,
+          elevation: 0,
+          title: const Text('ORDERHISTORIK', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          bottom: const TabBar(
+            indicatorColor: AppTheme.gold,
+            labelColor: AppTheme.gold,
+            unselectedLabelColor: Colors.white24,
+            labelStyle: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13),
+            tabs: [
+              Tab(text: 'IDAG'),
+              Tab(text: 'IGÅR'),
             ],
-          );
-        },
+          ),
+        ),
+        body: Consumer<OrderProvider>(
+          builder: (context, provider, _) {
+            final todayCompleted = provider.todayHistoryOrders;
+            final yesterdayCompleted = provider.yesterdayHistoryOrders;
+
+            return Column(
+              children: [
+                _buildSummaryCards(provider),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildHistoryList(todayCompleted),
+                      _buildHistoryList(yesterdayCompleted),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildOrderList(List<OrderModel> orders, String emptyText) {
+  Widget _buildSummaryCards(OrderProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        children: [
+          Expanded(child: _buildStatCard(context, 'IDAG', '${provider.todayTotal.toInt()} KR', AppTheme.gold)),
+          const SizedBox(width: 15),
+          Expanded(child: _buildStatCard(context, 'IGÅR', '${provider.yesterdayTotal.toInt()} KR', Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.zinc,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 2)),
+          const SizedBox(height: 10),
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHistoryList(List<OrderModel> orders) {
     if (orders.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history_outlined, size: 50, color: Colors.white.withOpacity(0.1)),
+            Icon(Icons.history_outlined, size: 60, color: Colors.white.withOpacity(0.1)),
             const SizedBox(height: 16),
-            Text(emptyText, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.2), fontWeight: FontWeight.bold)),
+            Text('INGA ORDRAR HITTADES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white.withOpacity(0.15), letterSpacing: 3)),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       itemCount: orders.length,
-      itemBuilder: (ctx, i) => _buildHistoryTile(ctx, orders[i]),
+      itemBuilder: (ctx, i) => _buildHistoryCard(ctx, orders[i]),
     );
   }
 
-  Widget _buildSummaryCard(String label, String amount, String subtitle, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: AppTheme.zinc,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withOpacity(0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 3)),
-          const SizedBox(height: 12),
-          Text(amount, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.white, fontStyle: FontStyle.italic)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white24, fontWeight: FontWeight.bold)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistoryTile(BuildContext context, OrderModel order) {
-    final statusLabel = {
-      'DELIVERED': 'LEVERERAD',
-      'COMPLETED': 'KLAR',
-      'CANCELLED': 'AVBOKAD',
-      'DELIVERING': 'SKICKAD',
-    }[order.status] ?? order.status;
-
-    final statusColor = order.status == 'CANCELLED' ? Colors.red : Colors.green;
-
-    return GestureDetector(
-      onTap: () => Navigator.push(context,
-        MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+  Widget _buildHistoryCard(BuildContext context, OrderModel order) {
+    return FadeInUp(
+      duration: const Duration(milliseconds: 300),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppTheme.zinc,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.04)),
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.1)),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.circular(14),
+        child: ListTile(
+          contentPadding: const EdgeInsets.all(18),
+          leading: Container(
+            width: 50, height: 50,
+            decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(15)),
+            child: Center(child: Text(order.orderNumber, style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900))),
+          ),
+          title: Text(order.customerName.toUpperCase(), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14, fontWeight: FontWeight.w900)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 5),
+              Text(order.items.map((i) => '${i.quantity}x ${i.productName}').join(', ').toUpperCase(), 
+                style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+            ],
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${order.total.toInt()} KR', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              // REPRINT BUTTON
+              InkWell(
+                onTap: () => PrintService.printReceipt(order),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.print_outlined, size: 14, color: AppTheme.gold),
+                    SizedBox(width: 4),
+                    Text('KOPIA', style: TextStyle(color: AppTheme.gold, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  ],
+                ),
               ),
-              child: Center(child: Text(
-                order.orderNumber.replaceAll('PX-', ''),
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: AppTheme.gold),
-              )),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(order.customerName.toUpperCase(),
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    Text(DateFormat('HH:mm').format(order.createdAt),
-                      style: const TextStyle(fontSize: 11, color: Colors.white24, fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(statusLabel,
-                        style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: statusColor)),
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-            Text('${order.total.toInt()} KR',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white54)),
-            const SizedBox(width: 12),
-            Icon(Icons.chevron_right, size: 20, color: Colors.white.withOpacity(0.1)),
-          ],
+            ],
+          ),
         ),
       ),
     );

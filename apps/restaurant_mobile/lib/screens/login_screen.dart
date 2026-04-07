@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
 import '../providers/auth_provider.dart';
 import '../core/theme.dart';
+import 'package:dio/dio.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -32,6 +33,23 @@ class _LoginScreenState extends State<LoginScreen> {
           backgroundColor: Colors.redAccent,
         ),
       );
+    }
+  }
+
+  void _testSoundBridge() async {
+    try {
+      final res = await Dio().get('http://localhost:5005/play');
+      if (res.statusCode == 200 && mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(content: Text('✅ Mac-brygga svarade! Ljud bör höras.'), backgroundColor: Colors.green)
+         );
+      }
+    } catch (e) {
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('❌ Kunde inte ansluta till Mac-brygga: $e'), backgroundColor: Colors.redAccent)
+         );
+      }
     }
   }
 
@@ -144,6 +162,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text('LOGGA IN'),
                     ),
                   ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              FadeInUp(
+                delay: const Duration(milliseconds: 900),
+                child: TextButton.icon(
+                  onPressed: _testSoundBridge,
+                  icon: const Icon(Icons.volume_up, color: AppTheme.gold, size: 16),
+                  label: const Text('TESTA MAC-LARM', style: TextStyle(color: AppTheme.gold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 ),
               ),
             ],

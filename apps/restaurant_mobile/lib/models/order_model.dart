@@ -15,6 +15,7 @@ class OrderModel {
   final String? deliveryCity;
   final String? deliveryZip;
   final String? deliveryNote;
+  final String? deliveryInstructions;
   final String? note;
   final int? estimatedTime;
   final String? paymentMethod;
@@ -35,6 +36,7 @@ class OrderModel {
     this.deliveryCity,
     this.deliveryZip,
     this.deliveryNote,
+    this.deliveryInstructions,
     this.note,
     this.estimatedTime,
     this.paymentMethod,
@@ -57,6 +59,7 @@ class OrderModel {
       deliveryCity: json['deliveryCity'],
       deliveryZip: json['deliveryZip'],
       deliveryNote: json['deliveryNote'],
+      deliveryInstructions: json['deliveryInstructions'],
       note: json['note'],
       estimatedTime: json['estimatedTime'],
       paymentMethod: json['paymentMethod'],
@@ -83,11 +86,36 @@ class OrderModel {
       deliveryCity: deliveryCity,
       deliveryZip: deliveryZip,
       deliveryNote: deliveryNote,
+      deliveryInstructions: deliveryInstructions,
       note: note,
       estimatedTime: estimatedTime ?? this.estimatedTime,
       paymentMethod: paymentMethod,
       items: items,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'orderNumber': orderNumber,
+      'status': status,
+      'type': type,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'customerEmail': customerEmail,
+      'total': total,
+      'deliveryFee': deliveryFee,
+      'createdAt': createdAt.toIso8601String(),
+      'deliveryStreet': deliveryStreet,
+      'deliveryCity': deliveryCity,
+      'deliveryZip': deliveryZip,
+      'deliveryNote': deliveryNote,
+      'deliveryInstructions': deliveryInstructions,
+      'note': note,
+      'estimatedTime': estimatedTime,
+      'paymentMethod': paymentMethod,
+      'items': items.map((i) => i.toJson()).toList(),
+    };
   }
 }
 
@@ -145,5 +173,16 @@ class OrderItemModel {
       selectedExtras: extraTexts, // Now contains actual names like "Ris"
       note: json['note'],
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'productName': productName,
+      'quantity': quantity,
+      'subtotal': subtotal,
+      'basePrice': basePrice,
+      'selectedExtras': selectedExtras,
+      'note': note,
+    };
   }
 }
