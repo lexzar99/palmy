@@ -7,6 +7,10 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
+// Admin should never be statically cached at the edge (auth + fast iteration).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export const metadata: Metadata = {
   title: "MatGo Admin | Kontrollpanel",
 };
