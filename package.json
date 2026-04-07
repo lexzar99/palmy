@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build --concurrency=1",
+    "build:web": "pnpm --filter web build",
+    "build:admin": "pnpm --filter admin build",
+    "build:api": "pnpm --filter @palmyra/api build",
     "db:migrate": "pnpm --filter db migrate",
     "db:seed": "pnpm --filter db seed",
     "db:studio": "pnpm --filter db studio"
