@@ -42,13 +42,23 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _toggleProduct(String productId, bool isActive) async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
-    await provider.updateProductStatus(productId, isActive);
+    final ok = await provider.updateProductStatus(productId, isActive);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kunde inte uppdatera artikeln. Försök igen.')),
+      );
+    }
     _loadMenu();
   }
 
   Future<void> _toggleExtra(String extraId, bool isActive) async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
-    await provider.updateExtraStatus(extraId, isActive);
+    final ok = await provider.updateExtraStatus(extraId, isActive);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kunde inte uppdatera tillbehöret. Försök igen.')),
+      );
+    }
     _loadMenu();
   }
 

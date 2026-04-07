@@ -199,12 +199,42 @@ class OrderProvider with ChangeNotifier {
       });
       if (res.statusCode == 200) {
         final data = res.data;
-        if (data is List) {
-          return data;
-        } else if (data is Map && data.containsKey('categories')) {
-          return data['categories'] as List<dynamic>;
+        final List<dynamic> categories = (data is List)
+            ? data
+            : (data is Map && data.containsKey('categories'))
+                ? (data['categories'] as List<dynamic>)
+                : <dynamic>[];
+
+        // /api/admin/categories returns money fields in öre (inte kr).
+        // Normalize to kr for UI consistency.
+        for (final cat in categories) {
+          if (cat is! Map) continue;
+          final products = cat['products'];
+          if (products is! List) continue;
+
+          for (final prod in products) {
+            if (prod is! Map) continue;
+            final price = prod['price'];
+            if (price is num) prod['price'] = price.toDouble() / 100.0;
+
+            final groups = prod['extraGroups'];
+            if (groups is! List) continue;
+            for (final g in groups) {
+              if (g is! Map) continue;
+              final extraGroup = g['extraGroup'] ?? g;
+              if (extraGroup is! Map) continue;
+              final extras = extraGroup['extras'];
+              if (extras is! List) continue;
+              for (final e in extras) {
+                if (e is! Map) continue;
+                final addon = e['priceAddon'];
+                if (addon is num) e['priceAddon'] = addon.toDouble() / 100.0;
+              }
+            }
+          }
         }
-        return [];
+
+        return categories;
       }
     } catch (e) {
       debugPrint('Error fetching menu: $e');
@@ -212,19 +242,23 @@ class OrderProvider with ChangeNotifier {
     return [];
   }
 
-  Future<void> updateProductStatus(String productId, bool isActive) async {
+  Future<bool> updateProductStatus(String productId, bool isActive) async {
     try {
-      await _api.patch('/api/admin/products/$productId', {'isActive': isActive});
+      final res = await _api.patch('/api/admin/products/$productId', {'isActive': isActive});
+      return res.statusCode == 200;
     } catch (e) {
       debugPrint('Error updating product status: $e');
+      return false;
     }
   }
 
-  Future<void> updateExtraStatus(String extraId, bool isActive) async {
+  Future<bool> updateExtraStatus(String extraId, bool isActive) async {
     try {
-      await _api.patch('/api/admin/extras/$extraId', {'isActive': isActive});
+      final res = await _api.patch('/api/admin/extras/$extraId', {'isActive': isActive});
+      return res.statusCode == 200;
     } catch (e) {
       debugPrint('Error updating extra status: $e');
+      return false;
     }
   }
 
@@ -255,6 +289,8 @@ class OrderProvider with ChangeNotifier {
       if (!_orders.any((o) => o.id == newOrder.id)) {
         _orders.insert(0, newOrder);
         _saveOrdersToCache();
+        // Play a short chime immediately for each new order (in addition to looping alarm).
+        AudioHelper.playAudio(_selectedAlarm);
         _evaluateAlarms(); // Evaluates if we need to start ringing
         notifyListeners();
       } else {
