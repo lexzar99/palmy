@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // PREMIUM COLORS
@@ -16,6 +15,20 @@ class AppTheme {
 
   static ThemeData _buildTheme(Brightness brightness, Color bg, Color primary) {
     bool isDark = brightness == Brightness.dark;
+    final baseTextTheme =
+        isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme;
+    final appTextTheme = baseTextTheme.apply(
+      bodyColor: isDark ? Colors.white : charcoal,
+      displayColor: isDark ? Colors.white : charcoal,
+      fontFamily: 'sans-serif',
+    ).copyWith(
+      titleLarge: baseTextTheme.titleLarge?.copyWith(
+        fontSize: 16,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 2,
+      ),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -27,16 +40,13 @@ class AppTheme {
         surface: isDark ? zinc : Colors.grey[50]!,
         onSurface: isDark ? Colors.white : charcoal,
       ),
-      textTheme: GoogleFonts.outfitTextTheme(isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme),
+      textTheme: appTextTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.outfit(
+        titleTextStyle: appTextTheme.titleLarge?.copyWith(
           color: isDark ? Colors.white : charcoal,
-          fontSize: 16,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
         ),
       ),
       switchTheme: SwitchThemeData(

@@ -36,7 +36,7 @@ class HistoryScreen extends StatelessWidget {
 
             return Column(
               children: [
-                _buildSummaryCards(provider),
+                _buildSummaryCards(context, provider),
                 Expanded(
                   child: TabBarView(
                     children: [
@@ -53,7 +53,7 @@ class HistoryScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCards(OrderProvider provider) {
+  Widget _buildSummaryCards(BuildContext context, OrderProvider provider) {
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(

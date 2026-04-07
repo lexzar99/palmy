@@ -14,8 +14,6 @@ dependencies:
   socket_io_client: ^3.0.2
   shared_preferences: ^2.3.2
   intl: ^0.20.2
-  # Pin to avoid a const-eval breaking change in newer releases (CI uses latest Flutter/Dart).
-  google_fonts: 6.2.1
   flutter_spinkit: ^5.2.1
   animate_do: ^3.3.4
   flutter_svg: ^2.0.10+1
