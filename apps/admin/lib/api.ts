@@ -3,10 +3,14 @@ export const getApiUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
 
-  // Fallback for client-side
+  // Production fallback — only use if NEXT_PUBLIC_API_URL is missing.
+  // The domain below corresponds to the current Railway API endpoint.
+  if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+    return "https://palmy-production-2021.up.railway.app";
+  }
+
+  // Fallback for client-side local dev (useful for internal network testing)
   if (typeof window !== "undefined") {
-    // If the site is accessed via a hostname (e.g., 192.168.0.x or matgo.local), 
-    // we should try to use that same hostname for the API on port 4000
     return `http://${window.location.hostname}:4000`;
   }
 
@@ -16,6 +20,10 @@ export const getApiUrl = () => {
 export const getSocketUrl = () => {
   if (process.env.NEXT_PUBLIC_SOCKET_URL) {
     return process.env.NEXT_PUBLIC_SOCKET_URL;
+  }
+
+  if (typeof window !== "undefined" && !window.location.hostname.includes("localhost")) {
+    return "https://palmy-production-2021.up.railway.app";
   }
 
   if (typeof window !== "undefined") {
