@@ -11,6 +11,7 @@ import {
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
+import { triggerLoyaltyRewards } from '../lib/loyalty';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
@@ -514,6 +515,9 @@ router.post('/', async (req: Request, res: Response) => {
         items: true,
       },
     });
+
+    // Trigger loyalty/retention rewards (async)
+    triggerLoyaltyRewards(order).catch(console.error);
 
     // Uppdatera rabattkods-räknare (Skip for 'test' mock)
     if (validatedCode && validatedCode !== 'test' && validatedCode !== 'testa') {

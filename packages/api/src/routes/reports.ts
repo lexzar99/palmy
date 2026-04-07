@@ -1,0 +1,187 @@
+import { Router } from 'express';
+import prisma from '../lib/prisma';
+import { authenticate, AuthRequest } from '../middleware/auth';
+
+const router = Router();
+router.use(authenticate);
+
+const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
+
+const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
+  if (isSuperAdmin(req)) return null;
+  const rid = req.admin?.restaurantId;
+  if (!rid) {
+    res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
+    return null;
+  }
+  return rid;
+};
+
+// GET /api/admin/reports/bi - Business Intelligence Overview
+router.get('/bi', async (req, res) => {
+  try {
+    const { restaurantId, months = 6 } = req.query;
+    const scopedId = isSuperAdmin(req as AuthRequest) 
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+
+    if (!isSuperAdmin(req as AuthRequest) && scopedId === null && !res.headersSent) return;
+
+    const limitMonths = parseInt(months as string) || 6;
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - limitMonths, 1);
+
+    // Business Logic: Growth Analysis
+    const [orders, customers, revenueByMonth] = await Promise.all([
+      // 1. Total Growth
+      prisma.order.count({
+        where: {
+          ...(scopedId ? { restaurantId: scopedId } : {}),
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+        }
+      }),
+      // 2. New Customers (Registered) - Only available for Super Admin or global context
+      isSuperAdmin(req as AuthRequest) ? prisma.user.count({
+        where: { createdAt: { gte: startDate } }
+      }) : Promise.resolve(0),
+      // 3. Revenue over time (Monthly buckets)
+      prisma.order.groupBy({
+        by: ['createdAt'],
+        where: {
+          ...(scopedId ? { restaurantId: scopedId } : {}),
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+          createdAt: { gte: startDate }
+        },
+        _sum: { total: true },
+        _count: { id: true }
+      })
+    ]);
+
+    // Aggregate products for popularity (Top 10)
+    const topProducts = await prisma.orderItem.groupBy({
+      by: ['productName'],
+      where: {
+        order: {
+          ...(scopedId ? { restaurantId: scopedId } : {}),
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+        }
+      },
+      _count: { id: true },
+      _sum: { subtotal: true },
+      orderBy: { _count: { id: 'desc' } },
+      take: 10
+    });
+
+    // Process monthly revenue data for charts
+    const monthlyData: Record<string, { revenue: number; orders: number }> = {};
+    revenueByMonth.forEach((row) => {
+      const monthKey = row.createdAt.toISOString().slice(0, 7); // YYYY-MM
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { revenue: 0, orders: 0 };
+      }
+      monthlyData[monthKey].revenue += (row._sum.total || 0) / 100;
+      monthlyData[monthKey].orders += row._count.id;
+    });
+
+    const chartData = Object.entries(monthlyData)
+      .map(([month, data]) => ({ month, ...data }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    res.json({
+      summary: {
+        totalOrders: orders,
+        newCustomersSinceStart: customers,
+        currentMonthRevenue: chartData[chartData.length - 1]?.revenue || 0,
+        prevMonthRevenue: chartData[chartData.length - 2]?.revenue || 0,
+      },
+      chartData,
+      topProducts: topProducts.map(p => ({
+        name: p.productName,
+        count: p._count.id,
+        revenue: (p._sum.subtotal || 0) / 100
+      }))
+    });
+  } catch (error) {
+    console.error('BI report error:', error);
+    res.status(500).json({ error: 'Serverfel vid BI-analys' });
+  }
+});
+
+// GET /api/admin/reports/comparison - Compare two months
+router.get('/comparison', async (req, res) => {
+  try {
+    const { monthA, monthB, restaurantId } = req.query; // Format: YYYY-MM
+    if (!monthA || !monthB) return res.status(400).json({ error: 'Ange två månader att jämföra' });
+
+    const scopedId = isSuperAdmin(req as AuthRequest) 
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+
+    const getMonthData = async (monthStr: string) => {
+      const start = new Date(monthStr + '-01');
+      const end = new Date(start.getFullYear(), start.getMonth() + 1, 0, 23, 59, 59, 999);
+      
+      const stats = await prisma.order.aggregate({
+        where: {
+          ...(scopedId ? { restaurantId: scopedId } : {}),
+          status: { notIn: ['CANCELLED', 'REJECTED'] },
+          createdAt: { gte: start, lte: end }
+        },
+        _sum: { total: true },
+        _count: { id: true },
+        _avg: { total: true }
+      });
+
+      return {
+        month: monthStr,
+        revenue: (stats._sum.total || 0) / 100,
+        orders: stats._count.id,
+        avgOrder: (stats._avg.total || 0) / 100
+      };
+    };
+
+    const [dataA, dataB] = await Promise.all([
+      getMonthData(monthA as string),
+      getMonthData(monthB as string)
+    ]);
+
+    res.json({ dataA, dataB });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel vid jämförelse' });
+  }
+});
+
+// GET /api/admin/reports/customers - Customer Growth & Retention
+router.get('/customers', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Bara super-admin kan se global kundstatistik' });
+    }
+
+    const { days = 30 } = req.query;
+    const limitDays = parseInt(days as string) || 30;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - limitDays);
+
+    const [totalCustomers, newCustomers, activeUsers] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { createdAt: { gte: startDate } } }),
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { createdAt: { gte: startDate } },
+        _count: { id: true }
+      })
+    ]);
+
+    res.json({
+      total: totalCustomers,
+      newlyRegistered: newCustomers,
+      activeLastPeriod: activeUsers.length,
+      retentionRate: totalCustomers > 0 ? (activeUsers.length / totalCustomers) * 100 : 0
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Serverfel vid kundanalys' });
+  }
+});
+
+export default router;

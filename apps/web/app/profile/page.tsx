@@ -6,7 +6,7 @@ import axios from "axios";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
-  Star, RotateCcw, Home, Briefcase, Plus, Trash2
+  Star, RotateCcw, Home, Briefcase, Plus, Trash2, Scale
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -681,6 +681,109 @@ export default function ProfilePage() {
             </motion.div>
           )}
 
+          {/* Settings */}
+          {activeTab === "settings" && !isEditing && (
+            <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-6">
+              <div className="space-y-2">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Profil</div>
+                <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="w-full flex items-center justify-between p-6 hover:bg-white/5 transition-all text-left rounded-[2.5rem]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-gold-500/10 text-gold-500 rounded-xl flex items-center justify-center"><Settings size={18} /></div>
+                      <div>
+                        <p className="text-sm font-bold uppercase italic text-white">Redigera profil</p>
+                        <p className="text-[10px] text-zinc-600">Namn och e-post</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-zinc-700" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Preferenser</div>
+                <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
+                  <div className="p-6 flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                        <Bell size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-white">Push-notiser</p>
+                        <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Orderstatus i realtid</p>
+                      </div>
+                    </div>
+                    <div className="w-12 h-6 bg-zinc-800 rounded-full relative cursor-pointer opacity-50">
+                       <div className="absolute left-1 top-1 w-4 h-4 bg-zinc-600 rounded-full" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Juridiskt & GDPR</div>
+                <div className="bg-white/5 border border-white/5 rounded-[2.5rem] divide-y divide-white/5">
+                  <Link href="/privacy" className="p-6 flex items-center justify-between group hover:bg-white/5 transition-all first:rounded-t-[2.5rem]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+                        <ShieldCheck size={18} />
+                      </div>
+                      <p className="font-bold text-sm text-white">Integritetspolicy</p>
+                    </div>
+                    <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
+                  </Link>
+                  <Link href="/terms" className="p-6 flex items-center justify-between group hover:bg-white/5 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center">
+                        <Scale size={18} />
+                      </div>
+                      <p className="font-bold text-sm text-white">Användarvillkor</p>
+                    </div>
+                    <ChevronRight size={18} className="text-zinc-600 group-hover:text-white transition-all" />
+                  </Link>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Konto-hantering</div>
+                <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
+                  <button 
+                    onClick={async () => {
+                      const confirm1 = confirm("Är du säker på att du vill radera ditt konto?");
+                      if (!confirm1) return;
+                      const confirm2 = confirm("Detta går INTE att ångra. All din orderhistorik kommer anonymiseras och dina sparade adresser raderas permanent. Vill du fortsätta?");
+                      if (!confirm2) return;
+
+                      try {
+                        await axios.delete(`${API_URL}/api/profile`, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        alert("Ditt konto har raderats. Hoppas vi ses igen!");
+                        handleLogout();
+                      } catch (err: any) {
+                        alert(err.response?.data?.error || "Kunde inte radera kontot");
+                      }
+                    }}
+                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-red-500/5 transition-all rounded-[2.5rem]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center">
+                        <Trash2 size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-red-500">Radera konto</p>
+                        <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-widest">Rensa all personlig data</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {/* Orders */}
           {activeTab === "orders" && (
             <motion.div key="ord" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
@@ -848,33 +951,6 @@ export default function ProfilePage() {
             </motion.div>
           )}
 
-          {/* Settings */}
-          {activeTab === "settings" && !isEditing && (
-            <motion.div key="set" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <button
-                onClick={() => setIsEditing(true)}
-                className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all text-left"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400"><Settings size={18} /></div>
-                  <div>
-                    <p className="text-sm font-bold uppercase italic">Redigera profil</p>
-                    <p className="text-[10px] text-zinc-600">Namn och e-post</p>
-                  </div>
-                </div>
-                <ChevronRight size={18} className="text-zinc-700" />
-              </button>
-              <div className="w-full flex items-center justify-between p-6 bg-white/5 border border-white/5 rounded-[2rem] opacity-40 cursor-not-allowed">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-zinc-800 rounded-xl flex items-center justify-center text-zinc-400"><Bell size={18} /></div>
-                  <div>
-                    <p className="text-sm font-bold uppercase italic">Notiser</p>
-                    <p className="text-[10px] text-zinc-600">Kommer snart</p>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
 
           {/* Edit form */}
           {isEditing && (

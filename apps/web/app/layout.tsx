@@ -6,6 +6,8 @@ import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
 
+import CookieConsent from "@/components/CookieConsent";
+
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -32,6 +34,7 @@ export default function RootLayout({
           <ServiceWorkerRegister />
           <main>{children}</main>
           <BottomNav />
+          <CookieConsent />
           <InstallPWA />
         </Providers>
       </body>

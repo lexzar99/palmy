@@ -21,7 +21,9 @@ import profileRoutes from './routes/profile';
 import customerRoutes from './routes/customers';
 import campaignRoutes from './routes/campaigns';
 import deliveryRoutes from './routes/delivery';
+import reportRoutes from './routes/reports';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
+import { runDailyLoyaltyChecks } from './lib/loyalty';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -83,6 +85,15 @@ const orderLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
 });
+
+const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  keyGenerator: (req) => (req.body.phone || req.ip) as string,
+  message: { error: 'För många SMS-förfrågningar. Vänta 10 minuter.' },
+});
+
+app.use('/api/account/send-otp', otpLimiter);
 app.use('/api/orders', orderLimiter);
 
 // Routes
@@ -100,6 +111,7 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
+app.use('/api/admin/reports', reportRoutes);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -150,6 +162,15 @@ const PORT = Number(process.env.PORT || 4000);
     console.log('🔐 Default SUPER_ADMIN ensured (admin/admin123)');
     await ensureRestaurantAdmins();
     console.log('🏪 Restaurant admin logins ensured (one per restaurant slug)');
+
+    // Run loyalty checks once on startup
+    runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
+    
+    // Schedule for every 24 hours
+    setInterval(() => {
+      runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Scheduled run error:', err));
+    }, 24 * 60 * 60 * 1000);
+
   } catch (error) {
     console.warn('⚠️ Could not ensure default SUPER_ADMIN:', error);
   }

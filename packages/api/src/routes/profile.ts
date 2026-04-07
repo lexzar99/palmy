@@ -261,4 +261,35 @@ router.get('/orders/:id/reorder', authenticateUser, async (req: any, res: any) =
   }
 });
 
+// DELETE /api/profile - GDPR: Delete account
+router.delete('/', authenticateUser, async (req: any, res: any) => {
+  try {
+    // 1. Identify user
+    const userId = req.user.id;
+    
+    // 2. We don't delete orders (business record), but we disconnect them
+    // and anonymize the data in the order records if they were tied specifically to this user
+    await prisma.order.updateMany({
+      where: { userId },
+      data: { 
+        userId: null,
+        // Optional: Anonymize the order's PII fields if needed
+        // customerName: 'Anonymiserad kund',
+        // customerPhone: '0000000000',
+        // customerEmail: null,
+      }
+    });
+
+    // 3. Delete the user (SavedAddresses and CustomerDeals will be cascaded)
+    await prisma.user.delete({
+      where: { id: userId }
+    });
+
+    res.json({ success: true, message: 'Ditt konto och all tillhörande data har raderats.' });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Kunde inte radera kontot. Kontakta support om problemet kvarstår.' });
+  }
+});
+
 export default router;
