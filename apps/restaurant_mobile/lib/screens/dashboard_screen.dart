@@ -143,11 +143,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTabletLayout(OrderProvider provider) {
-    return Row(children: [
-        Expanded(child: _buildOrderList('NYA INKOMNA', provider.pendingOrders, true)),
-        Container(width: 1, color: Colors.white.withOpacity(0.05)),
-        Expanded(child: _buildOrderList('UNDER BEHANDLING', provider.activeOrders, false)),
-      ]);
+    return Column(
+      children: [
+        if (provider.pendingOrders.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.all(25),
+            child: _buildSectionHeader('NYA INKOMNA', AppTheme.gold),
+          ),
+          SizedBox(
+            height: 220,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 25),
+              child: Row(
+                children: provider.pendingOrders.map((o) => _buildOrderCard(o, true)).toList(),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+        ],
+        Expanded(
+          child: _buildOrderList('UNDER BEHANDLING', provider.activeOrders, false),
+        ),
+      ],
+    );
   }
 
   Widget _buildPhoneLayout(OrderProvider provider) {
@@ -169,7 +188,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
             const SizedBox(height: 15),
-            ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)),
+            if (provider.pendingOrders.isNotEmpty)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: provider.pendingOrders.map((order) => _buildOrderCard(order, true)).toList(),
+                ),
+              ),
             const SizedBox(height: 40),
             _buildSectionHeader('UNDER BEHANDLING'.toUpperCase(), Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3)),
             const SizedBox(height: 15),
@@ -207,71 +233,143 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildOrderCard(OrderModel order, bool isNew) {
-    final statusLabel = {'PENDING': 'NY', 'ACCEPTED': 'BEKRÄFTAD', 'PREPARING': 'TILLAGAS', 'READY': 'KLAR', 'DELIVERING': 'PÅ VÄG'}[order.status] ?? order.status;
+    final bool isDelivery = order.type == 'DELIVERY';
+    final Color typeColor = isDelivery ? Colors.blue : Colors.green;
 
-    return FadeInLeft(
+    if (isNew) {
+      // NEW ORDERS: HORIZONTAL CARD
+      return FadeInRight(
+        duration: const Duration(milliseconds: 500),
+        child: Container(
+          width: 280,
+          margin: const EdgeInsets.only(right: 20, bottom: 10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(35),
+            border: Border.all(color: typeColor.withOpacity(0.6), width: 3),
+            boxShadow: [
+              BoxShadow(color: typeColor.withOpacity(0.15), blurRadius: 20, spreadRadius: 2)
+            ],
+          ),
+          child: InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+            borderRadius: BorderRadius.circular(35),
+            child: Padding(
+              padding: const EdgeInsets.all(25),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Pulse(
+                     infinite: true,
+                     duration: const Duration(seconds: 2),
+                     child: Container(
+                       width: 75, height: 75,
+                       decoration: BoxDecoration(
+                         color: typeColor,
+                         shape: BoxShape.circle,
+                         boxShadow: [BoxShadow(color: typeColor.withOpacity(0.4), blurRadius: 15)]
+                       ),
+                       child: Center(
+                         child: Text(
+                           order.orderNumber,
+                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                         ),
+                       ),
+                     ),
+                   ),
+                   const SizedBox(height: 20),
+                   Text(
+                     order.customerName.toUpperCase(),
+                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
+                     textAlign: TextAlign.center,
+                     maxLines: 1, overflow: TextOverflow.ellipsis,
+                   ),
+                   const SizedBox(height: 10),
+                   Text(
+                     isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 2),
+                   ),
+                   const SizedBox(height: 15),
+                   Text(
+                     '${order.total.toInt()} KR',
+                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic),
+                   ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+
+    // PROCESSING ORDERS (List)
+    return FadeInUp(
       duration: const Duration(milliseconds: 400),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 22),
+        margin: const EdgeInsets.only(bottom: 18),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(32),
-          gradient: LinearGradient(colors: [Theme.of(context).colorScheme.surface, Theme.of(context).colorScheme.surface.withOpacity(0.85)], begin: Alignment.topLeft, end: Alignment.bottomRight),
-          border: Border.all(color: isNew ? Theme.of(context).primaryColor.withOpacity(0.5) : Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.04), width: 2),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 6))],
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: typeColor.withOpacity(0.1), width: 2),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
         ),
-        child: Column(children: [
-            InkWell(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-              child: Padding(padding: const EdgeInsets.all(25),
-                child: Row(children: [
-                    Container(width: 60, height: 60, decoration: BoxDecoration(color: isNew ? AppTheme.gold : Colors.black, borderRadius: BorderRadius.circular(20), boxShadow: isNew ? [BoxShadow(color: AppTheme.gold.withOpacity(0.2), blurRadius: 10)] : []), child: Center(child: Text(order.orderNumber, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: isNew ? AppTheme.charcoal : AppTheme.gold)))),
-                    const SizedBox(width: 20),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-                          Text(order.customerName.toUpperCase(), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, letterSpacing: 1), overflow: TextOverflow.ellipsis, maxLines: 1),
-                          const SizedBox(height: 8),
-                          Wrap(spacing: 8, runSpacing: 4, children: [
-                               _buildBadge(order.type == 'DELIVERY' ? 'UTKÖRNING' : 'AVHÄMTNING', order.type == 'DELIVERY' ? Colors.blue : Colors.green),
-                               _buildBadge(statusLabel, isNew ? Theme.of(context).primaryColor : Colors.grey),
-                               if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty))
-                                 _buildBadge('NOTE', Colors.redAccent),
-                            ]),
-                        ])),
-                    Container(padding: const EdgeInsets.only(left: 10), child: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                      Text('${order.total.toInt()} KR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
-                      const SizedBox(height: 10),
-                      IconButton(
-                        onPressed: () => PrintService.printReceipt(order),
-                        icon: const Icon(Icons.print_outlined, size: 22, color: Colors.grey),
-                        padding: EdgeInsets.zero, constraints: const BoxConstraints(),
+        child: InkWell(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+          borderRadius: BorderRadius.circular(28),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 50, height: 50,
+                  decoration: BoxDecoration(
+                    color: typeColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Center(
+                    child: Text(
+                      order.orderNumber,
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: typeColor),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.customerName.toUpperCase(),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
                       ),
-                    ])),
-                  ])),
+                      const SizedBox(height: 5),
+                      Text(
+                        isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '${order.total.toInt()} KR',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(width: 15),
+                IconButton(
+                  onPressed: () => _markReady(order),
+                  icon: Icon(order.type == 'PICKUP' ? Icons.check_circle_outline : Icons.delivery_dining, color: typeColor),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
             ),
-            Container(padding: const EdgeInsets.fromLTRB(25, 0, 25, 20),
-              child: Row(children: [
-                  if (order.status == 'PENDING')
-                    Expanded(child: SizedBox(height: 58, child: ElevatedButton.icon(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))), 
-                      icon: const Icon(Icons.visibility_outlined, size: 20), 
-                      label: const Text('SE INFO & GODKÄNN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)), 
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).primaryColor, 
-                        foregroundColor: Theme.of(context).scaffoldBackgroundColor, 
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
-                      )
-                    ))),
-                  if (['ACCEPTED', 'PREPARING'].contains(order.status))
-                    Expanded(child: SizedBox(height: 58, child: ElevatedButton.icon(onPressed: () => _markReady(order), icon: Icon(order.type == 'PICKUP' ? Icons.shopping_bag_outlined : Icons.delivery_dining, size: 20), label: Text(order.type == 'PICKUP' ? 'KLAR FÖR HÄMTNING' : 'KLAR & PÅ VÄG', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)))))),
-                  if (order.status == 'READY' && order.type == 'PICKUP')
-                    Expanded(child: SizedBox(height: 58, child: ElevatedButton.icon(onPressed: () async { await Provider.of<OrderProvider>(context, listen: false).updateStatus(order.id, 'DELIVERED'); }, icon: const Icon(Icons.check_circle, size: 20), label: const Text('MARKERA LEVERERAD', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)), style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade800, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)))))),
-                ])),
-          ]),
+          ),
+        ),
       ),
     );
   }
+
 
   Widget _buildBadge(String text, Color color) {
     return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9), border: Border.all(color: color.withOpacity(0.5), width: 1)), child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 1)));
