@@ -53,10 +53,12 @@ router.get('/categories', async (req, res) => {
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
     let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
 
-    // Fall back to the global menu (restaurantId=null) if no specific categories are found for this restaurant.
-    // This allows restaurants to share a common base menu if they haven't set up their own isolated data.
-    if (hasRestaurantScope && categories.length === 0) {
-      console.info(`[menu] ${slug || restaurantId} falling back to global menu content.`);
+    // If we found zero products for this restaurant, fall back to the global menu (restaurantId=null).
+    // This handles cases where a restaurant has categories but they are currently empty.
+    const totalProducts = categories.reduce((sum, cat) => sum + cat.products.length, 0);
+
+    if (hasRestaurantScope && totalProducts === 0) {
+      console.info(`[menu] ${slug || restaurantId} has no products, falling back to global menu content.`);
       categories = await queryActiveMenuByRestaurantId(null);
     } else if (hasRestaurantScope && categories.length === 0) {
       console.info('[menu] No active menu found for restaurant', { slug });
