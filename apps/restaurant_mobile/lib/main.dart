@@ -120,11 +120,11 @@ class _MainShellState extends State<MainShell> {
               onDestinationSelected: (i) => setState(() => _currentIndex = i),
               labelType: NavigationRailLabelType.all,
               leading: Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Container(width: 45, height: 45, decoration: BoxDecoration(color: AppTheme.gold, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: AppTheme.gold.withOpacity(0.1), blurRadius: 10)]), child: const Center(child: Text('M', style: TextStyle(color: AppTheme.charcoal, fontSize: 24, fontWeight: FontWeight.w900))))),
-              selectedIconTheme: const IconThemeData(color: AppTheme.charcoal, size: 28),
-              unselectedIconTheme: IconThemeData(color: Colors.white.withOpacity(0.4), size: 24), 
-              selectedLabelTextStyle: const TextStyle(color: AppTheme.gold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-              unselectedLabelTextStyle: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1), 
-              indicatorColor: AppTheme.gold,
+              selectedIconTheme: IconThemeData(color: isDark ? AppTheme.charcoal : AppTheme.lightGold, size: 28),
+              unselectedIconTheme: IconThemeData(color: isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext, size: 24), 
+              selectedLabelTextStyle: TextStyle(color: isDark ? AppTheme.gold : AppTheme.lightGold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+              unselectedLabelTextStyle: TextStyle(color: isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1), 
+              indicatorColor: isDark ? AppTheme.gold : const Color(0x257A5522),
               destinations: const [
                 NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long, color: AppTheme.charcoal), label: Text('ORDRAR')),
                 NavigationRailDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history, color: AppTheme.charcoal), label: Text('HISTORIK')),
@@ -161,15 +161,16 @@ class _MainShellState extends State<MainShell> {
 
   Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label, bool isDark) {
     final isActive = _currentIndex == index;
-    final inactiveColor = isDark ? Colors.white.withOpacity(0.4) : Colors.black.withOpacity(0.4);
+    final activeColor = isDark ? AppTheme.gold : AppTheme.lightGold;
+    final inactiveColor = isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext;
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       behavior: HitTestBehavior.opaque,
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(isActive ? activeIcon : icon, color: isActive ? AppTheme.gold : inactiveColor, size: 24),
+            Icon(isActive ? activeIcon : icon, color: isActive ? activeColor : inactiveColor, size: 24),
             const SizedBox(height: 5),
-            Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: isActive ? AppTheme.gold : inactiveColor)),
+            Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: isActive ? activeColor : inactiveColor)),
           ]),
       ),
     );

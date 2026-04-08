@@ -192,10 +192,13 @@ class OrderProvider with ChangeNotifier {
 
   Future<List<dynamic>> fetchMenu(String restaurantId) async {
     try {
-      // Use ADMIN endpoint to get ALL products (even inactive)
+      // Use ADMIN endpoint to get ALL products (even inactive) for toggle control.
+      // includeGlobal=auto: if the restaurant has no own categories (like Palmyra which uses
+      // restaurantId=null in the DB), the server will automatically return global categories.
       final res = await _api.get('/api/admin/categories', queryParameters: {
         'restaurantId': restaurantId,
         'includeProducts': 'true',
+        'includeGlobal': 'auto',
       });
       if (res.statusCode == 200) {
         final data = res.data;
@@ -241,6 +244,7 @@ class OrderProvider with ChangeNotifier {
     }
     return [];
   }
+
 
   Future<bool> updateProductStatus(String productId, bool isActive) async {
     try {

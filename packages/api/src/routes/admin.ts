@@ -602,38 +602,59 @@ router.get('/categories', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const includeProducts = req.query.includeProducts === 'true';
+    // includeGlobal=true  → always include categories with restaurantId=null
+    // includeGlobal=auto  → include globals only if no restaurant-specific categories exist
     const includeGlobal = req.query.includeGlobal === 'true' || req.query.includeGlobal === '1';
+    const includeGlobalAuto = req.query.includeGlobal === 'auto';
 
-    const categories = await prisma.category.findMany({
-      where: { 
-        ...(scopedRestaurantId
-          ? (includeGlobal
-              ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
-              : { restaurantId: scopedRestaurantId })
-          : {}),
-      },
-      orderBy: { position: 'asc' },
-      include: { 
-        _count: { select: { products: true } },
-        ...(includeProducts ? {
-          products: {
-            orderBy: { position: 'asc' },
+    const productInclude = includeProducts ? {
+      products: {
+        orderBy: { position: 'asc' as const },
+        include: {
+          extraGroups: {
+            orderBy: { position: 'asc' as const },
             include: {
-              extraGroups: {
-                orderBy: { position: 'asc' },
+              extraGroup: {
                 include: {
-                  extraGroup: {
-                    include: {
-                       extras: { orderBy: { position: 'asc' } }
-                    }
-                  }
+                  extras: { orderBy: { position: 'asc' as const } }
                 }
               }
             }
           }
-        } : {})
+        }
+      }
+    } : {};
+
+    const queryWhere = (withGlobal: boolean) => ({
+      ...(scopedRestaurantId
+        ? (withGlobal
+            ? { OR: [{ restaurantId: scopedRestaurantId }, { restaurantId: null }] }
+            : { restaurantId: scopedRestaurantId })
+        : {}),
+    });
+
+    let categories = await prisma.category.findMany({
+      where: queryWhere(includeGlobal),
+      orderBy: { position: 'asc' },
+      include: { 
+        _count: { select: { products: true } },
+        ...productInclude,
       },
     });
+
+    // Auto-mode: Palmyra's menu was seeded with restaurantId=null (global).
+    // If a restaurant admin has no own categories, fall back to global ones.
+    if (includeGlobalAuto && scopedRestaurantId && categories.length === 0) {
+      categories = await prisma.category.findMany({
+        where: queryWhere(true),
+        orderBy: { position: 'asc' },
+        include: { 
+          _count: { select: { products: true } },
+          ...productInclude,
+        },
+      });
+    }
+
     res.json(categories);
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1145,8 +1166,55 @@ router.delete('/extra-groups/:id', async (req, res) => {
 });
 
 // =====================
-// DEALS (scoped by restaurantId)
+// ENSKILDA EXTRAS (tillbehör)
 // =====================
+
+// PATCH /api/admin/extras/:id — Togglea/uppdatera ett enskilt tillbehör (t.ex. isActive)
+// Används av Flutter-appen för att markera enskilda tillbehör som slut.
+router.patch('/extras/:id', async (req, res) => {
+  try {
+    // Verify ownership via the extra's group
+    const existing = await prisma.extra.findUnique({
+      where: { id: req.params.id },
+      include: { extraGroup: { select: { id: true, restaurantId: true } } },
+    });
+
+    if (!existing) {
+      res.status(404).json({ error: 'Tillbehör hittades inte' });
+      return;
+    }
+
+    if (!isSuperAdmin(req as AuthRequest)) {
+      const rid = requireRestaurantScope(req as AuthRequest, res);
+      if (!rid) return;
+      // Allow if the group belongs to this restaurant OR is a global group (restaurantId=null)
+      if (existing.extraGroup.restaurantId !== null && existing.extraGroup.restaurantId !== rid) {
+        res.status(403).json({ error: 'Du kan bara uppdatera tillbehör för din restaurang' });
+        return;
+      }
+    }
+
+    const { isActive, name, priceAddon, isDefault, position } = req.body;
+    const updateData: Record<string, unknown> = {};
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (name !== undefined) updateData.name = name;
+    if (priceAddon !== undefined) updateData.priceAddon = Math.round(Number(priceAddon) * 100);
+    if (isDefault !== undefined) updateData.isDefault = isDefault;
+    if (position !== undefined) updateData.position = position;
+
+    const extra = await prisma.extra.update({
+      where: { id: req.params.id },
+      data: updateData,
+    });
+
+    res.json({ ...extra, priceAddon: extra.priceAddon / 100 });
+  } catch (err) {
+    console.error('Error updating extra:', err);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+
 
 const parseJsonArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {

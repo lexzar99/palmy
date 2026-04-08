@@ -77,15 +77,22 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? AppTheme.charcoal : AppTheme.lightBg;
+    final textColor = isDark ? Colors.white : AppTheme.lightText;
+    final subtextColor = isDark ? Colors.white.withOpacity(0.35) : AppTheme.lightSubtext;
+    final goldColor = isDark ? AppTheme.gold : AppTheme.lightGold;
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          color: AppTheme.charcoal,
-          image: DecorationImage(
+        decoration: BoxDecoration(
+          color: bgColor,
+          image: isDark ? const DecorationImage(
             image: NetworkImage('https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?q=80&w=2070'),
             opacity: 0.05,
             fit: BoxFit.cover,
-          ),
+          ) : null,
         ),
         child: Padding(
           padding: const EdgeInsets.all(30.0),
@@ -125,12 +132,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 delay: const Duration(milliseconds: 300),
                 child: Column(
                   children: [
-                    const Text(
+                    Text(
                       'MATGO BUSINESS',
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: textColor,
                         letterSpacing: 2,
                       ),
                     ),
@@ -139,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        color: AppTheme.gold.withOpacity(0.5),
+                        color: goldColor.withOpacity(0.5),
                         letterSpacing: 4,
                       ),
                     ),
@@ -153,6 +160,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     TextField(
                       controller: _emailController,
+                      style: TextStyle(color: textColor),
                       decoration: const InputDecoration(
                         labelText: 'ANVÄNDARNAMN',
                         prefixIcon: Icon(Icons.person_outline, size: 20),
@@ -163,7 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       'Använd samma inloggning som i MatGo Admin (din restaurang-användare).',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.35),
+                        color: subtextColor,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.5,
@@ -173,6 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
+                      style: TextStyle(color: textColor),
                       decoration: const InputDecoration(
                         labelText: 'LÖSENORD',
                         prefixIcon: Icon(Icons.lock_outline, size: 20),
@@ -215,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Text(
                           'TESTA SERVER',
                           style: TextStyle(
-                            color: AppTheme.gold.withOpacity(0.9),
+                            color: goldColor.withOpacity(0.9),
                             fontSize: 10,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2,
@@ -231,15 +240,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 delay: const Duration(milliseconds: 900),
                 child: TextButton.icon(
                   onPressed: _testSoundBridge,
-                  icon: const Icon(Icons.volume_up, color: AppTheme.gold, size: 16),
-                  label: const Text('TESTA MAC-LARM', style: TextStyle(color: AppTheme.gold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                  icon: Icon(Icons.volume_up, color: goldColor, size: 16),
+                  label: Text('TESTA MAC-LARM', style: TextStyle(color: goldColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 ),
               ),
               const SizedBox(height: 10),
               Text(
                 'Server: ${AppConstants.baseUrl}',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.25),
+                  color: subtextColor.withOpacity(0.6),
                   fontSize: 9,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1,

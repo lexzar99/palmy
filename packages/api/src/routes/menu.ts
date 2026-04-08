@@ -51,18 +51,18 @@ router.get('/categories', async (req, res) => {
     };
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
-    let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
-    const hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
+    const categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
 
-    // Public menu must never include inactive items.
-    // If a restaurant has no menu, fall back to global categories (restaurantId = null).
-    if (hasRestaurantScope && (categories.length === 0 || !hasAnyProducts)) {
-      console.warn('[menu] No active menu found; falling back to global active menu', {
+    // NOTE: We do NOT fall back to global categories anymore.
+    // Each restaurant has its own isolated menu.
+    // Categories with restaurantId=null are global and shared only when no restaurant scope is given.
+    if (hasRestaurantScope && categories.length === 0) {
+      console.info('[menu] No active menu found for restaurant', {
         slug,
         restaurantId,
         resolvedRestaurantId,
       });
-      categories = await queryActiveMenuByRestaurantId(null);
+      // Return empty array — the frontend should handle this gracefully
     }
 
     // Formatera för frontend
