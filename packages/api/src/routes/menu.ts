@@ -53,11 +53,12 @@ router.get('/categories', async (req, res) => {
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
     let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
 
-    // ONLY Palmyra should fall back to the global menu (restaurantId=null)
-    // because its 100+ products were originally seeded without a restaurantId.
-    // This prevents Sushi Nori and Kebabino from accidentally showing Palmyra's menu.
-    if (hasRestaurantScope && categories.length === 0 && slug === 'palmyra') {
-      console.info('[menu] Palmyra specifically falling back to global menu as it lacks isolated data.');
+    // Palmyra and Sushi Nori should both fall back to the global menu (restaurantId=null)
+    // if no specific categories are found.
+    const allowedFallbackSlugs = ['palmyra', 'sushi-nori'];
+    
+    if (hasRestaurantScope && categories.length === 0 && allowedFallbackSlugs.includes(slug as string)) {
+      console.info(`[menu] ${slug} specifically falling back to global menu as it lacks isolated data.`);
       categories = await queryActiveMenuByRestaurantId(null);
     } else if (hasRestaurantScope && categories.length === 0) {
       console.info('[menu] No active menu found for restaurant', { slug });

@@ -5,6 +5,7 @@ import '../providers/order_provider.dart';
 import '../models/order_model.dart';
 import '../core/theme.dart';
 import '../core/print_service.dart';
+import '../screens/order_detail_screen.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -117,6 +118,7 @@ class HistoryScreen extends StatelessWidget {
           border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.1)),
         ),
         child: ListTile(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
           contentPadding: const EdgeInsets.all(18),
           leading: Container(
             width: 50, height: 50,

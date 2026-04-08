@@ -34,8 +34,7 @@ class OrderProvider with ChangeNotifier {
   // For Pickup, READY is active until DELIVERED.
   List<OrderModel> get activeOrders => _orders
       .where((o) =>
-          (['ACCEPTED', 'PREPARING'].contains(o.status)) ||
-          (o.status == 'READY' && o.type == 'PICKUP'))
+          (['ACCEPTED', 'PREPARING'].contains(o.status)))
       .toList();
 
   // HISTORY TAB FILTERS
@@ -44,7 +43,7 @@ class OrderProvider with ChangeNotifier {
     final startOfToday = DateTime(now.year, now.month, now.day);
     
     return _orders.where((o) {
-      final isCompleted = ['DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
+      final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
       return isCompleted && o.createdAt.isAfter(startOfToday);
     }).toList();
   }
@@ -55,7 +54,7 @@ class OrderProvider with ChangeNotifier {
     final startOfToday = DateTime(now.year, now.month, now.day);
     
     return _orders.where((o) {
-      final isCompleted = ['DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
+      final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
       return isCompleted && o.createdAt.isAfter(startOfYesterday) && o.createdAt.isBefore(startOfToday);
     }).toList();
   }
@@ -96,13 +95,17 @@ class OrderProvider with ChangeNotifier {
       .fold(0.0, (sum, o) => sum + o.total);
 
   Future<void> fetchOrders(String restaurantId) async {
+    _restaurantId = restaurantId;
+    
+    // 1. Immediately try to load from cache so user sees something while loading
     if (_orders.isEmpty) {
       _isLoading = true;
       notifyListeners();
+      await _loadOrdersFromCache();
     }
-    _restaurantId = restaurantId;
 
     try {
+      debugPrint('📡 FETCHING ORDERS for restaurant: $restaurantId');
       final res = await _api.get('/api/admin/orders', queryParameters: {
         'restaurantId': restaurantId,
         'limit': '300',
@@ -110,17 +113,32 @@ class OrderProvider with ChangeNotifier {
 
       if (res.statusCode == 200) {
         final List data = res.data['orders'] ?? res.data;
-        _orders = data.map((o) => OrderModel.fromJson(o)).toList();
+        
+        // Merge strategy: Keep existing mock orders but update with server data
+        final List<OrderModel> serverOrders = data.map((o) => OrderModel.fromJson(o)).toList();
+        final mockOrders = _orders.where((o) => o.id.startsWith('mock_')).toList();
+        
+        _orders = [...mockOrders, ...serverOrders];
+        
+        // Remove duplicates if any (cases where a mock becomes a real order)
+        final seenIds = <String>{};
+        _orders = _orders.where((o) => seenIds.add(o.id)).toList();
+        
+        // Sort: pending first, then by date desc
+        _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
         debugPrint('✅ FETCHED ${_orders.length} ORDERS. Pending: ${pendingOrders.length}');
         _saveOrdersToCache();
       }
     } catch (e) {
-      debugPrint('Error fetching orders: $e');
-      await _loadOrdersFromCache();
+      debugPrint('❌ Error fetching orders: $e');
+      if (_orders.isEmpty) {
+        await _loadOrdersFromCache();
+      }
     }
 
     _isLoading = false;
-    _evaluateAlarms(); // Check if we need to start ringing after refresh
+    _evaluateAlarms();
     notifyListeners();
     _fetchRestaurantStatus();
   }

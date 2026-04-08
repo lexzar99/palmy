@@ -4,6 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 import '../core/theme.dart';
+import '../core/print_service.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
@@ -152,6 +153,12 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 color: order.status == 'PENDING' ? AppTheme.gold : Colors.green, letterSpacing: 1.5)),
             ),
           ),
+          IconButton(
+            onPressed: () => PrintService.printReceipt(order),
+            icon: const Icon(Icons.print_outlined, color: AppTheme.gold),
+            tooltip: 'Skriv ut kvitto',
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
@@ -365,13 +372,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildActionFooter() {
-    if (['DELIVERED', 'COMPLETED', 'CANCELLED'].contains(order.status)) {
-      return const SizedBox.shrink();
+    if (['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERING'].contains(order.status)) {
+       return const SizedBox.shrink();
     }
-
-    // If Delivery is PÅ VÄG, we don't show more buttons
-    if (order.status == 'DELIVERING' && order.type == 'DELIVERY') {
-      return const SizedBox.shrink();
+    
+    // Hide buttons if Pickup is already READY
+    if (order.status == 'READY' && order.type == 'PICKUP') {
+       return const SizedBox.shrink();
     }
 
     return Container(
@@ -400,8 +407,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                   final ok = await provider.updateStatus(order.id, nextStatus);
                   if (ok && mounted) {
                     setState(() { order = order.copyWith(status: nextStatus); });
-                    if (nextStatus == 'DELIVERING' || (nextStatus == 'READY' && order.type == 'PICKUP')) {
-                       // Done flow
+                    if (nextStatus == 'DELIVERING' || nextStatus == 'READY') {
+                      Navigator.pop(context);
                     }
                   }
                 },

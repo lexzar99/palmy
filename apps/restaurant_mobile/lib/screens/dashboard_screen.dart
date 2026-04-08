@@ -151,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: _buildSectionHeader('NYA INKOMNA', AppTheme.gold),
           ),
           SizedBox(
-            height: 220,
+            height: 180,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 25),
@@ -190,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 15),
             if (provider.pendingOrders.isNotEmpty)
               SizedBox(
-                height: 250,
+                height: 200,
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
@@ -198,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(width: 25), // Initial spacing to match header
+                      const SizedBox(width: 15), // Smaller initial spacing
                       ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)).toList(),
                     ],
                   ),
@@ -249,84 +249,79 @@ class _DashboardScreenState extends State<DashboardScreen> {
       // PREMIUM NEW ORDERS: REFINED MINI CARD WITH FRAME-ONLY PULSE
       return FadeInRight(
         duration: const Duration(milliseconds: 500),
-        child: _GlowFrame(
-          color: typeColor,
-          isDark: isDark,
-          child: Container(
-            width: 230,
-            margin: const EdgeInsets.only(right: 15, bottom: 20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: isDark 
-                  ? [AppTheme.zinc, AppTheme.charcoal] 
-                  : [Colors.white, const Color(0xFFFAF9F6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+        child: Container(
+          width: 200, height: 160,
+          margin: const EdgeInsets.only(right: 15, bottom: 20),
+          child: _GlowFrame(
+            color: typeColor,
+            isDark: isDark,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark 
+                    ? [AppTheme.zinc, AppTheme.charcoal] 
+                    : [Colors.white, const Color(0xFFF9F9F9)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(22),
               ),
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: InkWell(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-              borderRadius: BorderRadius.circular(28),
-              child: Padding(
-                padding: const EdgeInsets.all(22),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '#${order.orderNumber}',
-                          style: TextStyle(
-                            fontSize: 32, 
-                            fontWeight: FontWeight.w900, 
-                            color: isDark ? typeColor : typeColor.withOpacity(0.9),
-                            letterSpacing: -1,
+              child: InkWell(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+                borderRadius: BorderRadius.circular(22),
+                child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '#${order.orderNumber}',
+                            style: TextStyle(
+                              fontSize: 24, 
+                              fontWeight: FontWeight.w900, 
+                              color: isDark ? typeColor : typeColor.withOpacity(0.8),
+                              letterSpacing: -1,
+                              height: 1
+                            ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: typeColor.withOpacity(0.1),
-                            shape: BoxShape.circle
-                          ),
-                          child: Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 16),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      order.customerName.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 13, 
-                        fontWeight: FontWeight.w900, 
-                        color: isDark ? Colors.white : AppTheme.charcoal,
-                        letterSpacing: 1
+                          Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor.withOpacity(0.4), size: 12),
+                        ],
                       ),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: typeColor.withOpacity(0.6), letterSpacing: 2),
-                    ),
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          '${order.total.toInt()} KR',
-                          style: TextStyle(
-                            fontSize: 18, 
-                            fontWeight: FontWeight.w900, 
-                            color: isDark ? Colors.white.withOpacity(0.8) : AppTheme.charcoal,
-                          ),
+                      const SizedBox(height: 8),
+                      Text(
+                        order.customerName.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11, 
+                          fontWeight: FontWeight.w900, 
+                          color: isDark ? Colors.white : AppTheme.charcoal,
                         ),
-                        Icon(Icons.chevron_right_rounded, size: 16, color: typeColor.withOpacity(0.3)),
-                      ],
-                    ),
-                  ],
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                        style: TextStyle(fontSize: 7, fontWeight: FontWeight.bold, color: typeColor.withOpacity(0.4), letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 15),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${order.total.toInt()} KR',
+                            style: TextStyle(
+                              fontSize: 14, 
+                              fontWeight: FontWeight.w900, 
+                              color: isDark ? Colors.white.withOpacity(0.6) : AppTheme.charcoal.withOpacity(0.7),
+                            ),
+                          ),
+                          Icon(Icons.arrow_forward_ios_rounded, size: 8, color: typeColor.withOpacity(0.15)),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -535,13 +530,13 @@ class _GlowFrameState extends State<_GlowFrame> with SingleTickerProviderStateMi
       builder: (context, child) {
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: widget.color.withOpacity(0.5 * _animation.value), width: 3),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: widget.color.withOpacity(0.4 * _animation.value), width: 2.5),
             boxShadow: [
               BoxShadow(
                 color: widget.color.withOpacity(0.2 * _animation.value),
-                blurRadius: 15 * _animation.value,
-                spreadRadius: 2 * _animation.value,
+                blurRadius: 12 * _animation.value,
+                spreadRadius: 1 * _animation.value,
               ),
             ],
           ),
