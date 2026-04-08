@@ -290,7 +290,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     // Create admin user for the new restaurant if password provided
     if (payload.adminPassword) {
       const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash(payload.adminPassword, 12);
+      const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
       
       await prisma.adminUser.upsert({
         where: { email: restaurant.slug.toLowerCase() },
@@ -362,15 +362,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // Handle admin password update if provided
     if (payload.adminPassword) {
       const bcrypt = require('bcryptjs');
-      const hashedPassword = await bcrypt.hash(payload.adminPassword, 12);
+      const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
       
       // Upsert admin user for this restaurant
       // Restaurant admins use their slug as email
       await prisma.adminUser.upsert({
-        where: { email: restaurant.slug },
+        where: { email: restaurant.slug.toLowerCase() },
         update: { password: hashedPassword },
         create: {
-          email: restaurant.slug,
+          email: restaurant.slug.toLowerCase(),
           password: hashedPassword,
           name: `${restaurant.name} Admin`,
           role: 'STAFF',
