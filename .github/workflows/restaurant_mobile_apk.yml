@@ -2,11 +2,6 @@ name: Build Restaurant Mobile APK
 
 on:
   workflow_dispatch:
-    inputs:
-      version_suffix:
-        description: 'Optional version suffix (e.g. beta, hotfix)'
-        required: false
-        default: ''
   push:
     branches: [main]
     paths:
@@ -17,11 +12,11 @@ jobs:
   build-apk:
     runs-on: ubuntu-latest
     env:
+      # Opt into Node.js 24 for GitHub Actions JS actions (Node 20 is being deprecated).
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     defaults:
       run:
         working-directory: apps/restaurant_mobile
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,45 +36,11 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      - name: Analyze (warnings only — don't block build)
-        run: flutter analyze --no-fatal-infos || true
-
-      - name: Get version from pubspec
-        id: version
-        run: |
-          VERSION=$(grep "^version:" pubspec.yaml | sed 's/version: //')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "📦 Building version: $VERSION"
-
       - name: Build release APK
         run: flutter build apk --release
-
-      - name: Rename APK with version
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          SUFFIX="${{ github.event.inputs.version_suffix }}"
-          if [ -n "$SUFFIX" ]; then
-            NEW_NAME="matgo-business-v${VERSION}-${SUFFIX}.apk"
-          else
-            NEW_NAME="matgo-business-v${VERSION}.apk"
-          fi
-          cp build/app/outputs/flutter-apk/app-release.apk "$NEW_NAME"
-          echo "APK_NAME=$NEW_NAME" >> $GITHUB_ENV
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: matgo-business-apk
-          path: apps/restaurant_mobile/${{ env.APK_NAME }}
-          retention-days: 30
-
-      - name: Build summary
-        run: |
-          echo "## ✅ APK Build Successful" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "**File:** ${{ env.APK_NAME }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "📲 **Ladda ner:** Gå till Actions → Klicka på detta workflow-körning → Under 'Artifacts'" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Inloggning:** användarnamn = restaurangens slug (t.ex. \`palmyra\`), lösenord = \`palmyra123\`" >> $GITHUB_STEP_SUMMARY
+          name: restaurant_mobile-apk
+          path: apps/restaurant_mobile/build/app/outputs/flutter-apk/app-release.apk
