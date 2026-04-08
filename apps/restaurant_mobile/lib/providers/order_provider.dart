@@ -96,9 +96,11 @@ class OrderProvider with ChangeNotifier {
       .fold(0.0, (sum, o) => sum + o.total);
 
   Future<void> fetchOrders(String restaurantId) async {
-    _isLoading = true;
+    if (_orders.isEmpty) {
+      _isLoading = true;
+      notifyListeners();
+    }
     _restaurantId = restaurantId;
-    notifyListeners();
 
     try {
       final res = await _api.get('/api/admin/orders', queryParameters: {

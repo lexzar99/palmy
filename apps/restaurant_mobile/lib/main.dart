@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
@@ -12,16 +12,24 @@ import 'screens/menu_screen.dart';
 import 'screens/insights_screen.dart';
 import 'providers/theme_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'core/audio_helper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Try initializing audio configurations
+  try {
+    await AudioHelper.initConfigs();
+  } catch (e) {
+    debugPrint('Initial audio config failed: $e');
+  }
+
   final authProvider = AuthProvider();
   await authProvider.tryAutoLogin();
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
-  final String version = packageInfo.version;
-  final String buildNumber = packageInfo.buildNumber;
-  final String fullVersion = '\$version+\$buildNumber';
+  final String fullVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
+
 
   runApp(
     MultiProvider(

@@ -7,6 +7,30 @@ class AudioHelper {
   static final AudioPlayer _testPlayer = AudioPlayer();
   static bool _isLooping = false;
 
+  static Future<void> initConfigs() async {
+    try {
+      final audioContext = AudioContext(
+        android: const AudioContextAndroid(
+          isSpeakerphoneOn: true,
+          stayAwake: true,
+          contentType: AndroidContentType.sonification,
+          usageType: AndroidUsageType.alarm,
+          audioFocus: AndroidAudioFocus.gainTransientExclusive,
+        ),
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {
+            AVAudioSessionOptions.defaultToSpeaker,
+            AVAudioSessionOptions.mixWithOthers,
+          },
+        ),
+      );
+      await AudioPlayer.global.setAudioContext(audioContext);
+    } catch (e) {
+      debugPrint('AudioContext init error: $e');
+    }
+  }
+
   static Future<void> startLooping(String assetName) async {
     if (_isLooping) return;
     try {
@@ -43,7 +67,11 @@ class AudioHelper {
 
   static Future<void> stopLooping() async {
     _isLooping = false;
-    await _loopPlayer.stop();
+    try {
+      await _loopPlayer.stop();
+    } catch (e) {
+      debugPrint('❌ AudioHelper Stop Error: $e');
+    }
   }
 
   static Future<void> playTest(String assetName) async {

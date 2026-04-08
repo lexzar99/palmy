@@ -19,7 +19,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadOrders();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadOrders();
+    });
   }
 
   void _loadOrders() {
