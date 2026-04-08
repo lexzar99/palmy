@@ -22,7 +22,10 @@ router.get('/categories', async (req, res) => {
     const queryActiveMenuByRestaurantId = async (rid: string | null) => {
       return prisma.category.findMany({
         where: {
-          restaurantId: rid,
+          OR: [
+            { restaurantId: rid },
+            { restaurantId: null }
+          ],
           isActive: true,
         },
         orderBy: { position: 'asc' },
@@ -53,15 +56,9 @@ router.get('/categories', async (req, res) => {
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
     let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
 
-    // If we found zero products for this restaurant, fall back to the global menu (restaurantId=null).
-    // This handles cases where a restaurant has categories but they are currently empty.
-    const totalProducts = categories.reduce((sum, cat) => sum + cat.products.length, 0);
-
-    if (hasRestaurantScope && totalProducts === 0) {
-      console.info(`[menu] ${slug || restaurantId} has no products, falling back to global menu content.`);
-      categories = await queryActiveMenuByRestaurantId(null);
-    } else if (hasRestaurantScope && categories.length === 0) {
-      console.info('[menu] No active menu found for restaurant', { slug });
+    // Fallback logic if no categories found (e.g. invalid restaurantId)
+    if (hasRestaurantScope && categories.length === 0) {
+      console.info(`[menu] No active menu found for restaurant: ${slug || restaurantId}`);
     }
 
     // Formatera för frontend
