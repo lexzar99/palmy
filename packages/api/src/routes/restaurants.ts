@@ -253,7 +253,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     const payload = restaurantSchema.parse(req.body);
     const data: any = {
       name: payload.name,
-      slug: payload.slug || slugify(payload.name),
+      slug: (payload.slug || slugify(payload.name)).toLowerCase(),
       description: payload.description,
       cuisine: payload.cuisine,
       address: payload.address,
@@ -327,7 +327,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // Build update payload explicitly to avoid accidentally passing unsupported keys.
     const data: any = {};
     if (payload.name !== undefined) data.name = payload.name;
-    if (payload.slug !== undefined) data.slug = payload.slug;
+    if (payload.slug !== undefined) data.slug = payload.slug.toLowerCase();
     if (payload.description !== undefined) data.description = payload.description;
     if (payload.cuisine !== undefined) data.cuisine = payload.cuisine;
     if (payload.address !== undefined) data.address = payload.address;
