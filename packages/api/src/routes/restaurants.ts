@@ -286,6 +286,25 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
         ...data,
       },
     });
+
+    // Create admin user for the new restaurant if password provided
+    if (payload.adminPassword) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(payload.adminPassword, 12);
+      
+      await prisma.adminUser.upsert({
+        where: { email: restaurant.slug.toLowerCase() },
+        update: { password: hashedPassword },
+        create: {
+          email: restaurant.slug.toLowerCase(),
+          password: hashedPassword,
+          name: `${restaurant.name} Admin`,
+          role: 'STAFF',
+        },
+      });
+      console.log(`✅ Admin account created for restaurant member: ${restaurant.slug}`);
+    }
+
     res.status(201).json(restaurant);
   } catch (err: any) {
     res.status(400).json({ error: err.message });
