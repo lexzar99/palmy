@@ -463,35 +463,51 @@ router.get('/:slug', async (req, res) => {
           { id: slug }
         ]
       },
-      include: {
-        categories: {
-          orderBy: { position: 'asc' },
-          include: { 
-            products: {
-              where: { isActive: true },
-              orderBy: { position: 'asc' },
-              include: {
-                extraGroups: {
-                  include: {
-                    extraGroup: {
-                      include: {
-                        extras: true
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-      },
     });
 
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    return res.json(formatRestaurant(restaurant, true));
+    // Explicitly fetch categories using the same unified logic as the admin/app
+    const categories = await prisma.category.findMany({
+      where: {
+        OR: [
+          { restaurantId: restaurant.id },
+          { restaurantId: null }
+        ],
+        isActive: true,
+      },
+      orderBy: { position: 'asc' },
+      include: {
+        products: {
+          where: { isActive: true },
+          orderBy: { position: 'asc' },
+          include: {
+            extraGroups: {
+              include: {
+                extraGroup: {
+                  include: {
+                    extras: {
+                      where: { isActive: true },
+                      orderBy: { position: 'asc' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    // Attach categories to the restaurant object for formatting
+    const restaurantWithMenu = {
+      ...restaurant,
+      categories
+    };
+
+    return res.json(formatRestaurant(restaurantWithMenu, true));
   } catch (error) {
     console.error('Error fetching restaurant', error);
     res.status(500).json({ error: 'Kunde inte hämta restaurang' });
