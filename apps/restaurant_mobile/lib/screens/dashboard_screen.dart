@@ -189,11 +189,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 15),
             if (provider.pendingOrders.isNotEmpty)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                child: Row(
-                  children: provider.pendingOrders.map((order) => _buildOrderCard(order, true)).toList(),
+              SizedBox(
+                height: 250,
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  clipBehavior: Clip.none,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(width: 25), // Initial spacing to match header
+                      ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)).toList(),
+                    ],
+                  ),
                 ),
               ),
             const SizedBox(height: 40),
@@ -235,65 +243,104 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildOrderCard(OrderModel order, bool isNew) {
     final bool isDelivery = order.type == 'DELIVERY';
     final Color typeColor = isDelivery ? Colors.blue : Colors.green;
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isNew) {
-      // NEW ORDERS: HORIZONTAL CARD
+      // PREMIUM NEW ORDERS: HORIZONTAL CARD WITH COLOR PULSE (NO SCALE)
       return FadeInRight(
         duration: const Duration(milliseconds: 500),
-        child: Container(
-          width: 280,
-          margin: const EdgeInsets.only(right: 20, bottom: 10),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(35),
-            border: Border.all(color: typeColor.withOpacity(0.6), width: 3),
-            boxShadow: [
-              BoxShadow(color: typeColor.withOpacity(0.15), blurRadius: 20, spreadRadius: 2)
-            ],
-          ),
-          child: InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-            borderRadius: BorderRadius.circular(35),
-            child: Padding(
-              padding: const EdgeInsets.all(25),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+        child: Flash(
+          infinite: true,
+          duration: const Duration(seconds: 3),
+          child: Container(
+            width: 280,
+            margin: const EdgeInsets.only(right: 20, bottom: 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark 
+                  ? [AppTheme.zinc, AppTheme.charcoal] 
+                  : [Colors.white, const Color(0xFFFDFCFB)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(35),
+              border: Border.all(color: typeColor.withOpacity(0.5), width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: typeColor.withOpacity(0.2), 
+                  blurRadius: 20, 
+                  spreadRadius: 2, 
+                  offset: const Offset(0, 8)
+                ),
+              ],
+            ),
+            child: InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+              borderRadius: BorderRadius.circular(35),
+              child: Stack(
                 children: [
-                   Pulse(
-                     infinite: true,
-                     duration: const Duration(seconds: 2),
-                     child: Container(
-                       width: 75, height: 75,
-                       decoration: BoxDecoration(
-                         color: typeColor,
-                         shape: BoxShape.circle,
-                         boxShadow: [BoxShadow(color: typeColor.withOpacity(0.4), blurRadius: 15)]
-                       ),
-                       child: Center(
-                         child: Text(
-                           order.orderNumber,
-                           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.white),
+                  Positioned(
+                    top: 25, right: 25,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: typeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12)
+                      ),
+                      child: Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 20),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(30),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                         Text(
+                           '#${order.orderNumber}',
+                           style: TextStyle(
+                             fontSize: 42, 
+                             fontWeight: FontWeight.w900, 
+                             color: isDark ? typeColor : typeColor.withOpacity(0.9),
+                             letterSpacing: -1,
+                             height: 1
+                           ),
                          ),
-                       ),
-                     ),
-                   ),
-                   const SizedBox(height: 20),
-                   Text(
-                     order.customerName.toUpperCase(),
-                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
-                     textAlign: TextAlign.center,
-                     maxLines: 1, overflow: TextOverflow.ellipsis,
-                   ),
-                   const SizedBox(height: 10),
-                   Text(
-                     isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 2),
-                   ),
-                   const SizedBox(height: 15),
-                   Text(
-                     '${order.total.toInt()} KR',
-                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic),
-                   ),
+                         const SizedBox(height: 15),
+                         Text(
+                           order.customerName.toUpperCase(),
+                           style: TextStyle(
+                             fontSize: 15, 
+                             fontWeight: FontWeight.w900, 
+                             color: isDark ? Colors.white : AppTheme.charcoal,
+                             letterSpacing: 1.5
+                           ),
+                           maxLines: 1, overflow: TextOverflow.ellipsis,
+                         ),
+                         const SizedBox(height: 5),
+                         Text(
+                           isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: typeColor.withOpacity(0.7), letterSpacing: 2),
+                         ),
+                         const Spacer(),
+                         Row(
+                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                           children: [
+                             Text(
+                               '${order.total.toInt()} KR',
+                               style: TextStyle(
+                                 fontSize: 22, 
+                                 fontWeight: FontWeight.w900, 
+                                 color: isDark ? Colors.white.withOpacity(0.9) : AppTheme.charcoal,
+                                 fontStyle: FontStyle.italic
+                               ),
+                             ),
+                             Icon(Icons.arrow_forward_ios_rounded, size: 14, color: typeColor.withOpacity(0.3)),
+                           ],
+                         ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -301,7 +348,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       );
     }
-
 
     // PROCESSING ORDERS (List)
     return FadeInUp(
