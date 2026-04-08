@@ -65,16 +65,17 @@ export async function ensureRestaurantAdmins(): Promise<void> {
       const hashedPassword = await bcrypt.hash(passwordSnippet, 12);
 
       if (existing) {
-        // FORCE update password during this migration to ensure logins work for the user
-        await prisma.adminUser.update({
-          where: { email },
-          data: { 
-            password: hashedPassword,
-            role: 'ADMIN',
-            isActive: true, 
-            name: `${r.name} Business` 
-          },
-        });
+        // Only update if it's MISSING the correct role, but NEVER overwrite the password
+        if (existing.role !== 'ADMIN') {
+          await prisma.adminUser.update({
+            where: { email },
+            data: { 
+              role: 'ADMIN',
+              isActive: true, 
+              name: `${r.name} Business` 
+            },
+          });
+        }
         return;
       }
 
