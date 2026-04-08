@@ -19,30 +19,16 @@ router.get('/categories', async (req, res) => {
       return restaurant?.id ?? null;
     })();
 
-    const query = async (opts: { onlyActive: boolean }) => {
-      const onlyActive = opts.onlyActive;
-
-      const where: any = {
-        // Om varken id eller slug anges, hämta globala/default (Palmyra)
-        ...(!hasRestaurantScope ? { restaurantId: null } : {}),
-        ...(onlyActive ? { isActive: true } : {}),
-      };
-
-      if (hasRestaurantScope) {
-        if (resolvedRestaurantId) {
-          where.restaurantId = resolvedRestaurantId;
-        } else {
-          // Unknown slug -> treat as global
-          where.restaurantId = null;
-        }
-      }
-
+    const queryActiveMenuByRestaurantId = async (rid: string | null) => {
       return prisma.category.findMany({
-        where,
+        where: {
+          restaurantId: rid,
+          isActive: true,
+        },
         orderBy: { position: 'asc' },
         include: {
           products: {
-            where: onlyActive ? { isActive: true } : {},
+            where: { isActive: true },
             orderBy: { position: 'asc' },
             include: {
               extraGroups: {
@@ -51,7 +37,7 @@ router.get('/categories', async (req, res) => {
                   extraGroup: {
                     include: {
                       extras: {
-                        where: onlyActive ? { isActive: true } : {},
+                        where: { isActive: true },
                         orderBy: { position: 'asc' },
                       },
                     },
@@ -64,18 +50,19 @@ router.get('/categories', async (req, res) => {
       });
     };
 
-    let categories = await query({ onlyActive: true });
+    const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
+    let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
     const hasAnyProducts = categories.some((cat) => (cat.products || []).length > 0);
 
-    // If nothing is visible for a restaurant, return the full menu for that restaurant
-    // (even if items are inactive) rather than a blank page.
+    // Public menu must never include inactive items.
+    // If a restaurant has no menu, fall back to global categories (restaurantId = null).
     if (hasRestaurantScope && (categories.length === 0 || !hasAnyProducts)) {
-      console.warn('[menu] No active menu found; falling back to include inactive items', {
+      console.warn('[menu] No active menu found; falling back to global active menu', {
         slug,
         restaurantId,
         resolvedRestaurantId,
       });
-      categories = await query({ onlyActive: false });
+      categories = await queryActiveMenuByRestaurantId(null);
     }
 
     // Formatera för frontend

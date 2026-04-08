@@ -1,6 +1,6 @@
 name: restaurant_mobile
 description: A professional order taking app for MatGo partners.
-version: 1.34.2+34
+version: 1.34.7+47
 
 environment:
   sdk: '>=3.5.0 <4.0.0'

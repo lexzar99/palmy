@@ -21,6 +21,54 @@ class _MenuScreenState extends State<MenuScreen> {
     _loadMenu();
   }
 
+  bool _setProductActiveLocal(String productId, bool isActive) {
+    bool updated = false;
+    for (final cat in _categories) {
+      if (cat is! Map) continue;
+      final products = cat['products'];
+      if (products is! List) continue;
+      for (final p in products) {
+        if (p is! Map) continue;
+        if (p['id'] == productId) {
+          p['isActive'] = isActive;
+          updated = true;
+          break;
+        }
+      }
+    }
+    return updated;
+  }
+
+  bool _setExtraActiveLocal(String extraId, bool isActive) {
+    bool updated = false;
+    for (final cat in _categories) {
+      if (cat is! Map) continue;
+      final products = cat['products'];
+      if (products is! List) continue;
+      for (final prod in products) {
+        if (prod is! Map) continue;
+        final groups = prod['extraGroups'];
+        if (groups is! List) continue;
+        for (final g in groups) {
+          if (g is! Map) continue;
+          final extraGroup = g['extraGroup'] ?? g;
+          if (extraGroup is! Map) continue;
+          final extras = extraGroup['extras'];
+          if (extras is! List) continue;
+          for (final e in extras) {
+            if (e is! Map) continue;
+            if (e['id'] == extraId) {
+              e['isActive'] = isActive;
+              updated = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+    return updated;
+  }
+
   Future<void> _loadMenu() async {
     if (mounted) setState(() => _isLoading = true);
     final auth = Provider.of<AuthProvider>(context, listen: false);
@@ -42,24 +90,31 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Future<void> _toggleProduct(String productId, bool isActive) async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
+    final didUpdate = _setProductActiveLocal(productId, isActive);
+    if (didUpdate && mounted) setState(() {});
     final ok = await provider.updateProductStatus(productId, isActive);
     if (!ok && mounted) {
+      // Roll back local optimistic update
+      _setProductActiveLocal(productId, !isActive);
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kunde inte uppdatera artikeln. Försök igen.')),
       );
     }
-    _loadMenu();
   }
 
   Future<void> _toggleExtra(String extraId, bool isActive) async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
+    final didUpdate = _setExtraActiveLocal(extraId, isActive);
+    if (didUpdate && mounted) setState(() {});
     final ok = await provider.updateExtraStatus(extraId, isActive);
     if (!ok && mounted) {
+      _setExtraActiveLocal(extraId, !isActive);
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Kunde inte uppdatera tillbehöret. Försök igen.')),
       );
     }
-    _loadMenu();
   }
 
   @override
@@ -157,7 +212,26 @@ class _MenuScreenState extends State<MenuScreen> {
 
   Widget _buildCategoryTile(BuildContext context, Map<String, dynamic> category) {
     final dynamic productsRaw = category['products'];
-    final List products = productsRaw is List ? productsRaw : [];
+    final List<Map<String, dynamic>> products = [];
+    if (productsRaw is List) {
+      for (final p in productsRaw) {
+        if (p is Map) products.add(p.cast<String, dynamic>());
+      }
+    }
+
+    int posOf(Map<String, dynamic> p) {
+      final v = p['position'];
+      return v is int ? v : (v is num ? v.toInt() : 0);
+    }
+
+    String nameOf(Map<String, dynamic> p) => (p['name'] ?? '').toString();
+
+    // Stable display ordering even when many items share the same position.
+    products.sort((a, b) {
+      final pos = posOf(a).compareTo(posOf(b));
+      if (pos != 0) return pos;
+      return nameOf(a).toLowerCase().compareTo(nameOf(b).toLowerCase());
+    });
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,7 +242,7 @@ class _MenuScreenState extends State<MenuScreen> {
           Padding(
             padding: const EdgeInsets.only(left: 10, bottom: 40),
             child: Text('INGA ARTIKLAR HITTADES I ${(category['name'] ?? 'KATEGORIEN').toUpperCase()}', 
-              style: TextStyle(color: Colors.white.withOpacity(0.04), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+              style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.35), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ),
         ...products.map((p) => _buildToggleCard(
           context: context,

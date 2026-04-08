@@ -65,7 +65,7 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: AppTheme.gold))
         : allExtras.isEmpty
-          ? Center(child: Text('INGA TILLBEHÖR HITTADES', style: TextStyle(color: Colors.white.withOpacity(0.1), fontWeight: FontWeight.w900, letterSpacing: 2)))
+          ? Center(child: Text('INGA TILLBEHÖR HITTADES', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6), fontWeight: FontWeight.w900, letterSpacing: 2)))
           : ListView.builder(
               padding: const EdgeInsets.all(20),
               itemCount: allExtras.length,
@@ -77,23 +77,34 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
                   decoration: BoxDecoration(
                     color: AppTheme.zinc,
                     borderRadius: BorderRadius.circular(22),
-                    border: Border.all(color: isActive ? AppTheme.gold.withOpacity(0.2) : Colors.white.withOpacity(0.04)),
+                    border: Border.all(color: isActive ? AppTheme.gold.withOpacity(0.2) : Theme.of(context).dividerColor.withOpacity(0.5)),
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    title: Text(extra['name'].toString().toUpperCase(), style: TextStyle(color: isActive ? Colors.white : Colors.white24, fontWeight: FontWeight.w900, fontSize: 14)),
+                    title: Text(
+                      extra['name'].toString().toUpperCase(),
+                      style: TextStyle(
+                        color: isActive
+                            ? Theme.of(context).textTheme.bodyLarge?.color
+                            : Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
                     subtitle: Text(extra['groupName'].toString().toUpperCase(), style: const TextStyle(color: AppTheme.gold, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
                     trailing: Switch(
                       value: isActive,
-                      onChanged: (v) {
-                        setState(() {
-                          extra['isActive'] = v;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                          content: Text('TILLBEHÖR "${extra['name']}" ÄR NU ${v ? 'AKTIVT' : 'INAKTIVT'}'),
-                          backgroundColor: v ? Colors.green : Colors.redAccent,
-                          duration: const Duration(seconds: 1),
-                        ));
+                      onChanged: (v) async {
+                        final orderProvider = Provider.of<OrderProvider>(context, listen: false);
+                        setState(() => extra['isActive'] = v);
+                        final ok = await orderProvider.updateExtraStatus(extra['id'], v);
+                        if (!ok && mounted) {
+                          setState(() => extra['isActive'] = !v);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Kunde inte uppdatera tillbehöret.')),
+                          );
+                          return;
+                        }
                       },
                       activeColor: AppTheme.gold,
                     ),

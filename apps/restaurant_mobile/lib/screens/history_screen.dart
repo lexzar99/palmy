@@ -18,14 +18,14 @@ class HistoryScreen extends StatelessWidget {
           backgroundColor: AppTheme.charcoal,
           elevation: 0,
           title: const Text('ORDERHISTORIK', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          bottom: const TabBar(
+          bottom: TabBar(
             indicatorColor: AppTheme.gold,
             labelColor: AppTheme.gold,
-            unselectedLabelColor: Colors.white24,
-            labelStyle: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13),
+            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+            labelStyle: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13),
             tabs: [
-              Tab(text: 'IDAG'),
-              Tab(text: 'IGÅR'),
+              const Tab(text: 'IDAG'),
+              const Tab(text: 'IGÅR'),
             ],
           ),
         ),
@@ -128,8 +128,15 @@ class HistoryScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 5),
-              Text(order.items.map((i) => '${i.quantity}x ${i.productName}').join(', ').toUpperCase(), 
-                style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold, overflow: TextOverflow.ellipsis)),
+              Text(
+                order.items.map((i) => '${i.quantity}x ${i.productName}').join(', ').toUpperCase(),
+                style: TextStyle(
+                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
           trailing: Column(

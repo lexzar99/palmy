@@ -105,8 +105,11 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
               subtitle: 'Kvitton per order',
               child: Row(
                 children: [
-                  IconButton(onPressed: () => setState(() => _copies = (_copies > 1 ? _copies - 1 : 1)), icon: const Icon(Icons.remove_circle_outline, color: Colors.white24)),
-                  Text('$_copies', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+                  IconButton(
+                    onPressed: () => setState(() => _copies = (_copies > 1 ? _copies - 1 : 1)),
+                    icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
+                  ),
+                  Text('$_copies', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 18, fontWeight: FontWeight.w900)),
                   IconButton(onPressed: () => setState(() => _copies++), icon: const Icon(Icons.add_circle_outline, color: AppTheme.gold)),
                 ],
               ),
@@ -145,12 +148,12 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             const SizedBox(height: 15),
             TextField(
               controller: _ipController,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 filled: true,
                 fillColor: AppTheme.zinc,
                 hintText: 'Ange skrivarens IP-adress',
-                hintStyle: const TextStyle(color: Colors.white10),
+                hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
                 prefixIcon: const Icon(Icons.print_outlined, color: AppTheme.gold, size: 20),
               ),
@@ -183,7 +186,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       decoration: BoxDecoration(
         color: isSelected ? AppTheme.gold.withOpacity(0.05) : AppTheme.zinc,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isSelected ? AppTheme.gold : Colors.white.withOpacity(0.04), width: 1.5),
+        border: Border.all(color: isSelected ? AppTheme.gold : Theme.of(context).dividerColor.withOpacity(0.6), width: 1.5),
       ),
       child: ListTile(
         onTap: () => setState(() => _ipController.text = p['address']!),
@@ -192,8 +195,8 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
           decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
           child: Icon(Icons.print, color: AppTheme.gold, size: 22),
         ),
-        title: Text(p['name']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-        subtitle: Text('IP: ${p['address']}', style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold)),
+        title: Text(p['name']!, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
+        subtitle: Text('IP: ${p['address']}', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold)),
         trailing: isSelected 
           ? const Icon(Icons.check_circle, color: AppTheme.gold) 
           : Text(p['status']!, style: TextStyle(color: p['status'] == 'READY' ? Colors.green : AppTheme.danger, fontSize: 8, fontWeight: FontWeight.w900)),
@@ -207,9 +210,9 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Column(
           children: [
-            Icon(Icons.print_disabled, size: 40, color: Colors.white.withOpacity(0.05)),
+            Icon(Icons.print_disabled, size: 40, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.2)),
             const SizedBox(height: 10),
-            Text('INGA SKRIVARE HITTADES I NÄTVERKET', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text('INGA SKRIVARE HITTADES I NÄTVERKET', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ],
         ),
       ),
@@ -232,7 +235,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       decoration: BoxDecoration(
         color: AppTheme.zinc,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.04)),
+        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.6)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -241,9 +244,9 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white)),
+                Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.white38, fontWeight: FontWeight.bold)),
+                Text(subtitle, style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontWeight: FontWeight.bold)),
               ],
             ),
           ),
