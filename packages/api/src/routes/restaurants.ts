@@ -290,24 +290,35 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     });
 
     // Create admin user for the new restaurant if password provided
-    if (payload.adminPassword) {
-      const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
-      
-      await prisma.adminUser.upsert({
-        where: { email: restaurant.slug.toLowerCase() },
-        update: { password: hashedPassword },
-        create: {
-          email: restaurant.slug.toLowerCase(),
-          password: hashedPassword,
-          name: `${restaurant.name} Admin`,
-          role: 'STAFF',
-        },
-      });
-      console.log(`✅ Admin account created for restaurant member: ${restaurant.slug}`);
+    let adminCreated = false;
+    if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
+      try {
+        const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
+        const adminEmail = restaurant.slug.toLowerCase();
+        
+        const adminUser = await prisma.adminUser.upsert({
+          where: { email: adminEmail },
+          update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
+          create: {
+            email: adminEmail,
+            password: hashedPassword,
+            name: `${restaurant.name} Admin`,
+            role: 'ADMIN',
+            isActive: true,
+          },
+        });
+        adminCreated = true;
+        console.log(`✅ Admin account created/updated for restaurant "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
+      } catch (adminErr: any) {
+        console.error(`❌ Failed to create admin account for restaurant "${restaurant.name}":`, adminErr.message);
+      }
+    } else {
+      console.warn(`⚠️  Restaurant "${restaurant.name}" created WITHOUT an admin password. No login account was created.`);
     }
 
-    res.status(201).json(restaurant);
+    res.status(201).json({ ...restaurant, adminCreated });
   } catch (err: any) {
+    console.error('[restaurants POST] Error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });
@@ -361,21 +372,26 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     });
 
     // Handle admin password update if provided
-    if (payload.adminPassword) {
-      const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
-      
-      // Upsert admin user for this restaurant
-      // Restaurant admins use their slug as email
-      await prisma.adminUser.upsert({
-        where: { email: restaurant.slug.toLowerCase() },
-        update: { password: hashedPassword },
-        create: {
-          email: restaurant.slug.toLowerCase(),
-          password: hashedPassword,
-          name: `${restaurant.name} Admin`,
-          role: 'STAFF',
-        },
-      });
+    if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
+      try {
+        const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
+        const adminEmail = restaurant.slug.toLowerCase();
+        
+        const adminUser = await prisma.adminUser.upsert({
+          where: { email: adminEmail },
+          update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
+          create: {
+            email: adminEmail,
+            password: hashedPassword,
+            name: `${restaurant.name} Admin`,
+            role: 'ADMIN',
+            isActive: true,
+          },
+        });
+        console.log(`✅ Admin password updated for restaurant "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
+      } catch (adminErr: any) {
+        console.error(`❌ Failed to update admin password for restaurant "${restaurant.name}":`, adminErr.message);
+      }
     }
     io.emit('settings:updated', {
       restaurantId: restaurant.id,

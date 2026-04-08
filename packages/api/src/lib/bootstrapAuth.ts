@@ -1,27 +1,18 @@
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 import prisma from './prisma';
-import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD } from './config';
-
-const restaurantPasswordFromSlug = (slug: string) => {
-  const compact = slug.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return `${compact}123`;
-};
+import { SUPER_ADMIN_EMAIL } from './config';
 
 // Ensures the super admin credentials exist.
 // Credentials are read from SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars.
-// If no password is set in production, a random one is generated and logged once.
 export async function ensureDefaultSuperAdmin(): Promise<void> {
   const email = SUPER_ADMIN_EMAIL || 'admin';
   
   const existing = await prisma.adminUser.findUnique({ where: { email } });
   
-  // Always ensure 'admin' exists with a known password if we are forcing it or if it's missing
   const forcePassword = process.env.SUPER_ADMIN_PASSWORD_FORCE || 'admin123';
   const hashedPassword = await bcrypt.hash(forcePassword, 12);
 
   if (existing) {
-    // Only update if forced or if it's the default 'admin' account to be safe
     if (process.env.SUPER_ADMIN_PASSWORD_FORCE || email === 'admin') {
       await prisma.adminUser.update({
         where: { email },
@@ -49,45 +40,36 @@ export async function ensureDefaultSuperAdmin(): Promise<void> {
   console.log(`✨ Created default Super Admin: ${email} / ${forcePassword}`);
 }
 
-// Ensures each restaurant has its own login (identifier=username = restaurant.slug).
-// Password rule (default): <slug without non-alnum> + "123"
-// Example: "sushi-nori" -> "sushinori123"
+// Ensures each restaurant has a corresponding admin login entry.
+// If an AdminUser already exists for a restaurant slug, we NEVER touch the password.
+// If no AdminUser exists, we only log a warning — accounts MUST be created
+// via the admin panel with an explicit password.
 export async function ensureRestaurantAdmins(): Promise<void> {
   const restaurants = await prisma.restaurant.findMany({
     select: { id: true, slug: true, name: true },
   });
 
-  await Promise.all(
-    restaurants.map(async (r) => {
-      const email = r.slug.toLowerCase();
-      const existing = await prisma.adminUser.findUnique({ where: { email } });
-      const passwordSnippet = restaurantPasswordFromSlug(r.slug);
-      const hashedPassword = await bcrypt.hash(passwordSnippet, 12);
+  for (const r of restaurants) {
+    const email = r.slug.toLowerCase();
+    const existing = await prisma.adminUser.findUnique({ where: { email } });
 
-      if (existing) {
-        // Only update if it's MISSING the correct role, but NEVER overwrite the password
-        if (existing.role !== 'ADMIN') {
-          await prisma.adminUser.update({
-            where: { email },
-            data: { 
-              role: 'ADMIN',
-              isActive: true, 
-              name: `${r.name} Business` 
-            },
-          });
-        }
-        return;
+    if (existing) {
+      // Ensure role is always ADMIN (never STAFF or anything else) for restaurant accounts
+      if (existing.role !== 'ADMIN' && existing.role !== 'SUPER_ADMIN') {
+        await prisma.adminUser.update({
+          where: { email },
+          data: { 
+            role: 'ADMIN',
+            isActive: true, 
+            name: existing.name || `${r.name} Admin` 
+          },
+        });
+        console.log(`🔄 Updated role for ${email} from ${existing.role} → ADMIN`);
       }
-
-      await prisma.adminUser.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: 'ADMIN',
-          isActive: true,
-          name: `${r.name} Business`,
-        },
-      });
-    }),
-  );
+    } else {
+      // No admin account exists for this restaurant — log a warning
+      // Do NOT auto-generate passwords, as they'll be unknown to the user.
+      console.warn(`⚠️  No admin account for restaurant "${r.name}" (slug: ${r.slug}). Create one via the admin panel.`);
+    }
+  }
 }

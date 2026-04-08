@@ -154,6 +154,8 @@ router.post('/login', async (req, res) => {
     };
 
     const loginId = (identifier || email || '').trim().toLowerCase();
+    console.log(`[auth] Login attempt for: '${loginId}'`);
+
     if (!loginId || !password) {
       res.status(400).json({ error: 'Användarnamn och lösenord krävs' });
       return;
@@ -164,14 +166,27 @@ router.post('/login', async (req, res) => {
     });
 
     if (!admin) {
-      console.warn(`[auth] Login failed: User '${loginId}' not found or inactive.`);
+      // Also check if there's an inactive account (for debugging)
+      const inactiveAdmin = await prisma.adminUser.findFirst({
+        where: { email: loginId },
+        select: { id: true, isActive: true, role: true },
+      });
+      if (inactiveAdmin) {
+        console.warn(`[auth] Login failed: User '${loginId}' exists but is INACTIVE (id: ${inactiveAdmin.id}).`);
+      } else {
+        // List all known admin usernames for debugging
+        const allAdmins = await prisma.adminUser.findMany({
+          select: { email: true, role: true, isActive: true },
+        });
+        console.warn(`[auth] Login failed: User '${loginId}' NOT FOUND. Known accounts: ${allAdmins.map(a => `${a.email}(${a.role},active=${a.isActive})`).join(', ')}`);
+      }
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      console.warn(`[auth] Login failed: Password mismatch for user '${loginId}'.`);
+      console.warn(`[auth] Login failed: Password mismatch for user '${loginId}' (id: ${admin.id}, role: ${admin.role}).`);
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
@@ -185,6 +200,7 @@ router.post('/login', async (req, res) => {
         select: { id: true, slug: true, name: true },
       });
       if (!restaurant) {
+        console.warn(`[auth] Login failed: Admin '${loginId}' has no linked restaurant (slug lookup failed).`);
         res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
         return;
       }
@@ -192,6 +208,8 @@ router.post('/login', async (req, res) => {
       restaurantSlug = restaurant.slug;
       restaurantName = restaurant.name;
     }
+
+    console.log(`[auth] ✅ Login success: '${loginId}' (role=${admin.role}, restaurant=${restaurantName || 'SUPER_ADMIN'})`);
 
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug },
@@ -202,6 +220,33 @@ router.post('/login', async (req, res) => {
     res.json({
       token,
       admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName },
+    });
+  } catch (error) {
+    console.error('[auth] Login handler error:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// GET /api/auth/check-admin/:slug - Check if admin account exists for a restaurant
+router.get('/check-admin/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const email = slug.toLowerCase();
+    
+    const admin = await prisma.adminUser.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, updatedAt: true },
+    });
+    
+    const restaurant = await prisma.restaurant.findFirst({
+      where: { slug: email },
+      select: { id: true, slug: true, name: true },
+    });
+
+    res.json({
+      exists: !!admin,
+      admin: admin ? { id: admin.id, email: admin.email, name: admin.name, role: admin.role, isActive: admin.isActive, createdAt: admin.createdAt, updatedAt: admin.updatedAt } : null,
+      restaurant: restaurant || null,
     });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });

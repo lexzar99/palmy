@@ -96,11 +96,21 @@ export default function RestaurantsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"OVERVIEW" | "EDIT">("OVERVIEW");
   const [form, setForm] = useState<Partial<Restaurant>>(emptyForm);
+  const [adminStatus, setAdminStatus] = useState<{exists: boolean; admin?: any; restaurant?: any} | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{type: 'success' | 'warning' | 'error'; text: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
+
+  const checkAdminStatus = async (slug: string) => {
+    if (!slug) { setAdminStatus(null); return; }
+    try {
+      const res = await axios.get(`${API_URL}/api/auth/check-admin/${slug}`);
+      setAdminStatus(res.data);
+    } catch { setAdminStatus(null); }
+  };
 
   const fetchRestaurants = async () => {
     setLoading(true);
@@ -155,12 +165,17 @@ export default function RestaurantsPage() {
         tags: typeof selected.tags === 'string' ? selected.tags : JSON.stringify(selected.tags || []),
         adminPassword: "", // Don't load password
       });
+      // Check admin account status when selecting a restaurant
+      checkAdminStatus(selected.slug);
+    } else {
+      setAdminStatus(null);
     }
   }, [selected]);
 
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
+    setSaveMessage(null);
     try {
       const payload = {
         ...form,
@@ -182,20 +197,38 @@ export default function RestaurantsPage() {
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
       };
 
+      let result: any;
       if (selectedId) {
-        await axios.patch(`${API_URL}/api/restaurants/${selectedId}`, payload, {
+        result = await axios.patch(`${API_URL}/api/restaurants/${selectedId}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } else {
-        await axios.post(`${API_URL}/api/restaurants`, payload, {
+        result = await axios.post(`${API_URL}/api/restaurants`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
       }
+
+      // Show feedback about admin account
+      if (form.adminPassword && form.adminPassword.trim().length > 0) {
+        const slug = form.slug || result.data?.slug;
+        if (result.data?.adminCreated || selectedId) {
+          setSaveMessage({ type: 'success', text: `✅ Restaurang sparad! Admin-konto "${slug}" skapat/uppdaterat med angivet lösenord.` });
+        } else {
+          setSaveMessage({ type: 'warning', text: `⚠️ Restaurang sparad men admin-kontot kanske inte skapades korrekt. Kontrollera loggar.` });
+        }
+      } else {
+        setSaveMessage({ type: 'warning', text: `Restaurang sparad. Inget lösenord angivet — inget admin-konto skapades/ändrades.` });
+      }
+
       await fetchRestaurants();
-      setActiveTab("OVERVIEW");
-      setSelectedId(null);
+      // Don't navigate away immediately — show the message
+      setTimeout(() => {
+        setActiveTab("OVERVIEW");
+        setSelectedId(null);
+        setSaveMessage(null);
+      }, 3000);
     } catch (error: any) {
-      alert(error.response?.data?.error || "Kunde inte spara");
+      setSaveMessage({ type: 'error', text: error.response?.data?.error || "Kunde inte spara" });
     } finally {
       setSaving(false);
     }
@@ -556,30 +589,64 @@ export default function RestaurantsPage() {
                          <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Hantera inloggningsuppgifter för denna restaurang.</p>
                       </div>
 
+                      {/* Admin account status indicator */}
+                      {adminStatus && (
+                        <div className={`p-4 rounded-2xl flex items-start gap-3 ${adminStatus.exists ? 'bg-emerald-500/5 border border-emerald-500/10' : 'bg-orange-500/5 border border-orange-500/10'}`}>
+                          <div className={`w-3 h-3 rounded-full mt-1 ${adminStatus.exists ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'}`} />
+                          <div className="text-[10px] font-bold uppercase tracking-wider">
+                            {adminStatus.exists ? (
+                              <span className="text-emerald-400">
+                                Admin-konto existerar &bull; <span className="text-emerald-500 font-black">{adminStatus.admin?.email}</span> &bull; Roll: {adminStatus.admin?.role} &bull; Aktivt: {adminStatus.admin?.isActive ? 'JA' : 'NEJ'}
+                              </span>
+                            ) : (
+                              <span className="text-orange-400">
+                                Inget admin-konto finns. Ange ett lösenord nedan för att skapa ett.
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="grid md:grid-cols-2 gap-8">
                          <div className="space-y-2">
                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Användarnamn (Slug)</label>
                             <input 
                               value={form.slug} 
-                              onChange={e => setForm({...form, slug: slugify(e.target.value)})}
+                              onChange={e => {
+                                const newSlug = slugify(e.target.value);
+                                setForm({...form, slug: newSlug});
+                                checkAdminStatus(newSlug);
+                              }}
                               className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
                             />
                          </div>
                          <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Nytt Lösenord</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">{adminStatus?.exists ? 'Nytt Lösenord (Ersätter befintligt)' : 'Lösenord (Skapar nytt konto)'}</label>
                             <input 
                               type="password"
                               value={form.adminPassword || ""} 
                               onChange={e => setForm({...form, adminPassword: e.target.value})}
                               className="w-full bg-white/10 border border-gold-500/30 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
-                              placeholder="Lämna tomt för att behålla"
+                              placeholder={adminStatus?.exists ? "Lämna tomt för att behålla" : "Ange lösenord för att skapa konto"}
                             />
                          </div>
                       </div>
+
+                      {/* Save message feedback */}
+                      {saveMessage && (
+                        <div className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center ${
+                          saveMessage.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' :
+                          saveMessage.type === 'warning' ? 'bg-orange-500/10 border border-orange-500/20 text-orange-400' :
+                          'bg-red-500/10 border border-red-500/20 text-red-400'
+                        }`}>
+                          {saveMessage.text}
+                        </div>
+                      )}
+
                       <div className="p-4 bg-gold-500/5 border border-gold-500/10 rounded-2xl flex items-start gap-3">
                         <Info size={16} className="text-gold-500 mt-0.5" />
                         <p className="text-[10px] font-medium leading-relaxed uppercase opacity-50">
-                          Restaurangens admin loggar in med användarnamnet <span className="text-gold-500 font-black">{form.slug}</span> och det lösenord du anger här.
+                          Restaurangens admin loggar in med användarnamnet <span className="text-gold-500 font-black">{form.slug}</span> och det lösenord du anger här. Samma inloggning används i webbpanelen och Flutter-appen.
                         </p>
                       </div>
                    </div>
