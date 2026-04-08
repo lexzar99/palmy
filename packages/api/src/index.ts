@@ -110,6 +110,7 @@ app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/account', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/discount', discountRoutes);
 app.use('/api/settings', settingsRoutes);
