@@ -246,102 +246,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (isNew) {
-      // PREMIUM NEW ORDERS: HORIZONTAL CARD WITH COLOR PULSE (NO SCALE)
+      // PREMIUM NEW ORDERS: REFINED MINI CARD WITH FRAME-ONLY PULSE
       return FadeInRight(
         duration: const Duration(milliseconds: 500),
-        child: Flash(
-          infinite: true,
-          duration: const Duration(seconds: 3),
+        child: _GlowFrame(
+          color: typeColor,
+          isDark: isDark,
           child: Container(
-            width: 280,
-            margin: const EdgeInsets.only(right: 20, bottom: 20),
+            width: 230,
+            margin: const EdgeInsets.only(right: 15, bottom: 20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: isDark 
                   ? [AppTheme.zinc, AppTheme.charcoal] 
-                  : [Colors.white, const Color(0xFFFDFCFB)],
+                  : [Colors.white, const Color(0xFFFAF9F6)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              borderRadius: BorderRadius.circular(35),
-              border: Border.all(color: typeColor.withOpacity(0.5), width: 3),
-              boxShadow: [
-                BoxShadow(
-                  color: typeColor.withOpacity(0.2), 
-                  blurRadius: 20, 
-                  spreadRadius: 2, 
-                  offset: const Offset(0, 8)
-                ),
-              ],
+              borderRadius: BorderRadius.circular(28),
             ),
             child: InkWell(
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-              borderRadius: BorderRadius.circular(35),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: 25, right: 25,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: typeColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12)
-                      ),
-                      child: Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 20),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(30),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              borderRadius: BorderRadius.circular(28),
+              child: Padding(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                         Text(
-                           '#${order.orderNumber}',
-                           style: TextStyle(
-                             fontSize: 42, 
-                             fontWeight: FontWeight.w900, 
-                             color: isDark ? typeColor : typeColor.withOpacity(0.9),
-                             letterSpacing: -1,
-                             height: 1
-                           ),
-                         ),
-                         const SizedBox(height: 15),
-                         Text(
-                           order.customerName.toUpperCase(),
-                           style: TextStyle(
-                             fontSize: 15, 
-                             fontWeight: FontWeight.w900, 
-                             color: isDark ? Colors.white : AppTheme.charcoal,
-                             letterSpacing: 1.5
-                           ),
-                           maxLines: 1, overflow: TextOverflow.ellipsis,
-                         ),
-                         const SizedBox(height: 5),
-                         Text(
-                           isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: typeColor.withOpacity(0.7), letterSpacing: 2),
-                         ),
-                         const Spacer(),
-                         Row(
-                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                           children: [
-                             Text(
-                               '${order.total.toInt()} KR',
-                               style: TextStyle(
-                                 fontSize: 22, 
-                                 fontWeight: FontWeight.w900, 
-                                 color: isDark ? Colors.white.withOpacity(0.9) : AppTheme.charcoal,
-                                 fontStyle: FontStyle.italic
-                               ),
-                             ),
-                             Icon(Icons.arrow_forward_ios_rounded, size: 14, color: typeColor.withOpacity(0.3)),
-                           ],
-                         ),
+                        Text(
+                          '#${order.orderNumber}',
+                          style: TextStyle(
+                            fontSize: 32, 
+                            fontWeight: FontWeight.w900, 
+                            color: isDark ? typeColor : typeColor.withOpacity(0.9),
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: typeColor.withOpacity(0.1),
+                            shape: BoxShape.circle
+                          ),
+                          child: Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 16),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Text(
+                      order.customerName.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 13, 
+                        fontWeight: FontWeight.w900, 
+                        color: isDark ? Colors.white : AppTheme.charcoal,
+                        letterSpacing: 1
+                      ),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                      style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: typeColor.withOpacity(0.6), letterSpacing: 2),
+                    ),
+                    const Spacer(),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${order.total.toInt()} KR',
+                          style: TextStyle(
+                            fontSize: 18, 
+                            fontWeight: FontWeight.w900, 
+                            color: isDark ? Colors.white.withOpacity(0.8) : AppTheme.charcoal,
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, size: 16, color: typeColor.withOpacity(0.3)),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -511,6 +497,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GlowFrame extends StatefulWidget {
+  final Widget child;
+  final Color color;
+  final bool isDark;
+  const _GlowFrame({required this.child, required this.color, required this.isDark});
+
+  @override
+  State<_GlowFrame> createState() => _GlowFrameState();
+}
+
+class _GlowFrameState extends State<_GlowFrame> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.1, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: widget.color.withOpacity(0.5 * _animation.value), width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withOpacity(0.2 * _animation.value),
+                blurRadius: 15 * _animation.value,
+                spreadRadius: 2 * _animation.value,
+              ),
+            ],
+          ),
+          child: widget.child,
+        );
+      },
     );
   }
 }
