@@ -265,10 +265,22 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Menu Sections Grid */}
         <div className="space-y-24">
-           {filteredCategories.map((cat, catIdx) => (
-              <motion.section 
-                 key={cat.id} 
-                 id={cat.id} 
+           {filteredCategories.length === 0 ? (
+             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
+               <div className="w-20 h-20 bg-zinc-900 border border-white/10 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-2xl">
+                 <ShoppingBag size={32} className="text-zinc-600" />
+               </div>
+               <h3 className="text-2xl font-black uppercase text-white tracking-widest italic mb-2">Ingen meny ännu</h3>
+               <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs max-w-sm">
+                 Vi har inte lagt till några rätter ännu. Kom tillbaka senare eller kontakta oss!
+               </p>
+             </motion.div>
+           ) : (
+             filteredCategories.map((cat, catIdx) => (
+                <motion.section 
+                   key={cat.id} 
+                   id={cat.id} 
+
                  initial={{ opacity: 0, y: 20 }}
                  whileInView={{ opacity: 1, y: 0 }}
                  viewport={{ once: true }}
@@ -319,7 +331,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     ))}
                  </div>
               </motion.section>
-           ))}
+             ))
+           )}
         </div>
       </div>
 
