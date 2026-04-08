@@ -14,7 +14,7 @@ class OrderProvider with ChangeNotifier {
   bool _isLoading = false;
   IO.Socket? _socket;
   String? _restaurantId;
-  String _selectedAlarm = 'notification.mp3';
+  String _selectedAlarm = 'notification.wav';
   bool _isRestaurantOpen = true;
   bool _isOffline = false;
   Timer? _alarmWatchdog;
@@ -326,7 +326,7 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> playDisconnectAlarm() async {
-     await AudioHelper.playAudio('disconnect.mp3');
+      await AudioHelper.playAudio('disconnect.wav');
   }
 
   // Used for settings menu
