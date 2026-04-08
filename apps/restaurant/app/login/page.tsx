@@ -43,10 +43,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-6">
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-600 ml-1">E-post</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-600 ml-1">Användarnamn</label>
             <div className="relative group">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-600 group-focus-within:text-gold-500 transition-colors" size={18} />
-              <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-950 border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm font-bold outline-none focus:border-gold-500/50 transition-all text-white" placeholder="partner@matgo.se" />
+              <input required type="text" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-zinc-950 border border-white/5 rounded-2xl pl-12 pr-6 py-5 text-sm font-bold outline-none focus:border-gold-500/50 transition-all text-white" placeholder="Användarnamn" />
             </div>
           </div>
 

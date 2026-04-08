@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
@@ -251,9 +252,10 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     }
 
     const payload = restaurantSchema.parse(req.body);
+    const slug = slugify(payload.slug || payload.name);
     const data: any = {
       name: payload.name,
-      slug: (payload.slug || slugify(payload.name)).toLowerCase(),
+      slug: slug,
       description: payload.description,
       cuisine: payload.cuisine,
       address: payload.address,
@@ -289,7 +291,6 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
     // Create admin user for the new restaurant if password provided
     if (payload.adminPassword) {
-      const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
       
       await prisma.adminUser.upsert({
@@ -327,7 +328,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     // Build update payload explicitly to avoid accidentally passing unsupported keys.
     const data: any = {};
     if (payload.name !== undefined) data.name = payload.name;
-    if (payload.slug !== undefined) data.slug = payload.slug.toLowerCase();
+    if (payload.slug !== undefined) data.slug = slugify(payload.slug);
     if (payload.description !== undefined) data.description = payload.description;
     if (payload.cuisine !== undefined) data.cuisine = payload.cuisine;
     if (payload.address !== undefined) data.address = payload.address;
@@ -361,7 +362,6 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
     // Handle admin password update if provided
     if (payload.adminPassword) {
-      const bcrypt = require('bcryptjs');
       const hashedPassword = await bcrypt.hash(payload.adminPassword, 10);
       
       // Upsert admin user for this restaurant

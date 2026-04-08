@@ -134,6 +134,15 @@ export default function RestaurantsPage() {
     );
   }, [restaurants, searchTerm]);
 
+  const slugify = (val: string) => {
+    return val
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  };
+
   const selected = useMemo(
     () => restaurants.find((r) => r.id === selectedId),
     [restaurants, selectedId]
@@ -429,7 +438,14 @@ export default function RestaurantsPage() {
                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Restaurangnamn</label>
                             <input 
                               value={form.name} 
-                              onChange={e => setForm({...form, name: e.target.value})}
+                              onChange={e => {
+                                const name = e.target.value;
+                                const newForm = { ...form, name };
+                                if (!selectedId) {
+                                  newForm.slug = slugify(name);
+                                }
+                                setForm(newForm);
+                              }}
                               className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
                               placeholder="t.ex. MatGo Sushi"
                             />
@@ -545,7 +561,7 @@ export default function RestaurantsPage() {
                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Användarnamn (Slug)</label>
                             <input 
                               value={form.slug} 
-                              onChange={e => setForm({...form, slug: e.target.value})}
+                              onChange={e => setForm({...form, slug: slugify(e.target.value)})}
                               className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
                             />
                          </div>
