@@ -163,7 +163,15 @@ router.post('/login', async (req, res) => {
       where: { email: loginId, isActive: true },
     });
 
-    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+    if (!admin) {
+      console.warn(`[auth] Login failed: User '${loginId}' not found or inactive.`);
+      res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
+      return;
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, admin.password);
+    if (!isPasswordValid) {
+      console.warn(`[auth] Login failed: Password mismatch for user '${loginId}'.`);
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
