@@ -33,6 +33,7 @@ import {
   api,
   getImageUrl,
 } from "./src/lib/api";
+import DealFlipCard, { type DealFlipCardData } from "./src/components/DealFlipCard";
 import {
   AppRoute,
   CartItem,
@@ -317,6 +318,7 @@ type PersonalDeal = {
   code: string;
   campaign?: {
     title?: string;
+    description?: string;
     discountType?: string;
     discountValue?: number;
     minOrder?: number;
@@ -355,7 +357,29 @@ function sortRestaurantsForHome(restaurants: Restaurant[]) {
 }
 
 function getRestaurantDeal(deals: PublicDeal[], restaurantId?: string) {
-  return deals.find((deal) => deal.isGlobal || deal.restaurantId === restaurantId);
+  return deals.find(
+    (deal) =>
+      deal.isGlobal ||
+      deal.restaurantId === restaurantId ||
+      !!(restaurantId && deal.applicableRestaurantIds?.includes(restaurantId))
+  );
+}
+
+function formatPublicDealReward(deal: PublicDeal) {
+  if (deal.discountType === "FIXED") {
+    return `${Number(deal.discountValue || 0).toFixed(0)} KR RABATT`;
+  }
+
+  return `${Number(deal.discountValue || 0).toFixed(0)}% RABATT`;
+}
+
+function formatPersonalDealReward(deal: PersonalDeal) {
+  const campaign = deal.campaign || {};
+  if (campaign.discountType === "FIXED") {
+    return `${Number(campaign.discountValue || 0).toFixed(0)} KR RABATT`;
+  }
+
+  return `${Number(campaign.discountValue || 0).toFixed(0)}% RABATT`;
 }
 
 function getTodayOpeningPreview(restaurant?: Restaurant | null) {
@@ -390,6 +414,7 @@ function HomeScreen({
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
+  const [personalDeals, setPersonalDeals] = useState<PersonalDeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [cityModalOpen, setCityModalOpen] = useState(false);
@@ -397,23 +422,27 @@ function HomeScreen({
 
   const address = useAppStore((s) => s.address);
   const orderType = useAppStore((s) => s.orderType);
+  const token = useAppStore((s) => s.token);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
+  const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
   const cartCount = useAppStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [restaurantsRes, citiesRes, dealsRes] = await Promise.all([
+        const [restaurantsRes, citiesRes, dealsRes, persDealsRes] = await Promise.all([
           api.get("/api/restaurants"),
           api.get("/api/cities"),
           api.get("/api/deals"),
+          token ? api.get("/api/profile/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         ]);
         if (!active) return;
         setRestaurants(restaurantsRes.data || []);
         setCities(citiesRes.data || []);
         setDeals((dealsRes.data || []).filter((deal: PublicDeal) => deal.isActive !== false && deal.showOnSite !== false));
+        setPersonalDeals(persDealsRes.data || []);
       } catch (error) {
         Alert.alert("Kunde inte ladda", "MatGo kunde inte nå samma restaurang-API som webbappen använder.");
       } finally {
@@ -423,7 +452,7 @@ function HomeScreen({
     return () => {
       active = false;
     };
-  }, []);
+  }, [token]);
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.name.toLowerCase() === address.toLowerCase()) || null,
@@ -453,6 +482,73 @@ function HomeScreen({
     if (openPremium.length > 0) return openPremium.slice(0, 8);
     return allPremium.slice(0, 8);
   }, [filtered]);
+
+  const homeDeals = useMemo<DealFlipCardData[]>(() => {
+    const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
+
+    const personalCards = personalDeals.map((deal) => {
+      const campaign = deal.campaign || {};
+      const campaignTitle = campaign.title || "Personligt erbjudande";
+      const isWelcome = campaignTitle.toLowerCase().includes("välkomst");
+
+      return {
+        id: `personal-${deal.id || deal.code}`,
+        badgeLabel: isWelcome ? "VÄLKOMST" : "PERSONLIGT",
+        title: campaignTitle,
+        subtitle: deal.code ? `Din kod ${deal.code}` : "Unikt erbjudande för ditt konto",
+        rewardLabel: formatPersonalDealReward(deal),
+        description: campaign.description || "Det här erbjudandet är kopplat till ditt konto och kan användas i kassan.",
+        code: deal.code?.toUpperCase(),
+        validUntil: campaign.validUntil || null,
+        minOrderText: campaign.minOrder && campaign.minOrder > 0 ? `MIN ${campaign.minOrder} KR` : null,
+        tags: [],
+        tone: isWelcome ? "gold" : "emerald",
+        onUseNow: () => {
+          setPendingPromoCode(deal.code);
+          openTab("cart");
+        },
+      } satisfies DealFlipCardData;
+    });
+
+    const publicCards = deals.map((deal) => {
+      const relatedRestaurantIds = Array.from(
+        new Set([deal.restaurantId, ...(deal.applicableRestaurantIds || [])].filter((value): value is string => !!value))
+      );
+      const relatedRestaurants = relatedRestaurantIds
+        .map((restaurantId) => restaurantById.get(restaurantId))
+        .filter((restaurant): restaurant is Restaurant => !!restaurant);
+      const primaryRestaurant = deal.restaurant?.slug
+        ? deal.restaurant
+        : relatedRestaurants.length === 1
+          ? relatedRestaurants[0]
+          : null;
+
+      return {
+        id: `public-${deal.id}`,
+        badgeLabel: (deal.badgeText || (deal.isGlobal ? "Deal" : "Restaurang")).toUpperCase(),
+        title: deal.title,
+        subtitle: deal.isGlobal
+          ? "Gäller i hela appen"
+          : primaryRestaurant?.name || (relatedRestaurants.length > 1 ? `${relatedRestaurants.length} restauranger` : "Utvalda restauranger"),
+        rewardLabel: formatPublicDealReward(deal),
+        description: deal.description || "Erbjudandet aktiveras automatiskt när du uppfyller villkoren i kassan.",
+        validUntil: deal.validUntil || null,
+        minOrderText: deal.minOrder && deal.minOrder > 0 ? `MIN ${deal.minOrder} KR` : null,
+        tags: deal.comboProductNames || [],
+        tone: deal.isGlobal ? "gold" : "emerald",
+        onUseNow: () => {
+          if (primaryRestaurant?.slug) {
+            openRestaurant(primaryRestaurant.slug);
+            return;
+          }
+
+          openTab("discover");
+        },
+      } satisfies DealFlipCardData;
+    });
+
+    return [...personalCards, ...publicCards];
+  }, [deals, openRestaurant, openTab, personalDeals, restaurants, setPendingPromoCode]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -609,38 +705,22 @@ function HomeScreen({
           </View>
         </View>
 
-        {!!deals.length && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-            {deals.map((deal) => (
-              <ScalePressable
-                key={deal.id}
-                onPress={() => {
-                  const slug = deal.restaurant?.slug;
-                  if (slug) openRestaurant(slug);
-                }}
-                style={{
-                  width: 280,
-                  padding: 16,
-                  borderRadius: 24,
-                  backgroundColor: "rgba(22,209,142,0.08)",
-                  borderWidth: 1,
-                  borderColor: "rgba(22,209,142,0.15)",
-                }}
-              >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                  <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: "#16d18e", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="pricetag" size={16} color="#072117" />
-                  </View>
-                  <Text style={{ color: "#16d18e", fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>ERBJUDANDE</Text>
-                </View>
-                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic" }}>{deal.title.toUpperCase()}</Text>
-                <Text style={{ color: "#6d8d82", fontSize: 11, fontWeight: "800", marginTop: 4 }}>
-                  {(deal.isGlobal ? deal.badgeText || "Gäller utvalda kök" : deal.restaurant?.name || "Gäller utvalda kök")?.toUpperCase?.() ||
-                    "GÄLLER UTVALDA KÖK"}
+        {!!homeDeals.length && (
+          <View style={{ marginTop: 10, marginBottom: 8 }}>
+            <View style={[styles.sectionTitleRow, { marginBottom: 16 }]}> 
+              <View>
+                <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>ERBJUDANDEN</Text>
+                <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
+                  PERSONLIGA OCH PUBLIKA DEALS JUST NU
                 </Text>
-              </ScalePressable>
-            ))}
-          </ScrollView>
+              </View>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
+              {homeDeals.map((deal) => (
+                <DealFlipCard key={deal.id} deal={deal} />
+              ))}
+            </ScrollView>
+          </View>
         )}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -716,7 +796,7 @@ function HomeScreen({
                     <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900" }} numberOfLines={1}>{restaurant.name.toUpperCase()}</Text>
                     <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "800", marginTop: 4 }}>{(restaurant.cuisine || "MATGO SELECTION").toUpperCase()}</Text>
                     
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, pt: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" }}>
                        <View style={{ flexDirection: "row", gap: 16 }}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                              <Ionicons name="time-outline" size={14} color={palette.gold} />
@@ -795,7 +875,7 @@ function HomeScreen({
                    
                    <Text style={{ color: "#6f667d", fontSize: 12, fontWeight: "800" }}>{(restaurant.description || restaurant.cuisine || "MATGO SELECTION").toUpperCase()}</Text>
 
-                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, pt: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.03)" }}>
+                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.03)" }}>
                       <View style={{ flexDirection: "row", gap: 20 }}>
                          <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
                          <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
@@ -1581,6 +1661,8 @@ function CartScreen({
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
+  const pendingPromoCode = useAppStore((s) => s.pendingPromoCode);
+  const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
   const currentRestaurantId = useAppStore((s) => s.restaurantId);
   const currentRestaurantSlug = useAppStore((s) => s.restaurantSlug);
   const coords = useAppStore((s) => s.coords);
@@ -1685,6 +1767,18 @@ function CartScreen({
       active = false;
     };
   }, [currentRestaurantId, setProfile, token]);
+
+  useEffect(() => {
+    if (!pendingPromoCode || !personalDeals.length) return;
+
+    const normalizedCode = pendingPromoCode.trim().toLowerCase();
+    const match = personalDeals.find((deal) => deal.code?.trim().toLowerCase() === normalizedCode);
+    if (!match) return;
+
+    setSelectedPersonalDeal(match);
+    setPromoCode(match.code);
+    setPendingPromoCode(null);
+  }, [pendingPromoCode, personalDeals, setPendingPromoCode]);
 
   useEffect(() => {
     let active = true;
@@ -2021,7 +2115,7 @@ function CartScreen({
                 editable={!selectedPersonalDeal}
               />
               <Pressable 
-                onPress={selectedPersonalDeal ? () => setSelectedPersonalDeal(null) : handlePromo}
+                onPress={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCode(""); } : handlePromo}
                 style={{ backgroundColor: selectedPersonalDeal ? palette.danger : palette.gold, paddingHorizontal: 22, justifyContent: "center", borderRadius: 18 }}
               >
                 <Text style={{ color: selectedPersonalDeal ? "#fff" : "#000", fontWeight: "900", textTransform: "uppercase", fontSize: 10 }}>

@@ -60,6 +60,12 @@ export interface PublicDeal {
   } | null;
   isActive?: boolean;
   showOnSite?: boolean;
+  discountType?: "FIXED" | "PERCENTAGE";
+  discountValue?: number;
+  minOrder?: number;
+  comboProductNames?: string[];
+  validUntil?: string | null;
+  applicableRestaurantIds?: string[];
 }
 
 export interface MenuExtra {
@@ -199,6 +205,7 @@ export interface AppStoreState {
   orderType: OrderType;
   token: string | null;
   profile: Profile | null;
+  pendingPromoCode: string | null;
   addItem: (item: Omit<CartItem, "cartItemId">) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
@@ -207,6 +214,7 @@ export interface AppStoreState {
   setOrderType: (orderType: OrderType) => void;
   setToken: (token: string | null) => void;
   setProfile: (profile: Profile | null) => void;
+  setPendingPromoCode: (code: string | null) => void;
   clearSession: () => void;
   hydrate: () => Promise<void>;
 }

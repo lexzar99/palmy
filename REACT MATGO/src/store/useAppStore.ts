@@ -30,6 +30,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   orderType: "DELIVERY",
   token: null,
   profile: null,
+  pendingPromoCode: null,
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -130,8 +131,11 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       persistState(get()).catch(() => {});
     });
   },
+  setPendingPromoCode: (pendingPromoCode) => {
+    set({ pendingPromoCode });
+  },
   clearSession: () => {
-    set({ token: null, profile: null });
+    set({ token: null, profile: null, pendingPromoCode: null });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

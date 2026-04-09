@@ -1251,6 +1251,12 @@ const formatDealForAdmin = (deal: any) => ({
 const normalizeDealInputForDb = (body: any) => {
   const next: Record<string, unknown> = { ...body };
 
+  delete next.id;
+  delete next.createdAt;
+  delete next.updatedAt;
+  delete next.dealType;
+  delete next.restaurant;
+
   if (body.discountValue !== undefined) {
     const discountType = body.discountType;
     const discountValueRaw = Number(body.discountValue || 0);
@@ -1271,10 +1277,33 @@ const normalizeDealInputForDb = (body: any) => {
   }
 
   if (body.applicableRestaurantIds !== undefined) {
+    const applicableRestaurantIds =
+      typeof body.applicableRestaurantIds === 'string'
+        ? parseJsonArray(body.applicableRestaurantIds)
+        : Array.isArray(body.applicableRestaurantIds)
+          ? body.applicableRestaurantIds.filter((value: unknown): value is string => typeof value === 'string')
+          : [];
+
     next.applicableRestaurantIds =
       typeof body.applicableRestaurantIds === 'string'
         ? body.applicableRestaurantIds
-        : JSON.stringify(body.applicableRestaurantIds || []);
+        : JSON.stringify(applicableRestaurantIds);
+
+    if (body.restaurantId === undefined && body.isGlobal !== true) {
+      next.restaurantId = applicableRestaurantIds.length === 1 ? applicableRestaurantIds[0] : null;
+    }
+  }
+
+  if (body.restaurantId !== undefined) {
+    next.restaurantId = body.restaurantId ? String(body.restaurantId) : null;
+  }
+
+  if (body.isGlobal !== undefined) {
+    next.isGlobal = Boolean(body.isGlobal);
+    if (body.isGlobal) {
+      next.restaurantId = null;
+      next.applicableRestaurantIds = JSON.stringify([]);
+    }
   }
 
   if (body.validFrom !== undefined) {
@@ -1372,9 +1401,15 @@ router.delete('/deals/:id', async (req, res) => {
       }
     }
 
+    const existing = await prisma.deal.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Dealen hittades inte' });
+    }
+
     await prisma.deal.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
+    console.error('Delete deal error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

@@ -83,7 +83,7 @@ export default function RestaurantCampaignsPage() {
       });
       setSelectedDeal(null);
       fetchData();
-    } catch { alert("Kunde inte radera"); }
+    } catch (error: any) { alert(error.response?.data?.error || "Kunde inte radera"); }
   };
 
   const toggleDealStatus = async (id: string, current: boolean) => {
@@ -93,6 +93,36 @@ export default function RestaurantCampaignsPage() {
       });
       fetchData();
     } catch { alert("Kunde inte uppdatera"); }
+  };
+
+  const buildDealPayload = (deal: any) => {
+    const applicableRestaurantIds = Array.isArray(deal.applicableRestaurantIds)
+      ? deal.applicableRestaurantIds.filter((value: unknown): value is string => typeof value === "string")
+      : [];
+
+    return {
+      title: deal.title,
+      description: deal.description || null,
+      imageUrl: deal.imageUrl || null,
+      badgeText: deal.badgeText || null,
+      triggerType: deal.triggerType || "NONE",
+      discountType: deal.discountType,
+      discountValue: Number(deal.discountValue || 0),
+      minOrder: Number(deal.minOrder || 0),
+      comboProductIds: Array.isArray(deal.comboProductIds) ? deal.comboProductIds : [],
+      isActive: deal.isActive !== false,
+      showOnSite: deal.showOnSite !== false,
+      popupEnabled: deal.popupEnabled !== false,
+      maxUsages: deal.maxUsages ? Number(deal.maxUsages) : null,
+      maxUsesPerCustomer: deal.maxUsesPerCustomer ? Number(deal.maxUsesPerCustomer) : null,
+      usageCount: Number(deal.usageCount || 0),
+      validFrom: deal.validFrom || null,
+      validUntil: deal.validUntil || null,
+      sortOrder: Number(deal.sortOrder || 0),
+      isGlobal: deal.isGlobal === true,
+      restaurantId: deal.isGlobal ? null : (applicableRestaurantIds.length === 1 ? applicableRestaurantIds[0] : (deal.restaurantId || null)),
+      applicableRestaurantIds,
+    };
   };
 
   return (
@@ -334,19 +364,13 @@ export default function RestaurantCampaignsPage() {
                             <button 
                               onClick={async () => {
                                 try {
-                                  const { restaurant, ...cleanDeal } = selectedDeal;
-                                  const applicableRestaurantIds = Array.isArray(cleanDeal.applicableRestaurantIds) ? cleanDeal.applicableRestaurantIds : [];
-                                  await axios.patch(`${API_URL}/api/admin/deals/${selectedDeal.id}`, {
-                                    ...cleanDeal,
-                                    restaurantId: cleanDeal.isGlobal ? null : (applicableRestaurantIds.length === 1 ? applicableRestaurantIds[0] : cleanDeal.restaurantId || null),
-                                    applicableRestaurantIds,
-                                  }, {
+                                  await axios.patch(`${API_URL}/api/admin/deals/${selectedDeal.id}`, buildDealPayload(selectedDeal), {
                                     headers: { Authorization: `Bearer ${getToken()}` }
                                   });
                                   fetchData();
-                                 alert("Spara lyckades!");
-                               } catch { alert("Kunde inte spara"); }
-                             }}
+                                  alert("Spara lyckades!");
+                                } catch (error: any) { alert(error.response?.data?.error || "Kunde inte spara"); }
+                              }}
                              className="w-full py-5 bg-emerald-500 text-dark-500 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-xl shadow-emerald-500/20"
                            >
                               Spara Ändringar
