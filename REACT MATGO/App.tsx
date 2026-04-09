@@ -339,12 +339,17 @@ function sortRestaurantsForHome(restaurants: Restaurant[]) {
   return [...restaurants].sort((a, b) => {
     const aOpen = a.isOpen !== false ? 1 : 0;
     const bOpen = b.isOpen !== false ? 1 : 0;
+    
+    // 1. Prioritize OPEN status above all else
     if (aOpen !== bOpen) return bOpen - aOpen;
 
-    const aPremium = a.featuredClass === 1 || a.featuredClass === 2 ? 1 : 0;
-    const bPremium = b.featuredClass === 1 || b.featuredClass === 2 ? 1 : 0;
-    if (aPremium !== bPremium) return bPremium - aPremium;
+    // 2. Among restaurants with the same open status, prioritize Premium (1) then Standard (2)
+    const aRank = a.featuredClass === 1 ? 2 : (a.featuredClass === 2 ? 1 : 0);
+    const bRank = b.featuredClass === 1 ? 2 : (b.featuredClass === 2 ? 1 : 0);
+    
+    if (aRank !== bRank) return bRank - aRank;
 
+    // 3. Alphabetical fallback
     return a.name.localeCompare(b.name);
   });
 }
@@ -439,10 +444,15 @@ function HomeScreen({
     );
   }, [activeCuisine, restaurants, selectedCity]);
 
-  const featured = useMemo(
-    () => filtered.filter((restaurant) => restaurant.featuredClass === 1 || restaurant.featuredClass === 2).slice(0, 8),
-    [filtered]
-  );
+  const featured = useMemo(() => {
+    const allPremium = filtered.filter(r => r.featuredClass === 1 || r.featuredClass === 2);
+    const openPremium = allPremium.filter(r => r.isOpen !== false);
+    
+    // If there are ANY open premium restaurants, show ONLY open ones.
+    // Otherwise fallback to showing closed premium ones (so list isn't empty).
+    if (openPremium.length > 0) return openPremium.slice(0, 8);
+    return allPremium.slice(0, 8);
+  }, [filtered]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -674,6 +684,7 @@ function HomeScreen({
                       borderWidth: 1,
                       borderColor: "rgba(255,255,255,0.06)",
                       padding: 14,
+                      opacity: restaurant.isOpen === false ? 0.5 : 1, // Dim closed restaurants
                     }}
                   >
                     <View style={{ height: 200, borderRadius: 24, overflow: "hidden", marginBottom: 18, backgroundColor: "#111015" }}>
@@ -748,6 +759,7 @@ function HomeScreen({
                   borderColor: "rgba(255,255,255,0.05)",
                   padding: 14,
                   marginBottom: 18,
+                  opacity: restaurant.isOpen === false ? 0.5 : 1, // Dim closed restaurants
                 }}
               >
                 <View style={{ height: 230, borderRadius: 28, overflow: "hidden", backgroundColor: "#111015" }}>
