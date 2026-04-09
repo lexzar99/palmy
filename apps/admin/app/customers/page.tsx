@@ -107,7 +107,9 @@ export default function CustomersPage() {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       fetchCustomerDetails(selectedCustomer.id);
-    } catch { alert("Kunde inte radera erbjudandet"); }
+    } catch (error: any) {
+      alert(error.response?.data?.error || "Kunde inte radera erbjudandet");
+    }
   };
 
   const filtered = customers.filter(c => 

@@ -4,16 +4,47 @@ import { formatDealForClient, isDealAvailableNow, parseDealProductIds } from '..
 
 const router = Router();
 
-router.get('/', async (_req, res) => {
+const parseJsonArray = (raw: string | null | undefined) => {
+  if (!raw) return [] as string[];
+
   try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+router.get('/', async (req, res) => {
+  try {
+    let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
+
+    if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { slug: req.query.slug.trim() },
+        select: { id: true },
+      });
+      targetRestaurantId = restaurant?.id || null;
+    }
+
     const deals = await prisma.deal.findMany({
       where: {
         showOnSite: true,
         isActive: true,
-        OR: [
-          { restaurantId: null },
-          { isGlobal: true }
-        ]
+        ...(targetRestaurantId
+          ? {
+              OR: [
+                { isGlobal: true },
+                { restaurantId: targetRestaurantId },
+                { applicableRestaurantIds: { contains: `"${targetRestaurantId}"` } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        restaurant: {
+          select: { id: true, name: true, slug: true },
+        },
       },
       orderBy: [
         { sortOrder: 'asc' },
@@ -37,6 +68,14 @@ router.get('/', async (_req, res) => {
         .map((deal) =>
           formatDealForClient(deal, {
             comboProductNames: parseDealProductIds(deal.comboProductIds).map((productId) => productNameMap.get(productId) || 'Valfri vara'),
+            restaurant: deal.restaurant
+              ? {
+                  id: deal.restaurant.id,
+                  name: deal.restaurant.name,
+                  slug: deal.restaurant.slug,
+                }
+              : null,
+            applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
           }),
         ),
     );

@@ -19,6 +19,8 @@ type DealLike = {
   sortOrder: number;
   createdAt: Date;
   updatedAt: Date;
+  restaurantId?: string | null;
+  isGlobal?: boolean;
 };
 
 export type DealEvaluationContext = {
@@ -127,6 +129,12 @@ export const formatDealForClient = (
   deal: DealLike,
   extra?: {
     comboProductNames?: string[];
+    restaurant?: {
+      id: string;
+      name: string;
+      slug: string;
+    } | null;
+    applicableRestaurantIds?: string[];
   },
 ) => ({
   id: deal.id,
@@ -149,6 +157,10 @@ export const formatDealForClient = (
   validFrom: deal.validFrom,
   validUntil: deal.validUntil,
   sortOrder: deal.sortOrder,
+  restaurantId: deal.restaurantId || null,
+  isGlobal: deal.isGlobal ?? false,
+  restaurant: extra?.restaurant || null,
+  applicableRestaurantIds: extra?.applicableRestaurantIds || [],
   createdAt: deal.createdAt,
   updatedAt: deal.updatedAt,
 });

@@ -109,7 +109,7 @@ export default function CartPage() {
       
       const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
-        axios.get(`${API_URL}/api/deals`).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/api/deals`, { params: currentRestaurantId ? { restaurantId: currentRestaurantId } : {} }).catch(() => ({ data: [] })),
         token ? axios.get(`${API_URL}/api/profile`, { headers }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
         token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
         currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),

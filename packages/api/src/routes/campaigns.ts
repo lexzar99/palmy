@@ -130,6 +130,30 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/campaigns/:id - Delete campaign and generated personal deals
+router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const existing = await prisma.campaign.findUnique({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Kampanj hittades inte' });
+    }
+
+    await prisma.$transaction([
+      prisma.customerDeal.deleteMany({ where: { campaignId: req.params.id } }),
+      prisma.campaign.delete({ where: { id: req.params.id } }),
+    ]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete campaign error:', error);
+    res.status(500).json({ error: 'Kunde inte radera kampanj' });
+  }
+});
+
 // POST /api/campaigns/:id/generate - Bull generate deals for customers
 router.post('/:id/generate', authenticate, requireSuperAdmin, async (req, res) => {
   try {

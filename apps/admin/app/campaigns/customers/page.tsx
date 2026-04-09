@@ -154,6 +154,9 @@ export default function CustomerCampaignsPage() {
                 <h1 className="text-4xl lg:text-5xl font-black tracking-tighter uppercase italic leading-none">
                   KUND <span className="text-gold-500">DEALS</span>
                 </h1>
+                <p className="mt-4 max-w-xl text-[11px] font-bold uppercase tracking-widest leading-relaxed text-[var(--text-primary)]/20">
+                  Personliga deals skickas till kunder via deras konto och visas i `REACT MATGO` genom `api/profile/deals`.
+                </p>
              </div>
           </div>
           

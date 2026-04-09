@@ -54,9 +54,7 @@ export default function RestaurantCampaignsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const data: any = Object.fromEntries(formData.entries());
-    
-    // Get all selected restaurant IDs from checkboxes
-    const selectedRestaurantIds = Array.from(formData.getAll('restaurantIds'));
+    const selectedRestaurantId = typeof data.restaurantId === "string" && data.restaurantId.trim() ? data.restaurantId : null;
     
     try {
       await axios.post(`${API_URL}/api/admin/deals`, {
@@ -66,8 +64,9 @@ export default function RestaurantCampaignsPage() {
         sortOrder: Number(data.sortOrder || 0),
         isActive: true,
         showOnSite: true,
-        isGlobal: selectedRestaurantIds.length === 0,
-        applicableRestaurantIds: JSON.stringify(selectedRestaurantIds)
+        restaurantId: selectedRestaurantId,
+        isGlobal: !selectedRestaurantId,
+        applicableRestaurantIds: JSON.stringify(selectedRestaurantId ? [selectedRestaurantId] : [])
       }, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
@@ -132,6 +131,10 @@ export default function RestaurantCampaignsPage() {
              <div className="flex items-center justify-between px-8 py-4 glass border border-[var(--border-subtle)] rounded-3xl mb-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Aktiva i Menyn ({deals.length})</span>
                 <Settings2 size={16} className="text-[var(--text-primary)]/10" />
+              </div>
+
+             <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/5 px-6 py-5 text-[11px] font-bold leading-relaxed text-[var(--text-primary)]/60">
+               Publika deals skickas ut via `api/deals` och kan visas i webben samt i `REACT MATGO`. Välj en restaurang om erbjudandet bara ska gälla där, eller lämna tomt för en global deal.
              </div>
 
              {loading ? (
@@ -151,12 +154,14 @@ export default function RestaurantCampaignsPage() {
                     <div className="flex items-start justify-between mb-6">
                        <div className="flex-1 min-w-0 pr-4">
                           <h3 className="text-2xl font-black italic tracking-tighter uppercase mb-2 group-hover:text-emerald-500 transition-colors truncate">{d.title}</h3>
-                          <div className="flex items-center gap-4">
-                             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-black uppercase tracking-widest">
-                                {d.discountValue} {d.discountType === "PERCENTAGE" ? "%" : "KR"}
-                             </div>
-                             <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 truncate">{d.restaurant?.name || "Global / Alla"}</div>
-                          </div>
+                             <div className="flex items-center gap-4">
+                               <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-black uppercase tracking-widest">
+                                 {d.discountValue} {d.discountType === "PERCENTAGE" ? "%" : "KR"}
+                               </div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 truncate">
+                                {d.restaurant?.name || (d.applicableRestaurantIds?.length ? "Utvalda restauranger" : "Global / Alla")}
+                              </div>
+                           </div>
                        </div>
                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${d.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-rose-500/10 text-rose-500"}`}>
                           {d.isActive ? <CheckCircle2 size={22} /> : <XCircle size={22} />}
@@ -282,27 +287,27 @@ export default function RestaurantCampaignsPage() {
                               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Kopplade Restauranger</label>
                               <div className="p-4 bg-[var(--border-subtle)] rounded-2xl border border-[var(--border-subtle)] max-h-40 overflow-y-auto space-y-2 no-scrollbar">
                                  <label className="flex items-center gap-3 cursor-pointer group">
-                                    <input 
-                                      type="checkbox"
-                                      checked={selectedDeal.isGlobal}
-                                      onChange={() => setSelectedDeal({ ...selectedDeal, isGlobal: !selectedDeal.isGlobal, applicableRestaurantIds: "[]" })}
-                                      className="w-5 h-5 rounded-lg border-2 border-[var(--border-strong)] bg-obsidian text-emerald-500 focus:ring-emerald-500/50"
-                                    />
+                                     <input 
+                                       type="checkbox"
+                                       checked={selectedDeal.isGlobal}
+                                       onChange={() => setSelectedDeal({ ...selectedDeal, isGlobal: !selectedDeal.isGlobal, applicableRestaurantIds: [], restaurantId: null })}
+                                       className="w-5 h-5 rounded-lg border-2 border-[var(--border-strong)] bg-obsidian text-emerald-500 focus:ring-emerald-500/50"
+                                     />
                                     <span className="text-[11px] font-black uppercase tracking-widest group-hover:text-emerald-500 transition-colors">Global (Alla restauranger)</span>
                                  </label>
-                                 {!selectedDeal.isGlobal && (
-                                   <div className="pt-2 border-t border-[var(--border-strong)] space-y-2">
-                                      {restaurants.map(r => {
-                                         const ids = JSON.parse(selectedDeal.applicableRestaurantIds || "[]");
-                                         return (
-                                           <label key={r.id} className="flex items-center gap-3 cursor-pointer group">
+                                      {!selectedDeal.isGlobal && (
+                                        <div className="pt-2 border-t border-[var(--border-strong)] space-y-2">
+                                       {restaurants.map(r => {
+                                          const ids = Array.isArray(selectedDeal.applicableRestaurantIds) ? selectedDeal.applicableRestaurantIds : [];
+                                          return (
+                                            <label key={r.id} className="flex items-center gap-3 cursor-pointer group">
                                               <input 
                                                 type="checkbox"
                                                 checked={ids.includes(r.id)}
                                                 onChange={() => {
-                                                   const newIds = ids.includes(r.id) ? ids.filter((id: string) => id !== r.id) : [...ids, r.id];
-                                                   setSelectedDeal({ ...selectedDeal, applicableRestaurantIds: JSON.stringify(newIds) });
-                                                }}
+                                                    const newIds = ids.includes(r.id) ? ids.filter((id: string) => id !== r.id) : [...ids, r.id];
+                                                    setSelectedDeal({ ...selectedDeal, applicableRestaurantIds: newIds, restaurantId: newIds.length === 1 ? newIds[0] : null });
+                                                 }}
                                                 className="w-5 h-5 rounded-lg border-2 border-[var(--border-strong)] bg-obsidian text-emerald-500 focus:ring-emerald-500/50"
                                               />
                                               <span className="text-[10px] font-black uppercase tracking-widest opacity-60 group-hover:opacity-100 group-hover:text-emerald-500 transition-all">{r.name}</span>
@@ -326,14 +331,19 @@ export default function RestaurantCampaignsPage() {
                         </div>
 
                         <div className="space-y-4">
-                           <button 
-                             onClick={async () => {
-                               try {
-                                 const { restaurant, ...cleanDeal } = selectedDeal;
-                                 await axios.patch(`${API_URL}/api/admin/deals/${selectedDeal.id}`, cleanDeal, {
-                                   headers: { Authorization: `Bearer ${getToken()}` }
-                                 });
-                                 fetchData();
+                            <button 
+                              onClick={async () => {
+                                try {
+                                  const { restaurant, ...cleanDeal } = selectedDeal;
+                                  const applicableRestaurantIds = Array.isArray(cleanDeal.applicableRestaurantIds) ? cleanDeal.applicableRestaurantIds : [];
+                                  await axios.patch(`${API_URL}/api/admin/deals/${selectedDeal.id}`, {
+                                    ...cleanDeal,
+                                    restaurantId: cleanDeal.isGlobal ? null : (applicableRestaurantIds.length === 1 ? applicableRestaurantIds[0] : cleanDeal.restaurantId || null),
+                                    applicableRestaurantIds,
+                                  }, {
+                                    headers: { Authorization: `Bearer ${getToken()}` }
+                                  });
+                                  fetchData();
                                  alert("Spara lyckades!");
                                } catch { alert("Kunde inte spara"); }
                              }}
@@ -385,7 +395,7 @@ export default function RestaurantCampaignsPage() {
                         <input name="title" required placeholder="t.ex. 20% på hela menyn" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none placeholder:text-[var(--text-primary)]/10" />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Restaurang</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Restaurang / Global synlighet</label>
                         <select name="restaurantId" className="w-full bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none appearance-none">
                            <option value="">Global (Alla restauranger)</option>
                            {restaurants.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -411,10 +421,14 @@ export default function RestaurantCampaignsPage() {
                         <input name="sortOrder" type="number" defaultValue="0" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none" />
                       </div>
                    </div>
-                   <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Kort beskrivning</label>
-                      <textarea name="description" placeholder="Berätta kort om villkoren..." className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none h-24" />
-                   </div>
+                    <div className="space-y-2">
+                       <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Kort beskrivning</label>
+                       <textarea name="description" placeholder="Berätta kort om villkoren..." className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-bold focus:border-emerald-500/40 outline-none h-24" />
+                    </div>
+
+                    <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-5 py-4 text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 leading-relaxed">
+                      Skapar du här blir det en publik deal som visas för kunder via `api/deals`. För riktade kunddeals använder du sidan Kund Unika Deals.
+                    </div>
                    
                    <div className="pt-6 flex gap-4">
                       <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 py-4 rounded-2xl bg-[var(--border-subtle)] hover:bg-white/10 text-[11px] font-black uppercase tracking-[0.2em] transition-all">Avbryt</button>

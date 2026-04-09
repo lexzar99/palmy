@@ -36,7 +36,7 @@ export default function CampaignsHubPage() {
                  <Store size={32} />
               </div>
               <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-4">Restaurang <span className="text-emerald-500">Erbjudanden</span></h2>
-              <p className="text-[11px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest leading-relaxed mb-10 max-w-[200px]">Hantera generella rabatter, kombodeals och erbjudanden som syns för alla på menyn.</p>
+              <p className="text-[11px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest leading-relaxed mb-10 max-w-[260px]">Hantera publika deals som skickas via api/deals och kan visas i både webbappen och REACT MATGO.</p>
               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-500">
                  Gå vidare <ArrowRight size={14} className="group-hover:translate-x-2 transition-transform" />
               </div>
@@ -48,7 +48,7 @@ export default function CampaignsHubPage() {
                  <Users size={32} />
               </div>
               <h2 className="text-3xl font-black italic tracking-tighter uppercase mb-4">Kund <span className="text-gold-500">Unika Deals</span></h2>
-              <p className="text-[11px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest leading-relaxed mb-10 max-w-[200px]">Skapa riktade kampanjer med personliga, telefon-låsta koder till specifika kundgrupper.</p>
+              <p className="text-[11px] font-black text-[var(--text-primary)]/20 uppercase tracking-widest leading-relaxed mb-10 max-w-[260px]">Skapa personliga deals som skickas till specifika kunder och hämtas i apparna via api/profile/deals.</p>
               <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gold-500">
                  Gå vidare <ArrowRight size={14} className="group-hover:translate-x-2 transition-transform" />
               </div>

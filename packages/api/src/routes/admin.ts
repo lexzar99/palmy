@@ -1302,6 +1302,11 @@ router.get('/deals', async (req, res) => {
 
     const deals = await prisma.deal.findMany({
       where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } as any : {},
+      include: {
+        restaurant: {
+          select: { id: true, name: true, slug: true },
+        },
+      },
       orderBy: { sortOrder: 'asc' },
     });
     res.json(deals.map(formatDealForAdmin));

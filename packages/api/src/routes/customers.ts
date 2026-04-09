@@ -30,14 +30,28 @@ router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {
         orders: {
           include: { restaurant: { select: { name: true } } },
           orderBy: { createdAt: 'desc' }
-        },
-        deals: {
-          include: { campaign: true }
         }
       }
     });
     if (!user) return res.status(404).json({ error: 'Kunden hittades inte' });
-    res.json(user);
+
+    const personalDeals = await prisma.customerDeal.findMany({
+      where: {
+        OR: [
+          { userId: user.id },
+          ...(user.phone ? [{ phone: user.phone }] : []),
+        ],
+      },
+      include: { campaign: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const dedupedDeals = Array.from(new Map(personalDeals.map((deal) => [deal.id, deal])).values());
+
+    res.json({
+      ...user,
+      deals: dedupedDeals,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte hämta kunddetaljer' });
   }
@@ -70,6 +84,30 @@ router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 // Granular Deal Management
 router.delete('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req, res) => {
   try {
+    const customer = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, phone: true },
+    });
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Kunden hittades inte' });
+    }
+
+    const existing = await prisma.customerDeal.findFirst({
+      where: {
+        id: req.params.dealId,
+        OR: [
+          { userId: customer.id },
+          ...(customer.phone ? [{ phone: customer.phone }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Erbjudandet hittades inte för kunden' });
+    }
+
     await prisma.customerDeal.delete({
       where: { id: req.params.dealId }
     });
@@ -82,6 +120,31 @@ router.delete('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req,
 router.patch('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const { isUsed, usageCount } = req.body;
+
+    const customer = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, phone: true },
+    });
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Kunden hittades inte' });
+    }
+
+    const existing = await prisma.customerDeal.findFirst({
+      where: {
+        id: req.params.dealId,
+        OR: [
+          { userId: customer.id },
+          ...(customer.phone ? [{ phone: customer.phone }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Erbjudandet hittades inte för kunden' });
+    }
+
     const deal = await prisma.customerDeal.update({
       where: { id: req.params.dealId },
       data: { isUsed, usageCount: Number(usageCount) }

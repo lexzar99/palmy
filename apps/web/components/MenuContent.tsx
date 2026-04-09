@@ -55,7 +55,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/menu/categories`, { params }),
         restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
-        axios.get(`${API_URL}/api/deals`),
+        axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
       ]);
 
       setCategories(menuRes.data);
