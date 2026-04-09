@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, Suspense } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -12,7 +12,7 @@ const buildCallbackUrl = (redirect: string) => {
   return `${window.location.origin}/mobile-auth?redirect=${encodeURIComponent(redirect)}`;
 };
 
-export default function MobileAuthPage() {
+function MobileAuthContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const hasStartedRef = useRef(false);
@@ -75,5 +75,13 @@ export default function MobileAuthPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function MobileAuthPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-obsidian flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" /></div>}>
+      <MobileAuthContent />
+    </Suspense>
   );
 }
