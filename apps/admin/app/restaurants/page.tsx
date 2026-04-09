@@ -99,6 +99,17 @@ export default function RestaurantsPage() {
   const [adminStatus, setAdminStatus] = useState<{exists: boolean; admin?: any; restaurant?: any} | null>(null);
   const [saveMessage, setSaveMessage] = useState<{type: 'success' | 'warning' | 'error'; text: string} | null>(null);
   
+  const DAYS = [
+    { key: "monday", label: "Måndag" },
+    { key: "tuesday", label: "Tisdag" },
+    { key: "wednesday", label: "Onsdag" },
+    { key: "thursday", label: "Torsdag" },
+    { key: "friday", label: "Fredag" },
+    { key: "saturday", label: "Lördag" },
+    { key: "sunday", label: "Söndag" },
+  ];
+  const defaultHours = { open: "11:00", close: "22:00", closed: false };
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
 
@@ -163,6 +174,7 @@ export default function RestaurantsPage() {
       setForm({
         ...selected,
         tags: typeof selected.tags === 'string' ? selected.tags : JSON.stringify(selected.tags || []),
+        openingHours: typeof selected.openingHours === 'string' ? selected.openingHours : JSON.stringify(selected.openingHours || {}),
         adminPassword: "", // Don't load password
       });
       // Check admin account status when selecting a restaurant
@@ -177,10 +189,21 @@ export default function RestaurantsPage() {
     setSaving(true);
     setSaveMessage(null);
     try {
+      const { id, createdAt, updatedAt, ...cleanForm } = form as any;
+      
       const payload = {
-        ...form,
-        // Prevent API validation errors when DB values are null.
+        ...cleanForm,
+        // Always convert numeric fields to numbers, and ensure featuredClass is explicitly included
+        name: form.name,
+        slug: form.slug,
+        featuredClass: Number(form.featuredClass || 3),
+        isOpen: form.isOpen !== false,
         description: form.description || "",
+        cuisine: form.cuisine || "",
+        city: form.city || "",
+        address: form.address || "",
+        zip: form.zip || "",
+        phone: form.phone || "",
         deliveryFee: Number(form.deliveryFee || 0),
         minOrderAmount: Number(form.minOrderAmount || 0),
         etaMinutes: Number(form.etaMinutes || 30),
@@ -195,6 +218,7 @@ export default function RestaurantsPage() {
         heroImageUrl: form.heroImageUrl || "",
         internalInfo: form.internalInfo || "",
         tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
+        openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
 
       let result: any;
@@ -221,12 +245,17 @@ export default function RestaurantsPage() {
       }
 
       await fetchRestaurants();
-      // Don't navigate away immediately — show the message
+      
+      // Keep message for a while then close or redirect
       setTimeout(() => {
-        setActiveTab("OVERVIEW");
-        setSelectedId(null);
         setSaveMessage(null);
-      }, 3000);
+        if (selectedId) {
+           // Stay on page if editing
+        } else {
+           setActiveTab("OVERVIEW");
+           setSelectedId(null);
+        }
+      }, 4000);
     } catch (error: any) {
       setSaveMessage({ type: 'error', text: error.response?.data?.error || "Kunde inte spara" });
     } finally {
@@ -335,6 +364,29 @@ export default function RestaurantsPage() {
            </div>
         </div>
       </div>
+
+      {/* Dynamic Notification Overlay — FIXED FEEDBACK */}
+      <AnimatePresence>
+        {saveMessage && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100, x: "-50%" }}
+            animate={{ opacity: 1, y: 0, x: "-50%" }}
+            exit={{ opacity: 0, y: -100, x: "-50%" }}
+            className="fixed top-10 left-1/2 z-[100] w-full max-w-md px-4"
+          >
+             <div className={`p-6 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-2 flex items-center gap-4 backdrop-blur-2xl ${
+               saveMessage.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white' :
+               saveMessage.type === 'warning' ? 'bg-orange-500/90 border-orange-400 text-white' :
+               'bg-red-500/90 border-red-400 text-white'
+             }`}>
+                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                   {saveMessage.type === 'success' ? <Check size={20} /> : <Info size={20} />}
+                </div>
+                <p className="font-extrabold text-sm leading-tight uppercase tracking-wider">{saveMessage.text}</p>
+             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {activeTab === "OVERVIEW" ? (
@@ -633,21 +685,65 @@ export default function RestaurantsPage() {
                       </div>
 
                       {/* Save message feedback */}
-                      {saveMessage && (
-                        <div className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center ${
-                          saveMessage.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' :
-                          saveMessage.type === 'warning' ? 'bg-orange-500/10 border border-orange-500/20 text-orange-400' :
-                          'bg-red-500/10 border border-red-500/20 text-red-400'
-                        }`}>
-                          {saveMessage.text}
-                        </div>
-                      )}
+                       {/* Save message removed from here — now floating at top */}
 
                       <div className="p-4 bg-gold-500/5 border border-gold-500/10 rounded-2xl flex items-start gap-3">
                         <Info size={16} className="text-gold-500 mt-0.5" />
                         <p className="text-[10px] font-medium leading-relaxed uppercase opacity-50">
                           Restaurangens admin loggar in med användarnamnet <span className="text-gold-500 font-black">{form.slug}</span> och det lösenord du anger här. Samma inloggning används i webbpanelen och Flutter-appen.
                         </p>
+                      </div>
+                   </div>
+
+                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
+                      <div>
+                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-gold-500">
+                           <Clock size={24} />
+                           Öppettider (Individuella)
+                         </h2>
+                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Styr när denna restaurang är öppen oberoende av plattformens globala inställningar.</p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {DAYS.map((day) => {
+                          const hoursJson = typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {});
+                          const dayHours = hoursJson[day.key] || { open: "11:00", close: "22:00", closed: false };
+                          
+                          const updateHours = (field: string, val: any) => {
+                             const newHours = { ...hoursJson, [day.key]: { ...dayHours, [field]: val } };
+                             setForm({ ...form, openingHours: JSON.stringify(newHours) });
+                          };
+
+                          return (
+                            <div key={day.key} className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${dayHours.closed ? "bg-white/2 opacity-50" : "bg-dark-500 border border-[var(--border-subtle)]"}`}>
+                              <div className="w-28 font-bold uppercase text-[10px] tracking-widest text-[var(--text-primary)]/60 flex-shrink-0">{day.label}</div>
+                              <div className="flex items-center gap-4 flex-1">
+                                <input
+                                  type="time"
+                                  value={dayHours.open}
+                                  disabled={dayHours.closed}
+                                  onChange={(e) => updateHours("open", e.target.value)}
+                                  className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                                />
+                                <span className="text-[var(--text-primary)]/20 font-black">–</span>
+                                <input
+                                  type="time"
+                                  value={dayHours.close}
+                                  disabled={dayHours.closed}
+                                  onChange={(e) => updateHours("close", e.target.value)}
+                                  className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-xs font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => updateHours("closed", !dayHours.closed)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${dayHours.closed ? "bg-red-500/20 text-red-400" : "bg-green-500/10 text-green-500 hover:bg-red-500/10 hover:text-red-400"}`}
+                              >
+                                {dayHours.closed ? "Stängd" : "Öppen"}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                    </div>
 

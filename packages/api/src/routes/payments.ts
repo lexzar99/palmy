@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
-import { io } from '../index';
+import { getIO } from '../lib/socket';
 
 const router = Router();
 
@@ -93,7 +93,7 @@ router.post('/webhook', async (req, res) => {
         });
 
         // Notifiera admin
-        io.to('admin-room').emit('order:paid', {
+        getIO().to('admin-room').emit('order:paid', {
           orderId: order.id,
           orderNumber: order.orderNumber,
         });

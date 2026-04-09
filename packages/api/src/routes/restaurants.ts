@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { io } from '../index';
+import { getIO } from '../lib/socket';
 import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
 
@@ -72,7 +72,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     phone: restaurant.phone,
     imageUrl: restaurant.imageUrl,
     heroImageUrl: restaurant.heroImageUrl,
-    rating: (restaurant.ratingCount ?? 0) >= 5 ? (restaurant.rating ?? 4.6) : null,
+    rating: restaurant.rating ?? 4.6,
     ratingCount: restaurant.ratingCount ?? 0,
     deliveryFee: fromOre(restaurant.deliveryFee),
     minOrderAmount: fromOre(restaurant.minOrderAmount),
@@ -325,8 +325,23 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
 
 router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
   try {
-    const payload = restaurantSchema.partial().parse(req.body);
-    const { id } = req.params;
+    const { id: paramId } = req.params;
+    
+    // Find the ACTUAL restaurant first to support slug OR id in the URL
+    const existingRestaurant = await prisma.restaurant.findFirst({
+      where: {
+        OR: [
+          { id: paramId },
+          { slug: paramId }
+        ]
+      }
+    });
+
+    if (!existingRestaurant) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
+
+    const id = existingRestaurant.id;
 
     if (req.admin?.role !== 'SUPER_ADMIN') {
       const rid = req.admin?.restaurantId;
@@ -335,6 +350,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
         return;
       }
     }
+
+    const payload = restaurantSchema.partial().parse(req.body);
     
     // Build update payload explicitly to avoid accidentally passing unsupported keys.
     const data: any = {};
@@ -346,21 +363,43 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.city !== undefined) data.city = payload.city;
     if (payload.zip !== undefined) data.zip = payload.zip;
     if (payload.phone !== undefined) data.phone = payload.phone;
+    
+    // Pictures
     if (payload.imageUrl !== undefined) data.imageUrl = payload.imageUrl;
     if (payload.heroImageUrl !== undefined) data.heroImageUrl = payload.heroImageUrl;
-    if (payload.etaMinutes !== undefined) data.etaMinutes = Number(payload.etaMinutes);
-    if (payload.featuredClass !== undefined) data.featuredClass = Number(payload.featuredClass);
+    
+    // Numbers - with safety against NaN
+    const toSafeNum = (v: any) => {
+      const n = Number(v);
+      return isNaN(n) ? undefined : n;
+    };
+
+    if (payload.etaMinutes !== undefined) data.etaMinutes = toSafeNum(payload.etaMinutes);
+    if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
     if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
-    if (payload.rating !== undefined) data.rating = Number(payload.rating);
-    if (payload.ratingCount !== undefined) data.ratingCount = Number(payload.ratingCount);
-    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(Number(payload.deliveryFee));
-    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(Number(payload.minOrderAmount));
-    if (payload.tags !== undefined) data.tags = typeof payload.tags === 'string' ? payload.tags : JSON.stringify(payload.tags);
-    if (payload.openingHours !== undefined) data.openingHours = typeof payload.openingHours === 'string' ? payload.openingHours : JSON.stringify(payload.openingHours);
+    if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
+    if (payload.ratingCount !== undefined) data.ratingCount = toSafeNum(payload.ratingCount);
+    
+    if (payload.deliveryFee !== undefined) data.deliveryFee = kr(toSafeNum(payload.deliveryFee) ?? 0);
+    if (payload.minOrderAmount !== undefined) data.minOrderAmount = kr(toSafeNum(payload.minOrderAmount) ?? 0);
+    
+    // JSON fields - ensure they aren't double-stringified
+    const safeStringify = (val: any) => {
+      if (typeof val === 'string') return val;
+      return JSON.stringify(val ?? {});
+    };
+
+    if (payload.tags !== undefined) data.tags = safeStringify(payload.tags);
+    if (payload.openingHours !== undefined) data.openingHours = safeStringify(payload.openingHours);
     if (payload.internalInfo !== undefined) data.internalInfo = payload.internalInfo;
-    if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : Number(payload.latitude);
-    if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : Number(payload.longitude);
-    if (payload.freeDeliveryAbove !== undefined) data.freeDeliveryAbove = normalizeMoneyToOre(Number(payload.freeDeliveryAbove || 0));
+    
+    if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : toSafeNum(payload.latitude);
+    if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : toSafeNum(payload.longitude);
+    
+    if (payload.freeDeliveryAbove !== undefined) {
+      data.freeDeliveryAbove = normalizeMoneyToOre(toSafeNum(payload.freeDeliveryAbove) ?? 0);
+    }
+    
     if (payload.deliveryZones !== undefined) {
       const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
@@ -392,8 +431,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       } catch (adminErr: any) {
         console.error(`❌ Failed to update admin password for restaurant "${restaurant.name}":`, adminErr.message);
       }
-    }
-    io.emit('settings:updated', {
+        }
+    getIO().emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
       isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
@@ -402,6 +441,14 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,
     });
+ 
+    // Immediate status check after schedule change
+    try {
+      const { checkAllRestaurantsStatus } = require('../lib/restaurantStatus');
+      await checkAllRestaurantsStatus();
+    } catch (err: any) {
+      console.error('Status check error:', err);
+    }
 
     res.json(restaurant);
   } catch (err: any) {

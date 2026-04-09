@@ -25,11 +25,14 @@ import reportRoutes from './routes/reports';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
+import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
 import { getAllowedOrigins } from './lib/config';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
 const httpServer = createServer(app);
+
+import { initSocket, getIO } from './lib/socket';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001';
@@ -38,7 +41,7 @@ const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001';
 const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];
 
 const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
+  origin: (origin: any, callback: any) => {
     // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
     const allowed = getAllowedOrigins();
@@ -55,7 +58,7 @@ const corsOptions: cors.CorsOptions = {
 };
 
 // Socket.IO setup
-export const io = new SocketIOServer(httpServer, {
+initSocket(httpServer, {
   cors: corsOptions,
 });
 
@@ -69,8 +72,8 @@ app.use(compression());
 
 // Stripe webhooks need raw body
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true, limit: '2mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Static files
 app.use(express.static('public'));
@@ -129,7 +132,7 @@ app.get('/health', (_req, res) => {
 });
 
 // Socket.IO events
-io.on('connection', (socket) => {
+getIO().on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
   
   socket.on('join:admin', (payload?: { restaurantId?: string }) => {
@@ -182,6 +185,12 @@ const PORT = Number(process.env.PORT || 4000);
       runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Scheduled run error:', err));
       runDailyCleanup().catch(err => console.error('[Cleanup] Scheduled run error:', err));
     }, 24 * 60 * 60 * 1000);
+
+    // Restaurant Status Watchdog (checks every minute)
+    checkAllRestaurantsStatus();
+    setInterval(() => {
+      checkAllRestaurantsStatus().catch(err => console.error('[Watchdog] Scheduled run error:', err));
+    }, 60 * 1000);
 
   } catch (error) {
     console.warn('⚠️ Bootstrap error:', error);

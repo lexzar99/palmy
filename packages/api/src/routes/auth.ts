@@ -59,10 +59,33 @@ router.post('/send-otp', async (req, res) => {
   }
 });
 
+// POST /api/auth/lookup-phone
+router.post('/lookup-phone', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
+
+    const user = await (prisma as any).user.findUnique({
+      where: { phone },
+      select: { id: true, phone: true, email: true, isVerified: true, oauthProvider: true, password: true },
+    });
+
+    res.json({
+      exists: Boolean(user),
+      phone,
+      hasFullAccount: Boolean(user && (user.email || user.oauthProvider || user.password)),
+      isVerified: Boolean(user?.isVerified),
+    });
+  } catch (error) {
+    console.error('Lookup phone error:', error);
+    res.status(500).json({ error: 'Kunde inte kontrollera telefonnummer' });
+  }
+});
+
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
   try {
-    const { phone, code, name } = req.body;
+    const { phone, code, name, email } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Telefon och kod krävs' });
 
     // Check code
@@ -112,8 +135,26 @@ router.post('/verify-otp', async (req, res) => {
       // Phone-only login/registration
       user = await (prisma as any).user.findUnique({ where: { phone } });
       if (!user) {
+        const normalizedEmail = typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
+
+        if (normalizedEmail) {
+          const existingWithEmail = await (prisma as any).user.findFirst({
+            where: { email: normalizedEmail },
+            select: { id: true },
+          });
+
+          if (existingWithEmail) {
+            return res.status(400).json({ error: 'E-postadressen används redan av ett annat konto' });
+          }
+        }
+
         user = await (prisma as any).user.create({
-          data: { phone, name: name || `Gäst ${phone.slice(-4)}`, isVerified: true }
+          data: {
+            phone,
+            name: name || `Gäst ${phone.slice(-4)}`,
+            email: normalizedEmail,
+            isVerified: true,
+          }
         });
       } else {
         user = await (prisma as any).user.update({
@@ -124,7 +165,7 @@ router.post('/verify-otp', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, isVerified: true } });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, isVerified: true } });
   } catch (error) {
     console.error('Verify OTP error:', error);
     res.status(500).json({ error: 'Kunde inte verifiera' });
@@ -136,7 +177,7 @@ router.get('/me', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true }
+      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true }
     });
     res.json(user);
   } catch (error) {
@@ -359,7 +400,7 @@ router.post('/oauth-token', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, needsPhone: !user.phone, isVerified: user.isVerified } });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, needsPhone: !user.phone, isVerified: user.isVerified } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }

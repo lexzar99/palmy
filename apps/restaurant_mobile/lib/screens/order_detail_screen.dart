@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:animate_do/animate_do.dart';
@@ -5,6 +6,8 @@ import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 import '../core/theme.dart';
 import '../core/print_service.dart';
+import '../core/audio_helper.dart';
+import '../core/log_service.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
@@ -14,22 +17,69 @@ class OrderDetailScreen extends StatefulWidget {
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-class _OrderDetailScreenState extends State<OrderDetailScreen> {
+class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTickerProviderStateMixin {
   late OrderModel order;
+  AnimationController? _pulseController;
+  Timer? _overdueTimer;
 
   @override
   void initState() {
     super.initState();
     order = widget.order;
+    
+    _pulseController = AnimationController(
+       vsync: this, 
+       duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+
+    _startOverdueCheck();
+  }
+
+  @override
+  void dispose() {
+    _pulseController?.dispose();
+    _overdueTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startOverdueCheck() {
+    _overdueTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (_checkIfOverdue()) {
+        AudioHelper.playAudio('notification.mp3');
+      }
+      if (mounted) setState(() {}); // Refresh pulse state
+    });
+  }
+
+  bool _checkIfOverdue() {
+    if (order.estimatedTime == null) return false;
+    if (['DELIVERING', 'DELIVERED', 'CANCELLED', 'REJECTED'].contains(order.status)) return false;
+
+    final deadline = order.createdAt.add(Duration(minutes: order.estimatedTime! + 20));
+    return DateTime.now().isAfter(deadline);
   }
 
   void _showAcceptDialog() {
-    int selectedMinutes = 20;
+    int selectedMinutes = 40;
     final minuteOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90];
+    final scrollController = ScrollController();
     
+    // Center the initial selection (40 at index 7)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (scrollController.hasClients) {
+        final screenWidth = MediaQuery.of(context).size.width;
+        // Item is 60px + 12px padding = 72px. 40 is at index 7.
+        // We want item 7's center to be at screenWidth/2.
+        final targetCenter = (7 * 72.0) + 36.0;
+        final offset = targetCenter - (screenWidth / 2);
+        scrollController.jumpTo(offset > 0 ? offset : 0);
+      }
+    });
+    
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.zinc,
+      backgroundColor: isDark ? AppTheme.zinc : Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
@@ -46,6 +96,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 3)),
               const SizedBox(height: 30),
               SingleChildScrollView(
+                controller: scrollController,
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -58,13 +109,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         child: Container(
                           width: 60, height: 60,
                           decoration: BoxDecoration(
-                            color: isSelected ? AppTheme.gold : Colors.black26,
+                            color: isSelected ? AppTheme.gold : (isDark ? Colors.black26 : Colors.black.withOpacity(0.05)),
                             borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: isSelected ? AppTheme.gold : Colors.white10, width: 2),
+                            border: Border.all(color: isSelected ? AppTheme.gold : (isDark ? Colors.white10 : Colors.black12), width: 2),
                           ),
                           child: Center(child: Text('$min',
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
-                              color: isSelected ? AppTheme.charcoal : Colors.white60))),
+                              color: isSelected ? (isDark ? AppTheme.charcoal : Colors.white) : (isDark ? Colors.white60 : Colors.black54)))),
                         ),
                       ),
                     );
@@ -79,13 +130,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                     Expanded(
                       child: SizedBox(height: 60,
                         child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
+                          onPressed: () {
+                            logger.log('BUTTON PRESS: Cancel Acceptance Dialog for Order #${widget.order.orderNumber}');
+                            Navigator.pop(ctx);
+                          },
                           style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.white10),
+                            side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                           ),
-                          child: const Text('AVBRYT',
-                            style: TextStyle(color: Colors.white38, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                          child: Text('AVBRYT',
+                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
                         ),
                       ),
                     ),
@@ -95,6 +149,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                       child: SizedBox(height: 60,
                         child: ElevatedButton(
                           onPressed: () async {
+                            logger.log('BUTTON PRESS: Accept Order #${widget.order.orderNumber} with $selectedMinutes min');
                             Navigator.pop(ctx);
                             final provider = Provider.of<OrderProvider>(context, listen: false);
                             final ok = await provider.updateStatus(order.id, 'PREPARING', estimatedTime: selectedMinutes);
@@ -161,54 +216,65 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25),
+      body: AnimatedBuilder(
+        animation: _pulseController!,
+        builder: (context, child) {
+          final isOverdue = _checkIfOverdue();
+          final borderColor = Colors.red.withOpacity(isOverdue ? (0.2 + (_pulseController!.value * 0.3)) : 0);
+
+          return Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor, width: isOverdue ? 3 : 0),
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(30),
+              child: child,
+            ),
+          );
+        },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            FadeInDown(child: _buildInfoCard(
+            // KUNDUPPGIFTER
+            _buildSimpleSection(
               title: 'KUNDUPPGIFTER', icon: Icons.person_outline, color: AppTheme.gold,
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(order.customerName, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                const SizedBox(height: 6),
+                Text(order.customerName, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.phone, size: 14, color: Theme.of(context).primaryColor),
-                    const SizedBox(width: 8),
+                    Icon(Icons.phone, size: 16, color: Theme.of(context).primaryColor),
+                    const SizedBox(width: 10),
                     Text(order.customerPhone, style: TextStyle(fontSize: 18, color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ]),
-            )),
-            const SizedBox(height: 20),
+            ),
 
-            // Delivery and Notes
+            // Delivery and Type
+            const SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (order.type == 'DELIVERY')
                   Expanded(
-                    child: FadeInDown(delay: const Duration(milliseconds: 100),
-                      child: _buildInfoCard(
-                        title: 'ADRESS', icon: Icons.location_on_outlined, color: Colors.blue,
-                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(order.deliveryStreet ?? 'Ingen adress', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                          if (order.deliveryZip != null || order.deliveryCity != null)
-                            Text('${order.deliveryZip ?? ""} ${order.deliveryCity ?? ""}'.trim(),
-                              style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontWeight: FontWeight.bold)),
-                        ]),
-                      ),
+                    child: _buildSimpleSection(
+                      title: 'ADRESS', icon: Icons.location_on_outlined, color: Colors.blue,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(order.deliveryStreet ?? 'Ingen adress', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+                        if (order.deliveryZip != null || order.deliveryCity != null)
+                          Text('${order.deliveryZip ?? ""} ${order.deliveryCity ?? ""}'.trim(),
+                            style: TextStyle(fontSize: 14, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontWeight: FontWeight.bold)),
+                      ]),
                     ),
                   ),
-                if (order.type == 'DELIVERY') const SizedBox(width: 15),
+                if (order.type == 'DELIVERY') const SizedBox(width: 30),
                 Expanded(
-                  child: FadeInDown(delay: const Duration(milliseconds: 150),
-                    child: _buildInfoCard(
-                      title: 'TYP', icon: order.type == "DELIVERY" ? Icons.delivery_dining : Icons.shopping_bag_outlined, 
-                      color: order.type == "DELIVERY" ? Colors.blue : Colors.green,
-                      child: Text(order.type == 'DELIVERY' ? 'UTKÖRNING' : 'AVHÄMTNING', 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                    ),
+                  child: _buildSimpleSection(
+                    title: 'TYP', icon: order.type == "DELIVERY" ? Icons.delivery_dining : Icons.shopping_bag_outlined, 
+                    color: order.type == "DELIVERY" ? Colors.blue : Colors.green,
+                    child: Text(order.type == 'DELIVERY' ? 'UTKÖRNING' : 'AVHÄMTNING', 
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
                   ),
                 ),
               ],
@@ -216,38 +282,34 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
             // Checkout Note and Delivery Instructions
             if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)) ...[
-              const SizedBox(height: 20),
-              FadeInDown(delay: const Duration(milliseconds: 200),
-                child: _buildInfoCard(
-                  title: 'KUNDMEDDELANDE (VID KASSA)', icon: Icons.notification_important, color: Colors.purpleAccent,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.withOpacity(0.3))),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.sensor_door, size: 16, color: Colors.blueAccent),
-                              const SizedBox(width: 8),
-                              Text('INSTRUKTION: ${order.deliveryInstructions!}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                            ]
-                          )
-                        ),
-                      if (order.note != null && order.note!.isNotEmpty)
-                        Text(order.note!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
-                    ]
-                  ),
+              const SizedBox(height: 10),
+              _buildSimpleSection(
+                title: 'KUNDMEDDELANDE', icon: Icons.assignment_outlined, color: Colors.purpleAccent,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.sensor_door, size: 14, color: Colors.blueAccent),
+                            const SizedBox(width: 8),
+                            Text('PORTKOD/INFO: ${order.deliveryInstructions!}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
+                          ]
+                        )
+                      ),
+                    if (order.note != null && order.note!.isNotEmpty)
+                      Text(order.note!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color, fontStyle: FontStyle.italic)),
+                  ]
                 ),
               ),
             ],
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
             _buildSectionHeader('VAROR (${order.items.length})'),
-            const SizedBox(height: 15),
+            const SizedBox(height: 20),
             ...order.items.map((item) => _buildItemTile(item)),
             const SizedBox(height: 40),
             _buildTotalSection(order),
@@ -260,33 +322,32 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor.withOpacity(0.5), letterSpacing: 4)),
+        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Theme.of(context).primaryColor.withOpacity(isDark ? 0.35 : 0.6), letterSpacing: 4)),
         const SizedBox(width: 15),
-        Expanded(child: Container(height: 1, color: Theme.of(context).primaryColor.withOpacity(0.1))),
+        Expanded(child: Container(height: 1.5, color: Theme.of(context).primaryColor.withOpacity(isDark ? 0.1 : 0.15))),
       ],
     );
   }
 
-  Widget _buildInfoCard({required String title, required IconData icon, required Color color, required Widget child}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withOpacity(0.2), width: 1.5),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+  Widget _buildSimpleSection({required String title, required IconData icon, required Color color, required Widget child}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final headerOpacity = isDark ? 0.5 : 1.0;
+    final headerColor = isDark ? color : (color == AppTheme.gold ? AppTheme.lightGold : color);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Row(children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 12, color: headerColor.withOpacity(headerOpacity)),
           const SizedBox(width: 10),
-          Text(title, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 2)),
+          Text(title, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: headerColor.withOpacity(headerOpacity), letterSpacing: 2)),
         ]),
-        const SizedBox(height: 15),
+        const SizedBox(height: 14),
         child,
-      ]),
+        const SizedBox(height: 35), // Spacing between sections
+      ],
     );
   }
 
@@ -359,8 +420,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('LEVERANSAVGIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4))),
-              Text('${order.deliveryFee.toInt()} KR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4))),
+              Text('LEVERANSAVGIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color)),
+              Text('${order.deliveryFee.toInt()} KR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color)),
             ]),
           ),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [

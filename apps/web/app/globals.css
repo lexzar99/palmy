@@ -112,3 +112,16 @@
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 32px 32px;
 }
+
+/* Global soft click animations */
+button, a, [role="button"] {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease;
+}
+
+@media (hover: hover) {
+  button:active:not(:disabled), 
+  a:active:not(:disabled), 
+  [role="button"]:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+}

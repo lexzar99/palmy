@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../core/constants.dart';
+import '../core/log_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
@@ -35,6 +36,7 @@ class AuthProvider with ChangeNotifier {
         await prefs.setString(AppConstants.adminKey, jsonEncode(data['admin']));
         
         _user = data['admin'];
+        logger.log('LOGIN SUCCESS: ${_user?['email'] ?? identifier}');
         _isLoading = false;
         notifyListeners();
         return true;
@@ -58,6 +60,7 @@ class AuthProvider with ChangeNotifier {
       }
     } catch (e) {
       _error = 'Ett oväntat fel uppstod';
+      logger.log('LOGIN EXCEPTION: $e');
     }
 
     _isLoading = false;
@@ -70,6 +73,7 @@ class AuthProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstants.tokenKey);
     await prefs.remove(AppConstants.adminKey);
+    logger.log('LOGOUT: ${_user?['email']}');
     _user = null;
     notifyListeners();
   }
@@ -79,6 +83,7 @@ class AuthProvider with ChangeNotifier {
     final adminStr = prefs.getString(AppConstants.adminKey);
     if (adminStr != null) {
       _user = jsonDecode(adminStr);
+      logger.log('AUTO-LOGIN: ${_user?['email']}');
       notifyListeners();
     }
   }

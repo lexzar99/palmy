@@ -272,26 +272,27 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="grid lg:grid-cols-[1fr,1.3fr] gap-3 p-2 rounded-[2.5rem] glass-panel shadow-2xl relative z-20"
+            className="flex flex-col sm:grid sm:grid-cols-[1fr,1.3fr] gap-2 p-2 rounded-[2rem] glass-panel shadow-2xl relative z-20"
           >
             <div className="relative group">
-              <div 
+              <motion.div 
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setShowAddressModal(true)}
-                className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-[1.5rem] bg-obsidian/40 px-4 py-3 border border-white/5 hover:border-gold-500/50 transition-all cursor-pointer"
               >
-                <MapPin className="text-gold-500 shrink-0" size={18} />
-                <span className={`w-full text-sm font-bold ${address ? 'text-white' : 'text-zinc-600'} truncate`}>
+                <MapPin className="text-gold-500 shrink-0" size={16} />
+                <span className={`w-full text-xs font-bold ${address ? 'text-white' : 'text-zinc-600'} truncate`}>
                   {address || "Ange din adress..."}
                 </span>
-              </div>
+              </motion.div>
             </div>
 
 
-            <Link href="/search" className="flex items-center gap-3 rounded-[2rem] bg-obsidian/40 px-6 py-4 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
-               <Search size={18} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors" />
-               <span className="text-sm text-zinc-600 font-bold">Vilken restaurang eller maträtt söker du?</span>
-               <div className="ml-auto w-10 h-10 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all">
-                  <ArrowRight size={20} />
+            <Link href="/search" className="flex items-center gap-2 rounded-[1.5rem] bg-obsidian/40 px-4 py-3 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
+               <Search size={16} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors shrink-0" />
+               <span className="text-xs text-zinc-600 font-bold line-clamp-1 flex-1">Vilken restaurang eller maträtt?</span>
+               <div className="ml-auto w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
+                  <ArrowRight size={18} />
                </div>
             </Link>
           </motion.div>
@@ -302,6 +303,7 @@ export default function HomePage() {
           <section className="mb-10">
             <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
               {deals.map((deal, i) => (
+                  <motion.div whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
                   <Link
                     key={deal.id}
                     href={deal.restaurant?.slug ? `/restaurants/${deal.restaurant.slug}` : '/search'}
@@ -315,10 +317,11 @@ export default function HomePage() {
                         <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erbjudande</span>
                      </div>
                      <h4 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none">{deal.title}</h4>
-                     <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
-                        {deal.isGlobal ? (deal.badgeText || "Gäller alla kök") : (deal.restaurant?.name || "Gäller utvalda kök")}
-                     </p>
+<p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                         {deal.isGlobal ? (deal.badgeText || "Gäller alla kök") : (deal.restaurant?.name || "Gäller utvalda kök")}
+                      </p>
                   </Link>
+                  </motion.div>
               ))}
             </div>
           </section>
@@ -364,6 +367,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
+                  whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 >
                   <Link
                     href={getRestaurantHref(r)}
@@ -461,6 +465,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
+                  whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
                 >
                   <Link
                     href={getRestaurantHref(r)}

@@ -11,11 +11,11 @@ class AppTheme {
   static const Color danger = Color(0xFFE74C3C);
 
   // Light theme colors
-  static const Color lightBg = Color(0xFFF8F5F0);       // Warm ivory
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightText = Color(0xFF1A1A1A);
-  static const Color lightSubtext = Color(0xFF6B6560);
-  static const Color lightGold = Color(0xFF7A5522);     // Darker gold for contrast on light
+  static const Color lightBg = Color(0xFFFFFFFF);
+  static const Color lightSurface = Color(0xFFF2F4F7);
+  static const Color lightText = Color(0xFF000000);
+  static const Color lightSubtext = Color(0xFF333333);  // Much darker
+  static const Color lightGold = Color(0xFF725418);     // High-contrast gold for light mode
 
   static ThemeData get midnightTheme => _buildDarkTheme();
   static ThemeData get lightTheme => _buildLightTheme();
@@ -92,11 +92,14 @@ class AppTheme {
       fontFamily: 'sans-serif',
     ).copyWith(
       titleLarge: base.textTheme.titleLarge?.copyWith(
-        fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: lightText,
+        fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: lightText,
       ),
-      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: lightText),
-      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: lightText),
-      bodySmall: base.textTheme.bodySmall?.copyWith(color: lightSubtext),
+      titleMedium: base.textTheme.titleMedium?.copyWith(
+        fontSize: 16, fontWeight: FontWeight.w900, color: lightText,
+      ),
+      bodyLarge: base.textTheme.bodyLarge?.copyWith(color: lightText, fontWeight: FontWeight.w800, fontSize: 15),
+      bodyMedium: base.textTheme.bodyMedium?.copyWith(color: lightText, fontWeight: FontWeight.w700, fontSize: 14),
+      bodySmall: base.textTheme.bodySmall?.copyWith(color: lightSubtext, fontWeight: FontWeight.w800, fontSize: 11),
     );
 
     return ThemeData(
@@ -145,10 +148,10 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       ),
       cardTheme: CardTheme(
-        color: Colors.white,
-        elevation: 1,
-        shadowColor: Colors.black.withOpacity(0.08),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        color: surface,
+        elevation: 2,
+        shadowColor: Colors.black.withOpacity(0.12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: BorderSide(color: Colors.black.withOpacity(0.05))),
       ),
       dividerTheme: DividerThemeData(color: Colors.black.withOpacity(0.07)),
       switchTheme: SwitchThemeData(
@@ -156,9 +159,11 @@ class AppTheme {
         trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? primary.withOpacity(0.25) : Colors.black12),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: lightSurface,
-        selectedItemColor: primary,
-        unselectedItemColor: lightSubtext,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.black,
+        unselectedItemColor: Color(0xFF888888),
+        selectedLabelStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+        unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: 10),
       ),
       navigationRailTheme: const NavigationRailThemeData(
         backgroundColor: lightSurface,

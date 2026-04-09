@@ -166,7 +166,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         {/* Glass Back Button */}
         <Link
           href="/"
-          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group active:scale-90 transition-all opacity-90 hover:opacity-100"
+          whileTap={{ scale: 0.95 }} className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100"
         >
           <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
           <span className="text-[10px] font-black uppercase tracking-widest text-white">Tillbaka</span>
@@ -195,16 +195,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
            </motion.div>
 
-           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
-              <button onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-3 hover:bg-white/5 shadow-xl transition-all active:scale-95">
-                 <Info size={16} className="text-gold-500/60" /> Info
-              </button>
-              {restaurant.phone && (
-                 <a href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-3 shadow-xl hover:bg-gold-400 transition-all active:scale-95">
-                    <Phone size={16} /> Kontakt
-                 </a>
-              )}
-           </motion.div>
+<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
+               <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-3 hover:bg-white/5 shadow-xl transition-all">
+                  <Info size={16} className="text-gold-500/60" /> Info
+               </motion.button>
+               {restaurant.phone && (
+                  <motion.a whileTap={{ scale: 0.95 }} href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-3 shadow-xl hover:bg-gold-400 transition-all">
+                     <Phone size={16} /> Kontakt
+                  </motion.a>
+               )}
+            </motion.div>
         </div>
       </div>
 
@@ -242,24 +242,25 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     className="w-full bg-zinc-950/40 border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold text-white focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-800"
                  />
               </div>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
-                 {categories.map(cat => (
-                    <button 
-                       key={cat.id} 
-                       onClick={() => {
-                          setActiveCategory(cat.id);
-                          const element = document.getElementById(cat.id);
-                          if (element) {
-                             const offset = 120;
-                             window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
-                          }
-                       }}
-                       className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-600 hover:text-zinc-300 hover:bg-white/5"}`}
-                    >
-                       {cat.name}
-                    </button>
-                 ))}
-              </div>
+<div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
+                  {categories.map(cat => (
+                     <motion.button 
+                        key={cat.id} 
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                           setActiveCategory(cat.id);
+                           const element = document.getElementById(cat.id);
+                           if (element) {
+                              const offset = 120;
+                              window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                           }
+                        }}
+                        className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-600 hover:text-zinc-300 hover:bg-white/5"}`}
+                     >
+                        {cat.name}
+                     </motion.button>
+                  ))}
+               </div>
            </div>
         </div>
 
@@ -306,7 +307,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                 setSelectedProduct(p);
                              }
                           }}
-                          className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer active:scale-95"}`}
+                          whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
                        >
                           {p.imageUrl && (
                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">

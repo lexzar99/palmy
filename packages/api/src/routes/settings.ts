@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { io } from '../index';
+import { getIO } from '../lib/socket';
 import {
   defaultRestaurantSettings,
   parseOpeningHours,
@@ -92,7 +92,7 @@ router.patch('/', authenticate, async (req, res) => {
       openingHours: parseOpeningHours(settings.openingHours),
     };
 
-    io.emit('settings:updated', publicSettings);
+    getIO().emit('settings:updated', publicSettings);
 
     res.json({ 
       success: true,

@@ -40,8 +40,13 @@ export function isRestaurantOpen(openingHours: any | string | null | undefined):
 
   const todayData = hours[dayKey] || hours.regular?.[dayKey];
 
-  // If no hours set at all, default to open
-  if (!todayData) return true;
+  // If no hours set at all (completely empty object), default to open for new restaurants
+  const allKeys = Object.keys(hours);
+  const hasRegular = hours.regular && Object.keys(hours.regular).length > 0;
+  if (allKeys.length === 0 && !hasRegular) return true;
+
+  // If we have some data but nothing for today, it means we are closed today
+  if (!todayData) return false;
 
   // Handle { closed: true, shifts: [...] } format
   if ((todayData as any).closed === true) return false;
@@ -58,7 +63,9 @@ export function isRestaurantOpen(openingHours: any | string | null | undefined):
 
   for (const slot of slots) {
     if (!slot.open || !slot.close) continue;
-    if (isWithinSlot(nowInSweden, slot.open, slot.close)) return true;
+    const open = isWithinSlot(nowInSweden, slot.open, slot.close);
+    console.log(`[OpeningHours] Slot ${slot.open}-${slot.close} isWithin: ${open}`);
+    if (open) return true;
   }
 
   return false;

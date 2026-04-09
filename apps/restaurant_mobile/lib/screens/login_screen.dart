@@ -81,8 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? AppTheme.charcoal : AppTheme.lightBg;
     final textColor = isDark ? Colors.white : AppTheme.lightText;
-    final subtextColor = isDark ? Colors.white.withOpacity(0.35) : AppTheme.lightSubtext;
     final goldColor = isDark ? AppTheme.gold : AppTheme.lightGold;
+    final subtextColor = isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext;
 
     return Scaffold(
       body: Container(
@@ -233,15 +233,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              FadeInUp(
-                delay: const Duration(milliseconds: 900),
-                child: TextButton.icon(
-                  onPressed: _testSoundBridge,
-                  icon: Icon(Icons.volume_up, color: goldColor, size: 16),
-                  label: Text('TESTA MAC-LARM', style: TextStyle(color: goldColor, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 ),
               ),
               const SizedBox(height: 10),

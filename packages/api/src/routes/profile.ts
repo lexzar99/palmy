@@ -11,7 +11,7 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true }
+      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true }
     });
     if (!user) return res.status(404).json({ error: 'Hittades inte' });
     res.json(user);
@@ -25,7 +25,7 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {
     const orders = await prisma.order.findMany({
       where: { userId: req.user.id },
-      include: { restaurant: { select: { name: true } }, items: true },
+      include: { restaurant: { select: { id: true, name: true, slug: true } }, items: true },
       orderBy: { createdAt: 'desc' }
     });
     res.json(orders);

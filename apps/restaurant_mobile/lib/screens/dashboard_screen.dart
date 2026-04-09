@@ -7,6 +7,7 @@ import '../providers/order_provider.dart';
 import '../screens/order_detail_screen.dart';
 import '../core/theme.dart';
 import '../core/print_service.dart';
+import '../core/log_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -74,6 +75,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
     final orderProvider = Provider.of<OrderProvider>(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     debugPrint('🖥️ Dashboard Build. Pending Count: ${orderProvider.pendingOrders.length}');
 
     return Scaffold(
@@ -143,24 +145,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTabletLayout(OrderProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (provider.pendingOrders.isNotEmpty) ...[
           Padding(
-            padding: const EdgeInsets.all(25),
-            child: _buildSectionHeader('NYA INKOMNA', AppTheme.gold),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+            child: _buildSectionHeader('NYA INKOMNA', isDark ? AppTheme.gold : AppTheme.lightGold),
           ),
           SizedBox(
-            height: 180,
+            height: 170,
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 25),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: provider.pendingOrders.map((o) => _buildOrderCard(o, true)).toList(),
               ),
             ),
           ),
-          const Divider(height: 1),
         ],
         Expanded(
           child: _buildOrderList('UNDER BEHANDLING', provider.activeOrders, false),
@@ -170,6 +174,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPhoneLayout(OrderProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return RefreshIndicator(
       onRefresh: () async => provider.refresh(), color: AppTheme.gold,
       child: SingleChildScrollView(
@@ -178,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildSectionHeader('NYA INKOMNA'.toUpperCase(), AppTheme.gold),
+                _buildSectionHeader('NYA INKOMNA'.toUpperCase(), isDark ? AppTheme.gold : AppTheme.lightGold),
                 if (provider.pendingOrders.length > 1) 
                   TextButton.icon(
                     onPressed: _approveAll,
@@ -205,22 +210,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
             const SizedBox(height: 40),
-            _buildSectionHeader('UNDER BEHANDLING'.toUpperCase(), Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3)),
+            _buildSectionHeader('UNDER BEHANDLING'.toUpperCase(), isDark ? Colors.white.withOpacity(0.3) : Colors.black87),
             const SizedBox(height: 15),
             ...provider.activeOrders.map((order) => _buildOrderCard(order, false)),
             if (provider.pendingOrders.isEmpty && provider.activeOrders.isEmpty)
-              Padding(padding: const EdgeInsets.only(top: 100), child: Center(child: Column(children: [Icon(Icons.inbox_outlined, size: 60, color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.1)), const SizedBox(height: 16), Text('INGA AKTIVA ORDRAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.05), letterSpacing: 3))]))),
+              Padding(padding: const EdgeInsets.only(top: 100), child: Center(child: Column(children: [Icon(Icons.inbox_outlined, size: 60, color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.4)), const SizedBox(height: 16), Text('INGA AKTIVA ORDRAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.5), letterSpacing: 3))]))),
           ]),
       ),
     );
   }
 
   Widget _buildOrderList(String title, List<OrderModel> orders, bool isNew) {
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Padding(padding: const EdgeInsets.all(25), child: Row(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start, 
+      children: [
+        Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 10), child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            _buildSectionHeader(title, isNew ? AppTheme.gold : Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3)),
+            _buildSectionHeader(title, isNew ? (isDark ? AppTheme.gold : AppTheme.lightGold) : (isDark ? Colors.white.withOpacity(0.3) : Colors.black87)),
             if (isNew && orders.length > 1) 
               TextButton.icon(
                 onPressed: _approveAll,
@@ -229,7 +237,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
           ],
         )),
-        Expanded(child: ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 25), itemCount: orders.length, itemBuilder: (ctx, i) => _buildOrderCard(orders[i], isNew))),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 20), 
+            itemCount: orders.length, 
+            itemBuilder: (ctx, i) => _buildOrderCard(orders[i], isNew)
+          )
+        ),
       ]);
   }
 
@@ -260,14 +274,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 gradient: LinearGradient(
                   colors: isDark 
                     ? [AppTheme.zinc, AppTheme.charcoal] 
-                    : [Colors.white, const Color(0xFFF9F9F9)],
+                    : [Colors.white, const Color(0xFFF2F2F2)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(22),
               ),
               child: InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
+                onTap: () {
+                  logger.log('TAP: Open Order #${order.orderNumber}');
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)));
+                },
                 borderRadius: BorderRadius.circular(22),
                 child: Padding(
                   padding: const EdgeInsets.all(18),
@@ -440,26 +457,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showStatusPicker(OrderProvider provider) {
+    logger.log('TAP: Open Restaurant Status Picker');
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        decoration: const BoxDecoration(color: AppTheme.charcoal, borderRadius: BorderRadius.vertical(top: Radius.circular(40))),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark ? AppTheme.charcoal : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20)],
+        ),
         padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('RESTAURANGSTATUS', style: TextStyle(color: AppTheme.gold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 4)),
+            Text('RESTAURANGSTATUS', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 4)),
             const SizedBox(height: 35),
             _buildStatusOption(
               ctx, 'ÖPPEN', 'Kunder kan beställa mat nu.', true, provider.isRestaurantOpen,
-              () { if (!provider.isRestaurantOpen) provider.toggleRestaurantStatus(); Navigator.pop(ctx); }
+              () async { 
+                if (!provider.isRestaurantOpen) {
+                  if (provider.isBeforeOpening()) {
+                    Navigator.pop(ctx);
+                    final confirm = await _showEarlyOpenConfirmation(provider);
+                    if (confirm) provider.setStatus(true);
+                  } else {
+                    provider.setStatus(true);
+                    Navigator.pop(ctx);
+                  }
+                } else {
+                  Navigator.pop(ctx);
+                }
+              }
             ),
             const SizedBox(height: 15),
             _buildStatusOption(
               ctx, 'STÄNGD', 'Inga nya beställningar tas emot.', false, !provider.isRestaurantOpen,
-              () { if (provider.isRestaurantOpen) provider.toggleRestaurantStatus(); Navigator.pop(ctx); }
+              () { 
+                if (provider.isRestaurantOpen) provider.setStatus(false); 
+                Navigator.pop(ctx); 
+              }
             ),
           ],
         ),
@@ -469,30 +507,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatusOption(BuildContext context, String title, String sub, bool targetOpen, bool isCurrent, VoidCallback onTap) {
     final color = targetOpen ? Colors.green : AppTheme.danger;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return InkWell(
-      onTap: onTap,
+      onTap: () {
+        logger.log('BUTTON: Change Status to $title');
+        onTap();
+      },
       borderRadius: BorderRadius.circular(30),
       child: Container(
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
-          color: AppTheme.zinc,
+          color: isDark ? AppTheme.zinc : Colors.white,
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: isCurrent ? color : Colors.white.withOpacity(0.04), width: 2),
+          border: Border.all(color: isCurrent ? color : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.08)), width: 2),
+          boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
         ),
         child: Row(
           children: [
             Container(width: 50, height: 50, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(18)), child: Icon(targetOpen ? Icons.storefront : Icons.store_outlined, color: color)),
             const SizedBox(width: 25),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(color: isCurrent ? color : Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              Text(title, style: TextStyle(color: isCurrent ? color : (isDark ? Colors.white : Colors.black), fontWeight: FontWeight.w900, fontSize: 16)),
               const SizedBox(height: 5),
-              Text(sub, style: const TextStyle(color: Colors.white24, fontSize: 12, fontWeight: FontWeight.bold)),
+              Text(sub, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 12, fontWeight: FontWeight.bold)),
             ])),
             if (isCurrent) Icon(Icons.check_circle, color: color),
           ],
         ),
       ),
     );
+  }
+  Future<bool> _showEarlyOpenConfirmation(OrderProvider provider) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.zinc,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppTheme.gold),
+            SizedBox(width: 15),
+            Text('ÖPPNA TIDIGT?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          ],
+        ),
+        content: Text(
+          'Restaurangen öppnar automatiskt kl ${provider.openingTime}. Är du säker på att du vill öppna redan nu?',
+          style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('AVBRYT', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.gold,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('ÖPPNA', style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 }
 

@@ -121,16 +121,17 @@ export default function DiscoverPage() {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {CATEGORIES.map((cat) => (
-              <button 
+              <motion.button 
                 key={cat.name}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSearch(cat.name)}
-                className="p-6 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all text-center space-y-3 group active:scale-95"
+                className="p-5 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all text-center space-y-2 group"
               >
-                <div className={`w-12 h-12 ${cat.color} rounded-2xl flex items-center justify-center mx-auto transition-transform group-hover:scale-110`}>
-                  <cat.icon size={22} />
+                <div className={`w-10 h-10 ${cat.color} rounded-xl flex items-center justify-center mx-auto transition-transform group-hover:scale-110`}>
+                  <cat.icon size={18} />
                 </div>
-                <p className="font-black text-[10px] uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{cat.name}</p>
-              </button>
+                <p className="font-black text-[9px] uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{cat.name}</p>
+              </motion.button>
             ))}
           </div>
         </section>
@@ -147,30 +148,27 @@ export default function DiscoverPage() {
               {trendingRestaurants.map((rest) => (
                 <Link 
                   key={rest.id}
-                  href={`/restaurant/${rest.slug}`}
-                  className="flex items-center gap-6 p-4 bg-white/5 border border-white/5 rounded-[2.5rem] hover:bg-white/10 transition-all group overflow-hidden relative"
+                  href={`/restaurants/${rest.slug}`}
+                  className="flex items-center gap-4 p-3 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all group overflow-hidden relative"
                 >
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 blur-3xl group-hover:bg-gold-500/10 transition-all" />
-                  <div className="w-20 h-20 bg-zinc-900 rounded-[1.5rem] border border-white/5 flex items-center justify-center shrink-0 shadow-xl">
-                    <img src={rest.logo || "https://img.icons8.com/color/96/restaurant.png"} alt="" className="w-12 h-12 opacity-80" />
+                  <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0">
+                    <img src={rest.logo || "https://img.icons8.com/color/96/restaurant.png"} alt="" className="w-10 h-10 opacity-80" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-black uppercase italic tracking-tight">{rest.name}</h3>
-                      {!rest.isOpen && <span className="bg-red-500/10 text-red-500 text-[8px] font-black px-2 py-0.5 rounded-full uppercase">Stängd</span>}
+                      <h3 className="text-base font-black uppercase italic truncate">{rest.name}</h3>
+                      {rest.isOpen === false && <span className="bg-rose-500/10 text-rose-400 text-[7px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">Stängd</span>}
+                      {rest.isOpen !== false && rest.rating && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">Öppet</span>}
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
                       <div className="flex items-center gap-1 text-gold-500">
-                        <Star size={10} className="fill-gold-500" /> {rest.rating || "Ny"}
+                        <Star size={10} className="fill-gold-500" /> {rest.rating?.toFixed(1) || "NY"}
                       </div>
-                      <div>{rest.city}</div>
-                      <div>•</div>
-                      <div className="text-emerald-400">Prisbelönt</div>
+                      <span>•</span>
+                      <span className="truncate">{rest.city}</span>
                     </div>
                   </div>
-                  <div className="p-3 bg-white/5 rounded-2xl text-zinc-600 group-hover:text-gold-500 transition-all mr-2">
-                    <ChevronRight size={20} />
-                  </div>
+                  <ChevronRight size={18} className="text-zinc-600 group-hover:text-gold-500 transition-all shrink-0" />
                 </Link>
               ))}
             </div>

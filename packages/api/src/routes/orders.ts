@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
-import { io } from '../index';
+import { getIO } from '../lib/socket';
 import jwt from 'jsonwebtoken';
 import {
   DEFAULT_DELIVERY_FEE,
@@ -110,9 +110,13 @@ const CreateOrderSchema = z.object({
 // POST /api/orders - Skapa ny order
 router.post('/', async (req: Request, res: Response) => {
   try {
+    console.log('📦 New Order Request:', JSON.stringify(req.body, null, 2));
     const data = CreateOrderSchema.parse(req.body);
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
-    const isTestOrder = (data.discountCode === 'test' || data.discountCode === 'testa') && (data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO');
+    
+    const intentId = data.stripePaymentIntentId?.toUpperCase();
+    const isTestOrder = (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') && 
+                       (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
 
     // Enforce mandatory payment
     if (!hasPaymentIntent) {
@@ -191,8 +195,9 @@ router.post('/', async (req: Request, res: Response) => {
       : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
 
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
-    // Skip for TEST_PAYMENT to allow multiple tests.
-    const existingOrder = (data.stripePaymentIntentId && data.stripePaymentIntentId !== 'TEST_PAYMENT') ? await prisma.order.findFirst({
+    // Skip for TEST_PAYMENT, FREE_PROMO and BYPASS to allow multiple tests by developers.
+    const isSpecialMockId = data.stripePaymentIntentId === 'TEST_PAYMENT' || data.stripePaymentIntentId === 'FREE_PROMO' || data.stripePaymentIntentId === 'BYPASS';
+    const existingOrder = (data.stripePaymentIntentId && !isSpecialMockId) ? await prisma.order.findFirst({
       where: { stripePaymentIntentId: data.stripePaymentIntentId },
       select: {
         id: true,
@@ -203,11 +208,20 @@ router.post('/', async (req: Request, res: Response) => {
       },
     }) : null;
 
+    if (existingOrder) {
+      console.log(`♻️ Found existing order for PaymentIntent ${data.stripePaymentIntentId}, returning early.`);
+      res.json(existingOrder);
+      return;
+    }
+
     let confirmedPayment: ConfirmedPaymentIntent | null = null;
-    if (data.stripePaymentIntentId && !isTestOrder) {
-      confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId);
+    if (intentId && !isTestOrder && intentId !== 'BYPASS') {
+      confirmedPayment = await getConfirmedPaymentIntent(data.stripePaymentIntentId!);
     } else if (isTestOrder) {
       confirmedPayment = { id: data.stripePaymentIntentId || 'TEST_PAYMENT', amount: 0 }; 
+    } else if (intentId === 'BYPASS') {
+      console.log('⏩ Bypassing Stripe verification for request');
+      confirmedPayment = { id: 'BYPASS', amount: -1 }; 
     }
 
     // Only enforce open status for unpaid/manual flows.
@@ -466,7 +480,8 @@ router.post('/', async (req: Request, res: Response) => {
     let total = subtotal - discountAmount + deliveryFee;
 
     // If payment is already settled, align order total with the paid amount.
-    if (confirmedPayment) {
+    // Except for BYPASS which uses our calculated total.
+    if (confirmedPayment && confirmedPayment.amount !== -1) {
       total = confirmedPayment.amount;
       const reconciledDiscount = subtotal + deliveryFee - total;
       discountAmount = reconciledDiscount > 0 ? reconciledDiscount : 0;
@@ -516,7 +531,10 @@ router.post('/', async (req: Request, res: Response) => {
         userId: authenticatedUserId,
 
         items: {
-          create: orderItems,
+          create: orderItems.map(item => ({
+            ...item,
+            note: item.note || null
+          })),
         },
       },
       include: {
@@ -573,9 +591,9 @@ router.post('/', async (req: Request, res: Response) => {
       })),
     };
     // Global room is used by SUPER_ADMIN; per-restaurant room is used by each restaurant panel.
-    io.to('admin-room').emit('order:new', orderForSocket);
+    getIO().to('admin-room').emit('order:new', orderForSocket);
     if (order.restaurantId) {
-      io.to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
+      getIO().to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
     }
 
     // 5. Update personal deal usage (CustomerDeal)

@@ -19,6 +19,7 @@ class OrderModel {
   final String? note;
   final int? estimatedTime;
   final String? paymentMethod;
+  final String? discountCode;
   final List<OrderItemModel> items;
 
   OrderModel({
@@ -40,6 +41,7 @@ class OrderModel {
     this.note,
     this.estimatedTime,
     this.paymentMethod,
+    this.discountCode,
     required this.items,
   });
 
@@ -63,6 +65,7 @@ class OrderModel {
       note: json['note'],
       estimatedTime: json['estimatedTime'],
       paymentMethod: json['paymentMethod'],
+      discountCode: json['discountCode'],
       items: (json['items'] as List?)
               ?.map((i) => OrderItemModel.fromJson(i))
               .toList() ??
@@ -70,7 +73,7 @@ class OrderModel {
     );
   }
 
-  OrderModel copyWith({String? status, int? estimatedTime}) {
+  OrderModel copyWith({String? status, int? estimatedTime, String? discountCode}) {
     return OrderModel(
       id: id,
       orderNumber: orderNumber,
@@ -90,6 +93,7 @@ class OrderModel {
       note: note,
       estimatedTime: estimatedTime ?? this.estimatedTime,
       paymentMethod: paymentMethod,
+      discountCode: discountCode ?? this.discountCode,
       items: items,
     );
   }
@@ -114,6 +118,7 @@ class OrderModel {
       'note': note,
       'estimatedTime': estimatedTime,
       'paymentMethod': paymentMethod,
+      'discountCode': discountCode,
       'items': items.map((i) => i.toJson()).toList(),
     };
   }

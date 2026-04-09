@@ -4,7 +4,9 @@ import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/order_provider.dart';
 import '../core/theme.dart';
+import '../core/log_service.dart';
 import './print_settings_screen.dart';
+import './log_screen.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -16,6 +18,8 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = 'Laddar...';
+  int _versionTapCount = 0;
+  DateTime _lastTapTime = DateTime.now();
 
   @override
   void initState() {
@@ -101,6 +105,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.info_outline,
             title: 'App Version',
             subtitle: _version,
+            onTap: () {
+              final now = DateTime.now();
+              if (now.difference(_lastTapTime).inSeconds > 2) {
+                _versionTapCount = 0;
+              }
+              _lastTapTime = now;
+              _versionTapCount++;
+              
+              if (_versionTapCount == 5) {
+                _versionTapCount = 0;
+                _showLogCodeDialog();
+              }
+            },
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(color: AppTheme.gold.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
@@ -113,7 +130,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.logout,
             title: 'Logga ut',
             subtitle: 'Avsluta sessionen',
-            onTap: () => authProvider.logout(),
+            onTap: () {
+              logger.log('BUTTON: Logout');
+              authProvider.logout();
+            },
           ),
           const SizedBox(height: 50),
         ],
@@ -142,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(title, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900, fontSize: 16)),
             const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text(subtitle, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           ]),
         ],
       ),
@@ -157,8 +177,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
         leading: Icon(icon, color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.6), size: 22),
         title: Text(title, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900, fontSize: 14)),
-        subtitle: Text(subtitle, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4), fontSize: 11, fontWeight: FontWeight.bold)),
-        trailing: trailing ?? Icon(Icons.chevron_right, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.1)),
+        subtitle: Text(subtitle, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 11, fontWeight: FontWeight.bold)),
+        trailing: trailing ?? Icon(Icons.chevron_right, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.3)),
       ),
     );
   }
@@ -171,13 +191,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
         decoration: BoxDecoration(
-          color: isSelected ? AppTheme.gold : Theme.of(context).colorScheme.surface.withOpacity(0.5),
+          color: isSelected ? AppTheme.gold : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.03)),
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: isSelected ? AppTheme.gold : Colors.white10),
+          border: Border.all(color: isSelected ? AppTheme.gold : (isDark ? Colors.white12 : Colors.black12)),
         ),
-        child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w100, color: isSelected 
+        child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isSelected 
           ? (isDark ? AppTheme.charcoal : Colors.white) 
-          : (isDark ? Colors.white60 : Colors.black87), letterSpacing: 1)),
+          : (isDark ? Colors.white60 : Colors.black87), letterSpacing: 1.5)),
+      ),
+    );
+  }
+  void _showLogCodeDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.zinc,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        title: const Text('ENTER ACCESS CODE', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 2)),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 10),
+          textAlign: TextAlign.center,
+          decoration: const InputDecoration(border: InputBorder.none, hintText: '****', hintStyle: TextStyle(color: Colors.white12)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text == '7970') {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const LogScreen()));
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('❌ Fel kod')));
+              }
+            },
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }

@@ -16,13 +16,13 @@ class HistoryScreen extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: AppTheme.charcoal,
+          backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.charcoal : AppTheme.lightBg,
           elevation: 0,
-          title: const Text('ORDERHISTORIK', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          title: Text('ORDERHISTORIK', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.titleLarge?.color)),
           bottom: TabBar(
             indicatorColor: AppTheme.gold,
-            labelColor: AppTheme.gold,
-            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+            labelColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold,
+            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4),
             labelStyle: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13),
             tabs: [
               const Tab(text: 'IDAG'),
@@ -59,28 +59,32 @@ class HistoryScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          Expanded(child: _buildStatCard(context, 'IDAG', '${provider.todayTotal.toInt()} KR', AppTheme.gold)),
+          Expanded(child: _buildStatCard(context, 'IDAG', '${provider.todayTotal.toInt()} KR', AppTheme.gold, '${provider.todayHistoryOrders.length} ORDRAR')),
           const SizedBox(width: 15),
-          Expanded(child: _buildStatCard(context, 'IGÅR', '${provider.yesterdayTotal.toInt()} KR', Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3))),
+          Expanded(child: _buildStatCard(context, 'IGÅR', '${provider.yesterdayTotal.toInt()} KR', Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3), '${provider.yesterdayHistoryOrders.length} ORDRAR')),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String label, String value, Color color) {
+  Widget _buildStatCard(BuildContext context, String label, String value, Color color, String subtitle) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.zinc,
+        color: isDark ? AppTheme.zinc : Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: isDark ? color.withOpacity(0.2) : Colors.black.withOpacity(0.08), width: 1.5),
+        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 2)),
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? color : AppTheme.lightGold, letterSpacing: 2)),
           const SizedBox(height: 10),
           Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          const SizedBox(height: 4),
+          Text(subtitle, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isDark ? color.withOpacity(0.5) : AppTheme.lightSubtext, letterSpacing: 0.5)),
         ],
       ),
     );

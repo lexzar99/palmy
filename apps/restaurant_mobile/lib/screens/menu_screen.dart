@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../core/theme.dart';
+import '../core/log_service.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -89,6 +90,7 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Future<void> _toggleProduct(String productId, bool isActive) async {
+    logger.log('BUTTON: Toggle Product $productId -> $isActive');
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final didUpdate = _setProductActiveLocal(productId, isActive);
     if (didUpdate && mounted) setState(() {});
@@ -104,6 +106,7 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Future<void> _toggleExtra(String extraId, bool isActive) async {
+    logger.log('BUTTON: Toggle Extra $extraId -> $isActive');
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final didUpdate = _setExtraActiveLocal(extraId, isActive);
     if (didUpdate && mounted) setState(() {});
@@ -127,9 +130,9 @@ class _MenuScreenState extends State<MenuScreen> {
           title: Text('MENY & TILLBEHÖR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
           bottom: TabBar(
             indicatorColor: AppTheme.gold,
-            labelColor: AppTheme.gold,
-            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color,
-            labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2),
+            labelColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold,
+            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
+            labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2.5),
             tabs: [
               Tab(text: 'PRODUKTER'),
               Tab(text: 'TILLBEHÖR & EXTRA'),
@@ -280,11 +283,12 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   Widget _buildSectionHeader(String title) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       children: [
-        Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 3)),
+        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? AppTheme.gold : AppTheme.lightGold, letterSpacing: 3.5)),
         const SizedBox(width: 20),
-        Expanded(child: Container(height: 1, color: AppTheme.gold.withOpacity(0.1))),
+        Expanded(child: Container(height: 1.5, color: (isDark ? AppTheme.gold : AppTheme.lightGold).withOpacity(0.15))),
       ],
     );
   }
@@ -312,9 +316,9 @@ class _MenuScreenState extends State<MenuScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 6),
           ),
         ],
       ),

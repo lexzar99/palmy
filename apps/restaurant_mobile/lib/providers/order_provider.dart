@@ -8,6 +8,7 @@ import '../core/audio_helper.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import '../core/log_service.dart';
 class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
   List<OrderModel> _orders = [];
@@ -18,6 +19,11 @@ class OrderProvider with ChangeNotifier {
   bool _isRestaurantOpen = true;
   bool _isOffline = false;
   Timer? _alarmWatchdog;
+  Timer? _statusWatchdog;
+  String openingTime = '11:00';
+  String closingTime = '21:00';
+  String _lastKnownHours = '';
+  bool _manualOverride = false;
 
   List<OrderModel> get orders => _orders;
   bool get isLoading => _isLoading;
@@ -44,7 +50,7 @@ class OrderProvider with ChangeNotifier {
     
     return _orders.where((o) {
       final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
-      return isCompleted && o.createdAt.isAfter(startOfToday);
+      return isCompleted && o.createdAt.isAfter(startOfToday) && !_isTestOrder(o);
     }).toList();
   }
 
@@ -55,8 +61,21 @@ class OrderProvider with ChangeNotifier {
     
     return _orders.where((o) {
       final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
-      return isCompleted && o.createdAt.isAfter(startOfYesterday) && o.createdAt.isBefore(startOfToday);
+      return isCompleted && o.createdAt.isAfter(startOfYesterday) && o.createdAt.isBefore(startOfToday) && !_isTestOrder(o);
     }).toList();
+  }
+
+  bool _isTestOrder(OrderModel o) {
+    if (o.id.startsWith('mock_')) return true;
+    final code = o.discountCode?.toLowerCase() ?? '';
+    if (code == 'test' || code == 'testa') return true;
+    
+    final name = o.customerName.toLowerCase();
+    final note = o.note?.toLowerCase() ?? '';
+    if (name.contains('test jari')) return true;
+    if (note.contains('test-order') || note.contains('testorder')) return true;
+    
+    return false;
   }
 
   void simulateOrder() {
@@ -76,6 +95,7 @@ class OrderProvider with ChangeNotifier {
       status: 'PENDING',
       type: 'DELIVERY',
       createdAt: DateTime.now(),
+      discountCode: 'testa',
       note: 'Dette är en test-order',
     );
     
@@ -126,12 +146,11 @@ class OrderProvider with ChangeNotifier {
         
         // Sort: pending first, then by date desc
         _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-        debugPrint('✅ FETCHED ${_orders.length} ORDERS. Pending: ${pendingOrders.length}');
+        logger.log('SUCCESS: Fetched ${_orders.length} orders. Pending: ${pendingOrders.length}');
         _saveOrdersToCache();
       }
     } catch (e) {
-      debugPrint('❌ Error fetching orders: $e');
+      logger.log('FETCH ERROR: $e');
       if (_orders.isEmpty) {
         await _loadOrdersFromCache();
       }
@@ -141,6 +160,39 @@ class OrderProvider with ChangeNotifier {
     _evaluateAlarms();
     notifyListeners();
     _fetchRestaurantStatus();
+  }
+
+  // Client-side auto-status check removed.
+  // The backend now completely handles automated status transitions and broadcasts them via Socket.IO
+  // using the 'status:auto-updated' event.
+
+  bool isBeforeOpening() {
+    final now = DateTime.now();
+    final parts = openingTime.split(':');
+    final openHour = int.parse(parts[0]);
+    final openMinute = int.parse(parts[1]);
+    
+    if (now.hour < openHour) return true;
+    if (now.hour == openHour && now.minute < openMinute) return true;
+    return false;
+  }
+
+  Future<void> setStatus(bool open) async {
+    if (_restaurantId == null) return;
+    _isRestaurantOpen = open;
+    _manualOverride = true; // Mark as user-initiated action
+    notifyListeners();
+
+    try {
+      await _api.patch('/api/restaurants/$_restaurantId', {
+        'isOpen': _isRestaurantOpen,
+      });
+      logger.log('STATUS SET: ${_isRestaurantOpen ? "OPEN" : "CLOSED"}');
+    } catch (e) {
+      logger.log('STATUS SET ERROR: $e');
+      _isRestaurantOpen = !_isRestaurantOpen; // Rollback
+      notifyListeners();
+    }
   }
 
   Future<void> _saveOrdersToCache() async {
@@ -185,12 +237,62 @@ class OrderProvider with ChangeNotifier {
         final List data = res.data;
         final current = data.firstWhere((r) => r['id'] == _restaurantId, orElse: () => null);
         if (current != null) {
-          _isRestaurantOpen = current['isOpen'] ?? true;
+          _isRestaurantOpen = current['manualIsOpen'] ?? current['isOpen'] ?? true;
+          
+          final Map<String, dynamic> allHours = current['openingHours'] ?? {};
+          final hoursString = allHours.toString();
+          
+          // If the schedule ITSELF changed in admin, reset our manual override 
+          // to follow the new schedule
+          if (_lastKnownHours.isNotEmpty && _lastKnownHours != hoursString) {
+            logger.log('ADMIN CHANGED SCHEDULE: Resetting manual override.');
+            _manualOverride = false;
+          }
+          _lastKnownHours = hoursString;
+
+          final now = DateTime.now();
+          final dayName = _getDayName(now.weekday).toLowerCase();
+          
+          // Look for day key case-insensitively
+          dynamic dayData;
+          allHours.forEach((key, value) {
+            if (key.toLowerCase() == dayName) dayData = value;
+          });
+
+          if (dayData != null) {
+            Map? slot;
+            if (dayData is Map) {
+              if (dayData.containsKey('open')) {
+                slot = dayData;
+              } else if (dayData.containsKey('shifts') && dayData['shifts'] is List && (dayData['shifts'] as List).isNotEmpty) {
+                slot = dayData['shifts'][0];
+              }
+            }
+            if (slot != null && slot.containsKey('open') && slot.containsKey('close')) {
+              openingTime = slot['open'];
+              closingTime = slot['close'];
+              logger.log('SCHEDULE LOADED: $dayName is $openingTime - $closingTime');
+            }
+          }
+          
           notifyListeners();
         }
       }
     } catch (e) {
-      debugPrint('Error fetching status: $e');
+      logger.log('ERROR FETCHING STATUS: $e');
+    }
+  }
+
+  String _getDayName(int weekday) {
+    switch (weekday) {
+      case 1: return 'monday';
+      case 2: return 'tuesday';
+      case 3: return 'wednesday';
+      case 4: return 'thursday';
+      case 5: return 'friday';
+      case 6: return 'saturday';
+      case 7: return 'sunday';
+      default: return 'monday';
     }
   }
 
@@ -203,8 +305,9 @@ class OrderProvider with ChangeNotifier {
       await _api.patch('/api/restaurants/$_restaurantId', {
         'isOpen': _isRestaurantOpen,
       });
+      logger.log('STATUS TOGGLED: ${_isRestaurantOpen ? "OPEN" : "CLOSED"}');
     } catch (e) {
-      debugPrint('Error toggling status: $e');
+      logger.log('STATUS TOGGLE ERROR: $e');
       _isRestaurantOpen = !_isRestaurantOpen; // Rollback
       notifyListeners();
     }
@@ -303,7 +406,7 @@ class OrderProvider with ChangeNotifier {
     _socket!.onConnect((_) {
       _isOffline = false;
       _socket!.emit('join:admin', {'restaurantId': restaurantId});
-      debugPrint('Connected to socket for restaurant: $restaurantId');
+      logger.log('SOCKET CONNECTED: $restaurantId');
       notifyListeners();
     });
 
@@ -324,14 +427,36 @@ class OrderProvider with ChangeNotifier {
 
     _socket!.onDisconnect((_) {
       _isOffline = true;
+      logger.log('SOCKET DISCONNECTED');
       notifyListeners();
     });
 
     _socket!.on('order:updated', (_) => fetchOrders(restaurantId));
     
-    // Start watchdog
+    _socket!.on('settings:updated', (data) {
+      debugPrint('📩 SOCKET EVENT: settings:updated RECEIVED: $data');
+      if (data['restaurantId'] == _restaurantId || data['restaurantId'].toString() == _restaurantId) {
+        logger.log('SOCKET: Settings updated. Syncing status...');
+        _fetchRestaurantStatus(); // Re-fetch to get correct parsed hours
+      } else {
+        debugPrint('📩 SOCKET: Ignoring settings:updated for other restaurant: ${data['restaurantId']}');
+      }
+    });
+
+    _socket!.on('status:auto-updated', (data) {
+       debugPrint('📩 SOCKET EVENT: status:auto-updated RECEIVED: $data');
+       // This comes specifically from the server watchdog
+       logger.log('SOCKET: Status AUTO-UPDATED by server: ${data['isOpen'] ? "OPEN" : "CLOSED"}');
+       _isRestaurantOpen = data['isOpen'];
+       notifyListeners();
+    });
+
+    // Start watchdogs
     _alarmWatchdog?.cancel();
     _alarmWatchdog = Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
+    
+    _statusWatchdog?.cancel();
+    // Removed client side status watchdog, rely on server push.
   }
 
   void _evaluateAlarms() {
@@ -369,11 +494,12 @@ class OrderProvider with ChangeNotifier {
 
       if (res.statusCode == 200) {
         _updateLocalOrderStatus(orderId, status, estimatedTime);
+        logger.log('STATUS UPDATED: Order #$orderId -> $status ($estimatedTime min)');
         return true;
       }
       return false;
     } catch (e) {
-      debugPrint('Error updating status: $e');
+      logger.log('UPDATE STATUS ERROR: $e');
       return false;
     }
   }

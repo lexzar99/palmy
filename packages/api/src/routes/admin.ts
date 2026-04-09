@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, AuthRequest } from '../middleware/auth';
-import { io } from '../index';
+import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, parseDealProductIds } from '../lib/deals';
@@ -371,21 +371,21 @@ router.patch('/orders/:id/status', async (req, res) => {
     });
 
     // Notifiera kunden via Socket.IO
-    io.to(`order:${order.id}`).emit('order:status', {
+    getIO().to(`order:${order.id}`).emit('order:status', {
       orderId: order.id,
       status: order.status,
       estimatedTime: order.estimatedTime,
     });
 
     // Notifiera admin-rummet
-    io.to('admin-room').emit('order:updated', {
+    getIO().to('admin-room').emit('order:updated', {
       orderId: order.id,
       orderNumber: order.orderNumber,
       status: order.status,
       restaurantId: order.restaurantId,
     });
     if (order.restaurantId) {
-      io.to(`admin-room:${order.restaurantId}`).emit('order:updated', {
+      getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', {
         orderId: order.id,
         orderNumber: order.orderNumber,
         status: order.status,
@@ -433,9 +433,9 @@ router.patch('/orders/:id', async (req, res) => {
     });
 
     const io = req.app.get('io');
-    io.emit('order:updated', { id: order.id, status: order.status });
+    getIO().emit('order:updated', { id: order.id, status: order.status });
     if (order.restaurantId) {
-      io.to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: order.id });
+      getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: order.id });
     }
 
     res.json(order);
@@ -706,7 +706,7 @@ router.delete('/orders/:id', async (req, res) => {
     await prisma.order.delete({ where: { id: req.params.id } });
 
     // Notifiera alla om att ordern är borta
-    io.to('admin-room').emit('order:updated', { orderId: req.params.id });
+    getIO().to('admin-room').emit('order:updated', { orderId: req.params.id });
 
     res.json({ success: true, message: 'Order raderad' });
   } catch (err) {
