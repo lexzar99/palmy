@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
-import DealFlipCard from "@/components/DealFlipCard";
 
 interface Restaurant {
   id: string;
@@ -80,7 +79,6 @@ export default function HomePage() {
   
   const [cities, setCities] = useState<City[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
-  const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
@@ -107,19 +105,14 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
-    const token = localStorage.getItem("platform_user_token");
-    const headers = token ? { Authorization: `Bearer ${token}` } : {};
-    
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
       axios.get(`${API_URL}/api/cities`),
-      axios.get(`${API_URL}/api/deals`),
-      token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
-    ]).then(([resRest, resCities, resDeals, resPersonalDeals]) => {
+      axios.get(`${API_URL}/api/deals`)
+    ]).then(([resRest, resCities, resDeals]) => {
       setRestaurants(resRest.data);
       setCities(resCities.data);
-      setDeals(resDeals.data || []);
-      setPersonalDeals(resPersonalDeals.data || []);
+      setDeals(resDeals.data.filter((d: any) => d.isActive && d.showOnSite));
       
       const initialAddress = localStorage.getItem("platform_address") || "";
       if (initialAddress) {
@@ -129,11 +122,6 @@ export default function HomePage() {
     }).catch(() => {})
     .finally(() => setLoading(false));
   }, []);
-
-  const handleUseDeal = (deal: any) => {
-    localStorage.setItem("selected_deal", JSON.stringify(deal));
-    router.push("/cart");
-  };
 
   const saveAddress = (value: string) => {
     setAddress(value);
@@ -310,19 +298,32 @@ export default function HomePage() {
           </motion.div>
         </header>
 
-{/* Deals Flip Cards */}
-        {(deals.length > 0 || personalDeals.length > 0) && (
+        {/* Deals Selector */}
+        {deals.length > 0 && (
           <section className="mb-10">
-            <div className="flex items-end justify-between mb-6">
-              <h2 className="text-xl font-black uppercase tracking-[0.2em] text-zinc-500">
-                Erbjudanden <span className="text-zinc-800">/ {(deals.length + personalDeals.length)} st</span>
-              </h2>
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+              {deals.map((deal, i) => (
+                  <motion.div whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
+                  <Link
+                    key={deal.id}
+                    href={deal.restaurant?.slug ? `/restaurants/${deal.restaurant.slug}` : '/search'}
+                    className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group transition-all hover:border-emerald-500/50 hover:-translate-y-1"
+                  >
+                     <div className="absolute top-[-20px] right-[-20px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
+                     <div className="flex items-center gap-2 mb-1">
+                        <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center text-dark-500">
+                           <Percent size={12} strokeWidth={3} />
+                        </div>
+                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erbjudande</span>
+                     </div>
+                     <h4 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none">{deal.title}</h4>
+<p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
+                         {deal.isGlobal ? (deal.badgeText || "Gäller alla kök") : (deal.restaurant?.name || "Gäller utvalda kök")}
+                      </p>
+                  </Link>
+                  </motion.div>
+              ))}
             </div>
-            <DealFlipCard 
-              deals={deals} 
-              personalDeals={personalDeals}
-              onUseDeal={handleUseDeal}
-            />
           </section>
         )}
 
