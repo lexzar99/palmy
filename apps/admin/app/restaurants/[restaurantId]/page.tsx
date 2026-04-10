@@ -20,6 +20,7 @@ import {
   Crown,
   Medal,
   Award,
+  EyeOff,
   Plus,
   Trash2,
   CheckCircle2,
@@ -69,9 +70,10 @@ const DEFAULT_HOURS: DayHours = {
 };
 
 const PREMIUM_TIERS = [
-  { value: 1, label: "Premium", icon: Crown, color: "text-gold-500", bg: "bg-gold-500/10 border-gold-500/30" },
-  { value: 2, label: "Standard", icon: Medal, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/30" },
-  { value: 3, label: "Dold", icon: Award, color: "text-[var(--text-secondary)]", bg: "bg-[var(--border-subtle)] border-[var(--border-subtle)]" },
+  { value: 1, label: "Guld", sublabel: "Visas mest", icon: Crown, color: "text-gold-500", bg: "bg-gold-500/10 border-gold-500/30" },
+  { value: 2, label: "Silver", sublabel: "Visas mycket", icon: Medal, color: "text-blue-400", bg: "bg-blue-500/10 border-blue-500/30" },
+  { value: 3, label: "Standard", sublabel: "Normal", icon: Award, color: "text-[var(--text-secondary)]", bg: "bg-[var(--border-subtle)] border-[var(--border-subtle)]" },
+  { value: 0, label: "Dold", sublabel: "Gömd", icon: EyeOff, color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20" },
 ];
 
 export default function RestaurantHubPage({ params }: { params: Promise<{ restaurantId: string }> }) {

@@ -28,6 +28,7 @@ import {
   Eye,
   Package,
   TrendingUp,
+  Download,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
@@ -502,6 +503,32 @@ const AdminOrdersPage = () => {
     }
   };
 
+  const handleExportCSV = () => {
+    const allOrders = orders;
+    if (allOrders.length === 0) {
+      toastError("Inga ordrar att exportera");
+      return;
+    }
+    const headers = ["Ordernr", "Kund", "Restaurant", "Status", "Belopp", "Datum"];
+    const rows = allOrders.map((o) => [
+      o.orderNumber,
+      o.customerName,
+      o.restaurantName || "",
+      o.status,
+      (o.total / 100).toFixed(2),
+      new Date(o.createdAt).toLocaleString("sv-SE"),
+    ]);
+    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ordrar_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    success(`Exporterade ${allOrders.length} ordrar`);
+  };
+
   // Filtered orders
   const displayOrders = useMemo(() => {
     const today = new Date();
@@ -566,6 +593,12 @@ const AdminOrdersPage = () => {
           className="w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all flex items-center justify-center"
         >
           <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+        </button>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all text-[9px] font-black uppercase"
+        >
+          <Download size={13} /> CSV
         </button>
       </div>
 

@@ -215,6 +215,7 @@ const Sidebar = () => {
         { href: "/restaurants", label: "Restauranger", icon: Store },
         { href: "/customers", label: "Kunder & Support", icon: Users },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
+        { href: "/discounts", label: "Rabattkoder", icon: Tag },
       ],
     },
     {

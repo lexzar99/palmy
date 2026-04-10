@@ -179,7 +179,10 @@ model DiscountCode {
   maxUsages   Int?     // null = obegränsat
   usageCount  Int      @default(0)
   validFrom   DateTime?
-  validUntil  DateTime?
+  validUntil DateTime?
+  
+  // Restaurant scope (null = all restaurants, super admin only)
+  restaurantId String?
   
   // Vilka kategorier gäller koden för (null = alla, stored as string)
   applicableCategoryIds String @default("[]")

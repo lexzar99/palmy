@@ -1651,7 +1651,20 @@ router.get('/discounts', async (_req, res) => {
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    res.json(codes.map((c) => ({ ...c, value: c.type === 'FIXED' ? c.value / 100 : c.value })));
+    res.json(codes.map((c) => ({
+      id: c.id,
+      code: c.code,
+      discountType: c.type === 'FIXED' ? 'fixed' : 'percentage',
+      discountValue: c.type === 'FIXED' ? c.value / 100 : c.value,
+      minOrderAmount: c.minOrder,
+      maxUses: c.maxUsages,
+      usedCount: c.usageCount,
+      startsAt: c.validFrom,
+      expiresAt: c.validUntil,
+      restaurantId: c.restaurantId,
+      isActive: c.isActive,
+      createdAt: c.createdAt,
+    })));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -1659,7 +1672,7 @@ router.get('/discounts', async (_req, res) => {
 
 router.post('/discounts', async (req, res) => {
   try {
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
 
     const discount = await prisma.discountCode.create({
       data: {
@@ -1671,9 +1684,13 @@ router.post('/discounts', async (req, res) => {
         maxUsages: maxUsages || null,
         validFrom: validFrom ? new Date(validFrom) : null,
         validUntil: validUntil ? new Date(validUntil) : null,
+        restaurantId: restaurantId || null,
       },
     });
-    res.status(201).json(discount);
+    res.status(201).json({
+      ...discount,
+      value: discount.type === 'FIXED' ? discount.value / 100 : discount.value,
+    });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
       res.status(400).json({ error: 'Rabattkod finns redan' });
@@ -1685,12 +1702,44 @@ router.post('/discounts', async (req, res) => {
 
 router.patch('/discounts/:id', async (req, res) => {
   try {
-    const { isActive } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
+    const updateData: any = {};
+    if (isActive !== undefined) updateData.isActive = isActive;
+    if (code) updateData.code = code.toUpperCase();
+    if (description !== undefined) updateData.description = description;
+    if (type) updateData.type = type;
+    if (value !== undefined) updateData.value = type === 'FIXED' ? Math.round(value * 100) : value;
+    if (minOrder !== undefined) updateData.minOrder = minOrder ? Math.round(minOrder * 100) : 0;
+    if (maxUsages !== undefined) updateData.maxUsages = maxUsages || null;
+    if (validFrom !== undefined) updateData.validFrom = validFrom ? new Date(validFrom) : null;
+    if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null;
+    if (restaurantId !== undefined) updateData.restaurantId = restaurantId || null;
+
     const updated = await prisma.discountCode.update({
       where: { id: req.params.id },
-      data: { isActive },
+      data: updateData,
     });
-    res.json(updated);
+    res.json({
+      ...updated,
+      discountType: updated.type === 'FIXED' ? 'fixed' : 'percentage',
+      discountValue: updated.type === 'FIXED' ? updated.value / 100 : updated.value,
+      minOrderAmount: updated.minOrder,
+      maxUses: updated.maxUsages,
+      usedCount: updated.usageCount,
+      startsAt: updated.validFrom,
+      expiresAt: updated.validUntil,
+    });
+  } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+router.delete('/discounts/:id', async (req, res) => {
+  try {
+    await prisma.discountCode.delete({
+      where: { id: req.params.id },
+    });
+    res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }

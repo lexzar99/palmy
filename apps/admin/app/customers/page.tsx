@@ -30,6 +30,9 @@ import {
   Filter,
   TrendingUp,
   Activity,
+  CheckSquare,
+  Ban,
+  Send,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -51,6 +54,8 @@ export default function CustomersPage() {
   const [activeTab, setActiveTab] = useState<"INFO" | "ORDERS" | "DEALS" | "NOTES">("INFO");
   const [supportNote, setSupportNote] = useState("");
   const [sendingNote, setSendingNote] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const token = () => localStorage.getItem("matgo_token");
 
@@ -117,6 +122,64 @@ export default function CustomersPage() {
         data,
         { headers: { Authorization: `Bearer ${token()}` } }
       );
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filtered.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filtered.map((c) => c.id));
+    }
+  };
+
+  const toggleSelectOne = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkActivate = async () => {
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        selectedIds.map((id) =>
+          axios.patch(
+            `${API_URL}/api/customers/${id}`,
+            { isActive: true },
+            { headers: { Authorization: `Bearer ${token()}` } }
+          )
+        )
+      );
+      success(`${selectedIds.length} kunder aktiverade`);
+      setSelectedIds([]);
+      fetchCustomers();
+    } catch {
+      toastError("Kunde inte aktivera kunder");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkBlock = async () => {
+    setBulkLoading(true);
+    try {
+      await Promise.all(
+        selectedIds.map((id) =>
+          axios.patch(
+            `${API_URL}/api/customers/${id}`,
+            { isActive: false },
+            { headers: { Authorization: `Bearer ${token()}` } }
+          )
+        )
+      );
+      success(`${selectedIds.length} kunder avaktiverade`);
+      setSelectedIds([]);
+      fetchCustomers();
+    } catch {
+      toastError("Kunde inte avaktivera kunder");
+    } finally {
+      setBulkLoading(false);
+    }
+  };
       fetchCustomerDetails(selectedCustomer.id);
       success("Erbjudande uppdaterat");
     } catch {
@@ -235,6 +298,35 @@ export default function CustomersPage() {
             {filtered.length} kunder
           </div>
 
+          {/* Bulk actions */}
+          {selectedIds.length > 0 && (
+            <div className="flex items-center gap-2 p-2 bg-gold-500/10 border border-gold-500/20 rounded-xl">
+              <span className="text-[9px] font-black text-gold-500 px-2">
+                {selectedIds.length} vald
+              </span>
+              <button
+                onClick={handleBulkActivate}
+                disabled={bulkLoading}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+              >
+                <CheckCircle2 size={11} /> Aktivera
+              </button>
+              <button
+                onClick={handleBulkBlock}
+                disabled={bulkLoading}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[8px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+              >
+                <Ban size={11} /> Blockera
+              </button>
+              <button
+                onClick={() => setSelectedIds([])}
+                className="ml-auto px-2 py-1.5 text-[8px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                Avbryt
+              </button>
+            </div>
+          )}
+
           {/* List */}
           <div className="space-y-1.5 max-h-[calc(100vh-340px)] overflow-y-auto">
             {loading ? (
@@ -248,45 +340,70 @@ export default function CustomersPage() {
                 </p>
               </div>
             ) : (
-              filtered.map((c) => (
+              <>
                 <button
+                  onClick={toggleSelectAll}
+                  className="w-full flex items-center gap-2 p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <div className={`w-4 h-4 rounded border ${selectedIds.length === filtered.length && filtered.length > 0 ? "bg-gold-500 border-gold-500" : "border-[var(--border-subtle)]"} flex items-center justify-center`}>
+                    {selectedIds.length === filtered.length && filtered.length > 0 && <CheckSquare size={10} className="text-[#0d0d0d]" />}
+                  </div>
+                  Välj alla ({filtered.length})
+                </button>
+                {filtered.map((c) => (
+                <div
                   key={c.id}
-                  onClick={() => { fetchCustomerDetails(c.id); setActiveTab("INFO"); }}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
                     selectedCustomer?.id === c.id
                       ? "bg-gold-500/10 border-gold-500/30"
                       : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-subtle)]"
                   }`}
                 >
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
-                      selectedCustomer?.id === c.id
-                        ? "bg-gold-500 text-[#0d0d0d]"
-                        : "bg-[var(--bg-primary)] text-gold-500 border border-[var(--border-subtle)]"
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleSelectOne(c.id); }}
+                    className={`w-4 h-4 rounded border shrink-0 flex items-center justify-center ${
+                      selectedIds.includes(c.id)
+                        ? "bg-gold-500 border-gold-500"
+                        : "border-[var(--border-subtle)]"
                     }`}
                   >
-                    {(c.name || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-black uppercase truncate text-[var(--text-primary)]">
-                      {c.name || "Gäst"}
-                    </p>
-                    <p className="text-[9px] font-bold text-[var(--text-secondary)] truncate">
-                      {c.phone}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {!c.isActive && (
-                      <span className="text-[7px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
-                        Blockad
-                      </span>
-                    )}
-                    {c.isVerified && (
-                      <div className="w-2 h-2 rounded-full bg-emerald-400" title="Verifierad" />
-                    )}
-                  </div>
-                </button>
-              ))
+                    {selectedIds.includes(c.id) && <CheckSquare size={10} className="text-[#0d0d0d]" />}
+                  </button>
+                  <button
+                    onClick={() => { fetchCustomerDetails(c.id); setActiveTab("INFO"); }}
+                    className="flex-1 flex items-center gap-3 text-left"
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+                        selectedCustomer?.id === c.id
+                          ? "bg-gold-500 text-[#0d0d0d]"
+                          : "bg-[var(--bg-primary)] text-gold-500 border border-[var(--border-subtle)]"
+                      }`}
+                    >
+                      {(c.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-black uppercase truncate text-[var(--text-primary)]">
+                        {c.name || "Gäst"}
+                      </p>
+                      <p className="text-[9px] font-bold text-[var(--text-secondary)] truncate">
+                        {c.phone}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {!c.isActive && (
+                        <span className="text-[7px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                          Blockad
+                        </span>
+                      )}
+                      {c.isVerified && (
+                        <div className="w-2 h-2 rounded-full bg-emerald-400" title="Verifierad" />
+                      )}
+                    </div>
+                  </button>
+                </div>
+              ))}
+              </>
             )}
           </div>
         </div>
