@@ -7,67 +7,33 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
 import {
-  ArrowLeft,
-  Settings,
-  Clock,
-  Utensils,
-  TrendingUp,
-  ShoppingCart,
-  ToggleLeft,
-  ToggleRight,
-  Save,
-  Loader2,
-  Crown,
-  Medal,
-  Award,
-  EyeOff,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  Sun,
-  Moon,
-  Coffee,
-  AlertCircle,
-  Package,
-  CreditCard,
-  Users,
-  Star,
+  ArrowLeft, Settings, Clock, Utensils, TrendingUp, ShoppingCart,
+  ToggleLeft, ToggleRight, Save, Loader2, Crown, Medal, Award, EyeOff,
+  Sun, Moon, Coffee, AlertCircle, Package, CreditCard, Star, User,
+  MapPin, Phone, Globe, Image, Lock, FileText, Building,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Modal, ConfirmModal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
 import Link from "next/link";
 
-type Tab = "overview" | "hours" | "settings" | "orders";
+type Tab = "profil" | "admin" | "hours" | "settings" | "orders";
 
 const DAYS = [
-  { key: "monday", label: "Måndag", short: "Mån" },
-  { key: "tuesday", label: "Tisdag", short: "Tis" },
-  { key: "wednesday", label: "Onsdag", short: "Ons" },
-  { key: "thursday", label: "Torsdag", short: "Tor" },
-  { key: "friday", label: "Fredag", short: "Fre" },
-  { key: "saturday", label: "Lördag", short: "Lör" },
-  { key: "sunday", label: "Söndag", short: "Sön" },
+  { key: "monday", label: "Måndag" },
+  { key: "tuesday", label: "Tisdag" },
+  { key: "wednesday", label: "Onsdag" },
+  { key: "thursday", label: "Torsdag" },
+  { key: "friday", label: "Fredag" },
+  { key: "saturday", label: "Lördag" },
+  { key: "sunday", label: "Söndag" },
 ];
 
 interface DayHours {
-  open: string;
-  close: string;
-  closed: boolean;
-  // Shift 2 (optional)
-  open2?: string;
-  close2?: string;
-  shift2?: boolean;
+  open: string; close: string; closed: boolean;
+  open2?: string; close2?: string; shift2?: boolean;
 }
 
-const DEFAULT_HOURS: DayHours = {
-  open: "11:00",
-  close: "22:00",
-  closed: false,
-  shift2: false,
-  open2: "17:00",
-  close2: "22:00",
-};
+const DEFAULT_HOURS: DayHours = { open: "11:00", close: "22:00", closed: false, shift2: false, open2: "17:00", close2: "22:00" };
 
 const PREMIUM_TIERS = [
   { value: 1, label: "Guld", sublabel: "Visas mest", icon: Crown, color: "text-gold-500", bg: "bg-gold-500/10 border-gold-500/30" },
@@ -76,136 +42,168 @@ const PREMIUM_TIERS = [
   { value: 0, label: "Dold", sublabel: "Gömd", icon: EyeOff, color: "text-rose-400", bg: "bg-rose-500/10 border-rose-500/20" },
 ];
 
+const TABS: { id: Tab; label: string; icon: any }[] = [
+  { id: "profil", label: "Profil", icon: Building },
+  { id: "admin", label: "Admin-konto", icon: Lock },
+  { id: "hours", label: "Öppettider", icon: Clock },
+  { id: "settings", label: "Leverans & ETA", icon: Settings },
+  { id: "orders", label: "Ordrar", icon: ShoppingCart },
+];
+
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div>
+    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">{label}</label>
+    {children}
+  </div>
+);
+
+const inputCls = "w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all placeholder:opacity-30";
+
 export default function RestaurantHubPage({ params }: { params: Promise<{ restaurantId: string }> }) {
   const { restaurantId } = use(params);
   const router = useRouter();
   const { success, error: toastError } = useToast();
 
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("profil");
   const [restaurant, setRestaurant] = useState<any>(null);
-  const [settings, setSettings] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Settings form
-  const [form, setForm] = useState({
-    deliveryFee: 0,
-    minOrderAmount: 0,
-    estimatedPickupTime: 20,
-    estimatedDeliveryTime: 35,
-    notificationSound: "signal-1",
-    openingHours: DAYS.reduce(
-      (acc, d) => ({ ...acc, [d.key]: { ...DEFAULT_HOURS } }),
-      {} as Record<string, DayHours>
-    ),
+  // Profile form
+  const [profile, setProfile] = useState({
+    name: "", description: "", cuisine: "", address: "", city: "", zip: "",
+    phone: "", imageUrl: "", heroImageUrl: "", internalInfo: "",
   });
 
-  const [featuredClass, setFeaturedClass] = useState(2);
+  // Admin credentials form
+  const [adminForm, setAdminForm] = useState({ adminPassword: "", adminEmail: "" });
+
+  // Opening hours
+  const [openingHours, setOpeningHours] = useState<Record<string, DayHours>>(
+    DAYS.reduce((acc, d) => ({ ...acc, [d.key]: { ...DEFAULT_HOURS } }), {})
+  );
+
+  // Delivery & ETA
+  const [deliveryForm, setDeliveryForm] = useState({
+    deliveryFee: 0, minOrderAmount: 0, etaMinutes: 30,
+  });
+
+  // Tier & open status
+  const [featuredClass, setFeaturedClass] = useState(3);
   const [isOpen, setIsOpen] = useState(true);
   const [togglingOpen, setTogglingOpen] = useState(false);
 
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("matgo_token") || ""
-      : "";
+  const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [restRes, settingsRes, ordersRes] = await Promise.allSettled([
+      const [restRes, ordersRes] = await Promise.allSettled([
         axios.get(`${API_URL}/api/restaurants/${restaurantId}`),
-        axios.get(`${API_URL}/api/settings?restaurantId=${restaurantId}`, {
+        axios.get(`${API_URL}/api/admin/orders?limit=100&restaurantId=${restaurantId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
-        axios.get(
-          `${API_URL}/api/admin/orders?limit=50&restaurantId=${restaurantId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        ),
       ]);
 
       if (restRes.status === "fulfilled") {
         const r = restRes.value.data;
         setRestaurant(r);
-        setFeaturedClass(r.featuredClass ?? 2);
+        setFeaturedClass(r.featuredClass ?? 3);
         setIsOpen(r.manualIsOpen ?? r.isOpen ?? true);
-      }
 
-      if (settingsRes.status === "fulfilled") {
-        const s = settingsRes.value.data;
-        setSettings(s);
-        setForm({
-          deliveryFee: s.deliveryFee ?? 0,
-          minOrderAmount: s.minOrderAmount ?? 0,
-          estimatedPickupTime: s.estimatedPickupTime ?? 20,
-          estimatedDeliveryTime: s.estimatedDeliveryTime ?? 35,
-          notificationSound: s.notificationSound ?? "signal-1",
-          openingHours: {
-            ...DAYS.reduce(
-              (acc, d) => ({ ...acc, [d.key]: { ...DEFAULT_HOURS } }),
-              {} as Record<string, DayHours>
-            ),
-            ...(s.openingHours || {}),
-          },
+        setProfile({
+          name: r.name || "",
+          description: r.description || "",
+          cuisine: r.cuisine || "",
+          address: r.address || "",
+          city: r.city || "",
+          zip: r.zip || "",
+          phone: r.phone || "",
+          imageUrl: r.imageUrl || "",
+          heroImageUrl: r.heroImageUrl || "",
+          internalInfo: r.internalInfo || "",
         });
+
+        setDeliveryForm({
+          deliveryFee: r.deliveryFee ?? 0,
+          minOrderAmount: r.minOrderAmount ?? 0,
+          etaMinutes: r.etaMinutes ?? 30,
+        });
+
+        const hours = r.openingHours || {};
+        setOpeningHours(
+          DAYS.reduce((acc, d) => ({
+            ...acc,
+            [d.key]: hours[d.key] ? { ...DEFAULT_HOURS, ...hours[d.key] } : { ...DEFAULT_HOURS },
+          }), {})
+        );
       }
 
       if (ordersRes.status === "fulfilled") {
         setOrders(ordersRes.value.data.orders || []);
       }
-    } catch (err) {
+    } catch {
       toastError("Kunde inte ladda restaurang-data");
     } finally {
       setLoading(false);
     }
   }, [restaurantId, token]);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const saveSettings = async () => {
+  // Generic patch helper - saves to PATCH /api/restaurants/:id (syncs with webapp via socket)
+  const patchRestaurant = async (data: any) => {
     setSaving(true);
     try {
-      await axios.patch(
-        `${API_URL}/api/settings?restaurantId=${restaurantId}`,
-        form,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      success("Inställningar sparade");
-    } catch {
-      toastError("Kunde inte spara inställningar");
+      await axios.patch(`${API_URL}/api/restaurants/${restaurantId}`, data, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return true;
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte spara");
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
-  const savePremium = async () => {
-    setSaving(true);
-    try {
-      await axios.patch(
-        `${API_URL}/api/restaurants/${restaurantId}`,
-        { featuredClass },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      success("Premium-tier uppdaterad");
-      setRestaurant((prev: any) => ({ ...prev, featuredClass }));
-    } catch {
-      toastError("Kunde inte uppdatera tier");
-    } finally {
-      setSaving(false);
+  const saveProfile = async () => {
+    const ok = await patchRestaurant(profile);
+    if (ok) { success("Profil sparad"); setRestaurant((p: any) => ({ ...p, ...profile })); }
+  };
+
+  const saveAdminCredentials = async () => {
+    if (!adminForm.adminPassword || adminForm.adminPassword.length < 6) {
+      toastError("Lösenordet måste vara minst 6 tecken");
+      return;
     }
+    const ok = await patchRestaurant({ adminPassword: adminForm.adminPassword });
+    if (ok) { success("Admin-lösenord uppdaterat"); setAdminForm({ adminPassword: "", adminEmail: "" }); }
+  };
+
+  const saveOpeningHours = async () => {
+    const ok = await patchRestaurant({ openingHours });
+    if (ok) success("Öppettider sparade och synkade med appen");
+  };
+
+  const saveDelivery = async () => {
+    const ok = await patchRestaurant(deliveryForm);
+    if (ok) { success("Leveransinställningar sparade och synkade"); setRestaurant((p: any) => ({ ...p, ...deliveryForm })); }
+  };
+
+  const saveTier = async () => {
+    const ok = await patchRestaurant({ featuredClass });
+    if (ok) { success("Premium-tier uppdaterad"); setRestaurant((p: any) => ({ ...p, featuredClass })); }
   };
 
   const toggleOpen = async () => {
     setTogglingOpen(true);
     try {
       const newVal = !isOpen;
-      await axios.patch(
-        `${API_URL}/api/restaurants/${restaurantId}`,
-        { isOpen: newVal },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      await axios.patch(`${API_URL}/api/restaurants/${restaurantId}`, { isOpen: newVal }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setIsOpen(newVal);
       success(newVal ? "Restaurangen är nu öppen" : "Restaurangen är nu stängd");
     } catch {
@@ -215,27 +213,15 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     }
   };
 
-  const updateHours = (
-    day: string,
-    field: keyof DayHours,
-    value: string | boolean
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      openingHours: {
-        ...prev.openingHours,
-        [day]: { ...prev.openingHours[day], [field]: value },
-      },
-    }));
+  const updateHours = (day: string, field: keyof DayHours, value: string | boolean) => {
+    setOpeningHours((prev) => ({ ...prev, [day]: { ...prev[day], [field]: value } }));
   };
 
   if (loading) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-gold-500" size={36} />
-        <p className="text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] text-[10px]">
-          Laddar restaurang...
-        </p>
+        <p className="text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] text-[10px]">Laddar restaurang...</p>
       </div>
     );
   }
@@ -244,13 +230,9 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     return (
       <div className="py-20 text-center">
         <AlertCircle size={40} className="text-rose-500 mx-auto mb-4" />
-        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[10px]">
-          Restaurang hittades inte
-        </p>
-        <button
-          onClick={() => router.push("/restaurants")}
-          className="mt-6 px-6 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-[10px]"
-        >
+        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[10px]">Restaurang hittades inte</p>
+        <button onClick={() => router.push("/restaurants")}
+          className="mt-6 px-6 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-[10px]">
           Tillbaka
         </button>
       </div>
@@ -263,43 +245,27 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     return new Date(o.createdAt) >= start;
   });
 
-  const todayRevenue = todayOrders
-    .filter((o) => o.status === "DELIVERED")
-    .reduce((sum, o) => sum + (o.total || 0), 0);
+  const currentTier = PREMIUM_TIERS.find((t) => t.value === featuredClass) || PREMIUM_TIERS[2];
+  const TierIcon = currentTier.icon;
 
   return (
-    <div className="space-y-6 pb-24 max-w-5xl">
-      {/* Back + header */}
+    <div className="space-y-5 pb-24 max-w-4xl">
+      {/* Header */}
       <div className="flex items-start gap-4">
-        <button
-          onClick={() => router.push("/restaurants")}
-          className="w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all shrink-0 mt-1"
-        >
+        <button onClick={() => router.push("/restaurants")}
+          className="w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all shrink-0 mt-1">
           <ArrowLeft size={15} />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]">
-              {restaurant.name}
-            </h1>
-            {(() => {
-              const tier = PREMIUM_TIERS.find((t) => t.value === featuredClass) || PREMIUM_TIERS[1];
-              const Icon = tier.icon;
-              return (
-                <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-black uppercase ${tier.bg} ${tier.color}`}>
-                  <Icon size={10} /> {tier.label}
-                </span>
-              );
-            })()}
-            <button
-              onClick={toggleOpen}
-              disabled={togglingOpen}
+            <h1 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]">{restaurant.name}</h1>
+            <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-black uppercase ${currentTier.bg} ${currentTier.color}`}>
+              <TierIcon size={10} /> {currentTier.label}
+            </span>
+            <button onClick={toggleOpen} disabled={togglingOpen}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[9px] font-black uppercase transition-all ${
-                isOpen
-                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20"
-                  : "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
-              } ${togglingOpen ? "opacity-50" : ""}`}
-            >
+                isOpen ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"
+              } ${togglingOpen ? "opacity-50" : ""}`}>
               {isOpen ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
               {isOpen ? "Öppen" : "Stängd"}
             </button>
@@ -311,27 +277,15 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl w-fit">
-        {(
-          [
-            { id: "overview", label: "Översikt", icon: TrendingUp },
-            { id: "hours", label: "Öppettider", icon: Clock },
-            { id: "settings", label: "Inställningar", icon: Settings },
-            { id: "orders", label: "Ordrar", icon: ShoppingCart },
-          ] as const
-        ).map((t) => {
+      <div className="flex flex-wrap gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl w-fit">
+        {TABS.map((t) => {
           const Icon = t.icon;
           return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                tab === t.id
-                  ? "bg-gold-500 text-[#0d0d0d]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              <Icon size={13} /> {t.label}
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                tab === t.id ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}>
+              <Icon size={12} /> {t.label}
             </button>
           );
         })}
@@ -339,250 +293,231 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
 
       {/* Tab content */}
       <AnimatePresence mode="wait">
-        {tab === "overview" && (
-          <motion.div
-            key="overview"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="space-y-5"
-          >
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Ordrar idag", value: todayOrders.length, icon: ShoppingCart, color: "text-blue-400" },
-                { label: "Omsättning idag", value: `${Math.round(todayRevenue / 100)} kr`, icon: CreditCard, color: "text-gold-500" },
-                { label: "Rating", value: (restaurant.rating ?? 4.6).toFixed(1), icon: Star, color: "text-amber-400" },
-                { label: "Leveransavgift", value: `${settings?.deliveryFee ?? 0} kr`, icon: Package, color: "text-emerald-400" },
-              ].map((s) => {
-                const Icon = s.icon;
-                return (
-                  <div
-                    key={s.label}
-                    className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <Icon size={16} className={s.color} />
-                    </div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
-                      {s.label}
-                    </div>
-                    <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
-                  </div>
-                );
-              })}
+
+        {/* ── PROFIL ── */}
+        {tab === "profil" && (
+          <motion.div key="profil" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <Building size={14} className="text-gold-500" /> Grundinfo
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Namn *">
+                  <input className={inputCls} value={profile.name} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} />
+                </Field>
+                <Field label="Kök / Kategori">
+                  <input className={inputCls} value={profile.cuisine} onChange={(e) => setProfile((p) => ({ ...p, cuisine: e.target.value }))} />
+                </Field>
+              </div>
+              <Field label="Beskrivning">
+                <textarea className={`${inputCls} resize-none h-24`} value={profile.description} onChange={(e) => setProfile((p) => ({ ...p, description: e.target.value }))} />
+              </Field>
             </div>
 
-            {/* Premium tier control */}
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <MapPin size={14} className="text-gold-500" /> Kontakt & Adress
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Adress">
+                  <div className="relative"><MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                    <input className={`${inputCls} pl-9`} value={profile.address} onChange={(e) => setProfile((p) => ({ ...p, address: e.target.value }))} />
+                  </div>
+                </Field>
+                <Field label="Stad">
+                  <input className={inputCls} value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} />
+                </Field>
+                <Field label="Postnummer">
+                  <input className={inputCls} value={profile.zip} onChange={(e) => setProfile((p) => ({ ...p, zip: e.target.value }))} />
+                </Field>
+                <Field label="Telefon (kontakt)">
+                  <div className="relative"><Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                    <input className={`${inputCls} pl-9`} value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
+                  </div>
+                </Field>
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <Image size={14} className="text-gold-500" /> Bilder
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Profilbild (URL)">
+                  <input className={inputCls} value={profile.imageUrl} placeholder="https://..." onChange={(e) => setProfile((p) => ({ ...p, imageUrl: e.target.value }))} />
+                </Field>
+                <Field label="Hero-bild (URL)">
+                  <input className={inputCls} value={profile.heroImageUrl} placeholder="https://..." onChange={(e) => setProfile((p) => ({ ...p, heroImageUrl: e.target.value }))} />
+                </Field>
+              </div>
+              {profile.imageUrl && (
+                <img src={profile.imageUrl} alt="" className="w-20 h-20 rounded-xl object-cover border border-[var(--border-subtle)]" />
+              )}
+            </div>
+
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <FileText size={14} className="text-gold-500" /> Intern anteckning (ej synlig i app)
+              </h2>
+              <textarea className={`${inputCls} resize-none h-20`} value={profile.internalInfo} placeholder="Anteckningar för super-admin..."
+                onChange={(e) => setProfile((p) => ({ ...p, internalInfo: e.target.value }))} />
+            </div>
+
+            {/* Premium tier */}
             <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4 flex items-center gap-2">
-                <Crown size={15} className="text-gold-500" /> Premium Tier
-              </h3>
-              <div className="grid grid-cols-3 gap-3 mb-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2 mb-4">
+                <Crown size={14} className="text-gold-500" /> Premium Tier
+              </h2>
+              <div className="grid grid-cols-4 gap-3 mb-4">
                 {PREMIUM_TIERS.map((tier) => {
                   const Icon = tier.icon;
                   const active = featuredClass === tier.value;
                   return (
-                    <button
-                      key={tier.value}
-                      onClick={() => setFeaturedClass(tier.value)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
-                        active ? `${tier.bg} shadow-md` : "border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--border-subtle)]"
-                      }`}
-                    >
-                      <Icon size={20} className={active ? tier.color : "text-[var(--text-secondary)]"} />
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${active ? tier.color : "text-[var(--text-secondary)]"}`}>
-                        {tier.label}
-                      </span>
+                    <button key={tier.value} onClick={() => setFeaturedClass(tier.value)}
+                      className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${active ? `${tier.bg} shadow-md` : "border-[var(--border-subtle)] bg-[var(--bg-primary)]"}`}>
+                      <Icon size={18} className={active ? tier.color : "text-[var(--text-secondary)]"} />
+                      <span className={`text-[8px] font-black uppercase tracking-widest ${active ? tier.color : "text-[var(--text-secondary)]"}`}>{tier.label}</span>
+                      <span className={`text-[7px] font-bold ${active ? tier.color : "text-[var(--text-secondary)] opacity-50"}`}>{tier.sublabel}</span>
                     </button>
                   );
                 })}
               </div>
-              <button
-                onClick={savePremium}
-                disabled={saving}
-                className="w-full py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg shadow-gold-500/20"
-              >
-                {saving ? "Sparar..." : "Spara tier"}
+              <button onClick={saveTier} disabled={saving}
+                className="w-full py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-gold-500 transition-all">
+                Spara tier
               </button>
             </div>
 
-            {/* Recent orders */}
-            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4">
-                Senaste ordrar (idag)
-              </h3>
-              {todayOrders.length === 0 ? (
-                <p className="text-center text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] py-8 opacity-30">
-                  Inga ordrar idag
+            <button onClick={saveProfile} disabled={saving}
+              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Spara profil
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── ADMIN-KONTO ── */}
+        {tab === "admin" && (
+          <motion.div key="admin" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <User size={14} className="text-gold-500" /> Admin-inloggning för restaurangen
+              </h2>
+              <p className="text-[9px] text-[var(--text-secondary)] font-bold leading-relaxed">
+                Restaurangadmins loggar in via <strong className="text-[var(--text-primary)]">MatGo Business-appen</strong> (Flutter).
+                Användarnamnet är restaurangens slug: <code className="text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">{restaurant.slug}</code>
+              </p>
+              <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                <p className="text-[9px] text-amber-400 font-bold">
+                  Inloggningsuppgifterna gäller endast för restaurang-adminerna — inte super-admin.
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {todayOrders.slice(0, 8).map((o) => (
-                    <div
-                      key={o.id}
-                      className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-[9px] font-black text-[var(--text-secondary)]">
-                          #{o.orderNumber}
-                        </span>
-                        <span className="text-[10px] font-black uppercase text-[var(--text-primary)]">
-                          {o.customerName}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black text-gold-500">
-                          {Math.round((o.total || 0) / 100)} kr
-                        </span>
-                        <span
-                          className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase border ${
-                            o.status === "DELIVERED"
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                              : o.status === "PENDING"
-                              ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                              : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-                          }`}
-                        >
-                          {o.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+              </div>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <Lock size={14} className="text-gold-500" /> Sätt / Ändra lösenord
+              </h2>
+              <Field label="Användarnamn (auto)">
+                <input className={`${inputCls} opacity-50`} value={restaurant.slug} readOnly />
+              </Field>
+              <Field label="Nytt lösenord">
+                <div className="relative">
+                  <Lock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                  <input type="password" className={`${inputCls} pl-9`} value={adminForm.adminPassword}
+                    onChange={(e) => setAdminForm((p) => ({ ...p, adminPassword: e.target.value }))}
+                    placeholder="Minst 6 tecken" />
                 </div>
-              )}
+              </Field>
+              <button onClick={saveAdminCredentials} disabled={saving}
+                className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+                Spara lösenord
+              </button>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+              <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2 mb-3">
+                <Globe size={14} className="text-gold-500" /> Snabblänkar
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/menu/${restaurantId}`}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
+                  <Utensils size={12} /> Redigera meny
+                </Link>
+              </div>
             </div>
           </motion.div>
         )}
 
+        {/* ── ÖPPETTIDER ── */}
         {tab === "hours" && (
-          <motion.div
-            key="hours"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="space-y-4"
-          >
+          <motion.div key="hours" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">
-                  Öppettider
-                </h2>
+                <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Öppettider</h2>
                 <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
-                  Ange upp till 2 skift per dag
+                  Upp till 2 skift per dag · Synkas direkt med appen
                 </p>
               </div>
-              <button
-                onClick={saveSettings}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Spara
+              <button onClick={saveOpeningHours} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara
               </button>
             </div>
 
             <div className="space-y-2">
               {DAYS.map((day) => {
-                const hours: DayHours = form.openingHours[day.key] || { ...DEFAULT_HOURS };
+                const h: DayHours = openingHours[day.key] || { ...DEFAULT_HOURS };
                 return (
-                  <div
-                    key={day.key}
-                    className={`rounded-2xl border transition-all ${
-                      hours.closed
-                        ? "border-[var(--border-subtle)] bg-[var(--bg-secondary)] opacity-60"
-                        : "border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
-                    }`}
-                  >
+                  <div key={day.key} className={`rounded-2xl border transition-all ${h.closed ? "border-[var(--border-subtle)] bg-[var(--bg-secondary)] opacity-60" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)]"}`}>
                     <div className="flex items-center gap-4 p-4">
-                      {/* Day name */}
                       <div className="w-20 shrink-0">
-                        <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">
-                          {day.label}
-                        </p>
-                        <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-0.5">
-                          Skift 1
-                        </p>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">{day.label}</p>
+                        <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-0.5">Skift 1</p>
                       </div>
-
-                      {/* Shift 1 */}
                       <div className="flex items-center gap-2 flex-1">
                         <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
                           <Sun size={11} className="text-amber-400" />
-                          <input
-                            type="time"
-                            value={hours.open}
-                            disabled={hours.closed}
-                            onChange={(e) => updateHours(day.key, "open", e.target.value)}
-                            className="bg-transparent text-[11px] font-black outline-none disabled:opacity-30 w-[70px]"
-                          />
+                          <input type="time" value={h.open} disabled={h.closed} onChange={(e) => updateHours(day.key, "open", e.target.value)}
+                            className="bg-transparent text-[11px] font-black outline-none disabled:opacity-30 w-[70px]" />
                         </div>
                         <span className="text-[var(--text-secondary)] text-xs font-black">–</span>
                         <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
                           <Moon size={11} className="text-blue-400" />
-                          <input
-                            type="time"
-                            value={hours.close}
-                            disabled={hours.closed}
-                            onChange={(e) => updateHours(day.key, "close", e.target.value)}
-                            className="bg-transparent text-[11px] font-black outline-none disabled:opacity-30 w-[70px]"
-                          />
+                          <input type="time" value={h.close} disabled={h.closed} onChange={(e) => updateHours(day.key, "close", e.target.value)}
+                            className="bg-transparent text-[11px] font-black outline-none disabled:opacity-30 w-[70px]" />
                         </div>
                       </div>
-
-                      {/* Shift 2 toggle */}
-                      <button
-                        onClick={() => updateHours(day.key, "shift2", !hours.shift2)}
-                        disabled={hours.closed}
+                      <button onClick={() => updateHours(day.key, "shift2", !h.shift2)} disabled={h.closed}
                         className={`px-2.5 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${
-                          hours.shift2
-                            ? "bg-sky-500/10 border-sky-500/20 text-sky-400"
-                            : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-sky-500/20"
-                        } disabled:opacity-30`}
-                      >
-                        {hours.shift2 ? "2 skift" : "+ Skift 2"}
+                          h.shift2 ? "bg-sky-500/10 border-sky-500/20 text-sky-400" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
+                        } disabled:opacity-30`}>
+                        {h.shift2 ? "2 skift" : "+ Skift 2"}
                       </button>
-
-                      {/* Closed toggle */}
-                      <button
-                        onClick={() => updateHours(day.key, "closed", !hours.closed)}
+                      <button onClick={() => updateHours(day.key, "closed", !h.closed)}
                         className={`px-2.5 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${
-                          hours.closed
-                            ? "bg-rose-500/10 border-rose-500/20 text-rose-400"
-                            : "bg-emerald-500/8 border-emerald-500/20 text-emerald-400 hover:border-rose-500/20"
-                        }`}
-                      >
-                        {hours.closed ? "Stängd" : "Öppen"}
+                          h.closed ? "bg-rose-500/10 border-rose-500/20 text-rose-400" : "bg-emerald-500/8 border-emerald-500/20 text-emerald-400"
+                        }`}>
+                        {h.closed ? "Stängd" : "Öppen"}
                       </button>
                     </div>
-
-                    {/* Shift 2 */}
-                    {hours.shift2 && !hours.closed && (
+                    {h.shift2 && !h.closed && (
                       <div className="flex items-center gap-4 px-4 pb-4">
                         <div className="w-20 shrink-0">
-                          <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
-                            Skift 2
-                          </p>
+                          <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Skift 2</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-sky-500/20 rounded-xl px-3 py-2">
                             <Coffee size={11} className="text-sky-400" />
-                            <input
-                              type="time"
-                              value={hours.open2 || "17:00"}
-                              onChange={(e) => updateHours(day.key, "open2", e.target.value)}
-                              className="bg-transparent text-[11px] font-black outline-none w-[70px]"
-                            />
+                            <input type="time" value={h.open2 || "17:00"} onChange={(e) => updateHours(day.key, "open2", e.target.value)}
+                              className="bg-transparent text-[11px] font-black outline-none w-[70px]" />
                           </div>
                           <span className="text-[var(--text-secondary)] text-xs font-black">–</span>
                           <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-sky-500/20 rounded-xl px-3 py-2">
                             <Moon size={11} className="text-sky-400" />
-                            <input
-                              type="time"
-                              value={hours.close2 || "22:00"}
-                              onChange={(e) => updateHours(day.key, "close2", e.target.value)}
-                              className="bg-transparent text-[11px] font-black outline-none w-[70px]"
-                            />
+                            <input type="time" value={h.close2 || "22:00"} onChange={(e) => updateHours(day.key, "close2", e.target.value)}
+                              className="bg-transparent text-[11px] font-black outline-none w-[70px]" />
                           </div>
                         </div>
                       </div>
@@ -591,147 +526,106 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                 );
               })}
             </div>
-
-            <button
-              onClick={saveSettings}
-              disabled={saving}
-              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all"
-            >
+            <button onClick={saveOpeningHours} disabled={saving}
+              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
               {saving ? "Sparar..." : "Spara öppettider"}
             </button>
           </motion.div>
         )}
 
+        {/* ── LEVERANS & ETA ── */}
         {tab === "settings" && (
-          <motion.div
-            key="settings"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="space-y-5"
-          >
+          <motion.div key="settings" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">
-                Leverans & Tider
-              </h2>
-              <button
-                onClick={saveSettings}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all"
-              >
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                Spara
+              <div>
+                <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Leverans & ETA</h2>
+                <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">Synkas direkt med webb-appen</p>
+              </div>
+              <button onClick={saveDelivery} disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               {[
-                { label: "Leveransavgift (kr)", key: "deliveryFee" },
-                { label: "Minsta order (kr)", key: "minOrderAmount" },
-                { label: "Avhämtningstid (min)", key: "estimatedPickupTime" },
-                { label: "Leveranstid (min)", key: "estimatedDeliveryTime" },
-              ].map((f) => (
-                <div
-                  key={f.key}
-                  className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
-                >
-                  <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
-                    {f.label}
-                  </label>
-                  <input
-                    type="number"
-                    value={(form as any)[f.key]}
-                    onChange={(e) =>
-                      setForm((prev) => ({ ...prev, [f.key]: Number(e.target.value) }))
-                    }
-                    className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-gold-500/30 text-gold-500"
-                  />
+                { label: "Leveransavgift (kr)", key: "deliveryFee" as const, icon: Package },
+                { label: "Minsta order (kr)", key: "minOrderAmount" as const, icon: CreditCard },
+                { label: "ETA (minuter)", key: "etaMinutes" as const, icon: Clock },
+              ].map((f) => {
+                const Icon = f.icon;
+                return (
+                  <div key={f.key} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Icon size={14} className="text-gold-500" />
+                      <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{f.label}</label>
+                    </div>
+                    <input type="number" value={deliveryForm[f.key]}
+                      onChange={(e) => setDeliveryForm((p) => ({ ...p, [f.key]: Number(e.target.value) }))}
+                      className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-2xl font-black outline-none focus:border-gold-500/30 text-gold-500" />
+                  </div>
+                );
+              })}
+            </div>
+
+            <button onClick={saveDelivery} disabled={saving}
+              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+              {saving ? "Sparar..." : "Spara & Synka med appen"}
+            </button>
+          </motion.div>
+        )}
+
+        {/* ── ORDRAR ── */}
+        {tab === "orders" && (
+          <motion.div key="orders" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Ordrar idag", value: todayOrders.length, color: "text-blue-400" },
+                { label: "Omsättning idag", value: `${Math.round(todayOrders.filter((o) => o.status === "DELIVERED").reduce((s, o) => s + (o.total || 0), 0) / 100)} kr`, color: "text-gold-500" },
+                { label: "Rating", value: (restaurant.rating ?? 4.6).toFixed(1), color: "text-amber-400" },
+              ].map((s) => (
+                <div key={s.label} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
+                  <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
                 </div>
               ))}
             </div>
 
-            {/* Quick links */}
-            <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">
-                Snabblänkar
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/menu/${restaurantId}`}
-                  className="px-4 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all flex items-center gap-1.5"
-                >
-                  <Utensils size={12} /> Redigera meny
-                </Link>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {tab === "orders" && (
-          <motion.div
-            key="orders"
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="space-y-3"
-          >
-            <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">
-              Alla ordrar ({orders.length})
-            </h2>
+            <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Alla ordrar ({orders.length})</h2>
             {orders.length === 0 ? (
               <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
                 <ShoppingCart size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
-                  Inga ordrar hittades
-                </p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">Inga ordrar</p>
               </div>
             ) : (
               orders.map((o) => (
-                <div
-                  key={o.id}
-                  className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
-                >
+                <div key={o.id} className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[9px] font-black text-[var(--text-secondary)]">
                       #{o.orderNumber}
                     </div>
                     <div>
-                      <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
-                        {o.customerName}
-                      </p>
+                      <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">{o.customerName}</p>
                       <p className="text-[9px] font-bold text-[var(--text-secondary)]">
-                        {new Date(o.createdAt).toLocaleString("sv-SE", {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(o.createdAt).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-[11px] font-black text-gold-500">
-                      {Math.round((o.total || 0) / 100)} kr
-                    </span>
-                    <span
-                      className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase border ${
-                        o.status === "DELIVERED"
-                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                          : o.status === "PENDING"
-                          ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                          : o.status === "CANCELLED" || o.status === "REJECTED"
-                          ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                          : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-                      }`}
-                    >
-                      {o.status}
-                    </span>
+                    <span className="text-[11px] font-black text-gold-500">{Math.round((o.total || 0) / 100)} kr</span>
+                    <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                      o.status === "DELIVERED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : o.status === "PENDING" ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      : o.status === "CANCELLED" || o.status === "REJECTED" ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                      : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+                    }`}>{o.status}</span>
                   </div>
                 </div>
               ))
             )}
           </motion.div>
         )}
+
       </AnimatePresence>
     </div>
   );

@@ -216,6 +216,7 @@ const Sidebar = () => {
         { href: "/customers", label: "Kunder & Support", icon: Users },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
         { href: "/discounts", label: "Rabattkoder", icon: Tag },
+        { href: "/cities", label: "Städer & Zoner", icon: MapPin },
       ],
     },
     {
@@ -229,7 +230,6 @@ const Sidebar = () => {
       label: "System",
       links: [
         { href: "/menu", label: "Menyer", icon: Utensils },
-        { href: "/cities", label: "Städer & Zoner", icon: MapPin },
         { href: "/settings/receipt", label: "Kvittolayout", icon: Printer },
         { href: "/log", label: "Aktivitetslogg", icon: ActivitySquare },
       ],

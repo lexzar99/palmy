@@ -121,21 +121,43 @@ export default function DealsPage() {
   };
 
   const createCustomerDeal = async (data: any) => {
+    // data.customerIds is an array of IDs, or ["ALL"] meaning everyone
+    const ids: string[] =
+      data.sendToAll ? customers.map((c: any) => c.id) : data.customerIds;
+
+    if (!ids || ids.length === 0) {
+      toastError("Välj minst en kund");
+      return;
+    }
+
     try {
-      await axios.post(`${API_URL}/api/customers/${data.customerId}/deals`, {
-        title: data.title,
-        code: data.code,
-        discountType: data.discountType,
-        discountValue: Number(data.discountValue),
-        maxUsages: Number(data.maxUsages || 1),
-        validUntil: data.validUntil || null,
-      }, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      success("Personlig deal skapad och skickad!");
+      const results = await Promise.allSettled(
+        ids.map((cid) =>
+          axios.post(
+            `${API_URL}/api/customers/${cid}/deals`,
+            {
+              title: data.title,
+              code: data.sendToAll
+                ? `${data.code}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+                : data.code,
+              discountType: data.discountType,
+              discountValue: Number(data.discountValue),
+              maxUsages: Number(data.maxUsages || 1),
+              validUntil: data.validUntil || null,
+            },
+            { headers: { Authorization: `Bearer ${token()}` } }
+          )
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed === 0) {
+        success(`Deal skickad till ${ids.length} kund${ids.length > 1 ? "er" : ""}!`);
+      } else {
+        toastError(`${ids.length - failed} lyckades, ${failed} misslyckades`);
+      }
       setCustomerDealModal(false);
     } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte skapa personal deal");
+      toastError(err.response?.data?.error || "Kunde inte skapa deal");
     }
   };
 
@@ -532,7 +554,7 @@ function DealForm({
   );
 }
 
-// ── Customer Deal Form ────────────────────────────────────────────────────────
+// ── Customer Deal Form — supports 1, multiple, or ALL customers ──────────────
 function CustomerDealForm({
   customers,
   onSave,
@@ -542,8 +564,10 @@ function CustomerDealForm({
   onSave: (data: any) => void;
   onCancel: () => void;
 }) {
+  const [sendToAll, setSendToAll] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [search, setSearch] = useState("");
   const [form, setForm] = useState({
-    customerId: "",
     title: "",
     code: "",
     discountType: "PERCENTAGE",
@@ -558,54 +582,80 @@ function CustomerDealForm({
     setForm({ ...form, code });
   };
 
+  const toggle = (id: string) =>
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+
+  const filteredCusts = customers.filter((c) => {
+    const q = search.toLowerCase();
+    return !q || (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q);
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(form);
+    onSave({ ...form, sendToAll, customerIds: selectedIds });
   };
+
+  const recipientCount = sendToAll ? customers.length : selectedIds.length;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Who gets it */}
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Välj kund</label>
-        <select
-          required
-          value={form.customerId}
-          onChange={(e) => setForm({ ...form, customerId: e.target.value })}
-          className={inputCls}
-        >
-          <option value="">Välj kund...</option>
-          {customers.map((c) => (
-            <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
-          ))}
-        </select>
+        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Mottagare</label>
+        <div className="space-y-2">
+          <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-[var(--bg-primary)] border-[var(--border-subtle)] hover:border-gold-500/20">
+            <input type="checkbox" checked={sendToAll} onChange={(e) => { setSendToAll(e.target.checked); setSelectedIds([]); }}
+              className="w-4 h-4 rounded accent-gold-500" />
+            <div>
+              <p className="text-[10px] font-black uppercase text-[var(--text-primary)]">Alla kunder ({customers.length} st)</p>
+              <p className="text-[8px] font-bold text-[var(--text-secondary)]">Unik kod per kund genereras automatiskt</p>
+            </div>
+          </label>
+
+          {!sendToAll && (
+            <>
+              <div className="relative">
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök kund..."
+                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl pl-3 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30" />
+              </div>
+              <div className="max-h-48 overflow-y-auto space-y-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-2">
+                {filteredCusts.length === 0 ? (
+                  <p className="text-[9px] text-[var(--text-secondary)] text-center py-4">Inga kunder</p>
+                ) : filteredCusts.map((c) => (
+                  <label key={c.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedIds.includes(c.id) ? "bg-gold-500/10" : "hover:bg-[var(--bg-secondary)]"}`}>
+                    <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)}
+                      className="w-4 h-4 rounded accent-gold-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black text-[var(--text-primary)] truncate">{c.name || "Gäst"}</p>
+                      <p className="text-[8px] font-bold text-[var(--text-secondary)]">{c.phone}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {selectedIds.length > 0 && (
+                <p className="text-[9px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
+      {/* Deal details */}
       <div>
         <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Dealnamn</label>
-        <input
-          required
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="t.ex. Välkomstkampanj"
-          className={inputCls}
-        />
+        <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+          placeholder="t.ex. Välkomstkampanj" className={inputCls} />
       </div>
 
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Kod</label>
+        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+          Baskod {sendToAll ? "(prefix — unik suffix läggs till per kund)" : ""}
+        </label>
         <div className="flex gap-2">
-          <input
-            required
-            value={form.code}
-            onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-            placeholder="WELCOME2024"
-            className={`${inputCls} font-mono tracking-widest`}
-          />
-          <button
-            type="button"
-            onClick={generateCode}
-            className="px-4 py-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all whitespace-nowrap"
-          >
+          <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
+            placeholder="WELCOME25" className={`${inputCls} font-mono tracking-widest`} />
+          <button type="button" onClick={generateCode}
+            className="px-4 py-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all whitespace-nowrap">
             Generera
           </button>
         </div>
@@ -614,51 +664,33 @@ function CustomerDealForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Typ</label>
-          <select
-            value={form.discountType}
-            onChange={(e) => setForm({ ...form, discountType: e.target.value })}
-            className={inputCls}
-          >
+          <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value })} className={inputCls}>
             <option value="PERCENTAGE">Procent (%)</option>
             <option value="FIXED">Fast (kr)</option>
           </select>
         </div>
         <div>
           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Värde</label>
-          <input
-            type="number"
-            value={form.discountValue}
-            onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
-            className={inputCls}
-          />
+          <input type="number" value={form.discountValue} onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })} className={inputCls} />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar</label>
-          <input
-            type="number"
-            min={1}
-            value={form.maxUsages}
-            onChange={(e) => setForm({ ...form, maxUsages: Number(e.target.value) })}
-            className={inputCls}
-          />
+          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar / kund</label>
+          <input type="number" min={1} value={form.maxUsages} onChange={(e) => setForm({ ...form, maxUsages: Number(e.target.value) })} className={inputCls} />
         </div>
         <div>
           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
-          <input
-            type="date"
-            value={form.validUntil}
-            onChange={(e) => setForm({ ...form, validUntil: e.target.value })}
-            className={inputCls}
-          />
+          <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className={inputCls} />
         </div>
       </div>
 
       <div className="flex gap-3 pt-2">
-        <button type="button" onClick={onCancel} className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all">
+        <button type="button" onClick={onCancel}
+          className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all">
           Avbryt
         </button>
-        <button type="submit" className="flex-1 py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gold-500/20 transition-all">
-          Skapa &amp; Tilldela
+        <button type="submit" disabled={!sendToAll && selectedIds.length === 0}
+          className="flex-1 py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gold-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+          {recipientCount > 0 ? `Skicka till ${recipientCount} kund${recipientCount > 1 ? "er" : ""}` : "Välj mottagare"}
         </button>
       </div>
     </form>

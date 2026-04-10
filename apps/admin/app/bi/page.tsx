@@ -39,13 +39,16 @@ export default function BIPage() {
   const [error, setError] = useState<string | null>(null);
   const [months, setMonths] = useState(6);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
+  const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchData = async () => {
+    const token = getToken();
+    if (!token) { setError("Inte inloggad"); setLoading(false); return; }
     setLoading(true);
+    setError(null);
     try {
       const res = await axios.get(`${API_URL}/api/admin/reports/bi`, {
-        params: { restaurantId: selectedRestaurantId, months },
+        params: { restaurantId: selectedRestaurantId || undefined, months },
         headers: { Authorization: `Bearer ${token}` }
       });
       setData(res.data);
@@ -58,7 +61,7 @@ export default function BIPage() {
   };
 
   useEffect(() => {
-    if (token) fetchData();
+    fetchData();
   }, [selectedRestaurantId, months]);
 
   const generatePDF = () => {
