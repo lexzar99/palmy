@@ -1651,7 +1651,7 @@ router.get('/discounts', async (_req, res) => {
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    res.json(codes.map((c) => ({
+    res.json(codes.map((c: any) => ({
       id: c.id,
       code: c.code,
       discountType: c.type === 'FIXED' ? 'fixed' : 'percentage',
@@ -1674,18 +1674,20 @@ router.post('/discounts', async (req, res) => {
   try {
     const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
 
+    const discountData: any = {
+      code: code.toUpperCase(),
+      description,
+      type: type || 'PERCENTAGE',
+      value: type === 'FIXED' ? Math.round(value * 100) : value,
+      minOrder: minOrder ? Math.round(minOrder * 100) : 0,
+      maxUsages: maxUsages || null,
+      validFrom: validFrom ? new Date(validFrom) : null,
+      validUntil: validUntil ? new Date(validUntil) : null,
+    };
+    if (restaurantId) discountData.restaurantId = restaurantId;
+
     const discount = await prisma.discountCode.create({
-      data: {
-        code: code.toUpperCase(),
-        description,
-        type: type || 'PERCENTAGE',
-        value: type === 'FIXED' ? Math.round(value * 100) : value,
-        minOrder: minOrder ? Math.round(minOrder * 100) : 0,
-        maxUsages: maxUsages || null,
-        validFrom: validFrom ? new Date(validFrom) : null,
-        validUntil: validUntil ? new Date(validUntil) : null,
-        restaurantId: restaurantId || null,
-      },
+      data: discountData,
     });
     res.status(201).json({
       ...discount,
