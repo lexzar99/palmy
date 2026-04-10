@@ -405,7 +405,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
     }
 
-    const restaurant = await prisma.restaurant.update({
+    let restaurant = await prisma.restaurant.update({
       where: { id },
       data,
     });
@@ -415,7 +415,6 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       try {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
         const adminEmail = restaurant.slug.toLowerCase();
-        
         const adminUser = await prisma.adminUser.upsert({
           where: { email: adminEmail },
           update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
@@ -427,27 +426,63 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
             isActive: true,
           },
         });
-        console.log(`✅ Admin password updated for restaurant "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
+        console.log(`✅ Admin password updated for "${restaurant.name}" (login: ${adminEmail}, id: ${adminUser.id})`);
       } catch (adminErr: any) {
-        console.error(`❌ Failed to update admin password for restaurant "${restaurant.name}":`, adminErr.message);
+        console.error(`❌ Failed to update admin password for "${restaurant.name}":`, adminErr.message);
       }
+    }
+
+    // If opening hours or isOpen was updated, immediately recompute and persist the correct isOpen
+    if (payload.openingHours !== undefined || payload.isOpen !== undefined) {
+      const scheduleOpen = isRestaurantOpen(restaurant.openingHours);
+      // manualIsOpen stays as-is (restaurant.isOpen); effective open = manual && schedule
+      const effectiveOpen = restaurant.isOpen && scheduleOpen;
+
+      // If schedule says closed but DB says open (or vice versa), update DB immediately
+      if (scheduleOpen !== effectiveOpen || payload.openingHours !== undefined) {
+        // Re-persist isOpen to DB based on schedule (keep manualIsOpen field unchanged)
+        // We only force-update if the schedule now says something different from what DB holds
+        if (payload.openingHours !== undefined) {
+          // Always recompute isOpen from new schedule
+          restaurant = await prisma.restaurant.update({
+            where: { id },
+            data: { isOpen: scheduleOpen && restaurant.isOpen },
+          });
         }
+      }
+
+      // Also sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
+      try {
+        await prisma.restaurantSettings.upsert({
+          where: { id: 'settings' },
+          update: { isOpen: restaurant.isOpen && scheduleOpen },
+          create: {
+            id: 'settings',
+            isOpen: restaurant.isOpen && scheduleOpen,
+            deliveryFee: restaurant.deliveryFee ?? 0,
+            minOrderAmount: restaurant.minOrderAmount ?? 0,
+          },
+        });
+      } catch {
+        // Non-critical, continue
+      }
+    }
+
+    const computedIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
+
     getIO().emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
-      isOpen: restaurant.isOpen && isRestaurantOpen(restaurant.openingHours),
+      isOpen: computedIsOpen,
       manualIsOpen: restaurant.isOpen,
       deliveryFee: fromOre(restaurant.deliveryFee),
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,
     });
- 
-    // Immediate status check after schedule change
-    try {
-      const { checkAllRestaurantsStatus } = require('../lib/restaurantStatus');
-      await checkAllRestaurantsStatus();
-    } catch (err: any) {
-      console.error('Status check error:', err);
+
+    // Also emit a global (no slug) event so Hero.tsx and Navbar.tsx update immediately
+    if (payload.openingHours !== undefined || payload.isOpen !== undefined) {
+      getIO().emit('settings:updated', { isOpen: computedIsOpen });
     }
 
     res.json(restaurant);

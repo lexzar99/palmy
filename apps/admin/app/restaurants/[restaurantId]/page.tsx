@@ -10,7 +10,7 @@ import {
   ArrowLeft, Settings, Clock, Utensils, TrendingUp, ShoppingCart,
   ToggleLeft, ToggleRight, Save, Loader2, Crown, Medal, Award, EyeOff,
   Sun, Moon, Coffee, AlertCircle, Package, CreditCard, Star, User,
-  MapPin, Phone, Globe, Image, Lock, FileText, Building,
+  MapPin, Phone, Globe, Lock, FileText, Building, Upload, ImageIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/Toast";
@@ -93,6 +93,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
   const [featuredClass, setFeaturedClass] = useState(3);
   const [isOpen, setIsOpen] = useState(true);
   const [togglingOpen, setTogglingOpen] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState<"imageUrl" | "heroImageUrl" | null>(null);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
@@ -151,6 +152,23 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
   }, [restaurantId, token]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const uploadImage = async (file: File, field: "imageUrl" | "heroImageUrl") => {
+    setUploadingImage(field);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await axios.post(`${API_URL}/api/admin/upload`, formData, {
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "multipart/form-data" },
+      });
+      setProfile((p) => ({ ...p, [field]: res.data.url }));
+      success("Bild uppladdad");
+    } catch {
+      toastError("Kunde inte ladda upp bilden");
+    } finally {
+      setUploadingImage(null);
+    }
+  };
 
   // Generic patch helper - saves to PATCH /api/restaurants/:id (syncs with webapp via socket)
   const patchRestaurant = async (data: any) => {
@@ -340,19 +358,30 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
 
             <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
               <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
-                <Image size={14} className="text-gold-500" /> Bilder
+                <ImageIcon size={14} className="text-gold-500" /> Bilder
               </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Profilbild (URL)">
-                  <input className={inputCls} value={profile.imageUrl} placeholder="https://..." onChange={(e) => setProfile((p) => ({ ...p, imageUrl: e.target.value }))} />
-                </Field>
-                <Field label="Hero-bild (URL)">
-                  <input className={inputCls} value={profile.heroImageUrl} placeholder="https://..." onChange={(e) => setProfile((p) => ({ ...p, heroImageUrl: e.target.value }))} />
-                </Field>
-              </div>
-              {profile.imageUrl && (
-                <img src={profile.imageUrl} alt="" className="w-20 h-20 rounded-xl object-cover border border-[var(--border-subtle)]" />
-              )}
+              {(["imageUrl", "heroImageUrl"] as const).map((field) => (
+                <div key={field}>
+                  <Field label={field === "imageUrl" ? "Profilbild" : "Hero-bild"}>
+                    <div className="flex gap-2">
+                      <input className={inputCls} value={profile[field]} placeholder="https://..."
+                        onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))} />
+                      <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all cursor-pointer shrink-0 ${uploadingImage === field ? "opacity-50" : ""}`}>
+                        {uploadingImage === field
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <Upload size={14} />}
+                        Ladda upp
+                        <input type="file" accept="image/*" className="hidden"
+                          disabled={uploadingImage !== null}
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f, field); e.target.value = ""; }} />
+                      </label>
+                    </div>
+                  </Field>
+                  {profile[field] && (
+                    <img src={profile[field]} alt="" className="mt-2 w-24 h-16 rounded-xl object-cover border border-[var(--border-subtle)] bg-[var(--bg-primary)]" />
+                  )}
+                </div>
+              ))}
             </div>
 
             <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">

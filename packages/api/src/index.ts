@@ -22,6 +22,7 @@ import customerRoutes from './routes/customers';
 import campaignRoutes from './routes/campaigns';
 import deliveryRoutes from './routes/delivery';
 import reportRoutes from './routes/reports';
+import uploadRoutes from './routes/upload';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
@@ -125,6 +126,11 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/reports', reportRoutes);
+app.use('/api/admin/upload', uploadRoutes);
+
+// Serve uploaded images
+import path from 'path';
+app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
 // Health check
 app.get('/health', (_req, res) => {

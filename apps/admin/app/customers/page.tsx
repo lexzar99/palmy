@@ -122,6 +122,12 @@ export default function CustomersPage() {
         data,
         { headers: { Authorization: `Bearer ${token()}` } }
       );
+      fetchCustomerDetails(selectedCustomer.id);
+      success("Erbjudande uppdaterat");
+    } catch {
+      toastError("Kunde inte uppdatera erbjudande");
+    }
+  };
 
   const toggleSelectAll = () => {
     if (selectedIds.length === filtered.length) {
@@ -178,12 +184,6 @@ export default function CustomersPage() {
       toastError("Kunde inte avaktivera kunder");
     } finally {
       setBulkLoading(false);
-    }
-  };
-      fetchCustomerDetails(selectedCustomer.id);
-      success("Erbjudande uppdaterat");
-    } catch {
-      toastError("Kunde inte uppdatera erbjudande");
     }
   };
 

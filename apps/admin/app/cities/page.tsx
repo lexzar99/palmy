@@ -336,7 +336,17 @@ const CitiesPage = () => {
         <div className="space-y-4">
           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-6 space-y-3">
              <div className="px-4 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20 italic">Aktiva Städer</div>
-             {loading ? <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-[var(--text-primary)]/10" /></div> : cities.map(city => (
+             {loading ? (
+               <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-[var(--text-primary)]/30" /></div>
+             ) : cities.length === 0 ? (
+               <div className="p-8 text-center space-y-3">
+                 <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-40">Inga städer skapade</p>
+                 <button onClick={() => setShowAddCityModal(true)}
+                   className="w-full py-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-black uppercase tracking-widest hover:bg-sky-500/20 transition-all">
+                   + Lägg till Lund
+                 </button>
+               </div>
+             ) : cities.map(city => (
                <div key={city.id} className="relative group/item">
                  <button
                    onClick={() => setSelectedCityId(city.id)}
@@ -400,7 +410,7 @@ const CitiesPage = () => {
                         </h2>
                         <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Övergripande regler för staden</p>
                      </div>
-                     <div className="flex items-center gap-3 p-1.5 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl">
+                     <div className="flex items-center gap-3 p-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl">
                         <button 
                           onClick={() => updateCity('isActive', true)}
                           className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive ? "bg-emerald-500 text-white" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}
@@ -426,7 +436,7 @@ const CitiesPage = () => {
                          key={mode.id}
                          onClick={() => updateCity('deliveryMode', mode.id)}
                          className={`p-8 rounded-[2.5rem] border-2 text-left transition-all flex flex-col gap-4 ${
-                           selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] hover:border-[var(--border-strong)]"
+                           selectedCity.deliveryMode === mode.id ? "bg-sky-500/10 border-sky-500/40" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] hover:border-[var(--border-subtle)]"
                          }`}
                        >
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${selectedCity.deliveryMode === mode.id ? "bg-sky-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-primary)]/30"}`}>
@@ -456,7 +466,7 @@ const CitiesPage = () => {
                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Latitude (GPS)</label>
                         <input 
                           type="number" step="any"
-                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
                           value={selectedCity.latitude || ""}
                           onChange={(e) => updateCity('latitude', parseFloat(e.target.value) || null)}
                           placeholder="t.ex. 55.70"
@@ -466,7 +476,7 @@ const CitiesPage = () => {
                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Longitude (GPS)</label>
                         <input 
                           type="number" step="any"
-                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-mono text-sm" 
                           value={selectedCity.longitude || ""}
                           onChange={(e) => updateCity('longitude', parseFloat(e.target.value) || null)}
                           placeholder="t.ex. 13.19"
@@ -476,7 +486,7 @@ const CitiesPage = () => {
                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gratis leverans över (kr)</label>
                         <input 
                           type="number"
-                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold text-sm text-emerald-500" 
+                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-emerald-500/30 font-bold text-sm text-emerald-500" 
                           value={selectedCity.freeDeliveryAbove || 0}
                           onChange={(e) => updateCity('freeDeliveryAbove', parseInt(e.target.value) || 0)}
                           placeholder="0 = ej gratis"
@@ -497,13 +507,19 @@ const CitiesPage = () => {
 
                {/* Linked Restaurants */}
                <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
-                  <div>
-                     <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-                        <Store className="text-gold-500" size={28} />
-                        Kopplade Restauranger
-                     </h2>
-                     <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Vilka restauranger som levererar i {selectedCity.name}</p>
-                  </div>
+                   <div>
+                      <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                         <Store className="text-gold-500" size={28} />
+                         Kopplade Restauranger
+                      </h2>
+                      <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Vilka restauranger som levererar i {selectedCity.name}</p>
+                   </div>
+                   <div className="p-4 rounded-2xl bg-gold-500/5 border border-gold-500/20">
+                     <p className="text-[9px] font-black uppercase tracking-widest text-gold-500 mb-1">Leveranspolicy-hierarki</p>
+                     <p className="text-[9px] text-[var(--text-secondary)] font-bold leading-relaxed">
+                       Restaurangens egna inställningar (leveransavgift, minsta order, ETA) går alltid över stadens globala inställningar. Sätt restaurangens policy i restaurang-hubben.
+                     </p>
+                   </div>
 
                   <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                      {allRestaurants.map(r => {
@@ -516,14 +532,14 @@ const CitiesPage = () => {
                            className={`p-6 rounded-3xl border-2 transition-all flex flex-col gap-4 ${
                              isLinked 
                                ? "bg-gold-500/10 border-gold-500/40" 
-                               : "bg-[var(--border-subtle)] border-transparent hover:border-[var(--border-strong)]"
+                               : "bg-[var(--border-subtle)] border-transparent hover:border-[var(--border-subtle)]"
                            }`}
                          >
                             <div className="flex items-center gap-4">
                               <button
                                 onClick={() => toggleRestaurant(r.id)}
                                 className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all ${
-                                  isLinked ? "bg-gold-500 border-gold-500 text-dark-500" : "bg-[var(--border-subtle)] border-[var(--border-strong)] text-[var(--text-primary)]/20"
+                                  isLinked ? "bg-gold-500 border-gold-500 text-[#0d0d0d]" : "bg-[var(--border-subtle)] border-[var(--border-subtle)] text-[var(--text-primary)]/20"
                                 }`}
                               >
                                 {isLinked ? <Check size={18} /> : <Plus size={18} />}
@@ -585,7 +601,7 @@ const CitiesPage = () => {
                        </div>
                      )}
                      {activeZones.map((zone: DeliveryZone, idx: number) => (
-                       <div key={zone.id} className={`p-8 rounded-[2.5rem] bg-dark-500 border space-y-6 ${editingRestaurantId ? "border-gold-500/30" : "border-[var(--border-strong)]"}`}>
+                       <div key={zone.id} className={`p-8 rounded-[2.5rem] bg-[var(--bg-primary)] border space-y-6 ${editingRestaurantId ? "border-gold-500/30" : "border-[var(--border-subtle)]"}`}>
                           <div className="flex items-center justify-between">
                              <div className="flex items-center gap-3">
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black ${
@@ -697,7 +713,7 @@ const CitiesPage = () => {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[2.5rem] p-10 space-y-8"
+              className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-8"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-center space-y-2">
@@ -716,7 +732,7 @@ const CitiesPage = () => {
                       value={newCityName}
                       onChange={(e) => setNewCityName(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleAddCity()}
-                      className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-sky-500/50 font-bold text-lg" 
+                      className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-sky-500/50 font-bold text-lg" 
                       placeholder="t.ex. Stockholm" 
                     />
                  </div>

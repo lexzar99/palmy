@@ -21,13 +21,25 @@ export async function checkAllRestaurantsStatus() {
           data: { isOpen: shouldBeOpen }
         });
 
-        // Broadcast change
+        // Sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
+        try {
+          await prisma.restaurantSettings.upsert({
+            where: { id: 'settings' },
+            update: { isOpen: shouldBeOpen },
+            create: { id: 'settings', isOpen: shouldBeOpen, deliveryFee: 0, minOrderAmount: 0 },
+          });
+        } catch { /* non-critical */ }
+
+        // Broadcast per-restaurant change
         getIO().emit('settings:updated', {
           restaurantId: updated.id,
           slug: updated.slug,
           isOpen: shouldBeOpen,
           manualIsOpen: shouldBeOpen
         });
+
+        // Broadcast global change (picked up by Hero.tsx / Navbar.tsx)
+        getIO().emit('settings:updated', { isOpen: shouldBeOpen });
         
         // Also notify the admin room specific to this restaurant
         getIO().to(`admin-room:${updated.id}`).emit('status:auto-updated', {

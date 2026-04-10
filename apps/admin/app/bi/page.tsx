@@ -124,8 +124,8 @@ export default function BIPage() {
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
         <div className="text-6xl mb-4">📈</div>
         <h2 className="text-2xl font-black uppercase tracking-tight">Kunde inte ladda BI</h2>
-        <p className="text-text-secondary max-w-md">{error || "Ingen data tillgänglig just nu."}</p>
-        <button onClick={fetchData} className="mt-6 px-10 py-4 bg-gold-500 text-dark-500 font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-gold-500/20 active:scale-95 transition-transform">Försök igen</button>
+        <p className="text-[var(--text-secondary)] max-w-md">{error || "Ingen data tillgänglig just nu."}</p>
+        <button onClick={fetchData} className="mt-6 px-10 py-4 bg-gold-500 text-[#0d0d0d] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-gold-500/20 active:scale-95 transition-transform">Försök igen</button>
       </div>
     );
   }
@@ -144,14 +144,14 @@ export default function BIPage() {
             </div>
             <h1 className="text-4xl font-black uppercase italic tracking-tighter">Business <span className="text-gold-500">Intelligence</span></h1>
           </div>
-          <p className="text-text-secondary text-sm font-medium uppercase tracking-widest">Maximera din tillväxt med datadrivna beslut.</p>
+          <p className="text-[var(--text-secondary)] text-sm font-medium uppercase tracking-widest">Maximera din tillväxt med datadrivna beslut.</p>
         </div>
 
         <div className="flex items-center gap-3">
             <select 
               value={months} 
               onChange={(e) => setMonths(Number(e.target.value))}
-              className="bg-bg-secondary border border-border-subtle text-text-primary text-[10px] font-black uppercase tracking-widest px-6 py-4 rounded-2xl outline-none focus:border-gold-500/40 transition-all cursor-pointer"
+              className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-[10px] font-black uppercase tracking-widest px-6 py-4 rounded-2xl outline-none focus:border-gold-500/40 transition-all cursor-pointer"
             >
               <option value={3}>3 månader</option>
               <option value={6}>6 månader</option>
@@ -159,7 +159,7 @@ export default function BIPage() {
             </select>
             <button 
               onClick={generatePDF}
-              className="flex items-center gap-2 px-8 py-4 bg-white text-dark-500 font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl hover:shadow-2xl active:scale-95 transition-all"
+              className="flex items-center gap-2 px-8 py-4 bg-white text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl hover:shadow-2xl active:scale-95 transition-all"
             >
               <Download size={14} /> Exportera PDF
             </button>
@@ -203,7 +203,7 @@ export default function BIPage() {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="lg:col-span-2 bg-bg-secondary border border-border-subtle rounded-[3rem] p-10 shadow-sm relative overflow-hidden"
+          className="lg:col-span-2 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[3rem] p-10 shadow-sm relative overflow-hidden"
         >
           <div className="flex items-center justify-between mb-12">
             <h3 className="text-xl font-black uppercase italic flex items-center gap-3">
@@ -242,8 +242,8 @@ export default function BIPage() {
                      if (active && payload && payload.length) {
                        return (
                          <div className="bg-white p-4 rounded-2xl shadow-2xl border-none outline-none">
-                           <p className="text-[10px] font-black uppercase text-dark-500/40 mb-1">{payload[0].payload.month}</p>
-                           <p className="text-lg font-black text-dark-500">{payload[0].value?.toLocaleString()} kr</p>
+                           <p className="text-[10px] font-black uppercase text-[#0d0d0d]/40 mb-1">{payload[0].payload.month}</p>
+                           <p className="text-lg font-black text-[#0d0d0d]">{payload[0].value?.toLocaleString()} kr</p>
                            <p className="text-[10px] font-bold text-gold-600 uppercase">{payload[0].payload.orders} ordrar</p>
                          </div>
                        );
@@ -269,7 +269,7 @@ export default function BIPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-bg-secondary border border-border-subtle rounded-[3rem] p-10 flex flex-col"
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[3rem] p-10 flex flex-col"
         >
           <h3 className="text-xl font-black uppercase italic flex items-center gap-3 mb-10">
             <Trophy size={24} className="text-gold-500" />
@@ -278,7 +278,7 @@ export default function BIPage() {
           <div className="space-y-6 flex-1">
             <div className="p-6 rounded-3xl bg-gold-500/5 border border-gold-500/10 space-y-2">
               <div className="text-[10px] font-black uppercase tracking-widest text-gold-500">Mest lönsam månad</div>
-              <div className="text-2xl font-black italic">{data.chartData.reduce((prev: any, current: any) => (prev.revenue > current.revenue) ? prev : current).month}</div>
+              <div className="text-2xl font-black italic">{data.chartData.length > 0 ? data.chartData.reduce((prev: any, current: any) => (prev.revenue > current.revenue) ? prev : current).month : "—"}</div>
             </div>
             <div className="p-6 rounded-3xl bg-blue-500/5 border border-blue-500/10 space-y-2">
               <div className="text-[10px] font-black uppercase tracking-widest text-blue-400">Total tillväxt (Period)</div>
@@ -303,7 +303,7 @@ export default function BIPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-bg-secondary border border-border-subtle rounded-[3rem] p-10"
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[3rem] p-10"
         >
           <h3 className="text-xl font-black uppercase italic flex items-center gap-3 mb-8">
             <Activity size={24} className="text-gold-500" />
@@ -312,16 +312,16 @@ export default function BIPage() {
           <div className="space-y-4">
             {data.topProducts.map((p: any, i: number) => (
               <div key={i} className="flex items-center gap-6 p-4 rounded-2xl bg-white/2 hover:bg-white/5 transition-all group border border-transparent hover:border-gold-500/10">
-                <div className="w-12 h-12 rounded-2xl bg-dark-500 flex items-center justify-center font-black text-gold-500/60 transition-colors border border-white/5 text-sm italic group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:rotate-6">
+                <div className="w-12 h-12 rounded-2xl bg-[#0d0d0d] flex items-center justify-center font-black text-gold-500/60 transition-colors border border-white/5 text-sm italic group-hover:bg-gold-500 group-hover:text-[#0d0d0d] group-hover:rotate-6">
                   {i+1}
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-black uppercase tracking-tight text-white mb-0.5">{p.name}</div>
-                  <div className="text-[10px] text-text-secondary font-black uppercase tracking-widest">{p.count} sålda</div>
+                  <div className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-widest">{p.count} sålda</div>
                 </div>
                 <div className="text-right">
                    <div className="text-lg font-black text-gold-500 italic">{p.revenue.toLocaleString()} kr</div>
-                   <div className="text-[8px] text-text-secondary font-black uppercase tracking-[0.2em]">{Math.round((p.revenue / data.summary.currentMonthRevenue) * 100)}% av omsättning</div>
+                   <div className="text-[8px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em]">{Math.round((p.revenue / data.summary.currentMonthRevenue) * 100)}% av omsättning</div>
                 </div>
               </div>
             ))}
@@ -333,7 +333,7 @@ export default function BIPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="bg-bg-secondary border border-border-subtle rounded-[3rem] p-10 flex flex-col"
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[3rem] p-10 flex flex-col"
         >
           <div className="flex items-center justify-between mb-10">
             <h3 className="text-xl font-black uppercase italic flex items-center gap-3">
@@ -367,7 +367,7 @@ export default function BIPage() {
                {data.topProducts.slice(0, 4).map((p: any, i: number) => (
                  <div key={i} className="flex items-center gap-3">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
-                    <span className="text-[10px] font-black uppercase tracking-tight text-text-secondary truncate">{p.name}</span>
+                    <span className="text-[10px] font-black uppercase tracking-tight text-[var(--text-secondary)] truncate">{p.name}</span>
                  </div>
                ))}
             </div>
@@ -376,7 +376,7 @@ export default function BIPage() {
       </div>
 
       {/* Comparison Tool Section */}
-      <div className="bg-gradient-to-br from-gold-500 to-amber-600 rounded-[3rem] p-12 text-dark-500 relative overflow-hidden group">
+      <div className="bg-gradient-to-br from-gold-500 to-amber-600 rounded-[3rem] p-12 text-[#0d0d0d] relative overflow-hidden group">
          <div className="absolute top-0 right-0 p-10 opacity-10 group-hover:scale-110 transition-transform duration-700">
             <Trophy size={200} strokeWidth={1} />
          </div>
@@ -386,8 +386,8 @@ export default function BIPage() {
               Dina data visar en stark {revenueChange > 0 ? "positiv" : "stabil"} trend. Använd insikterna ovan för att optimera din meny och nå ut till fler kunder genom kampanjer.
             </p>
             <div className="flex flex-wrap gap-4">
-               <button className="px-8 py-4 bg-dark-500 text-white font-black uppercase tracking-widest text-[11px] rounded-2xl shadow-2xl hover:bg-black transition-all">Starta Kampanj</button>
-               <button className="px-8 py-4 border-2 border-dark-500 font-black uppercase tracking-widest text-[11px] rounded-2xl hover:bg-dark-500 hover:text-white transition-all">Visa Detaljerad Rapport</button>
+               <button className="px-8 py-4 bg-[#0d0d0d] text-white font-black uppercase tracking-widest text-[11px] rounded-2xl shadow-2xl hover:bg-black transition-all">Starta Kampanj</button>
+               <button className="px-8 py-4 border-2 border-dark-500 font-black uppercase tracking-widest text-[11px] rounded-2xl hover:bg-[#0d0d0d] hover:text-white transition-all">Visa Detaljerad Rapport</button>
             </div>
          </div>
       </div>
@@ -399,7 +399,7 @@ function BIStatCard({ title, value, icon: Icon, trend, sub, color = "gold" }: an
   return (
     <motion.div 
       whileHover={{ y: -5 }}
-      className="bg-bg-secondary border border-border-subtle rounded-[2.5rem] p-8 shadow-sm transition-all hover:border-gold-500/20"
+      className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 shadow-sm transition-all hover:border-gold-500/20"
     >
       <div className="flex justify-between items-start mb-6">
         <div className={`w-14 h-14 rounded-2xl bg-${color}-500/10 flex items-center justify-center text-${color}-500 border border-${color}-500/20`}>
@@ -413,9 +413,9 @@ function BIStatCard({ title, value, icon: Icon, trend, sub, color = "gold" }: an
         )}
       </div>
       <div>
-        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-text-secondary mb-2">{title}</p>
-        <h3 className="text-3xl font-black italic tracking-tighter text-text-primary">{value}</h3>
-        {sub && <p className="text-[10px] text-text-secondary/40 mt-3 font-bold uppercase tracking-widest leading-relaxed">{sub}</p>}
+        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] mb-2">{title}</p>
+        <h3 className="text-3xl font-black italic tracking-tighter text-[var(--text-primary)]">{value}</h3>
+        {sub && <p className="text-[10px] text-[var(--text-secondary)]/40 mt-3 font-bold uppercase tracking-widest leading-relaxed">{sub}</p>}
       </div>
     </motion.div>
   );
