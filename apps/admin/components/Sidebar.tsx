@@ -32,6 +32,7 @@ import {
   ChevronDown,
   RefreshCw,
   Printer,
+  Calculator,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -219,10 +220,11 @@ const Sidebar = () => {
       ],
     },
     {
-      label: "Analytics",
+      label: "Analytics & Fakturering",
       links: [
         { href: "/bi", label: "Business Intel.", icon: BarChart3 },
         { href: "/analytics", label: "Analys", icon: Globe },
+        { href: "/billing", label: "Fakturering & Prov.", icon: Calculator },
       ],
     },
     {

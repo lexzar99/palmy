@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/Toast";
 import Link from "next/link";
 
-type Tab = "profil" | "admin" | "hours" | "settings" | "orders";
+type Tab = "profil" | "admin" | "hours" | "settings" | "orders" | "report";
 
 const DAYS = [
   { key: "monday", label: "Måndag" },
@@ -48,6 +48,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "hours", label: "Öppettider", icon: Clock },
   { id: "settings", label: "Leverans & ETA", icon: Settings },
   { id: "orders", label: "Ordrar", icon: ShoppingCart },
+  { id: "report", label: "Rapport / PDF", icon: TrendingUp },
 ];
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -129,7 +130,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
         setDeliveryForm({
           deliveryFee: r.deliveryFee ?? 0,
           minOrderAmount: r.minOrderAmount ?? 0,
-          etaMinutes: r.etaMinutes ?? 30,
+          etaMinutes: r.baseEtaMinutes ?? r.etaMinutes ?? 30, // use raw stored value
         });
 
         const hours = r.openingHours || {};
@@ -655,7 +656,163 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
           </motion.div>
         )}
 
+        {/* ── RAPPORT / PDF ── */}
+        {tab === "report" && (
+          <ReportTab restaurantId={restaurantId} token={token} restaurantName={restaurant?.name} />
+        )}
+
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── Per-restaurant report tab ─────────────────────────────────────────────────
+function ReportTab({ restaurantId, token, restaurantName }: { restaurantId: string; token: string; restaurantName?: string }) {
+  const { error: toastError, success } = useToast();
+  const [from, setFrom] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); });
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const fetchReport = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/admin/reports/restaurant/${restaurantId}`, {
+        params: { from, to },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setData(res.data);
+    } catch {
+      toastError("Kunde inte hämta rapport");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchReport(); }, []);
+
+  const kr = (n: number) => `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
+
+  const exportTxt = () => {
+    if (!data) return;
+    const lines = [
+      `RAPPORT: ${restaurantName}`,
+      `Period: ${from} – ${to}`,
+      `Genererad: ${new Date().toLocaleString("sv-SE")}`,
+      ``,
+      `SAMMANFATTNING`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      `Totala ordrar:       ${data.summary.totalOrders}`,
+      `Total omsättning:    ${kr(data.summary.totalRevenue)}`,
+      `Snitt-order:         ${kr(data.summary.avgOrderValue)}`,
+      `Nya kunder:          ${data.summary.newCustomers}`,
+      `Leveransordrar:      ${data.summary.deliveryOrders}`,
+      `Avhämtningsordrar:   ${data.summary.pickupOrders}`,
+      ``,
+      `TOPPSÄLJARE (Topp 10)`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      ...(data.topProducts || []).map((p: any, i: number) => `${i + 1}. ${p.name.padEnd(30)} ${p.count}st   ${kr(p.revenue)}`),
+      ``,
+      `DAGSDATA`,
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+      ...(data.dailyData || []).map((d: any) => `${d.date}   ${d.orders} ordrar   ${kr(d.revenue)}`),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `rapport_${restaurantId}_${from}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    success("Rapport exporterad");
+  };
+
+  return (
+    <motion.div key="report" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
+      {/* Period selector */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Period:</label>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
+        <span className="text-[var(--text-secondary)] text-xs">–</span>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
+        <button onClick={fetchReport} disabled={loading}
+          className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+          {loading ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
+          Hämta rapport
+        </button>
+        {data && (
+          <button onClick={exportTxt}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
+            <TrendingUp size={13} /> Exportera .txt
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <div className="flex items-center justify-center py-16 gap-3">
+          <Loader2 className="animate-spin text-gold-500" size={24} />
+        </div>
+      )}
+
+      {data && !loading && (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+            {[
+              { label: "Ordrar", value: data.summary.totalOrders, color: "text-blue-400" },
+              { label: "Omsättning", value: `${Math.round(data.summary.totalRevenue)} kr`, color: "text-gold-500" },
+              { label: "Snitt-order", value: `${Math.round(data.summary.avgOrderValue)} kr`, color: "text-[var(--text-secondary)]" },
+              { label: "Nya kunder", value: data.summary.newCustomers, color: "text-purple-400" },
+              { label: "Leverans", value: data.summary.deliveryOrders, color: "text-sky-400" },
+              { label: "Avhämtning", value: data.summary.pickupOrders, color: "text-sky-400" },
+            ].map((s) => (
+              <div key={s.label} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</p>
+                <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top products */}
+          {data.topProducts?.length > 0 && (
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4">Toppsäljare</h3>
+              <div className="space-y-2">
+                {data.topProducts.map((p: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-gold-500/10 text-gold-500 text-[8px] font-black flex items-center justify-center">{i + 1}</span>
+                      <span className="text-[10px] font-bold text-[var(--text-primary)]">{p.name}</span>
+                    </div>
+                    <div className="flex items-center gap-4 text-right">
+                      <span className="text-[9px] font-black text-gold-500">{Math.round(p.revenue)} kr</span>
+                      <span className="text-[9px] text-[var(--text-secondary)]">{p.count} st</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Daily data */}
+          {data.dailyData?.length > 0 && (
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4">Per dag</h3>
+              <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                {data.dailyData.map((d: any) => (
+                  <div key={d.date} className="flex items-center justify-between text-[10px] px-2 py-1">
+                    <span className="font-bold text-[var(--text-secondary)]">{d.date}</span>
+                    <span className="text-[var(--text-primary)]">{d.orders} ordrar</span>
+                    <span className="font-black text-gold-500">{Math.round(d.revenue)} kr</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </motion.div>
   );
 }

@@ -200,4 +200,133 @@ router.get('/customers', async (req, res) => {
   }
 });
 
+// GET /api/admin/reports/restaurant/:id - Per-restaurant detailed report + commission calc
+router.get('/restaurant/:restaurantId', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super-admin' });
+    }
+
+    const { restaurantId } = req.params;
+    const { from, to } = req.query;
+
+    const startDate = from ? new Date(from as string) : (() => {
+      const d = new Date(); d.setDate(d.getDate() - 30); return d;
+    })();
+    const endDate = to ? new Date(to as string) : new Date();
+    // Make endDate inclusive (end of day)
+    endDate.setHours(23, 59, 59, 999);
+
+    const whereBase = {
+      restaurantId,
+      status: { notIn: ['CANCELLED', 'REJECTED'] as any },
+      createdAt: { gte: startDate, lte: endDate },
+      ...excludeTestOrders,
+    };
+
+    const [restaurant, orders, newCustomers, topProducts, ordersByDay] = await Promise.all([
+      prisma.restaurant.findUnique({ where: { id: restaurantId } }),
+
+      prisma.order.findMany({
+        where: whereBase,
+        select: {
+          id: true, orderNumber: true, total: true, deliveryFee: true,
+          discountAmount: true, status: true, createdAt: true,
+          customerName: true, userId: true, type: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: {
+          restaurantId,
+          status: { notIn: ['CANCELLED', 'REJECTED'] as any },
+          createdAt: { lte: endDate },
+          ...excludeTestOrders,
+        },
+        having: {
+          userId: { _count: { equals: 1 } },
+        },
+        _count: { id: true },
+      }).then((rows) =>
+        rows.filter((r) => r.userId !== null).length
+      ),
+
+      prisma.orderItem.groupBy({
+        by: ['productName'],
+        where: {
+          order: { ...whereBase },
+        },
+        _count: { id: true },
+        _sum: { subtotal: true },
+        orderBy: { _count: { id: 'desc' } },
+        take: 10,
+      }),
+
+      prisma.order.groupBy({
+        by: ['createdAt'],
+        where: whereBase,
+        _sum: { total: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
+
+    const totalRevenue = orders.reduce((s, o) => s + o.total, 0) / 100;
+    const totalOrders = orders.length;
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const pickupOrders = orders.filter((o) => o.type === 'PICKUP').length;
+    const deliveryOrders = orders.filter((o) => o.type === 'DELIVERY').length;
+
+    // Daily revenue aggregation
+    const dailyMap: Record<string, { revenue: number; orders: number }> = {};
+    ordersByDay.forEach((row) => {
+      const dayKey = row.createdAt.toISOString().slice(0, 10);
+      if (!dailyMap[dayKey]) dailyMap[dayKey] = { revenue: 0, orders: 0 };
+      dailyMap[dayKey].revenue += (row._sum.total || 0) / 100;
+      dailyMap[dayKey].orders += row._count.id;
+    });
+    const dailyData = Object.entries(dailyMap)
+      .map(([date, d]) => ({ date, ...d }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    res.json({
+      restaurant: {
+        id: restaurant.id,
+        name: restaurant.name,
+        slug: restaurant.slug,
+        featuredClass: restaurant.featuredClass,
+      },
+      period: { from: startDate.toISOString(), to: endDate.toISOString() },
+      summary: {
+        totalOrders,
+        totalRevenue,
+        avgOrderValue,
+        pickupOrders,
+        deliveryOrders,
+        newCustomers,
+      },
+      topProducts: topProducts.map((p) => ({
+        name: p.productName,
+        count: p._count.id,
+        revenue: (p._sum.subtotal || 0) / 100,
+      })),
+      dailyData,
+      orders: orders.map((o) => ({
+        ...o,
+        total: o.total / 100,
+        deliveryFee: o.deliveryFee / 100,
+        discountAmount: o.discountAmount / 100,
+      })),
+    });
+  } catch (error) {
+    console.error('Restaurant report error:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 export default router;

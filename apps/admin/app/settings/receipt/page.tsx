@@ -1,283 +1,367 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import axios from "axios";
-import {
-  Printer, Save, MessageSquare, AlignLeft, AlignCenter, AlignRight,
-  Type, Ruler, Eye, EyeOff, Store, Phone, MapPin, Loader2,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Printer, Save, GripVertical, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
-import { API_URL } from "@/lib/api";
 
-interface ReceiptSettings {
-  width: "58mm" | "80mm" | "A4";
-  headerMessage: string;
-  footerMessage: string;
-  showLogo: boolean;
-  showAddress: boolean;
-  showPhone: boolean;
-  showOrderNumber: boolean;
-  showTimestamp: boolean;
-  showExtras: boolean;
-  textAlign: "left" | "center" | "right";
-  fontSize: "small" | "medium" | "large";
-  restaurantName: string;
-  thankYouMessage: string;
+// ── Types ─────────────────────────────────────────────────────────────────────
+type Align = "left" | "center" | "right";
+type Weight = "normal" | "bold" | "black";
+type Size = 7 | 8 | 9 | 10 | 11 | 12 | 14 | 16 | 18;
+
+interface ReceiptElement {
+  key: string;
+  label: string;          // Admin label
+  content?: string;       // Editable text (for header/footer)
+  visible: boolean;
+  size: Size;
+  weight: Weight;
+  align: Align;
+  uppercase?: boolean;
 }
 
-const DEFAULTS: ReceiptSettings = {
-  width: "80mm",
-  headerMessage: "",
-  footerMessage: "Tack för beställningen! Välkommen åter.",
-  showLogo: true,
-  showAddress: true,
-  showPhone: true,
-  showOrderNumber: true,
-  showTimestamp: true,
-  showExtras: true,
-  textAlign: "center",
-  fontSize: "medium",
-  restaurantName: "MatGo",
-  thankYouMessage: "Tack för din beställning!",
-};
+interface ReceiptSettings {
+  paperWidth: "58mm" | "80mm" | "A4";
+  platformName: string;   // "MatGo" shown below restaurant name
+  elements: ReceiptElement[];
+}
 
-const LS_KEY = "matgo_receipt_settings";
-
-const WIDTHS = [
-  { id: "58mm", label: "58mm", desc: "Smal (äldre skrivare)" },
-  { id: "80mm", label: "80mm", desc: "Standard (vanligast)" },
-  { id: "A4", label: "A4", desc: "Utskrift / PDF" },
+const DEFAULT_ELEMENTS: ReceiptElement[] = [
+  { key: "restaurantName", label: "Restaurangnamn", visible: true, size: 14, weight: "black", align: "center", uppercase: true },
+  { key: "platformName",   label: "Plattformsnamn (MatGo)", visible: true, size: 8, weight: "normal", align: "center", uppercase: true },
+  { key: "address",        label: "Adress", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "phone",          label: "Telefon", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "divider1",       label: "Avdelare (efter info)", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "headerMsg",      label: "Sidhuvud", content: "", visible: true, size: 9, weight: "bold", align: "center" },
+  { key: "divider2",       label: "Avdelare (efter sidhuvud)", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "orderNumber",    label: "Ordernummer", visible: true, size: 10, weight: "bold", align: "left" },
+  { key: "timestamp",      label: "Datum & tid", visible: true, size: 8, weight: "normal", align: "left" },
+  { key: "orderType",      label: "Typ (Leverans/Avhämtning)", visible: true, size: 9, weight: "bold", align: "left" },
+  { key: "divider3",       label: "Avdelare (före produkter)", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "items",          label: "Produktrader", visible: true, size: 10, weight: "bold", align: "left" },
+  { key: "extras",         label: "Tillbehör", visible: true, size: 8, weight: "normal", align: "left" },
+  { key: "divider4",       label: "Avdelare (före summa)", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "deliveryFee",    label: "Leveransavgift", visible: true, size: 9, weight: "normal", align: "left" },
+  { key: "discount",       label: "Rabatt/Kod", visible: true, size: 9, weight: "normal", align: "left" },
+  { key: "total",          label: "Totalt", visible: true, size: 12, weight: "black", align: "left" },
+  { key: "divider5",       label: "Avdelare (efter summa)", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "thankYou",       label: "Tack-meddelande", content: "Tack för din beställning!", visible: true, size: 9, weight: "bold", align: "center" },
+  { key: "footerMsg",      label: "Sidfot", content: "Välkommen åter!", visible: true, size: 8, weight: "normal", align: "center" },
 ];
 
-const inputCls = "w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all";
+const DEFAULTS: ReceiptSettings = {
+  paperWidth: "80mm",
+  platformName: "MatGo",
+  elements: DEFAULT_ELEMENTS,
+};
 
-const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-  <label className="flex items-center justify-between cursor-pointer py-2">
-    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{label}</span>
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      className={`relative w-10 h-5 rounded-full transition-colors ${checked ? "bg-gold-500" : "bg-[var(--border-subtle)]"}`}
-    >
-      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${checked ? "right-0.5" : "left-0.5"}`} />
-    </button>
-  </label>
-);
+const LS_KEY = "matgo_receipt_v2";
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const SIZES: Size[] = [7, 8, 9, 10, 11, 12, 14, 16, 18];
+const WEIGHTS: { id: Weight; label: string }[] = [
+  { id: "normal", label: "Normal" },
+  { id: "bold", label: "Bold" },
+  { id: "black", label: "Black" },
+];
+const ALIGNS: { id: Align; label: string }[] = [
+  { id: "left", label: "L" },
+  { id: "center", label: "C" },
+  { id: "right", label: "R" },
+];
+
+const weightClass = (w: Weight) =>
+  w === "black" ? "font-black" : w === "bold" ? "font-bold" : "font-normal";
+const alignClass = (a: Align) =>
+  a === "center" ? "text-center" : a === "right" ? "text-right" : "text-left";
+
+const isDivider = (key: string) => key.startsWith("divider");
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function ReceiptSettingsPage() {
   const { success } = useToast();
-  const [settings, setSettings] = useState<ReceiptSettings>(DEFAULTS);
+  const [s, setS] = useState<ReceiptSettings>(DEFAULTS);
   const [saving, setSaving] = useState(false);
+  const [selectedKey, setSelectedKey] = useState<string | null>("restaurantName");
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(LS_KEY);
-      if (stored) setSettings({ ...DEFAULTS, ...JSON.parse(stored) });
+      const raw = localStorage.getItem(LS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ReceiptSettings;
+        // Merge: keep any new default elements not yet in stored settings
+        const stored = new Map(parsed.elements.map((e) => [e.key, e]));
+        const merged = DEFAULT_ELEMENTS.map((def) => stored.get(def.key) ?? def);
+        setS({ ...DEFAULTS, ...parsed, elements: merged });
+      }
     } catch { /* ignore */ }
   }, []);
 
-  const update = <K extends keyof ReceiptSettings>(key: K, value: ReceiptSettings[K]) => {
-    setSettings((p) => ({ ...p, [key]: value }));
-  };
+  const updateElement = useCallback(<K extends keyof ReceiptElement>(key: string, field: K, value: ReceiptElement[K]) => {
+    setS((prev) => ({
+      ...prev,
+      elements: prev.elements.map((e) => (e.key === key ? { ...e, [field]: value } : e)),
+    }));
+  }, []);
+
+  const selected = s.elements.find((e) => e.key === selectedKey);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(settings));
-      const token = localStorage.getItem("matgo_token") || "";
-      // Also persist header/footer to global settings API if possible
-      await axios.patch(`${API_URL}/api/settings`, {
-        receiptHeader: settings.headerMessage,
-        receiptFooter: settings.footerMessage,
-      }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      localStorage.setItem(LS_KEY, JSON.stringify(s));
       success("Kvittolayout sparad");
     } finally {
       setSaving(false);
     }
   };
 
-  const previewWidthPx = settings.width === "58mm" ? 200 : settings.width === "A4" ? 360 : 280;
-  const previewFont = settings.fontSize === "small" ? "text-[9px]" : settings.fontSize === "large" ? "text-sm" : "text-[11px]";
-  const previewAlign = settings.textAlign === "left" ? "text-left" : settings.textAlign === "right" ? "text-right" : "text-center";
+  // Drag & drop reorder
+  const onDragStart = (i: number) => setDragIndex(i);
+  const onDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === i) return;
+    setS((prev) => {
+      const els = [...prev.elements];
+      const [moved] = els.splice(dragIndex, 1);
+      els.splice(i, 0, moved);
+      setDragIndex(i);
+      return { ...prev, elements: els };
+    });
+  };
+  const onDragEnd = () => setDragIndex(null);
+
+  const previewWidth = s.paperWidth === "58mm" ? 200 : s.paperWidth === "A4" ? 380 : 280;
 
   return (
-    <div className="space-y-5 pb-24 max-w-5xl">
-      <div>
-        <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
-          <Printer size={22} className="text-gold-500" /> Kvittolayout
-        </h1>
-        <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
-          Global inställning för alla restaurangers kvitton
-        </p>
+    <div className="space-y-4 pb-24 max-w-6xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
+            <Printer size={20} className="text-gold-500" /> Kvittolayout
+          </h1>
+          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+            Dra för att ändra ordning · Klicka element för att redigera stil
+          </p>
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          Spara
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* Settings */}
-        <div className="space-y-4">
-          {/* Paper width */}
-          <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4 flex items-center gap-2">
-              <Ruler size={14} className="text-gold-500" /> Pappersbredd
-            </h2>
-            <div className="grid grid-cols-3 gap-2">
-              {WIDTHS.map((w) => (
-                <button key={w.id} onClick={() => update("width", w.id as ReceiptSettings["width"])}
-                  className={`p-3 rounded-xl border text-center transition-all ${settings.width === w.id ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-gold-500/20"}`}>
-                  <p className="text-sm font-black">{w.label}</p>
-                  <p className="text-[8px] font-bold mt-0.5 opacity-60">{w.desc}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Text */}
-          <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4 flex items-center gap-2">
-              <MessageSquare size={14} className="text-gold-500" /> Text
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Restaurangnamn på kvittot</label>
-                <input className={inputCls} value={settings.restaurantName} onChange={(e) => update("restaurantName", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Sidhuvud (visas högst upp)</label>
-                <textarea className={`${inputCls} resize-none h-16`} value={settings.headerMessage}
-                  placeholder="T.ex: Välkommen!" onChange={(e) => update("headerMessage", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Tackmeddelande</label>
-                <input className={inputCls} value={settings.thankYouMessage} onChange={(e) => update("thankYouMessage", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Sidfot (visas längst ner)</label>
-                <textarea className={`${inputCls} resize-none h-16`} value={settings.footerMessage}
-                  placeholder="T.ex: Tack för beställningen!" onChange={(e) => update("footerMessage", e.target.value)} />
-              </div>
-            </div>
-          </div>
-
-          {/* Typography */}
-          <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-4 flex items-center gap-2">
-              <Type size={14} className="text-gold-500" /> Typografi & Justering
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Textstorlek</label>
-                <div className="flex gap-2">
-                  {(["small", "medium", "large"] as const).map((s) => (
-                    <button key={s} onClick={() => update("fontSize", s)}
-                      className={`flex-1 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${settings.fontSize === s ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
-                      {s === "small" ? "Liten" : s === "large" ? "Stor" : "Medium"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Textjustering</label>
-                <div className="flex gap-2">
-                  {([{ id: "left", icon: AlignLeft }, { id: "center", icon: AlignCenter }, { id: "right", icon: AlignRight }] as const).map(({ id, icon: Icon }) => (
-                    <button key={id} onClick={() => update("textAlign", id as ReceiptSettings["textAlign"])}
-                      className={`flex-1 py-2 rounded-xl border flex items-center justify-center transition-all ${settings.textAlign === id ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
-                      <Icon size={14} />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Show/hide sections */}
-          <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] mb-3 flex items-center gap-2">
-              <Eye size={14} className="text-gold-500" /> Visa / Dölj sektioner
-            </h2>
-            <div className="divide-y divide-[var(--border-subtle)]">
-              <Toggle label="Visa logotyp" checked={settings.showLogo} onChange={(v) => update("showLogo", v)} />
-              <Toggle label="Visa adress" checked={settings.showAddress} onChange={(v) => update("showAddress", v)} />
-              <Toggle label="Visa telefon" checked={settings.showPhone} onChange={(v) => update("showPhone", v)} />
-              <Toggle label="Visa ordernummer" checked={settings.showOrderNumber} onChange={(v) => update("showOrderNumber", v)} />
-              <Toggle label="Visa tidstämpel" checked={settings.showTimestamp} onChange={(v) => update("showTimestamp", v)} />
-              <Toggle label="Visa tillbehör (extras)" checked={settings.showExtras} onChange={(v) => update("showExtras", v)} />
-            </div>
-          </div>
-
-          <button onClick={handleSave} disabled={saving}
-            className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all flex items-center justify-center gap-2">
-            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-            Spara kvittolayout
+      {/* Paper width */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Pappersbredd:</span>
+        {(["58mm", "80mm", "A4"] as const).map((w) => (
+          <button key={w} onClick={() => setS((p) => ({ ...p, paperWidth: w }))}
+            className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${s.paperWidth === w ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
+            {w}
           </button>
+        ))}
+        <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] ml-4">Plattformsnamn:</span>
+        <input value={s.platformName} onChange={(e) => setS((p) => ({ ...p, platformName: e.target.value }))}
+          className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-gold-500/30 w-28" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr,280px] gap-4">
+
+        {/* Element list (draggable) */}
+        <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Ordning & synlighet</p>
+          <div className="space-y-1">
+            {s.elements.map((el, i) => (
+              <div
+                key={el.key}
+                draggable
+                onDragStart={() => onDragStart(i)}
+                onDragOver={(e) => onDragOver(e, i)}
+                onDragEnd={onDragEnd}
+                onClick={() => setSelectedKey(el.key)}
+                className={`flex items-center gap-2 p-2.5 rounded-xl cursor-pointer transition-all ${
+                  selectedKey === el.key ? "bg-gold-500/10 border border-gold-500/20" : "hover:bg-[var(--bg-primary)] border border-transparent"
+                } ${dragIndex === i ? "opacity-50" : ""}`}
+              >
+                <GripVertical size={12} className="text-[var(--text-secondary)] opacity-30 shrink-0 cursor-grab" />
+                <span className="flex-1 text-[10px] font-bold text-[var(--text-primary)] truncate">
+                  {isDivider(el.key) ? <span className="opacity-30">━━━━━━━</span> : el.label}
+                </span>
+                <button onClick={(e) => { e.stopPropagation(); updateElement(el.key, "visible", !el.visible); }}
+                  className={`shrink-0 ${el.visible ? "text-emerald-400" : "text-[var(--text-secondary)] opacity-30"}`}>
+                  {el.visible ? <Eye size={12} /> : <EyeOff size={12} />}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Live Preview */}
-        <div className="sticky top-5">
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3 flex items-center gap-2">
-            <Eye size={12} /> Live-förhandsgranskning
-          </p>
-          <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-6 flex justify-center">
-            <div
-              className={`bg-white rounded-xl shadow-2xl p-5 font-mono ${previewFont} ${previewAlign} text-black`}
-              style={{ width: previewWidthPx, minHeight: 320 }}
-            >
-              {/* Header */}
-              {settings.showLogo && (
-                <div className={`mb-3 ${settings.textAlign === "center" ? "flex flex-col items-center" : ""}`}>
-                  <div className="w-10 h-10 bg-black text-white rounded-full flex items-center justify-center font-black text-lg mb-2 mx-auto">
-                    {settings.restaurantName.charAt(0)}
+        {/* Style editor for selected element */}
+        <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+          {!selected ? (
+            <div className="flex items-center justify-center h-full text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+              Klicka ett element till vänster
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">{selected.label}</p>
+
+              {/* Editable content for text elements */}
+              {selected.content !== undefined && !isDivider(selected.key) && (
+                <div>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Text</label>
+                  <input value={selected.content}
+                    onChange={(e) => updateElement(selected.key, "content", e.target.value)}
+                    className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30" />
+                </div>
+              )}
+
+              {!isDivider(selected.key) && (
+                <>
+                  {/* Font size */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Storlek (pt)</label>
+                    <div className="flex flex-wrap gap-1">
+                      {SIZES.map((sz) => (
+                        <button key={sz} onClick={() => updateElement(selected.key, "size", sz)}
+                          className={`w-9 h-8 rounded-lg text-[10px] font-black transition-all ${selected.size === sz ? "bg-gold-500 text-[#0d0d0d]" : "bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
+                          {sz}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <p className="font-black uppercase text-base">{settings.restaurantName}</p>
-                </div>
-              )}
-              {settings.showAddress && (
-                <p className="text-gray-500 text-[8px] mb-0.5">Gatuadress 1, Lund</p>
-              )}
-              {settings.showPhone && (
-                <p className="text-gray-500 text-[8px] mb-2">046-123 456</p>
-              )}
-              {settings.headerMessage && (
-                <p className="text-gray-600 text-[8px] border-t border-dashed border-gray-200 pt-2 mb-2">{settings.headerMessage}</p>
+
+                  {/* Font weight */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Tjocklek</label>
+                    <div className="flex gap-2">
+                      {WEIGHTS.map(({ id, label }) => (
+                        <button key={id} onClick={() => updateElement(selected.key, "weight", id)}
+                          className={`flex-1 py-2 rounded-xl border text-[10px] transition-all ${selected.weight === id ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"} font-${id === "black" ? "black" : id === "bold" ? "bold" : "normal"}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Alignment */}
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Justering</label>
+                    <div className="flex gap-2">
+                      {ALIGNS.map(({ id, label }) => (
+                        <button key={id} onClick={() => updateElement(selected.key, "align", id)}
+                          className={`flex-1 py-2 rounded-xl border text-[10px] font-black transition-all ${selected.align === id ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Uppercase toggle */}
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">VERSALER</span>
+                    <button onClick={() => updateElement(selected.key, "uppercase", !selected.uppercase)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${selected.uppercase ? "bg-gold-500" : "bg-[var(--border-subtle)]"}`}>
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selected.uppercase ? "right-0.5" : "left-0.5"}`} />
+                    </button>
+                  </label>
+                </>
               )}
 
-              <div className="border-t-2 border-dashed border-gray-300 my-2" />
+              {/* Visibility */}
+              <label className="flex items-center gap-3 cursor-pointer">
+                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Synlig</span>
+                <button onClick={() => updateElement(selected.key, "visible", !selected.visible)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${selected.visible ? "bg-emerald-500" : "bg-[var(--border-subtle)]"}`}>
+                  <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selected.visible ? "right-0.5" : "left-0.5"}`} />
+                </button>
+              </label>
+            </div>
+          )}
+        </div>
 
-              {settings.showOrderNumber && (
-                <p className="font-black text-[9px] mb-1">Order #1042</p>
-              )}
-              {settings.showTimestamp && (
-                <p className="text-gray-400 text-[8px] mb-2">2026-04-10 17:34</p>
-              )}
+        {/* Live preview */}
+        <div>
+          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Förhandsgranskning</p>
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-4 flex justify-center overflow-x-auto">
+            <div className="bg-white text-black font-mono p-4 rounded-xl shadow-xl overflow-hidden" style={{ width: previewWidth, minHeight: 400 }}>
+              {s.elements.filter((e) => e.visible).map((el) => {
+                if (isDivider(el.key)) return (
+                  <div key={el.key} className="border-t border-dashed border-gray-300 my-2" />
+                );
 
-              <div className="text-left space-y-1 mb-3">
-                <div className="flex justify-between text-[9px] font-bold">
-                  <span>1x Crispy Tallrik</span>
-                  <span>139 kr</span>
-                </div>
-                {settings.showExtras && (
-                  <div className="text-[7px] text-gray-400 pl-2">Pommes, Vitlökssås</div>
-                )}
-                <div className="flex justify-between text-[9px] font-bold">
-                  <span>1x Kebab Rulle</span>
-                  <span>89 kr</span>
-                </div>
-              </div>
+                const cls = `${weightClass(el.weight)} ${alignClass(el.align)} ${el.uppercase ? "uppercase" : ""}`;
+                const style = { fontSize: el.size };
 
-              <div className="border-t-2 border-dashed border-gray-300 my-2" />
-              <div className="flex justify-between font-black text-[10px] mb-3">
-                <span>Totalt:</span>
-                <span>228 kr</span>
-              </div>
-
-              <div className="border-t-2 border-dashed border-gray-300 my-2" />
-              <p className="text-[9px] font-black">{settings.thankYouMessage}</p>
-              {settings.footerMessage && (
-                <p className="text-gray-400 text-[8px] mt-1">{settings.footerMessage}</p>
-              )}
+                if (el.key === "restaurantName") return (
+                  <p key={el.key} className={cls} style={style}>Palmyra Pizzeria</p>
+                );
+                if (el.key === "platformName") return (
+                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>{s.platformName}</p>
+                );
+                if (el.key === "address") return (
+                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>Västra Mårtensgatan 10, Lund</p>
+                );
+                if (el.key === "phone") return (
+                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>046-120 612</p>
+                );
+                if (el.key === "headerMsg") return el.content
+                  ? <p key={el.key} className={cls} style={style}>{el.content}</p>
+                  : null;
+                if (el.key === "orderNumber") return (
+                  <p key={el.key} className={cls} style={style}>Order #1042</p>
+                );
+                if (el.key === "timestamp") return (
+                  <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>2026-04-10 18:34</p>
+                );
+                if (el.key === "orderType") return (
+                  <p key={el.key} className={cls} style={style}>Leverans</p>
+                );
+                if (el.key === "items") return (
+                  <div key={el.key}>
+                    <div className="flex justify-between" style={style}>
+                      <span className={weightClass(el.weight)}>1× Crispy Tallrik</span>
+                      <span className={weightClass(el.weight)}>139 kr</span>
+                    </div>
+                    <div className="flex justify-between" style={style}>
+                      <span className={weightClass(el.weight)}>1× Kebab Rulle</span>
+                      <span className={weightClass(el.weight)}>89 kr</span>
+                    </div>
+                  </div>
+                );
+                if (el.key === "extras") return (
+                  <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>  Pommes, Vitlökssås</p>
+                );
+                if (el.key === "deliveryFee") return (
+                  <div key={el.key} className="flex justify-between" style={style}>
+                    <span className={cls}>Leverans</span>
+                    <span className={cls}>39 kr</span>
+                  </div>
+                );
+                if (el.key === "discount") return (
+                  <div key={el.key} className="flex justify-between" style={{ ...style, color: "#16a34a" }}>
+                    <span>Rabatt (SUMMER10)</span>
+                    <span>-27 kr</span>
+                  </div>
+                );
+                if (el.key === "total") return (
+                  <div key={el.key} className="flex justify-between" style={style}>
+                    <span className={cls}>TOTALT</span>
+                    <span className={cls}>200 kr</span>
+                  </div>
+                );
+                if (el.key === "thankYou") return (
+                  <p key={el.key} className={cls} style={style}>{el.content || "Tack för din beställning!"}</p>
+                );
+                if (el.key === "footerMsg") return el.content
+                  ? <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>{el.content}</p>
+                  : null;
+                return null;
+              })}
             </div>
           </div>
-          <p className="text-[8px] font-bold text-[var(--text-secondary)] text-center mt-2 opacity-40">
-            Bredd: {settings.width} · Förhandsgranskning är ungefärlig
-          </p>
+          <p className="text-[8px] text-[var(--text-secondary)] text-center mt-1 opacity-40">{s.paperWidth}</p>
         </div>
       </div>
     </div>

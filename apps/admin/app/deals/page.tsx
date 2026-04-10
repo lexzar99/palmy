@@ -567,6 +567,11 @@ function CustomerDealForm({
   const [sendToAll, setSendToAll] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
+  // Segment filters
+  const [maxOrders, setMaxOrders] = useState<number | "">("");  // e.g. 0 = 0 orders (new)
+  const [minOrders, setMinOrders] = useState<number | "">("");
+  const [filterCity, setFilterCity] = useState("");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("active");
   const [form, setForm] = useState({
     title: "",
     code: "",
@@ -582,13 +587,26 @@ function CustomerDealForm({
     setForm({ ...form, code });
   };
 
+  // Unique cities from customer list
+  const cities = Array.from(new Set(customers.map((c) => c.city || "").filter(Boolean))).sort();
+
+  const filteredCusts = customers.filter((c) => {
+    const orderCount = c._count?.orders ?? 0;
+    if (maxOrders !== "" && orderCount > Number(maxOrders)) return false;
+    if (minOrders !== "" && orderCount < Number(minOrders)) return false;
+    if (filterCity && (c.city || "").toLowerCase() !== filterCity.toLowerCase()) return false;
+    if (filterActive === "active" && !c.isActive) return false;
+    if (filterActive === "inactive" && c.isActive) return false;
+    const q = search.toLowerCase();
+    if (q && !(c.name || "").toLowerCase().includes(q) && !(c.phone || "").includes(q)) return false;
+    return true;
+  });
+
   const toggle = (id: string) =>
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
-  const filteredCusts = customers.filter((c) => {
-    const q = search.toLowerCase();
-    return !q || (c.name || "").toLowerCase().includes(q) || (c.phone || "").includes(q);
-  });
+  const selectAllFiltered = () => setSelectedIds(filteredCusts.map((c) => c.id));
+  const clearSelected = () => setSelectedIds([]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -599,6 +617,43 @@ function CustomerDealForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Segment filters */}
+      <div>
+        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Segmentfilter</label>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Min ordrar</label>
+            <input type="number" placeholder="t.ex. 1" value={minOrders}
+              onChange={(e) => setMinOrders(e.target.value === "" ? "" : Number(e.target.value))}
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
+          </div>
+          <div>
+            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Max ordrar</label>
+            <input type="number" placeholder="t.ex. 0 = nya kunder" value={maxOrders}
+              onChange={(e) => setMaxOrders(e.target.value === "" ? "" : Number(e.target.value))}
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
+          </div>
+          <div>
+            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Stad</label>
+            <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)}
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
+              <option value="">Alla städer</option>
+              {cities.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Status</label>
+            <select value={filterActive} onChange={(e) => setFilterActive(e.target.value as any)}
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
+              <option value="all">Alla</option>
+              <option value="active">Aktiva</option>
+              <option value="inactive">Inaktiva/Blockerade</option>
+            </select>
+          </div>
+        </div>
+        <p className="text-[8px] font-black text-gold-500 mt-1">{filteredCusts.length} kunder matchar filtret</p>
+      </div>
+
       {/* Who gets it */}
       <div>
         <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Mottagare</label>
@@ -607,33 +662,40 @@ function CustomerDealForm({
             <input type="checkbox" checked={sendToAll} onChange={(e) => { setSendToAll(e.target.checked); setSelectedIds([]); }}
               className="w-4 h-4 rounded accent-gold-500" />
             <div>
-              <p className="text-[10px] font-black uppercase text-[var(--text-primary)]">Alla kunder ({customers.length} st)</p>
+              <p className="text-[10px] font-black uppercase text-[var(--text-primary)]">Alla matchande kunder ({filteredCusts.length} st)</p>
               <p className="text-[8px] font-bold text-[var(--text-secondary)]">Unik kod per kund genereras automatiskt</p>
             </div>
           </label>
 
           {!sendToAll && (
             <>
-              <div className="relative">
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök kund..."
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl pl-3 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30" />
+              <div className="flex gap-2">
+                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök namn/telefon..."
+                  className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl pl-3 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30" />
+                <button type="button" onClick={selectAllFiltered}
+                  className="px-3 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[8px] font-black uppercase whitespace-nowrap">
+                  Välj alla
+                </button>
               </div>
-              <div className="max-h-48 overflow-y-auto space-y-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-2">
+              <div className="max-h-40 overflow-y-auto space-y-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-2">
                 {filteredCusts.length === 0 ? (
-                  <p className="text-[9px] text-[var(--text-secondary)] text-center py-4">Inga kunder</p>
+                  <p className="text-[9px] text-[var(--text-secondary)] text-center py-4">Inga kunder matchar filtret</p>
                 ) : filteredCusts.map((c) => (
                   <label key={c.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedIds.includes(c.id) ? "bg-gold-500/10" : "hover:bg-[var(--bg-secondary)]"}`}>
                     <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)}
                       className="w-4 h-4 rounded accent-gold-500 shrink-0" />
-                    <div className="min-w-0">
+                    <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-black text-[var(--text-primary)] truncate">{c.name || "Gäst"}</p>
-                      <p className="text-[8px] font-bold text-[var(--text-secondary)]">{c.phone}</p>
+                      <p className="text-[8px] font-bold text-[var(--text-secondary)]">{c.phone} · {c._count?.orders ?? 0} ordrar {c.city ? `· ${c.city}` : ""}</p>
                     </div>
                   </label>
                 ))}
               </div>
               {selectedIds.length > 0 && (
-                <p className="text-[9px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
+                  <button type="button" onClick={clearSelected} className="text-[8px] font-black text-[var(--text-secondary)] uppercase">Rensa</button>
+                </div>
               )}
             </>
           )}

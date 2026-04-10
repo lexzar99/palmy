@@ -77,6 +77,7 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     deliveryFee: fromOre(restaurant.deliveryFee),
     minOrderAmount: fromOre(restaurant.minOrderAmount),
     etaMinutes: dynamicEta,
+    baseEtaMinutes: restaurant.etaMinutes ?? 35, // raw stored value, without dynamic adjustment
     activeOrdersCount,
   isOpen: (() => {
     try {
@@ -405,7 +406,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
     }
 
-    let restaurant = await prisma.restaurant.update({
+    // KEY FIX: When opening hours change, compute the correct isOpen immediately
+    // and include it in the SAME DB write (one atomic operation, no race conditions).
+    if (payload.openingHours !== undefined) {
+      const newHoursStr = data.openingHours as string;
+      data.isOpen = isRestaurantOpen(newHoursStr);
+      console.log(`[Hours] Updating isOpen for ${existingRestaurant.name} -> ${data.isOpen} based on new schedule`);
+    }
+
+    const restaurant = await prisma.restaurant.update({
       where: { id },
       data,
     });
@@ -432,58 +441,42 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    // If opening hours or isOpen was updated, immediately recompute and persist the correct isOpen
-    if (payload.openingHours !== undefined || payload.isOpen !== undefined) {
-      const scheduleOpen = isRestaurantOpen(restaurant.openingHours);
-      // manualIsOpen stays as-is (restaurant.isOpen); effective open = manual && schedule
-      const effectiveOpen = restaurant.isOpen && scheduleOpen;
+    // The effective isOpen is now just restaurant.isOpen (already includes schedule)
+    const effectiveIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
 
-      // If schedule says closed but DB says open (or vice versa), update DB immediately
-      if (scheduleOpen !== effectiveOpen || payload.openingHours !== undefined) {
-        // Re-persist isOpen to DB based on schedule (keep manualIsOpen field unchanged)
-        // We only force-update if the schedule now says something different from what DB holds
-        if (payload.openingHours !== undefined) {
-          // Always recompute isOpen from new schedule
-          restaurant = await prisma.restaurant.update({
-            where: { id },
-            data: { isOpen: scheduleOpen && restaurant.isOpen },
-          });
-        }
-      }
-
-      // Also sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
+    // Sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
+    if (payload.openingHours !== undefined || payload.isOpen !== undefined || payload.deliveryFee !== undefined) {
       try {
         await prisma.restaurantSettings.upsert({
           where: { id: 'settings' },
-          update: { isOpen: restaurant.isOpen && scheduleOpen },
+          update: {
+            isOpen: restaurant.isOpen,
+            ...(payload.deliveryFee !== undefined ? { deliveryFee: restaurant.deliveryFee } : {}),
+            ...(payload.minOrderAmount !== undefined ? { minOrderAmount: restaurant.minOrderAmount } : {}),
+          },
           create: {
             id: 'settings',
-            isOpen: restaurant.isOpen && scheduleOpen,
+            isOpen: restaurant.isOpen,
             deliveryFee: restaurant.deliveryFee ?? 0,
             minOrderAmount: restaurant.minOrderAmount ?? 0,
           },
         });
       } catch {
-        // Non-critical, continue
+        // Non-critical
       }
     }
 
-    const computedIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
-
+    // Emit per-restaurant socket event + global event (for Hero/Navbar)
     getIO().emit('settings:updated', {
       restaurantId: restaurant.id,
       slug: restaurant.slug,
-      isOpen: computedIsOpen,
+      isOpen: effectiveIsOpen,
       manualIsOpen: restaurant.isOpen,
       deliveryFee: fromOre(restaurant.deliveryFee),
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,
     });
-
-    // Also emit a global (no slug) event so Hero.tsx and Navbar.tsx update immediately
-    if (payload.openingHours !== undefined || payload.isOpen !== undefined) {
-      getIO().emit('settings:updated', { isOpen: computedIsOpen });
-    }
+    getIO().emit('settings:updated', { isOpen: effectiveIsOpen });
 
     res.json(restaurant);
   } catch (err: any) {
