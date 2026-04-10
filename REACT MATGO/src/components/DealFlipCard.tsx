@@ -13,7 +13,10 @@ export type DealFlipCardData = {
   validUntil?: string | null;
   minOrderText?: string | null;
   tags?: string[];
-  tone?: "gold" | "emerald";
+  tone?: "gold" | "emerald" | "purple";
+  variant?: "public" | "personal";
+  relatedRestaurantIds?: string[];
+  onNavigateToFilteredRestaurants?: (restaurantIds: string[]) => void;
   onUseNow?: () => void;
 };
 
@@ -33,6 +36,12 @@ const tones = {
     accentSoft: "rgba(34,197,94,0.12)",
     border: "rgba(34,197,94,0.22)",
     tagBg: "rgba(34,197,94,0.12)",
+  },
+  purple: {
+    accent: "#a855f7",
+    accentSoft: "rgba(168,85,247,0.12)",
+    border: "rgba(168,85,247,0.22)",
+    tagBg: "rgba(168,85,247,0.12)",
   },
 } as const;
 
@@ -143,11 +152,18 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
           <View style={[styles.bodyBlock, { gap: 10 }]}> 
             {!!deal.description && <Text style={styles.description}>{deal.description}</Text>}
 
-            {!!deal.code && (
+            {deal.variant === "personal" && deal.code ? (
+              <>
+                <View style={styles.codePill}>
+                  <Text style={styles.codeText}>KOD: {deal.code}</Text>
+                </View>
+                <Text style={styles.autoAppliedText}>Automatiskt i kassan när villkor uppfylls</Text>
+              </>
+            ) : deal.code ? (
               <View style={styles.codePill}>
                 <Text style={styles.codeText}>KOD: {deal.code}</Text>
               </View>
-            )}
+            ) : null}
 
             <View style={styles.tagWrap}>
               {!!deal.minOrderText && (
@@ -167,9 +183,24 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
             )}
           </View>
 
-          <Pressable onPress={deal.onUseNow} style={[styles.useButton, { backgroundColor: tone.accent }]}> 
-            <Text style={styles.useButtonText}>UTNYTTJA NU</Text>
-          </Pressable>
+            {deal.variant === "personal" ? (
+              <View style={styles.autoApplyContainer}>
+                <Text style={styles.autoApplyText}>UTNYTTJAD AUTOMATISKT</Text>
+              </View>
+            ) : (
+              <Pressable 
+                onPress={() => {
+                  if (deal.relatedRestaurantIds && deal.relatedRestaurantIds.length > 0 && deal.onNavigateToFilteredRestaurants) {
+                    deal.onNavigateToFilteredRestaurants(deal.relatedRestaurantIds);
+                  } else if (deal.onUseNow) {
+                    deal.onUseNow();
+                  }
+                }} 
+                style={[styles.useButton, { backgroundColor: tone.accent }]}
+              > 
+                <Text style={styles.useButtonText}>UTNYTTJA NU</Text>
+              </Pressable>
+            )}
         </View>
       </Animated.View>
     </View>
@@ -286,6 +317,27 @@ const styles = StyleSheet.create({
   },
   codeText: {
     color: "#f9f7f3",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+  },
+  autoAppliedText: {
+    color: "#6a6473",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  autoApplyContainer: {
+    marginTop: 14,
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(34,197,94,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.3)",
+  },
+  autoApplyText: {
+    color: "#22c55e",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1.5,

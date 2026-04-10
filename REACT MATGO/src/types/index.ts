@@ -8,7 +8,8 @@ export type AppRoute =
   | { name: "cart" }
   | { name: "profile" }
   | { name: "register" }
-  | { name: "order"; id: string };
+  | { name: "order"; id: string }
+  | { name: "discover-filtered"; restaurantIds: string[]; dealId?: string; dealTitle?: string };
 
 export interface Restaurant {
   id: string;
@@ -182,6 +183,10 @@ export interface Order {
     }>;
     note?: string;
   }>;
+  // Rating and review (from profile/orders/:id/review endpoint)
+  rating?: number;
+  review?: string;
+  reviewedAt?: string;
 }
 
 export interface DeliveryCheck {
@@ -202,19 +207,30 @@ export interface AppStoreState {
   restaurantSlug: string | null;
   address: string;
   coords: { lat: number; lng: number } | null;
+  deliveryAddress: string;
+  deliveryCoords: { lat: number; lng: number } | null;
+  pickupCity: string;
   orderType: OrderType;
   token: string | null;
   profile: Profile | null;
   pendingPromoCode: string | null;
+  filteredRestaurantIds: string[] | null;
+  activeOrderId: string | null;
+  dislikedIngredients: string[];
   addItem: (item: Omit<CartItem, "cartItemId">) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
   clearCart: () => void;
   setAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;
+  setDeliveryAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;
+  setPickupCity: (city: string) => void;
   setOrderType: (orderType: OrderType) => void;
   setToken: (token: string | null) => void;
   setProfile: (profile: Profile | null) => void;
   setPendingPromoCode: (code: string | null) => void;
+  setFilteredRestaurantIds: (ids: string[] | null) => void;
   clearSession: () => void;
+  setActiveOrder: (id: string | null) => void;
+  setDislikedIngredients: (ingredients: string[]) => void;
   hydrate: () => Promise<void>;
 }

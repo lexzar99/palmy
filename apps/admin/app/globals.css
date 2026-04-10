@@ -4,8 +4,10 @@
   --color-gold-400: #F4D086;
   --color-gold-500: #E7B24B;
   --color-gold-600: #C28E2E;
-  
-  /* Theme variables mapped to tailwind config */
+  --color-dark-400: #27272a;
+  --color-dark-500: #18181b;
+
+  /* Semantic tokens mapped to CSS vars for dark/light switching */
   --color-bg-primary: var(--bg-primary);
   --color-bg-secondary: var(--bg-secondary);
   --color-text-primary: var(--text-primary);
@@ -13,60 +15,85 @@
   --color-border-subtle: var(--border-subtle);
 }
 
+/* ─── Dark mode (default) ─────────────────────────────────────────────────── */
 :root {
-  /* Dark Mode: elevated, premium obsidian matching web */
   --bg-primary: #18181b;
-  --bg-secondary: #27272a;
-  --text-primary: #f8fafc;
+  --bg-secondary: #222226;
+  --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
-  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  /* Tailwind compat */
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-subtle: var(--border-subtle);
 }
 
+/* ─── Light mode ──────────────────────────────────────────────────────────── */
 .light {
-  /* Light Mode: softer contrast to reduce eye strain */
-  --bg-primary: #e2e8f0;
-  --bg-secondary: #f1f5f9;
-  --text-primary: #020617;
-  --text-secondary: #334155;
-  --border-subtle: rgba(0, 0, 0, 0.15);
+  --bg-primary: #f1f5f9;
+  --bg-secondary: #ffffff;
+  --text-primary: #09090b;
+  --text-secondary: #52525b;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.16);
 }
 
+/* ─── Base ────────────────────────────────────────────────────────────────── */
 @layer base {
   body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
-    transition: background-color 0.4s ease, color 0.4s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Inputs & selects inherit the current color */
+  input, select, textarea {
+    color: var(--text-primary);
   }
 }
 
-/* Custom Scrollbar */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-.custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--border-subtle);
-  border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(231, 178, 75, 0.4);
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-subtle); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(231, 178, 75, 0.35); }
 
-/* Glass effect utility -> modified to be solid and clear with shadows */
+/* ─── Glass card ──────────────────────────────────────────────────────────── */
 .glass {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
 }
 
-.light .glass {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04);
+/* ─── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* ─── Time input (remove native styling on webkit) ────────────────────────── */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
+/* ─── Number input — hide arrows ──────────────────────────────────────────── */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }

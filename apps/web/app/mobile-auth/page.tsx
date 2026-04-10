@@ -19,9 +19,11 @@ function MobileAuthContent() {
 
   const redirectTarget = searchParams.get("redirect") || "matgo://auth";
   const provider = useMemo<SocialProvider | null>(() => {
-    const value = searchParams.get("provider");
-    return value === "google" || value === "facebook" ? value : null;
+    const val = searchParams.get("provider");
+    return val === "google" || val === "facebook" ? (val as SocialProvider) : null;
   }, [searchParams]);
+
+  const isMissingToken = status === "authenticated" && !(session as any)?.platformToken;
 
   useEffect(() => {
     if (status === "authenticated" && (session as any)?.platformToken) {
@@ -50,29 +52,53 @@ function MobileAuthContent() {
 
         <div className="space-y-2">
           <h1 className="text-2xl font-black uppercase italic tracking-tight text-white">Mobil Inloggning</h1>
-          <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">
-            {status === "loading" || provider ? "Loggar in och skickar dig tillbaka till appen..." : "Välj samma konto som du vill använda i appen"}
+          <p className={`text-[11px] font-bold uppercase tracking-widest ${isMissingToken ? "text-red-500" : "text-zinc-500"}`}>
+            {isMissingToken 
+              ? "Kunde inte hämta din profil. Kontrollera API-anslutningen." 
+              : (status === "loading" || provider ? "Loggar in och skickar dig tillbaka till appen..." : "Välj samma konto som du vill använda i appen")
+            }
           </p>
         </div>
 
-        {!provider && (
-          <div className="grid grid-cols-1 gap-3">
-            <button
-              type="button"
-              onClick={() => startProviderLogin("google")}
-              className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
-            >
-              Fortsätt med Google
-            </button>
-            <button
-              type="button"
-              onClick={() => startProviderLogin("facebook")}
-              className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
-            >
-              Fortsätt med Facebook
-            </button>
-          </div>
-        )}
+        <div className="space-y-4">
+          {!provider && (
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                onClick={() => startProviderLogin("google")}
+                className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
+              >
+                Fortsätt med Google
+              </button>
+              <button
+                type="button"
+                onClick={() => startProviderLogin("facebook")}
+                className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
+              >
+                Fortsätt med Facebook
+              </button>
+            </div>
+          )}
+
+          {status === "authenticated" && (
+            <div className="pt-4 border-t border-white/5">
+              <button
+                onClick={() => {
+                  const token = (session as any)?.platformToken;
+                  if (!token) {
+                    alert("Inloggning lyckades men vi kunde inte hämta din profil från servern. Kontrollera din internetanslutning eller prova igen senare.");
+                    return;
+                  }
+                  const separator = redirectTarget.includes("?") ? "&" : "?";
+                  window.location.replace(`${redirectTarget}${separator}token=${token}`);
+                }}
+                className="w-full py-4 px-5 rounded-2xl bg-gold-500 text-black font-black uppercase tracking-widest text-[11px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all"
+              >
+                Öppna i appen
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

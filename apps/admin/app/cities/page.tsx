@@ -7,6 +7,8 @@ import {
   ShieldCheck, ChevronRight, Loader2, Save, Globe, DollarSign, Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/components/Toast";
+import { ConfirmModal } from "@/components/Modal";
 
 interface DeliveryZone {
   id: string;
@@ -75,6 +77,8 @@ const getZones = (city: City): DeliveryZone[] => {
 };
 
 const CitiesPage = () => {
+  const { success, error: toastError } = useToast();
+  const [deleteConfirm, setDeleteConfirm] = useState<City | null>(null);
   const [cities, setCities] = useState<City[]>([]);
   const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null);
@@ -133,7 +137,7 @@ const CitiesPage = () => {
       setNewCityName("");
       setShowAddCityModal(false);
     } catch (err) {
-      alert("Kunde inte skapa stad");
+      toastError("Kunde inte skapa stad");
     } finally {
       setIsSaving(false);
     }
@@ -170,21 +174,23 @@ const CitiesPage = () => {
         restaurantIds,
         restaurantZones,
       });
+      success("Inställningar sparade!");
       setTimeout(() => setIsSaving(false), 1200);
     } catch (err) {
       console.error("Save error:", err);
-      alert("Kunde inte spara ändringar.");
+      toastError("Kunde inte spara ändringar.");
       setIsSaving(false);
     }
   };
 
   const handleDeleteCity = async (id: string) => {
-    if (!confirm("Radera staden permanent?")) return;
     try {
       await axios.delete(`${API_URL}/api/cities/${id}`);
       setCities(cities.filter(c => c.id !== id));
       if (selectedCityId === id) setSelectedCityId(null);
-    } catch { alert("Kunde inte radera"); }
+      setDeleteConfirm(null);
+      success("Stad raderad");
+    } catch { toastError("Kunde inte radera"); }
   };
 
   const updateCity = (field: string, value: any) => {
@@ -354,7 +360,7 @@ const CitiesPage = () => {
                    <ChevronRight size={18} className={selectedCityId === city.id ? "text-sky-500" : "text-[var(--text-primary)]/10"} />
                  </button>
                  <button 
-                   onClick={() => handleDeleteCity(city.id)}
+                    onClick={() => setDeleteConfirm(city)}
                    className="absolute top-4 right-4 opacity-0 group-hover/item:opacity-100 p-2 text-red-500 hover:scale-110 transition-all"
                  >
                    <Trash2 size={14} />
@@ -734,6 +740,16 @@ const CitiesPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmModal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => deleteConfirm && handleDeleteCity(deleteConfirm.id)}
+        title="Radera stad"
+        message={`Är du säker på att du vill radera ${deleteConfirm?.name} permanent?`}
+        confirmLabel="Radera"
+        danger
+      />
     </div>
   );
 };

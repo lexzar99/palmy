@@ -13,9 +13,13 @@ const persistState = async (state: AppStoreState) => {
       restaurantSlug: state.restaurantSlug,
       address: state.address,
       coords: state.coords,
-      orderType: state.orderType,
+      deliveryAddress: state.deliveryAddress,
+      deliveryCoords: state.deliveryCoords,
+      pickupCity: state.pickupCity,
       token: state.token,
       profile: state.profile,
+      activeOrderId: state.activeOrderId,
+      dislikedIngredients: state.dislikedIngredients,
     })
   );
 };
@@ -27,10 +31,16 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   restaurantSlug: null,
   address: "",
   coords: null,
+  deliveryAddress: "",
+  deliveryCoords: null,
+  pickupCity: "",
   orderType: "DELIVERY",
   token: null,
   profile: null,
   pendingPromoCode: null,
+  filteredRestaurantIds: null,
+  activeOrderId: null,
+  dislikedIngredients: [],
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -105,16 +115,59 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     });
   },
   setAddress: (address, coords) => {
-    set({
-      address,
-      coords: coords ?? null,
+    const state = get();
+    const nextState: any = { address, coords: coords ?? null };
+    
+    // Also update the mode-specific field
+    if (state.orderType === "DELIVERY") {
+      nextState.deliveryAddress = address;
+      nextState.deliveryCoords = coords ?? null;
+    } else {
+      nextState.pickupCity = address;
+    }
+
+    set(nextState);
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
     });
+  },
+  setDeliveryAddress: (address, coords) => {
+    const state = get();
+    const update: any = { deliveryAddress: address, deliveryCoords: coords ?? null };
+    if (state.orderType === "DELIVERY") {
+      update.address = address;
+      update.coords = coords ?? null;
+    }
+    set(update);
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setPickupCity: (city) => {
+    const state = get();
+    const update: any = { pickupCity: city };
+    if (state.orderType === "PICKUP") {
+      update.address = city;
+      update.coords = null;
+    }
+    set(update);
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });
   },
   setOrderType: (orderType: OrderType) => {
-    set({ orderType });
+    const state = get();
+    const update: any = { orderType };
+    
+    if (orderType === "DELIVERY") {
+      update.address = state.deliveryAddress;
+      update.coords = state.deliveryCoords;
+    } else {
+      update.address = state.pickupCity;
+      update.coords = null;
+    }
+
+    set(update);
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });
@@ -134,8 +187,23 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   setPendingPromoCode: (pendingPromoCode) => {
     set({ pendingPromoCode });
   },
+  setFilteredRestaurantIds: (filteredRestaurantIds) => {
+    set({ filteredRestaurantIds });
+  },
   clearSession: () => {
-    set({ token: null, profile: null, pendingPromoCode: null });
+    set({ token: null, profile: null, pendingPromoCode: null, activeOrderId: null });
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setActiveOrder: (activeOrderId) => {
+    set({ activeOrderId });
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setDislikedIngredients: (dislikedIngredients) => {
+    set({ dislikedIngredients });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

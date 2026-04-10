@@ -34,6 +34,10 @@ import {
   getImageUrl,
 } from "./src/lib/api";
 import DealFlipCard, { type DealFlipCardData } from "./src/components/DealFlipCard";
+import HomeAddressInput from "./src/components/HomeAddressInput";
+import AddressAutocomplete from "./src/components/AddressAutocomplete";
+import ZipAutocomplete from "./src/components/ZipAutocomplete";
+import AddressModal from "./src/components/AddressModal";
 import {
   AppRoute,
   CartItem,
@@ -78,59 +82,28 @@ function ScalePressable({ children, onPress, style }: { children: React.ReactNod
   const handlePressOut = () => {
     Animated.spring(scale, { toValue: 1, friction: 3, tension: 150, useNativeDriver: Platform.OS !== "web" }).start();
   };
-
-  const flattened = StyleSheet.flatten(style) || {};
-  const {
-    margin,
-    marginTop,
-    marginBottom,
-    marginLeft,
-    marginRight,
-    marginHorizontal,
-    marginVertical,
-    width,
-    height,
-    flex,
-    flexGrow,
-    flexShrink,
-    alignSelf,
-    position,
-    top,
-    bottom,
-    left,
-    right,
-    zIndex,
-    ...contentStyle
-  } = flattened as any;
-
-  const pressableStyle = {
-    margin,
-    marginTop,
-    marginBottom,
-    marginLeft,
-    marginRight,
-    marginHorizontal,
-    marginVertical,
-    width,
-    height,
-    flex,
-    flexGrow,
-    flexShrink,
-    alignSelf,
-    position,
-    top,
-    bottom,
-    left,
-    right,
-    zIndex,
-  };
-
   return (
-    <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut} style={pressableStyle}>
-      <Animated.View style={[{ transform: [{ scale }] }, contentStyle, { flex: 1 }]}>
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress} style={style}>
         {children}
-      </Animated.View>
-    </Pressable>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+function StarRating({ rating, size = 12, showNumber = false }: { rating?: number; size?: number; showNumber?: boolean }) {
+  const stars = Math.round(rating || 0);
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Ionicons key={i} name={i <= stars ? "star" : "star-outline"} size={size} color={palette.gold} />
+      ))}
+      {showNumber && rating && (
+        <Text style={{ color: palette.gold, fontSize: size - 2, fontWeight: "900", marginLeft: 4 }}>
+          {rating.toFixed(1)}
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -196,6 +169,7 @@ function AppContent() {
   const route = routeStack[routeStack.length - 1];
   const hydrated = useAppStore((s) => s.hydrated);
   const hydrate = useAppStore((s) => s.hydrate);
+  const { activeOrderId, setActiveOrder } = useAppStore();
 
   useEffect(() => {
     hydrate().catch(() => {});
@@ -234,8 +208,9 @@ function AppContent() {
       <ExpoStatusBar style="light" />
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={["#120f18", "#09080c"]} style={styles.appBg}>
-        {route.name === "home" && <HomeScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} openTab={openRoot} />}
+        {route.name === "home" && <HomeScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} openTab={(tab) => { if (tab === "discover") { pushRoute({ name: "discover" }); } else { openRoot(tab); } }} pushRoute={pushRoute} />}
         {route.name === "discover" && <DiscoverScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} goBack={goBack} />}
+        {route.name === "discover-filtered" && <DiscoverScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} goBack={goBack} initialFilteredIds={route.restaurantIds} filteredTitle={route.dealTitle} />}
         {route.name === "search" && <SearchScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} />}
         {route.name === "restaurant" && (
           <RestaurantScreen
@@ -247,7 +222,10 @@ function AppContent() {
         {route.name === "cart" && (
           <CartScreen
             openProfile={() => pushRoute({ name: "profile" })}
-            openOrder={(id) => replaceRoute({ name: "order", id })}
+            openOrder={(id) => {
+              setActiveOrder(id);
+              replaceRoute({ name: "order", id });
+            }}
             openHome={() => openRoot("home")}
           />
         )}
@@ -269,11 +247,73 @@ function AppContent() {
           />
         )}
 
+        {activeOrderId && route.name !== "order" && (
+          <LiveOrderBanner id={activeOrderId} openOrder={(id) => pushRoute({ name: "order", id })} />
+        )}
         {!["restaurant", "order", "register"].includes(route.name) && (
           <BottomTabs active={tabValue} onChange={openRoot} />
         )}
       </LinearGradient>
     </SafeAreaView>
+  );
+}
+
+function LiveOrderBanner({ id, openOrder }: { id: string; openOrder: (id: string) => void }) {
+  const [order, setOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    const fetchO = async () => {
+      try {
+        const res = await api.get(`/api/orders/${id}`);
+        setOrder(res.data);
+      } catch {}
+    };
+    fetchO();
+    const inv = setInterval(fetchO, 15000);
+    return () => clearInterval(inv);
+  }, [id]);
+
+  if (!order || order.status === "DELIVERED" || order.status === "COMPLETED" || order.status === "REJECTED") return null;
+
+  const statusLabel = order.status === "PENDING" ? "VÄNTAR..." : (order.status === "PREPARING" || order.status === "ACCEPTED") ? "TILLAGAS" : "PÅ VÄG";
+
+  return (
+    <Pressable
+      onPress={() => openOrder(id)}
+      style={{
+        position: "absolute",
+        bottom: 100,
+        left: 16,
+        right: 16,
+        backgroundColor: "#19191d",
+        borderRadius: 24,
+        padding: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+        borderWidth: 1,
+        borderColor: "rgba(231,178,75,0.3)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+        elevation: 10,
+      }}
+    >
+      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
+        <Ionicons name="flash" size={20} color="#000" />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>AKTIV BESTÄLLNING</Text>
+        <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>
+          {order.restaurantName || "Din beställning"} • {statusLabel}
+        </Text>
+      </View>
+      <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)" }}>
+        <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>~{order.estimatedTime || 30}m</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#7f798a" />
+    </Pressable>
   );
 }
 
@@ -294,13 +334,7 @@ const DISCOVER_CATEGORIES = [
   { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "#251434" },
 ];
 
-const COUNTRY_CODES = [
-  { code: "+46", flag: "🇸🇪" },
-  { code: "+47", flag: "🇳🇴" },
-  { code: "+45", flag: "🇩🇰" },
-  { code: "+1", flag: "🇺🇸" },
-];
-
+const PREFERENCE_OPTIONS = ["Lök", "Vitlök", "Nötter", "Fisk", "Skaldjur", "Ägg", "Mjölk", "Gluten"];
 const APP_AUTH_DEEP_LINK = "matgo://auth";
 
 type SavedAddress = {
@@ -407,9 +441,11 @@ function getOpeningHoursLines(restaurant?: Restaurant | null) {
 function HomeScreen({
   openRestaurant,
   openTab,
+  pushRoute,
 }: {
   openRestaurant: (slug: string) => void;
   openTab: (name: "home" | "search" | "cart" | "profile" | "discover") => void;
+  pushRoute?: (route: AppRoute) => void;
 }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [cities, setCities] = useState<City[]>([]);
@@ -418,7 +454,9 @@ function HomeScreen({
   const [loading, setLoading] = useState(true);
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [cityModalOpen, setCityModalOpen] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
   const address = useAppStore((s) => s.address);
   const orderType = useAppStore((s) => s.orderType);
@@ -503,10 +541,7 @@ function HomeScreen({
         minOrderText: campaign.minOrder && campaign.minOrder > 0 ? `MIN ${campaign.minOrder} KR` : null,
         tags: [],
         tone: isWelcome ? "gold" : "emerald",
-        onUseNow: () => {
-          setPendingPromoCode(deal.code);
-          openTab("cart");
-        },
+        variant: "personal",
       } satisfies DealFlipCardData;
     });
 
@@ -535,20 +570,29 @@ function HomeScreen({
         validUntil: deal.validUntil || null,
         minOrderText: deal.minOrder && deal.minOrder > 0 ? `MIN ${deal.minOrder} KR` : null,
         tags: deal.comboProductNames || [],
-        tone: deal.isGlobal ? "gold" : "emerald",
+        tone: deal.isGlobal ? "gold" : "purple",
+        variant: "public",
+        relatedRestaurantIds,
+        onNavigateToFilteredRestaurants: () => {
+          if (pushRoute) {
+            pushRoute({ name: "discover-filtered", restaurantIds: relatedRestaurantIds, dealTitle: deal.title });
+          }
+        },
         onUseNow: () => {
           if (primaryRestaurant?.slug) {
             openRestaurant(primaryRestaurant.slug);
             return;
           }
 
-          openTab("discover");
+          if (pushRoute) {
+            pushRoute({ name: "discover" });
+          }
         },
       } satisfies DealFlipCardData;
     });
 
     return [...personalCards, ...publicCards];
-  }, [deals, openRestaurant, openTab, personalDeals, restaurants, setPendingPromoCode]);
+  }, [deals, openRestaurant, personalDeals, restaurants, pushRoute]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -655,24 +699,80 @@ function HomeScreen({
                borderColor: "rgba(255,255,255,0.05)",
              }}
           >
-            <ScalePressable
-              onPress={() => setCityModalOpen(true)}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                borderRadius: 20,
-                backgroundColor: "#101015",
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                marginBottom: 10,
-              }}
-            >
-              <Ionicons name="location-outline" size={18} color={palette.gold} />
-              <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
-                {address || "Ange din adress..."}
-              </Text>
-            </ScalePressable>
+            {orderType === "DELIVERY" ? (
+              <ScalePressable
+                onPress={() => setAddressModalOpen(true)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                  borderRadius: 20,
+                  backgroundColor: "#101015",
+                  paddingHorizontal: 16,
+                  paddingVertical: 14,
+                  marginBottom: 10,
+                }}
+              >
+                <Ionicons name="location-outline" size={18} color={palette.gold} />
+                <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
+                  {address || "Ange din adress..."}
+                </Text>
+              </ScalePressable>
+            ) : (
+              <View style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 10, marginBottom: 12, marginTop: 4 }}>
+                  <Ionicons name="map-outline" size={14} color={palette.gold} />
+                  <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>VÄLJ STAD FÖR HÄMTNING</Text>
+                </View>
+                
+                <ScalePressable
+                  onPress={() => setCityDropdownOpen(!cityDropdownOpen)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    borderRadius: 20,
+                    backgroundColor: "#101015",
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                    borderWidth: 1,
+                    borderColor: cityDropdownOpen ? palette.gold : "transparent",
+                  }}
+                >
+                  <Ionicons name="business-outline" size={18} color={palette.gold} />
+                  <Text style={{ flex: 1, color: address ? palette.text : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
+                    {selectedCity?.name || "Alla städer"}
+                  </Text>
+                  <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={18} color="#6e6a77" />
+                </ScalePressable>
+
+                {cityDropdownOpen && (
+                  <View style={{ marginTop: 8, backgroundColor: "#101015", borderRadius: 20, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+                    <Pressable
+                      onPress={() => {
+                        setAddress("", null);
+                        setCityDropdownOpen(false);
+                      }}
+                      style={{ padding: 12, borderRadius: 12, backgroundColor: !selectedCity ? "rgba(231,178,75,0.1)" : "transparent" }}
+                    >
+                      <Text style={{ color: !selectedCity ? palette.gold : palette.text, fontWeight: "800" }}>Alla städer</Text>
+                    </Pressable>
+                    {cities.map((city) => (
+                      <Pressable
+                        key={city.id}
+                        onPress={() => {
+                          setAddress(city.name, null);
+                          setCityDropdownOpen(false);
+                        }}
+                        style={{ padding: 12, borderRadius: 12, backgroundColor: selectedCity?.id === city.id ? "rgba(231,178,75,0.1)" : "transparent" }}
+                      >
+                        <Text style={{ color: selectedCity?.id === city.id ? palette.gold : palette.text, fontWeight: "800" }}>{city.name}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
 
             <ScalePressable
               onPress={() => openTab("discover")}
@@ -786,10 +886,7 @@ function HomeScreen({
                         </View>
                       </View>
                       <View style={{ position: "absolute", top: 12, right: 12 }}>
-                         <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.6)", flexDirection: "row", alignItems: "center", gap: 6 }}>
-                            <Ionicons name="star" size={13} color={palette.gold} />
-                            <Text style={{ color: palette.gold, fontSize: 12, fontWeight: "900" }}>{restaurant.rating || "5.0"}</Text>
-                         </View>
+                         <StarRating rating={restaurant.rating} size={13} showNumber={true} />
                       </View>
                     </View>
 
@@ -866,10 +963,7 @@ function HomeScreen({
                             {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
                           </Text>
                         </View>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(231,178,75,0.1)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 12 }}>
-                           <Ionicons name="star" size={14} color={palette.gold} />
-                           <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "900" }}>{restaurant.rating || "5.0"}</Text>
-                        </View>
+                        <StarRating rating={restaurant.rating} size={14} showNumber={true} />
                       </View>
                    </View>
                    
@@ -904,17 +998,33 @@ function HomeScreen({
         }}
       />
 
+      <AddressModal
+        visible={addressModalOpen}
+        initialValue={address}
+        onClose={() => setAddressModalOpen(false)}
+        onSelect={(addressText, coords) => {
+          setAddress(addressText, coords || undefined);
+        }}
+      />
+
       <RestaurantInfoModal restaurant={infoRestaurant} onClose={() => setInfoRestaurant(null)} />
     </>
   );
 }
 
-function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: string) => void; goBack: () => void }) {
+function DiscoverScreen({ openRestaurant, goBack, initialFilteredIds, filteredTitle }: { openRestaurant: (slug: string) => void; goBack: () => void; initialFilteredIds?: string[]; filteredTitle?: string }) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeSearch, setActiveSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const token = useAppStore((s) => s.token);
+  const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
+
+  useEffect(() => {
+    if (initialFilteredIds) {
+      clearFilteredIds(null);
+    }
+  }, [initialFilteredIds, clearFilteredIds]);
 
   useEffect(() => {
     let active = true;
@@ -938,7 +1048,9 @@ function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: str
   }, [token]);
 
   const recentOrders = orders.slice(0, 3);
-  const filteredRestaurants = restaurants.filter((restaurant) => {
+  const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
+  const activeFilteredIds = initialFilteredIds || storedFilteredIds;
+  const filteredRestaurants = (activeFilteredIds ? restaurants.filter((r) => activeFilteredIds.includes(r.id)) : restaurants).filter((restaurant) => {
     const haystack = `${restaurant.name} ${restaurant.cuisine || ""} ${(restaurant.tags || []).join(" ")}`.toLowerCase();
     return haystack.includes(activeSearch.toLowerCase());
   });
@@ -951,28 +1063,52 @@ function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: str
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <View>
             <Text style={{ fontSize: 34, fontWeight: "900" }}>
-              <Text style={{ color: palette.text }}>UPPTÄCK</Text>
-              <Text style={{ color: palette.gold }}>MATGO</Text>
+              {filteredTitle ? (
+                <Text style={{ color: palette.text }}>{filteredTitle.toUpperCase()}</Text>
+              ) : (
+                <>
+                  <Text style={{ color: palette.text }}>UPPTÄCK</Text>
+                  <Text style={{ color: palette.gold }}>MATGO</Text>
+                </>
+              )}
             </Text>
             <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
-              HITTA DIN NÄSTA FAVORITUPPLEVELSE
+              {filteredTitle ? `${filteredRestaurants.length} RESTAURANGER` : "HITTA DIN NÄSTA FAVORITUPPLEVELSE"}
             </Text>
           </View>
-          <Pressable
-            onPress={goBack}
-            style={{
-              width: 58,
-              height: 58,
-              borderRadius: 20,
-              backgroundColor: "#17171b",
-              borderWidth: 1,
-              borderColor: "#2b2a31",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Ionicons name="compass-outline" size={26} color={palette.gold} />
-          </Pressable>
+          {filteredTitle ? (
+            <Pressable
+              onPress={() => { clearFilteredIds(null); goBack(); }}
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 20,
+                backgroundColor: "#17171b",
+                borderWidth: 1,
+                borderColor: "#2b2a31",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="close" size={26} color="#7f798a" />
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={goBack}
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 20,
+                backgroundColor: "#17171b",
+                borderWidth: 1,
+                borderColor: "#2b2a31",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons name="compass-outline" size={26} color={palette.gold} />
+            </Pressable>
+          )}
         </View>
 
         <View
@@ -1008,7 +1144,7 @@ function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: str
 
 
 
-      {!loading && !activeSearch && (
+      {!loading && !activeSearch && !activeFilteredIds && (
         <View style={{ marginTop: 10 }}>
           <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2, marginBottom: 16 }}>KATEGORIER</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
@@ -1047,7 +1183,7 @@ function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: str
         </View>
       )}
 
-      {!loading && !activeSearch && (
+      {!loading && !activeSearch && !activeFilteredIds && (
         <View style={{ marginTop: 16 }}>
           <View style={[styles.sectionTitleRow, { marginBottom: 18 }]}>
             <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 }}>POPULÄRT JUST NU</Text>
@@ -1090,16 +1226,82 @@ function DiscoverScreen({ openRestaurant, goBack }: { openRestaurant: (slug: str
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name="star" size={12} color={palette.gold} />
-                  <Text style={{ color: palette.gold, fontSize: 12, fontWeight: "900" }}>
-                    {restaurant.rating ? restaurant.rating.toFixed(1) : "Ny"}
-                  </Text>
+                  <StarRating rating={restaurant.rating} size={12} showNumber={true} />
                   <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward-outline" size={20} color={palette.gold} />
             </ScalePressable>
           ))}
+        </View>
+      )}
+
+      {!loading && !!activeFilteredIds && !activeSearch && (
+        <View style={{ marginTop: 16 }}>
+          <View style={styles.sectionTitleRow}>
+            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 }}>
+              {filteredRestaurants.length} RESTAURANG{filteredRestaurants.length !== 1 ? "ER" : ""} MED DENNA DEAL
+            </Text>
+          </View>
+          {filteredRestaurants.length === 0 ? (
+            <EmptyPanel label="Inga restauranger hittade." />
+          ) : (
+            filteredRestaurants.map((restaurant) => (
+              <ScalePressable
+                key={restaurant.id}
+                onPress={() => openRestaurant(restaurant.slug)}
+                style={{
+                  backgroundColor: "#19191d",
+                  borderRadius: 28,
+                  borderWidth: 1,
+                  borderColor: "rgba(168,85,247,0.3)",
+                  padding: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 16,
+                  marginBottom: 14,
+                }}
+              >
+                <View style={{ width: 90, height: 90, borderRadius: 22, overflow: "hidden", backgroundColor: "#111015" }}>
+                  {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
+                    <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                    <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900" }}>{restaurant.name.toUpperCase()}</Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 10,
+                        backgroundColor: restaurant.isOpen === false ? "rgba(244,63,94,0.15)" : "rgba(16,185,129,0.15)",
+                      }}
+                    >
+                      <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 9, fontWeight: "900" }}>
+                        {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 8 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="time-outline" size={13} color="#a855f7" />
+                      <Text style={{ color: "#a855f7", fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="receipt-outline" size={13} color="#a855f7" />
+                      <Text style={{ color: "#a855f7", fontSize: 11, fontWeight: "900" }}>MIN {restaurant.minOrderAmount || 0} KR</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <StarRating rating={restaurant.rating} size={12} />
+                    <Text style={{ color: "#7f798a", fontSize: 11, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward-outline" size={20} color="#a855f7" />
+              </ScalePressable>
+            ))
+          )}
         </View>
       )}
 
@@ -1256,10 +1458,19 @@ function RestaurantScreen({
   const [selectedProduct, setSelectedProduct] = useState<MenuProduct | null>(null);
 
   const menuScrollRef = useRef<ScrollView | null>(null);
+  const categoryRailRef = useRef<ScrollView | null>(null);
   const categoryPositions = useRef<Record<string, number>>({});
+  const categoryRailPositions = useRef<Record<string, number>>({});
+  const isScrollingRef = useRef(false);
 
   const address = useAppStore((s) => s.address);
   const cartItems = useAppStore((s) => s.items);
+  const orderType = useAppStore((s) => s.orderType);
+  const setAddress = useAppStore((s) => s.setAddress);
+  const setOrderType = useAppStore((s) => s.setOrderType);
+  const [cities, setCities] = useState<City[]>([]);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [cityModalOpen, setCityModalOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1271,12 +1482,14 @@ function RestaurantScreen({
           api.get("/api/menu/categories", { params: { slug } }),
           api.get(`/api/restaurants/${slug}`),
           api.get("/api/deals"),
+          api.get("/api/cities"),
         ]);
         if (!active) return;
         setCategories(menuRes.data || []);
         setActiveCategory(menuRes.data?.[0]?.id || null);
         setRestaurant(restaurantRes.data || null);
         setDeals(dealsRes.data || []);
+        setCities(citiesRes.data || []);
       } catch {
         Alert.alert("Restaurant not available", "We could not load this restaurant right now.");
       } finally {
@@ -1347,12 +1560,21 @@ function RestaurantScreen({
     setActiveCategory(categoryId);
     const targetY = categoryPositions.current[categoryId];
     if (typeof targetY === "number") {
-      menuScrollRef.current?.scrollTo({ y: Math.max(0, targetY - 140), animated: true });
+      isScrollingRef.current = true;
+      menuScrollRef.current?.scrollTo({ y: Math.max(0, targetY + 450), animated: true });
+      setTimeout(() => {
+        isScrollingRef.current = false;
+      }, 400);
     }
+    // Auto-scroll the category rail to show selected category
+    const railX = categoryRailPositions.current[categoryId] || 0;
+    categoryRailRef.current?.scrollTo({ x: Math.max(0, railX - 40), animated: true });
   }, []);
 
   const handleMenuScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (isScrollingRef.current) return;
+      
       if (!filteredCategories.length) return;
 
       const scrollY = event.nativeEvent.contentOffset.y + 190;
@@ -1367,6 +1589,9 @@ function RestaurantScreen({
 
       if (currentCategory !== activeCategory) {
         setActiveCategory(currentCategory);
+        // Auto-scroll category rail when menu scrolls
+        const railX = categoryRailPositions.current[currentCategory] || 0;
+        categoryRailRef.current?.scrollTo({ x: Math.max(0, railX - 40), animated: true });
       }
     },
     [activeCategory, filteredCategories],
@@ -1477,6 +1702,7 @@ function RestaurantScreen({
             </View>
 
             <ScrollView
+              ref={categoryRailRef}
               horizontal
               nestedScrollEnabled
               showsHorizontalScrollIndicator={false}
@@ -1485,6 +1711,9 @@ function RestaurantScreen({
               {categoryTabs.map((category) => (
                 <Pressable
                   key={category.id}
+                  onLayout={(event) => {
+                    categoryRailPositions.current[category.id] = event.nativeEvent.layout.x;
+                  }}
                   style={[styles.restaurantCategoryChip, activeCategory === category.id && styles.restaurantCategoryChipActive]}
                   onPress={() => scrollToCategory(category.id)}
                 >
@@ -1574,9 +1803,19 @@ function RestaurantScreen({
       <ProductModal
         product={selectedProduct}
         address={address}
+        orderType={orderType}
+        forceHide={addressModalOpen || cityModalOpen}
         onClose={() => setSelectedProduct(null)}
         onAdd={(payload) => {
           if (!restaurant || !selectedProduct) return;
+          if (!address) {
+            if (orderType === "DELIVERY") {
+              setAddressModalOpen(true);
+            } else {
+              setCityModalOpen(true);
+            }
+            return;
+          }
           addItem({
             productId: selectedProduct.id,
             restaurantId: restaurant.id,
@@ -1588,6 +1827,29 @@ function RestaurantScreen({
             note: payload.note,
           });
           setSelectedProduct(null);
+        }}
+      />
+
+      <CityModal
+        open={cityModalOpen}
+        cities={cities}
+        selected={cities.find(c => c.name.toLowerCase() === address.toLowerCase())?.id}
+        onClose={() => setCityModalOpen(false)}
+        onSelect={(city) => {
+          setAddress(city.name, null);
+          setCityModalOpen(false);
+          if (city.deliveryMode === "ONLY_PICKUP") setOrderType("PICKUP");
+          if (city.deliveryMode === "ONLY_DELIVERY") setOrderType("DELIVERY");
+        }}
+      />
+
+      <AddressModal
+        visible={addressModalOpen}
+        initialValue={address}
+        onClose={() => setAddressModalOpen(false)}
+        onSelect={(addressText, coords) => {
+          setAddress(addressText, coords || undefined);
+          setAddressModalOpen(false);
         }}
       />
 
@@ -1682,14 +1944,19 @@ function CartScreen({
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any | null>(null);
   const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pickupCityModalOpen, setPickupCityModalOpen] = useState(false);
+  const [pickupCities, setPickupCities] = useState<City[]>([]);
   const [formData, setFormData] = useState({
     customerName: "",
     customerPhone: "",
     deliveryStreet: "",
     deliveryZip: "",
+    deliveryCity: "",
     deliveryInstructions: "",
     note: "",
   });
+  const [showManualAddress, setShowManualAddress] = useState(false);
+  const [autocompleteValue, setAutocompleteValue] = useState("");
 
   // Load from storage on mount
   useEffect(() => {
@@ -1728,11 +1995,12 @@ function CartScreen({
     let active = true;
     (async () => {
       try {
-        const [settingsRes, profileRes, dealsRes, restaurantRes] = await Promise.all([
+        const [settingsRes, profileRes, dealsRes, restaurantRes, citiesRes] = await Promise.all([
           api.get("/api/settings").catch(() => ({ data: {} })),
           token ? api.get("/api/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
           token ? api.get("/api/profile/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
           currentRestaurantId ? api.get(`/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+          api.get("/api/cities").catch(() => ({ data: [] })),
         ]);
 
         if (!active) return;
@@ -1746,6 +2014,7 @@ function CartScreen({
 
         setProfile(profileRes.data || null);
         setPersonalDeals(dealsRes.data || []);
+        setPickupCities(citiesRes.data || []);
         
         setFormData((current) => ({
           ...current,
@@ -1816,6 +2085,7 @@ function CartScreen({
     if (!formData.customerPhone.trim()) { Alert.alert("Telefon saknas", "Fyll i ditt telefonnummer."); return; }
     if (orderType === "DELIVERY" && !formData.deliveryStreet.trim()) { Alert.alert("Adress saknas", "Fyll i leveransadress."); return; }
     if (orderType === "DELIVERY" && !formData.deliveryZip.trim()) { Alert.alert("Postnummer saknas", "Fyll i postnummer."); return; }
+    if (orderType === "DELIVERY" && !formData.deliveryCity.trim()) { Alert.alert("Stad saknas", "Fyll i stad."); return; }
     if (!items.length) { Alert.alert("Tom varukorg", "Lägg till produkter först."); return; }
 
     setSubmitting(true);
@@ -1845,6 +2115,7 @@ function CartScreen({
         customerPhone: formData.customerPhone,
         deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
         deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
+        deliveryCity: orderType === "DELIVERY" ? formData.deliveryCity : undefined,
         deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
         deliveryNote: formData.note || undefined, // API supports both, webapp uses note
         note: formData.note || undefined,
@@ -1941,8 +2212,8 @@ function CartScreen({
             ))}
           </View>
 
-          {/* 2. Order Type Toggle */}
-          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4 }}>
+{/* 2. Order Type Toggle */}
+<View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4 }}>
             {(["DELIVERY", "PICKUP"] as const).map((type) => (
               <Pressable
                 key={type}
@@ -1976,7 +2247,7 @@ function CartScreen({
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>Beställ som gäst</Text>
-                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>Logga in för att se tidigare beställningar.</Text>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>Logga in för personliga erbjudanden och se tidigare beställningar.</Text>
                 </View>
                 <Pressable onPress={openProfile} style={{ backgroundColor: palette.gold, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
                   <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Logga in</Text>
@@ -2047,21 +2318,66 @@ function CartScreen({
               )}
 
               <View style={{ gap: 10 }}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Gatuadress"
-                  placeholderTextColor={palette.muted}
-                  value={formData.deliveryStreet}
-                  onChangeText={(value) => setFormData((v) => ({ ...v, deliveryStreet: value }))}
+                <AddressAutocomplete
+                  value={autocompleteValue}
+                  onChangeText={setAutocompleteValue}
+                  onSelect={(address, coords, parts) => {
+                    setFormData(v => ({
+                      ...v,
+                      deliveryStreet: parts?.street || address,
+                      deliveryZip: parts?.zip || "",
+                      deliveryCity: parts?.city || "",
+                    }));
+                    setShowManualAddress(true);
+                  }}
+                  placeholder="Sök din adress..."
                 />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Postnummer"
-                  placeholderTextColor={palette.muted}
-                  keyboardType="number-pad"
-                  value={formData.deliveryZip}
-                  onChangeText={(value) => setFormData((v) => ({ ...v, deliveryZip: value }))}
-                />
+
+                {!showManualAddress ? (
+                  <Pressable 
+                    onPress={() => setShowManualAddress(true)}
+                    style={{ paddingVertical: 8, paddingHorizontal: 4 }}
+                  >
+                    <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Hittar du inte din adress? Ange manuellt
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <View style={{ gap: 10, marginTop: 4 }}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Gatuadress"
+                      placeholderTextColor={palette.muted}
+                      value={formData.deliveryStreet}
+                      onChangeText={(value) => setFormData((v) => ({ ...v, deliveryStreet: value }))}
+                    />
+                    <View style={{ flexDirection: "row", gap: 10 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="Postnummer"
+                        placeholderTextColor={palette.muted}
+                        keyboardType="number-pad"
+                        value={formData.deliveryZip}
+                        onChangeText={(value) => setFormData((v) => ({ ...v, deliveryZip: value }))}
+                      />
+                      <TextInput
+                        style={[styles.input, { flex: 2 }]}
+                        placeholder="Stad"
+                        placeholderTextColor={palette.muted}
+                        value={formData.deliveryCity}
+                        onChangeText={(value) => setFormData((v) => ({ ...v, deliveryCity: value }))}
+                      />
+                    </View>
+                    <Pressable 
+                      onPress={() => setShowManualAddress(false)}
+                      style={{ alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 4 }}
+                    >
+                      <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>
+                        Dölj manuella fält
+                      </Text>
+                    </Pressable>
+                  </View>
+                )}
 
                 <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginTop: 12, marginBottom: 8 }}>Instruktioner</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
@@ -2189,6 +2505,8 @@ function ProfileScreen({
   const clearSession = useAppStore((s) => s.clearSession);
   const addItem = useAppStore((s) => s.addItem);
   const clearCart = useAppStore((s) => s.clearCart);
+  const dislikedIngredients = useAppStore((s) => s.dislikedIngredients);
+  const setDislikedIngredients = useAppStore((s) => s.setDislikedIngredients);
 
   const [orders, setOrders] = useState<Order[]>([]);
   const [deals, setDeals] = useState<PersonalDeal[]>([]);
@@ -2613,7 +2931,7 @@ function ProfileScreen({
 
           <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
             <Text style={{ color: "#7f798a", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 12 }}>TELEFONNUMMER</Text>
-            <View style={{ flexDirection: "row", gap: 10 }}>
+            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <Pressable
                 onPress={() => {
                   const currentIndex = COUNTRY_CODES.findIndex((item) => item.code === countryCode);
@@ -2621,31 +2939,32 @@ function ProfileScreen({
                   setCountryCode(next.code);
                 }}
                 style={{
-                  width: 118,
-                  borderRadius: 22,
+                  width: 100,
+                  borderRadius: 18,
                   backgroundColor: "#19191d",
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.08)",
-                  paddingHorizontal: 16,
+                  paddingHorizontal: 12,
                   paddingVertical: 18,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "space-between",
                 }}
               >
-                <Text style={{ fontSize: 24 }}>{COUNTRY_CODES.find((item) => item.code === countryCode)?.flag || "🇸🇪"}</Text>
-                <Text style={{ color: palette.text, fontSize: 15, fontWeight: "900" }}>{countryCode}</Text>
-                <Ionicons name="chevron-forward-outline" size={16} color="#7f798a" />
+                <Text style={{ fontSize: 20 }}>{COUNTRY_CODES.find((item) => item.code === countryCode)?.flag || "🇸🇪"}</Text>
+                <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>{countryCode}</Text>
               </Pressable>
 
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
-                placeholder="070 000 00 00"
-                placeholderTextColor="#5f5b66"
-                keyboardType="phone-pad"
-                value={phone}
-                onChangeText={setPhone}
-              />
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  style={[styles.input, { marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
+                  placeholder="070 000 00 00"
+                  placeholderTextColor="#5f5b66"
+                  keyboardType="phone-pad"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
+              </View>
             </View>
 
             {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
@@ -2886,6 +3205,48 @@ function ProfileScreen({
                     {profile.isVerified ? "Verifierad" : "Ej veri."}
                   </Text>
                 </View>
+              </View>
+
+              <View style={[styles.formCard, { borderRadius: 34, padding: 22, marginTop: 16, marginBottom: 20 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: "rgba(231,178,75,0.1)", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="options-outline" size={20} color={palette.gold} />
+                  </View>
+                  <View>
+                    <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", fontStyle: "italic" }}>MINA PREFERENSER</Text>
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", marginTop: 1 }}>ANPASSA DIN MATUPPLEVELSE</Text>
+                  </View>
+                </View>
+                
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {PREFERENCE_OPTIONS.map((pref) => {
+                    const active = dislikedIngredients.includes(pref);
+                    return (
+                      <Pressable
+                        key={pref}
+                        onPress={() => {
+                          const next = active 
+                            ? dislikedIngredients.filter(i => i !== pref)
+                            : [...dislikedIngredients, pref];
+                          setDislikedIngredients(next);
+                        }}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 14,
+                          backgroundColor: active ? "rgba(231,178,75,0.15)" : "#19191d",
+                          borderWidth: 1,
+                          borderColor: active ? palette.gold : "rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <Text style={{ color: active ? palette.gold : "#7f798a", fontSize: 11, fontWeight: "900" }}>{pref.toUpperCase()}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={{ color: "#5f5b66", fontSize: 10, fontWeight: "800", marginTop: 16, lineHeight: 14 }}>
+                  Vi varnar dig om rätter innehåller dina valda ingredienser och lägger automatiskt till en notis till restaurangen.
+                </Text>
               </View>
             </>
           )}
@@ -3193,6 +3554,10 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
   const token = useAppStore((s) => s.token);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
+  const [userRating, setUserRating] = useState(0);
+  const [userReview, setUserReview] = useState("");
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
   const fetchOrder = useCallback(async () => {
@@ -3207,7 +3572,6 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
   useEffect(() => {
     fetchOrder();
 
-    // Socket.IO for real-time status updates (same as the webapp)
     const socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;
     socket.on("connect", () => socket.emit("join:order", id));
@@ -3217,7 +3581,6 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
       }
     });
 
-    // Poll every 15 s as a fallback (matching the webapp's behaviour)
     const pollInterval = setInterval(() => {
       fetchOrder();
     }, 15000);
@@ -3227,6 +3590,39 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
       clearInterval(pollInterval);
     };
   }, [fetchOrder, id]);
+
+  const setActiveOrderId = useAppStore(s => s.setActiveOrder);
+  useEffect(() => {
+    if (order?.status === "DELIVERED" || order?.status === "COMPLETED") {
+       setActiveOrderId(null);
+    }
+  }, [order?.status, setActiveOrderId]);
+
+  // Auto-mark as delivered if ETA > 25 minutes and still delivering
+  useEffect(() => {
+    if (order && order.estimatedTime && order.estimatedTime > 25 && (order.status === "OUT_FOR_DELIVERY" || order.status === "DELIVERING")) {
+      setOrder((current) => current ? { ...current, status: "DELIVERED" } : current);
+    }
+  }, [order?.estimatedTime, order?.status]);
+
+  const submitReview = useCallback(async () => {
+    if (!token || userRating === 0) return;
+    setReviewing(true);
+    try {
+      await api.post(`/api/profile/orders/${id}/review`, 
+        { rating: userRating, review: userReview || null },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      // Immediately show the thank you message instead of waiting for fetch
+      setReviewSubmitted(true);
+      // Also refresh order data in background
+      fetchOrder();
+    } catch (e) {
+      Alert.alert("Fel", "Kunde inte skicka recensionen. Försök igen.");
+    } finally {
+      setReviewing(false);
+    }
+  }, [token, userRating, userReview, id, fetchOrder]);
 
   if (loading) {
     return (
@@ -3285,15 +3681,17 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
         </Pressable>
 
         <View style={{ marginBottom: 30 }}>
-          <View style={{ alignSelf: "flex-start", backgroundColor: "rgba(231, 178, 75, 0.1)", borderWidth: 1, borderColor: "rgba(231, 178, 75, 0.3)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <Ionicons name="flash" size={14} color={palette.gold} style={{ opacity: 0.8 }} />
-            <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>LIVE TRACKING</Text>
+          <View style={{ alignSelf: "flex-start", backgroundColor: (order.status === "DELIVERED" || order.status === "COMPLETED") ? "rgba(34, 197, 94, 0.1)" : "rgba(231, 178, 75, 0.1)", borderWidth: 1, borderColor: (order.status === "DELIVERED" || order.status === "COMPLETED") ? "rgba(34, 197, 94, 0.3)" : "rgba(231, 178, 75, 0.3)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <Ionicons name={(order.status === "DELIVERED" || order.status === "COMPLETED") ? "checkmark-done-outline" : "flash"} size={14} color={(order.status === "DELIVERED" || order.status === "COMPLETED") ? palette.success : palette.gold} style={{ opacity: 0.8 }} />
+            <Text style={{ color: (order.status === "DELIVERED" || order.status === "COMPLETED") ? palette.success : palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>
+              {(order.status === "DELIVERED" || order.status === "COMPLETED") ? "LEVERERAD" : "LIVE TRACKING"}
+            </Text>
           </View>
           <Text style={{ fontSize: 38, fontWeight: "900", color: palette.text, fontStyle: "italic", letterSpacing: -1 }}>
             ORDER <Text style={{ color: palette.gold }}>{order.orderNumber || `#${id.slice(0, 8)}`}</Text>
           </Text>
           <Text style={{ fontSize: 10, fontWeight: "900", color: "#6f667d", letterSpacing: 2, marginTop: 4 }}>
-            DIN BESTÄLLNING BEHANDLAS I REALTID
+            {(order.status === "DELIVERED" || order.status === "COMPLETED") ? "TACK FÖR DIN BESTÄLLNING" : "DIN BESTÄLLNING BEHANDLAS I REALTID"}
           </Text>
         </View>
 
@@ -3489,6 +3887,82 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
            </View>
         </View>
 
+        {/* Review Section - Only show for delivered/completed orders that haven't been rated yet */}
+        {(order.status === "DELIVERED" || order.status === "COMPLETED") && !order.rating && !reviewSubmitted && (
+          <View style={{ backgroundColor: "#151318", borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(231,178,75,0.3)" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+               <Text style={{ color: palette.gold, fontSize: 18, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>LÄMNA RECENSION</Text>
+               <Ionicons name="star-outline" size={24} color={palette.gold} />
+            </View>
+            
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", letterSpacing: 1, marginBottom: 16, textAlign: "center" }}>
+              Hur var din upplevelse hos {order.restaurantName || "restaurangen"}?
+            </Text>
+            
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 12, marginBottom: 20 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable key={star} onPress={() => setUserRating(star)}>
+                  <Ionicons 
+                    name={star <= userRating ? "star" : "star-outline"} 
+                    size={36} 
+                    color={palette.gold} 
+                  />
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={{ backgroundColor: "#1a1a1f", borderRadius: 16, padding: 16, marginBottom: 20 }}>
+              <TextInput
+                value={userReview}
+                onChangeText={setUserReview}
+                placeholder="Skriv en recension (valfritt)..."
+                placeholderTextColor="#6f667d"
+                multiline
+                numberOfLines={3}
+                style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlignVertical: "top", minHeight: 80 }}
+              />
+            </View>
+
+            <Pressable 
+              onPress={submitReview}
+              disabled={userRating === 0 || reviewing}
+              style={{ 
+                backgroundColor: userRating === 0 ? "rgba(231,178,75,0.3)" : palette.gold, 
+                borderRadius: 20, 
+                paddingVertical: 16, 
+                alignItems: "center" 
+              }}
+            >
+              <Text style={{ color: userRating === 0 ? palette.muted : "#000", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>
+                {reviewing ? "SKICKAR..." : "SKICKA RECENSION"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Already reviewed - show if rating exists OR if review was just submitted */}
+        {(order.status === "DELIVERED" || order.status === "COMPLETED") && (order.rating || reviewSubmitted) && (
+          <View style={{ backgroundColor: "#151318", borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+               <Text style={{ color: palette.success, fontSize: 18, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>TACK FÖR DIN RECENSION</Text>
+               <Ionicons name="checkmark-circle" size={24} color={palette.success} />
+            </View>
+            <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Ionicons 
+                  key={star} 
+                  name={star <= (order.rating || userRating) ? "star" : "star-outline"} 
+                  size={20} 
+                  color={palette.gold} 
+                />
+              ))}
+            </View>
+            {(order.review || userReview) && (
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", lineHeight: 18 }}>{order.review || userReview}</Text>
+            )}
+          </View>
+        )}
+
       </View>
     </ScreenWrap>
   );
@@ -3497,11 +3971,15 @@ function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
 function ProductModal({
   product,
   address,
+  orderType,
+  forceHide,
   onClose,
   onAdd,
 }: {
   product: MenuProduct | null;
   address: string;
+  orderType: OrderType;
+  forceHide?: boolean;
   onClose: () => void;
   onAdd: (payload: { quantity: number; note?: string; extras: CartItem["extras"] }) => void;
 }) {
@@ -3509,6 +3987,13 @@ function ProductModal({
   const [note, setNote] = useState("");
   const [extras, setExtras] = useState<CartItem["extras"]>([]);
   const [selectionError, setSelectionError] = useState<string | null>(null);
+  const dislikedIngredients = useAppStore((s) => s.dislikedIngredients || []);
+
+  const matchedIngredients = dislikedIngredients.filter(
+    (ing) =>
+      product?.description?.toLowerCase().includes(ing.toLowerCase()) ||
+      product?.name?.toLowerCase().includes(ing.toLowerCase())
+  );
 
   const orderedGroups = useMemo(
     () => [...(product?.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
@@ -3631,11 +4116,17 @@ function ProductModal({
       }
     }
 
-    onAdd({ quantity, note: note.trim() || undefined, extras });
+    let finalNote = note.trim();
+    if (matchedIngredients.length > 0) {
+      const prefText = matchedIngredients.map((i) => `UTAN ${i.toUpperCase()}`).join(", ");
+      finalNote = finalNote ? `${finalNote} (${prefText})` : prefText;
+    }
+
+    onAdd({ quantity, note: finalNote || undefined, extras });
   };
 
   return (
-    <Modal visible transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
+    <Modal visible={!!product && !forceHide} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
       <View style={[styles.modalBackdrop, styles.productModalBackdrop]}>
         <Pressable style={styles.productModalScrim} onPress={onClose} />
         <View style={styles.productModalSheet}>
@@ -3650,17 +4141,33 @@ function ProductModal({
                 <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.productHeroImage} />
                 <LinearGradient colors={["transparent", "rgba(11,10,15,0.15)", "rgba(11,10,15,0.96)"]} style={styles.productHeroOverlay} />
                 <View style={styles.productHeroContent}>
-                  <View style={styles.productHeroPriceChip}>
-                    <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <View style={styles.productHeroPriceChip}>
+                      <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                    </View>
+                    {matchedIngredients.length > 0 && (
+                      <View style={{ backgroundColor: "rgba(69,10,10,0.8)", borderWidth: 1, borderColor: "#7f1d1d", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="alert-circle" size={14} color="#f87171" />
+                        <Text style={{ color: "#f87171", fontSize: 10, fontWeight: "900" }}>{matchedIngredients[0].toUpperCase()}</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.productModalTitle}>{product.name}</Text>
                   {!!product.description && <Text style={styles.productModalDescription}>{product.description}</Text>}
                 </View>
               </View>
             ) : (
-              <View style={styles.productModalHeader}>
-                <View style={styles.productHeroPriceChip}>
-                  <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+              <View style={{ padding: 24, paddingBottom: 0 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <View style={styles.productHeroPriceChip}>
+                    <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                  </View>
+                  {matchedIngredients.length > 0 && (
+                    <View style={{ backgroundColor: "#450a0a", borderWidth: 1, borderColor: "#7f1d1d", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="alert-circle" size={14} color="#f87171" />
+                      <Text style={{ color: "#f87171", fontSize: 10, fontWeight: "900" }}>INNEHÅLLER {matchedIngredients[0].toUpperCase()}</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.productModalTitle}>{product.name}</Text>
                 {!!product.description && <Text style={styles.productModalDescription}>{product.description}</Text>}
@@ -3767,14 +4274,21 @@ function ProductModal({
               </View>
             </View>
 
-            <Pressable style={styles.productAddButton} onPress={handleAddToCart}>
+            <Pressable 
+              style={[styles.productAddButton, !address && { backgroundColor: palette.goldDark }]} 
+              onPress={handleAddToCart}
+            >
               <View style={styles.productAddButtonContent}>
                 <View style={styles.productAddButtonIconWrap}>
-                  <Ionicons name="bag-handle-outline" size={18} color="#000" />
+                  <Ionicons name={!address ? "location-outline" : "bag-handle-outline"} size={18} color="#000" />
                 </View>
                 <View>
-                  <Text style={styles.productAddButtonLabel}>Lägg i kassen</Text>
-                  <Text style={styles.productAddButtonSubLabel}>Klar att beställa</Text>
+                  <Text style={styles.productAddButtonLabel}>
+                    {!address ? (orderType === "DELIVERY" ? "Ange adress" : "Välj stad") : "Lägg i kassen"}
+                  </Text>
+                  <Text style={styles.productAddButtonSubLabel}>
+                    {!address ? "Krävs för att fortsätta" : "Klar att beställa"}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.productAddButtonPrice}>{totalPrice} kr</Text>
@@ -4057,6 +4571,26 @@ function RestaurantInfoModal({
                   {line}
                 </Text>
               ))}
+            </View>
+          )}
+
+          {!!restaurant.rating && (
+            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" }}>
+              <Text style={{ color: palette.gold, fontWeight: "900", marginBottom: 12 }}>RECENSIONER</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <View style={{ flexDirection: "row", gap: 4 }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Ionicons 
+                      key={star} 
+                      name={star <= Math.round(restaurant.rating || 0) ? "star" : "star-outline"} 
+                      size={18} 
+                      color={palette.gold} 
+                    />
+                  ))}
+                </View>
+                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900" }}>{restaurant.rating.toFixed(1)}</Text>
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900" }}>({restaurant.ratingCount || 0} recensioner)</Text>
+              </View>
             </View>
           )}
         </View>

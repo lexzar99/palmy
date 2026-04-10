@@ -5,6 +5,7 @@ import axios from "axios";
 import { Loader2, Save, ToggleLeft, ToggleRight, Clock } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { SOUND_OPTIONS, playNotificationSound } from "@/lib/notificationSounds";
+import { useToast } from "@/components/Toast";
 
 const DAYS = [
   { key: "monday", label: "Måndag" },
@@ -19,6 +20,7 @@ const DAYS = [
 const defaultHours = { open: "11:00", close: "22:00", closed: false };
 
 const AdminSettingsPage = () => {
+  const { success, error: toastError } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
@@ -67,9 +69,9 @@ const AdminSettingsPage = () => {
       await axios.patch(`${API_URL}/api/settings`, settings, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      alert("✅ Inställningar sparade!");
+      success("Inställningar sparade!");
     } catch (err: any) {
-      alert(err.response?.data?.error || "Fel vid sparning");
+      toastError(err.response?.data?.error || "Fel vid sparning");
     } finally {
       setSaving(false);
     }

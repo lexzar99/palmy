@@ -1,22 +1,20 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { API_URL } from "@/lib/api";
-import { 
-  Check, 
-  Loader2, 
-  Plus, 
-  Save, 
-  Trash2, 
-  Upload, 
-  ImageIcon, 
-  Star, 
-  Clock, 
-  Bike, 
+import {
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+  ImageIcon,
+  Clock,
   Search,
-  LayoutDashboard,
   Settings,
   ChevronRight,
   Sparkles,
@@ -25,13 +23,20 @@ import {
   Info,
   Lock,
   Users,
-  Calendar,
-  CreditCard,
-  History as HistoryIcon,
-  Ticket,
-  LayoutGrid
+  Star,
+  Award,
+  Medal,
+  Crown,
+  CheckCircle2,
+  XCircle,
+  ArrowLeft,
+  Package,
+  TrendingUp,
+  LayoutGrid,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Modal, ConfirmModal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 
 interface Restaurant {
   id: string;
@@ -52,13 +57,13 @@ interface Restaurant {
   etaMinutes?: number;
   isOpen?: boolean;
   featuredClass?: number;
-  tags?: string; // JSON string from API
-  openingHours?: string; // JSON string from API
+  tags?: string;
+  openingHours?: string;
   adminPassword?: string;
   internalInfo?: string;
   latitude?: number;
   longitude?: number;
-  deliveryZones?: string; // JSON
+  deliveryZones?: string;
   freeDeliveryAbove?: number;
 }
 
@@ -75,7 +80,7 @@ const emptyForm: Partial<Restaurant> = {
   deliveryFee: 0,
   etaMinutes: 30,
   isOpen: true,
-  featuredClass: 3,
+  featuredClass: 2,
   tags: "[]",
   imageUrl: "",
   heroImageUrl: "",
@@ -87,33 +92,65 @@ const emptyForm: Partial<Restaurant> = {
   freeDeliveryAbove: 0,
 };
 
+const PREMIUM_TIERS = [
+  {
+    value: 1,
+    label: "Premium",
+    icon: Crown,
+    color: "text-gold-500",
+    bg: "bg-gold-500/10 border-gold-500/30",
+    activeBg: "bg-gold-500",
+    desc: "Topplacering, featured i appen",
+  },
+  {
+    value: 2,
+    label: "Standard",
+    icon: Medal,
+    color: "text-blue-400",
+    bg: "bg-blue-500/10 border-blue-500/30",
+    activeBg: "bg-blue-500",
+    desc: "Normal synlighet",
+  },
+  {
+    value: 3,
+    label: "Dold",
+    icon: Award,
+    color: "text-[var(--text-secondary)]",
+    bg: "bg-[var(--border-subtle)] border-[var(--border-subtle)]",
+    activeBg: "bg-[var(--bg-secondary)]",
+    desc: "Inte synlig i appen",
+  },
+];
+
 export default function RestaurantsPage() {
   const router = useRouter();
+  const { success, error: toastError, warning } = useToast();
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"OVERVIEW" | "EDIT">("OVERVIEW");
+  const [mode, setMode] = useState<"list" | "edit" | "new">("list");
   const [form, setForm] = useState<Partial<Restaurant>>(emptyForm);
-  const [adminStatus, setAdminStatus] = useState<{exists: boolean; admin?: any; restaurant?: any} | null>(null);
-  const [saveMessage, setSaveMessage] = useState<{type: 'success' | 'warning' | 'error'; text: string} | null>(null);
-  
-  const DAYS = [
-    { key: "monday", label: "Måndag" },
-    { key: "tuesday", label: "Tisdag" },
-    { key: "wednesday", label: "Onsdag" },
-    { key: "thursday", label: "Torsdag" },
-    { key: "friday", label: "Fredag" },
-    { key: "saturday", label: "Lördag" },
-    { key: "sunday", label: "Söndag" },
-  ];
-  const defaultHours = { open: "11:00", close: "22:00", closed: false };
-  
+  const [adminStatus, setAdminStatus] = useState<{ exists: boolean; admin?: any } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Restaurant | null>(null);
+  const [cities, setCities] = useState<any[]>([]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const heroInputRef = useRef<HTMLInputElement>(null);
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("matgo_token") || ""
+      : "";
+
+  const slugify = (val: string) =>
+    val
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
 
   const checkAdminStatus = async (slug: string) => {
     if (!slug) { setAdminStatus(null); return; }
@@ -128,41 +165,14 @@ export default function RestaurantsPage() {
     try {
       const res = await axios.get(`${API_URL}/api/restaurants`);
       setRestaurants(res.data);
-    } catch (error) {
-      console.error("Failed to fetch restaurants", error);
-    } finally {
-      setLoading(false);
-    }
+    } catch { toastError("Kunde inte ladda restauranger"); }
+    finally { setLoading(false); }
   };
 
-  const [cities, setCities] = useState<any[]>([]);
-  const fetchCities = async () => {
-    try {
-      const res = await axios.get(`${API_URL}/api/cities`);
-      setCities(res.data);
-    } catch {}
-  };
-
-  useEffect(() => { 
+  useEffect(() => {
     fetchRestaurants();
-    fetchCities();
+    axios.get(`${API_URL}/api/cities`).then((r) => setCities(r.data)).catch(() => {});
   }, []);
-
-  const filteredRestaurants = useMemo(() => {
-    return restaurants.filter(r => 
-      r.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      r.cuisine?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [restaurants, searchTerm]);
-
-  const slugify = (val: string) => {
-    return val
-      .toLowerCase()
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-  };
 
   const selected = useMemo(
     () => restaurants.find((r) => r.id === selectedId),
@@ -173,660 +183,768 @@ export default function RestaurantsPage() {
     if (selected) {
       setForm({
         ...selected,
-        tags: typeof selected.tags === 'string' ? selected.tags : JSON.stringify(selected.tags || []),
-        openingHours: typeof selected.openingHours === 'string' ? selected.openingHours : JSON.stringify(selected.openingHours || {}),
-        adminPassword: "", // Don't load password
+        tags: typeof selected.tags === "string" ? selected.tags : JSON.stringify(selected.tags || []),
+        openingHours: typeof selected.openingHours === "string" ? selected.openingHours : JSON.stringify(selected.openingHours || {}),
+        adminPassword: "",
       });
-      // Check admin account status when selecting a restaurant
       checkAdminStatus(selected.slug);
     } else {
       setAdminStatus(null);
     }
   }, [selected]);
 
+  const filteredRestaurants = useMemo(
+    () =>
+      restaurants.filter(
+        (r) =>
+          r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          r.cuisine?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          r.city?.toLowerCase().includes(searchTerm.toLowerCase())
+      ),
+    [restaurants, searchTerm]
+  );
+
   const handleSave = async () => {
     if (!form.name) return;
     setSaving(true);
-    setSaveMessage(null);
     try {
       const { id, createdAt, updatedAt, ...cleanForm } = form as any;
-      
       const payload = {
         ...cleanForm,
-        // Ensure numeric and boolean fields are correctly typed
-        name: form.name,
-        slug: form.slug,
-        featuredClass: Number(form.featuredClass || 3),
+        featuredClass: Number(form.featuredClass || 2),
         isOpen: form.isOpen !== false,
-        description: form.description || "",
-        cuisine: form.cuisine || "",
-        city: form.city || "Lund",
-        address: form.address || "",
-        zip: form.zip || "",
-        phone: form.phone || "",
         deliveryFee: Number(form.deliveryFee || 0),
         minOrderAmount: Number(form.minOrderAmount || 0),
         etaMinutes: Number(form.etaMinutes || 30),
         latitude: Number(form.latitude || 0),
         longitude: Number(form.longitude || 0),
         freeDeliveryAbove: Number(form.freeDeliveryAbove || 0),
-        deliveryZones: typeof form.deliveryZones === 'string' ? form.deliveryZones : JSON.stringify(form.deliveryZones || []),
+        deliveryZones: typeof form.deliveryZones === "string" ? form.deliveryZones : JSON.stringify(form.deliveryZones || []),
         imageUrl: form.imageUrl || "",
         heroImageUrl: form.heroImageUrl || "",
         internalInfo: form.internalInfo || "",
-        tags: typeof form.tags === 'string' ? JSON.parse(form.tags || "[]") : (form.tags || []),
-        openingHours: typeof form.openingHours === 'string' ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
+        tags: typeof form.tags === "string" ? JSON.parse(form.tags || "[]") : (form.tags || []),
+        openingHours: typeof form.openingHours === "string" ? JSON.parse(form.openingHours || "{}") : (form.openingHours || {}),
       };
 
-      let result: any;
       if (selectedId) {
-        result = await axios.patch(`${API_URL}/api/restaurants/${selectedId}`, payload, {
+        await axios.patch(`${API_URL}/api/restaurants/${selectedId}`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        success(`${form.name} sparad!`);
       } else {
-        result = await axios.post(`${API_URL}/api/restaurants`, payload, {
+        await axios.post(`${API_URL}/api/restaurants`, payload, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        success(`${form.name} skapad!`);
+        setMode("list");
+        setSelectedId(null);
       }
 
-      // Show feedback about admin account
       if (form.adminPassword && form.adminPassword.trim().length > 0) {
-        const slug = form.slug || result.data?.slug;
-        if (result.data?.adminCreated || selectedId) {
-          setSaveMessage({ type: 'success', text: `✅ Restaurang sparad! Admin-konto "${slug}" skapat/uppdaterat med angivet lösenord.` });
-        } else {
-          setSaveMessage({ type: 'warning', text: `⚠️ Restaurang sparad men admin-kontot kanske inte skapades korrekt. Kontrollera loggar.` });
-        }
-      } else {
-        setSaveMessage({ type: 'warning', text: `Restaurang sparad. Inget lösenord angivet — inget admin-konto skapades/ändrades.` });
+        success("Admin-konto uppdaterat med nytt lösenord.");
+      } else if (!selectedId && (!form.adminPassword || !form.adminPassword.trim())) {
+        warning("Inget lösenord angivet — admin-konto ej skapat/ändrat.");
       }
 
       await fetchRestaurants();
-      
-      // Keep message for a while then close or redirect
-      setTimeout(() => {
-        setSaveMessage(null);
-        if (selectedId) {
-           // Stay on page if editing
-        } else {
-           setActiveTab("OVERVIEW");
-           setSelectedId(null);
-        }
-      }, 4000);
-    } catch (error: any) {
-      setSaveMessage({ type: 'error', text: error.response?.data?.error || "Kunde inte spara" });
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte spara restaurangen");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Radera restaurangen permanent? Detta tar även bort alla dess ordrar och menyprodukter.")) return;
+  const handleDelete = async (id: string) => {
     try {
       await axios.delete(`${API_URL}/api/restaurants/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      success("Restaurang raderad");
       await fetchRestaurants();
-      if (selectedId === id) setSelectedId(null);
-    } catch (error) {
-      alert("Kunde inte radera restaurang");
-    }
-  };
-  
-  const setZones = (zones: any[]) => {
-    setForm(prev => ({ ...prev, deliveryZones: JSON.stringify(zones) }));
-  };
-
-  const addZone = () => {
-    const zones = JSON.parse(form.deliveryZones || "[]");
-    zones.push({ id: Math.random().toString(36).substring(7), name: "Ny zon", radiusKm: 5, fee: 39, minOrder: 150, isActive: true });
-    setZones(zones);
-  };
-
-  const updateZone = (id: string, field: string, value: any) => {
-    const zones = JSON.parse(form.deliveryZones || "[]");
-    const idx = zones.findIndex((z: any) => z.id === id);
-    if (idx !== -1) {
-      zones[idx][field] = value;
-      setZones(zones);
+      if (selectedId === id) { setSelectedId(null); setMode("list"); }
+      setDeleteConfirm(null);
+    } catch {
+      toastError("Kunde inte radera restaurangen");
     }
   };
 
-  const removeZone = (id: string) => {
-    const zones = JSON.parse(form.deliveryZones || "[]");
-    setZones(zones.filter((z: any) => z.id !== id));
-  };
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'imageUrl' | 'heroImageUrl') => {
+  const handleImageUpload = (
+    e: React.ChangeEvent<HTMLInputElement>,
+    field: "imageUrl" | "heroImageUrl"
+  ) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setForm(prev => ({ ...prev, [field]: reader.result as string }));
-      };
+      reader.onloadend = () =>
+        setForm((prev) => ({ ...prev, [field]: reader.result as string }));
       reader.readAsDataURL(file);
     }
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6">
-        <Loader2 className="animate-spin text-gold-500" size={48} />
-        <p className="text-[var(--text-primary)]/40 font-black uppercase tracking-[0.3em] text-xs">Laddar plattformen...</p>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
+        <Loader2 className="animate-spin text-gold-500" size={36} />
+        <p className="text-[var(--text-secondary)] font-black uppercase tracking-[0.3em] text-[10px]">
+          Laddar restauranger...
+        </p>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-8 pb-24">
-      {/* Superior Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
-        <div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-500/10 border border-gold-500/20 text-gold-500">
-               <LayoutDashboard size={24} />
-            </div>
-            <div>
-               <h1 className="text-4xl font-black uppercase tracking-tight">Plattformsöversikt</h1>
-               <p className="text-[var(--text-primary)]/40 font-medium tracking-wide">Hantera alla anslutna restauranger och deras synlighet.</p>
-            </div>
+  // ── EDIT FORM ──────────────────────────────────────────────────────────────
+  if (mode === "edit" || mode === "new") {
+    return (
+      <div className="space-y-6 pb-24 max-w-5xl">
+        {/* Back button */}
+        <button
+          onClick={() => { setMode("list"); setSelectedId(null); }}
+          className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors text-[10px] font-black uppercase tracking-widest"
+        >
+          <ArrowLeft size={14} /> Tillbaka till lista
+        </button>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
+              {mode === "new" ? "Ny Restaurang" : `Redigera: ${selected?.name || ""}`}
+            </h1>
+            <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1">
+              {mode === "new" ? "Lägg till en ny restaurang på plattformen" : "Hantera restaurangens inställningar"}
+            </p>
           </div>
-          
-          <div className="flex gap-2 p-1 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl w-fit">
-            <button 
-              onClick={() => { setActiveTab("OVERVIEW"); setSelectedId(null); }}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "OVERVIEW" ? "bg-gold-500 text-dark-500" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"}`}
+          <button
+            onClick={handleSave}
+            disabled={saving || !form.name}
+            className="flex items-center gap-3 px-6 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all disabled:opacity-50 active:scale-95"
+          >
+            {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            Spara
+          </button>
+        </div>
+
+        <div className="grid lg:grid-cols-[1fr,320px] gap-6">
+          {/* Main form */}
+          <div className="space-y-5">
+            {/* Basic info */}
+            <Section title="Grundinformation" icon={Sparkles}>
+              <div className="grid md:grid-cols-2 gap-4">
+                <Field label="Restaurangnamn">
+                  <input
+                    value={form.name || ""}
+                    onChange={(e) => {
+                      const name = e.target.value;
+                      setForm((prev) => ({
+                        ...prev,
+                        name,
+                        ...(mode === "new" ? { slug: slugify(name) } : {}),
+                      }));
+                    }}
+                    className={inputCls}
+                    placeholder="t.ex. MatGo Sushi"
+                  />
+                </Field>
+                <Field label="Kök / Tags">
+                  <input
+                    value={form.cuisine || ""}
+                    onChange={(e) => setForm({ ...form, cuisine: e.target.value })}
+                    className={inputCls}
+                    placeholder="Kebab, Pizza, Falafel"
+                  />
+                </Field>
+                <div className="md:col-span-2">
+                  <Field label="Beskrivning">
+                    <textarea
+                      value={form.description || ""}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      className={`${inputCls} h-24 resize-none`}
+                      placeholder="Kort beskrivning för kunderna..."
+                    />
+                  </Field>
+                </div>
+              </div>
+            </Section>
+
+            {/* Location */}
+            <Section title="Plats & Kontakt" icon={MapPin}>
+              <div className="grid md:grid-cols-3 gap-4">
+                <Field label="Stad">
+                  <select
+                    value={form.city || ""}
+                    onChange={(e) => {
+                      if (e.target.value === "ADD_NEW") { router.push("/cities"); return; }
+                      setForm({ ...form, city: e.target.value });
+                    }}
+                    className={inputCls}
+                  >
+                    <option value="">Välj stad...</option>
+                    {cities.map((c) => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                    <option value="ADD_NEW">+ Lägg till stad</option>
+                  </select>
+                </Field>
+                <Field label="Telefon">
+                  <input
+                    value={form.phone || ""}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    className={inputCls}
+                    placeholder="046-XXX XXX"
+                  />
+                </Field>
+                <Field label="Postnummer">
+                  <input
+                    value={form.zip || ""}
+                    onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                    className={inputCls}
+                    placeholder="222 10"
+                  />
+                </Field>
+                <div className="md:col-span-3">
+                  <Field label="Adress">
+                    <input
+                      value={form.address || ""}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      className={inputCls}
+                      placeholder="Gatan 10"
+                    />
+                  </Field>
+                </div>
+              </div>
+            </Section>
+
+            {/* Delivery settings */}
+            <Section title="Logistik" icon={Package}>
+              <div className="grid grid-cols-3 gap-4">
+                <NumField
+                  label="Minsta order (kr)"
+                  value={form.minOrderAmount}
+                  onChange={(v) => setForm({ ...form, minOrderAmount: v })}
+                />
+                <NumField
+                  label="Leveransavgift (kr)"
+                  value={form.deliveryFee}
+                  onChange={(v) => setForm({ ...form, deliveryFee: v })}
+                />
+                <NumField
+                  label="ETA (min)"
+                  value={form.etaMinutes}
+                  onChange={(v) => setForm({ ...form, etaMinutes: v })}
+                />
+                <NumField
+                  label="Fri frakt över (kr)"
+                  value={form.freeDeliveryAbove}
+                  onChange={(v) => setForm({ ...form, freeDeliveryAbove: v })}
+                />
+              </div>
+            </Section>
+
+            {/* Admin login */}
+            <Section title="Admin-inloggning" icon={Lock}>
+              {adminStatus && (
+                <div
+                  className={`flex items-center gap-3 p-3 rounded-xl mb-4 text-[10px] font-bold uppercase tracking-wider ${
+                    adminStatus.exists
+                      ? "bg-emerald-500/8 border border-emerald-500/20 text-emerald-400"
+                      : "bg-amber-500/8 border border-amber-500/20 text-amber-400"
+                  }`}
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full ${
+                      adminStatus.exists ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                    }`}
+                  />
+                  {adminStatus.exists
+                    ? `Admin-konto: ${adminStatus.admin?.email} (${adminStatus.admin?.role})`
+                    : "Inget admin-konto. Ange lösenord för att skapa."}
+                </div>
+              )}
+              <div className="grid md:grid-cols-2 gap-4">
+                <Field label="Användarnamn (slug)">
+                  <input
+                    value={form.slug || ""}
+                    onChange={(e) => {
+                      const newSlug = slugify(e.target.value);
+                      setForm({ ...form, slug: newSlug });
+                      checkAdminStatus(newSlug);
+                    }}
+                    className={`${inputCls} font-mono`}
+                  />
+                </Field>
+                <Field label={adminStatus?.exists ? "Nytt lösenord" : "Lösenord (skapar konto)"}>
+                  <input
+                    type="password"
+                    value={form.adminPassword || ""}
+                    onChange={(e) => setForm({ ...form, adminPassword: e.target.value })}
+                    className={inputCls}
+                    placeholder={adminStatus?.exists ? "Lämna tomt för att behålla" : "Ange lösenord"}
+                  />
+                </Field>
+              </div>
+              <div className="mt-3 flex items-start gap-2 p-3 bg-gold-500/5 border border-gold-500/10 rounded-xl">
+                <Info size={13} className="text-gold-500 mt-0.5 shrink-0" />
+                <p className="text-[9px] font-medium text-[var(--text-secondary)] leading-relaxed">
+                  Inloggning:{" "}
+                  <span className="text-gold-500 font-black">{form.slug}</span> + lösenord.
+                  Används i Flutter-appen MatGo Business.
+                </p>
+              </div>
+            </Section>
+
+            {/* Internal notes */}
+            <Section title="Interna anteckningar (Super Admin)" icon={Users}>
+              <textarea
+                value={form.internalInfo || ""}
+                onChange={(e) => setForm({ ...form, internalInfo: e.target.value })}
+                className={`${inputCls} h-28 resize-none border-l-2 border-l-sky-500`}
+                placeholder="Kontaktperson, avtalsdetaljer, Swish-nummer..."
+              />
+            </Section>
+          </div>
+
+          {/* Sidebar controls */}
+          <div className="space-y-5">
+            {/* Images */}
+            <Section title="Bilder" icon={ImageIcon} compact>
+              {/* Hero */}
+              <div className="mb-4">
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  Cover-bild (banner)
+                </p>
+                <div
+                  onClick={() => heroInputRef.current?.click()}
+                  className="group relative h-36 w-full rounded-xl border-2 border-dashed border-[var(--border-subtle)] overflow-hidden bg-[var(--bg-primary)] flex items-center justify-center cursor-pointer hover:border-gold-500/30 transition-all"
+                >
+                  {form.heroImageUrl ? (
+                    <>
+                      <img
+                        src={form.heroImageUrl}
+                        className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-transform"
+                        alt=""
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all">
+                        <Upload className="text-white" size={20} />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-[var(--text-secondary)]">
+                      <ImageIcon size={24} className="opacity-30" />
+                      <span className="text-[9px] font-black uppercase opacity-40">Ladda upp</span>
+                    </div>
+                  )}
+                  <input
+                    ref={heroInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "heroImageUrl")}
+                  />
+                </div>
+              </div>
+
+              {/* Logo */}
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  Logo / Avatar
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="h-16 w-16 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] overflow-hidden flex items-center justify-center shrink-0">
+                    {form.imageUrl ? (
+                      <img src={form.imageUrl} className="h-full w-full object-cover" alt="" />
+                    ) : (
+                      <Plus size={20} className="text-[var(--text-secondary)] opacity-20" />
+                    )}
+                  </div>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl text-[9px] font-black uppercase tracking-widest hover:border-gold-500/30 transition-all"
+                  >
+                    Välj bild
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, "imageUrl")}
+                  />
+                </div>
+              </div>
+            </Section>
+
+            {/* Premium tier */}
+            <Section title="Premium-tier" icon={Crown} compact>
+              <div className="space-y-2">
+                {PREMIUM_TIERS.map((tier) => {
+                  const Icon = tier.icon;
+                  const isActive = form.featuredClass === tier.value;
+                  return (
+                    <button
+                      key={tier.value}
+                      onClick={() => setForm({ ...form, featuredClass: tier.value })}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                        isActive
+                          ? `${tier.bg} shadow-md`
+                          : "border-[var(--border-subtle)] bg-[var(--bg-primary)] hover:border-[var(--border-subtle)]"
+                      }`}
+                    >
+                      <Icon
+                        size={16}
+                        className={isActive ? tier.color : "text-[var(--text-secondary)]"}
+                      />
+                      <div className="text-left">
+                        <p
+                          className={`text-[10px] font-black uppercase tracking-wider ${
+                            isActive ? tier.color : "text-[var(--text-secondary)]"
+                          }`}
+                        >
+                          {tier.label}
+                        </p>
+                        <p className="text-[8px] text-[var(--text-secondary)] opacity-60">
+                          {tier.desc}
+                        </p>
+                      </div>
+                      {isActive && (
+                        <CheckCircle2
+                          size={14}
+                          className={`ml-auto ${tier.color}`}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </Section>
+
+            {/* Status */}
+            <Section title="Status" compact>
+              <button
+                onClick={() => setForm({ ...form, isOpen: !form.isOpen })}
+                className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+                  form.isOpen
+                    ? "bg-emerald-500/8 border-emerald-500/20 text-emerald-400"
+                    : "bg-rose-500/8 border-rose-500/20 text-rose-400"
+                }`}
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest">
+                  {form.isOpen ? "Öppen för beställning" : "Stängd"}
+                </span>
+                {form.isOpen ? (
+                  <CheckCircle2 size={16} />
+                ) : (
+                  <XCircle size={16} />
+                )}
+              </button>
+            </Section>
+
+            {/* Save button */}
+            <button
+              onClick={handleSave}
+              disabled={saving || !form.name}
+              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all disabled:opacity-50 active:scale-95 flex items-center justify-center gap-2"
             >
-              Lista
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Publicera ändringar
             </button>
-            <button 
-              onClick={() => { setActiveTab("EDIT"); setForm(emptyForm); setSelectedId(null); }}
-              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "EDIT" && !selectedId ? "bg-gold-500 text-dark-500" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"}`}
-            >
-              Lägg till ny
-            </button>
+
+            {/* Delete */}
+            {selectedId && (
+              <div className="p-4 bg-rose-500/5 border border-rose-500/10 rounded-xl text-center">
+                <p className="text-[8px] font-black uppercase tracking-widest text-rose-400 mb-3">
+                  Farozon
+                </p>
+                <button
+                  onClick={() =>
+                    setDeleteConfirm(
+                      restaurants.find((r) => r.id === selectedId) || null
+                    )
+                  }
+                  className="text-rose-500/40 hover:text-rose-500 text-[9px] font-bold uppercase tracking-widest underline underline-offset-4 transition-colors"
+                >
+                  Radera restaurang permanent
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
-           <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" size={18} />
-              <input 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Sök restauranger..."
-                className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-3 pl-12 pr-6 outline-none focus:ring-2 focus:ring-gold-500/20 transition-all text-sm w-full lg:w-72"
-              />
-           </div>
+        {/* Delete confirm modal */}
+        <ConfirmModal
+          open={!!deleteConfirm}
+          onClose={() => setDeleteConfirm(null)}
+          onConfirm={() => deleteConfirm && handleDelete(deleteConfirm.id)}
+          title="Radera restaurang"
+          message={`Är du säker? ${deleteConfirm?.name} och ALLA dess ordrar, menyprodukter och inställningar raderas permanent.`}
+          confirmLabel="Radera permanent"
+          danger
+        />
+      </div>
+    );
+  }
+
+  // ── LIST VIEW ──────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-6 pb-24">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
+            Restauranger
+          </h1>
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1">
+            {restaurants.length} restauranger på plattformen
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search
+              size={14}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+            />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Sök restauranger..."
+              className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl py-2.5 pl-9 pr-4 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all w-64"
+            />
+          </div>
+          <button
+            onClick={() => { setMode("new"); setForm(emptyForm); setSelectedId(null); }}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all active:scale-95"
+          >
+            <Plus size={15} /> Ny restaurang
+          </button>
         </div>
       </div>
 
-      {/* Dynamic Notification Overlay — FIXED FEEDBACK */}
-      <AnimatePresence>
-        {saveMessage && (
-          <motion.div 
-            initial={{ opacity: 0, y: -100, x: "-50%" }}
-            animate={{ opacity: 1, y: 0, x: "-50%" }}
-            exit={{ opacity: 0, y: -100, x: "-50%" }}
-            className="fixed top-10 left-1/2 z-[100] w-full max-w-md px-4"
-          >
-             <div className={`p-6 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-2 flex items-center gap-4 backdrop-blur-2xl ${
-               saveMessage.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white' :
-               saveMessage.type === 'warning' ? 'bg-orange-500/90 border-orange-400 text-white' :
-               'bg-red-500/90 border-red-400 text-white'
-             }`}>
-                <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                   {saveMessage.type === 'success' ? <Check size={20} /> : <Info size={20} />}
-                </div>
-                <p className="font-extrabold text-sm leading-tight uppercase tracking-wider">{saveMessage.text}</p>
-             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence mode="wait">
-        {activeTab === "OVERVIEW" ? (
-          <motion.div 
-            key="overview"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
-          >
-            {filteredRestaurants.map((r) => (
-              <div 
-                key={r.id} 
-                onClick={() => { setSelectedId(r.id); setActiveTab("EDIT"); }}
-                className="group relative bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] overflow-hidden hover:border-gold-500/30 transition-all cursor-pointer flex flex-col h-[480px]"
-              >
-                 {/* Hero Header */}
-                 <div className="h-44 w-full bg-dark-500 relative">
-                    {r.heroImageUrl ? (
-                      <img src={r.heroImageUrl.startsWith('http') ? r.heroImageUrl : (r.heroImageUrl.startsWith('/') ? `${API_URL}${r.heroImageUrl}` : r.heroImageUrl)} className="h-full w-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700" alt={r.name} />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center opacity-10 font-black uppercase tracking-widest text-[10px]">Saknar Cover</div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/40 to-transparent" />
-                    
-                    {/* Floating Avatar */}
-                    <div className="absolute -bottom-6 left-8 h-20 w-20 rounded-2xl border-4 border-[#0d0d0d] overflow-hidden bg-dark-400 shadow-2xl shadow-black/50 ring-1 ring-white/5">
-                       {r.imageUrl ? <img src={r.imageUrl.startsWith('http') ? r.imageUrl : (r.imageUrl.startsWith('/') ? `${API_URL}${r.imageUrl}` : r.imageUrl)} className="h-full w-full object-cover" alt="" /> : <div className="h-full w-full flex items-center justify-center opacity-20"><Sparkles /></div>}
-                    </div>
-
-                    {/* Featured Badge */}
-                    <div className="absolute top-4 right-6 flex flex-col items-end gap-2">
-                       <span className={`rounded-xl px-4 py-1.5 text-[10px] font-black uppercase tracking-widest ${
-                         r.featuredClass === 1 ? "bg-gold-500 text-dark-500 shadow-[0_0_20px_rgba(212,167,74,0.4)]" : 
-                         r.featuredClass === 2 ? "bg-white/10 text-[var(--text-primary)]/50 backdrop-blur-md" : 
-                         "bg-[var(--border-subtle)] text-[var(--text-primary)]/20 border border-[var(--border-subtle)]"
-                       }`}>
-                          {r.featuredClass === 1 ? "Premium" : r.featuredClass === 2 ? "Standard" : "Dold"}
-                       </span>
-                    </div>
-                 </div>
-
-                 <div className="p-8 pt-10 flex-1 flex flex-col">
-                    <div className="flex justify-between items-start mb-4">
-                       <div>
-                          <h3 className="text-2xl font-black uppercase tracking-tight">{r.name}</h3>
-                          <p className="text-xs text-gold-500 font-black uppercase tracking-[0.2em] mt-1">{r.cuisine || "Okänd genre"}</p>
-                       </div>
-                       <div className="flex items-center gap-1 bg-[var(--border-subtle)] px-2 py-1 rounded-lg border border-[var(--border-subtle)]">
-                          <Star className="fill-gold-500 text-gold-500" size={14} />
-                          <span className="text-xs font-black">{(r.rating ?? 4.6).toFixed(1)}</span>
-                       </div>
-                    </div>
-
-                    <p className="text-sm text-[var(--text-primary)]/40 line-clamp-2 mb-6 flex-1 italic leading-relaxed">
-                       {r.description || "Ingen beskrivning tillagd."}
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-4 mb-8">
-                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
-                          <Clock size={16} className="text-gold-500" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{r.etaMinutes} MIN</span>
-                       </div>
-                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
-                          <Bike size={16} className="text-gold-500" />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{r.deliveryFee} KR</span>
-                       </div>
-                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
-                          <MapPin size={16} className="text-gold-500" />
-                          <span className="text-[10px] font-black uppercase tracking-widest truncate">{r.city || "Lund"}</span>
-                       </div>
-                       <div className="flex items-center gap-3 text-[var(--text-primary)]/30">
-                          <Check size={16} className={r.isOpen ? "text-emerald-500" : "text-red-500"} />
-                          <span className="text-[10px] font-black uppercase tracking-widest">{r.isOpen ? "Aktiv" : "Stängd"}</span>
-                       </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-6 border-t border-[var(--border-strong)] mt-auto">
-                       <div className="flex gap-2">
-                          <button 
-                            className="p-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-xl transition-all"
-                            onClick={(e) => { e.stopPropagation(); setSelectedId(r.id); setActiveTab("EDIT"); }}
-                          >
-                             <Settings size={16} />
-                          </button>
-                          <button 
-                             onClick={(e) => handleDelete(r.id, e)}
-                             className="p-3 bg-red-500/5 hover:bg-red-500/20 text-red-500 rounded-xl transition-all"
-                          >
-                             <Trash2 size={16} />
-                          </button>
-                       </div>
-                       <div className="flex items-center gap-2 text-gold-500 text-[10px] font-black uppercase tracking-[0.2em]">
-                          Redigera <ChevronRight size={14} />
-                       </div>
-                    </div>
-                 </div>
-              </div>
-            ))}
-
-            {/* Add New Card */}
-            <div 
-              onClick={() => { setActiveTab("EDIT"); setForm(emptyForm); setSelectedId(null); }}
-              className="group border-4 border-dashed border-[var(--border-subtle)] rounded-[2.5rem] flex flex-col items-center justify-center p-12 hover:border-gold-500/30 transition-all bg-white/[0.02]"
+      {/* Restaurant grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {filteredRestaurants.map((r) => {
+          const tier = PREMIUM_TIERS.find((t) => t.value === r.featuredClass) || PREMIUM_TIERS[1];
+          const TierIcon = tier.icon;
+          return (
+            <motion.div
+              key={r.id}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="group relative rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] overflow-hidden hover:border-gold-500/20 transition-all cursor-pointer"
+              onClick={() => {
+                setSelectedId(r.id);
+                setMode("edit");
+              }}
             >
-               <div className="w-20 h-20 rounded-3xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 group-hover:text-gold-500 group-hover:scale-110 transition-all mb-6">
-                  <Plus size={40} />
-               </div>
-               <h3 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]/20 group-hover:text-[var(--text-primary)] transition-colors">Lägg till Restaurang</h3>
-               <p className="text-[var(--text-primary)]/10 text-xs font-bold uppercase tracking-widest mt-2">Expansion</p>
-            </div>
-          </motion.div>
-        ) : (
-          <motion.div 
-            key="edit"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="max-w-6xl mx-auto"
-          >
-             <div className="grid lg:grid-cols-[1fr,380px] gap-10">
-                {/* Main Form */}
-                <div className="space-y-8">
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
-                      <div>
-                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3">
-                           <Sparkles className="text-gold-500" size={24} />
-                           Grundlig information
-                         </h2>
-                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Hur restaurangen presenteras för kunderna.</p>
-                      </div>
+              {/* Hero image */}
+              <div className="h-32 w-full bg-[var(--bg-primary)] relative overflow-hidden">
+                {r.heroImageUrl ? (
+                  <img
+                    src={r.heroImageUrl}
+                    className="h-full w-full object-cover opacity-50 group-hover:scale-105 transition-transform duration-500"
+                    alt={r.name}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-[var(--text-secondary)] opacity-10 text-[9px] font-black uppercase">
+                    Ingen bild
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-secondary)] to-transparent" />
 
-                      <div className="grid md:grid-cols-2 gap-8">
-                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Restaurangnamn</label>
-                            <input 
-                              value={form.name} 
-                              onChange={e => {
-                                const name = e.target.value;
-                                const newForm = { ...form, name };
-                                if (!selectedId) {
-                                  newForm.slug = slugify(name);
-                                }
-                                setForm(newForm);
-                              }}
-                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
-                              placeholder="t.ex. MatGo Sushi"
-                            />
-                         </div>
-                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Sökord / Hashtags (Kebab, Pizza, m.m.)</label>
-                            <input 
-                              value={form.cuisine} 
-                              onChange={e => setForm({...form, cuisine: e.target.value})}
-                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
-                              placeholder="t.ex. Kebab, Pizza, Falafel"
-                            />
-                         </div>
-                         <div className="md:col-span-2 space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Kort Pitch / Beskrivning</label>
-                            <textarea 
-                              value={form.description} 
-                              onChange={e => setForm({...form, description: e.target.value})}
-                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none" 
-                              placeholder="Fånga kundens intresse..."
-                            />
-                         </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-3 gap-8">
-                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">City / Stad</label>
-                            <div className="relative">
-                               <MapPin size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" />
-                               <select 
-                                 value={form.city} 
-                                 onChange={e => {
-                                   if (e.target.value === "ADD_NEW") {
-                                     router.push("/cities");
-                                     return;
-                                   }
-                                   setForm({...form, city: e.target.value});
-                                 }} 
-                                 className="w-full bg-white/2 border border-[var(--border-subtle)] rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold appearance-none uppercase text-xs"
-                               >
-                                 <option value="">Välj stad...</option>
-                                 {cities.map(city => (
-                                   <option key={city.id} value={city.name}>{city.name}</option>
-                                 ))}
-                                 <option value="ADD_NEW" className="text-gold-500 font-bold">+ Lägg till ny stad...</option>
-                               </select>
-                            </div>
-                         </div>
-                          <div className="space-y-2">
-                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Telefonnummer</label>
-                             <div className="relative">
-                                <Phone size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20" />
-                                <input value={form.phone || ""} onChange={e => setForm({...form, phone: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 pl-14 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="046-XXX XXX" />
-                             </div>
-                          </div>
-                          <div className="space-y-2">
-                             <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Postnummer</label>
-                             <input value={form.zip || ""} onChange={e => setForm({...form, zip: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="222 10" />
-                          </div>
-                       </div>
-                       <div className="space-y-2">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Adress</label>
-                          <input value={form.address || ""} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" placeholder="Gatan 10" />
-                       </div>
-                   </div>
-
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
-                      <div>
-                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3">
-                           <Bike className="text-gold-500" size={24} />
-                           Logistik & Operations
-                         </h2>
-                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Leveransvillkor och räckvidd.</p>
-                      </div>
-
-                      <div className="grid md:grid-cols-3 gap-6">
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">Minsta Order</label>
-                            <div className="flex items-end gap-2">
-                               <input type="number" value={form.minOrderAmount} onChange={e => setForm({...form, minOrderAmount: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-[var(--text-primary)]/20 mb-1">KR</span>
-                            </div>
-                         </div>
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">Leveransavgift</label>
-                            <div className="flex items-end gap-2">
-                               <input type="number" value={form.deliveryFee} onChange={e => setForm({...form, deliveryFee: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-[var(--text-primary)]/20 mb-1">KR</span>
-                            </div>
-                         </div>
-                         <div className="bg-dark-500 p-6 rounded-3xl border border-[var(--border-subtle)]">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 mb-4 block">ETA (Minuter)</label>
-                            <div className="flex items-end gap-2">
-                               <input type="number" value={form.etaMinutes} onChange={e => setForm({...form, etaMinutes: Number(e.target.value)})} className="bg-transparent text-3xl font-black w-full outline-none text-gold-500" />
-                               <span className="font-black text-[var(--text-primary)]/20 mb-1">MIN</span>
-                            </div>
-                         </div>
-                      </div>
-
-                   </div>
-
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
-                      <div>
-                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-red-400">
-                           <Lock size={24} />
-                           Admin-inloggning
-                         </h2>
-                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Hantera inloggningsuppgifter för denna restaurang.</p>
-                      </div>
-
-                      {/* Admin account status indicator */}
-                      {adminStatus && (
-                        <div className={`p-4 rounded-2xl flex items-start gap-3 ${adminStatus.exists ? 'bg-emerald-500/5 border border-emerald-500/10' : 'bg-orange-500/5 border border-orange-500/10'}`}>
-                          <div className={`w-3 h-3 rounded-full mt-1 ${adminStatus.exists ? 'bg-emerald-500 animate-pulse' : 'bg-orange-500'}`} />
-                          <div className="text-[10px] font-bold uppercase tracking-wider">
-                            {adminStatus.exists ? (
-                              <span className="text-emerald-400">
-                                Admin-konto existerar &bull; <span className="text-emerald-500 font-black">{adminStatus.admin?.email}</span> &bull; Roll: {adminStatus.admin?.role} &bull; Aktivt: {adminStatus.admin?.isActive ? 'JA' : 'NEJ'}
-                              </span>
-                            ) : (
-                              <span className="text-orange-400">
-                                Inget admin-konto finns. Ange ett lösenord nedan för att skapa ett.
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="grid md:grid-cols-2 gap-8">
-                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Användarnamn (Slug)</label>
-                            <input 
-                              value={form.slug} 
-                              onChange={e => {
-                                const newSlug = slugify(e.target.value);
-                                setForm({...form, slug: newSlug});
-                                checkAdminStatus(newSlug);
-                              }}
-                              className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-mono text-sm" 
-                            />
-                         </div>
-                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">{adminStatus?.exists ? 'Nytt Lösenord (Ersätter befintligt)' : 'Lösenord (Skapar nytt konto)'}</label>
-                            <input 
-                              type="password"
-                              value={form.adminPassword || ""} 
-                              onChange={e => setForm({...form, adminPassword: e.target.value})}
-                              className="w-full bg-white/10 border border-gold-500/30 rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold" 
-                              placeholder={adminStatus?.exists ? "Lämna tomt för att behålla" : "Ange lösenord för att skapa konto"}
-                            />
-                         </div>
-                      </div>
-
-                      {/* Save message feedback */}
-                       {/* Save message removed from here — now floating at top */}
-
-                      <div className="p-4 bg-gold-500/5 border border-gold-500/10 rounded-2xl flex items-start gap-3">
-                        <Info size={16} className="text-gold-500 mt-0.5" />
-                        <p className="text-[10px] font-medium leading-relaxed uppercase opacity-50">
-                          Restaurangens admin loggar in med användarnamnet <span className="text-gold-500 font-black">{form.slug}</span> och det lösenord du anger här. Samma inloggning används i webbpanelen och Flutter-appen.
-                        </p>
-                      </div>
-                   </div>
-
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-10 space-y-10">
-                      <div>
-                         <h2 className="text-2xl font-black uppercase tracking-tight mb-2 flex items-center gap-3 text-sky-400">
-                           <Users size={24} />
-                           Endast Superior (Intern Info)
-                         </h2>
-                         <p className="text-[var(--text-primary)]/30 text-xs font-medium uppercase tracking-[0.2em]">Information som endast du som Super Admin kan se.</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Interna anteckningar</label>
-                        <textarea 
-                          value={form.internalInfo || ""} 
-                          onChange={e => setForm({...form, internalInfo: e.target.value})}
-                          className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold h-32 resize-none border-l-4 border-l-sky-500" 
-                          placeholder="T.ex. Kontaktperson, Avtalsdetaljer, Swish-nummer..."
-                        />
-                      </div>
-                   </div>
+                {/* Avatar */}
+                <div className="absolute -bottom-5 left-4 w-14 h-14 rounded-xl border-2 border-[var(--bg-secondary)] overflow-hidden bg-[var(--bg-primary)] shadow-xl">
+                  {r.imageUrl ? (
+                    <img src={r.imageUrl} className="h-full w-full object-cover" alt="" />
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-[var(--text-secondary)] opacity-20">
+                      <Sparkles size={18} />
+                    </div>
+                  )}
                 </div>
 
-                {/* Sidebar Controls */}
-                <div className="space-y-8">
-                   {/* Coverage Images */}
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 space-y-10 shadow-2xl">
-                      <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight mb-6 italic">Visuellt</h3>
-                        
-                        {/* Cover (Hero) Photo */}
-                        <div className="space-y-4 mb-8">
-                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 ml-1">Cover Photo (Banner)</label>
-                           <div 
-                             onClick={() => heroInputRef.current?.click()}
-                             className="group relative h-40 w-full rounded-2xl border-2 border-dashed border-[var(--border-strong)] overflow-hidden bg-[var(--border-subtle)] flex flex-col items-center justify-center cursor-pointer hover:border-gold-500/30 transition-all shadow-xl"
-                           >
-                              {form.heroImageUrl ? (
-                                <>
-                                  <img src={form.heroImageUrl.startsWith('data:') ? form.heroImageUrl : (form.heroImageUrl.startsWith('/') ? `${API_URL}${form.heroImageUrl}` : form.heroImageUrl)} className="h-full w-full object-cover opacity-60 group-hover:scale-105 transition-all" alt="" />
-                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-all">
-                                     <Upload className="text-[var(--text-primary)]" />
-                                  </div>
-                                </>
-                              ) : (
-                                <>
-                                   <ImageIcon className="text-[var(--text-primary)]/10 group-hover:text-gold-500 mb-2" size={32} />
-                                   <span className="text-[10px] font-black text-[var(--text-primary)]/20 uppercase">Byt Cover</span>
-                                </>
-                              )}
-                              <input ref={heroInputRef} type="file" className="hidden" onChange={e => handleImageUpload(e, 'heroImageUrl')} />
-                           </div>
-                        </div>
-
-                        {/* Profile Photo */}
-                        <div className="space-y-4">
-                           <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 ml-1">Logo / Avatar</label>
-                           <div className="flex items-center gap-6">
-                              <div className="h-24 w-24 rounded-2xl bg-[var(--border-subtle)] border border-[var(--border-strong)] flex items-center justify-center shrink-0 overflow-hidden shadow-2xl ring-1 ring-white/5 leading-none">
-                                {form.imageUrl ? <img src={form.imageUrl.startsWith('data:') ? form.imageUrl : (form.imageUrl.startsWith('/') ? `${API_URL}${form.imageUrl}` : form.imageUrl)} className="h-full w-full object-cover" alt="" /> : <Plus className="text-[var(--text-primary)]/10" />}
-                              </div>
-                              <button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="flex-1 py-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-widest transition-all"
-                              >
-                                Välj Bild
-                              </button>
-                              <input ref={fileInputRef} type="file" className="hidden" onChange={e => handleImageUpload(e, 'imageUrl')} />
-                           </div>
-                        </div>
-                      </div>
-                   </div>
-
-                   {/* Visibility Controls */}
-                   <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-8 space-y-8">
-                      <div>
-                        <h3 className="text-xl font-black uppercase tracking-tight mb-4">Synlighet</h3>
-                        <div className="space-y-4">
-                           <div className="flex items-center justify-between p-4 bg-dark-500 rounded-2xl border border-[var(--border-subtle)]">
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs font-black uppercase tracking-widest">Öppen för köp</span>
-                              </div>
-                              <button 
-                                onClick={() => setForm({...form, isOpen: !form.isOpen})}
-                                className={`h-8 w-14 rounded-full relative transition-all ${form.isOpen ? 'bg-gold-500' : 'bg-white/10'}`}
-                              >
-                                 <motion.div 
-                                   animate={{ x: form.isOpen ? 24 : 4 }}
-                                   className={`h-6 w-6 rounded-full bg-dark-500 absolute top-1 shadow-md`} 
-                                 />
-                              </button>
-                           </div>
-
-                           <div className="p-4 bg-dark-500 rounded-2xl border border-[var(--border-subtle)] space-y-4">
-                              <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/30 block">Featured Class (Nivå)</label>
-                              <div className="flex gap-2">
-                                 {[1, 2, 3].map(cls => (
-                                    <button 
-                                      key={cls}
-                                      onClick={() => setForm({...form, featuredClass: cls})}
-                                      className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${form.featuredClass === cls ? 'bg-gold-500 text-dark-500 shadow-[0_0_15px_rgba(212,167,74,0.3)]' : 'bg-[var(--border-subtle)] text-[var(--text-primary)]/30'}`}
-                                    >
-                                       {cls === 1 ? '🥇' : cls === 2 ? '🥈' : '🥉'}
-                                    </button>
-                                 ))}
-                              </div>
-                                  <p className="text-[9px] font-medium leading-relaxed uppercase">Välj synlighetsnivå för restaurangen på plattformen.</p>
-                           </div>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-dark-500 font-extrabold rounded-2xl shadow-2xl transition-all shadow-gold-500/20 active:scale-95 flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-sm"
-                      >
-                        {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                        Publicera ändringar
-                      </button>
-                   </div>
-
-                   {selectedId && (
-                     <div className="bg-red-500/5 border border-red-500/10 rounded-[2.5rem] p-8 text-center space-y-4">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-red-400">Fara</p>
-                        <button 
-                          onClick={(e) => handleDelete(selectedId, e)}
-                          className="text-red-500/30 hover:text-red-500 text-xs font-bold uppercase tracking-widest underline decoration-2 underline-offset-8 transition-colors"
-                        >
-                          Radera Restaurang Permanent
-                        </button>
-                     </div>
-                   )}
+                {/* Tier badge */}
+                <div className="absolute top-3 right-3">
+                  <span
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase border ${tier.bg} ${tier.color}`}
+                  >
+                    <TierIcon size={9} />
+                    {tier.label}
+                  </span>
                 </div>
-             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              </div>
+
+              <div className="p-4 pt-8">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-tight text-[var(--text-primary)]">
+                      {r.name}
+                    </h3>
+                    <p className="text-[9px] font-bold text-gold-500 uppercase tracking-widest mt-0.5">
+                      {r.cuisine || "—"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Star className="text-gold-500 fill-gold-500" size={11} />
+                    <span className="text-[10px] font-black text-[var(--text-secondary)]">
+                      {(r.rating ?? 4.6).toFixed(1)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <Stat label="ETA" value={`${r.etaMinutes} min`} />
+                  <Stat label="Frakt" value={`${r.deliveryFee} kr`} />
+                  <Stat label="Stad" value={r.city || "—"} />
+                  <div
+                    className={`flex items-center gap-1 text-[9px] font-black uppercase ${
+                      r.isOpen ? "text-emerald-400" : "text-rose-400"
+                    }`}
+                  >
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        r.isOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"
+                      }`}
+                    />
+                    {r.isOpen ? "Öppen" : "Stängd"}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedId(r.id);
+                      setMode("edit");
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
+                  >
+                    <Settings size={12} /> Redigera
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/restaurants/${r.id}`);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-sky-400 hover:border-sky-500/20 transition-all"
+                  >
+                    <TrendingUp size={12} /> Hub
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirm(r);
+                    }}
+                    className="w-8 h-8 rounded-xl bg-rose-500/5 border border-rose-500/10 text-rose-400 hover:bg-rose-500/15 transition-all flex items-center justify-center"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+
+        {/* Add new card */}
+        <div
+          onClick={() => { setMode("new"); setForm(emptyForm); setSelectedId(null); }}
+          className="group border-2 border-dashed border-[var(--border-subtle)] rounded-2xl flex flex-col items-center justify-center p-10 hover:border-gold-500/30 transition-all cursor-pointer bg-white/[0.01] min-h-[240px]"
+        >
+          <div className="w-12 h-12 rounded-xl bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] group-hover:text-gold-500 group-hover:bg-gold-500/10 transition-all mb-3">
+            <Plus size={24} />
+          </div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            Lägg till restaurang
+          </p>
+        </div>
+      </div>
+
+      {/* Delete confirm */}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm.id)}
+        title="Radera restaurang"
+        message={`Är du säker? ${deleteConfirm?.name} och ALLA dess ordrar, menyprodukter och inställningar raderas permanent.`}
+        confirmLabel="Radera permanent"
+        danger
+      />
+    </div>
+  );
+}
+
+// ── Helper components ────────────────────────────────────────────────────────
+const inputCls =
+  "w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all placeholder:text-[var(--text-secondary)] placeholder:opacity-40";
+
+function Section({
+  title,
+  icon: Icon,
+  children,
+  compact,
+}: {
+  title: string;
+  icon?: React.ElementType;
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-5">
+      {title && (
+        <div className={`flex items-center gap-2 ${compact ? "mb-4" : "mb-5"}`}>
+          {Icon && <Icon size={16} className="text-gold-500" />}
+          <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">
+            {title}
+          </h3>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function NumField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number | undefined;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        type="number"
+        value={value || 0}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className={inputCls}
+      />
+    </Field>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
+        {label}
+      </div>
+      <div className="text-[10px] font-black text-[var(--text-primary)]">{value}</div>
     </div>
   );
 }

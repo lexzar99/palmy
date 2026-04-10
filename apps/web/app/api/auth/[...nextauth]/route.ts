@@ -65,6 +65,12 @@ const handler = NextAuth({
       }
       return token;
     },
+    async redirect({ url, baseUrl }) {
+      if (url.includes("/mobile-auth")) return url;
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl;
+    },
     async session({ session, token }) {
       session.platformToken = token.platformToken;
       session.platformUser = token.platformUser;

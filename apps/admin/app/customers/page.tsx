@@ -1,432 +1,724 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
-import { 
-  Users, 
-  Search, 
-  ChevronRight, 
-  Phone, 
-  Mail, 
-  Calendar, 
-  ShoppingBag, 
-  CheckCircle2, 
-  XCircle,
-  MoreVertical,
-  Filter,
-  ArrowUpDown,
+import {
+  Users,
+  Search,
+  Phone,
+  Mail,
+  Calendar,
+  ShoppingBag,
   Lock,
   Unlock,
-  Package,
-  ArrowLeft,
   MapPin,
   Trash2,
   Settings2,
   X,
   CreditCard,
-  History,
   Ticket,
-  LayoutGrid
+  LayoutGrid,
+  ArrowLeft,
+  MessageSquare,
+  ChevronRight,
+  Star,
+  Package,
+  AlertCircle,
+  Loader2,
+  CheckCircle2,
+  Filter,
+  TrendingUp,
+  Activity,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { Modal, ConfirmModal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
+
+const inputCls =
+  "w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all placeholder:text-[var(--text-secondary)] placeholder:opacity-40";
 
 export default function CustomersPage() {
+  const { success, error: toastError } = useToast();
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [editingCustomer, setEditingCustomer] = useState<any>(null);
-  const [showDeleteModal, setShowDeleteModal] = useState<any>(null);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [activeTab, setActiveTab] = useState<"INFO" | "ORDERS" | "DEALS">("INFO");
+  const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<"INFO" | "ORDERS" | "DEALS" | "NOTES">("INFO");
+  const [supportNote, setSupportNote] = useState("");
+  const [sendingNote, setSendingNote] = useState(false);
 
-  const getToken = () => localStorage.getItem("matgo_token");
+  const token = () => localStorage.getItem("matgo_token");
 
   const fetchCustomers = async () => {
     setLoading(true);
     try {
       const res = await axios.get(`${API_URL}/api/customers`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
+        headers: { Authorization: `Bearer ${token()}` },
       });
       setCustomers(res.data);
-    } catch { } finally { setLoading(false); }
+    } catch {
+      toastError("Kunde inte ladda kunder");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchCustomers(); }, []);
 
-  const handleUpdateUser = async (id: string, data: any) => {
-    try {
-      await axios.patch(`${API_URL}/api/customers/${id}`, data, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      fetchCustomers();
-      if (selectedCustomer?.id === id) fetchCustomerDetails(id);
-      setEditingCustomer(null);
-    } catch { alert("Kunde inte uppdatera kund"); }
-  };
-
-  const handleDeleteUser = async (id: string) => {
-    if (deleteConfirmText !== "DELETE") return;
-    try {
-      await axios.delete(`${API_URL}/api/customers/${id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
-      setShowDeleteModal(null);
-      setSelectedCustomer(null);
-      setDeleteConfirmText("");
-      fetchCustomers();
-    } catch { alert("Kunde inte radera kunden"); }
-  };
-
   const fetchCustomerDetails = async (id: string) => {
     try {
       const res = await axios.get(`${API_URL}/api/customers/${id}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
+        headers: { Authorization: `Bearer ${token()}` },
       });
       setSelectedCustomer(res.data);
-    } catch { alert("Kunde inte hämta kunddetaljer"); }
+    } catch {
+      toastError("Kunde inte hämta kunddetaljer");
+    }
+  };
+
+  const handleUpdateUser = async (id: string, data: any) => {
+    try {
+      await axios.patch(`${API_URL}/api/customers/${id}`, data, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      success("Kundprofil uppdaterad");
+      fetchCustomers();
+      if (selectedCustomer?.id === id) fetchCustomerDetails(id);
+      setEditingCustomer(null);
+    } catch {
+      toastError("Kunde inte uppdatera kund");
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    try {
+      await axios.delete(`${API_URL}/api/customers/${id}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      success("Kund raderad");
+      setDeleteConfirm(null);
+      setSelectedCustomer(null);
+      fetchCustomers();
+    } catch {
+      toastError("Kunde inte radera kunden");
+    }
   };
 
   const handleUpdateDeal = async (dealId: string, data: any) => {
     if (!selectedCustomer) return;
     try {
-      await axios.patch(`${API_URL}/api/customers/${selectedCustomer.id}/deals/${dealId}`, data, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
+      await axios.patch(
+        `${API_URL}/api/customers/${selectedCustomer.id}/deals/${dealId}`,
+        data,
+        { headers: { Authorization: `Bearer ${token()}` } }
+      );
       fetchCustomerDetails(selectedCustomer.id);
-    } catch { alert("Kunde inte uppdatera erbjudande"); }
+      success("Erbjudande uppdaterat");
+    } catch {
+      toastError("Kunde inte uppdatera erbjudande");
+    }
   };
 
   const handleDeleteDeal = async (dealId: string) => {
     if (!selectedCustomer) return;
-    if (!confirm("Är du säker på att du vill ta bort detta erbjudande för kunden?")) return;
     try {
-      await axios.delete(`${API_URL}/api/customers/${selectedCustomer.id}/deals/${dealId}`, {
-        headers: { Authorization: `Bearer ${getToken()}` }
-      });
+      await axios.delete(
+        `${API_URL}/api/customers/${selectedCustomer.id}/deals/${dealId}`,
+        { headers: { Authorization: `Bearer ${token()}` } }
+      );
       fetchCustomerDetails(selectedCustomer.id);
-    } catch (error: any) {
-      alert(error.response?.data?.error || "Kunde inte radera erbjudandet");
+      success("Erbjudande borttaget");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ta bort erbjudandet");
     }
   };
 
-  const filtered = customers.filter(c => 
-    (c.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.phone || "").toLowerCase().includes(search.toLowerCase()) ||
-    (c.email || "").toLowerCase().includes(search.toLowerCase())
-  );
+  // Filtered customers
+  const filtered = useMemo(() => {
+    let result = customers;
+
+    if (filter === "active") result = result.filter((c) => c.isActive);
+    else if (filter === "inactive") result = result.filter((c) => !c.isActive);
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (c) =>
+          (c.name || "").toLowerCase().includes(q) ||
+          (c.phone || "").toLowerCase().includes(q) ||
+          (c.email || "").toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [customers, search, filter]);
+
+  const stats = useMemo(() => ({
+    total: customers.length,
+    active: customers.filter((c) => c.isActive).length,
+    verified: customers.filter((c) => c.isVerified).length,
+  }), [customers]);
 
   return (
-    <div className="min-h-screen glass p-4 lg:p-10 text-[var(--text-primary)] font-sans">
-      <div className="max-w-[1400px] mx-auto">
-        
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
-          <div>
-            <div className="flex items-center gap-3 mb-2 text-gold-500">
-              <Users size={20} />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] leading-none">Kundregister</span>
-            </div>
-            <h1 className="text-4xl lg:text-5xl font-black tracking-tighter uppercase italic">
-              KUND <span className="text-gold-500">PORTAL</span>
-            </h1>
-          </div>
-          
-          <div className="relative group min-w-[300px]">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
-            <input 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Sök namn, telefon..."
-              className="w-full glass border border-[var(--border-subtle)] rounded-2xl pl-12 pr-6 py-4 text-sm font-bold placeholder:text-[var(--text-primary)]/10 focus:outline-none focus:border-gold-500/30 transition-all shadow-xl"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          
-          {/* List Section */}
-          <div className="xl:col-span-1 space-y-3">
-             <div className="px-6 py-4 glass border border-[var(--border-subtle)] rounded-2xl mb-4 flex items-center justify-between">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Registrerade Kunder ({filtered.length})</span>
-                <Settings2 size={14} className="text-[var(--text-primary)]/10" />
-             </div>
-
-             {loading ? (
-                [1,2,3,4,5].map(i => <div key={i} className="h-20 rounded-2xl bg-[var(--border-subtle)] animate-pulse" />)
-             ) : (
-                <div className="space-y-2 max-h-[70vh] overflow-y-auto custom-scrollbar pr-2">
-                   {filtered.map(c => (
-                      <button 
-                        key={c.id} 
-                        onClick={() => fetchCustomerDetails(c.id)}
-                        className={`w-full group flex items-center gap-4 p-4 rounded-2xl border transition-all ${selectedCustomer?.id === c.id ? "bg-gold-500 border-gold-500 text-dark-500" : "glass border-[var(--border-subtle)] hover:border-[var(--border-strong)]"}`}
-                      >
-                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${selectedCustomer?.id === c.id ? "bg-dark-500 text-gold-500" : "bg-[var(--border-subtle)] text-gold-500"}`}>
-                            {c.name?.charAt(0)}
-                         </div>
-                         <div className="text-left flex-1 min-w-0">
-                            <div className="text-[11px] font-black uppercase truncate">{c.name || "Gäst"}</div>
-                            <div className={`text-[9px] font-bold ${selectedCustomer?.id === c.id ? "text-dark-500/60" : "text-[var(--text-primary)]/20"}`}>{c.phone}</div>
-                         </div>
-                         <ChevronRight size={14} className={selectedCustomer?.id === c.id ? "text-dark-500" : "text-[var(--text-primary)]/5"} />
-                      </button>
-                   ))}
-                </div>
-             )}
-          </div>
-
-          {/* Details Section */}
-          <div className="xl:col-span-2">
-             <AnimatePresence mode="wait">
-                {selectedCustomer ? (
-                   <motion.div 
-                     key={selectedCustomer.id}
-                     initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                     className="space-y-6"
-                   >
-                      <div className="glass border border-[var(--border-strong)] rounded-[3rem] p-10 relative overflow-hidden">
-                         <div className="absolute top-0 right-0 w-64 h-64 bg-gold-500/5 blur-[100px] pointer-events-none" />
-                         
-                         <div className="flex flex-col lg:flex-row gap-10 items-start">
-                            <div className="flex flex-col items-center gap-6">
-                               <div className="w-24 h-24 rounded-[2rem] bg-gold-500 text-dark-500 flex items-center justify-center text-4xl font-black shadow-2xl shadow-gold-500/20">
-                                  {selectedCustomer.name?.charAt(0)}
-                               </div>
-                               {!selectedCustomer.isVerified && <div className="px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[8px] font-black uppercase">Ej verifierad</div>}
-                               {selectedCustomer.isVerified && <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[8px] font-black uppercase">Verifierad</div>}
-                            </div>
-
-                            <div className="flex-1 w-full">
-                               <div className="flex items-center justify-between mb-8">
-                                  <div className="space-y-2">
-                                     <h2 className="text-4xl font-black italic tracking-tighter uppercase leading-none">{selectedCustomer.name}</h2>
-                                     <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Medlem sedan {new Date(selectedCustomer.createdAt).toLocaleDateString("sv-SE")}</p>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                     <button 
-                                       onClick={() => setEditingCustomer(selectedCustomer)}
-                                       className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] border border-[var(--border-subtle)] flex items-center justify-center hover:bg-white/10 transition-all text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"
-                                     >
-                                        <Settings2 size={18} />
-                                     </button>
-                                     <button 
-                                       onClick={() => handleUpdateUser(selectedCustomer.id, { isActive: !selectedCustomer.isActive })}
-                                       className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${selectedCustomer.isActive ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"}`}
-                                     >
-                                        {selectedCustomer.isActive ? <Unlock size={18} /> : <Lock size={18} />}
-                                     </button>
-                                     <button 
-                                       onClick={() => setShowDeleteModal(selectedCustomer)}
-                                       className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 flex items-center justify-center hover:bg-rose-500/20 transition-all"
-                                     >
-                                        <Trash2 size={18} />
-                                     </button>
-                                  </div>
-                               </div>
-
-                               <div className="flex gap-4 p-1.5 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl mt-12 mb-8">
-                                   {([
-                                      { id: "INFO", label: "Profil Info", icon: Users },
-                                      { id: "ORDERS", label: "Beställningar", icon: ShoppingBag },
-                                      { id: "DEALS", label: "Erbjudanden", icon: Ticket }
-                                   ] as const).map(t => (
-                                      <button 
-                                        key={t.id} 
-                                        onClick={() => setActiveTab(t.id)}
-                                        className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-2xl transition-all text-[10px] font-black uppercase tracking-widest ${activeTab === t.id ? "bg-white/10 text-[var(--text-primary)] shadow-xl" : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40 hover:bg-[var(--border-subtle)]"}`}
-                                      >
-                                         <t.icon size={16} /> {t.label}
-                                      </button>
-                                   ))}
-                               </div>
-
-                               <div className="min-h-[400px]">
-                                  {activeTab === "INFO" && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                       {[
-                                          { icon: Phone, label: "Mobilnummer", value: selectedCustomer.phone },
-                                          { icon: Mail, label: "E-post", value: selectedCustomer.email || "Ej angiven" },
-                                          { icon: MapPin, label: "Adress", value: selectedCustomer.address || "Ej angiven" },
-                                          { icon: LayoutGrid, label: "Stad", value: selectedCustomer.city || "Ej angiven" },
-                                       ].map((item, i) => (
-                                          <div key={i} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center gap-6 group hover:border-gold-500/20 transition-all">
-                                             <div className="w-12 h-12 bg-[var(--border-subtle)] rounded-2xl flex items-center justify-center text-gold-500 group-hover:scale-110 transition-transform"><item.icon size={20} /></div>
-                                             <div>
-                                                <div className="text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-1">{item.label}</div>
-                                                <div className="font-bold text-[var(--text-primary)]/80">{item.value}</div>
-                                             </div>
-                                          </div>
-                                       ))}
-                                    </div>
-                                  )}
-
-                                  {activeTab === "ORDERS" && (
-                                     <div className="space-y-4">
-                                        {selectedCustomer.orders?.map((order: any) => (
-                                           <div key={order.id} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center justify-between group hover:border-emerald-500/20 transition-all">
-                                              <div className="flex items-center gap-6">
-                                                 <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-500 font-black italic">#{order.orderNumber}</div>
-                                                 <div>
-                                                    <div className="text-lg font-black uppercase italic tracking-tighter">{order.restaurant?.name}</div>
-                                                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest mt-1">
-                                                       {new Date(order.createdAt).toLocaleDateString()} • {order.total / 100} kr • <span className={order.status === "DELIVERED" ? "text-emerald-500" : "text-gold-500"}>{order.status}</span>
-                                                    </div>
-                                                 </div>
-                                              </div>
-                                              <button className="w-10 h-10 rounded-xl bg-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/20 group-hover:text-gold-500 transition-all"><ChevronRight size={18} /></button>
-                                           </div>
-                                        ))}
-                                        {(!selectedCustomer.orders || selectedCustomer.orders.length === 0) && (
-                                           <div className="py-20 text-center opacity-20 uppercase font-black tracking-widest text-xs">Inga tidigare beställningar</div>
-                                        )}
-                                     </div>
-                                  )}
-
-                                  {activeTab === "DEALS" && (
-                                     <div className="space-y-4">
-                                        {selectedCustomer.deals?.map((deal: any) => (
-                                           <div key={deal.id} className="p-8 rounded-[2.5rem] glass border border-[var(--border-subtle)] flex items-center justify-between group hover:border-gold-500/20 transition-all overflow-hidden relative">
-                                              {deal.isUsed && <div className="absolute top-0 right-0 p-3 px-6 bg-emerald-500/10 text-emerald-500 font-black text-[8px] uppercase tracking-widest border-b border-l border-emerald-500/20 rounded-bl-3xl">Använd</div>}
-                                              <div className="flex items-center gap-6 relative z-10">
-                                                 <div className="w-12 h-12 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500"><Ticket size={24} /></div>
-                                                 <div>
-                                                    <div className="text-xl font-black uppercase italic tracking-tighter">{deal.campaign?.title}</div>
-                                                    <code className="text-[12px] font-black text-gold-500/60 tracking-[0.2em]">{deal.code}</code>
-                                                    <div className="text-[9px] font-black uppercase text-[var(--text-primary)]/10 mt-2">Max {deal.maxUsages} användningar • Använd {deal.usageCount} ggr</div>
-                                                 </div>
-                                              </div>
-                                              <div className="flex items-center gap-3 relative z-10">
-                                                 <button 
-                                                   onClick={() => handleUpdateDeal(deal.id, { isUsed: false, usageCount: 0 })}
-                                                   className="px-6 py-3 rounded-xl bg-[var(--border-subtle)] hover:bg-white/10 text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 hover:text-[var(--text-primary)] transition-all shadow-xl"
-                                                 >
-                                                    Återställ
-                                                 </button>
-                                                 <button 
-                                                   onClick={() => handleDeleteDeal(deal.id)}
-                                                   className="w-10 h-10 rounded-xl bg-rose-500/5 hover:bg-rose-500/10 flex items-center justify-center text-rose-500/40 hover:text-rose-500 transition-all border border-rose-500/10"
-                                                 >
-                                                    <Trash2 size={16} />
-                                                 </button>
-                                              </div>
-                                           </div>
-                                        ))}
-                                        {(!selectedCustomer.deals || selectedCustomer.deals.length === 0) && (
-                                           <div className="py-20 text-center opacity-20 uppercase font-black tracking-widest text-xs">Inga personliga erbjudanden just nu</div>
-                                        )}
-                                     </div>
-                                  )}
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                   </motion.div>
-                ) : (
-                   <div className="h-full flex flex-col items-center justify-center text-center p-20 glass border border-[var(--border-subtle)] rounded-[4rem]">
-                      <div className="w-32 h-32 bg-[var(--border-subtle)] rounded-[3rem] flex items-center justify-center mb-10 text-[var(--text-primary)]/10 animate-pulse">
-                         <Users size={64} />
-                      </div>
-                      <h3 className="text-2xl font-black uppercase italic tracking-tighter mb-4 text-[var(--text-primary)]/40">Välj en kund för att hantera</h3>
-                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/10 leading-relaxed max-w-sm">Ändra profiluppgifter, se detaljerad orderhistorik och personliga erbjudanden.</p>
-                   </div>
-                )}
-             </AnimatePresence>
-          </div>
+    <div className="space-y-6 pb-24">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
+            Kunder & Support
+          </h1>
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1">
+            {stats.total} registrerade kunder · {stats.verified} verifierade
+          </p>
         </div>
       </div>
 
-      {/* Edit Modal */}
-      <AnimatePresence>
-        {editingCustomer && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-2xl bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded-[3rem] overflow-hidden shadow-2xl">
-                <div className="p-8 border-b border-[var(--border-subtle)] flex items-center justify-between glass">
-                   <h2 className="text-xl font-black uppercase italic tracking-tighter">Profil <span className="text-gold-500">Editering</span></h2>
-                   <button onClick={() => setEditingCustomer(null)} className="p-2 hover:bg-[var(--border-subtle)] rounded-xl"><X size={24} className="text-[var(--text-primary)]/20" /></button>
-                </div>
-                
-                <form 
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const formData = new FormData(e.currentTarget);
-                    const data = Object.fromEntries(formData.entries());
-                    handleUpdateUser(editingCustomer.id, data);
-                  }}
-                  className="p-10 space-y-6"
-                >
-                   <div className="grid grid-cols-2 gap-6">
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Namn</label>
-                         <input name="name" defaultValue={editingCustomer.name} placeholder="Fullständigt namn" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Telefon</label>
-                         <input name="phone" defaultValue={editingCustomer.phone} placeholder="Mobilnummer" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none tracking-widest" />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">E-post</label>
-                         <input name="email" defaultValue={editingCustomer.email} placeholder="E-postadress" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Gata / Address</label>
-                         <input name="address" defaultValue={editingCustomer.address} placeholder="Gatuadress" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Postnr</label>
-                         <input name="zip" defaultValue={editingCustomer.zip} placeholder="XXXXX" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none" />
-                      </div>
-                      <div className="space-y-1.5">
-                         <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-2">Stad</label>
-                         <input name="city" defaultValue={editingCustomer.city} placeholder="T.ex Lund" className="w-full bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl px-6 py-4 text-sm font-black focus:border-gold-500/40 outline-none uppercase" />
-                      </div>
-                   </div>
-
-                   <div className="pt-6 flex gap-4">
-                      <button type="button" onClick={() => setEditingCustomer(null)} className="flex-1 py-4 bg-[var(--border-subtle)] rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
-                      <button type="submit" className="flex-1 py-4 bg-gold-500 text-dark-500 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-gold-500/20">Spara Profil</button>
-                   </div>
-                </form>
-             </motion.div>
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Totalt", value: stats.total, color: "text-gold-500" },
+          { label: "Aktiva", value: stats.active, color: "text-emerald-400" },
+          { label: "Verifierade", value: stats.verified, color: "text-blue-400" },
+        ].map((s) => (
+          <div
+            key={s.label}
+            className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
+          >
+            <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+              {s.label}
+            </div>
+            <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
           </div>
-        )}
-      </AnimatePresence>
+        ))}
+      </div>
 
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
-             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="w-full max-w-md bg-[var(--bg-secondary)] border-2 border-rose-500/20 rounded-[3rem] p-10 text-center">
-                <div className="w-20 h-20 bg-rose-500/10 text-rose-500 rounded-3xl mx-auto flex items-center justify-center mb-8">
-                   <Trash2 size={40} />
-                </div>
-                <h2 className="text-2xl font-black uppercase italic tracking-tighter mb-4">Bekräfta <span className="text-rose-500">Radering</span></h2>
-                <p className="text-xs font-bold text-[var(--text-primary)]/40 uppercase tracking-widest mb-8 leading-relaxed">
-                   Du är på väg att radera <span className="text-[var(--text-primary)]">{showDeleteModal.name}</span> permanent. För att bekräfta, skriv <span className="text-rose-500">DELETE</span> i fältet nedan.
+      <div className="grid grid-cols-1 xl:grid-cols-[320px,1fr] gap-5">
+        {/* Customer list */}
+        <div className="space-y-3">
+          {/* Search + filter */}
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Sök kund..."
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-8 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
+            />
+          </div>
+
+          <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
+            {[
+              { id: "all", label: "Alla" },
+              { id: "active", label: "Aktiva" },
+              { id: "inactive", label: "Inaktiva" },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id as any)}
+                className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                  filter === f.id
+                    ? "bg-gold-500 text-[#0d0d0d]"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50 px-1">
+            {filtered.length} kunder
+          </div>
+
+          {/* List */}
+          <div className="space-y-1.5 max-h-[calc(100vh-340px)] overflow-y-auto">
+            {loading ? (
+              [1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-16 rounded-xl bg-[var(--bg-secondary)] animate-pulse border border-[var(--border-subtle)]" />
+              ))
+            ) : filtered.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                  Inga kunder
                 </p>
-                <input 
-                  value={deleteConfirmText}
-                  onChange={(e) => setDeleteConfirmText(e.target.value.toUpperCase())}
-                  placeholder="Skriv DELETE här..."
-                  className="w-full bg-[var(--border-subtle)] border border-rose-500/30 rounded-2xl px-6 py-4 text-center font-black text-sm tracking-[0.3em] outline-none focus:border-rose-500 transition-all mb-8"
-                />
-                <div className="flex gap-4">
-                   <button onClick={() => { setShowDeleteModal(null); setDeleteConfirmText(""); }} className="flex-1 py-4 bg-[var(--border-subtle)] rounded-2xl text-[10px] font-black uppercase tracking-widest">Avbryt</button>
-                   <button 
-                     onClick={() => handleDeleteUser(showDeleteModal.id)}
-                     disabled={deleteConfirmText !== "DELETE"}
-                     className="flex-1 py-4 bg-rose-500 text-[var(--text-primary)] rounded-2xl text-[10px] font-black uppercase tracking-widest disabled:opacity-20 transition-all shadow-2xl shadow-rose-500/20"
-                   >
-                     Radera Kund
-                   </button>
-                </div>
-             </motion.div>
+              </div>
+            ) : (
+              filtered.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => { fetchCustomerDetails(c.id); setActiveTab("INFO"); }}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                    selectedCustomer?.id === c.id
+                      ? "bg-gold-500/10 border-gold-500/30"
+                      : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] hover:border-[var(--border-subtle)]"
+                  }`}
+                >
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${
+                      selectedCustomer?.id === c.id
+                        ? "bg-gold-500 text-[#0d0d0d]"
+                        : "bg-[var(--bg-primary)] text-gold-500 border border-[var(--border-subtle)]"
+                    }`}
+                  >
+                    {(c.name || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black uppercase truncate text-[var(--text-primary)]">
+                      {c.name || "Gäst"}
+                    </p>
+                    <p className="text-[9px] font-bold text-[var(--text-secondary)] truncate">
+                      {c.phone}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {!c.isActive && (
+                      <span className="text-[7px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                        Blockad
+                      </span>
+                    )}
+                    {c.isVerified && (
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" title="Verifierad" />
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
           </div>
-        )}
-      </AnimatePresence>
+        </div>
 
+        {/* Customer detail panel */}
+        <AnimatePresence mode="wait">
+          {selectedCustomer ? (
+            <motion.div
+              key={selectedCustomer.id}
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
+            >
+              {/* Customer header */}
+              <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-gold-500 text-[#0d0d0d] flex items-center justify-center text-2xl font-black shadow-lg shadow-gold-500/20">
+                      {(selectedCustomer.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-black uppercase tracking-tight text-[var(--text-primary)]">
+                        {selectedCustomer.name}
+                      </h2>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
+                        Kund sedan {new Date(selectedCustomer.createdAt).toLocaleDateString("sv-SE")}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {selectedCustomer.isVerified ? (
+                          <span className="flex items-center gap-1 text-[8px] font-black uppercase text-emerald-400">
+                            <CheckCircle2 size={10} /> Verifierad
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-black uppercase text-amber-400">
+                            Ej verifierad
+                          </span>
+                        )}
+                        {!selectedCustomer.isActive && (
+                          <span className="text-[8px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                            Blockad
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingCustomer(selectedCustomer)}
+                      className="w-9 h-9 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
+                    >
+                      <Settings2 size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleUpdateUser(selectedCustomer.id, { isActive: !selectedCustomer.isActive })}
+                      className={`w-9 h-9 rounded-xl border flex items-center justify-center transition-all ${
+                        selectedCustomer.isActive
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                          : "bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-500/20"
+                      }`}
+                      title={selectedCustomer.isActive ? "Blockera kund" : "Aktivera kund"}
+                    >
+                      {selectedCustomer.isActive ? <Unlock size={15} /> : <Lock size={15} />}
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm(selectedCustomer)}
+                      className="w-9 h-9 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center hover:bg-rose-500/20 transition-all"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Quick stats */}
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    {
+                      label: "Ordrar",
+                      value: selectedCustomer.orders?.length || 0,
+                      icon: ShoppingBag,
+                      color: "text-blue-400",
+                    },
+                    {
+                      label: "Total spenderat",
+                      value: `${Math.round(
+                        (selectedCustomer.orders || [])
+                          .filter((o: any) => o.status === "DELIVERED")
+                          .reduce((s: number, o: any) => s + (o.total || 0), 0) / 100
+                      )} kr`,
+                      icon: CreditCard,
+                      color: "text-gold-500",
+                    },
+                    {
+                      label: "Deals",
+                      value: selectedCustomer.deals?.length || 0,
+                      icon: Ticket,
+                      color: "text-emerald-400",
+                    },
+                  ].map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <div
+                        key={s.label}
+                        className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]"
+                      >
+                        <Icon size={13} className={`${s.color} mb-2`} />
+                        <div className={`text-base font-black ${s.color}`}>{s.value}</div>
+                        <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
+                          {s.label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
+                {(
+                  [
+                    { id: "INFO", label: "Profil", icon: Users },
+                    { id: "ORDERS", label: "Ordrar", icon: ShoppingBag },
+                    { id: "DEALS", label: "Deals", icon: Ticket },
+                    { id: "NOTES", label: "Support", icon: MessageSquare },
+                  ] as const
+                ).map((t) => {
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setActiveTab(t.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                        activeTab === t.id
+                          ? "bg-gold-500 text-[#0d0d0d]"
+                          : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      }`}
+                    >
+                      <Icon size={11} /> {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tab content */}
+              <AnimatePresence mode="wait">
+                {activeTab === "INFO" && (
+                  <motion.div
+                    key="info"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {[
+                      { icon: Phone, label: "Telefon", value: selectedCustomer.phone },
+                      { icon: Mail, label: "E-post", value: selectedCustomer.email || "—" },
+                      { icon: MapPin, label: "Adress", value: selectedCustomer.address || "—" },
+                      { icon: LayoutGrid, label: "Stad", value: selectedCustomer.city || "—" },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={item.label}
+                          className="flex items-center gap-3 p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                        >
+                          <div className="w-8 h-8 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-gold-500 shrink-0">
+                            <Icon size={14} />
+                          </div>
+                          <div>
+                            <div className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-0.5">
+                              {item.label}
+                            </div>
+                            <div className="text-[11px] font-bold text-[var(--text-primary)]">
+                              {item.value}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </motion.div>
+                )}
+
+                {activeTab === "ORDERS" && (
+                  <motion.div
+                    key="orders"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-2"
+                  >
+                    {selectedCustomer.orders?.length === 0 || !selectedCustomer.orders ? (
+                      <div className="py-10 text-center rounded-xl border border-dashed border-[var(--border-subtle)]">
+                        <ShoppingBag size={24} className="mx-auto mb-2 text-[var(--text-secondary)] opacity-20" />
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                          Inga beställningar
+                        </p>
+                      </div>
+                    ) : (
+                      selectedCustomer.orders.map((order: any) => (
+                        <div
+                          key={order.id}
+                          className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[9px] font-black text-[var(--text-secondary)]">
+                              #{order.orderNumber}
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
+                                {order.restaurant?.name || "—"}
+                              </p>
+                              <p className="text-[9px] font-bold text-[var(--text-secondary)]">
+                                {new Date(order.createdAt).toLocaleDateString("sv-SE")} · {Math.round((order.total || 0) / 100)} kr
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[7px] font-black uppercase px-2 py-1 rounded border ${
+                              order.status === "DELIVERED"
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+                            }`}
+                          >
+                            {order.status}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === "DEALS" && (
+                  <motion.div
+                    key="deals"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-2"
+                  >
+                    {!selectedCustomer.deals || selectedCustomer.deals.length === 0 ? (
+                      <div className="py-10 text-center rounded-xl border border-dashed border-[var(--border-subtle)]">
+                        <Ticket size={24} className="mx-auto mb-2 text-[var(--text-secondary)] opacity-20" />
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                          Inga personliga deals
+                        </p>
+                      </div>
+                    ) : (
+                      selectedCustomer.deals.map((deal: any) => (
+                        <div
+                          key={deal.id}
+                          className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                            deal.isUsed
+                              ? "bg-[var(--bg-secondary)] border-[var(--border-subtle)] opacity-60"
+                              : "bg-[var(--bg-secondary)] border-gold-500/20"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-gold-500/10 flex items-center justify-center text-gold-500">
+                              <Ticket size={14} />
+                            </div>
+                            <div>
+                              <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
+                                {deal.campaign?.title || deal.code}
+                              </p>
+                              <code className="text-[9px] text-gold-500/60 tracking-widest font-bold">
+                                {deal.code}
+                              </code>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {deal.isUsed && (
+                              <span className="text-[7px] font-black uppercase text-[var(--text-secondary)] bg-[var(--bg-primary)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
+                                Använd
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handleUpdateDeal(deal.id, { isUsed: false, usageCount: 0 })}
+                              className="text-[8px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 transition-colors px-2 py-1 rounded border border-[var(--border-subtle)]"
+                            >
+                              Återställ
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDeal(deal.id)}
+                              className="w-7 h-7 rounded-lg bg-rose-500/5 border border-rose-500/10 flex items-center justify-center text-rose-400 hover:bg-rose-500/15 transition-all"
+                            >
+                              <Trash2 size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </motion.div>
+                )}
+
+                {activeTab === "NOTES" && (
+                  <motion.div
+                    key="notes"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className="space-y-4"
+                  >
+                    <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">
+                        Intern supportanteckning
+                      </p>
+                      <textarea
+                        value={supportNote}
+                        onChange={(e) => setSupportNote(e.target.value)}
+                        placeholder="Anteckna kundärende, klagomål, löften..."
+                        className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 h-28 resize-none"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!supportNote.trim()) return;
+                          setSendingNote(true);
+                          try {
+                            const existing = selectedCustomer.internalInfo || "";
+                            const timestamp = new Date().toLocaleString("sv-SE");
+                            const note = `[${timestamp}] ${supportNote}\n${existing}`;
+                            await handleUpdateUser(selectedCustomer.id, { internalInfo: note });
+                            setSupportNote("");
+                          } finally {
+                            setSendingNote(false);
+                          }
+                        }}
+                        disabled={sendingNote || !supportNote.trim()}
+                        className="mt-3 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {sendingNote ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                        Spara anteckning
+                      </button>
+                    </div>
+
+                    {selectedCustomer.internalInfo && (
+                      <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                          Historik
+                        </p>
+                        <pre className="text-[10px] font-bold text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
+                          {selectedCustomer.internalInfo}
+                        </pre>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="empty"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="h-80 flex flex-col items-center justify-center text-center p-10 rounded-2xl border border-dashed border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
+            >
+              <Users size={36} className="text-[var(--text-secondary)] opacity-10 mb-4" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                Välj en kund för att se detaljer
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Edit customer modal */}
+      <Modal
+        open={!!editingCustomer}
+        onClose={() => setEditingCustomer(null)}
+        title="Redigera kundprofil"
+        maxWidth="max-w-lg"
+      >
+        {editingCustomer && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const fd = new FormData(e.currentTarget);
+              handleUpdateUser(editingCustomer.id, Object.fromEntries(fd.entries()));
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { name: "name", label: "Namn", value: editingCustomer.name },
+                { name: "phone", label: "Telefon", value: editingCustomer.phone },
+                { name: "email", label: "E-post", value: editingCustomer.email },
+                { name: "address", label: "Adress", value: editingCustomer.address },
+                { name: "zip", label: "Postnummer", value: editingCustomer.zip },
+                { name: "city", label: "Stad", value: editingCustomer.city },
+              ].map((f) => (
+                <div key={f.name}>
+                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                    {f.label}
+                  </label>
+                  <input
+                    name={f.name}
+                    defaultValue={f.value || ""}
+                    className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30"
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingCustomer(null)}
+                className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+              >
+                Avbryt
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-3.5 rounded-xl bg-gold-500 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gold-500/20 hover:bg-gold-400 transition-all"
+              >
+                Spara profil
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+
+      {/* Delete confirm */}
+      <ConfirmModal
+        open={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => deleteConfirm && handleDeleteUser(deleteConfirm.id)}
+        title="Radera kund"
+        message={`Är du säker? ${deleteConfirm?.name} och all orderhistorik raderas permanent.`}
+        confirmLabel="Radera kund"
+        danger
+      />
     </div>
   );
 }
