@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Compass, ShoppingBag, User, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 
 const BottomNav = () => {
@@ -39,7 +39,11 @@ const BottomNav = () => {
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  <Icon size={20} weight={isActive ? "fill" : "regular"} strokeWidth={isActive ? 2.5 : 2} />
+                  <Icon 
+                    size={20} 
+                    strokeWidth={isActive ? 2.5 : 2} 
+                    fill={isActive ? "currentColor" : "none"} 
+                  />
                 </motion.div>
                 
                 <AnimatePresence>
