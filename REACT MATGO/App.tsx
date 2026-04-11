@@ -4630,25 +4630,6 @@ function TabItem({
           </Text>
         )}
       </Animated.View>
-      {!!tab.count && tab.count > 0 && !isFocused && (
-        <View
-          style={{
-            position: "absolute",
-            right: "15%",
-            top: 10,
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-            backgroundColor: palette.gold,
-            alignItems: "center",
-            justifyContent: "center",
-            borderWidth: 1,
-            borderColor: "#16151a",
-          }}
-        >
-          <Text style={{ color: "#000", fontSize: 9, fontWeight: "900" }}>{tab.count}</Text>
-        </View>
-      )}
     </Pressable>
   );
 }
