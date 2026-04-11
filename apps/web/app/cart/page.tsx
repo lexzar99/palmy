@@ -153,6 +153,21 @@ export default function CartPage() {
         }
       }
 
+      // ── Auto-fill address from previously verified Google address ───────────
+      const savedAddress = localStorage.getItem("platform_address") || "";
+      if (savedAddress) {
+        const parts = savedAddress.split(",");
+        const street = parts[0]?.trim() || "";
+        const zipMatch = savedAddress.match(/\b(\d{3})\s?(\d{2})\b/);
+        const zip = zipMatch ? `${zipMatch[1]}${zipMatch[2]}` : "";
+        setFormData((prev) => ({
+          ...prev,
+          deliveryStreet: prev.deliveryStreet || street,
+          deliveryZip:    prev.deliveryZip    || zip,
+        }));
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       // Delivery check if coords available
       if (orderType === "DELIVERY" && currentRestaurantId) {
         const storedCoords = localStorage.getItem("platform_coords");

@@ -1989,17 +1989,31 @@ function CartScreen({
   const [showManualAddress, setShowManualAddress] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
 
-  // Load from storage on mount
+  // ── Auto-fill address from previously verified Google Places address ────────
   useEffect(() => {
-    const storedAddress = useAppStore.getState().address || "";
+    const storeAddress = useAppStore.getState().address || "";
     const storedType = useAppStore.getState().orderType || "DELIVERY";
-    
-    setFormData(prev => ({
-      ...prev,
-      deliveryStreet: prev.deliveryStreet || storedAddress,
-    }));
     setOrderType(storedType);
+
+    if (storeAddress) {
+      const parts = storeAddress.split(",");
+      const street = parts[0]?.trim() || "";
+      // Extract Swedish postal code (format: "222 33" or "22233")
+      const zipMatch = storeAddress.match(/\b(\d{3})\s?(\d{2})\b/);
+      const zip = zipMatch ? `${zipMatch[1]}${zipMatch[2]}` : "";
+      // City: word(s) after the postal code before the next comma or end
+      const cityMatch = storeAddress.match(/\d{3}\s?\d{2}\s+([^,]+)/);
+      const city = cityMatch ? cityMatch[1].trim() : (parts[1]?.trim() || "");
+
+      setFormData(prev => ({
+        ...prev,
+        deliveryStreet: prev.deliveryStreet || street,
+        deliveryZip:    prev.deliveryZip    || zip,
+        deliveryCity:   prev.deliveryCity   || city,
+      }));
+    }
   }, []);
+  // ─────────────────────────────────────────────────────────────────────────
 
   const subtotal = useMemo(
     () =>
