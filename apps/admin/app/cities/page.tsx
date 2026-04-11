@@ -10,6 +10,7 @@ import { useToast } from "@/components/Toast";
 import { ConfirmModal } from "@/components/Modal";
 import dynamic from "next/dynamic";
 const CityMapPicker = dynamic(() => import("@/components/CityMapPicker"), { ssr: false });
+const MapsUsageWidget = dynamic(() => import("@/components/MapsUsageWidget"), { ssr: false });
 
 interface DeliveryZone {
   id: string;
@@ -340,6 +341,9 @@ const CitiesPage = () => {
         </button>
       </div>
 
+      {/* Maps API usage widget */}
+      <MapsUsageWidget />
+
       <div className="grid grid-cols-1 lg:grid-cols-[400px,1fr] gap-10">
         {/* City List Sidebar */}
         <div className="space-y-4">
@@ -503,15 +507,15 @@ const CitiesPage = () => {
                      </div>
                   </div>
 
-                  {selectedCity.latitude && selectedCity.longitude && (
-                    <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl flex items-center gap-4">
-                      <MapPin className="text-emerald-500 shrink-0" size={20} />
-                      <p className="text-xs font-bold text-emerald-400">
-                        GPS-center: {selectedCity.latitude.toFixed(4)}, {selectedCity.longitude.toFixed(4)} — 
-                        Alla zoner beräknas som radie från denna punkt.
-                      </p>
-                    </div>
-                  )}
+                   {selectedCity.latitude && selectedCity.longitude && (
+                     <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl flex items-center gap-4">
+                       <MapPin className="text-emerald-500 shrink-0" size={20} />
+                       <p className="text-xs font-bold text-emerald-400">
+                         GPS-center: {selectedCity.latitude.toFixed(5)}, {selectedCity.longitude.toFixed(5)} — 
+                         Alla zoners cirklar beräknas från denna punkt. Du kan också klicka direkt på kartan nedan.
+                       </p>
+                     </div>
+                   )}
                </div>
 
                {/* Google Maps Zone Picker */}
@@ -527,9 +531,18 @@ const CitiesPage = () => {
                      centerLng={selectedCity.centerLng ?? selectedCity.longitude}
                      radiusKm={selectedCity.radiusKm ?? 5}
                      polygon={(() => { try { return selectedCity.polygon ? JSON.parse(selectedCity.polygon as string) : null; } catch { return null; } })()}
+                     zones={getZones(selectedCity)}
+                     onCenterChange={(lat, lng) => {
+                        updateCity('centerLat', lat);
+                        updateCity('centerLng', lng);
+                        updateCity('latitude', lat);
+                        updateCity('longitude', lng);
+                     }}
                      onSave={(data) => {
                         updateCity('centerLat', data.centerLat);
                         updateCity('centerLng', data.centerLng);
+                        updateCity('latitude', data.centerLat);
+                        updateCity('longitude', data.centerLng);
                         if (data.radiusKm) updateCity('radiusKm', data.radiusKm);
                         if (data.polygon) updateCity('polygon', JSON.stringify(data.polygon));
                         else updateCity('polygon', null);

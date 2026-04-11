@@ -1054,8 +1054,10 @@ function HomeScreen({
       <AddressModal
         visible={addressModalOpen}
         initialValue={address}
+        initialOrderType={orderType as any}
         onClose={() => setAddressModalOpen(false)}
-        onSelect={(addressText, coords) => {
+        onSelect={(addressText, selectedOrderType, coords) => {
+          setOrderType(selectedOrderType);
           setAddress(addressText, coords || undefined);
         }}
       />
@@ -1899,8 +1901,10 @@ function RestaurantScreen({
       <AddressModal
         visible={addressModalOpen}
         initialValue={address}
+        initialOrderType={orderType as any}
         onClose={() => setAddressModalOpen(false)}
-        onSelect={(addressText, coords) => {
+        onSelect={(addressText, selectedOrderType, coords) => {
+          setOrderType(selectedOrderType);
           setAddress(addressText, coords || undefined);
           setAddressModalOpen(false);
         }}
