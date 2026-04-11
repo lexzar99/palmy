@@ -247,7 +247,7 @@ const Sidebar = () => {
       pathname === link.href ||
       (link.href !== "/overview" &&
         link.href !== "/" &&
-        pathname.startsWith(link.href));
+        pathname.startsWith(link.href + "/"));
     return (
       <Link
         href={link.href}

@@ -73,6 +73,8 @@ export default function BillingPage() {
   const [useCustom, setUseCustom] = useState(false);
   const [config, setConfig] = useState<BillingConfig>(DEFAULT_CONFIG);
   const [showConfig, setShowConfig] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [tierFilter, setTierFilter] = useState<number | "all">("all");
 
   const period = useCustom ? { from: customFrom, to: customTo } : PERIODS[selectedPeriodIndex];
   const token = () => localStorage.getItem("matgo_token") || "";
@@ -128,37 +130,43 @@ export default function BillingPage() {
 
   // Commission calculations per restaurant
   const rows = useMemo(() => {
-    return restaurants.map((r) => {
-      const report = reports[r.id];
-      const tierKey = TIER_META[r.featuredClass ?? 3]?.key ?? "standard";
-      const tierCfg = config[tierKey];
-      const totalRevenue = report?.summary?.totalRevenue ?? 0;
-      const totalOrders = report?.summary?.totalOrders ?? 0;
+    return restaurants
+      .filter((r) => {
+        const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesTier = tierFilter === "all" || r.featuredClass === tierFilter;
+        return matchesSearch && matchesTier;
+      })
+      .map((r) => {
+        const report = reports[r.id];
+        const tierKey = TIER_META[r.featuredClass ?? 3]?.key ?? "standard";
+        const tierCfg = config[tierKey];
+        const totalRevenue = report?.summary?.totalRevenue ?? 0;
+        const totalOrders = report?.summary?.totalOrders ?? 0;
 
-      // Prorated subscription for the period
-      const periodDays = Math.max(1, Math.round(
-        (new Date(period.to).getTime() - new Date(period.from).getTime()) / (1000 * 60 * 60 * 24)
-      ));
-      const proratedSubscription = (tierCfg.subscriptionFee / 30) * periodDays;
-      const commission = (totalRevenue * tierCfg.commissionPct) / 100;
-      const totalPlatformIncome = proratedSubscription + commission;
-      const restaurantPayout = totalRevenue - commission; // subscription is flat fee, not deducted from payout
+        // Prorated subscription for the period
+        const periodDays = Math.max(1, Math.round(
+          (new Date(period.to).getTime() - new Date(period.from).getTime()) / (1000 * 60 * 60 * 24)
+        ));
+        const proratedSubscription = (tierCfg.subscriptionFee / 30) * periodDays;
+        const commission = (totalRevenue * tierCfg.commissionPct) / 100;
+        const totalPlatformIncome = proratedSubscription + commission;
+        const restaurantPayout = totalRevenue - commission; // subscription is flat fee, not deducted from payout
 
-      return {
-        restaurant: r,
-        report,
-        tier: TIER_META[r.featuredClass ?? 3],
-        tierCfg,
-        totalRevenue,
-        totalOrders,
-        proratedSubscription,
-        commission,
-        totalPlatformIncome,
-        restaurantPayout,
-        periodDays,
-      };
-    });
-  }, [restaurants, reports, config, period]);
+        return {
+          restaurant: r,
+          report,
+          tier: TIER_META[r.featuredClass ?? 3],
+          tierCfg,
+          totalRevenue,
+          totalOrders,
+          proratedSubscription,
+          commission,
+          totalPlatformIncome,
+          restaurantPayout,
+          periodDays,
+        };
+      });
+  }, [restaurants, reports, config, period, searchTerm, tierFilter]);
 
   const totals = useMemo(() => ({
     revenue: rows.reduce((s, r) => s + r.totalRevenue, 0),
@@ -217,8 +225,27 @@ export default function BillingPage() {
             <Settings size={13} /> Prismodell
           </button>
           <button onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+            className="flex items-center gap-2 px-4 py-2.5 border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-gold-500 transition-all font-black uppercase tracking-widest text-[9px] rounded-xl">
             <Download size={13} /> Exportera CSV
+          </button>
+          <button 
+            onClick={async () => {
+              if (!confirm(`Vill du skicka rapporter till alla ${rows.length} restauranger i listan?`)) return;
+              for (const row of rows) {
+                try {
+                  const email = row.restaurant.adminEmail || `${row.restaurant.slug}@matgo.se`;
+                  await axios.post(`${API_URL}/api/admin/reports/restaurant/${row.restaurant.id}/send`, {
+                    email,
+                    period: `${period.from} - ${period.to}`
+                  }, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token")}` }
+                  });
+                } catch (e) { console.error(e); }
+              }
+              alert("Klar! Rapporter skickade till alla i kön (MOCK).");
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
+            <RefreshCw size={13} /> Skicka till alla
           </button>
         </div>
       </div>
@@ -290,20 +317,53 @@ export default function BillingPage() {
         </span>
       </div>
 
+      {/* Search & Filter */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+          <input 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Sök restaurang..."
+            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
+          />
+        </div>
+        <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
+          <button onClick={() => setTierFilter("all")}
+            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${tierFilter === "all" ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
+            Alla Tiers
+          </button>
+          {[
+            { value: 1, label: "Guld", color: "text-gold-500", bg: "bg-gold-500/10 border-gold-500/20" },
+            { value: 2, label: "Silver", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
+            { value: 3, label: "Standard", color: "text-[var(--text-secondary)]", bg: "bg-[var(--border-subtle)]" },
+          ].map((t) => (
+            <button key={t.value} onClick={() => setTierFilter(t.value)}
+              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${tierFilter === t.value ? `${t.bg} ${t.color}` : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
-          { label: "Total omsättning", value: kr(totals.revenue), color: "text-[var(--text-primary)]", sub: "Alla restauranger" },
-          { label: "Totalt ordrar", value: totals.orders.toString(), color: "text-blue-400", sub: "Levererade" },
-          { label: "Prenumerationer", value: kr(totals.subscriptions), color: "text-purple-400", sub: "Proraterade" },
-          { label: "Provision (orders)", value: kr(totals.commission), color: "text-gold-500", sub: "% av omsättning" },
-          { label: "Plattformens totala", value: kr(totals.platformTotal), color: "text-gold-500", sub: "Prenumeration + Provision" },
-          { label: "Restaurangernas utbet.", value: kr(totals.payout), color: "text-emerald-400", sub: "Omsättning - provision" },
-        ].map((s) => (
-          <div key={s.label} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</p>
-            <p className={`text-lg font-black ${s.color}`}>{s.value}</p>
-            <p className="text-[7px] text-[var(--text-secondary)] opacity-50 font-bold mt-0.5">{s.sub}</p>
+          { label: "Total omsättning", value: kr(totals.revenue), icon: TrendingUp, color: "text-[var(--text-primary)]", sub: "Grovomsättning" },
+          { label: "Totalt ordrar", value: totals.orders.toString(), icon: ShoppingCart, color: "text-blue-400", sub: "Volym per period" },
+          { label: "Fast intäkt", value: kr(totals.subscriptions), icon: Calendar, color: "text-purple-400", sub: "Prenumerationer" },
+          { label: "Rörlig intäkt", value: kr(totals.commission), icon: RefreshCw, color: "text-gold-500", sub: "Provisioner" },
+          { label: "Plattform vinst", value: kr(totals.platformTotal), icon: CreditCard, color: "text-emerald-400", sub: "Total för plattformen", highlight: true },
+          { label: "Utbetalning", value: kr(totals.payout), icon: Store, color: "text-rose-400", sub: "Till restauranger" },
+        ].map((kpi) => (
+          <div key={kpi.label} 
+            className={`p-4 rounded-2xl border transition-all ${kpi.highlight ? "bg-emerald-500/5 border-emerald-500/20" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]"}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
+              <kpi.icon size={12} className={kpi.color} />
+            </div>
+            <p className={`text-lg font-black ${kpi.color}`}>{kpi.value}</p>
+            <p className="text-[8px] font-medium text-[var(--text-secondary)] mt-1">{kpi.sub}</p>
           </div>
         ))}
       </div>
@@ -331,7 +391,12 @@ export default function BillingPage() {
                   <tr key={row.restaurant.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-secondary)] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <Store size={13} className="text-[var(--text-secondary)] shrink-0" />
+                        <div className="relative">
+                          <Store size={13} className="text-[var(--text-secondary)] shrink-0" />
+                          {row.totalRevenue > 0 && row.totalRevenue === Math.max(...rows.map(r => r.totalRevenue)) && (
+                            <Crown size={8} className="absolute -top-1.5 -right-1.5 text-gold-500 fill-gold-500 animate-bounce" />
+                          )}
+                        </div>
                         <div>
                           <p className="font-black text-[var(--text-primary)]">{row.restaurant.name}</p>
                           <p className="text-[8px] text-[var(--text-secondary)] opacity-50">{row.restaurant.city || "—"}</p>
