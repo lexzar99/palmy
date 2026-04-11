@@ -473,8 +473,10 @@ function HomeScreen({
   const validateZone = useCallback(async (lat: number, lng: number) => {
     try {
       const res = await api.post(`/api/cities/validate-location`, { lat, lng });
-      if (res.data.covered) {
-        const ids = res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id));
+      if (res.data && res.data.covered && Array.isArray(res.data.cities)) {
+        const ids = res.data.cities.flatMap((c: any) => 
+          Array.isArray(c.restaurants) ? c.restaurants.map((r: any) => r.id) : []
+        );
         setZoneRestaurantIds(ids);
         setZoneError(null);
       } else {

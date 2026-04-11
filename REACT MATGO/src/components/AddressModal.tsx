@@ -1,10 +1,13 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, Modal, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import "react-native-get-random-values";
-import { v4 as uuidv4 } from "uuid";
 
 const MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || "";
+
+// Custom helper to generate session tokens
+const generateSessionToken = () => {
+  return Math.random().toString(36).substring(2, 11) + Math.random().toString(36).substring(2, 11);
+};
 
 interface AddressModalProps {
   visible: boolean;
@@ -34,7 +37,7 @@ export default function AddressModal({
     if (visible) {
       setInput(initialValue);
       setSuggestions([]);
-      sessionToken.current = uuidv4();
+      sessionToken.current = generateSessionToken();
     }
   }, [visible, initialValue]);
 
@@ -75,7 +78,6 @@ export default function AddressModal({
   const handleSelect = async (prediction: PlacePrediction) => {
     setLoading(true);
     try {
-      // Geocode using Place ID and the same session token
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry&sessiontoken=${sessionToken.current}&key=${MAPS_KEY}`
       );
@@ -87,7 +89,6 @@ export default function AddressModal({
       } else {
         onSelect(prediction.description);
       }
-      
       onClose();
     } catch (err) {
       console.error("Geocode error:", err);
