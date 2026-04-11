@@ -50,11 +50,12 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
       if (toNum(z?.centerLng) !== null) zone.centerLng = toNum(z.centerLng)!;
       if (z?.color && typeof z.color === 'string') zone.color = z.color;
 
-      // Validate: polygon zone must have polygon, circle must have radiusKm > 0
+      // Validate: both zone types must have renderable geometry
       if (type === 'polygon') {
         if (!zone.polygon || zone.polygon.length < 3) return null;
       } else {
-        if (radiusKm <= 0 && !zone.centerLat) return null;
+        // Circle MUST have a center and a positive radius — no invisible legacy zones
+        if (!zone.centerLat || !zone.centerLng || radiusKm <= 0) return null;
       }
 
       return zone;

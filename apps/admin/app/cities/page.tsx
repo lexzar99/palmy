@@ -28,24 +28,42 @@ const toKr = (v: any): number => {
 const toOre = (kr: number) => Math.round(kr * 100);
 
 // ── Parse zones from DB → UI ──────────────────────────────────────────────────
+// Only keeps zones that can actually be rendered on the map.
+// Legacy "radius-only" zones (no centerLat/centerLng, no polygon) are silently
+// dropped — they were invisible anyway and would confuse the admin UI.
 function parseZones(raw: any): Zone[] {
   try {
     const arr = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
     return arr
       .filter((z: any) => z?.id && z?.name)
-      .map((z: any, i: number): Zone => ({
-        id: String(z.id),
-        name: String(z.name),
-        type: z.type === "polygon" ? "polygon" : "circle",
-        centerLat:   z.centerLat  != null ? Number(z.centerLat)  : undefined,
-        centerLng:   z.centerLng  != null ? Number(z.centerLng)  : undefined,
-        radiusKm:    z.radiusKm   != null ? Number(z.radiusKm)   : 0,
-        polygon:     Array.isArray(z.polygon) ? z.polygon : undefined,
-        deliveryFee: toKr(z.fee ?? z.deliveryFee ?? 0),
-        minOrder:    toKr(z.minOrder ?? 0),
-        isActive:    z.isActive !== false,
-        color:       z.color ?? "",
-      }));
+      .map((z: any): Zone | null => { // eslint-disable-line @typescript-eslint/no-explicit-any
+        const type: "circle" | "polygon" = z.type === "polygon" ? "polygon" : "circle";
+
+        // Validate geometry exists
+        if (type === "polygon") {
+          if (!Array.isArray(z.polygon) || z.polygon.length < 3) return null;
+        } else {
+          // Circle must have both a center AND a radius to be renderable
+          if (z.centerLat == null || z.centerLng == null) return null;
+          const r = Number(z.radiusKm ?? 0);
+          if (!r || r <= 0) return null;
+        }
+
+        return {
+          id:          String(z.id),
+          name:        String(z.name),
+          type,
+          centerLat:   z.centerLat  != null ? Number(z.centerLat)  : undefined,
+          centerLng:   z.centerLng  != null ? Number(z.centerLng)  : undefined,
+          radiusKm:    z.radiusKm   != null ? Number(z.radiusKm)   : 0,
+          polygon:     Array.isArray(z.polygon) ? z.polygon : undefined,
+          deliveryFee: toKr(z.fee ?? z.deliveryFee ?? 0),
+          minOrder:    toKr(z.minOrder ?? 0),
+          isActive:    z.isActive !== false,
+          color:       z.color ?? "",
+        };
+      })
+      .filter((z: Zone | null): z is Zone => z !== null);
   } catch {
     return [];
   }
