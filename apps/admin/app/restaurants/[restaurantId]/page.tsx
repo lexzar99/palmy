@@ -71,10 +71,10 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Profile form
   const [profile, setProfile] = useState({
     name: "", description: "", cuisine: "", address: "", city: "", zip: "",
     phone: "", imageUrl: "", heroImageUrl: "", internalInfo: "",
+    latitude: "", longitude: "",
   });
 
   // Admin credentials form
@@ -125,6 +125,8 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
           imageUrl: r.imageUrl || "",
           heroImageUrl: r.heroImageUrl || "",
           internalInfo: r.internalInfo || "",
+          latitude: r.latitude ? String(r.latitude) : "",
+          longitude: r.longitude ? String(r.longitude) : "",
         });
 
         setDeliveryForm({
@@ -140,6 +142,8 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
             [d.key]: hours[d.key] ? { ...DEFAULT_HOURS, ...hours[d.key] } : { ...DEFAULT_HOURS },
           }), {})
         );
+        
+        setAdminForm({ adminPassword: "", adminEmail: r.adminEmail || "" });
       }
 
       if (ordersRes.status === "fulfilled") {
@@ -188,17 +192,28 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
   };
 
   const saveProfile = async () => {
-    const ok = await patchRestaurant(profile);
-    if (ok) { success("Profil sparad"); setRestaurant((p: any) => ({ ...p, ...profile })); }
+    const payload = {
+      ...profile,
+      latitude: profile.latitude ? parseFloat(profile.latitude) : null,
+      longitude: profile.longitude ? parseFloat(profile.longitude) : null,
+    };
+    const ok = await patchRestaurant(payload);
+    if (ok) { success("Profil sparad"); setRestaurant((p: any) => ({ ...p, ...payload })); }
   };
 
   const saveAdminCredentials = async () => {
-    if (!adminForm.adminPassword || adminForm.adminPassword.length < 6) {
+    if (adminForm.adminPassword && adminForm.adminPassword.length < 6) {
       toastError("Lösenordet måste vara minst 6 tecken");
       return;
     }
-    const ok = await patchRestaurant({ adminPassword: adminForm.adminPassword });
-    if (ok) { success("Admin-lösenord uppdaterat"); setAdminForm({ adminPassword: "", adminEmail: "" }); }
+    const ok = await patchRestaurant({ 
+      adminPassword: adminForm.adminPassword || undefined,
+      adminEmail: adminForm.adminEmail || undefined,
+    });
+    if (ok) { 
+      success("Admin-uppgifter uppdaterades"); 
+      setAdminForm((p) => ({ ...p, adminPassword: "" })); 
+    }
   };
 
   const saveOpeningHours = async () => {
@@ -354,6 +369,12 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                     <input className={`${inputCls} pl-9`} value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
                   </div>
                 </Field>
+                <Field label="Latitud (GPS)">
+                  <input type="number" step="any" className={inputCls} value={profile.latitude} onChange={(e) => setProfile((p) => ({ ...p, latitude: e.target.value }))} placeholder="t.ex. 55.604981" />
+                </Field>
+                <Field label="Longitud (GPS)">
+                  <input type="number" step="any" className={inputCls} value={profile.longitude} onChange={(e) => setProfile((p) => ({ ...p, longitude: e.target.value }))} placeholder="t.ex. 13.003822" />
+                </Field>
               </div>
             </div>
 
@@ -451,12 +472,20 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               <Field label="Användarnamn (auto)">
                 <input className={`${inputCls} opacity-50`} value={restaurant.slug} readOnly />
               </Field>
+              <Field label="Inloggnings-epost (frivillig)">
+                <div className="relative">
+                  <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+                  <input className={`${inputCls} pl-9`} value={adminForm.adminEmail}
+                    onChange={(e) => setAdminForm((p) => ({ ...p, adminEmail: e.target.value }))}
+                    placeholder="t.ex. hej@restaurang.se (används som inlogg)" />
+                </div>
+              </Field>
               <Field label="Nytt lösenord">
                 <div className="relative">
                   <Lock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
                   <input type="password" className={`${inputCls} pl-9`} value={adminForm.adminPassword}
                     onChange={(e) => setAdminForm((p) => ({ ...p, adminPassword: e.target.value }))}
-                    placeholder="Minst 6 tecken" />
+                    placeholder="Lämna tomt för att behålla befintligt" />
                 </div>
               </Field>
               <button onClick={saveAdminCredentials} disabled={saving}

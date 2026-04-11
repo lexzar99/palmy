@@ -34,6 +34,7 @@ export default function DealsPage() {
 
   const [category, setCategory] = useState<DealCategory>("restaurant");
   const [deals, setDeals] = useState<any[]>([]);
+  const [customerDeals, setCustomerDeals] = useState<any[]>([]);
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,7 @@ export default function DealsPage() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [dealsRes, restaurantsRes, customersRes] = await Promise.allSettled([
+      const [dealsRes, restaurantsRes, customersRes, customerDealsRes] = await Promise.allSettled([
         axios.get(`${API_URL}/api/admin/deals`, {
           headers: { Authorization: `Bearer ${token()}` },
         }),
@@ -58,11 +59,15 @@ export default function DealsPage() {
         axios.get(`${API_URL}/api/customers`, {
           headers: { Authorization: `Bearer ${token()}` },
         }),
+        axios.get(`${API_URL}/api/admin/customer-deals`, {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
       ]);
 
       if (dealsRes.status === "fulfilled") setDeals(dealsRes.value.data);
       if (restaurantsRes.status === "fulfilled") setRestaurants(restaurantsRes.value.data);
       if (customersRes.status === "fulfilled") setCustomers(customersRes.value.data);
+      if (customerDealsRes.status === "fulfilled") setCustomerDeals(customerDealsRes.value.data);
     } catch {
       toastError("Kunde inte ladda data");
     } finally {
@@ -169,6 +174,14 @@ export default function DealsPage() {
     return true;
   });
 
+  const filteredCustomerDeals = customerDeals.filter((d) => {
+    if (search) {
+      const q = search.toLowerCase();
+      return (d.campaign?.title || "").toLowerCase().includes(q) || (d.user?.name || "").toLowerCase().includes(q) || (d.phone || "").toLowerCase().includes(q);
+    }
+    return true;
+  });
+
   return (
     <div className="space-y-6 pb-24">
       {/* Header */}
@@ -197,12 +210,32 @@ export default function DealsPage() {
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setCategory("restaurant")}
+          className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+            category === "restaurant" ? "bg-gold-500 text-zinc-950" : "bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          Restaurang-deals
+        </button>
+        <button
+          onClick={() => setCategory("customer")}
+          className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+            category === "customer" ? "bg-emerald-500 text-zinc-950" : "bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+          }`}
+        >
+          Personliga Deals
+        </button>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Totalt deals", value: deals.length, color: "text-gold-500" },
-          { label: "Aktiva", value: deals.filter((d) => d.isActive).length, color: "text-emerald-400" },
-          { label: "Pausade", value: deals.filter((d) => !d.isActive).length, color: "text-rose-400" },
+          { label: "Totalt deals", value: category === "restaurant" ? deals.length : customerDeals.length, color: category === "restaurant" ? "text-gold-500" : "text-emerald-500" },
+          { label: "Aktiva", value: category === "restaurant" ? deals.filter((d) => d.isActive).length : customerDeals.filter((d) => !d.isUsed).length, color: "text-emerald-400" },
+          { label: "Pausade/Förbrukade", value: category === "restaurant" ? deals.filter((d) => !d.isActive).length : customerDeals.filter((d) => d.isUsed).length, color: "text-rose-400" },
         ].map((s) => (
           <div key={s.label} className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
             <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
@@ -230,7 +263,7 @@ export default function DealsPage() {
             Laddar deals...
           </p>
         </div>
-      ) : filteredDeals.length === 0 ? (
+      ) : category === "restaurant" ? filteredDeals.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <Gift size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
           <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
@@ -311,6 +344,62 @@ export default function DealsPage() {
                   : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
               }`}>
                 {deal.isActive ? "Aktiv" : "Pausad"}
+              </span>
+            </motion.div>
+          ))}
+        </div>
+      ) : filteredCustomerDeals.length === 0 ? (
+        <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
+          <Users size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
+          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+            Inga personliga deals hittades
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filteredCustomerDeals.map((deal) => (
+            <motion.div
+              key={deal.id}
+              layout
+              className="flex items-center gap-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-emerald-500/15 transition-all group"
+            >
+              {/* Status dot */}
+              <div className={`w-2 h-2 rounded-full shrink-0 ${!deal.isUsed ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-zinc-600"}`} />
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-sm text-[var(--text-primary)] uppercase truncate">
+                    {deal.campaign?.title || "Okänd Kampanj"}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[7px] font-black uppercase border border-emerald-500/20">
+                    Kund: {deal.user?.name || deal.phone}
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400 text-[8px] font-black uppercase border border-zinc-500/20">
+                    KOD: {deal.code}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 mt-0.5">
+                  <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                    {deal.campaign?.discountValue}
+                    {deal.campaign?.discountType === "PERCENTAGE" ? "%" : " kr"} rabatt
+                  </span>
+                  <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                    · Använt: {deal.usageCount} / {deal.maxUsages}
+                  </span>
+                  <span className="text-[9px] font-bold text-[var(--text-secondary)] opacity-50">
+                    · Skapad: {new Date(deal.createdAt).toLocaleDateString("sv-SE")}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status badge */}
+              <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
+                !deal.isUsed
+                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                  : "bg-surface-elevated text-zinc-500 border-zinc-800"
+              }`}>
+                {!deal.isUsed ? "Aktiv" : "Förbrukad"}
               </span>
             </motion.div>
           ))}

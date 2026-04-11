@@ -342,7 +342,7 @@ export default function RestaurantsPage() {
                         ETA
                       </p>
                       <p className="text-[9px] font-black text-[var(--text-primary)]">
-                        {r.etaMinutes} min
+                        {r.baseEtaMinutes ?? r.etaMinutes} min
                       </p>
                     </div>
                     <div>

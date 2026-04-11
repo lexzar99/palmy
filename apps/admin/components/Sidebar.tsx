@@ -33,6 +33,7 @@ import {
   RefreshCw,
   Printer,
   Calculator,
+  Server,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -232,6 +233,7 @@ const Sidebar = () => {
       links: [
         { href: "/menu", label: "Menyer", icon: Utensils },
         { href: "/settings/receipt", label: "Kvittolayout", icon: Printer },
+        { href: "/system", label: "Systemhälsa", icon: Server },
         { href: "/log", label: "Aktivitetslogg", icon: ActivitySquare },
       ],
     },

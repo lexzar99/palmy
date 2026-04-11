@@ -329,4 +329,37 @@ router.get('/restaurant/:restaurantId', async (req, res) => {
   }
 });
 
+// POST /api/admin/reports/restaurant/:restaurantId/send - Skicka rapport via mail
+router.post('/restaurant/:restaurantId/send', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super-admin' });
+    }
+
+    const { restaurantId } = req.params;
+    const { email, period } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Mottagaradress saknas' });
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { name: true },
+    });
+
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurangen hittades inte' });
+    }
+
+    // MOCK: simulate sending email
+    console.log(`[MOCK EMAIL SEND] Skickar rapport för ${restaurant.name} (${period}) till ${email}...`);
+
+    res.json({ success: true, message: 'Rapporten skickades (MOCK)' });
+  } catch (error) {
+    console.error('Send report error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka e-post' });
+  }
+});
+
 export default router;

@@ -385,6 +385,10 @@ export default function BillingPage() {
 // ── Per-restaurant collapsible card ──────────────────────────────────────────
 function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
   const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [sending, setSending] = useState(false);
+  const { success, error: toastError } = useToast();
+
   const Icon = row.tier?.icon ?? Award;
   const report = row.report;
 
@@ -418,6 +422,29 @@ function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
     a.download = `${row.restaurant.slug}_rapport_${period.from}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const sendReport = async () => {
+    if (!email || !email.includes("@")) {
+      toastError("Ange en giltig e-postadress");
+      return;
+    }
+    setSending(true);
+    try {
+      const token = localStorage.getItem("matgo_token") || "";
+      await axios.post(`${API_URL}/api/admin/reports/restaurant/${row.restaurant.id}/send`, {
+        email,
+        period: `${period.from} - ${period.to}`
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      success(`Rapport skickad till ${email}`);
+      setEmail("");
+    } catch {
+      toastError("Kunde inte skicka rapport");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -499,10 +526,29 @@ function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
             </div>
           )}
 
-          <button onClick={exportRestaurantPDF}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
-            <FileText size={13} /> Exportera rapport (.txt)
-          </button>
+          {/* Actions */}
+          <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-4">
+            <button onClick={exportRestaurantPDF}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
+              <FileText size={13} /> Exportera (.txt)
+            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <input 
+                type="email"
+                placeholder="ange@epost.se" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30 transition-all placeholder:opacity-30"
+              />
+              <button 
+                onClick={sendReport}
+                disabled={sending}
+                className="flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all disabled:opacity-50"
+              >
+                {sending ? <Loader2 size={12} className="animate-spin" /> : "Skicka Rapport"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

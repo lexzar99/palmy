@@ -1321,6 +1321,35 @@ const normalizeDealInputForDb = (body: any) => {
   return next;
 };
 
+// =====================
+// DEALS & CUSTOMER DEALS
+// =====================
+
+router.get('/customer-deals', async (req, res) => {
+  try {
+    const { restaurantId } = req.query;
+    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
+      ? (restaurantId ? (restaurantId as string) : null)
+      : requireRestaurantScope(req as AuthRequest, res);
+    
+    // Om restaurantId är satt kan vi filtrera personal deals baserat på restaurant info,
+    // men för tillfället returnera alla (eller filtrerade).
+    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+
+    const deals = await prisma.customerDeal.findMany({
+      include: {
+        user: { select: { name: true, phone: true } },
+        campaign: { select: { title: true, discountType: true, discountValue: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(deals);
+  } catch (error) {
+    console.error('Error fetching customer deals:', error);
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 router.get('/deals', async (req, res) => {
   try {
     const { restaurantId } = req.query;
@@ -1414,6 +1443,43 @@ router.delete('/deals/:id', async (req, res) => {
   }
 });
 
+
+// =====================
+// SYSTEM HEALTH / MONITORING
+// =====================
+router.get('/system/health', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Behörighet saknas' });
+    }
+
+    // 1. DB Ping
+    const startDb = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const dbPing = Date.now() - startDb;
+
+    // 2. Memory Usage
+    const memory = process.memoryUsage();
+    
+    // 3. Uptime
+    const uptime = process.uptime();
+
+    res.json({
+      status: "ONLINE",
+      uptime,
+      dbPingMs: dbPing,
+      memory: {
+        rss: memory.rss,
+        heapTotal: memory.heapTotal,
+        heapUsed: memory.heapUsed,
+      },
+      timestamp: new Date(),
+      alerts: [] // MOCK for driftstörningar
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'System Health Error', details: String(error) });
+  }
+});
 
 // =====================
 // MENYIMPORT

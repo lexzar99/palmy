@@ -243,6 +243,7 @@ model Restaurant {
   updatedAt      DateTime     @updatedAt
   featuredClass  Int          @default(3)
   internalInfo   String?
+  adminEmail     String?
   latitude       Float?
   longitude      Float?
   cityId         String?
