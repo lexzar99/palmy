@@ -156,17 +156,27 @@ export default function DiscoverPage() {
                     <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-base font-black uppercase italic truncate">{rest.name}</h3>
-                      {rest.isOpen === false && <span className="bg-rose-500/10 text-rose-400 text-[7px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">Stängd</span>}
-                      {rest.isOpen !== false && rest.rating && <span className="bg-emerald-500/10 text-emerald-400 text-[7px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">Öppet</span>}
-                    </div>
-                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                      <div className="flex items-center gap-1 text-gold-500">
-                        <Star size={10} className="fill-gold-500" /> {rest.rating?.toFixed(1) || "NY"}
-                      </div>
-                      <span>•</span>
-                      <span className="truncate">{rest.city}</span>
+                    {/* Name — full row, truncates cleanly */}
+                    <h3 className="text-base font-black uppercase italic truncate leading-tight mb-1.5">
+                      {rest.name}
+                    </h3>
+                    {/* Info row below — badge + rating + city */}
+                    <div className="flex items-center gap-2 flex-wrap text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      {rest.isOpen === false ? (
+                        <span className="bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-full border border-rose-500/20">
+                          Stängd
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                          Öppet
+                        </span>
+                      )}
+                      {rest.rating && (
+                        <span className="flex items-center gap-1 text-gold-500">
+                          <Star size={9} className="fill-gold-500" /> {rest.rating.toFixed(1)}
+                        </span>
+                      )}
+                      {rest.city && <span className="truncate text-zinc-600">{rest.city}</span>}
                     </div>
                   </div>
                   <ChevronRight size={18} className="text-zinc-600 group-hover:text-gold-500 transition-all shrink-0" />

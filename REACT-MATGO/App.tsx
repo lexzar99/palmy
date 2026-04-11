@@ -56,6 +56,7 @@ import {
 } from "./src/types";
 import { useAppStore } from "./src/store/useAppStore";
 import { AppStripeProvider, useAppPaymentSheet } from "./src/lib/stripeProvider";
+import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src/lib/liveActivities";
 
 const palette = {
   bg: "#0b0a0f",
@@ -2196,6 +2197,14 @@ function CartScreen({
 
       const successId = response.data?.orderId || response.data?.id;
       if (successId) {
+        // ── Start Dynamic Island Live Activity ─────────────────────────────
+        startOrderActivity({
+          orderId:        successId,
+          restaurantName: restaurant?.name ?? "Restaurang",
+          orderTotal:     Math.round(total),
+          etaMinutes:     restaurantSettings.estimatedDeliveryTime ?? 30,
+        }).catch(() => {/* no-op if not supported */});
+        // ──────────────────────────────────────────────────────────────────
         clearCart();
         openOrder(successId);
       } else {

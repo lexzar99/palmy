@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.matgo.reactnative"
+      "bundleIdentifier": "com.matgo.reactnative",
+      "infoPlist": {
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true
+      }
     },
     "android": {
       "package": "com.matgo.reactnative",
