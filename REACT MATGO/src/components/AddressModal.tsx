@@ -1,8 +1,10 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { View, Text, TextInput, Pressable, Modal, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import "react-native-get-random-values";
+import { v4 as uuidv4 } from "uuid";
 
-const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
+const MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || "";
 
 interface AddressModalProps {
   visible: boolean;
@@ -11,15 +13,9 @@ interface AddressModalProps {
   onSelect: (address: string, coords?: { lat: number; lng: number }) => void;
 }
 
-interface Suggestion {
-  properties: {
-    formatted: string;
-    city?: string;
-    postcode?: string;
-  };
-  geometry: {
-    coordinates: [number, number];
-  };
+interface PlacePrediction {
+  description: string;
+  place_id: string;
 }
 
 export default function AddressModal({
@@ -29,14 +25,16 @@ export default function AddressModal({
   onSelect,
 }: AddressModalProps) {
   const [input, setInput] = useState(initialValue);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionToken = useRef<string>("");
 
   useEffect(() => {
     if (visible) {
       setInput(initialValue);
       setSuggestions([]);
+      sessionToken.current = uuidv4();
     }
   }, [visible, initialValue]);
 
@@ -55,10 +53,10 @@ export default function AddressModal({
     setLoading(true);
     try {
       const response = await fetch(
-        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&bias=proximity:13.19,55.70&limit=5&apiKey=${GEOAPIFY_KEY}`
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&components=country:se&language=sv&sessiontoken=${sessionToken.current}&key=${MAPS_KEY}`
       );
       const data = await response.json();
-      setSuggestions(data.features || []);
+      setSuggestions(data.predictions || []);
     } catch (err) {
       console.error("Autocomplete error:", err);
       setSuggestions([]);
@@ -74,11 +72,29 @@ export default function AddressModal({
     debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
   };
 
-  const handleSelect = (suggestion: Suggestion) => {
-    const formatted = suggestion.properties.formatted;
-    const [lng, lat] = suggestion.geometry.coordinates;
-    onSelect(formatted, { lat, lng });
-    onClose();
+  const handleSelect = async (prediction: PlacePrediction) => {
+    setLoading(true);
+    try {
+      // Geocode using Place ID and the same session token
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry&sessiontoken=${sessionToken.current}&key=${MAPS_KEY}`
+      );
+      const data = await response.json();
+      const loc = data.result?.geometry?.location;
+
+      if (loc) {
+        onSelect(prediction.description, { lat: loc.lat, lng: loc.lng });
+      } else {
+        onSelect(prediction.description);
+      }
+      
+      onClose();
+    } catch (err) {
+      console.error("Geocode error:", err);
+      onClose();
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -106,15 +122,15 @@ export default function AddressModal({
           </View>
 
           <ScrollView style={styles.results} keyboardShouldPersistTaps="handled">
-            {suggestions.map((suggestion, index) => (
+            {suggestions.map((suggestion) => (
               <Pressable
-                key={index}
+                key={suggestion.place_id}
                 style={({ pressed }) => [styles.resultItem, pressed && styles.resultItemPressed]}
                 onPress={() => handleSelect(suggestion)}
               >
                 <Ionicons name="location" size={18} color="#e7b24b" />
                 <Text style={styles.resultText} numberOfLines={2}>
-                  {suggestion.properties.formatted}
+                  {suggestion.description}
                 </Text>
               </Pressable>
             ))}

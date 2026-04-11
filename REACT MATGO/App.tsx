@@ -458,13 +458,43 @@ function HomeScreen({
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
+  const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
+  const [zoneError, setZoneError] = useState<string | null>(null);
+
   const address = useAppStore((s) => s.address);
+  const coords = useAppStore((s) => s.coords);
   const orderType = useAppStore((s) => s.orderType);
   const token = useAppStore((s) => s.token);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
   const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
   const cartCount = useAppStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
+
+  const validateZone = useCallback(async (lat: number, lng: number) => {
+    try {
+      const res = await api.post(`/api/cities/validate-location`, { lat, lng });
+      if (res.data.covered) {
+        const ids = res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id));
+        setZoneRestaurantIds(ids);
+        setZoneError(null);
+      } else {
+        setZoneRestaurantIds([]);
+        setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
+      }
+    } catch {
+      setZoneRestaurantIds(null); // fail open
+      setZoneError(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (orderType === "DELIVERY" && coords) {
+      validateZone(coords.lat, coords.lng);
+    } else {
+      setZoneRestaurantIds(null);
+      setZoneError(null);
+    }
+  }, [coords, orderType, validateZone]);
 
   useEffect(() => {
     let active = true;
@@ -505,11 +535,18 @@ function HomeScreen({
           activeCuisine === "Alla" ||
           (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
           (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
-        const byCity = !selectedCity || (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
-        return byCuisine && byCity;
+        
+        let matchZone = true;
+        if (orderType === "DELIVERY" && zoneRestaurantIds !== null) {
+          matchZone = zoneRestaurantIds.includes(restaurant.id);
+        } else if (orderType === "PICKUP" && selectedCity) {
+          matchZone = (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+        }
+
+        return byCuisine && matchZone;
       })
     );
-  }, [activeCuisine, restaurants, selectedCity]);
+  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds]);
 
   const featured = useMemo(() => {
     const allPremium = filtered.filter(r => r.featuredClass === 1 || r.featuredClass === 2);
@@ -803,6 +840,20 @@ function HomeScreen({
               </View>
             </ScalePressable>
           </View>
+          
+          {zoneError && orderType === "DELIVERY" && (
+            <View style={{ backgroundColor: "rgba(220, 38, 38, 0.15)", borderColor: "rgba(220, 38, 38, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Ionicons name="information-circle" size={20} color="#f87171" />
+              <Text style={{ flex: 1, color: "#fca5a5", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>{zoneError}</Text>
+            </View>
+          )}
+
+          {coords && !zoneError && orderType === "DELIVERY" && (
+            <View style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Ionicons name="checkmark-circle" size={20} color="#34d399" />
+              <Text style={{ flex: 1, color: "#6ee7b7", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>Adress verifierad — Kontrollerad mot exakta leveranszoner.</Text>
+            </View>
+          )}
         </View>
 
         {!!homeDeals.length && (
