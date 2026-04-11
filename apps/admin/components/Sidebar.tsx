@@ -34,6 +34,7 @@ import {
   Printer,
   Calculator,
   Server,
+  Sparkles,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -218,6 +219,7 @@ const Sidebar = () => {
         { href: "/customers", label: "Kunder & Support", icon: Users },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
         { href: "/cities", label: "Städer & Zoner", icon: MapPin },
+        { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
       ],
     },
     {

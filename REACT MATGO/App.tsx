@@ -438,6 +438,36 @@ function getOpeningHoursLines(restaurant?: Restaurant | null) {
   });
 }
 
+// ── Sponsor tile component (used in HomeScreen) ──────────────────────────────
+function SponsorTile({ sponsor }: { sponsor: any }) {
+  const [flipped, setFlipped] = useState(false);
+  if (!sponsor.isClickable) {
+    return (
+      <View style={{ width: 160, height: 72, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}>
+        <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+      </View>
+    );
+  }
+  return (
+    <Pressable onPress={() => setFlipped(f => !f)}
+      style={{ width: 160, height: 72, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: flipped ? "rgba(212,160,23,0.4)" : "rgba(255,255,255,0.06)", backgroundColor: "#19191d" }}>
+      {!flipped ? (
+        <>
+          <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 8, paddingVertical: 4 }}>
+            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>TRYCK FÖR MER</Text>
+          </View>
+        </>
+      ) : (
+        <View style={{ flex: 1, padding: 10, gap: 4 }}>
+          {!!sponsor.infoText && <Text style={{ color: "#d4d0cc", fontSize: 9, fontWeight: "700", lineHeight: 13 }} numberOfLines={3}>{sponsor.infoText}</Text>}
+          {!!sponsor.ctaText && <Text style={{ color: "#d4a017", fontSize: 9, fontWeight: "900" }}>{sponsor.ctaText} →</Text>}
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 function HomeScreen({
   openRestaurant,
   openTab,
@@ -460,6 +490,7 @@ function HomeScreen({
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
+  const [sponsors, setSponsors] = useState<any[]>([]);
 
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
@@ -502,17 +533,19 @@ function HomeScreen({
     let active = true;
     (async () => {
       try {
-        const [restaurantsRes, citiesRes, dealsRes, persDealsRes] = await Promise.all([
+        const [restaurantsRes, citiesRes, dealsRes, persDealsRes, sponsorsRes] = await Promise.all([
           api.get("/api/restaurants"),
           api.get("/api/cities"),
           api.get("/api/deals"),
           token ? api.get("/api/profile/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+          api.get("/api/sponsors").catch(() => ({ data: [] })),
         ]);
         if (!active) return;
         setRestaurants(restaurantsRes.data || []);
         setCities(citiesRes.data || []);
         setDeals((dealsRes.data || []).filter((deal: PublicDeal) => deal.isActive !== false && deal.showOnSite !== false));
         setPersonalDeals(persDealsRes.data || []);
+        setSponsors(sponsorsRes.data || []);
       } catch (error) {
         Alert.alert("Kunde inte ladda", "MatGo kunde inte nå samma restaurang-API som webbappen använder.");
       } finally {
@@ -857,6 +890,17 @@ function HomeScreen({
             </View>
           )}
         </View>
+
+        {/* ── Sponsors ── */}
+        {sponsors.length > 0 && (
+          <View style={{ marginTop: 8, marginBottom: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 4 }}>
+              {sponsors.map((s: any) => (
+                <SponsorTile key={s.id} sponsor={s} />
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {!!homeDeals.length && (
           <View style={{ marginTop: 10, marginBottom: 8 }}>

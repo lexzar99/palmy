@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
@@ -1347,6 +1347,37 @@ router.get('/customer-deals', async (req, res) => {
   } catch (error) {
     console.error('Error fetching customer deals:', error);
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// PATCH /api/admin/customer-deals/:id — mark as used/unused or update
+router.patch('/customer-deals/:id', authenticate, async (req, res) => {
+  try {
+    const { isUsed, maxUsages } = req.body;
+    const updated = await prisma.customerDeal.update({
+      where: { id: req.params.id },
+      data: {
+        ...(isUsed !== undefined ? { isUsed: Boolean(isUsed) } : {}),
+        ...(maxUsages !== undefined ? { maxUsages: Number(maxUsages) } : {}),
+      },
+      include: {
+        user: { select: { name: true, phone: true } },
+        campaign: { select: { title: true, discountType: true, discountValue: true } },
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Kunde inte uppdatera deal' });
+  }
+});
+
+// DELETE /api/admin/customer-deals/:id — delete a single personal deal
+router.delete('/customer-deals/:id', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    await prisma.customerDeal.delete({ where: { id: req.params.id } });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: 'Kunde inte radera deal' });
   }
 });
 

@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
+import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
+import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 
 interface Restaurant {
   id: string;
@@ -79,6 +81,9 @@ export default function HomePage() {
   
   const [cities, setCities] = useState<City[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
+  const [personalDeals, setPersonalDeals] = useState<any[]>([]);
+  const [sponsors, setSponsors] = useState<SponsorData[]>([]);
+  const [filteredByDeal, setFilteredByDeal] = useState<{ ids: string[]; title: string } | null>(null);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
@@ -121,15 +126,22 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
+    const userToken = typeof window !== "undefined" ? localStorage.getItem("platform_user_token") : null;
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
       axios.get(`${API_URL}/api/cities`),
-      axios.get(`${API_URL}/api/deals`)
-    ]).then(([resRest, resCities, resDeals]) => {
+      axios.get(`${API_URL}/api/deals`),
+      axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
+      userToken
+        ? axios.get(`${API_URL}/api/profile/deals`, { headers: { Authorization: `Bearer ${userToken}` } }).catch(() => ({ data: [] }))
+        : Promise.resolve({ data: [] }),
+    ]).then(([resRest, resCities, resDeals, resSponsors, resPersonal]) => {
       setRestaurants(resRest.data);
       setCities(resCities.data);
       setDeals(resDeals.data.filter((d: any) => d.isActive && d.showOnSite));
-      
+      setSponsors(resSponsors.data || []);
+      setPersonalDeals(resPersonal.data || []);
+
       const initialAddress = localStorage.getItem("platform_address") || "";
       if (initialAddress) {
         const match = resCities.data.find((c: City) => c.name.toLowerCase() === initialAddress.toLowerCase());
@@ -233,7 +245,10 @@ export default function HomePage() {
         matchZone = zoneRestaurantIds.includes(r.id);
       }
 
-      return matchCuisine && matchQuery && matchZone;
+      // Deal filter — when user clicks a deal card
+      const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
+
+      return matchCuisine && matchQuery && matchZone && matchDeal;
     });
 
     // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
@@ -246,9 +261,52 @@ export default function HomePage() {
       if (aPremium !== bPremium) return bPremium - aPremium;
       return a.name.localeCompare(b.name);
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
+
+  // Build DealFlipCard data array
+  const allDealCards = useMemo<DealCardData[]>(() => {
+    const restaurantById = new Map(restaurants.map(r => [r.id, r]));
+
+    const personal: DealCardData[] = personalDeals.map(d => ({
+      id: `personal-${d.id}`,
+      badgeLabel: "Personligt",
+      title: d.campaign?.title || "Erbjudande",
+      subtitle: d.code ? `Din kod: ${d.code}` : "Knutet till ditt konto",
+      rewardLabel: d.campaign?.discountType === "PERCENTAGE"
+        ? `${d.campaign.discountValue}% rabatt`
+        : `${d.campaign?.discountValue || 0} kr rabatt`,
+      description: d.campaign?.description || "Används automatiskt vid köp.",
+      code: d.code,
+      validUntil: d.campaign?.validUntil,
+      minOrderText: d.campaign?.minOrder ? `Min ${d.campaign.minOrder} kr` : null,
+      tone: "emerald" as const,
+      variant: "personal" as const,
+    }));
+
+    const pub: DealCardData[] = deals.map(d => {
+      const related = [d.restaurantId, ...(d.applicableRestaurantIds || [])].filter(Boolean);
+      return {
+        id: d.id,
+        badgeLabel: d.isGlobal ? "Globalt" : (d.restaurant?.name || "Erbjudande"),
+        title: d.title,
+        subtitle: d.description || (d.restaurant?.name ? `Hos ${d.restaurant.name}` : "Gäller alla restauranger"),
+        rewardLabel: d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`,
+        description: d.description,
+        code: d.code,
+        validUntil: d.validUntil,
+        minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
+        tags: d.tags || [],
+        tone: "gold" as const,
+        variant: "public" as const,
+        relatedRestaurantIds: related,
+        onNavigateToFiltered: (ids, title) => setFilteredByDeal({ ids, title }),
+      };
+    });
+
+    return [...personal, ...pub];
+  }, [deals, personalDeals, restaurants]);
 
   const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
 
@@ -361,6 +419,44 @@ export default function HomePage() {
                       </p>
                   </Link>
                   </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Sponsors horizontal scroll ── */}
+        {sponsors.length > 0 && (
+          <section className="mb-10 -mx-6 px-6">
+            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+              {sponsors.map(s => (
+                <SponsorCard key={s.id} sponsor={s} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Deals & Erbjudanden ── */}
+        {allDealCards.length > 0 && (
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6 px-1">
+              <div>
+                <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                  <Tag size={18} className="text-gold-500" /> Erbjudanden
+                </h2>
+                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
+                  {filteredByDeal ? `Visar: ${filteredByDeal.title}` : "Flippa korten för mer info"}
+                </p>
+              </div>
+              {filteredByDeal && (
+                <button onClick={() => setFilteredByDeal(null)}
+                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all border border-white/10 px-3 py-1.5 rounded-xl">
+                  <X size={11} /> Rensa filter
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+              {allDealCards.map(d => (
+                <DealFlipCard key={d.id} deal={d} />
               ))}
             </div>
           </section>

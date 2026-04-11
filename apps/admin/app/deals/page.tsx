@@ -166,6 +166,28 @@ export default function DealsPage() {
     }
   };
 
+  // ── Personal deal CRUD ──────────────────────────────────────────────────────
+  const toggleCustomerDeal = async (id: string, current: boolean) => {
+    try {
+      const res = await axios.patch(`${API_URL}/api/admin/customer-deals/${id}`, { isUsed: !current }, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      setCustomerDeals(prev => prev.map(d => d.id === id ? { ...d, isUsed: !current } : d));
+      success(!current ? "Deal markerad som förbrukad" : "Deal återaktiverad");
+    } catch { toastError("Kunde inte uppdatera deal"); }
+  };
+
+  const deleteCustomerDeal = async (id: string) => {
+    try {
+      await axios.delete(`${API_URL}/api/admin/customer-deals/${id}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      setCustomerDeals(prev => prev.filter(d => d.id !== id));
+      setDeleteConfirm(null);
+      success("Deal raderad");
+    } catch { toastError("Kunde inte radera deal"); }
+  };
+
   const filteredDeals = deals.filter((d) => {
     if (search) {
       const q = search.toLowerCase();
@@ -393,6 +415,26 @@ export default function DealsPage() {
                 </div>
               </div>
 
+              {/* Actions */}
+              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => toggleCustomerDeal(deal.id, deal.isUsed)}
+                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    !deal.isUsed
+                      ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
+                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
+                  }`}
+                >
+                  {!deal.isUsed ? "Markera förbrukad" : "Återaktivera"}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirm({ ...deal, _type: "customerDeal" })}
+                  className="w-8 h-8 rounded-xl bg-rose-500/5 border border-rose-500/10 flex items-center justify-center text-rose-400 hover:bg-rose-500/15 transition-all"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+
               {/* Status badge */}
               <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
                 !deal.isUsed
@@ -439,9 +481,13 @@ export default function DealsPage() {
       <ConfirmModal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => deleteConfirm && deleteDeal(deleteConfirm.id)}
+        onConfirm={() => {
+          if (!deleteConfirm) return;
+          if (deleteConfirm._type === "customerDeal") deleteCustomerDeal(deleteConfirm.id);
+          else deleteDeal(deleteConfirm.id);
+        }}
         title="Radera deal"
-        message={`Är du säker på att du vill radera "${deleteConfirm?.title}" permanent?`}
+        message={`Är du säker på att du vill radera "${deleteConfirm?.title || deleteConfirm?.campaign?.title}" permanent?`}
         confirmLabel="Radera"
         danger
       />
