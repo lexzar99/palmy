@@ -424,39 +424,23 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* ── Sponsors horizontal scroll ── */}
-        {sponsors.length > 0 && (
-          <section className="mb-10 -mx-6 px-6">
-            <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-              {sponsors.map(s => (
-                <SponsorCard key={s.id} sponsor={s} />
-              ))}
-            </div>
-          </section>
-        )}
 
-        {/* ── Deals & Erbjudanden ── */}
-        {allDealCards.length > 0 && (
+        {/* Sponsors prominently displayed */}
+        {sponsors.length > 0 && (
           <section className="mb-16">
             <div className="flex items-center justify-between mb-6 px-1">
               <div>
                 <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                  <Tag size={18} className="text-gold-500" /> Erbjudanden
+                  <Sparkles size={18} className="text-gold-500" /> Sponsrat
                 </h2>
                 <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
-                  {filteredByDeal ? `Visar: ${filteredByDeal.title}` : "Flippa korten för mer info"}
+                  Exklusivt från våra partners • Flippa för info
                 </p>
               </div>
-              {filteredByDeal && (
-                <button onClick={() => setFilteredByDeal(null)}
-                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all border border-white/10 px-3 py-1.5 rounded-xl">
-                  <X size={11} /> Rensa filter
-                </button>
-              )}
             </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-              {allDealCards.map(d => (
-                <DealFlipCard key={d.id} deal={d} />
+            <div className="flex gap-6 overflow-x-auto pb-8 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+              {sponsors.map(s => (
+                <SponsorCard key={s.id} sponsor={s} />
               ))}
             </div>
           </section>

@@ -125,3 +125,19 @@ button, a, [role="button"] {
     transform: scale(0.96);
   }
 }
+
+/* 3D Effects */
+.perspective-1000 {
+  perspective: 1000px;
+}
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%);
+}

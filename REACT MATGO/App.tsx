@@ -443,28 +443,38 @@ function SponsorTile({ sponsor }: { sponsor: any }) {
   const [flipped, setFlipped] = useState(false);
   if (!sponsor.isClickable) {
     return (
-      <View style={{ width: 160, height: 72, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" }}>
+      <View style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "#111015" }}>
         <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
       </View>
     );
   }
   return (
-    <Pressable onPress={() => setFlipped(f => !f)}
-      style={{ width: 160, height: 72, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: flipped ? "rgba(212,160,23,0.4)" : "rgba(255,255,255,0.06)", backgroundColor: "#19191d" }}>
+    <ScalePressable onPress={() => setFlipped(f => !f)}
+      style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: flipped ? palette.gold : "rgba(255,255,255,0.06)", backgroundColor: "#121217", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
       {!flipped ? (
-        <>
+        <View style={{ flex: 1 }}>
           <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-          <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.55)", paddingHorizontal: 8, paddingVertical: 4 }}>
-            <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>TRYCK FÖR MER</Text>
-          </View>
-        </>
+          <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, justifyContent: "flex-end", padding: 15 }}>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 8, fontWeight: "900", letterSpacing: 2 }}>TRYCK FÖR INFO</Text>
+          </LinearGradient>
+        </View>
       ) : (
-        <View style={{ flex: 1, padding: 10, gap: 4 }}>
-          {!!sponsor.infoText && <Text style={{ color: "#d4d0cc", fontSize: 9, fontWeight: "700", lineHeight: 13 }} numberOfLines={3}>{sponsor.infoText}</Text>}
-          {!!sponsor.ctaText && <Text style={{ color: "#d4a017", fontSize: 9, fontWeight: "900" }}>{sponsor.ctaText} →</Text>}
+        <View style={{ flex: 1, padding: 20, justifyContent: "space-between" }}>
+          <View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <Ionicons name="sparkles" size={14} color={palette.gold} />
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>{sponsor.name.toUpperCase()}</Text>
+            </View>
+            {!!sponsor.infoText && <Text style={{ color: "#b2a8bf", fontSize: 11, fontWeight: "700", lineHeight: 16 }} numberOfLines={4}>{sponsor.infoText}</Text>}
+          </View>
+          {!!sponsor.ctaText && (
+            <View style={{ alignSelf: "flex-end", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.gold }}>
+              <Text style={{ color: "#000", fontSize: 9, fontWeight: "900" }}>{sponsor.ctaText.toUpperCase()} →</Text>
+            </View>
+          )}
         </View>
       )}
-    </Pressable>
+    </ScalePressable>
   );
 }
 
@@ -893,8 +903,14 @@ function HomeScreen({
 
         {/* ── Sponsors ── */}
         {sponsors.length > 0 && (
-          <View style={{ marginTop: 8, marginBottom: 8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 4 }}>
+          <View style={{ marginTop: 24, marginBottom: 12 }}>
+            <View style={{ paddingHorizontal: 18, marginBottom: 16 }}>
+              <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>SPONSRAT</Text>
+              <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
+                UTVALDA PARTNERS OCH ERBJUDANDEN
+              </Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingHorizontal: 16 }}>
               {sponsors.map((s: any) => (
                 <SponsorTile key={s.id} sponsor={s} />
               ))}

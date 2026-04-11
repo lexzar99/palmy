@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { X, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export interface SponsorData {
   id: string;
@@ -18,52 +19,77 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   if (!sponsor.isClickable) {
     return (
-      <div className="shrink-0 w-48 h-24 rounded-2xl overflow-hidden border border-white/5 bg-zinc-900">
+      <div className="shrink-0 w-80 h-44 rounded-[2.5rem] overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl">
         <img src={sponsor.imageUrl} alt={sponsor.name} className="w-full h-full object-cover" />
       </div>
     );
   }
 
   return (
-    <div className="relative shrink-0 w-48 h-24">
-      {/* Front */}
-      <div
-        className="absolute inset-0 rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 cursor-pointer transition-all duration-300"
-        style={{
-          opacity: flipped ? 0 : 1,
-          transform: flipped ? "scale(0.95)" : "scale(1)",
-          pointerEvents: flipped ? "none" : "auto",
-        }}
-        onClick={() => setFlipped(true)}
+    <div 
+      className="relative shrink-0 w-80 h-44 perspective-1000 group cursor-pointer"
+      onMouseEnter={() => {/* Optional hover hint */}}
+      onClick={() => setFlipped(!flipped)}
+    >
+      <motion.div
+        className="relative w-full h-full transition-all duration-700 preserve-3d"
+        animate={{ rotateY: flipped ? 180 : 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 20 }}
       >
-        <img src={sponsor.imageUrl} alt={sponsor.name} className="w-full h-full object-cover" />
-        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
-          <p className="text-[8px] font-black uppercase tracking-widest text-white/70">Klicka för mer</p>
+        {/* Front */}
+        <div className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] overflow-hidden border border-white/10 bg-zinc-900 shadow-xl">
+          <img src={sponsor.imageUrl} alt={sponsor.name} className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-6">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-500/80">Sponsrad</span>
+              <p className="text-[10px] font-black uppercase tracking-widest text-white animate-pulse">Tryck för mer</p>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Back */}
-      <div
-        className="absolute inset-0 rounded-2xl border border-gold-500/30 bg-zinc-900 p-3 flex flex-col transition-all duration-300"
-        style={{
-          opacity: flipped ? 1 : 0,
-          transform: flipped ? "scale(1)" : "scale(0.95)",
-          pointerEvents: flipped ? "auto" : "none",
-        }}
-      >
-        <button onClick={() => setFlipped(false)} className="self-end mb-1 text-zinc-600 hover:text-zinc-300 transition-colors">
-          <X size={12} />
-        </button>
-        {sponsor.infoText && (
-          <p className="text-[9px] font-bold text-zinc-300 leading-tight flex-1 line-clamp-3">{sponsor.infoText}</p>
-        )}
-        {sponsor.ctaLink && (
-          <a href={sponsor.ctaLink} target="_blank" rel="noopener noreferrer"
-            className="mt-1 flex items-center gap-1 text-[8px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-400 transition-colors">
-            {sponsor.ctaText || "Läs mer"} <ExternalLink size={9} />
-          </a>
-        )}
-      </div>
+        {/* Back */}
+        <div 
+          className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] border border-gold-500/40 bg-[#121214] p-8 flex flex-col justify-between shadow-2xl shadow-gold-500/10"
+          style={{ transform: "rotateY(180deg)" }}
+        >
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 rounded-full bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
+                <SponsorIcon />
+              </div>
+              <h4 className="text-sm font-black text-white uppercase italic tracking-tight">{sponsor.name}</h4>
+            </div>
+            {sponsor.infoText && (
+              <p className="text-xs font-bold text-zinc-400 leading-relaxed line-clamp-4">{sponsor.infoText}</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-4 border-t border-white/5">
+             <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Sponsor</span>
+             {sponsor.ctaLink && (
+               <a 
+                 href={sponsor.ctaLink} 
+                 target="_blank" 
+                 rel="noopener noreferrer" 
+                 onClick={(e) => e.stopPropagation()}
+                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gold-500 text-zinc-950 text-[9px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg"
+               >
+                 {sponsor.ctaText || "Besök"} <ExternalLink size={10} />
+               </a>
+             )}
+          </div>
+        </div>
+      </motion.div>
     </div>
+  );
+}
+
+function SponsorIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
   );
 }
