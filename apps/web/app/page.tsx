@@ -18,14 +18,12 @@ import {
   ArrowRight,
   X,
   Sparkles,
-  Tag,
   Percent,
   Info,
   Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
-import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 
 interface Restaurant {
@@ -266,47 +264,6 @@ export default function HomePage() {
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
   // Build DealFlipCard data array
-  const allDealCards = useMemo<DealCardData[]>(() => {
-    const restaurantById = new Map(restaurants.map(r => [r.id, r]));
-
-    const personal: DealCardData[] = personalDeals.map(d => ({
-      id: `personal-${d.id}`,
-      badgeLabel: "Personligt",
-      title: d.campaign?.title || "Erbjudande",
-      subtitle: d.code ? `Din kod: ${d.code}` : "Knutet till ditt konto",
-      rewardLabel: d.campaign?.discountType === "PERCENTAGE"
-        ? `${d.campaign.discountValue}% rabatt`
-        : `${d.campaign?.discountValue || 0} kr rabatt`,
-      description: d.campaign?.description || "Används automatiskt vid köp.",
-      code: d.code,
-      validUntil: d.campaign?.validUntil,
-      minOrderText: d.campaign?.minOrder ? `Min ${d.campaign.minOrder} kr` : null,
-      tone: "emerald" as const,
-      variant: "personal" as const,
-    }));
-
-    const pub: DealCardData[] = deals.map(d => {
-      const related = [d.restaurantId, ...(d.applicableRestaurantIds || [])].filter(Boolean);
-      return {
-        id: d.id,
-        badgeLabel: d.isGlobal ? "Globalt" : (d.restaurant?.name || "Erbjudande"),
-        title: d.title,
-        subtitle: d.description || (d.restaurant?.name ? `Hos ${d.restaurant.name}` : "Gäller alla restauranger"),
-        rewardLabel: d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`,
-        description: d.description,
-        code: d.code,
-        validUntil: d.validUntil,
-        minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
-        tags: d.tags || [],
-        tone: "gold" as const,
-        variant: "public" as const,
-        relatedRestaurantIds: related,
-        onNavigateToFiltered: (ids, title) => setFilteredByDeal({ ids, title }),
-      };
-    });
-
-    return [...personal, ...pub];
-  }, [deals, personalDeals, restaurants]);
 
   const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
 
