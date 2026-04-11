@@ -964,64 +964,14 @@ function HomeScreen({
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-              {featured.map((restaurant) => {
-                const deal = getRestaurantDeal(deals, restaurant.id);
-                return (
-                  <ScalePressable
-                    key={restaurant.id}
-                    onPress={() => openRestaurant(restaurant.slug)}
-                    style={{
-                      width: 300,
-                      backgroundColor: "#19191d",
-                      borderRadius: 34,
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.06)",
-                      padding: 14,
-                      opacity: restaurant.isOpen === false ? 0.5 : 1, // Dim closed restaurants
-                    }}
-                  >
-                    <View style={{ height: 200, borderRadius: 24, overflow: "hidden", marginBottom: 18, backgroundColor: "#111015" }}>
-                      {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
-                        <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
-                      )}
-                      <View style={{ position: "absolute", top: 12, left: 12 }}>
-                        <View
-                          style={{
-                            paddingHorizontal: 12,
-                            paddingVertical: 6,
-                            borderRadius: 12,
-                            backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.85)" : "rgba(16,185,129,0.85)",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "900" }}>
-                            {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={{ position: "absolute", top: 12, right: 12 }}>
-                         <StarRating rating={restaurant.rating} size={13} showNumber={true} />
-                      </View>
-                    </View>
-
-                    <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900" }} numberOfLines={1}>{restaurant.name.toUpperCase()}</Text>
-                    <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "800", marginTop: 4 }}>{(restaurant.cuisine || "MATGO SELECTION").toUpperCase()}</Text>
-                    
-                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.04)" }}>
-                       <View style={{ flexDirection: "row", gap: 16 }}>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                             <Ionicons name="time-outline" size={14} color={palette.gold} />
-                             <Text style={{ color: "#9c96a5", fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
-                          </View>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                             <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
-                             <Text style={{ color: "#9c96a5", fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
-                          </View>
-                       </View>
-                       <Ionicons name="chevron-forward" size={18} color={palette.gold} />
-                    </View>
-                  </ScalePressable>
-                );
-              })}
+              {featured.map((restaurant) => (
+                <RestaurantCard
+                  key={restaurant.id}
+                  restaurant={restaurant}
+                  onPress={() => openRestaurant(restaurant.slug)}
+                  containerStyle={{ width: 320, opacity: restaurant.isOpen === false ? 0.7 : 1 }}
+                />
+              ))}
             </ScrollView>
           </View>
         )}
@@ -1037,62 +987,15 @@ function HomeScreen({
           </View>
         ) : (
           filtered.map((restaurant) => {
-            const todayHours = getTodayOpeningPreview(restaurant);
             const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(restaurant.id);
             const dimmed = restaurant.isOpen === false || !inZone;
             return (
-              <ScalePressable
+              <RestaurantCard
                 key={restaurant.id}
+                restaurant={restaurant}
                 onPress={() => openRestaurant(restaurant.slug)}
-                style={{
-                  backgroundColor: "#19191d",
-                  borderRadius: 36,
-                  borderWidth: 1,
-                  borderColor: inZone ? "rgba(255,255,255,0.05)" : "rgba(239,68,68,0.1)",
-                  padding: 14,
-                  marginBottom: 18,
-                  opacity: dimmed ? 0.5 : 1,
-                }}
-              >
-                <View style={{ height: 230, borderRadius: 28, overflow: "hidden", backgroundColor: "#111015" }}>
-                  {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
-                    <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
-                  )}
-                </View>
-
-                <View style={{ paddingHorizontal: 10, paddingTop: 20, gap: 10 }}>
-                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                      <Text style={{ color: restaurant.featuredClass === 1 || restaurant.featuredClass === 2 ? palette.gold : palette.text, fontSize: 24, fontWeight: "900", flex: 1 }} numberOfLines={1}>
-                        {restaurant.name.toUpperCase()}
-                      </Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                          <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)" }}>
-                            <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
-                              {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-                            </Text>
-                          </View>
-                          {!inZone && zoneRestaurantIds !== null && (
-                            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(239,68,68,0.15)" }}>
-                              <Text style={{ color: "#fb7185", fontSize: 9, fontWeight: "900" }}>EJ I DIN ZON</Text>
-                            </View>
-                          )}
-                        </View>
-                        <StarRating rating={restaurant.rating} size={14} showNumber={true} />
-                      </View>
-                   </View>
-                   
-                   <Text style={{ color: "#6f667d", fontSize: 12, fontWeight: "800" }}>{(restaurant.description || restaurant.cuisine || "MATGO SELECTION").toUpperCase()}</Text>
-
-                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.03)" }}>
-                      <View style={{ flexDirection: "row", gap: 20 }}>
-                         <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
-                         <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={18} color="#6e6a77" />
-                   </View>
-                </View>
-              </ScalePressable>
+                containerStyle={{ opacity: dimmed ? 0.7 : 1, marginBottom: 20 }}
+              />
             );
           })
         )}
@@ -4840,75 +4743,74 @@ function ScreenWrap({ children }: { children: React.ReactNode }) {
   return <ScrollView contentContainerStyle={styles.scrollContent}>{children}</ScrollView>;
 }
 
-function RestaurantCard({ restaurant, onPress }: { restaurant: Restaurant; onPress: () => void }) {
+function RestaurantCard({ restaurant, onPress, containerStyle }: { restaurant: Restaurant; onPress: () => void; containerStyle?: any }) {
   return (
     <ScalePressable 
       style={[
         styles.restaurantCard, 
         { 
-          borderRadius: 30, 
+          borderRadius: 36, 
           padding: 14,
           borderWidth: 1.5,
-          borderColor: "rgba(231,178,75,0.4)", // Gold border
+          borderColor: "rgba(231,178,75,0.45)", // Gold border
           shadowColor: palette.gold, // Glow effect
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.2,
-          shadowRadius: 15,
-          elevation: 8
-        }
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.25,
+          shadowRadius: 18,
+          elevation: 10,
+          backgroundColor: "#19191d",
+        },
+        containerStyle
       ]} 
       onPress={onPress}
     >
       {!!restaurant.imageUrl && (
-        <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={[styles.restaurantImage, { borderRadius: 22 }]} />
+        <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={[styles.restaurantImage, { borderRadius: 28, height: 230 }]} />
       )}
-      <View style={{ flex: 1, paddingTop: 16 }}>
+      <View style={{ flex: 1, paddingTop: 18, paddingHorizontal: 6 }}>
         {/* Prioritized full-width Name */}
-        <Text style={[styles.cardTitle, { fontSize: 22, color: palette.gold, marginBottom: 4 }]} numberOfLines={1}>
+        <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", marginBottom: 6 }} numberOfLines={1}>
           {restaurant.name.toUpperCase()}
         </Text>
         
-        {/* Info row: Badge + Stars */}
+        {/* Status + Stars Row */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <Badge 
-            label={restaurant.isOpen === false ? "STÄNGD" : "ÖPPEN"} 
-            tone={restaurant.isOpen === false ? "danger" : "success"} 
-          />
+          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)" }}>
+            <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
+              {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
+            </Text>
+          </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <StarRating rating={restaurant.rating || 4.5} size={14} />
-            <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "900", marginLeft: 2 }}>
-              {restaurant.rating?.toFixed(1) || "4.5"}
-            </Text>
+            <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "900", marginLeft: 2 }}>{restaurant.rating?.toFixed(1) || "4.5"}</Text>
           </View>
         </View>
 
-        <Text style={[styles.productDescription, { fontSize: 11, fontWeight: "900", letterSpacing: 2, color: "#6e6a77" }]}>
+        <Text style={{ color: "#6f667d", fontSize: 12, fontWeight: "800", marginBottom: 16 }}>
           {(restaurant.description || restaurant.cuisine || "Restaurang").toUpperCase()}
         </Text>
 
         <View
           style={{
-            marginTop: 16,
-            borderRadius: 22,
-            backgroundColor: "#19181d",
-            paddingHorizontal: 16,
-            paddingVertical: 14,
+            paddingTop: 16,
+            borderTopWidth: 1,
+            borderTopColor: "rgba(255,255,255,0.03)",
             flexDirection: "row",
             justifyContent: "space-between",
-            alignItems: "center",
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.03)"
+            alignItems: "center"
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="time-outline" size={14} color={palette.gold} />
-            <Text style={[styles.helperText, { color: palette.text }]}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
+          <View style={{ flexDirection: "row", gap: 20 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="time-outline" size={14} color={palette.gold} />
+              <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
+              <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
+            </View>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
-            <Text style={[styles.helperText, { color: palette.text }]}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color="#4b4652" />
+          <Ionicons name="chevron-forward" size={18} color={palette.gold} />
         </View>
       </View>
     </ScalePressable>
