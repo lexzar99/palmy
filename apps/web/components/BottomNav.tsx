@@ -35,7 +35,7 @@ const BottomNav = () => {
                 <motion.div
                   animate={{ 
                     scale: isActive ? 1.1 : 1,
-                    color: isActive ? "#09090b" : "#a1a1aa"
+                    color: isActive ? "#ffffff" : "#a1a1aa"
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
@@ -52,7 +52,7 @@ const BottomNav = () => {
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 5 }}
-                      className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-950"
+                      className="text-[8px] font-black uppercase tracking-[0.2em] text-white"
                     >
                       {item.label}
                     </motion.span>
