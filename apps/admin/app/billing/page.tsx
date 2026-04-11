@@ -6,7 +6,7 @@ import axios from "axios";
 import {
   Crown, Medal, Award, Calculator, Download, Loader2,
   TrendingUp, ShoppingCart, CreditCard, RefreshCw, ChevronDown,
-  FileText, Calendar, Settings, Store, Check,
+  FileText, Calendar, Settings, Store, Check, Search,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/api";
