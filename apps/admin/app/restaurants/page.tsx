@@ -27,6 +27,7 @@ import {
   TrendingUp,
   LayoutGrid,
   RefreshCw,
+  ShoppingCart,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { ConfirmModal } from "@/components/Modal";
