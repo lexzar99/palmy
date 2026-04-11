@@ -46,6 +46,8 @@ export interface DeliveryZone {
   minOrder: number;
   isActive: boolean;
   color?: string;
+  /** Estimated delivery time for this zone in minutes (optional, overrides restaurant default) */
+  etaMinutes?: number;
 }
 
 /**

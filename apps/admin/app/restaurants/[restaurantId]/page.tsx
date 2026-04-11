@@ -86,8 +86,9 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
   );
 
   // Delivery & ETA
+  // deliveryFee, minOrderAmount, deliveryRadius are now managed per-zone in Stadshantering
   const [deliveryForm, setDeliveryForm] = useState({
-    deliveryFee: 0, minOrderAmount: 0, etaMinutes: 30, deliveryRadius: 5.0,
+    deliveryFee: 0, minOrderAmount: 0, etaMinutes: 30,
   });
 
   // Tier & open status
@@ -595,72 +596,56 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
         {/* ── LEVERANS & ETA ── */}
         {tab === "settings" && (
           <motion.div key="settings" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Leverans & ETA</h2>
-                <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">Synkas direkt med webb-appen</p>
+
+            {/* Zone system notice */}
+            <div className="p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 bg-sky-500/15 rounded-xl flex items-center justify-center shrink-0">
+                  <MapPin size={16} className="text-sky-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-sky-300 mb-1">Leveransavgift & minimiorder hanteras via Zoner</p>
+                  <p className="text-[10px] font-bold text-sky-400/70 leading-relaxed">
+                    Priser, minimiorder och leveranszoner konfigureras nu i <strong>Stadshantering & Zoner</strong>.
+                    Varje zon kan ha egna avgifter och denna restaurang kan ha anpassade zoner som skiljer sig från stadens.
+                  </p>
+                </div>
               </div>
-              <button onClick={saveDelivery} disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
-                {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara
-              </button>
+              <Link href="/cities"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-sky-500/20">
+                <MapPin size={12} /> Gå till Stadshantering & Zoner →
+              </Link>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { label: "Leveransavgift (kr)", key: "deliveryFee" as const, icon: Package },
-                { label: "Minsta order (kr)", key: "minOrderAmount" as const, icon: CreditCard },
-                { label: "Leveransradie (km)", key: "deliveryRadius" as const, icon: MapPin },
-                { label: "ETA (minuter)", key: "etaMinutes" as const, icon: Clock },
-              ].map((f) => {
-                const Icon = f.icon;
-                return (
-                  <div key={f.key} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Icon size={14} className="text-gold-500" />
-                      <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{f.label}</label>
-                    </div>
-                    <input type="number" step="0.1" value={deliveryForm[f.key]}
-                      onChange={(e) => setDeliveryForm((p) => ({ ...p, [f.key]: Number(e.target.value) }))}
-                      className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-2xl font-black outline-none focus:border-gold-500/30 text-gold-500" />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Map Preview Placeholder */}
+            {/* ETA fallback — only this field stays here */}
             <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
-              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
-                <MapPin size={14} className="text-gold-500" /> Geofence & Zon-visualisering
-              </h3>
-              <div className="aspect-video w-full bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)] flex flex-col items-center justify-center text-center p-10">
-                <div className="w-12 h-12 rounded-full bg-gold-500/10 flex items-center justify-center mb-3">
-                  <MapPin size={24} className="text-gold-500 animate-bounce" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Standard ETA</h2>
+                  <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
+                    Används när zonen inte har en specifik ETA
+                  </p>
                 </div>
-                <p className="text-sm font-black text-[var(--text-primary)] mb-1">Google Maps API krävs</p>
-                <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest max-w-xs">
-                  Lägg till din API-nyckel i .env för att aktivera zon-ritaren och interaktiv geofencing.
-                </p>
-                <Link href="/system" className="mt-4 text-[9px] font-black text-gold-500 border-b border-gold-500/20 uppercase tracking-widest">
-                  Konfigureras i Systeminställningar →
-                </Link>
+                <button onClick={saveDelivery} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara
+                </button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
-                  <p className="text-[7px] font-black uppercase text-[var(--text-secondary)] mb-1">Målkoordinat</p>
-                  <p className="text-[10px] font-bold">{profile.latitude || "Ej satt"}, {profile.longitude || "Ej satt"}</p>
-                </div>
-                <div className="p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
-                  <p className="text-[7px] font-black uppercase text-[var(--text-secondary)] mb-1">Täckningsområde</p>
-                  <p className="text-[10px] font-bold">~ {Math.round(Math.PI * Math.pow(deliveryForm.deliveryRadius, 2))} km² cirkulär zon</p>
+              <div className="max-w-xs">
+                <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)]">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Clock size={14} className="text-gold-500" />
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">ETA (minuter)</label>
+                  </div>
+                  <input type="number" min={1} value={deliveryForm.etaMinutes}
+                    onChange={(e) => setDeliveryForm((p) => ({ ...p, etaMinutes: Number(e.target.value) || 30 }))}
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-2xl font-black outline-none focus:border-gold-500/30 text-gold-500" />
                 </div>
               </div>
+              <p className="text-[9px] text-[var(--text-secondary)] font-bold">
+                Koordinater: {profile.latitude || "ej satt"}, {profile.longitude || "ej satt"}
+              </p>
             </div>
-
-            <button onClick={saveDelivery} disabled={saving}
-              className="w-full py-4 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[11px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
-              {saving ? "Sparar..." : "Spara & Synka med appen"}
-            </button>
           </motion.div>
         )}
 

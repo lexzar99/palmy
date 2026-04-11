@@ -221,6 +221,7 @@ router.post('/validate-location', async (req, res) => {
                   name: rZone.name,
                   deliveryFee: rZone.fee,
                   minOrder: rZone.minOrder,
+                  etaMinutes: rZone.etaMinutes ?? null,
                 }
               : null,
           };
@@ -233,7 +234,7 @@ router.post('/validate-location', async (req, res) => {
         slug: city.slug,
         deliveryMode: city.deliveryMode,
         matchedZone: matchedZone
-          ? { id: matchedZone.id, name: matchedZone.name, deliveryFee: matchedZone.fee, minOrder: matchedZone.minOrder }
+          ? { id: matchedZone.id, name: matchedZone.name, deliveryFee: matchedZone.fee, minOrder: matchedZone.minOrder, etaMinutes: matchedZone.etaMinutes ?? null }
           : null,
         restaurants: deliverableRestaurants,
       });

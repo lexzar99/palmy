@@ -35,6 +35,8 @@ export interface Zone {
   // pricing in kr (UI), stored in öre in DB
   deliveryFee: number;
   minOrder: number;
+  /** Estimated delivery time for this zone in minutes (optional) */
+  etaMinutes?: number;
   isActive: boolean;
   color: string;
 }
@@ -154,19 +156,20 @@ export default function ZoneEditor({
   const [searching, setSearching]   = useState(false);
 
   // ── Draft strings for number inputs ─────────────────────────────────────────
-  // Controlled <input type="number"> rejects empty strings (converts to 0),
-  // so we store what the user is actually typing as a string and commit on blur.
+  // Controlled inputs with Number(val)||0 snap empty→0; draft strings avoid this.
   const [draftFee, setDraftFee] = useState<Record<string, string>>({});
   const [draftMin, setDraftMin] = useState<Record<string, string>>({});
+  const [draftEta, setDraftEta] = useState<Record<string, string>>({});
 
-  // Seed drafts when a zone becomes selected (so the display starts correct)
+  // Seed drafts when a zone is selected
   useEffect(() => {
     if (!selectedId) return;
     const z = zones.find(z => z.id === selectedId);
     if (!z) return;
     setDraftFee(prev => ({ ...prev, [selectedId]: String(z.deliveryFee) }));
     setDraftMin(prev => ({ ...prev, [selectedId]: String(z.minOrder) }));
-  }, [selectedId]); // only seed on selection change, not on every zone update
+    setDraftEta(prev => ({ ...prev, [selectedId]: String(z.etaMinutes ?? "") }));
+  }, [selectedId]);
 
   const fallbackCenter = {
     lat: centerLat ?? 55.7047,
@@ -354,6 +357,7 @@ export default function ZoneEditor({
         radiusKm:    radius,
         deliveryFee: 39,
         minOrder:    199,
+        etaMinutes:  undefined,
         isActive:    true,
         color:       col(idx).main,
       };
@@ -388,6 +392,7 @@ export default function ZoneEditor({
         radiusKm:    0,
         deliveryFee: 39,
         minOrder:    199,
+        etaMinutes:  undefined,
         isActive:    true,
         color:       col(idx).main,
       };
@@ -747,11 +752,41 @@ export default function ZoneEditor({
                         </div>
                       </div>
 
+                      {/* ETA */}
+                      <div>
+                        <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">ETA (minuter, lämna tomt = restaurangens standard)</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="t.ex. 30"
+                          className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[11px] font-black outline-none focus:border-violet-500/30 text-violet-400 placeholder:text-[var(--text-secondary)]/30"
+                          value={draftEta[zone.id] ?? (zone.etaMinutes != null ? String(zone.etaMinutes) : "")}
+                          onChange={e => {
+                            const raw = e.target.value.replace(/[^0-9]/g, "");
+                            setDraftEta(prev => ({ ...prev, [zone.id]: raw }));
+                            updateZone(zone.id, { etaMinutes: raw === "" ? undefined : Number(raw) });
+                          }}
+                          onBlur={() => {
+                            const raw = draftEta[zone.id] ?? "";
+                            if (raw === "") {
+                              updateZone(zone.id, { etaMinutes: undefined });
+                            } else {
+                              const val = Math.max(1, Number(raw) || 30);
+                              setDraftEta(prev => ({ ...prev, [zone.id]: String(val) }));
+                              updateZone(zone.id, { etaMinutes: val });
+                            }
+                          }}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+
                       {/* Summary pill */}
                       <div className="px-3 py-2 rounded-xl border text-[8px] font-bold text-[var(--text-secondary)]"
                         style={{ borderColor: c.main + "40", backgroundColor: c.main + "0a" }}>
-                        {zone.deliveryFee === 0 ? "✅ Gratis leverans" : `🚚 ${zone.deliveryFee} kr avgift`}
-                        {" · "}{zone.minOrder > 0 ? `min ${zone.minOrder} kr` : "ingen minimiorder"}
+                        {zone.deliveryFee === 0 ? "✅ Gratis leverans" : `🚚 ${zone.deliveryFee} kr`}
+                        {" · "}{zone.minOrder > 0 ? `min ${zone.minOrder} kr` : "ingen min"}
+                        {zone.etaMinutes ? ` · ⏱ ${zone.etaMinutes} min` : ""}
                       </div>
                     </div>
                   )}

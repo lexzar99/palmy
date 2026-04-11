@@ -85,6 +85,10 @@ export default function HomePage() {
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
+  // Zone-specific delivery info per restaurant (fee öre, minOrder öre, etaMinutes, zoneName)
+  const [zoneDeliveryInfo, setZoneDeliveryInfo] = useState<Record<string, {
+    deliveryFee: number; minOrder: number; etaMinutes?: number | null; zoneName?: string;
+  }>>({});
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -139,16 +143,32 @@ export default function HomePage() {
     try {
       const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
       if (res.data.covered) {
-        // Flatten all restaurant IDs from all matching cities
-        const ids = res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id));
+        const ids: string[] = [];
+        const info: typeof zoneDeliveryInfo = {};
+        res.data.cities.forEach((c: any) => {
+          c.restaurants.forEach((r: any) => {
+            ids.push(r.id);
+            if (r.matchedZone) {
+              info[r.id] = {
+                deliveryFee: r.matchedZone.deliveryFee ?? 0,
+                minOrder:    r.matchedZone.minOrder    ?? 0,
+                etaMinutes:  r.matchedZone.etaMinutes  ?? null,
+                zoneName:    r.matchedZone.name,
+              };
+            }
+          });
+        });
         setZoneRestaurantIds(ids);
+        setZoneDeliveryInfo(info);
         setZoneError(null);
       } else {
         setZoneRestaurantIds([]);
+        setZoneDeliveryInfo({});
         setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
       }
     } catch {
-      setZoneRestaurantIds(null); // On error, show all restaurants (fail open)
+      setZoneRestaurantIds(null); // fail open — show all restaurants
+      setZoneDeliveryInfo({});
     }
   };
 
@@ -437,15 +457,22 @@ export default function HomePage() {
                        <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none mb-2">{r.name}</h3>
                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
                        
-                       <div className="flex items-center justify-between border-t border-white/5 pt-5">
-                          <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-wider text-zinc-400">
-                             <span className="flex items-center gap-1.5"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
-                             <span className="flex items-center gap-1.5"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
-                          </div>
-                          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
-                             <ChevronRight size={18} />
-                          </div>
-                       </div>
+                        <div className="flex items-center justify-between border-t border-white/5 pt-5">
+                           {(() => {
+                             const zi = zoneDeliveryInfo[r.id];
+                             const fee = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
+                             const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                             return (
+                               <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-wider text-zinc-400">
+                                 <span className="flex items-center gap-1.5"><Clock size={12} className="text-gold-500/50" /> {eta} MIN</span>
+                                 <span className="flex items-center gap-1.5"><Bike size={12} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                               </div>
+                             );
+                           })()}
+                           <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
+                              <ChevronRight size={18} />
+                           </div>
+                        </div>
                     </div>
                   </Link>
                 </motion.div>
@@ -526,11 +553,20 @@ export default function HomePage() {
                       
                       <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest line-clamp-1 mb-8">{r.description || r.cuisine}</p>
                       
-                      <div className="flex items-center flex-wrap gap-4 text-[9px] font-black uppercase text-zinc-500 bg-white/5 p-4 rounded-3xl border border-white/5">
-                        <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {r.etaMinutes ?? 30} MIN</span>
-                        <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {r.deliveryFee ?? 0} KR</span>
-                        <span>MIN {r.minOrderAmount ?? 0} KR</span>
-                      </div>
+                       {(() => {
+                         const zi = zoneDeliveryInfo[r.id];
+                         const fee    = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
+                         const minOrd = zi ? Math.round(zi.minOrder    / 100) : (r.minOrderAmount ?? 0);
+                         const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                         return (
+                           <div className="flex items-center flex-wrap gap-4 text-[9px] font-black uppercase text-zinc-500 bg-white/5 p-4 rounded-3xl border border-white/5">
+                             <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {eta} MIN</span>
+                             <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                             <span>MIN {minOrd} KR</span>
+                             {zi?.zoneName && <span className="text-gold-600 opacity-70">{zi.zoneName}</span>}
+                           </div>
+                         );
+                       })()}
                     </div>
                   </Link>
                 </motion.div>

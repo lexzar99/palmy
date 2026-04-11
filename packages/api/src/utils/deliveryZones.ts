@@ -49,6 +49,7 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
       if (toNum(z?.centerLat) !== null) zone.centerLat = toNum(z.centerLat)!;
       if (toNum(z?.centerLng) !== null) zone.centerLng = toNum(z.centerLng)!;
       if (z?.color && typeof z.color === 'string') zone.color = z.color;
+      if (toNum(z?.etaMinutes) !== null) zone.etaMinutes = Math.round(toNum(z.etaMinutes)!);
 
       // Validate: both zone types must have renderable geometry
       if (type === 'polygon') {

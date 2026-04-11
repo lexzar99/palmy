@@ -59,6 +59,7 @@ function parseZones(raw: any): Zone[] {
           polygon:     Array.isArray(z.polygon) ? z.polygon : undefined,
           deliveryFee: toKr(z.fee ?? z.deliveryFee ?? 0),
           minOrder:    toKr(z.minOrder ?? 0),
+          etaMinutes:  z.etaMinutes != null ? Number(z.etaMinutes) : undefined,
           isActive:    z.isActive !== false,
           color:       z.color ?? "",
         };
@@ -81,6 +82,7 @@ function serializeZones(zones: Zone[]): object[] {
     polygon:     z.polygon,
     fee:         toOre(z.deliveryFee),
     minOrder:    toOre(z.minOrder),
+    etaMinutes:  z.etaMinutes ?? null,
     isActive:    z.isActive,
     color:       z.color,
   }));
@@ -625,8 +627,20 @@ export default function CitiesPage() {
                 cityName={editingRest.name}
                 zones={restZones}
                 onChange={zones => setRestZones(zones)}
-                centerLat={editingRest.latitude ?? selectedCity?.centerLat ?? selectedCity?.latitude}
-                centerLng={editingRest.longitude ?? selectedCity?.centerLng ?? selectedCity?.longitude}
+                centerLat={
+                  // Use first non-null, non-zero coordinate available
+                  (editingRest.latitude  && editingRest.latitude  !== 0  ? editingRest.latitude  : null) ??
+                  (selectedCity?.centerLat && selectedCity.centerLat !== 0 ? selectedCity.centerLat : null) ??
+                  (selectedCity?.latitude  && selectedCity.latitude  !== 0 ? selectedCity.latitude  : null) ??
+                  // Derive from city zones centroid
+                  (() => { const z = parseZones(selectedCity?.zones).find(z => z.centerLat); return z?.centerLat ?? null; })()
+                }
+                centerLng={
+                  (editingRest.longitude && editingRest.longitude !== 0 ? editingRest.longitude : null) ??
+                  (selectedCity?.centerLng && selectedCity.centerLng !== 0 ? selectedCity.centerLng : null) ??
+                  (selectedCity?.longitude && selectedCity.longitude !== 0 ? selectedCity.longitude : null) ??
+                  (() => { const z = parseZones(selectedCity?.zones).find(z => z.centerLng); return z?.centerLng ?? null; })()
+                }
                 mapHeight={440}
               />
 
