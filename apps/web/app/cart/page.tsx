@@ -585,12 +585,19 @@ export default function CartPage() {
 
                     {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
 
+                    {/* Not logged in — show clear message instead of silent disabled button */}
+                    {!user && (
+                      <div className="mt-8 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest text-center">
+                        Du måste logga in för att beställa
+                      </div>
+                    )}
+
                     <button 
                        onClick={startCheckout} 
                        disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen}
                        className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                     >
-                       {loading ? <Loader2 className="animate-spin" size={24} /> : subtotal < minOrder ? `Köp för ${minOrder - subtotal} kr till` : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                       {loading ? <Loader2 className="animate-spin" size={24} /> : !user ? "Logga in för att beställa" : subtotal < minOrder ? `Köp för ${minOrder - subtotal} kr till` : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                     </button>
                  </motion.div>
                )}

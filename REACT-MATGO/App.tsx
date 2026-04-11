@@ -1506,11 +1506,11 @@ function RestaurantScreen({
 
     (async () => {
       try {
-        const [menuRes, restaurantRes, dealsRes] = await Promise.all([
+        const [menuRes, restaurantRes, dealsRes, citiesRes] = await Promise.all([
           api.get("/api/menu/categories", { params: { slug } }),
           api.get(`/api/restaurants/${slug}`),
-          api.get("/api/deals"),
-          api.get("/api/cities"),
+          api.get("/api/deals").catch(() => ({ data: [] })),
+          api.get("/api/cities").catch(() => ({ data: [] })),
         ]);
         if (!active) return;
         setCategories(menuRes.data || []);
@@ -1962,6 +1962,7 @@ function CartScreen({
   const setOrderType = useAppStore((s) => s.setOrderType);
 
   const [pageLoading, setPageLoading] = useState(true);
+  const [cartRestaurant, setCartRestaurant] = useState<{ name: string; slug: string } | null>(null);
   const [restaurantSettings, setRestaurantSettings] = useState({
     isOpen: true,
     deliveryFee: 49,
@@ -2041,6 +2042,11 @@ function CartScreen({
           minOrderAmount: restaurantRes.data?.minOrderAmount ?? settingsRes.data?.minOrderAmount ?? current.minOrderAmount,
           isOpen: restaurantRes.data?.isOpen ?? settingsRes.data?.isOpen ?? current.isOpen,
         }));
+
+        // Store restaurant name for Live Activity
+        if (restaurantRes.data?.name) {
+          setCartRestaurant({ name: restaurantRes.data.name, slug: restaurantRes.data.slug });
+        }
 
         setProfile(profileRes.data || null);
         setPersonalDeals(dealsRes.data || []);
@@ -2200,7 +2206,7 @@ function CartScreen({
         // ── Start Dynamic Island Live Activity ─────────────────────────────
         startOrderActivity({
           orderId:        successId,
-          restaurantName: restaurant?.name ?? "Restaurang",
+          restaurantName: cartRestaurant?.name ?? currentRestaurantSlug ?? "Restaurang",
           orderTotal:     Math.round(total),
           etaMinutes:     restaurantSettings.estimatedDeliveryTime ?? 30,
         }).catch(() => {/* no-op if not supported */});
