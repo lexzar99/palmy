@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "REACT MATGO",
+    "slug": "react-matgo",
+    "scheme": "matgo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0a0f"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.matgo.reactnative"
+    },
+    "android": {
+      "package": "com.matgo.reactnative",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0a0f"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
