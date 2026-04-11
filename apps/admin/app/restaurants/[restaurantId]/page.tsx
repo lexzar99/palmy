@@ -87,7 +87,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
 
   // Delivery & ETA
   const [deliveryForm, setDeliveryForm] = useState({
-    deliveryFee: 0, minOrderAmount: 0, etaMinutes: 30,
+    deliveryFee: 0, minOrderAmount: 0, etaMinutes: 30, deliveryRadius: 5.0,
   });
 
   // Tier & open status
@@ -606,10 +606,11 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Leveransavgift (kr)", key: "deliveryFee" as const, icon: Package },
                 { label: "Minsta order (kr)", key: "minOrderAmount" as const, icon: CreditCard },
+                { label: "Leveransradie (km)", key: "deliveryRadius" as const, icon: MapPin },
                 { label: "ETA (minuter)", key: "etaMinutes" as const, icon: Clock },
               ].map((f) => {
                 const Icon = f.icon;
@@ -619,12 +620,41 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                       <Icon size={14} className="text-gold-500" />
                       <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{f.label}</label>
                     </div>
-                    <input type="number" value={deliveryForm[f.key]}
+                    <input type="number" step="0.1" value={deliveryForm[f.key]}
                       onChange={(e) => setDeliveryForm((p) => ({ ...p, [f.key]: Number(e.target.value) }))}
                       className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-2xl font-black outline-none focus:border-gold-500/30 text-gold-500" />
                   </div>
                 );
               })}
+            </div>
+
+            {/* Map Preview Placeholder */}
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
+                <MapPin size={14} className="text-gold-500" /> Geofence & Zon-visualisering
+              </h3>
+              <div className="aspect-video w-full bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)] flex flex-col items-center justify-center text-center p-10">
+                <div className="w-12 h-12 rounded-full bg-gold-500/10 flex items-center justify-center mb-3">
+                  <MapPin size={24} className="text-gold-500 animate-bounce" />
+                </div>
+                <p className="text-sm font-black text-[var(--text-primary)] mb-1">Google Maps API krävs</p>
+                <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest max-w-xs">
+                  Lägg till din API-nyckel i .env för att aktivera zon-ritaren och interaktiv geofencing.
+                </p>
+                <Link href="/system" className="mt-4 text-[9px] font-black text-gold-500 border-b border-gold-500/20 uppercase tracking-widest">
+                  Konfigureras i Systeminställningar →
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
+                  <p className="text-[7px] font-black uppercase text-[var(--text-secondary)] mb-1">Målkoordinat</p>
+                  <p className="text-[10px] font-bold">{profile.latitude || "Ej satt"}, {profile.longitude || "Ej satt"}</p>
+                </div>
+                <div className="p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
+                  <p className="text-[7px] font-black uppercase text-[var(--text-secondary)] mb-1">Täckningsområde</p>
+                  <p className="text-[10px] font-bold">~ {Math.round(Math.PI * Math.pow(deliveryForm.deliveryRadius, 2))} km² cirkulär zon</p>
+                </div>
+              </div>
             </div>
 
             <button onClick={saveDelivery} disabled={saving}

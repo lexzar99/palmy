@@ -52,6 +52,7 @@ const restaurantSchema = z.object({
   longitude: z.any().optional(),
   deliveryZones: z.any().optional(),
   freeDeliveryAbove: z.any().optional(),
+  deliveryRadius: z.number().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
@@ -94,6 +95,8 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   internalInfo: restaurant.internalInfo,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
+  deliveryRadius: restaurant.deliveryRadius ?? 5.0,
+  deliveryZones: parseJson<any[]>(restaurant.deliveryZones, []),
   menu: includeMenu
     ? (restaurant.categories || []).map((cat: any) => ({
         id: cat.id,
@@ -396,6 +399,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     
     if (payload.latitude !== undefined) data.latitude = payload.latitude === null ? null : toSafeNum(payload.latitude);
     if (payload.longitude !== undefined) data.longitude = payload.longitude === null ? null : toSafeNum(payload.longitude);
+    if (payload.deliveryRadius !== undefined) data.deliveryRadius = toSafeNum(payload.deliveryRadius);
     
     if (payload.freeDeliveryAbove !== undefined) {
       data.freeDeliveryAbove = normalizeMoneyToOre(toSafeNum(payload.freeDeliveryAbove) ?? 0);

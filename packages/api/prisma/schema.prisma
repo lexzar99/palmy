@@ -246,6 +246,7 @@ model Restaurant {
   adminEmail     String?
   latitude       Float?
   longitude      Float?
+  deliveryRadius Float              @default(5.0)
   cityId         String?
   city_relation  City?              @relation(fields: [cityId], references: [id])
   deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
