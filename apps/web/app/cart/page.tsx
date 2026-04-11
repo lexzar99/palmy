@@ -303,6 +303,24 @@ export default function CartPage() {
       return;
     }
 
+    // ── Zone check (last-mile safeguard for delivery) ────────────────────────
+    if (orderType === "DELIVERY" && currentRestaurantId) {
+      const storedCoords = localStorage.getItem("platform_coords");
+      if (storedCoords) {
+        try {
+          const { lat, lng } = JSON.parse(storedCoords);
+          const zRes = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
+          const coveredRestaurants = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+          const covered = coveredRestaurants.some((r: any) => r.id === currentRestaurantId);
+          if (zRes.data.covered && !covered) {
+            setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller en annan adress.");
+            return;
+          }
+        } catch { /* Fail open — don't block if network error */ }
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     setLoading(true);
     try {
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";

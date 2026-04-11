@@ -538,14 +538,14 @@ function HomeScreen({
           (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
           (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
         
-        let matchZone = true;
-        if (orderType === "DELIVERY" && zoneRestaurantIds !== null) {
-          matchZone = zoneRestaurantIds.includes(restaurant.id);
-        } else if (orderType === "PICKUP" && selectedCity) {
-          matchZone = (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+        // Pickup: filter by city only
+        if (orderType === "PICKUP" && selectedCity) {
+          const matchCity = (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+          if (!matchCity) return false;
         }
 
-        return byCuisine && matchZone;
+        // For delivery, keep ALL restaurants (show them dimmed rather than hidden)
+        return byCuisine;
       })
     );
   }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds]);
@@ -978,6 +978,8 @@ function HomeScreen({
         ) : (
           filtered.map((restaurant) => {
             const todayHours = getTodayOpeningPreview(restaurant);
+            const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(restaurant.id);
+            const dimmed = restaurant.isOpen === false || !inZone;
             return (
               <ScalePressable
                 key={restaurant.id}
@@ -986,10 +988,10 @@ function HomeScreen({
                   backgroundColor: "#19191d",
                   borderRadius: 36,
                   borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.05)",
+                  borderColor: inZone ? "rgba(255,255,255,0.05)" : "rgba(239,68,68,0.1)",
                   padding: 14,
                   marginBottom: 18,
-                  opacity: restaurant.isOpen === false ? 0.5 : 1, // Dim closed restaurants
+                  opacity: dimmed ? 0.5 : 1,
                 }}
               >
                 <View style={{ height: 230, borderRadius: 28, overflow: "hidden", backgroundColor: "#111015" }}>
@@ -1004,17 +1006,17 @@ function HomeScreen({
                         {restaurant.name.toUpperCase()}
                       </Text>
                       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        <View
-                          style={{
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                            borderRadius: 10,
-                            backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)",
-                          }}
-                        >
-                          <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
-                            {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-                          </Text>
+                         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                          <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)" }}>
+                            <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
+                              {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
+                            </Text>
+                          </View>
+                          {!inZone && zoneRestaurantIds !== null && (
+                            <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10, backgroundColor: "rgba(239,68,68,0.15)" }}>
+                              <Text style={{ color: "#fb7185", fontSize: 9, fontWeight: "900" }}>EJ I DIN ZON</Text>
+                            </View>
+                          )}
                         </View>
                         <StarRating rating={restaurant.rating} size={14} showNumber={true} />
                       </View>
@@ -2163,6 +2165,27 @@ function CartScreen({
         setSubmitting(false);
         return;
       }
+
+      // ── Last-mile zone check (zone system safeguard) ──────────────────────
+      if (orderType === "DELIVERY" && coords && currentRestaurantId) {
+        try {
+          const zRes = await api.post("/api/cities/validate-location", { lat: coords.lat, lng: coords.lng });
+          if (zRes.data.covered) {
+            const all = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+            const ok = all.some((r: any) => r.id === currentRestaurantId);
+            if (!ok) {
+              Alert.alert(
+                "Leverans ej möjlig",
+                "Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en annan adress.",
+                [{ text: "OK" }]
+              );
+              setSubmitting(false);
+              return;
+            }
+          }
+        } catch { /* Fail open — don't block order on network error */ }
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
 

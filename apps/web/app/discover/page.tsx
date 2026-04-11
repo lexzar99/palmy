@@ -25,11 +25,34 @@ export default function DiscoverPage() {
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  // Zone awareness: IDs that can deliver to the saved address (null = no address yet)
+  const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     const savedToken = localStorage.getItem("platform_user_token");
     setToken(savedToken);
     fetchData(savedToken);
+
+    // Load zone data for the saved delivery address
+    try {
+      const storedCoords = localStorage.getItem("platform_coords");
+      const storedType   = localStorage.getItem("platform_order_type");
+      if (storedCoords && storedType !== "PICKUP") {
+        const { lat, lng } = JSON.parse(storedCoords);
+        axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng })
+          .then(res => {
+            if (res.data.covered) {
+              const ids = new Set<string>(
+                res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id))
+              );
+              setDeliverableIds(ids);
+            } else {
+              setDeliverableIds(new Set()); // covered=false → nothing delivers here
+            }
+          })
+          .catch(() => setDeliverableIds(null)); // fail open
+      }
+    } catch {}
   }, []);
 
   const fetchData = async (authToken: string | null) => {
@@ -195,22 +218,34 @@ export default function DiscoverPage() {
                   <p className="text-xs text-zinc-800 mt-2">Prova att söka på något annat</p>
                 </div>
               ) : (
-                filteredRestaurants.map((rest) => (
-                  <Link 
-                    key={rest.id}
-                    href={`/restaurant/${rest.slug}`}
-                    className="flex items-center gap-6 p-4 bg-white/5 border border-white/5 rounded-[2.5rem] hover:bg-white/10 transition-all group"
-                  >
-                    <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0">
-                      <img src={rest.logo || "https://img.icons8.com/color/96/restaurant.png"} alt="" className="w-10 h-10 opacity-60" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-black uppercase italic text-sm">{rest.name}</h3>
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase">{rest.city}</p>
-                    </div>
-                    <ChevronRight size={18} className="text-zinc-700 mr-2" />
-                  </Link>
-                ))
+                filteredRestaurants.map((rest) => {
+                  const inZone = deliverableIds === null || deliverableIds.has(rest.id);
+                  return (
+                    <Link 
+                      key={rest.id}
+                      href={`/restaurants/${rest.slug}`}
+                      className={`flex items-center gap-6 p-4 border rounded-[2.5rem] transition-all group relative overflow-hidden ${
+                        inZone ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-white/2 border-white/5 opacity-50"
+                      }`}
+                    >
+                      <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0">
+                        <img src={rest.imageUrl || ""} alt="" className="w-full h-full object-cover rounded-[1.2rem] opacity-80" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-black uppercase italic text-sm truncate">{rest.name}</h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-[9px] text-zinc-500 font-bold uppercase">{rest.city}</p>
+                          {!inZone && deliverableIds !== null && (
+                            <span className="text-[8px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              Levererar ej till din adress
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <ChevronRight size={18} className="text-zinc-700 group-hover:text-gold-500 transition-all shrink-0" />
+                    </Link>
+                  );
+                })
               )}
             </div>
           </section>

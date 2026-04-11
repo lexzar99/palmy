@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAutocompleteLimit } from "@/lib/mapsRateLimit";
 
-// Always route through the backend proxy — avoids IP-restriction issues
-// on the Next.js server when the Google API key has domain/IP restrictions.
-const API_URL = process.env.API_URL || "http://localhost:4000";
+// Always route through the backend proxy — avoids IP-restriction issues.
+// Mirror the same URL resolution logic as apps/web/lib/api.ts so production
+// deployments without API_URL set still find the right backend.
+const API_URL =
+  process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://palmy-production-2021.up.railway.app"
+    : "http://localhost:4000");
 
 function reportUsage(ip: string) {
   fetch(`${API_URL}/api/maps-stats/log`, {

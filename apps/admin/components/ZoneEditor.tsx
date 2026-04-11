@@ -150,10 +150,15 @@ export default function ZoneEditor({
   const [mapsReady, setMapsReady]   = useState(false);
   const [authErr,   setAuthErr]     = useState(false);
   const [loadErr,   setLoadErr]     = useState(false);
-  const [drawing,   setDrawing]     = useState<"circle" | "polygon" | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search,    setSearch]      = useState("");
-  const [searching, setSearching]   = useState(false);
+  const [drawing,     setDrawing]     = useState<"circle" | "polygon" | null>(null);
+  const [selectedId,  setSelectedId]  = useState<string | null>(null);
+  const [search,      setSearch]      = useState("");
+  const [searching,   setSearching]   = useState(false);
+  const [suggestions, setSuggestions] = useState<{ description: string; place_id: string }[]>([]);
+  const [loadingSug,  setLoadingSug]  = useState(false);
+  const sugDebounce   = useRef<any>(null);
+
+  const ADMIN_API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
   // ── Draft strings for number inputs ─────────────────────────────────────────
   // Controlled inputs with Number(val)||0 snap empty→0; draft strings avoid this.
@@ -171,9 +176,12 @@ export default function ZoneEditor({
     setDraftEta(prev => ({ ...prev, [selectedId]: String(z.etaMinutes ?? "") }));
   }, [selectedId]);
 
+  // Protect against 0 being passed (0 ?? x = 0, but 0 is invalid coords)
+  const safeCoord = (v: number | null | undefined, def: number) =>
+    v != null && v !== 0 ? v : def;
   const fallbackCenter = {
-    lat: centerLat ?? 55.7047,
-    lng: centerLng ?? 13.191,
+    lat: safeCoord(centerLat, 55.7047),
+    lng: safeCoord(centerLng, 13.191),
   };
 
   // ── Load Maps SDK ─────────────────────────────────────────────────────────────
@@ -423,19 +431,63 @@ export default function ZoneEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapsReady]);
 
-  // ── City-centre search ────────────────────────────────────────────────────────
+  // ── City-centre search with Places autocomplete ────────────────────────────
+  const fetchSuggestions = useCallback(async (text: string) => {
+    if (text.length < 3) { setSuggestions([]); return; }
+    setLoadingSug(true);
+    try {
+      const res = await fetch(`${ADMIN_API}/api/places/autocomplete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text }),
+      });
+      const data = await res.json();
+      setSuggestions(data.predictions || []);
+    } catch { setSuggestions([]); }
+    finally { setLoadingSug(false); }
+  }, [ADMIN_API]);
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+    setSuggestions([]);
+    if (sugDebounce.current) clearTimeout(sugDebounce.current);
+    sugDebounce.current = setTimeout(() => fetchSuggestions(val), 320);
+  };
+
+  const selectSuggestion = useCallback(async (placeId: string, description: string) => {
+    setSearch(description.split(",")[0]);
+    setSuggestions([]);
+    setSearching(true);
+    try {
+      const res = await fetch(`${ADMIN_API}/api/places/geocode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place_id: placeId }),
+      });
+      const data = await res.json();
+      if (data.location && mapInst.current) {
+        const { lat, lng } = data.location;
+        mapInst.current.setCenter({ lat, lng });
+        mapInst.current.setZoom(12);
+        placeCentre(lat, lng);
+        if (onCenterChange) onCenterChange(lat, lng);
+      }
+    } catch {}
+    finally { setSearching(false); }
+  }, [ADMIN_API, onCenterChange, placeCentre]);
+
   const geocodeSearch = useCallback(() => {
     if (!search.trim() || !mapInst.current) return;
     setSearching(true);
+    setSuggestions([]);
     const g = window.google;
     new g.maps.Geocoder().geocode(
       { address: `${search.trim()}, Sverige`, region: "SE" },
       (results: any[], status: string) => {
         setSearching(false);
         if (status === "OK" && results[0]) {
-          const loc  = results[0].geometry.location;
-          const lat  = loc.lat();
-          const lng  = loc.lng();
+          const loc = results[0].geometry.location;
+          const lat = loc.lat(), lng = loc.lng();
           mapInst.current.setCenter({ lat, lng });
           mapInst.current.setZoom(12);
           placeCentre(lat, lng);
@@ -549,19 +601,37 @@ export default function ZoneEditor({
 
       {/* ── Top controls ── */}
       <div className="flex flex-wrap gap-2 items-center">
-        {/* City search */}
-        <div className="flex flex-1 min-w-[180px] items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl px-4 py-2.5 focus-within:border-gold-500/40 transition-all">
-          <Search size={13} className="text-[var(--text-secondary)] shrink-0" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && geocodeSearch()}
-            placeholder={cityName ? `Sök i ${cityName}…` : "Sök stad eller adress för stadsmitt…"}
-            className="flex-1 bg-transparent text-xs font-bold outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40"
-          />
+        {/* City search with autocomplete */}
+        <div className="relative flex flex-1 min-w-[200px]">
+          <div className="flex flex-1 items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl px-4 py-2.5 focus-within:border-gold-500/40 transition-all">
+            <Search size={13} className="text-[var(--text-secondary)] shrink-0" />
+            <input
+              value={search}
+              onChange={e => handleSearchChange(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { setSuggestions([]); geocodeSearch(); } }}
+              placeholder={cityName ? `Sök adress i ${cityName}…` : "Sök stad eller adress för stadsmitt…"}
+              className="flex-1 bg-transparent text-xs font-bold outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40"
+            />
+            {loadingSug && <Loader2 size={11} className="animate-spin text-[var(--text-secondary)] shrink-0" />}
+          </div>
+          {/* Suggestions dropdown */}
+          {suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl overflow-hidden z-50 shadow-2xl">
+              {suggestions.map(s => (
+                <button key={s.place_id} onClick={() => selectSuggestion(s.place_id, s.description)}
+                  className="w-full text-left px-4 py-3 hover:bg-white/5 transition-all flex items-center gap-3 border-b border-[var(--border-subtle)] last:border-none">
+                  <MapPin size={11} className="text-gold-500 shrink-0" />
+                  <div>
+                    <span className="text-[11px] font-bold text-[var(--text-primary)] block">{s.description.split(",")[0]}</span>
+                    <span className="text-[9px] text-[var(--text-secondary)]">{s.description.split(",").slice(1).join(",").trim()}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20">
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20 shrink-0">
           {searching ? <Loader2 size={12} className="animate-spin" /> : <Navigation2 size={12} />}
           Sätt stadsmitt
         </button>

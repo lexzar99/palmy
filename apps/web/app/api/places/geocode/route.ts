@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkGeocodeLimit } from "@/lib/mapsRateLimit";
 
 // Always route through the backend proxy — avoids IP-restriction issues.
-const API_URL = process.env.API_URL || "http://localhost:4000";
+const API_URL =
+  process.env.API_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production"
+    ? "https://palmy-production-2021.up.railway.app"
+    : "http://localhost:4000");
 
 function reportUsage(ip: string) {
   fetch(`${API_URL}/api/maps-stats/log`, {

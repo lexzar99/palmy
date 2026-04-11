@@ -28,6 +28,7 @@ export default function SearchPage() {
   const [query, setQuery] = useState("");
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -35,6 +36,26 @@ export default function SearchPage() {
       .then(res => setRestaurants(res.data))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Zone awareness
+    try {
+      const coords = localStorage.getItem("platform_coords");
+      const type   = localStorage.getItem("platform_order_type");
+      if (coords && type !== "PICKUP") {
+        const { lat, lng } = JSON.parse(coords);
+        axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng })
+          .then(res => {
+            if (res.data.covered) {
+              setDeliverableIds(new Set<string>(
+                res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id))
+              ));
+            } else {
+              setDeliverableIds(new Set());
+            }
+          })
+          .catch(() => setDeliverableIds(null));
+      }
+    } catch {}
   }, []);
 
   const filtered = useMemo(() => {
@@ -84,12 +105,14 @@ export default function SearchPage() {
             <div className="space-y-4">
                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400/40 mb-2">Hittade {filtered.length} resultat</p>
                {filtered.length > 0 ? (
-                 filtered.map(r => (
-                   <Link
-                     key={r.id}
-                     href={`/restaurants/${r.slug}`}
-                     className="group flex overflow-hidden rounded-2xl bg-zinc-900 border border-white/5 hover:border-gold-500/20 transition-all p-3 shadow-xl"
-                   >
+                 filtered.map(r => { const inZone = deliverableIds === null || deliverableIds.has(r.id); return (
+                    <Link
+                      key={r.id}
+                      href={`/restaurants/${r.slug}`}
+                      className={`group flex overflow-hidden rounded-2xl bg-zinc-900 border transition-all p-3 shadow-xl ${
+                        inZone ? "border-white/5 hover:border-gold-500/20" : "border-white/5 opacity-50"
+                      }`}
+                    >
                      <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden bg-zinc-800/50">
                        {r.heroImageUrl || r.imageUrl ? (
                          <img
@@ -109,23 +132,28 @@ export default function SearchPage() {
                          <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes || 30} min</span>
                          <span className="flex items-center gap-1 text-gold-600"><Star size={10} className="fill-gold-600 translate-y-[-0.5px]" />{(r.rating || 4.6).toFixed(1)}</span>
                        </div>
-                       <div className="flex items-center gap-1.5 mt-3">
-                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
-                          r.isOpen !== false 
-                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
-                            : "bg-red-500/10 text-red-600 border border-red-500/20"
-                        }`}>
-                          <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
-                          {r.isOpen !== false ? "Öppet" : "Stängt"}
-                        </div>
-                      </div>
+                       <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                         <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
+                           r.isOpen !== false 
+                             ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" 
+                             : "bg-red-500/10 text-red-600 border border-red-500/20"
+                         }`}>
+                           <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+                           {r.isOpen !== false ? "Öppet" : "Stängt"}
+                         </div>
+                         {!inZone && deliverableIds !== null && (
+                           <div className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                             Levererar ej till din adress
+                           </div>
+                         )}
+                       </div>
                      </div>
                      <div className="flex items-center text-light-500 group-hover:text-gold-600 pr-2 transition-colors">
                        <ChevronRight size={20} />
                      </div>
-                   </Link>
-                 ))
-               ) : (
+                    </Link>
+                  ); })
+                ) : (
                  <div className="py-12 text-center text-zinc-400/20">
                    <p className="text-3xl mb-2">🛸</p>
                    <p className="text-sm font-black uppercase tracking-widest">Inga matchningar för "{query}"</p>
