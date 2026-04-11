@@ -56,9 +56,9 @@ const restaurantSchema = z.object({
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
   const activeOrdersCount = (restaurant.orders || []).length;
-  let dynamicEta = restaurant.etaMinutes ?? 35;
-  if (activeOrdersCount >= 10) dynamicEta += 20;
-  else if (activeOrdersCount >= 5) dynamicEta += 10;
+  const dynamicEta = restaurant.etaMinutes ?? 35;
+  // Previously we added +10/20 min based on load, but this confused the admin.
+  // Letting the base value be the source of truth.
 
   return {
     id: restaurant.id,

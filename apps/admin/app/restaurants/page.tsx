@@ -334,6 +334,14 @@ export default function RestaurantsPage() {
                         {isOnline ? "Öppen" : "Stängd"}
                       </span>
                     </div>
+                    {r.activeOrdersCount > 0 && (
+                      <div className="flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
+                        <ShoppingCart size={10} className="text-amber-500" />
+                        <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">
+                          {r.activeOrdersCount}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 mb-3">
