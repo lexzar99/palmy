@@ -4842,32 +4842,73 @@ function ScreenWrap({ children }: { children: React.ReactNode }) {
 
 function RestaurantCard({ restaurant, onPress }: { restaurant: Restaurant; onPress: () => void }) {
   return (
-    <ScalePressable style={[styles.restaurantCard, { borderRadius: 30, padding: 14 }]} onPress={onPress}>
+    <ScalePressable 
+      style={[
+        styles.restaurantCard, 
+        { 
+          borderRadius: 30, 
+          padding: 14,
+          borderWidth: 1.5,
+          borderColor: "rgba(231,178,75,0.4)", // Gold border
+          shadowColor: palette.gold, // Glow effect
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.2,
+          shadowRadius: 15,
+          elevation: 8
+        }
+      ]} 
+      onPress={onPress}
+    >
       {!!restaurant.imageUrl && (
         <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={[styles.restaurantImage, { borderRadius: 22 }]} />
       )}
-      <View style={{ flex: 1, paddingTop: 14 }}>
-        <View style={styles.inlineSummary}>
-          <Text style={[styles.cardTitle, { fontSize: 22 }]}>{restaurant.name.toUpperCase()}</Text>
-          <Badge label={restaurant.isOpen === false ? "STÄNGD" : "ÖPPEN"} tone={restaurant.isOpen === false ? "danger" : "success"} />
+      <View style={{ flex: 1, paddingTop: 16 }}>
+        {/* Prioritized full-width Name */}
+        <Text style={[styles.cardTitle, { fontSize: 22, color: palette.gold, marginBottom: 4 }]} numberOfLines={1}>
+          {restaurant.name.toUpperCase()}
+        </Text>
+        
+        {/* Info row: Badge + Stars */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Badge 
+            label={restaurant.isOpen === false ? "STÄNGD" : "ÖPPEN"} 
+            tone={restaurant.isOpen === false ? "danger" : "success"} 
+          />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <StarRating rating={restaurant.rating || 4.5} size={14} />
+            <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "900", marginLeft: 2 }}>
+              {restaurant.rating?.toFixed(1) || "4.5"}
+            </Text>
+          </View>
         </View>
-        <Text style={[styles.productDescription, { fontSize: 11, fontWeight: "900", letterSpacing: 2 }]}>
+
+        <Text style={[styles.productDescription, { fontSize: 11, fontWeight: "900", letterSpacing: 2, color: "#6e6a77" }]}>
           {(restaurant.description || restaurant.cuisine || "Restaurang").toUpperCase()}
         </Text>
+
         <View
           style={{
-            marginTop: 12,
+            marginTop: 16,
             borderRadius: 22,
-            backgroundColor: "#25242b",
-            paddingHorizontal: 14,
+            backgroundColor: "#19181d",
+            paddingHorizontal: 16,
             paddingVertical: 14,
             flexDirection: "row",
             justifyContent: "space-between",
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.03)"
           }}
         >
-          <Text style={styles.helperText}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
-          <Text style={styles.helperText}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
-          <Text style={styles.helperText}>{(restaurant.city || "").toUpperCase()}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="time-outline" size={14} color={palette.gold} />
+            <Text style={[styles.helperText, { color: palette.text }]}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
+            <Text style={[styles.helperText, { color: palette.text }]}>{Math.round(restaurant.deliveryFee || 0)} KR</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#4b4652" />
         </View>
       </View>
     </ScalePressable>
