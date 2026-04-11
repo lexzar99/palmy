@@ -4483,20 +4483,20 @@ function BottomTabs({
       style={[
         styles.bottomTabs,
         {
-          left: 16,
-          right: 16,
-          bottom: 25,
-          borderRadius: 40,
-          paddingVertical: 10,
-          paddingHorizontal: 10,
-          backgroundColor: "#16151a",
+          left: 18,
+          right: 18,
+          bottom: 28,
+          borderRadius: 45,
+          paddingVertical: 8,
+          paddingHorizontal: 8,
+          backgroundColor: "rgba(18, 18, 20, 0.85)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.06)",
+          borderColor: "rgba(255,255,255,0.08)",
           shadowColor: "#000",
-          shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.5,
-          shadowRadius: 20,
-          elevation: 10,
+          shadowOffset: { width: 0, height: 20 },
+          shadowOpacity: 0.6,
+          shadowRadius: 30,
+          elevation: 15,
           flexDirection: "row",
         },
       ]}
@@ -4504,16 +4504,23 @@ function BottomTabs({
       <Animated.View
         style={{
           position: "absolute",
-          top: 10,
-          bottom: 10,
-          left: 10,
+          top: 8,
+          bottom: 8,
+          left: 8,
           width: pillWidth,
           transform: [{ translateX }],
-          backgroundColor: palette.gold,
-          borderRadius: 30,
           zIndex: 0,
+          borderRadius: 38,
+          overflow: "hidden",
         }}
-      />
+      >
+        <LinearGradient
+          colors={["#e7b24b", "#a8741d"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{ flex: 1, shadowColor: "#e7b24b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 10 }}
+        />
+      </Animated.View>
 
       {tabs.map((tab) => (
         <TabItem
@@ -4567,8 +4574,8 @@ function TabItem({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={{
-        flex: isFocused ? 1.4 : 1,
-        height: 54,
+        flex: isFocused ? 1.5 : 1,
+        height: 58,
         justifyContent: "center",
         alignItems: "center",
         zIndex: 1,
@@ -4576,26 +4583,47 @@ function TabItem({
     >
       <Animated.View 
         style={{ 
-          flexDirection: "row", 
+          flexDirection: "column", 
           alignItems: "center", 
           justifyContent: "center", 
-          gap: 6,
+          gap: 2,
           transform: [{ scale }]
         }}
       >
-        <Ionicons 
-          name={isFocused ? (tab.icon.replace("-outline", "") as any) : tab.icon} 
-          size={22} 
-          color={isFocused ? "#000" : "#6e6a77"} 
-        />
+        <View style={{ position: "relative" }}>
+          <Ionicons 
+            name={isFocused ? (tab.icon.replace("-outline", "") as any) : tab.icon} 
+            size={22} 
+            color={isFocused ? "#ffffff" : "#a1a1aa"} 
+          />
+          {tab.count !== undefined && tab.count > 0 && !isFocused && (
+            <View style={{
+              position: "absolute",
+              top: -4,
+              right: -8,
+              backgroundColor: palette.gold,
+              width: 14,
+              height: 14,
+              borderRadius: 7,
+              borderWidth: 1.5,
+              borderColor: "#121214",
+              alignItems: "center",
+              justifyContent: "center"
+            }}>
+              <Text style={{ color: "#000", fontSize: 7, fontWeight: "900" }}>{tab.count}</Text>
+            </View>
+          )}
+        </View>
+        
         {isFocused && (
           <Text 
             numberOfLines={1} 
             style={{ 
-              color: "#000", 
-              fontSize: 12, 
+              color: "#ffffff", 
+              fontSize: 8, 
               fontWeight: "900",
-              letterSpacing: 0.2
+              letterSpacing: 2,
+              textTransform: "uppercase"
             }}
           >
             {tab.label}
