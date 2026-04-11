@@ -29,8 +29,8 @@ const BottomNav = () => {
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex flex-col items-center justify-center py-3 px-6 rounded-[2rem] transition-all duration-500 group ${
-                isActive ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-500 hover:text-zinc-100"
+              className={`relative flex flex-col items-center justify-center py-3 px-6 rounded-[2rem] transition-all duration-300 group ${
+                isActive ? "text-zinc-950" : "text-zinc-500 hover:text-zinc-100"
               }`}
             >
               <div className="relative">

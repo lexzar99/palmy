@@ -10,6 +10,13 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 
+const getImageSrc = (path?: string) => {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  if (path.startsWith("/")) return `${API_URL}${path}`;
+  return path;
+};
+
 const CATEGORIES = [
   { name: "Pizza", icon: Pizza, color: "bg-rose-500/10 text-rose-500" },
   { name: "Burgare", icon: Utensils, color: "bg-amber-500/10 text-amber-500" },
@@ -107,51 +114,22 @@ export default function DiscoverPage() {
 
       <div className="max-w-2xl mx-auto px-6 pt-8 space-y-12">
         
-        {/* Recent Orders - Only if user has them */}
-        {recentOrders.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-3">
-                <History className="text-gold-500" size={18} /> Beställ igen
-              </h2>
-              <Link href="/profile" className="text-[10px] font-black uppercase text-gold-500 hover:text-white transition-all">Visa alla</Link>
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 hide-scrollbar">
-              {recentOrders.map((order) => (
-                <Link 
-                  key={order.id}
-                  href={`/restaurant/${order.restaurant?.slug}`}
-                  className="min-w-[240px] p-5 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all flex items-center gap-4 group"
-                >
-                  <div className="w-12 h-12 bg-gradient-to-br from-gold-500 to-amber-600 rounded-2xl flex items-center justify-center text-zinc-950 font-black">
-                    {order.restaurant?.name?.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-black text-sm uppercase truncate italic">{order.restaurant?.name}</p>
-                    <p className="text-[10px] text-zinc-500 font-bold">{new Date(order.createdAt).toLocaleDateString("sv-SE")}</p>
-                  </div>
-                  <ArrowRight size={18} className="text-zinc-600 group-hover:text-gold-500 transition-all" />
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
 
         {/* Categories Grid */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-sm font-black uppercase tracking-widest">Kategorier</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bläddra Kategorier</h2>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide px-2">
             {CATEGORIES.map((cat) => (
               <motion.button 
                 key={cat.name}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSearch(cat.name)}
-                className="p-5 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all text-center space-y-2 group"
+                className="flex items-center gap-3 px-6 py-4 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-all shrink-0 group"
               >
-                <div className={`w-10 h-10 ${cat.color} rounded-xl flex items-center justify-center mx-auto transition-transform group-hover:scale-110`}>
-                  <cat.icon size={18} />
+                <div className={`w-6 h-6 ${cat.color} rounded-lg flex items-center justify-center transition-transform group-hover:scale-110`}>
+                  <cat.icon size={12} />
                 </div>
                 <p className="font-black text-[9px] uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{cat.name}</p>
               </motion.button>
@@ -174,8 +152,8 @@ export default function DiscoverPage() {
                   href={`/restaurants/${rest.slug}`}
                   className="flex items-center gap-4 p-3 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all group overflow-hidden relative"
                 >
-                  <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0">
-                    <img src={rest.logo || "https://img.icons8.com/color/96/restaurant.png"} alt="" className="w-10 h-10 opacity-80" />
+                  <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                    <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -228,8 +206,8 @@ export default function DiscoverPage() {
                         inZone ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-white/2 border-white/5 opacity-50"
                       }`}
                     >
-                      <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0">
-                        <img src={rest.imageUrl || ""} alt="" className="w-full h-full object-cover rounded-[1.2rem] opacity-80" />
+                      <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                        <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-black uppercase italic text-sm truncate">{rest.name}</h3>
