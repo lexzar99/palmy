@@ -3224,15 +3224,15 @@ function ProfileScreen({
           <View style={[styles.formCard, { borderRadius: 34, padding: 22 }]}> 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
               <View style={{ width: 58, height: 58, borderRadius: 20, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {profile.image ? <Image source={{ uri: profile.image }} style={{ width: "100%", height: "100%" }} /> : <Ionicons name="person-outline" size={28} color="#000" />}
+                {profile?.image ? <Image source={{ uri: profile.image }} style={{ width: "100%", height: "100%" }} /> : <Ionicons name="person-outline" size={28} color="#000" />}
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900" }}>{(profile.name || "KUNDPROFIL").toUpperCase()}</Text>
-                <Text style={{ color: "#7f798a", fontSize: 13, fontWeight: "800", marginTop: 2 }}>{profile.phone || profile.email || "GAST"}</Text>
+                <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900" }}>{(profile?.name || "KUNDPROFIL").toUpperCase()}</Text>
+                <Text style={{ color: "#7f798a", fontSize: 13, fontWeight: "800", marginTop: 2 }}>{profile?.phone || profile?.email || "GAST"}</Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
-                  <Ionicons name={profile.isVerified ? "shield-checkmark" : "alert-circle-outline"} size={14} color={profile.isVerified ? palette.success : palette.danger} />
-                  <Text style={{ color: profile.isVerified ? palette.success : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                    {profile.isVerified ? "Verifierad" : "Ej verifierad"}
+                  <Ionicons name={profile?.isVerified ? "shield-checkmark" : "alert-circle-outline"} size={14} color={profile?.isVerified ? palette.success : palette.danger} />
+                  <Text style={{ color: profile?.isVerified ? palette.success : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
+                    {profile?.isVerified ? "Verifierad" : "Ej verifierad"}
                   </Text>
                 </View>
               </View>

@@ -18,12 +18,14 @@ import {
   ArrowRight,
   X,
   Sparkles,
+  Tag,
   Percent,
   Info,
   Phone,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
+import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 
 interface Restaurant {
@@ -264,6 +266,47 @@ export default function HomePage() {
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
   // Build DealFlipCard data array
+  const allDealCards = useMemo<DealCardData[]>(() => {
+    const restaurantById = new Map(restaurants.map(r => [r.id, r]));
+
+    const personal: DealCardData[] = personalDeals.map(d => ({
+      id: `personal-${d.id}`,
+      badgeLabel: "Personligt",
+      title: d.campaign?.title || "Erbjudande",
+      subtitle: d.code ? `Din kod: ${d.code}` : "Knutet till ditt konto",
+      rewardLabel: d.campaign?.discountType === "PERCENTAGE"
+        ? `${d.campaign.discountValue}% rabatt`
+        : `${d.campaign?.discountValue || 0} kr rabatt`,
+      description: d.campaign?.description || "Används automatiskt vid köp.",
+      code: d.code,
+      validUntil: d.campaign?.validUntil,
+      minOrderText: d.campaign?.minOrder ? `Min ${d.campaign.minOrder} kr` : null,
+      tone: "emerald" as const,
+      variant: "personal" as const,
+    }));
+
+    const pub: DealCardData[] = deals.map(d => {
+      const related = [d.restaurantId, ...(d.applicableRestaurantIds || [])].filter(Boolean);
+      return {
+        id: d.id,
+        badgeLabel: d.isGlobal ? "Globalt" : (d.restaurant?.name || "Erbjudande"),
+        title: d.title,
+        subtitle: d.description || (d.restaurant?.name ? `Hos ${d.restaurant.name}` : "Gäller alla restauranger"),
+        rewardLabel: d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`,
+        description: d.description,
+        code: d.code,
+        validUntil: d.validUntil,
+        minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
+        tags: d.tags || [],
+        tone: "gold" as const,
+        variant: "public" as const,
+        relatedRestaurantIds: related,
+        onNavigateToFiltered: (ids, title) => setFilteredByDeal({ ids, title }),
+      };
+    });
+
+    return [...personal, ...pub];
+  }, [deals, personalDeals, restaurants]);
 
   const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
 
@@ -352,37 +395,7 @@ export default function HomePage() {
           </motion.div>
         </header>
 
-        {/* Deals Selector */}
-        {deals.length > 0 && (
-          <section className="mb-10">
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
-              {deals.map((deal, i) => (
-                  <motion.div whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}>
-                  <Link
-                    key={deal.id}
-                    href={deal.restaurant?.slug ? `/restaurants/${deal.restaurant.slug}` : '/search'}
-                    className="flex flex-col gap-1 p-4 rounded-[1.8rem] bg-emerald-500/10 border border-emerald-500/20 w-[240px] relative overflow-hidden group transition-all hover:border-emerald-500/50 hover:-translate-y-1"
-                  >
-                     <div className="absolute top-[-20px] right-[-20px] w-20 h-20 bg-emerald-500/10 rounded-full blur-xl group-hover:bg-emerald-500/20 transition-all" />
-                     <div className="flex items-center gap-2 mb-1">
-                        <div className="w-6 h-6 rounded-lg bg-emerald-500 flex items-center justify-center text-dark-500">
-                           <Percent size={12} strokeWidth={3} />
-                        </div>
-                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Erbjudande</span>
-                     </div>
-                     <h4 className="text-sm font-black text-white uppercase italic tracking-tighter leading-none">{deal.title}</h4>
-<p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">
-                         {deal.isGlobal ? (deal.badgeText || "Gäller alla kök") : (deal.restaurant?.name || "Gäller utvalda kök")}
-                      </p>
-                  </Link>
-                  </motion.div>
-              ))}
-            </div>
-          </section>
-        )}
-
-
-        {/* Sponsors prominently displayed */}
+        {/* Sponsors prominently displayed (Replaces old welcome section) */}
         {sponsors.length > 0 && (
           <section className="mb-16">
             <div className="flex items-center justify-between mb-6 px-1">
@@ -398,6 +411,33 @@ export default function HomePage() {
             <div className="flex gap-6 overflow-x-auto pb-8 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
               {sponsors.map(s => (
                 <SponsorCard key={s.id} sponsor={s} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Deals & Erbjudanden (RESTORED) ── */}
+        {allDealCards.length > 0 && (
+          <section className="mb-16">
+            <div className="flex items-center justify-between mb-6 px-1">
+              <div>
+                <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                  <Tag size={18} className="text-gold-500" /> Erbjudanden
+                </h2>
+                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
+                  {filteredByDeal ? `Visar: ${filteredByDeal.title}` : "Flippa korten för mer info"}
+                </p>
+              </div>
+              {filteredByDeal && (
+                <button onClick={() => setFilteredByDeal(null)}
+                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all border border-white/10 px-3 py-1.5 rounded-xl">
+                  <X size={11} /> Rensa filter
+                </button>
+              )}
+            </div>
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+              {allDealCards.map(d => (
+                <DealFlipCard key={d.id} deal={d} />
               ))}
             </div>
           </section>
