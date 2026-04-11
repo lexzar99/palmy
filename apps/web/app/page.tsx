@@ -516,57 +516,58 @@ export default function HomePage() {
                   <Link
                     href={getRestaurantHref(r)}
                     onClick={(e) => handleRestaurantClick(e, r)}
-                    className="group flex flex-col sm:flex-row glass-panel rounded-[3rem] p-4 gap-6 hover:border-gold-500/20 hover:bg-white/5 transition-all active:scale-[0.99]"
+                    className="group flex flex-col sm:flex-row glass-panel rounded-[3.5rem] p-6 gap-8 hover:border-gold-500/30 hover:bg-white/5 transition-all active:scale-[0.99] border border-white/5 shadow-2xl"
                   >
-                    <div className="w-full sm:w-52 h-44 sm:h-auto shrink-0 rounded-[2.5rem] overflow-hidden relative">
-                      {r.imageUrl ? (
-                        <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all" />
+                    <div className="w-full sm:w-60 h-52 sm:h-52 shrink-0 rounded-[2.5rem] overflow-hidden relative shadow-inner bg-zinc-900">
+                      {r.imageUrl || r.heroImageUrl ? (
+                        <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-110 transition-all duration-700" />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
                       )}
                       
                       {r.isOpen === false && (
-                        <div className="absolute inset-0 bg-obsidian/80 backdrop-blur-sm flex items-center justify-center">
-                          <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest border border-rose-500/30 px-5 py-2 rounded-2xl">Stängt för dagen</span>
+                        <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center">
+                          <span className="text-[10px] font-black text-rose-400 bg-rose-500/10 uppercase tracking-[0.2em] border border-rose-500/20 px-5 py-2.5 rounded-2xl shadow-lg">Stängt</span>
                         </div>
                       )}
-                    </div>
 
-                    <div className="flex-1 py-4 pr-6 flex flex-col justify-center min-w-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-4 truncate">
-                           <h3 className="text-2xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none truncate">{r.name}</h3>
-                           <button 
-                             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                             className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5"
-                           >
-                             <Info size={16} />
-                           </button>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                           <div className="flex items-center gap-1.5 text-gold-500 font-black italic">
-                             <Star size={14} className="fill-gold-500" />
-                             <span className="text-xs">{(r.rating ?? 4.6).toFixed(1)}</span>
-                           </div>
+                      <div className="absolute top-4 left-4">
+                        <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-gold-500 font-black italic shadow-xl">
+                          <Star size={12} className="fill-gold-500" />
+                          <span className="text-[10px]">{(r.rating ?? 4.6).toFixed(1)}</span>
                         </div>
                       </div>
+                    </div>
+
+                    <div className="flex-1 py-2 flex flex-col min-w-0">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                         <h3 className="text-3xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tighter leading-none italic">{r.name}</h3>
+                         <button 
+                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                           className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5 shrink-0"
+                         >
+                           <Info size={16} />
+                         </button>
+                      </div>
                       
-                      <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest line-clamp-1 mb-8">{r.description || r.cuisine}</p>
+                      <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-relaxed mb-auto mt-1 line-clamp-2">{r.description || r.cuisine || "MatGo Selection"}</p>
                       
-                       {(() => {
-                         const zi = zoneDeliveryInfo[r.id];
-                         const fee    = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
-                         const minOrd = zi ? Math.round(zi.minOrder    / 100) : (r.minOrderAmount ?? 0);
-                         const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
-                         return (
-                           <div className="flex items-center flex-wrap gap-4 text-[9px] font-black uppercase text-zinc-500 bg-white/5 p-4 rounded-3xl border border-white/5">
-                             <span className="flex items-center gap-2"><Clock size={12} className="text-gold-500/50" /> {eta} MIN</span>
-                             <span className="flex items-center gap-2"><Bike size={12} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
-                             <span>MIN {minOrd} KR</span>
-                             {zi?.zoneName && <span className="text-gold-600 opacity-70">{zi.zoneName}</span>}
-                           </div>
-                         );
-                       })()}
+                      <div className="mt-8 border-t border-white/5 pt-6">
+                        {(() => {
+                          const zi = zoneDeliveryInfo[r.id];
+                          const fee    = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
+                          const minOrd = zi ? Math.round(zi.minOrder    / 100) : (r.minOrderAmount ?? 0);
+                          const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                          return (
+                            <div className="flex items-center flex-wrap gap-5 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                              <span className="flex items-center gap-2"><Clock size={14} className="text-gold-500/50" /> {eta} MIN</span>
+                              <span className="flex items-center gap-2"><Bike size={14} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                              <span className="text-zinc-700">MIN {minOrd} KR</span>
+                              {zi?.zoneName && <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-[8px] border border-gold-500/10 tracking-normal">{zi.zoneName}</span>}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </Link>
                 </motion.div>
