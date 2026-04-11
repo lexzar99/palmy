@@ -35,7 +35,7 @@ const BottomNav = () => {
                 <motion.div
                   animate={{ 
                     scale: isActive ? 1.1 : 1,
-                    color: isActive ? "#09090b" : "#52525b"
+                    color: isActive ? "#09090b" : "#a1a1aa"
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
