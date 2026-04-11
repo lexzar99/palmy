@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { 
-  MapPin, Trash2, Plus, Check, X, Bike, Store, Navigation, Layers, Info,
+import { MapPin, Trash2, Plus, Check, X, Bike, Store, Navigation, Layers, Info,
   ShieldCheck, ChevronRight, Loader2, Save, Globe, DollarSign, Target
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/components/Toast";
 import { ConfirmModal } from "@/components/Modal";
+import dynamic from "next/dynamic";
+const CityMapPicker = dynamic(() => import("@/components/CityMapPicker"), { ssr: false });
 
 interface DeliveryZone {
   id: string;
@@ -37,7 +38,11 @@ interface City {
   zones: string | DeliveryZone[];
   latitude: number | null;
   longitude: number | null;
-  freeDeliveryAbove: number; // kr in UI
+  centerLat?: number | null;
+  centerLng?: number | null;
+  radiusKm?: number;
+  polygon?: string | null;
+  freeDeliveryAbove: number;
   restaurants: Restaurant[];
 }
 
@@ -169,6 +174,10 @@ const CitiesPage = () => {
         isActive: selectedCity.isActive,
         latitude: selectedCity.latitude,
         longitude: selectedCity.longitude,
+        centerLat: selectedCity.centerLat,
+        centerLng: selectedCity.centerLng,
+        radiusKm: selectedCity.radiusKm,
+        polygon: selectedCity.polygon,
         freeDeliveryAbove: Math.round((Number(selectedCity.freeDeliveryAbove || 0)) * 100),
         zones,
         restaurantIds,
@@ -503,6 +512,29 @@ const CitiesPage = () => {
                       </p>
                     </div>
                   )}
+               </div>
+
+               {/* Google Maps Zone Picker */}
+               <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-6">
+                  <div>
+                     <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <MapPin className="text-gold-500" size={28} /> Leveranszon på karta
+                     </h2>
+                     <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Rita leveransgränsen för {selectedCity.name} med Google Maps</p>
+                  </div>
+                  <CityMapPicker
+                     centerLat={selectedCity.centerLat ?? selectedCity.latitude}
+                     centerLng={selectedCity.centerLng ?? selectedCity.longitude}
+                     radiusKm={selectedCity.radiusKm ?? 5}
+                     polygon={(() => { try { return selectedCity.polygon ? JSON.parse(selectedCity.polygon as string) : null; } catch { return null; } })()}
+                     onSave={(data) => {
+                        updateCity('centerLat', data.centerLat);
+                        updateCity('centerLng', data.centerLng);
+                        if (data.radiusKm) updateCity('radiusKm', data.radiusKm);
+                        if (data.polygon) updateCity('polygon', JSON.stringify(data.polygon));
+                        else updateCity('polygon', null);
+                     }}
+                  />
                </div>
 
                {/* Linked Restaurants */}

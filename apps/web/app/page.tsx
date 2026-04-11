@@ -82,6 +82,9 @@ export default function HomePage() {
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
 
+  // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
+  const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
+  const [zoneError, setZoneError] = useState<string | null>(null);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -99,6 +102,15 @@ export default function HomePage() {
       if (err) {
         setDeliveryError(err);
         localStorage.removeItem("platform_address_error");
+      }
+
+      // Restore zone filtering from saved coords
+      const storedCoords = localStorage.getItem("platform_coords");
+      if (storedCoords && stored) {
+        try {
+          const coords = JSON.parse(storedCoords);
+          validateZone(coords.lat, coords.lng);
+        } catch {}
       }
     }
   }, []);
@@ -123,6 +135,23 @@ export default function HomePage() {
     .finally(() => setLoading(false));
   }, []);
 
+  const validateZone = async (lat: number, lng: number) => {
+    try {
+      const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
+      if (res.data.covered) {
+        // Flatten all restaurant IDs from all matching cities
+        const ids = res.data.cities.flatMap((c: any) => c.restaurants.map((r: any) => r.id));
+        setZoneRestaurantIds(ids);
+        setZoneError(null);
+      } else {
+        setZoneRestaurantIds([]);
+        setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
+      }
+    } catch {
+      setZoneRestaurantIds(null); // On error, show all restaurants (fail open)
+    }
+  };
+
   const saveAddress = (value: string) => {
     setAddress(value);
     if (typeof window !== "undefined") {
@@ -142,15 +171,28 @@ export default function HomePage() {
     }
   };
 
-  const handleCitySelect = (city: City) => {
-    saveAddress(city.name);
-    setSelectedCity(city);
-    setShowCityDropdown(false);
-    
-    if (city.deliveryMode === "ONLY_PICKUP" && orderType === "DELIVERY") {
-      toggleOrderType("PICKUP");
-    } else if (city.deliveryMode === "ONLY_DELIVERY" && orderType === "PICKUP") {
-      toggleOrderType("DELIVERY");
+  const handleAddressConfirm = async (addr: string, type: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }) => {
+    saveAddress(addr);
+    setOrderType(type);
+    localStorage.setItem(ORDER_TYPE_KEY, type);
+    setShowAddressModal(false);
+    setZoneError(null);
+
+    if (coords) {
+      localStorage.setItem("platform_coords", JSON.stringify(coords));
+      if (type === "DELIVERY") {
+        await validateZone(coords.lat, coords.lng);
+      } else {
+        // Pickup: show all restaurants, no zone check
+        setZoneRestaurantIds(null);
+      }
+    } else {
+      localStorage.removeItem("platform_coords");
+      setZoneRestaurantIds(null);
+    }
+
+    if (pendingHref) {
+      setPendingHref(null);
     }
   };
 
@@ -165,30 +207,26 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      let matchCity = true;
-      if (address && selectedCity) {
-        const restaurantCity = (r.city || "").trim().toLowerCase();
-        matchCity = restaurantCity === selectedCity.name.toLowerCase();
+      // Zone-based filtering (most precise) — only applies for DELIVERY with coordinates
+      let matchZone = true;
+      if (orderType === "DELIVERY" && zoneRestaurantIds !== null) {
+        matchZone = zoneRestaurantIds.includes(r.id);
       }
 
-      return matchCuisine && matchQuery && matchCity;
+      return matchCuisine && matchQuery && matchZone;
     });
 
     // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
     return list.sort((a, b) => {
       const aOpen = a.isOpen !== false ? 1 : 0;
       const bOpen = b.isOpen !== false ? 1 : 0;
-      
       if (aOpen !== bOpen) return bOpen - aOpen;
-      
       const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
       const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
-      
       if (aPremium !== bPremium) return bPremium - aPremium;
-      
       return a.name.localeCompare(b.name);
     });
-  }, [restaurants, activeCuisine, query, address, selectedCity]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -209,26 +247,7 @@ export default function HomePage() {
     router.push(getRestaurantHref(r));
   };
 
-  const handleAddressConfirmed = (newAddress: string, newOrderType: "DELIVERY" | "PICKUP", coords?: {lat: number, lng: number}) => {
-    saveAddress(newAddress);
-    toggleOrderType(newOrderType);
-    if (coords) {
-      localStorage.setItem("platform_coords", JSON.stringify(coords));
-    } else {
-      localStorage.removeItem("platform_coords");
-    }
 
-    // Try to sync city
-    const lower = newAddress.toLowerCase();
-    const cityMatch = cities.find(c => lower.includes(c.name.toLowerCase()));
-    if (cityMatch) setSelectedCity(cityMatch);
-
-    setShowAddressModal(false);
-    if (pendingHref) {
-      router.push(pendingHref);
-      setPendingHref(null);
-    }
-  };
 
   return (
     <div className="min-h-screen text-zinc-100 bg-[#18181b] pt-10 pb-32">
@@ -587,7 +606,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      <AddressModal isOpen={showAddressModal} onClose={() => { setShowAddressModal(false); setPendingHref(null); }} onConfirm={handleAddressConfirmed} orderType={orderType} setOrderType={toggleOrderType} />
+      <AddressModal isOpen={showAddressModal} onClose={() => { setShowAddressModal(false); setPendingHref(null); }} onConfirm={handleAddressConfirm} orderType={orderType} setOrderType={setOrderType} />
 
       {/* Closed popup handling */}
       <AnimatePresence>

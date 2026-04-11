@@ -265,8 +265,12 @@ model City {
   isActive          Boolean      @default(true)
   deliveryMode      String       @default("ALL")
   zones             String       @default("[]")
-  latitude          Float?
-  longitude         Float?
+  polygon           String?      // GeoJSON polygon coords [[lng,lat],...] for delivery boundary
+  centerLat         Float?       // Map center lat
+  centerLng         Float?       // Map center lng
+  radiusKm          Float        @default(10.0) // Fallback radius if no polygon
+  latitude          Float?       // Legacy
+  longitude         Float?       // Legacy
   freeDeliveryAbove Int          @default(0)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
