@@ -72,6 +72,13 @@ const palette = {
   info: "#38bdf8",
 };
 
+const COUNTRY_CODES = [
+  { code: "+46", flag: "🇸🇪", name: "Sverige" },
+  { code: "+45", flag: "🇩🇰", name: "Danmark" },
+  { code: "+47", flag: "🇳🇴", name: "Norge" },
+  { code: "+358", flag: "🇫🇮", name: "Finland" },
+];
+
 const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
 
 function ScalePressable({ children, onPress, style }: { children: React.ReactNode; onPress?: () => void; style?: any }) {
