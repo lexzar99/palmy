@@ -153,6 +153,21 @@ export default function ZoneEditor({
   const [search,    setSearch]      = useState("");
   const [searching, setSearching]   = useState(false);
 
+  // ── Draft strings for number inputs ─────────────────────────────────────────
+  // Controlled <input type="number"> rejects empty strings (converts to 0),
+  // so we store what the user is actually typing as a string and commit on blur.
+  const [draftFee, setDraftFee] = useState<Record<string, string>>({});
+  const [draftMin, setDraftMin] = useState<Record<string, string>>({});
+
+  // Seed drafts when a zone becomes selected (so the display starts correct)
+  useEffect(() => {
+    if (!selectedId) return;
+    const z = zones.find(z => z.id === selectedId);
+    if (!z) return;
+    setDraftFee(prev => ({ ...prev, [selectedId]: String(z.deliveryFee) }));
+    setDraftMin(prev => ({ ...prev, [selectedId]: String(z.minOrder) }));
+  }, [selectedId]); // only seed on selection change, not on every zone update
+
   const fallbackCenter = {
     lat: centerLat ?? 55.7047,
     lng: centerLng ?? 13.191,
@@ -683,23 +698,50 @@ export default function ZoneEditor({
                         />
                       </div>
 
-                      {/* Fee + MinOrder */}
+                      {/* Fee + MinOrder — use draft strings so the user can clear & retype */}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Avgift (kr)</label>
-                          <input type="number" min={0}
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[11px] font-black outline-none focus:border-emerald-500/30 text-emerald-400"
-                            value={zone.deliveryFee}
-                            onChange={e => updateZone(zone.id, { deliveryFee: Math.max(0, Number(e.target.value) || 0) })}
+                            value={draftFee[zone.id] ?? String(zone.deliveryFee)}
+                            onChange={e => {
+                              // Allow empty string, digits only
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setDraftFee(prev => ({ ...prev, [zone.id]: raw }));
+                              // Live update only when we have a valid number
+                              if (raw !== "") updateZone(zone.id, { deliveryFee: Number(raw) });
+                            }}
+                            onBlur={() => {
+                              // Commit: empty → 0
+                              const val = Math.max(0, Number(draftFee[zone.id] ?? zone.deliveryFee) || 0);
+                              setDraftFee(prev => ({ ...prev, [zone.id]: String(val) }));
+                              updateZone(zone.id, { deliveryFee: val });
+                            }}
                             onClick={e => e.stopPropagation()}
                           />
                         </div>
                         <div>
                           <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Minimiorder (kr)</label>
-                          <input type="number" min={0}
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
                             className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[11px] font-black outline-none focus:border-sky-500/30 text-sky-400"
-                            value={zone.minOrder}
-                            onChange={e => updateZone(zone.id, { minOrder: Math.max(0, Number(e.target.value) || 0) })}
+                            value={draftMin[zone.id] ?? String(zone.minOrder)}
+                            onChange={e => {
+                              const raw = e.target.value.replace(/[^0-9]/g, "");
+                              setDraftMin(prev => ({ ...prev, [zone.id]: raw }));
+                              if (raw !== "") updateZone(zone.id, { minOrder: Number(raw) });
+                            }}
+                            onBlur={() => {
+                              const val = Math.max(0, Number(draftMin[zone.id] ?? zone.minOrder) || 0);
+                              setDraftMin(prev => ({ ...prev, [zone.id]: String(val) }));
+                              updateZone(zone.id, { minOrder: val });
+                            }}
                             onClick={e => e.stopPropagation()}
                           />
                         </div>
