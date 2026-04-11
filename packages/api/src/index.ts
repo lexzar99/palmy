@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 
 import menuRoutes from './routes/menu';
 import mapsStatsRoutes from './routes/mapsStats';
+import placesRoutes from './routes/places';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
@@ -129,6 +130,7 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin/upload', uploadRoutes);
 app.use('/api/maps-stats', mapsStatsRoutes);
+app.use('/api/places', placesRoutes);
 
 // Serve uploaded images
 import path from 'path';

@@ -124,7 +124,6 @@ export default function CityMapPicker({
 
   // ── Load Maps SDK ────────────────────────────────────────────────
   useEffect(() => {
-    if (!MAPS_KEY) return;
     loadMapsScript()
       .then(() => setReady(true))
       .catch(() => setLoadError(true));
@@ -395,25 +394,24 @@ export default function CityMapPicker({
     if (bounds) mapInstance.current.fitBounds(bounds);
   };
 
-  // ── No API key fallback ───────────────────────────────────────────
-  if (!MAPS_KEY) {
-    return (
-      <div className="aspect-video rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] flex flex-col items-center justify-center gap-3 text-center p-10">
-        <MapPin size={32} className="text-gold-500 opacity-40" />
-        <p className="text-sm font-black text-[var(--text-primary)]">API-nyckel saknas</p>
-        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-widest font-bold">
-          Lägg till NEXT_PUBLIC_GOOGLE_MAPS_KEY i apps/admin/.env.local
-        </p>
-      </div>
-    );
-  }
-
+  // ── Load error fallback ───────────────────────────────────────────────────
   if (loadError) {
     return (
-      <div className="aspect-video rounded-2xl border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center gap-3 text-center p-10">
+      <div className="rounded-2xl border border-red-500/20 bg-red-500/5 flex flex-col items-center justify-center gap-4 text-center p-10" style={{ height: 500 }}>
         <MapPin size={32} className="text-red-400 opacity-60" />
-        <p className="text-sm font-black text-red-400">Kunde inte ladda Google Maps</p>
-        <p className="text-[10px] text-red-400/60 font-bold">Kontrollera att API-nyckeln är giltig och att Maps JavaScript API är aktiverat</p>
+        <div className="space-y-2">
+          <p className="text-sm font-black text-red-400">Kunde inte ladda Google Maps</p>
+          <p className="text-[10px] text-red-400/60 font-bold leading-relaxed">
+            {!MAPS_KEY
+              ? "API-nyckel saknas – lägg till NEXT_PUBLIC_GOOGLE_MAPS_KEY i apps/admin/.env.local och starta om servern."
+              : "Kontrollera att Maps JavaScript API är aktiverat i Google Cloud Console, och att nyckeln saknar restriktioner som blockerar admin-domänen."}
+          </p>
+          {!MAPS_KEY && (
+            <code className="block mt-3 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[9px] font-mono text-red-400">
+              NEXT_PUBLIC_GOOGLE_MAPS_KEY=din_nyckel_här
+            </code>
+          )}
+        </div>
       </div>
     );
   }

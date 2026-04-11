@@ -1,7 +1,11 @@
 /**
  * AddressModal — React Native (Expo)
- * Mirrors the web app AddressModal design: dark card, gold accents,
- * DELIVERY / HÄMTNING toggle, Google Places autocomplete via session tokens.
+ *
+ * Centered overlay (not a bottom sheet).
+ * DELIVERY mode → Swedish address autocomplete via backend proxy.
+ * PICKUP mode   → City dropdown fetched from /api/cities.
+ *
+ * Design mirrors the web app: dark card, gold accents, rounded corners.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -16,22 +20,27 @@ import {
   Animated,
   Easing,
   Platform,
-  KeyboardAvoidingView,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { API_URL } from "../lib/api";
 
-const MAPS_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY || "";
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "";
-
-// Use session tokens for billing grouping (one autocomplete session = 1 billable event)
-const generateSessionToken = () =>
-  Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+// Session token for Google billing grouping
+const makeToken = () =>
+  Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
 
 export type OrderType = "DELIVERY" | "PICKUP";
 
-interface PlacePrediction {
+interface Prediction {
   description: string;
   place_id: string;
+}
+
+interface CityOption {
+  id: string;
+  name: string;
+  slug: string;
+  deliveryMode: string;
 }
 
 interface AddressModalProps {
@@ -39,6 +48,7 @@ interface AddressModalProps {
   initialValue?: string;
   initialOrderType?: OrderType;
   onClose: () => void;
+  /** Called when the user confirms. orderType is always the current toggle state. */
   onSelect: (
     address: string,
     orderType: OrderType,
@@ -46,24 +56,28 @@ interface AddressModalProps {
   ) => void;
 }
 
-const COLORS = {
-  bg: "#0d0c14",
-  card: "#12101c",
-  surface: "#1a1729",
-  border: "#2a2438",
-  borderActive: "#d4a017",
-  gold: "#d4a017",
-  goldLight: "#e7b24b",
-  text: "#f5f3ef",
-  textMuted: "#6b6480",
-  textDim: "#9891a8",
-  emerald: "#10b981",
-  emeraldBg: "#10b98115",
-  red: "#ef4444",
-  redBg: "#ef444415",
-  overlay: "rgba(0,0,0,0.88)",
+// ── Colours ──────────────────────────────────────────────────────────────────
+const C = {
+  bg:        "#0d0c14",
+  card:      "#13111e",
+  surface:   "#1c1929",
+  border:    "#2b2440",
+  gold:      "#d4a017",
+  goldDim:   "#d4a01740",
+  text:      "#f5f3ef",
+  muted:     "#6b6080",
+  dim:       "#9891a8",
+  green:     "#10b981",
+  greenBg:   "#10b98118",
+  red:       "#ef4444",
+  redBg:     "#ef444418",
+  overlay:   "rgba(8,7,16,0.92)",
 };
 
+const { width: SW } = Dimensions.get("window");
+const CARD_W = Math.min(SW - 40, 440);
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function AddressModal({
   visible,
   initialValue = "",
@@ -72,532 +86,500 @@ export default function AddressModal({
   onSelect,
 }: AddressModalProps) {
   const [orderType, setOrderType] = useState<OrderType>(initialOrderType);
-  const [input, setInput] = useState(initialValue);
-  const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sessionToken = useRef(generateSessionToken());
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(60)).current;
+  // Delivery state
+  const [input, setInput]               = useState(initialValue);
+  const [predictions, setPredictions]   = useState<Prediction[]>([]);
+  const [loadingPred, setLoadingPred]   = useState(false);
+  const [confirmedAddress, setConfirmedAddress] = useState<string | null>(null);
+  const [confirmedCoords, setConfirmedCoords]   = useState<{ lat: number; lng: number } | null>(null);
+  const [error, setError]               = useState<string | null>(null);
 
+  // Pickup state
+  const [cities, setCities]     = useState<CityOption[]>([]);
+  const [loadingCities, setLoadingCities] = useState(false);
+  const [selectedCity, setSelectedCity]   = useState<CityOption | null>(null);
+
+  const debounceRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sessionToken  = useRef(makeToken());
+  const fadeAnim      = useRef(new Animated.Value(0)).current;
+  const scaleAnim     = useRef(new Animated.Value(0.92)).current;
+
+  // ── Open / close animations ─────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
+      // Reset state
       setInput(initialValue);
       setOrderType(initialOrderType);
       setPredictions([]);
       setError(null);
-      setSelectedCoords(null);
-      setSelectedAddress(null);
-      sessionToken.current = generateSessionToken();
+      setConfirmedAddress(null);
+      setConfirmedCoords(null);
+      setSelectedCity(null);
+      sessionToken.current = makeToken();
 
       Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 220,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 250,
-          easing: Easing.out(Easing.back(1.1)),
-          useNativeDriver: true,
-        }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, damping: 18, stiffness: 280 }),
       ]).start();
+
+      // Pre-fetch cities for pickup mode
+      fetchCities();
     } else {
-      fadeAnim.setValue(0);
-      slideAnim.setValue(60);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.92, duration: 150, useNativeDriver: true }),
+      ]).start();
     }
   }, [visible]);
 
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+  useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
 
-  const fetchPredictions = useCallback(async (text: string) => {
-    if (text.length < 3) {
-      setPredictions([]);
-      return;
-    }
-    setLoading(true);
+  // ── Fetch cities ─────────────────────────────────────────────────────────────
+  const fetchCities = async () => {
+    if (cities.length > 0) return; // already fetched
+    setLoadingCities(true);
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&components=country:se&language=sv&sessiontoken=${sessionToken.current}&key=${MAPS_KEY}`
-      );
-      const data = await response.json();
+      const res = await fetch(`${API_URL}/api/cities`);
+      const data = await res.json();
+      const list: CityOption[] = (Array.isArray(data) ? data : [])
+        .filter((c: any) => c.isActive && c.deliveryMode !== "ONLY_DELIVERY")
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          deliveryMode: c.deliveryMode,
+        }));
+      setCities(list);
+    } catch {
+      // Ignore — show empty state
+    } finally {
+      setLoadingCities(false);
+    }
+  };
+
+  // ── Address autocomplete (via backend proxy) ─────────────────────────────────
+  const fetchPredictions = useCallback(async (text: string) => {
+    if (text.length < 3) { setPredictions([]); return; }
+    setLoadingPred(true);
+    try {
+      const res = await fetch(`${API_URL}/api/places/autocomplete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: text, sessiontoken: sessionToken.current }),
+      });
+      const data = await res.json();
       setPredictions(data.predictions || []);
     } catch {
       setPredictions([]);
     } finally {
-      setLoading(false);
+      setLoadingPred(false);
     }
   }, []);
 
-  const handleChange = (text: string) => {
+  const handleInputChange = (text: string) => {
     setInput(text);
-    setSelectedAddress(null);
-    setSelectedCoords(null);
+    setConfirmedAddress(null);
+    setConfirmedCoords(null);
     setError(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPredictions(text), 320);
   };
 
-  const handleSelect = async (prediction: PlacePrediction) => {
+  // ── Geocode selection ─────────────────────────────────────────────────────────
+  const handleSelectPrediction = async (pred: Prediction) => {
     setPredictions([]);
-    setInput(prediction.description);
-    setLoading(true);
+    setInput(pred.description);
+    setLoadingPred(true);
     setError(null);
     try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry&sessiontoken=${sessionToken.current}&key=${MAPS_KEY}`
-      );
-      const data = await response.json();
-      const loc = data.result?.geometry?.location;
-      if (loc) {
-        setSelectedCoords({ lat: loc.lat, lng: loc.lng });
-        setSelectedAddress(prediction.description);
-        // Rotate token after completing a selection
-        sessionToken.current = generateSessionToken();
+      const res = await fetch(`${API_URL}/api/places/geocode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ place_id: pred.place_id, sessiontoken: sessionToken.current }),
+      });
+      const data = await res.json();
+      if (data.location) {
+        setConfirmedCoords(data.location);
+        setConfirmedAddress(pred.description);
+        sessionToken.current = makeToken(); // rotate token
       } else {
-        setError("Kunde inte hämta koordinater för adressen.");
+        setError("Kunde inte hämta koordinater. Försök igen.");
       }
     } catch {
-      setError("Något gick fel. Försök igen.");
+      setError("Nätverksfel. Kontrollera uppkopplingen.");
     } finally {
-      setLoading(false);
+      setLoadingPred(false);
     }
   };
 
+  // ── Confirm ──────────────────────────────────────────────────────────────────
   const handleConfirm = () => {
-    if (!input.trim()) {
-      setError(
-        orderType === "DELIVERY" ? "Ange din leveransadress." : "Ange din stad."
-      );
+    if (orderType === "PICKUP") {
+      if (!selectedCity) { setError("Välj en stad för avhämtning."); return; }
+      onSelect(selectedCity.name, "PICKUP");
+      onClose();
       return;
     }
-    if (orderType === "DELIVERY" && !selectedCoords) {
-      setError("Välj en adress från listan så vi kan kontrollera leveranszonen.");
-      return;
-    }
-    onSelect(selectedAddress || input.trim(), orderType, selectedCoords ?? undefined);
+    // DELIVERY
+    if (!input.trim()) { setError("Ange din leveransadress."); return; }
+    if (!confirmedCoords) { setError("Välj en adress från listan för att bekräfta koordinaterna."); return; }
+    onSelect(confirmedAddress || input.trim(), "DELIVERY", confirmedCoords);
     onClose();
   };
 
-  const streetPart = (desc: string) => desc.split(",")[0];
-  const restPart = (desc: string) =>
-    desc.split(",").slice(1).join(",").trim();
+  const street = (d: string) => d.split(",")[0];
+  const rest   = (d: string) => d.split(",").slice(1).join(",").trim();
 
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.outer}
-      >
-        {/* Backdrop */}
-        <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: fadeAnim }]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        </Animated.View>
+    <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+      {/* Backdrop */}
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: C.overlay, opacity: fadeAnim }]}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      </Animated.View>
 
-        {/* Card */}
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
+      {/* Centered card */}
+      <View style={s.outer} pointerEvents="box-none">
+        <Animated.View style={[s.card, { width: CARD_W, opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+
           {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.headerLabel}>Innan du beställer</Text>
-              <Text style={styles.headerTitle}>
-                {orderType === "DELIVERY" ? "Din leveransadress" : "Hämtplats"}
+          <View style={s.header}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.headerSub}>INNAN DU BESTÄLLER</Text>
+              <Text style={s.headerTitle}>
+                {orderType === "DELIVERY" ? "Leveransadress" : "Välj stad"}
               </Text>
             </View>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={18} color={COLORS.textMuted} />
+            <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
+              <Ionicons name="close" size={17} color={C.muted} />
             </Pressable>
           </View>
 
-          {/* Delivery / Pickup Toggle */}
-          <View style={styles.toggle}>
-            {(["DELIVERY", "PICKUP"] as OrderType[]).map((type) => (
+          {/* Toggle */}
+          <View style={s.toggle}>
+            {(["DELIVERY", "PICKUP"] as OrderType[]).map((t) => (
               <Pressable
-                key={type}
-                onPress={() => {
-                  setOrderType(type);
-                  setError(null);
-                }}
-                style={[
-                  styles.toggleBtn,
-                  orderType === type && styles.toggleBtnActive,
-                ]}
+                key={t}
+                onPress={() => { setOrderType(t); setError(null); }}
+                style={[s.toggleBtn, orderType === t && s.toggleBtnActive]}
               >
                 <Ionicons
-                  name={type === "DELIVERY" ? "bicycle" : "storefront"}
+                  name={t === "DELIVERY" ? "bicycle-outline" : "storefront-outline"}
                   size={14}
-                  color={orderType === type ? "#fff" : COLORS.textMuted}
+                  color={orderType === t ? "#fff" : C.muted}
                 />
-                <Text
-                  style={[
-                    styles.toggleText,
-                    orderType === type && styles.toggleTextActive,
-                  ]}
-                >
-                  {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
+                <Text style={[s.toggleTxt, orderType === t && s.toggleTxtActive]}>
+                  {t === "DELIVERY" ? "Leverans" : "Avhämtning"}
                 </Text>
               </Pressable>
             ))}
           </View>
 
-          {/* Address Input */}
-          <View
-            style={[
-              styles.inputWrap,
-              error ? styles.inputWrapError : selectedCoords ? styles.inputWrapSuccess : {},
-            ]}
-          >
-            <Ionicons
-              name={selectedCoords ? "checkmark-circle" : "location"}
-              size={18}
-              color={selectedCoords ? COLORS.emerald : COLORS.gold}
-            />
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={handleChange}
-              placeholder={
-                orderType === "DELIVERY"
-                  ? "Gatuadress, postnummer..."
-                  : "Stad eller område..."
-              }
-              placeholderTextColor={COLORS.textMuted}
-              autoFocus
-              returnKeyType="search"
-              onSubmitEditing={() => predictions.length === 0 && handleConfirm()}
-            />
-            {loading ? (
-              <ActivityIndicator size="small" color={COLORS.gold} />
-            ) : input.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  setInput("");
-                  setPredictions([]);
-                  setSelectedCoords(null);
-                  setSelectedAddress(null);
-                }}
-              >
-                <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
+          {/* ── DELIVERY: address input ── */}
+          {orderType === "DELIVERY" && (
+            <>
+              <View style={[
+                s.inputRow,
+                error ? s.inputRowErr : confirmedCoords ? s.inputRowOk : {},
+              ]}>
+                <Ionicons
+                  name={confirmedCoords ? "checkmark-circle" : "location"}
+                  size={18}
+                  color={confirmedCoords ? C.green : C.gold}
+                />
+                <TextInput
+                  style={s.textInput}
+                  value={input}
+                  onChangeText={handleInputChange}
+                  placeholder="Gatuadress, postnummer…"
+                  placeholderTextColor={C.muted}
+                  autoFocus
+                  returnKeyType="search"
+                  onSubmitEditing={() => predictions.length === 0 && handleConfirm()}
+                />
+                {loadingPred
+                  ? <ActivityIndicator size="small" color={C.gold} />
+                  : input.length > 0 && (
+                    <Pressable onPress={() => { setInput(""); setPredictions([]); setConfirmedCoords(null); }} hitSlop={8}>
+                      <Ionicons name="close-circle" size={17} color={C.muted} />
+                    </Pressable>
+                  )
+                }
+              </View>
+
+              {confirmedCoords && !error && (
+                <View style={s.badge}>
+                  <Ionicons name="checkmark-circle" size={13} color={C.green} />
+                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress bekräftad – kontrollerar leveranszon…</Text>
+                </View>
+              )}
+
+              {predictions.length > 0 && (
+                <ScrollView style={s.predList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                  {predictions.map((p, idx) => (
+                    <Pressable
+                      key={p.place_id}
+                      style={({ pressed }) => [
+                        s.predItem,
+                        idx < predictions.length - 1 && s.predItemBorder,
+                        pressed && s.predItemPress,
+                      ]}
+                      onPress={() => handleSelectPrediction(p)}
+                    >
+                      <View style={s.predIcon}>
+                        <Ionicons name="location" size={13} color={C.gold} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.predStreet} numberOfLines={1}>{street(p.description)}</Text>
+                        <Text style={s.predRest}   numberOfLines={1}>{rest(p.description)}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+            </>
+          )}
+
+          {/* ── PICKUP: city dropdown ── */}
+          {orderType === "PICKUP" && (
+            <>
+              {loadingCities ? (
+                <View style={s.cityLoading}>
+                  <ActivityIndicator size="small" color={C.gold} />
+                  <Text style={s.cityLoadingTxt}>Hämtar städer…</Text>
+                </View>
+              ) : cities.length === 0 ? (
+                <View style={s.cityEmpty}>
+                  <Text style={s.cityEmptyTxt}>Inga städer med avhämtning tillgängliga</Text>
+                </View>
+              ) : (
+                <ScrollView style={s.cityList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  {cities.map((city, idx) => (
+                    <Pressable
+                      key={city.id}
+                      onPress={() => { setSelectedCity(city); setError(null); }}
+                      style={({ pressed }) => [
+                        s.cityItem,
+                        idx < cities.length - 1 && s.cityItemBorder,
+                        selectedCity?.id === city.id && s.cityItemSelected,
+                        pressed && s.cityItemPress,
+                      ]}
+                    >
+                      <View style={[
+                        s.cityRadio,
+                        selectedCity?.id === city.id && s.cityRadioActive,
+                      ]}>
+                        {selectedCity?.id === city.id && (
+                          <View style={s.cityRadioDot} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[s.cityName, selectedCity?.id === city.id && { color: C.gold }]}>
+                          {city.name}
+                        </Text>
+                        <Text style={s.cityMode}>
+                          {city.deliveryMode === "ALL" ? "Leverans & avhämtning" : "Endast avhämtning"}
+                        </Text>
+                      </View>
+                      <Ionicons
+                        name="storefront-outline"
+                        size={16}
+                        color={selectedCity?.id === city.id ? C.gold : C.muted}
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              )}
+              {selectedCity && (
+                <View style={s.badge}>
+                  <Ionicons name="checkmark-circle" size={13} color={C.green} />
+                  <Text style={[s.badgeTxt, { color: C.green }]}>{selectedCity.name} vald som hämtplats</Text>
+                </View>
+              )}
+            </>
+          )}
 
           {/* Error */}
           {error && (
-            <View style={styles.errorBox}>
-              <Ionicons name="alert-circle" size={14} color={COLORS.red} />
-              <Text style={styles.errorText}>{error}</Text>
+            <View style={s.errorBox}>
+              <Ionicons name="alert-circle" size={13} color={C.red} />
+              <Text style={s.errorTxt}>{error}</Text>
             </View>
           )}
 
-          {/* Address confirmed badge */}
-          {selectedCoords && !error && (
-            <View style={styles.successBox}>
-              <Ionicons name="checkmark-circle" size={14} color={COLORS.emerald} />
-              <Text style={styles.successText}>
-                Adress bekräftad — kontrollerar leveranszon...
-              </Text>
-            </View>
-          )}
-
-          {/* Predictions */}
-          {predictions.length > 0 && (
-            <ScrollView
-              style={styles.predictions}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {predictions.map((pred, idx) => (
-                <Pressable
-                  key={pred.place_id}
-                  style={({ pressed }) => [
-                    styles.predItem,
-                    idx < predictions.length - 1 && styles.predItemBorder,
-                    pressed && styles.predItemPressed,
-                  ]}
-                  onPress={() => handleSelect(pred)}
-                >
-                  <View style={styles.predIcon}>
-                    <Ionicons name="location" size={14} color={COLORS.gold} />
-                  </View>
-                  <View style={styles.predText}>
-                    <Text style={styles.predStreet} numberOfLines={1}>
-                      {streetPart(pred.description)}
-                    </Text>
-                    <Text style={styles.predRest} numberOfLines={1}>
-                      {restPart(pred.description)}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
-
-          {/* Hint text */}
-          <Text style={styles.hint}>
-            Vi visar restauranger som levererar till din adress. Zonerna uppdateras löpande.
+          {/* Hint */}
+          <Text style={s.hint}>
+            {orderType === "DELIVERY"
+              ? "Vi visar restauranger som kan leverera till din adress."
+              : "Välj den stad du vill hämta mat i."}
           </Text>
 
-          {/* Confirm button */}
+          {/* Confirm */}
           <Pressable
-            style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.88 }]}
+            style={({ pressed }) => [s.confirmBtn, pressed && { opacity: 0.85 }]}
             onPress={handleConfirm}
           >
-            <Text style={styles.confirmText}>
+            <Text style={s.confirmTxt}>
               {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
             </Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
+            <Ionicons name="arrow-forward" size={19} color="#fff" />
           </Pressable>
+
         </Animated.View>
-      </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
-const styles = StyleSheet.create({
+// ── Styles ────────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  // Centered layout
   outer: {
     flex: 1,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    backgroundColor: COLORS.overlay,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
   },
   card: {
-    backgroundColor: COLORS.card,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    backgroundColor: C.card,
+    borderRadius: 28,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderBottomWidth: 0,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: Platform.OS === "ios" ? 40 : 28,
+    borderColor: C.border,
+    padding: 22,
     gap: 14,
-    // Subtle shadow upward
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    elevation: 24,
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.55,
+    shadowRadius: 40,
+    elevation: 30,
+    maxHeight: "90%",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 2,
-  },
-  headerLabel: {
-    fontSize: 9,
-    fontWeight: "900",
-    letterSpacing: 3,
-    textTransform: "uppercase",
-    color: COLORS.gold,
-    marginBottom: 3,
+
+  // Header
+  header: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
+  headerSub: {
+    fontSize: 8, fontWeight: "900", letterSpacing: 2.5,
+    color: C.gold, textTransform: "uppercase", marginBottom: 3,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    letterSpacing: -0.5,
-    color: COLORS.text,
-    textTransform: "uppercase",
+    fontSize: 20, fontWeight: "900", letterSpacing: -0.4,
+    color: C.text, textTransform: "uppercase",
   },
   closeBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: C.surface, borderWidth: 1, borderColor: C.border,
+    alignItems: "center", justifyContent: "center",
   },
+
+  // Toggle
   toggle: {
-    flexDirection: "row",
-    gap: 8,
-    padding: 5,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: "row", gap: 6, padding: 4,
+    backgroundColor: C.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: C.border,
   },
   toggleBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    paddingVertical: 10,
-    borderRadius: 11,
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, paddingVertical: 9, borderRadius: 10,
   },
   toggleBtnActive: {
-    backgroundColor: COLORS.gold,
-    shadowColor: COLORS.gold,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: C.gold,
+    shadowColor: C.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
   },
-  toggleText: {
-    fontSize: 11,
-    fontWeight: "900",
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    color: COLORS.textMuted,
+  toggleTxt: { fontSize: 11, fontWeight: "900", letterSpacing: 0.8, color: C.muted, textTransform: "uppercase" },
+  toggleTxtActive: { color: "#fff" },
+
+  // Delivery input
+  inputRow: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: C.surface, borderRadius: 16,
+    paddingHorizontal: 14, paddingVertical: 13,
+    borderWidth: 1.5, borderColor: C.border,
   },
-  toggleTextActive: {
-    color: "#fff",
+  inputRowErr: { borderColor: "#ef444460" },
+  inputRowOk:  { borderColor: "#10b98150" },
+  textInput: {
+    flex: 1, color: C.text, fontSize: 14,
+    fontWeight: "700", padding: 0, margin: 0,
   },
-  inputWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
+
+  // Badge (confirmed / selected)
+  badge: {
+    flexDirection: "row", alignItems: "center", gap: 7,
+    padding: 10, borderRadius: 12,
+    backgroundColor: C.greenBg, borderWidth: 1, borderColor: "#10b98130",
   },
-  inputWrapError: {
-    borderColor: COLORS.red + "80",
-  },
-  inputWrapSuccess: {
-    borderColor: COLORS.emerald + "60",
-  },
-  input: {
-    flex: 1,
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: "700",
-    padding: 0,
-    margin: 0,
-  },
-  errorBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    padding: 12,
-    backgroundColor: COLORS.redBg,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.red + "30",
-  },
-  errorText: {
-    flex: 1,
-    color: COLORS.red,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  successBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    padding: 10,
-    backgroundColor: COLORS.emeraldBg,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.emerald + "30",
-  },
-  successText: {
-    flex: 1,
-    color: COLORS.emerald,
-    fontSize: 11,
-    fontWeight: "700",
-  },
-  predictions: {
-    maxHeight: 280,
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: "hidden",
+  badgeTxt: { flex: 1, fontSize: 11, fontWeight: "700" },
+
+  // Predictions list
+  predList: {
+    maxHeight: 220, backgroundColor: C.surface,
+    borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden",
   },
   predItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
   },
-  predItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  predItemPressed: {
-    backgroundColor: COLORS.border,
-  },
+  predItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
+  predItemPress: { backgroundColor: "#ffffff0a" },
   predIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: COLORS.gold + "20",
-    alignItems: "center",
-    justifyContent: "center",
+    width: 26, height: 26, borderRadius: 7,
+    backgroundColor: C.goldDim, alignItems: "center", justifyContent: "center",
   },
-  predText: {
-    flex: 1,
+  predStreet: { color: C.text, fontSize: 13, fontWeight: "800", marginBottom: 1 },
+  predRest:   { color: C.dim,  fontSize: 11, fontWeight: "600" },
+
+  // City dropdown
+  cityList: {
+    maxHeight: 240, backgroundColor: C.surface,
+    borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden",
   },
-  predStreet: {
-    color: COLORS.text,
-    fontSize: 13,
-    fontWeight: "800",
-    marginBottom: 2,
+  cityItem: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    paddingHorizontal: 14, paddingVertical: 14,
   },
-  predRest: {
-    color: COLORS.textDim,
-    fontSize: 11,
-    fontWeight: "600",
+  cityItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
+  cityItemSelected: { backgroundColor: "#d4a01710" },
+  cityItemPress: { backgroundColor: "#ffffff08" },
+  cityRadio: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 2, borderColor: C.muted,
+    alignItems: "center", justifyContent: "center",
   },
+  cityRadioActive: { borderColor: C.gold },
+  cityRadioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.gold },
+  cityName: { color: C.text, fontSize: 14, fontWeight: "800" },
+  cityMode: { color: C.dim, fontSize: 10, fontWeight: "600", marginTop: 1 },
+  cityLoading: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 20,
+  },
+  cityLoadingTxt: { color: C.muted, fontSize: 12, fontWeight: "700" },
+  cityEmpty: { paddingVertical: 18, alignItems: "center" },
+  cityEmptyTxt: { color: C.muted, fontSize: 12, fontWeight: "700" },
+
+  // Error
+  errorBox: {
+    flexDirection: "row", alignItems: "flex-start", gap: 7,
+    padding: 11, borderRadius: 12,
+    backgroundColor: C.redBg, borderWidth: 1, borderColor: "#ef444430",
+  },
+  errorTxt: { flex: 1, color: C.red, fontSize: 12, fontWeight: "700" },
+
+  // Hint
   hint: {
-    color: COLORS.textMuted,
-    fontSize: 10,
-    fontWeight: "700",
-    lineHeight: 15,
-    textAlign: "center",
+    color: C.muted, fontSize: 10, fontWeight: "600",
+    textAlign: "center", lineHeight: 14,
   },
+
+  // Confirm button
   confirmBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingVertical: 18,
-    backgroundColor: COLORS.gold,
-    borderRadius: 22,
-    shadowColor: COLORS.gold,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 22, paddingVertical: 16,
+    backgroundColor: C.gold, borderRadius: 20,
+    shadowColor: C.gold, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 8,
   },
-  confirmText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "900",
-    letterSpacing: 2,
-    textTransform: "uppercase",
+  confirmTxt: {
+    color: "#fff", fontSize: 13, fontWeight: "900",
+    letterSpacing: 1.8, textTransform: "uppercase",
   },
 });

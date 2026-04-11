@@ -11,6 +11,7 @@ import { ConfirmModal } from "@/components/Modal";
 import dynamic from "next/dynamic";
 const CityMapPicker = dynamic(() => import("@/components/CityMapPicker"), { ssr: false });
 const MapsUsageWidget = dynamic(() => import("@/components/MapsUsageWidget"), { ssr: false });
+const ZoneTestTool = dynamic(() => import("@/components/ZoneTestTool"), { ssr: false });
 
 interface DeliveryZone {
   id: string;
@@ -549,6 +550,9 @@ const CitiesPage = () => {
                      }}
                   />
                </div>
+
+               {/* Zone Test Tool */}
+               <ZoneTestTool />
 
                {/* Linked Restaurants */}
                <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-10 space-y-10">
