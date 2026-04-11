@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkGeocodeLimit } from "@/lib/mapsRateLimit";
 
-const API_URL = process.env.API_URL || "http://localhost:4000";
+const MAPS_KEY = process.env.GOOGLE_MAPS_KEY || "";
+const API_URL  = process.env.API_URL || "http://localhost:4000";
 
 function reportUsage(ip: string) {
   fetch(`${API_URL}/api/maps-stats/log`, {
@@ -11,18 +12,16 @@ function reportUsage(ip: string) {
   }).catch(() => {});
 }
 
-const MAPS_KEY = process.env.GOOGLE_MAPS_KEY || "";
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const place_id = searchParams.get("place_id") || "";
+  const place_id    = searchParams.get("place_id") || "";
   const sessiontoken = searchParams.get("sessiontoken") || "";
 
   if (!place_id) {
     return NextResponse.json({ error: "Missing place_id" }, { status: 400 });
   }
 
-  // ── Rate limiting ────────────────────────────────────────────────
+  // ── Rate limiting ─────────────────────────────────────────────────────────
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
     req.headers.get("x-real-ip") ||
@@ -31,41 +30,46 @@ export async function GET(req: NextRequest) {
   const limit = checkGeocodeLimit(ip);
   if (!limit.allowed) {
     return NextResponse.json(
-      {
-        error: "För många förfrågningar. Vänta lite och försök igen.",
-        retryAfter: Math.ceil((limit.resetAt - Date.now()) / 1000),
-      },
-      {
-        status: 429,
-        headers: {
-          "Retry-After": String(Math.ceil((limit.resetAt - Date.now()) / 1000)),
-        },
-      }
+      { error: "För många förfrågningar. Vänta lite och försök igen." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((limit.resetAt - Date.now()) / 1000)) } }
     );
   }
 
-  if (!MAPS_KEY) {
-    return NextResponse.json({ error: "Maps API not configured" }, { status: 500 });
+  // ── Strategy 1: direct Google Places Details ──────────────────────────────
+  if (MAPS_KEY) {
+    try {
+      const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
+      url.searchParams.set("place_id", place_id);
+      url.searchParams.set("fields", "geometry");
+      url.searchParams.set("sessiontoken", sessiontoken);
+      url.searchParams.set("key", MAPS_KEY);
+
+      const res  = await fetch(url.toString(), { next: { revalidate: 0 } });
+      const data = await res.json() as any;
+
+      const loc = data.result?.geometry?.location;
+      if (loc) {
+        reportUsage(ip);
+        return NextResponse.json({ location: { lat: loc.lat, lng: loc.lng } });
+      }
+      // Fall through if no location
+    } catch { /* fall through */ }
   }
 
+  // ── Strategy 2: proxy to backend ─────────────────────────────────────────
   try {
-    const url = new URL("https://maps.googleapis.com/maps/api/place/details/json");
-    url.searchParams.set("place_id", place_id);
-    url.searchParams.set("fields", "geometry"); // Only geometry = lowest cost tier
-    url.searchParams.set("sessiontoken", sessiontoken); // Ends session → 1 billing event
-    url.searchParams.set("key", MAPS_KEY);
-
-    const res = await fetch(url.toString(), { next: { revalidate: 0 } });
-    const data = await res.json();
-
-    const loc = data.result?.geometry?.location;
-    if (!loc) throw new Error("No location in response");
-
-    // Report usage to backend (fire-and-forget)
-    reportUsage(ip);
-
-    return NextResponse.json({ location: { lat: loc.lat, lng: loc.lng } });
+    const res = await fetch(`${API_URL}/api/places/geocode`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ place_id, sessiontoken }),
+    });
+    const data = await res.json() as any;
+    if (data.location) {
+      reportUsage(ip);
+      return NextResponse.json({ location: data.location });
+    }
+    throw new Error("No location");
   } catch {
-    return NextResponse.json({ error: "Geocode failed" }, { status: 500 });
+    return NextResponse.json({ error: "Geocode misslyckades" }, { status: 500 });
   }
 }

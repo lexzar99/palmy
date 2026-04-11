@@ -61,7 +61,11 @@ router.get('/check', async (req: Request, res: Response) => {
       });
     }
 
-    const matchedZone = findDeliveryZone(distanceKm, zones);
+    // Use restaurant location as fallback center for legacy zones (no own centerLat/centerLng)
+    const matchedZone = findDeliveryZone(
+      Number(lat), Number(lng), zones,
+      { lat: restaurant.latitude!, lng: restaurant.longitude! }
+    );
 
     if (!matchedZone) {
       return res.json({

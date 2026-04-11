@@ -176,7 +176,7 @@ router.post('/', async (req: Request, res: Response) => {
         const zones = normalizeDeliveryZones(zonesRaw);
         
         if (zones.length > 0) {
-          const matchedZone = findDeliveryZone(dist, zones);
+          const matchedZone = findDeliveryZone(data.lat, data.lng, zones, { lat: restaurant.latitude!, lng: restaurant.longitude! });
           if (!matchedZone) {
             res.status(400).json({ error: 'Tyvärr levererar vi inte till din adress (utanför täckningsområde).' });
             return;
