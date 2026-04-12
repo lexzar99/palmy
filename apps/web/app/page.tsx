@@ -248,7 +248,13 @@ export default function HomePage() {
       // Deal filter — when user clicks a deal card
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
 
-      return matchCuisine && matchQuery && matchDeal;
+      // Pickup: filter by city if selected
+      let matchCity = true;
+      if (orderType === "PICKUP" && selectedCity) {
+        matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+      }
+
+      return matchCuisine && matchQuery && matchZone && matchCity && matchDeal;
     });
 
     // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
