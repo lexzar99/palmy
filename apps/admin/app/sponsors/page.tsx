@@ -21,6 +21,8 @@ interface Sponsor {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
+  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
+  linkTarget?: string;
   sortOrder: number;
   createdAt: string;
 }
@@ -33,6 +35,8 @@ const emptyForm = (): Omit<Sponsor, "id" | "sortOrder" | "createdAt"> => ({
   infoText: "",
   ctaText: "Läs mer",
   ctaLink: "",
+  linkType: "EXTERNAL",
+  linkTarget: "",
 });
 
 export default function SponsorsPage() {
@@ -42,35 +46,50 @@ export default function SponsorsPage() {
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm());
+  const [editId, setEditId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Sponsor | null>(null);
+  const [deals, setDeals] = useState<any[]>([]);
+  const [restaurants, setRestaurants] = useState<any[]>([]);
 
   const token = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
   const headers = () => ({ Authorization: `Bearer ${token()}` });
 
-  const fetchSponsors = useCallback(async () => {
-    setLoading(true);
+  const fetchContext = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/api/sponsors/all`, { headers: headers() });
-      setSponsors(res.data || []);
-    } catch { toastErr("Kunde inte hämta sponsorer"); }
+      const [sRes, dRes, rRes] = await Promise.all([
+        axios.get(`${API_URL}/api/sponsors/all`, { headers: headers() }),
+        axios.get(`${API_URL}/api/deals`, { headers: headers() }),
+        axios.get(`${API_URL}/api/restaurants`, { headers: headers() }),
+      ]);
+      setSponsors(sRes.data || []);
+      setDeals(dRes.data || []);
+      setRestaurants(rRes.data || []);
+    } catch { toastErr("Kunde inte hämta data"); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { fetchSponsors(); }, [fetchSponsors]);
+  useEffect(() => { fetchContext(); }, [fetchContext]);
 
-  const handleCreate = async () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.imageUrl.trim()) {
       toastErr("Namn och bild-URL krävs");
       return;
     }
     setSaving(true);
     try {
-      const res = await axios.post(`${API_URL}/api/sponsors`, form, { headers: headers() });
-      setSponsors(prev => [...prev, res.data]);
+      if (editId) {
+        const res = await axios.patch(`${API_URL}/api/sponsors/${editId}`, form, { headers: headers() });
+        setSponsors(prev => prev.map(s => s.id === editId ? res.data : s));
+        success("Sponsor uppdaterad!");
+      } else {
+        const res = await axios.post(`${API_URL}/api/sponsors`, form, { headers: headers() });
+        setSponsors(prev => [...prev, res.data]);
+        success("Sponsor tillagd!");
+      }
       setForm(emptyForm());
+      setEditId(null);
       setShowForm(false);
-      success("Sponsor tillagd!");
     } catch { toastErr("Kunde inte spara sponsor"); }
     finally { setSaving(false); }
   };
@@ -129,7 +148,7 @@ export default function SponsorsPage() {
             Annonsbilder i horisontell scroll · Webb & React-appen
           </p>
         </div>
-        <button onClick={() => { setShowForm(true); setForm(emptyForm()); }}
+        <button onClick={() => { setShowForm(true); setForm(emptyForm()); setEditId(null); }}
           className="flex items-center gap-2 px-5 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-gold-500/20 transition-all">
           <Plus size={15} /> Ny Sponsor
         </button>
@@ -151,8 +170,8 @@ export default function SponsorsPage() {
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
             className="bg-[var(--border-subtle)] border border-gold-500/20 rounded-[2.5rem] p-8 space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black uppercase tracking-tight">Ny Sponsor</h2>
-              <button onClick={() => setShowForm(false)} className="p-2 rounded-xl hover:bg-white/10 transition-all text-[var(--text-secondary)]">
+              <h2 className="text-lg font-black uppercase tracking-tight">{editId ? 'Redigera Sponsor' : 'Ny Sponsor'}</h2>
+              <button onClick={() => { setShowForm(false); setEditId(null); }} className="p-2 rounded-xl hover:bg-white/10 transition-all text-[var(--text-secondary)]">
                 <X size={16} />
               </button>
             </div>
@@ -195,37 +214,72 @@ export default function SponsorsPage() {
 
             {/* Clickable info fields */}
             {form.isClickable && (
-              <div className="grid md:grid-cols-3 gap-4 p-5 bg-violet-500/5 border border-violet-500/20 rounded-2xl">
-                <div>
-                  <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Informationstext</label>
-                  <textarea value={form.infoText} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
-                    rows={3} placeholder="Beskrivning som visas på baksidan..."
-                    className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-violet-500/40 resize-none transition-all" />
+              <div className="space-y-6 p-6 bg-violet-500/5 border border-violet-500/20 rounded-[2rem]">
+                <div className="grid md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Informationstext (Baksida)</label>
+                    <textarea value={form.infoText} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
+                      rows={3} placeholder="Beskrivning som visas på baksidan..."
+                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 resize-none transition-all" />
+                  </div>
+                  <div>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Knapptext</label>
+                    <input value={form.ctaText} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
+                      placeholder="t.ex. Utforska nu"
+                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all" />
+                  </div>
                 </div>
-                <div>
-                  <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">CTA Knapptext</label>
-                  <input value={form.ctaText} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
-                    placeholder="t.ex. Hämta erbjudande"
-                    className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-violet-500/40 transition-all" />
-                </div>
-                <div>
-                  <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">CTA Länk (URL)</label>
-                  <input value={form.ctaLink} onChange={e => setForm(p => ({ ...p, ctaLink: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-3 py-2.5 text-xs font-bold outline-none focus:border-violet-500/40 transition-all font-mono" />
+
+                <div className="grid md:grid-cols-3 gap-5">
+                  <div>
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Länktyp</label>
+                    <select value={form.linkType} onChange={e => setForm(p => ({ ...p, linkType: e.target.value as any, linkTarget: "" }))}
+                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
+                      <option value="EXTERNAL">Extern URL</option>
+                      <option value="DEAL">Erbjudande (Internt)</option>
+                      <option value="RESTAURANT">Restaurang (Internt)</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
+                      {form.linkType === 'EXTERNAL' ? 'Mål-URL (https://...)' : form.linkType === 'DEAL' ? 'Välj Erbjudande' : 'Välj Restaurang'}
+                    </label>
+                    {form.linkType === 'EXTERNAL' ? (
+                      <input value={form.linkTarget || form.ctaLink} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value, ctaLink: e.target.value }))}
+                        placeholder="https://..."
+                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all font-mono" />
+                    ) : form.linkType === 'DEAL' ? (
+                      <select value={form.linkTarget} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
+                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
+                        <option value="">Välj ett erbjudande...</option>
+                        {deals.map(d => (
+                          <option key={d.id} value={d.id}>{d.title} ({d.restaurantName || 'Global'})</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select value={form.linkTarget} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
+                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
+                        <option value="">Välj en restaurang...</option>
+                        {restaurants.map(r => (
+                          <option key={r.id} value={r.slug}>{r.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
 
             <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowForm(false)}
+              <button onClick={() => { setShowForm(false); setEditId(null); }}
                 className="px-6 py-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">
                 Avbryt
               </button>
-              <button onClick={handleCreate} disabled={saving}
+              <button onClick={handleSave} disabled={saving}
                 className="flex items-center gap-2 px-8 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all shadow-xl shadow-gold-500/20">
                 {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                Spara sponsor
+                {editId ? 'Uppdatera sponsor' : 'Spara sponsor'}
               </button>
             </div>
           </motion.div>
@@ -269,11 +323,13 @@ export default function SponsorsPage() {
                   {s.isClickable && s.infoText && (
                     <p className="text-[10px] text-[var(--text-secondary)] font-bold truncate max-w-sm">{s.infoText}</p>
                   )}
-                  {s.ctaLink && (
-                    <a href={s.ctaLink} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-[9px] font-bold text-sky-400 hover:text-sky-300 transition-all">
-                      <ExternalLink size={10} /> {s.ctaLink}
-                    </a>
+                  {s.isClickable && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[8px] font-black uppercase text-violet-400/60">{s.linkType || 'EXTERNAL'}:</span>
+                      <p className="text-[9px] font-bold text-sky-400 truncate max-w-[200px]">
+                        {s.linkTarget || s.ctaLink || 'Ingen länk'}
+                      </p>
+                    </div>
                   )}
                 </div>
 
@@ -307,6 +363,12 @@ export default function SponsorsPage() {
                       s.isActive ? "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
                     }`}>
                     {s.isActive ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+
+                  {/* Edit */}
+                  <button onClick={() => { setForm({ ...s }); setEditId(s.id); setShowForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    className="p-2 rounded-xl bg-sky-500/5 border border-sky-500/10 text-sky-400 hover:bg-sky-500/15 transition-all">
+                    <Save size={14} className="rotate-0" />
                   </button>
 
                   {/* Delete */}

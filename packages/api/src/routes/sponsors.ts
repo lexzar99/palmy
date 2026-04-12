@@ -23,6 +23,8 @@ interface Sponsor {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
+  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
+  linkTarget?: string;
   sortOrder: number;
   createdAt: string;
 }
@@ -79,7 +81,7 @@ router.get('/all', authenticate, requireSuperAdmin, async (_req, res) => {
 // ── POST /api/sponsors — create sponsor ──────────────────────────────────────
 router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink } = req.body;
+    const { name, imageUrl, isClickable, infoText, ctaText, ctaLink, linkType, linkTarget } = req.body;
     if (!name || !imageUrl) return res.status(400).json({ error: 'name och imageUrl krävs' });
 
     const sponsors = await readSponsors();
@@ -92,6 +94,8 @@ router.post('/', authenticate, requireSuperAdmin, async (req, res) => {
       infoText: infoText || undefined,
       ctaText: ctaText || undefined,
       ctaLink: ctaLink || undefined,
+      linkType: linkType || 'EXTERNAL',
+      linkTarget: linkTarget || undefined,
       sortOrder: sponsors.length,
       createdAt: new Date().toISOString(),
     };
