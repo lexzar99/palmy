@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -80,6 +80,87 @@ export default function CartPage() {
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
+  const [addressInput, setAddressInput] = useState("");
+  const [predictions, setPredictions] = useState<any[]>([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const debounceRef = useRef<any>(null);
+  const sessionToken = useRef<string>("");
+
+  useEffect(() => {
+    sessionToken.current = crypto.randomUUID();
+  }, []);
+
+  const fetchPredictions = useCallback(async (text: string) => {
+    if (text.length < 3) { setPredictions([]); return; }
+    setAddressLoading(true);
+    try {
+      const res = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(text)}&sessiontoken=${sessionToken.current}`);
+      const data = await res.json();
+      setPredictions(data.predictions || []);
+    } catch {
+      setPredictions([]);
+    } finally {
+      setAddressLoading(false);
+    }
+  }, []);
+
+  const handleAddressChange = (val: string) => {
+    setAddressInput(val);
+    setFormData(prev => ({ ...prev, deliveryStreet: val, deliveryZip: "" }));
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchPredictions(val), 350);
+  };
+
+  const checkDeliverySpecific = async (lat: number, lng: number) => {
+    if (!currentRestaurantId) return;
+    setCheckingDelivery(true);
+    try {
+      const res = await axios.get(`${API_URL}/api/delivery/check`, { params: { lat, lng, restaurantId: currentRestaurantId } });
+      setDeliveryCheck(res.data);
+      if (res.data.available) {
+        setRestaurantSettings(prev => ({ 
+          ...prev, 
+          deliveryFee: res.data.deliveryFee,
+          minOrderAmount: res.data.minOrder
+        }));
+      }
+    } catch {} finally {
+      setCheckingDelivery(false);
+    }
+  };
+
+  const handleAddressSelect = async (pred: any) => {
+    setPredictions([]);
+    setAddressInput(pred.description);
+    setAddressLoading(true);
+    
+    const zipMatch = pred.description.match(/\b\d{3}\s?\d{2}\b/);
+    const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
+    const street = pred.description.split(",")[0] || pred.description;
+
+    setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zip }));
+
+    try {
+      const res = await fetch(`/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`);
+      const data = await res.json();
+      if (data.location) {
+        const coords = { lat: data.location.lat, lng: data.location.lng };
+        localStorage.setItem("platform_coords", JSON.stringify(coords));
+        localStorage.setItem("platform_address", pred.description);
+        sessionToken.current = crypto.randomUUID();
+        checkDeliverySpecific(coords.lat, coords.lng);
+      }
+    } catch {} finally {
+      setAddressLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Keep internal string in sync with storage loading
+    if ((formData.deliveryStreet || formData.deliveryZip) && !addressInput) {
+      setAddressInput(`${formData.deliveryStreet}${formData.deliveryZip ? `, ${formData.deliveryZip}` : ''}`);
+    }
+  }, [formData.deliveryStreet, formData.deliveryZip]);
 
   const subtotal = getTotal();
   const currentRestaurantId = useCartStore((s) => s.restaurantId);
@@ -517,13 +598,31 @@ export default function CartPage() {
                                  </div>
                                </div>
                              )}
-                             <div className="space-y-2">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Gatuadress</label>
-                                <input value={formData.deliveryStreet} onChange={e => setFormData({...formData, deliveryStreet: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Gatan 1" />
-                             </div>
-                             <div className="space-y-2">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Postnummer</label>
-                                <input value={formData.deliveryZip} onChange={e => setFormData({...formData, deliveryZip: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="123 45" />
+                             <div className="space-y-2 relative z-50">
+                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Leveransadress</label>
+                                <div className="relative">
+                                  <input 
+                                    value={addressInput} 
+                                    onChange={e => handleAddressChange(e.target.value)} 
+                                    className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all pl-12" 
+                                    placeholder="Din Gatuadress, Postnummer..." 
+                                  />
+                                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
+                                  {addressLoading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-gold-500 animate-spin" size={18} />}
+                                </div>
+                                
+                                <AnimatePresence>
+                                  {predictions.length > 0 && (
+                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 bg-zinc-800 border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50">
+                                      {predictions.map(pred => (
+                                        <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 hover:bg-zinc-700/50 transition-all border-b border-white/5 last:border-none flex flex-col gap-1">
+                                          <span className="text-sm font-bold text-zinc-100">{pred.description.split(",")[0]}</span>
+                                          <span className="text-[10px] text-zinc-400">{pred.description.split(",").slice(1).join(",").trim()}</span>
+                                        </button>
+                                      ))}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                              </div>
 
                              {/* Delivery Instructions Presets */}
