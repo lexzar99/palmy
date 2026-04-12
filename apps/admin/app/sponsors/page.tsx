@@ -21,14 +21,12 @@ interface Sponsor {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
-  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
+  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT' | 'NONE';
   linkTarget?: string;
   showName?: boolean;
-  sortOrder: number;
-  createdAt: string;
 }
 
-const emptyForm = (): Omit<Sponsor, "id" | "sortOrder" | "createdAt"> => ({
+const emptyForm = (): Partial<Sponsor> => ({
   name: "",
   imageUrl: "",
   isActive: true,
@@ -51,6 +49,7 @@ export default function SponsorsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Sponsor | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [deals, setDeals] = useState<any[]>([]);
   const [restaurants, setRestaurants] = useState<any[]>([]);
 
@@ -73,19 +72,40 @@ export default function SponsorsPage() {
 
   useEffect(() => { fetchContext(); }, [fetchContext]);
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await axios.post(`${API_URL}/api/admin/upload`, formData, {
+        headers: { ...headers(), "Content-Type": "multipart/form-data" }
+      });
+      setForm(p => ({ ...p, imageUrl: res.data.url }));
+      success("Bild uppladdad!");
+    } catch { toastErr("Kunde inte ladda upp bild"); }
+    finally { setUploading(false); }
+  };
+
   const handleSave = async () => {
-    if (!form.name.trim() || !form.imageUrl.trim()) {
+    if (!form.name?.trim() || !form.imageUrl?.trim()) {
       toastErr("Namn och bild-URL krävs");
       return;
     }
     setSaving(true);
     try {
+      const data = {
+        ...form,
+        name: form.name?.trim(),
+        imageUrl: form.imageUrl?.trim(),
+      };
       if (editId) {
-        const res = await axios.patch(`${API_URL}/api/sponsors/${editId}`, form, { headers: headers() });
+        const res = await axios.patch(`${API_URL}/api/sponsors/${editId}`, data, { headers: headers() });
         setSponsors(prev => prev.map(s => s.id === editId ? res.data : s));
         success("Sponsor uppdaterad!");
       } else {
-        const res = await axios.post(`${API_URL}/api/sponsors`, form, { headers: headers() });
+        const res = await axios.post(`${API_URL}/api/sponsors`, data, { headers: headers() });
         setSponsors(prev => [...prev, res.data]);
         success("Sponsor tillagd!");
       }
@@ -178,22 +198,24 @@ export default function SponsorsPage() {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-5">
-              {/* Name */}
               <div>
-                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Namn *</label>
-                <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Namn *</label>
+                <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="t.ex. CocaCola Sverige"
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all" />
+                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono uppercase" />
               </div>
-              {/* Image URL */}
               <div>
-                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Bild-URL * (240×120 rekommenderas)</label>
-                <input value={form.imageUrl} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
-                  placeholder="https://..."
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all font-mono" />
+                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild-URL *</label>
+                <div className="flex gap-2">
+                  <input value={form.imageUrl || ""} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono" />
+                  <label className="shrink-0 flex items-center justify-center w-11 h-11 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
+                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={20} />}
+                    <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading} />
+                  </label>
+                </div>
               </div>
-            </div>
 
             {/* Image preview */}
             {form.imageUrl && (
@@ -231,16 +253,16 @@ export default function SponsorsPage() {
               <div className="space-y-6 p-6 bg-violet-500/5 border border-violet-500/20 rounded-[2rem]">
                 <div className="grid md:grid-cols-2 gap-5">
                   <div>
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Informationstext (Baksida)</label>
-                    <textarea value={form.infoText} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
-                      rows={3} placeholder="Beskrivning som visas på baksidan..."
-                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 resize-none transition-all" />
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1">Info (Baksida)</label>
+                    <textarea value={form.infoText || ""} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
+                      rows={2} placeholder="Beskrivning..."
+                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 resize-none transition-all italic" />
                   </div>
                   <div>
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Knapptext</label>
-                    <input value={form.ctaText} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
-                      placeholder="t.ex. Utforska nu"
-                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all" />
+                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1">Knapptext</label>
+                    <input value={form.ctaText || ""} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
+                      placeholder="t.ex. Utforska"
+                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 transition-all" />
                   </div>
                 </div>
 
@@ -249,36 +271,41 @@ export default function SponsorsPage() {
                     <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Länktyp</label>
                     <select value={form.linkType} onChange={e => setForm(p => ({ ...p, linkType: e.target.value as any, linkTarget: "" }))}
                       className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                      <option value="EXTERNAL">Extern URL</option>
-                      <option value="DEAL">Erbjudande (Internt)</option>
-                      <option value="RESTAURANT">Restaurang (Internt)</option>
+                      <option value="EXTERNAL">Extern URL (Ny flik)</option>
+                      <option value="DEAL">Erbjudande (Samma flik)</option>
+                      <option value="RESTAURANT">Restaurang (Samma flik)</option>
+                      <option value="NONE">Ingen knapp (Bara info-text)</option>
                     </select>
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
-                      {form.linkType === 'EXTERNAL' ? 'Mål-URL (https://...)' : form.linkType === 'DEAL' ? 'Välj Erbjudande' : 'Välj Restaurang'}
-                    </label>
-                    {form.linkType === 'EXTERNAL' ? (
-                      <input value={form.linkTarget || form.ctaLink} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value, ctaLink: e.target.value }))}
-                        placeholder="https://..."
-                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all font-mono" />
-                    ) : form.linkType === 'DEAL' ? (
-                      <select value={form.linkTarget} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
-                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                        <option value="">Välj ett erbjudande...</option>
-                        {deals.map(d => (
-                          <option key={d.id} value={d.id}>{d.title} ({d.restaurantName || 'Global'})</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <select value={form.linkTarget} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
-                        className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                        <option value="">Välj en restaurang...</option>
-                        {restaurants.map(r => (
-                          <option key={r.id} value={r.slug}>{r.name}</option>
-                        ))}
-                      </select>
+                    {form.linkType !== 'NONE' && (
+                      <>
+                        <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
+                          {form.linkType === 'EXTERNAL' ? 'Mål-URL (https://...)' : form.linkType === 'DEAL' ? 'Välj Erbjudande' : 'Välj Restaurang'}
+                        </label>
+                        {form.linkType === 'EXTERNAL' ? (
+                          <input value={form.linkTarget || form.ctaLink || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value, ctaLink: e.target.value }))}
+                            placeholder="https://..."
+                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all font-mono" />
+                        ) : form.linkType === 'DEAL' ? (
+                          <select value={form.linkTarget || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
+                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
+                            <option value="">Välj ett erbjudande...</option>
+                            {deals.map(d => (
+                              <option key={d.id} value={d.id}>{d.title} ({d.restaurantName || 'Global'})</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <select value={form.linkTarget || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
+                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
+                            <option value="">Välj en restaurang...</option>
+                            {restaurants.map(r => (
+                              <option key={r.id} value={r.slug}>{r.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>

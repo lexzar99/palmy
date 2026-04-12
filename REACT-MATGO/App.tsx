@@ -447,42 +447,89 @@ function getOpeningHoursLines(restaurant?: Restaurant | null) {
 }
 
 // ── Sponsor tile component (used in HomeScreen) ──────────────────────────────
-function SponsorTile({ sponsor }: { sponsor: any }) {
+function SponsorTile({ 
+  sponsor, 
+  openRestaurant, 
+  pushRoute 
+}: { 
+  sponsor: any; 
+  openRestaurant: (slug: string) => void;
+  pushRoute: (route: any) => void;
+}) {
   const [flipped, setFlipped] = useState(false);
+  const showName = sponsor.showName !== false;
+  const imgUri = getImageUrl(sponsor.imageUrl);
+
+  const handleCTA = () => {
+    if (sponsor.linkType === 'NONE' || !sponsor.isClickable) return;
+    const target = sponsor.linkTarget || sponsor.ctaLink;
+    if (!target) return;
+
+    if (sponsor.linkType === 'DEAL') {
+      pushRoute({ name: 'discover-filtered', restaurantIds: [target], dealTitle: sponsor.name });
+    } else if (sponsor.linkType === 'RESTAURANT') {
+      openRestaurant(target);
+    } else {
+      Linking.openURL(target).catch(() => Alert.alert("Kunde inte öppna länk"));
+    }
+  };
+
   if (!sponsor.isClickable) {
     return (
       <View style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "#111015" }}>
-        <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+        {!!imgUri && <Image source={{ uri: imgUri }} style={{ width: 300, height: 160 }} resizeMode="cover" />}
       </View>
     );
   }
+
   return (
-    <ScalePressable onPress={() => setFlipped(f => !f)}
-      style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: flipped ? palette.gold : "rgba(255,255,255,0.06)", backgroundColor: "#121217", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
+    <View style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: flipped ? palette.gold : "rgba(255,255,255,0.06)", backgroundColor: "#121217", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
       {!flipped ? (
-        <View style={{ flex: 1 }}>
-          <Image source={{ uri: sponsor.imageUrl }} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
-          <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60, justifyContent: "flex-end", padding: 15 }}>
-            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 8, fontWeight: "900", letterSpacing: 2 }}>TRYCK FÖR INFO</Text>
-          </LinearGradient>
-        </View>
+        <ScalePressable onPress={() => setFlipped(true)} style={{ width: 300, height: 160 }}>
+          <Image source={{ uri: imgUri }} style={{ width: 300, height: 160 }} resizeMode="cover" />
+          {showName && (
+            <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, justifyContent: "flex-end", padding: 18 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(231,178,75,0.2)', borderRadius: 4 }}>
+                   <Text style={{ color: palette.gold, fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>PARTNER</Text>
+                </View>
+              </View>
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
+            </LinearGradient>
+          )}
+        </ScalePressable>
       ) : (
         <View style={{ flex: 1, padding: 20, justifyContent: "space-between" }}>
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <Pressable onPress={() => setFlipped(false)} style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Ionicons name="sparkles" size={14} color={palette.gold} />
-              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>{sponsor.name.toUpperCase()}</Text>
+              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
             </View>
             {!!sponsor.infoText && <Text style={{ color: "#b2a8bf", fontSize: 11, fontWeight: "700", lineHeight: 16 }} numberOfLines={4}>{sponsor.infoText}</Text>}
-          </View>
-          {!!sponsor.ctaText && (
-            <View style={{ alignSelf: "flex-end", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: palette.gold }}>
-              <Text style={{ color: "#000", fontSize: 9, fontWeight: "900" }}>{sponsor.ctaText.toUpperCase()} →</Text>
-            </View>
+          </Pressable>
+          
+          {sponsor.linkType !== 'NONE' && !!sponsor.ctaText && (
+            <ScalePressable 
+              onPress={handleCTA}
+              style={{
+                alignSelf: "flex-end", 
+                paddingHorizontal: 16, 
+                paddingVertical: 10, 
+                borderRadius: 14, 
+                backgroundColor: palette.gold,
+                shadowColor: palette.gold,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 4
+              }}
+            >
+              <Text style={{ color: "#000", fontSize: 10, fontWeight: "900" }}>{sponsor.ctaText.toUpperCase()} →</Text>
+            </ScalePressable>
           )}
         </View>
       )}
-    </ScalePressable>
+    </View>
   );
 }
 
