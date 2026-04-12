@@ -2054,7 +2054,6 @@ function CartScreen({
     deliveryInstructions: "",
     note: "",
   });
-  const [showManualAddress, setShowManualAddress] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
 
   // ── Auto-fill address from previously verified Google Places address ────────
@@ -2064,12 +2063,12 @@ function CartScreen({
     setOrderType(storedType);
 
     if (storeAddress) {
+      setAutocompleteValue(storeAddress);
+      
       const parts = storeAddress.split(",");
       const street = parts[0]?.trim() || "";
-      // Extract Swedish postal code (format: "222 33" or "22233")
       const zipMatch = storeAddress.match(/\b(\d{3})\s?(\d{2})\b/);
       const zip = zipMatch ? `${zipMatch[1]}${zipMatch[2]}` : "";
-      // City: word(s) after the postal code before the next comma or end
       const cityMatch = storeAddress.match(/\d{3}\s?\d{2}\s+([^,]+)/);
       const city = cityMatch ? cityMatch[1].trim() : (parts[1]?.trim() || "");
 
@@ -2469,60 +2468,22 @@ function CartScreen({
                   value={autocompleteValue}
                   onChangeText={setAutocompleteValue}
                   onSelect={(address, coords, parts) => {
+                    setAutocompleteValue(address);
                     setFormData(v => ({
                       ...v,
                       deliveryStreet: parts?.street || address,
                       deliveryZip: parts?.zip || "",
                       deliveryCity: parts?.city || "",
                     }));
-                    setShowManualAddress(true);
                   }}
-                  placeholder="Sök din adress..."
+                  placeholder="Sök din leveransadress..."
                 />
 
-                {!showManualAddress ? (
-                  <Pressable 
-                    onPress={() => setShowManualAddress(true)}
-                    style={{ paddingVertical: 8, paddingHorizontal: 4 }}
-                  >
-                    <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      Hittar du inte din adress? Ange manuellt
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <View style={{ gap: 10, marginTop: 4 }}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Gatuadress"
-                      placeholderTextColor={palette.muted}
-                      value={formData.deliveryStreet}
-                      onChangeText={(value) => setFormData((v) => ({ ...v, deliveryStreet: value }))}
-                    />
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      <TextInput
-                        style={[styles.input, { flex: 1 }]}
-                        placeholder="Postnummer"
-                        placeholderTextColor={palette.muted}
-                        keyboardType="number-pad"
-                        value={formData.deliveryZip}
-                        onChangeText={(value) => setFormData((v) => ({ ...v, deliveryZip: value }))}
-                      />
-                      <TextInput
-                        style={[styles.input, { flex: 2 }]}
-                        placeholder="Stad"
-                        placeholderTextColor={palette.muted}
-                        value={formData.deliveryCity}
-                        onChangeText={(value) => setFormData((v) => ({ ...v, deliveryCity: value }))}
-                      />
-                    </View>
-                    <Pressable 
-                      onPress={() => setShowManualAddress(false)}
-                      style={{ alignSelf: "flex-start", paddingVertical: 4, paddingHorizontal: 4 }}
-                    >
-                      <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "800", textTransform: "uppercase" }}>
-                        Dölj manuella fält
-                      </Text>
-                    </Pressable>
+                {!!formData.deliveryStreet && (
+                  <View style={{ marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Vald adress</Text>
+                    <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{formData.deliveryStreet}</Text>
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", marginTop: 2 }}>{formData.deliveryZip} {formData.deliveryCity}</Text>
                   </View>
                 )}
 
