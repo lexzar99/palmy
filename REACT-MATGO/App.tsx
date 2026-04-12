@@ -465,20 +465,28 @@ function SponsorTile({
     
     const target = sponsor.linkTarget || sponsor.ctaLink;
     const rawTarget = String(target || "");
-    const cleanTarget = rawTarget.startsWith('/') ? rawTarget.slice(1) : rawTarget;
     const type = sponsor.linkType || (rawTarget.includes('://') ? 'EXTERNAL' : 'RESTAURANT');
 
-    if (!cleanTarget) {
-      Alert.alert("Fel", "Denna sponsor har ingen länk eller måltavla.");
+    // Clean target: remove leading slash, and leading "restaurants/"
+    let cleanTarget = rawTarget.startsWith('/') ? rawTarget.slice(1) : rawTarget;
+    if (cleanTarget.startsWith('restaurants/')) {
+      cleanTarget = cleanTarget.replace('restaurants/', '');
+    }
+
+    if (!cleanTarget && type !== 'EXTERNAL') {
+      Alert.alert("Fel", "Denna sponsor har ingen måltavla.");
       return;
     }
+
+    // DEBUG ALERT - REMOVE ONCE VERIFIED
+    // Alert.alert("Sponsor Klick", `Typ: ${type}\nMål: ${cleanTarget}`);
 
     if (type === 'DEAL') {
       pushRoute({ name: 'discover-filtered', restaurantIds: [cleanTarget], dealTitle: sponsor.name });
     } else if (type === 'RESTAURANT') {
       openRestaurant(cleanTarget);
     } else if (type === 'EXTERNAL') {
-      Linking.openURL(rawTarget).catch(() => Alert.alert("Fel", "Kunde inte öppna extern länk: " + rawTarget));
+      Linking.openURL(rawTarget).catch(() => Alert.alert("Fel", "Kunde inte öppna länk: " + rawTarget));
     }
   };
 
