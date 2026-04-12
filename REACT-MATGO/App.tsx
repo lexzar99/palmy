@@ -256,7 +256,11 @@ function AppContent() {
         )}
 
         {activeOrderId && route.name !== "order" && (
-          <LiveOrderBanner id={activeOrderId} openOrder={(id) => pushRoute({ name: "order", id })} />
+          <LiveOrderBanner
+            id={activeOrderId}
+            openOrder={(id) => pushRoute({ name: "order", id })}
+            onDismiss={() => setActiveOrder(null)}
+          />
         )}
         {!["restaurant", "order", "register"].includes(route.name) && (
           <BottomTabs active={tabValue} onChange={openRoot} />
@@ -266,28 +270,60 @@ function AppContent() {
   );
 }
 
-function LiveOrderBanner({ id, openOrder }: { id: string; openOrder: (id: string) => void }) {
+function LiveOrderBanner({
+  id,
+  openOrder,
+  onDismiss,
+}: {
+  id: string;
+  openOrder: (id: string) => void;
+  onDismiss: () => void;
+}) {
   const [order, setOrder] = useState<Order | null>(null);
+  const setActiveOrder = useAppStore((s) => s.setActiveOrder);
 
   useEffect(() => {
     const fetchO = async () => {
       try {
         const res = await api.get(`/api/orders/${id}`);
         setOrder(res.data);
+        // Auto-clear when order is finished
+        if (
+          res.data.status === "DELIVERED" ||
+          res.data.status === "COMPLETED" ||
+          res.data.status === "REJECTED"
+        ) {
+          setActiveOrder(null);
+        }
       } catch {}
     };
     fetchO();
     const inv = setInterval(fetchO, 15000);
     return () => clearInterval(inv);
-  }, [id]);
+  }, [id, setActiveOrder]);
 
-  if (!order || order.status === "DELIVERED" || order.status === "COMPLETED" || order.status === "REJECTED") return null;
+  // Don't show for finished orders
+  if (
+    !order ||
+    order.status === "DELIVERED" ||
+    order.status === "COMPLETED" ||
+    order.status === "REJECTED"
+  )
+    return null;
 
-  const statusLabel = order.status === "PENDING" ? "VÄNTAR..." : (order.status === "PREPARING" || order.status === "ACCEPTED") ? "TILLAGAS" : "PÅ VÄG";
+  const isOnTheWay = order.status === "OUT_FOR_DELIVERY" || order.status === "ON_THE_WAY";
+  const statusLabel =
+    order.status === "PENDING"
+      ? "VÄNTAR..."
+      : order.status === "PREPARING" || order.status === "ACCEPTED"
+      ? "TILLAGAS"
+      : "PÅ VÄG";
+
+  // Only show the banner when the order is actively being processed
+  // (i.e. not just placed and pending for a very long time in the background)
 
   return (
-    <Pressable
-      onPress={() => openOrder(id)}
+    <View
       style={{
         position: "absolute",
         bottom: 100,
@@ -300,7 +336,7 @@ function LiveOrderBanner({ id, openOrder }: { id: string; openOrder: (id: string
         alignItems: "center",
         gap: 12,
         borderWidth: 1,
-        borderColor: "rgba(231,178,75,0.3)",
+        borderColor: isOnTheWay ? "rgba(34,197,94,0.4)" : "rgba(231,178,75,0.3)",
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.4,
@@ -308,20 +344,54 @@ function LiveOrderBanner({ id, openOrder }: { id: string; openOrder: (id: string
         elevation: 10,
       }}
     >
-      <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
-        <Ionicons name="flash" size={20} color="#000" />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>AKTIV BESTÄLLNING</Text>
-        <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>
-          {order.restaurantName || "Din beställning"} • {statusLabel}
-        </Text>
-      </View>
-      <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)" }}>
-        <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>~{order.estimatedTime || 30}m</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={18} color="#7f798a" />
-    </Pressable>
+      {/* Tap to open order */}
+      <Pressable
+        onPress={() => openOrder(id)}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
+      >
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            backgroundColor: isOnTheWay ? palette.success : palette.gold,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Ionicons name={isOnTheWay ? "bicycle" : "flash"} size={20} color="#000" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: isOnTheWay ? palette.success : palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>
+            {isOnTheWay ? "PÅ VÄG TILL DIG" : "AKTIV BESTÄLLNING"}
+          </Text>
+          <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>
+            {order.restaurantName || "Din beställning"} • {statusLabel}
+          </Text>
+        </View>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)" }}>
+          <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>~{order.estimatedTime || 30}m</Text>
+        </View>
+      </Pressable>
+
+      {/* X button to dismiss banner */}
+      <Pressable
+        onPress={onDismiss}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: "rgba(255,255,255,0.08)",
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.1)",
+        }}
+        hitSlop={8}
+      >
+        <Ionicons name="close" size={16} color="#7f798a" />
+      </Pressable>
+    </View>
   );
 }
 
@@ -2194,6 +2264,7 @@ function CartScreen({
   const [promoCode, setPromoCode] = useState("");
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any | null>(null);
   const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null);
+  const [zoneCheckStatus, setZoneCheckStatus] = useState<"ok" | "error" | "checking" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [pickupCityModalOpen, setPickupCityModalOpen] = useState(false);
   const [pickupCities, setPickupCities] = useState<City[]>([]);
@@ -2319,25 +2390,38 @@ function CartScreen({
   useEffect(() => {
     let active = true;
     (async () => {
-      if (orderType !== "DELIVERY" || !coords || !currentRestaurantId) return;
+      if (orderType !== "DELIVERY" || !coords || !currentRestaurantId) {
+        if (active) { setDeliveryCheck(null); setZoneCheckStatus(null); }
+        return;
+      }
+      if (active) setZoneCheckStatus("checking");
       const response = await api
         .get("/api/delivery/check", { params: { lat: coords.lat, lng: coords.lng, restaurantId: currentRestaurantId } })
         .catch(() => ({ data: null }));
-      if (active && response.data) {
+      if (!active) return;
+      if (response.data) {
         const ovr = deliveryOverrides[currentRestaurantId];
         const finalData = { ...response.data };
-        
         if (ovr) {
           finalData.deliveryFee = ovr.deliveryFee;
           finalData.minOrder = ovr.minOrderAmount;
         }
-        // else: use response.data.deliveryFee directly — backend already returns in kr
+        // else: use response.data values directly — backend already returns in kr
         setDeliveryCheck(finalData);
+        setZoneCheckStatus(finalData.available ? "ok" : "error");
+        // Update restaurant settings with correct zone fee
+        if (finalData.available) {
+          setRestaurantSettings(prev => ({
+            ...prev,
+            deliveryFee: finalData.deliveryFee ?? prev.deliveryFee,
+            minOrderAmount: finalData.minOrder ?? prev.minOrderAmount,
+          }));
+        }
+      } else {
+        setZoneCheckStatus(null);
       }
     })();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [coords, currentRestaurantId, orderType, deliveryOverrides]);
 
   const handlePromo = useCallback(() => {
@@ -2382,31 +2466,23 @@ function CartScreen({
         return;
       }
 
-      // ── Last-mile zone check (zone system safeguard) ──────────────────────
+      // ── Last-mile zone check (delivery/check — works for open AND closed restaurants) ──
       if (orderType === "DELIVERY" && coords && currentRestaurantId) {
         try {
-          const zRes = await api.post("/api/cities/validate-location", { lat: coords.lat, lng: coords.lng });
-          if (!zRes.data.covered) {
-            Alert.alert(
-              "Utanför leveransområde",
-              "Vi kan tyvärr inte leverera till din adress. Välj avhämtning eller ange en annan adress.",
-              [{ text: "OK" }]
-            );
-            setSubmitting(false);
-            return;
-          }
-
-          const all = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-          const ok = all.some((r: any) => r.id === currentRestaurantId);
-          if (!ok) {
+          const zRes = await api.get("/api/delivery/check", {
+            params: { lat: coords.lat, lng: coords.lng, restaurantId: currentRestaurantId },
+          });
+          if (!zRes.data.available) {
+            setZoneCheckStatus("error");
             Alert.alert(
               "Leverans ej möjlig",
-              "Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en annan adress.",
+              "Den här restaurangen levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
               [{ text: "OK" }]
             );
             setSubmitting(false);
             return;
           }
+          setZoneCheckStatus("ok");
         } catch { /* Fail open on network error only */ }
       }
       // ────────────────────────────────────────────────────────────────────────
@@ -2637,7 +2713,11 @@ function CartScreen({
               <View style={{ gap: 10 }}>
                 <AddressAutocomplete
                   value={autocompleteValue}
-                  onChangeText={setAutocompleteValue}
+                  onChangeText={(val) => {
+                    setAutocompleteValue(val);
+                    // Reset zone check status when user edits address
+                    if (val !== autocompleteValue) setZoneCheckStatus(null);
+                  }}
                   onSelect={(address, coords, parts) => {
                     setAutocompleteValue(address);
                     setAddress(address, coords);
@@ -2647,9 +2727,39 @@ function CartScreen({
                       deliveryZip: parts?.zip || "",
                       deliveryCity: parts?.city || "",
                     }));
+                    // Zone check will fire via the coords useEffect
+                    setZoneCheckStatus("checking");
                   }}
                   placeholder="Sök din leveransadress..."
                 />
+
+                {/* Zone status indicator */}
+                {zoneCheckStatus === "checking" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
+                    <ActivityIndicator size="small" color={palette.gold} />
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Kontrollerar leveranszon...</Text>
+                  </View>
+                )}
+                {zoneCheckStatus === "ok" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(34,197,94,0.08)", borderWidth: 1, borderColor: "rgba(34,197,94,0.2)" }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: palette.success, alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name="checkmark" size={12} color="#000" />
+                    </View>
+                    <Text style={{ color: palette.success, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      Vi levererar dit! {deliveryCheck?.deliveryFee != null && deliveryCheck.deliveryFee > 0 ? `Avgift: ${Math.round(deliveryCheck.deliveryFee)} kr` : deliveryCheck?.deliveryFee === 0 ? "Gratis leverans" : ""}
+                    </Text>
+                  </View>
+                )}
+                {zoneCheckStatus === "error" && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingVertical: 8, borderRadius: 12, backgroundColor: "rgba(239,68,68,0.08)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                    <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: palette.danger, alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name="close" size={12} color="#fff" />
+                    </View>
+                    <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>
+                      Restaurangen levererar tyvärr inte till din adress
+                    </Text>
+                  </View>
+                )}
 
                 {!!formData.deliveryStreet && (
                   <View style={{ marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>

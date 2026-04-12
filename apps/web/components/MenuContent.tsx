@@ -49,9 +49,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
   /**
-   * Check zone using validate-location (same endpoint as homepage) so fees are
-   * always consistent. Returns: true = in zone, false = out of zone, null = no coords.
-   * Also updates deliveryOverrides so the cart shows the correct fee.
+   * Check delivery zone for this restaurant using /api/delivery/check.
+   * - Works for both open AND closed restaurants (validate-location filters by isOpen).
+   * - Returns: true = in zone, false = out of zone, null = no coords / not applicable.
+   * - Prioritises deliveryOverrides (set by homepage validate-location) for the fee so
+   *   the displayed fee is always consistent with what the user saw on the home screen.
    */
   const checkZone = useCallback(async (restaurantData: any): Promise<boolean | null> => {
     if (typeof window === "undefined") return null;
@@ -64,44 +66,34 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     setCheckingZone(true);
     try {
       const coords = JSON.parse(storedCoords);
-      // Use validate-location for consistent zone + fee (identical to homepage logic)
-      const res = await axios.post(`${API_URL}/api/cities/validate-location`, {
-        lat: coords.lat,
-        lng: coords.lng,
+      // delivery/check works for open AND closed restaurants
+      const res = await axios.get(`${API_URL}/api/delivery/check`, {
+        params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurantData.id },
       });
 
-      if (!res.data.covered) {
-        setZoneAvailable(false);
-        return false;
+      const available = res.data?.available === true;
+      setZoneAvailable(available);
+
+      if (available) {
+        // Fee priority: deliveryOverrides (from homepage) → delivery/check fee (already in kr)
+        const ovr = deliveryOverrides[restaurantData.id];
+        const fee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? restaurantData.deliveryFee ?? 0);
+        const min = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? restaurantData.minOrderAmount ?? 0);
+
+        setRestaurant((prev: any) =>
+          prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
+        );
+        // Keep cart store in sync so checkout shows same fee
+        updateDeliveryOverride(restaurantData.id, fee, min);
       }
-
-      // Find this specific restaurant in the zone results
-      const allRestaurants: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
-      const thisRest = allRestaurants.find((r: any) => r.id === restaurantData.id);
-
-      if (!thisRest) {
-        setZoneAvailable(false);
-        return false;
-      }
-
-      // Zone OK — compute kr fees (matchedZone values are in öre)
-      const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
-      const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
-
-      setZoneAvailable(true);
-      setRestaurant((prev: any) =>
-        prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
-      );
-      // Keep cart store in sync so the checkout shows the same fee
-      updateDeliveryOverride(restaurantData.id, fee, min);
-      return true;
+      return available;
     } catch {
       setZoneAvailable(null); // fail open
       return null;
     } finally {
       setCheckingZone(false);
     }
-  }, [updateDeliveryOverride]);
+  }, [deliveryOverrides, updateDeliveryOverride]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -272,9 +264,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
       <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12 relative">
 
-        {/* Out-of-zone banner + full overlay */}
+        {/* Out-of-zone banner — only shown for OPEN restaurants; closed ones are handled by the closed state */}
         <AnimatePresence>
-          {zoneAvailable === false && orderType === "DELIVERY" && (
+          {zoneAvailable === false && restaurant?.isOpen && orderType === "DELIVERY" && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -417,7 +409,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                  setSelectedProduct(p);
                               }
                            }}
-                           whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : zoneAvailable === false ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                           whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                        >
                           {p.imageUrl && (
                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">

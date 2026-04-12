@@ -11,6 +11,9 @@ const BottomNav = () => {
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Hide bottom nav inside restaurant detail pages — the FloatingCartButton handles navigation there
+  if (pathname?.startsWith("/restaurants/")) return null;
+
   const navItems = [
     { href: "/", label: "Hem", icon: Home },
     { href: "/discover", label: "Upptäck", icon: Compass },

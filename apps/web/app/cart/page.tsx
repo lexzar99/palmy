@@ -119,28 +119,22 @@ export default function CartPage() {
     setCheckingDelivery(true);
     setAddressZoneStatus("checking");
     try {
-      // Use validate-location (same as homepage) for consistent fee calculation
-      const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
+      // Use delivery/check — works for open AND closed restaurants
+      // (validate-location filters by isOpen which would incorrectly flag closed restaurants)
+      const res = await axios.get(`${API_URL}/api/delivery/check`, {
+        params: { lat, lng, restaurantId: currentRestaurantId },
+      });
       const ovr = deliveryOverrides[currentRestaurantId];
 
-      if (!res.data.covered) {
+      if (!res.data.available) {
         setDeliveryCheck({ available: false });
         setAddressZoneStatus("error");
         return;
       }
 
-      const allRestaurants: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
-      const thisRest = allRestaurants.find((r: any) => r.id === currentRestaurantId);
-
-      if (!thisRest) {
-        setDeliveryCheck({ available: false });
-        setAddressZoneStatus("error");
-        return;
-      }
-
-      // Fees in öre from validate-location → convert to kr
-      const fee = ovr ? ovr.deliveryFee : (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
-      const min = ovr ? ovr.minOrderAmount : (thisRest.matchedZone?.minOrder ?? 0) / 100;
+      // Fee priority: deliveryOverrides (from homepage validate-location) → delivery/check fee (already in kr)
+      const fee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? 0);
+      const min = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? 0);
 
       const finalData = { available: true, deliveryFee: fee, minOrder: min };
       setDeliveryCheck(finalData);
@@ -435,15 +429,11 @@ export default function CartPage() {
       if (storedCoords) {
         try {
           const { lat, lng } = JSON.parse(storedCoords);
-          const zRes = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
-          if (!zRes.data.covered) {
-            setAddressZoneStatus("error");
-            setError("Vi levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress i leveransfältet ovan.");
-            return;
-          }
-          const coveredRestaurants = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-          const covered = coveredRestaurants.some((r: any) => r.id === currentRestaurantId);
-          if (!covered) {
+          // Use delivery/check — it works regardless of restaurant open status
+          const zRes = await axios.get(`${API_URL}/api/delivery/check`, {
+            params: { lat, lng, restaurantId: currentRestaurantId },
+          });
+          if (!zRes.data.available) {
             setAddressZoneStatus("error");
             setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress.");
             return;
@@ -451,8 +441,7 @@ export default function CartPage() {
           setAddressZoneStatus("ok");
         } catch { /* Fail open — don't block if network error */ }
       } else if (formData.deliveryStreet) {
-        // User has typed an address but it hasn't been geocoded (no coords)
-        // We can't verify zone — warn the user
+        // Address typed but not geocoded — no coords to verify
         setError("Välj din adress från autocomplete-listan för att verifiera leveranszonen.");
         return;
       }
