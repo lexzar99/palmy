@@ -462,13 +462,16 @@ function SponsorTile({
 
   const handleCTA = () => {
     if (sponsor.linkType === 'NONE' || !sponsor.isClickable) return;
-    const target = sponsor.linkTarget || sponsor.ctaLink;
+    let target = sponsor.linkTarget || sponsor.ctaLink;
     if (!target) return;
 
+    // Sanitize target
+    const cleanTarget = target.startsWith('/') ? target.slice(1) : target;
+
     if (sponsor.linkType === 'DEAL') {
-      pushRoute({ name: 'discover-filtered', restaurantIds: [target], dealTitle: sponsor.name });
+      pushRoute({ name: 'discover-filtered', restaurantIds: [cleanTarget], dealTitle: sponsor.name });
     } else if (sponsor.linkType === 'RESTAURANT') {
-      openRestaurant(target);
+      openRestaurant(cleanTarget);
     } else {
       Linking.openURL(target).catch(() => Alert.alert("Kunde inte öppna länk"));
     }
@@ -636,14 +639,19 @@ function HomeScreen({
           (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
           (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
         
+        if (!byCuisine) return false;
+
         // Pickup: filter by city only
         if (orderType === "PICKUP" && selectedCity) {
-          const matchCity = (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
-          if (!matchCity) return false;
+          return (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
         }
 
-        // For delivery, keep ALL restaurants (show them dimmed rather than hidden)
-        return byCuisine;
+        // Delivery: filter by zones
+        if (orderType === "DELIVERY" && Array.isArray(zoneRestaurantIds)) {
+          return zoneRestaurantIds.includes(restaurant.id);
+        }
+
+        return true;
       })
     );
   }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds]);
