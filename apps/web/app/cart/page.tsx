@@ -148,7 +148,11 @@ export default function CartPage() {
             setSavedAddresses(addrRes.data || []);
             const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
             if (defaultAddr && !userRes.data.address) {
-              setFormData(prev => ({ ...prev, deliveryStreet: defaultAddr.street, deliveryZip: defaultAddr.zip }));
+              setFormData(prev => ({ 
+                ...prev, 
+                deliveryStreet: prev.deliveryStreet || defaultAddr.street, 
+                deliveryZip: prev.deliveryZip || defaultAddr.zip 
+              }));
             }
           } catch {}
         }

@@ -487,7 +487,7 @@ export default function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
                   whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                  className={`transition-opacity duration-300 ${dimmed ? "opacity-50 grayscale-[50%]" : ""}`}
+                  className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
                 >
                   <Link
                     href={getRestaurantHref(r)}
@@ -597,7 +597,7 @@ export default function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
                   whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                  className={`transition-opacity duration-300 ${dimmed ? "opacity-50 grayscale-[50%]" : ""}`}
+                  className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
                 >
                   <Link
                     href={getRestaurantHref(r)}
