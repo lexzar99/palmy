@@ -130,6 +130,7 @@ export default function CartPage() {
 
       setDeals(dealsRes.data || []);
       setPersonalDeals(pDealsRes.data || []);
+
       if (userRes.data) {
         setUser(userRes.data);
         setFormData((prev) => ({
@@ -149,80 +150,6 @@ export default function CartPage() {
             if (defaultAddr && !userRes.data.address) {
               setFormData(prev => ({ ...prev, deliveryStreet: defaultAddr.street, deliveryZip: defaultAddr.zip }));
             }
-          } catch {}
-        }
-      }
-
-  // ── Auto-fill address and state from storage ───────────────────────────
-  useEffect(() => {
-    const storedAddress = localStorage.getItem("platform_address");
-    const storedType = localStorage.getItem("platform_order_type");
-    
-    if (storedAddress) {
-      console.log("[Checkout] Autofilling address from storage:", storedAddress);
-      
-      // Split by comma: "Street 1, 123 45 City, Country"
-      const parts = storedAddress.split(',').map(p => p.trim());
-      const street = parts[0] || "";
-      
-      // Try to find zip (e.g. 123 45 or 12345)
-      const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
-      const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-      
-      setFormData(prev => ({
-        ...prev,
-        deliveryStreet: street,
-        deliveryZip: zip
-      }));
-    }
-
-    if (storedType === "PICKUP" || storedType === "DELIVERY") {
-      setOrderType(storedType as "PICKUP" | "DELIVERY");
-    }
-  }, []); // Run once on mount
-
-  const fetchContext = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("platform_user_token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
-      const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes] = await Promise.all([
-        axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
-        axios.get(`${API_URL}/api/deals`, { params: currentRestaurantId ? { restaurantId: currentRestaurantId } : {} }).catch(() => ({ data: [] })),
-        token ? axios.get(`${API_URL}/api/profile`, { headers }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
-        token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
-        currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
-      ]);
-
-      if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
-        setRestaurantSettings((prev) => ({ ...prev, ...settingsRes.data }));
-      }
-      
-      if (restaurantRes.data) {
-        setRestaurantSettings((prev) => ({ 
-          ...prev, 
-          deliveryFee: restaurantRes.data.deliveryFee !== undefined ? restaurantRes.data.deliveryFee : prev.deliveryFee,
-          minOrderAmount: restaurantRes.data.minOrderAmount !== undefined ? restaurantRes.data.minOrderAmount : prev.minOrderAmount,
-          isOpen: restaurantRes.data.isOpen ?? prev.isOpen
-        }));
-      }
-
-      setDeals(dealsRes.data || []);
-      setPersonalDeals(pDealsRes.data || []);
-      
-      if (userRes.data) {
-        setUser(userRes.data);
-        setFormData((prev) => ({
-          ...prev,
-          customerName: prev.customerName || userRes.data.name || "",
-          customerPhone: prev.customerPhone || userRes.data.phone || "",
-        }));
-
-        // Load saved addresses for quick selection (don't overwrite form yet)
-        if (token) {
-          try {
-            const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers });
-            setSavedAddresses(addrRes.data || []);
           } catch {}
         }
       }
@@ -281,9 +208,29 @@ export default function CartPage() {
     fetchContext();
   }, [fetchContext]);
 
-  // Handle address type selection
+  // Handle address type selection and auto-fill address
   useEffect(() => {
+    const storedAddress = localStorage.getItem("platform_address");
     const storedType = localStorage.getItem("platform_order_type");
+    
+    if (storedAddress) {
+      console.log("[Checkout] Autofilling address from storage:", storedAddress);
+      
+      // Split by comma: "Street 1, 123 45 City, Country"
+      const parts = storedAddress.split(',').map(p => p.trim());
+      const street = parts[0] || "";
+      
+      // Try to find zip (e.g. 123 45 or 12345)
+      const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
+      const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
+      
+      setFormData(prev => ({
+        ...prev,
+        deliveryStreet: street,
+        deliveryZip: zip
+      }));
+    }
+
     if (storedType === "PICKUP" || storedType === "DELIVERY") {
       setOrderType(storedType as "PICKUP" | "DELIVERY");
     }

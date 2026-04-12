@@ -557,7 +557,8 @@ export default function HomePage() {
                     </div>
                   </Link>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
@@ -656,7 +657,8 @@ export default function HomePage() {
                     </div>
                   </Link>
                 </motion.div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
