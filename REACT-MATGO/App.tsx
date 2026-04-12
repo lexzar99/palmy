@@ -570,6 +570,7 @@ function HomeScreen({
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
+  const [restaurantOverrides, setRestaurantOverrides] = useState<Record<string, { deliveryFee: number; minOrderAmount: number }>>({});
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [sponsors, setSponsors] = useState<any[]>([]);
 
@@ -589,10 +590,27 @@ function HomeScreen({
         const ids = res.data.cities.flatMap((c: any) => 
           Array.isArray(c.restaurants) ? c.restaurants.map((r: any) => r.id) : []
         );
+        
+        const overrides: Record<string, any> = {};
+        res.data.cities.forEach((c: any) => {
+          if (Array.isArray(c.restaurants)) {
+            c.restaurants.forEach((r: any) => {
+              if (r.matchedZone) {
+                overrides[r.id] = {
+                  deliveryFee: (r.matchedZone.deliveryFee || 0) / 100,
+                  minOrderAmount: (r.matchedZone.minOrder || 0) / 100
+                };
+              }
+            });
+          }
+        });
+
+        setRestaurantOverrides(overrides);
         setZoneRestaurantIds(ids);
         setZoneError(null);
       } else {
         setZoneRestaurantIds([]);
+        setRestaurantOverrides({});
         setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
       }
     } catch {
@@ -644,7 +662,7 @@ function HomeScreen({
   );
 
   const filtered = useMemo(() => {
-    return sortRestaurantsForHome(
+    const raw = sortRestaurantsForHome(
       restaurants
       .filter((restaurant) => {
         const byCuisine =
@@ -667,7 +685,14 @@ function HomeScreen({
         return true;
       })
     );
-  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds]);
+
+    // Apply overrides
+    return raw.map(r => {
+      const ovr = restaurantOverrides[r.id];
+      if (!ovr) return r;
+      return { ...r, deliveryFee: ovr.deliveryFee, minOrderAmount: ovr.minOrderAmount };
+    });
+  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, restaurantOverrides]);
 
   const featured = useMemo(() => {
     const allPremium = filtered.filter(r => r.featuredClass === 1 || r.featuredClass === 2);
@@ -2056,6 +2081,7 @@ function CartScreen({
   const coords = useAppStore((s) => s.coords);
   const orderType = useAppStore((s) => s.orderType);
   const setOrderType = useAppStore((s) => s.setOrderType);
+  const setAddress = useAppStore((s) => s.setAddress);
 
   const [pageLoading, setPageLoading] = useState(true);
   const [cartRestaurant, setCartRestaurant] = useState<{ name: string; slug: string } | null>(null);
@@ -2476,7 +2502,12 @@ function CartScreen({
                     {savedAddresses.map(addr => (
                       <Pressable 
                         key={addr.id}
-                        onPress={() => setFormData(v => ({ ...v, deliveryStreet: addr.street, deliveryZip: addr.zip }))}
+                        onPress={() => {
+                          setFormData(v => ({ ...v, deliveryStreet: addr.street, deliveryZip: addr.zip }));
+                          if (addr.latitude && addr.longitude) {
+                            setAddress(addr.street, { lat: addr.latitude, lng: addr.longitude });
+                          }
+                        }}
                         style={{ 
                           flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 14, 
                           backgroundColor: formData.deliveryStreet === addr.street ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
@@ -2497,6 +2528,7 @@ function CartScreen({
                   onChangeText={setAutocompleteValue}
                   onSelect={(address, coords, parts) => {
                     setAutocompleteValue(address);
+                    setAddress(address, coords);
                     setFormData(v => ({
                       ...v,
                       deliveryStreet: parts?.street || address,
