@@ -18,7 +18,8 @@ router.get('/check', async (req: Request, res: Response) => {
     }
 
     const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId as string }
+      where: { id: restaurantId as string },
+      include: { city_relation: true },
     });
 
     if (!restaurant) {
@@ -48,7 +49,21 @@ router.get('/check', async (req: Request, res: Response) => {
     } catch {
       zonesRaw = [];
     }
-    const zones: DeliveryZone[] = normalizeDeliveryZones(zonesRaw);
+    let zones: DeliveryZone[] = normalizeDeliveryZones(zonesRaw);
+
+    let zoneCenter = { lat: restaurant.latitude, lng: restaurant.longitude };
+
+    if (zones.length === 0 && restaurant.city_relation && restaurant.city_relation.zones) {
+      try {
+        const cityZonesRaw = JSON.parse(restaurant.city_relation.zones);
+        zones = normalizeDeliveryZones(cityZonesRaw);
+        if (restaurant.city_relation.centerLat && restaurant.city_relation.centerLng) {
+          zoneCenter = { lat: restaurant.city_relation.centerLat, lng: restaurant.city_relation.centerLng };
+        } else if (restaurant.city_relation.latitude && restaurant.city_relation.longitude) {
+          zoneCenter = { lat: restaurant.city_relation.latitude, lng: restaurant.city_relation.longitude };
+        }
+      } catch {}
+    }
 
     if (zones.length === 0) {
       // No zones configured — use default
@@ -61,10 +76,10 @@ router.get('/check', async (req: Request, res: Response) => {
       });
     }
 
-    // Use restaurant location as fallback center for legacy zones (no own centerLat/centerLng)
+    // Use restaurant/city location as fallback center for legacy zones (no own centerLat/centerLng)
     const matchedZone = findDeliveryZone(
       Number(lat), Number(lng), zones,
-      { lat: restaurant.latitude!, lng: restaurant.longitude! }
+      zoneCenter
     );
 
     if (!matchedZone) {

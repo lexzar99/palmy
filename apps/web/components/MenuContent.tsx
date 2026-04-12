@@ -61,6 +61,22 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       setCategories(menuRes.data);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
+        if (typeof window !== "undefined") {
+          const storedCoords = localStorage.getItem("platform_coords");
+          const storedType = localStorage.getItem("platform_order_type") || "DELIVERY";
+          if (storedCoords && storedType === "DELIVERY") {
+            try {
+              const coords = JSON.parse(storedCoords);
+              const checkRes = await axios.get(`${API_URL}/api/delivery/check`, {
+                params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurantRes.data.id }
+              });
+              if (checkRes.data) {
+                restaurantRes.data.deliveryFee = checkRes.data.deliveryFee ?? restaurantRes.data.deliveryFee;
+                restaurantRes.data.minOrderAmount = checkRes.data.minOrder ?? restaurantRes.data.minOrderAmount;
+              }
+            } catch {}
+          }
+        }
         setRestaurant(restaurantRes.data);
       } else {
         const settingsRes = await axios.get(`${API_URL}/api/settings`);

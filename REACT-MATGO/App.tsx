@@ -1560,6 +1560,7 @@ function RestaurantScreen({
   const isScrollingRef = useRef(false);
 
   const address = useAppStore((s) => s.address);
+  const coords = useAppStore((s) => s.coords);
   const cartItems = useAppStore((s) => s.items);
   const orderType = useAppStore((s) => s.orderType);
   const setAddress = useAppStore((s) => s.setAddress);
@@ -1593,6 +1594,33 @@ function RestaurantScreen({
       }
     })();
 
+    return () => {
+      active = false;
+      socket?.disconnect();
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (orderType !== "DELIVERY" || !coords || !restaurant?.id) return;
+      const res = await api.get("/api/delivery/check", { 
+        params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurant.id } 
+      }).catch(() => null);
+      
+      if (active && res && res.data) {
+        setRestaurant(prev => prev ? { 
+          ...prev, 
+          deliveryFee: res.data.deliveryFee ?? prev.deliveryFee,
+          minOrderAmount: res.data.minOrder ?? prev.minOrderAmount
+        } : null);
+      }
+    })();
+    return () => { active = false; };
+  }, [coords, orderType, restaurant?.id]);
+
+  useEffect(() => {
+    let socket: Socket | null = null;
     socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socket.on("settings:updated", (nextSettings: any) => {
       setRestaurant((current) => {
