@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
@@ -43,17 +43,25 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const router = useRouter();
 
   const items = useCartStore((state) => state.items);
-  const deliveryOverrides = useCartStore((state) => state.deliveryOverrides);
   const updateDeliveryOverride = useCartStore((state) => state.updateDeliveryOverride);
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
+  // Track zone-availability in a ref so the socket handler always reads the latest value
+  const zoneAvailableRef = useRef<boolean | null>(null);
+  useEffect(() => { zoneAvailableRef.current = zoneAvailable; }, [zoneAvailable]);
+
   /**
-   * Check delivery zone for this restaurant using /api/delivery/check.
-   * - Works for both open AND closed restaurants (validate-location filters by isOpen).
-   * - Returns: true = in zone, false = out of zone, null = no coords / not applicable.
-   * - Prioritises deliveryOverrides (set by homepage validate-location) for the fee so
-   *   the displayed fee is always consistent with what the user saw on the home screen.
+   * Check delivery zone using validate-location (same endpoint as homepage).
+   * - Gives consistent zone-specific fees (not affected by GPS missing on restaurant).
+   * - validate-location only returns OPEN restaurants, so:
+   *     • Open restaurant, address outside zone  → zoneAvailable = false  (show banner)
+   *     • Closed restaurant, not in results      → zoneAvailable = null   (no banner)
+   *     • Address outside all city zones         → zoneAvailable = false (only for open restaurants)
+   * - Does NOT depend on deliveryOverrides to avoid an infinite update loop:
+   *     updateDeliveryOverride → deliveryOverrides changes → checkZone recreated
+   *     → fetchData recreated → useEffect refires → infinite loop.
+   *   Instead, updateDeliveryOverride is a stable Zustand action reference.
    */
   const checkZone = useCallback(async (restaurantData: any): Promise<boolean | null> => {
     if (typeof window === "undefined") return null;
@@ -66,34 +74,53 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     setCheckingZone(true);
     try {
       const coords = JSON.parse(storedCoords);
-      // delivery/check works for open AND closed restaurants
-      const res = await axios.get(`${API_URL}/api/delivery/check`, {
-        params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurantData.id },
+      // POST validate-location — same as homepage, gives authoritative zone fees
+      const res = await axios.post(`${API_URL}/api/cities/validate-location`, {
+        lat: coords.lat,
+        lng: coords.lng,
       });
 
-      const available = res.data?.available === true;
-      setZoneAvailable(available);
-
-      if (available) {
-        // Fee priority: deliveryOverrides (from homepage) → delivery/check fee (already in kr)
-        const ovr = deliveryOverrides[restaurantData.id];
-        const fee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? restaurantData.deliveryFee ?? 0);
-        const min = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? restaurantData.minOrderAmount ?? 0);
-
-        setRestaurant((prev: any) =>
-          prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
-        );
-        // Keep cart store in sync so checkout shows same fee
-        updateDeliveryOverride(restaurantData.id, fee, min);
+      if (!res.data.covered) {
+        // Entire address is outside all city zones
+        // Only flag as out-of-zone for open restaurants (closed ones show closed state instead)
+        const result = restaurantData?.isOpen ? false : null;
+        setZoneAvailable(result);
+        return result;
       }
-      return available;
+
+      const allRestaurants: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
+      const thisRest = allRestaurants.find((r: any) => r.id === restaurantData.id);
+
+      if (!thisRest) {
+        // Not in results — either closed (filtered out by validate-location) or outside zone
+        if (!restaurantData?.isOpen) {
+          setZoneAvailable(null); // Closed: zone check not applicable
+          return null;
+        }
+        setZoneAvailable(false); // Open but outside this restaurant's zone
+        return false;
+      }
+
+      // In zone — fees are in öre from the API → convert to kr
+      const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+      const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
+
+      setZoneAvailable(true);
+      setRestaurant((prev: any) =>
+        prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
+      );
+      // Update cart store so checkout shows the same zone fee
+      // updateDeliveryOverride is a stable Zustand action — safe to call without adding to deps
+      updateDeliveryOverride(restaurantData.id, fee, min);
+      return true;
     } catch {
       setZoneAvailable(null); // fail open
       return null;
     } finally {
       setCheckingZone(false);
     }
-  }, [deliveryOverrides, updateDeliveryOverride]);
+  // ↓ Only stable Zustand action — no deliveryOverrides in deps (prevents infinite loop)
+  }, [updateDeliveryOverride]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -156,13 +183,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       const isMatch = nextSettings.slug === restaurantSlug || (restaurantId && nextSettings.restaurantId === restaurantId);
       
       if (isMatch || (isGlobal && !restaurantSlug)) {
-        setRestaurant((prev: any) => ({
-          ...prev,
-          isOpen: nextSettings.isOpen ?? prev?.isOpen ?? true,
-          deliveryFee: nextSettings.deliveryFee ?? prev?.deliveryFee ?? 49,
-          minOrderAmount: nextSettings.minOrderAmount ?? prev?.minOrderAmount ?? 150,
-          etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev?.etaMinutes ?? 35,
-        }));
+        setRestaurant((prev: any) => {
+          if (!prev) return prev;
+          const zoneWasChecked = zoneAvailableRef.current === true;
+          return {
+            ...prev,
+            isOpen: nextSettings.isOpen ?? prev.isOpen ?? true,
+            // Don't overwrite zone-checked fee with socket base fee
+            // (socket sends the restaurant's base fee; zone fee takes priority)
+            deliveryFee: zoneWasChecked ? prev.deliveryFee : (nextSettings.deliveryFee ?? prev.deliveryFee ?? 49),
+            minOrderAmount: zoneWasChecked ? prev.minOrderAmount : (nextSettings.minOrderAmount ?? prev.minOrderAmount ?? 150),
+            etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev.etaMinutes ?? 35,
+          };
+        });
       }
     });
 
@@ -310,9 +343,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
            <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Avgift</div>
-              <div className="text-sm font-black text-white italic uppercase tracking-tighter">
-                {zoneAvailable === false ? "–" : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
-              </div>
+               <div className="text-sm font-black text-white italic uppercase tracking-tighter">
+                 {(zoneAvailable === false && restaurant?.isOpen)
+                   ? "–"
+                   : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
+               </div>
            </div>
            <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
               <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />

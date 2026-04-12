@@ -663,7 +663,8 @@ function HomeScreen({
 
   const validateZone = useCallback(async (lat: number, lng: number) => {
     try {
-      const res = await api.get(`/api/cities/validate-location`, { params: { lat, lng } });
+      // Must use POST (body) — the endpoint reads from req.body, not query params
+      const res = await api.post(`/api/cities/validate-location`, { lat, lng });
       if (res.data && res.data.covered && Array.isArray(res.data.cities)) {
         const ids = res.data.cities.flatMap((c: any) => 
           Array.isArray(c.restaurants) ? c.restaurants.map((r: any) => r.id) : []
@@ -1738,39 +1739,54 @@ function RestaurantScreen({
     let active = true;
     (async () => {
       if (orderType !== "DELIVERY" || !coords || !restaurant?.id) {
-        setZoneAvailable(null);
+        if (active) setZoneAvailable(null);
         return;
       }
-      setCheckingZone(true);
-      const res = await api.get("/api/delivery/check", { 
-        params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurant.id } 
-      }).catch(() => null);
-      
-      if (active) {
-        if (res && res.data) {
-          setZoneAvailable(res.data.available === true);
-          const ovr = deliveryOverrides[restaurant.id];
-          setRestaurant(prev => {
-            if (!prev) return null;
-            // Backend /api/delivery/check already returns fees in kr (divided by 100)
-            // ovr.deliveryFee is also in kr (set from validate-location which divides by 100)
-            const finalFee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? prev.deliveryFee);
-            const finalMin = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? prev.minOrderAmount);
-            if (prev.deliveryFee === finalFee && prev.minOrderAmount === finalMin) return prev;
-            return {
-              ...prev,
-              deliveryFee: finalFee,
-              minOrderAmount: finalMin
-            };
-          });
-        } else {
-          setZoneAvailable(null);
+      if (active) setCheckingZone(true);
+      try {
+        // Use validate-location (POST) — same as homepage, gives authoritative zone fees
+        // regardless of whether the restaurant has GPS coords set in the DB.
+        const res = await api.post("/api/cities/validate-location", {
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+        if (!active) return;
+
+        if (!res.data?.covered) {
+          // Address outside all city zones
+          // Only flag as out-of-zone for open restaurants
+          setZoneAvailable(restaurant.isOpen ? false : null);
+          return;
         }
+
+        const allRests: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
+        const thisRest = allRests.find((r: any) => r.id === restaurant.id);
+
+        if (!thisRest) {
+          // Not in results: either closed (filtered out) or outside specific zone
+          setZoneAvailable(restaurant.isOpen ? false : null);
+          return;
+        }
+
+        // In zone — fees are öre → kr
+        const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+        const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
+        setZoneAvailable(true);
+        setRestaurant(prev => {
+          if (!prev) return null;
+          if (prev.deliveryFee === fee && prev.minOrderAmount === min) return prev;
+          return { ...prev, deliveryFee: fee, minOrderAmount: min };
+        });
+      } catch {
+        if (active) setZoneAvailable(null);
+      } finally {
+        if (active) setCheckingZone(false);
       }
-      if (active) setCheckingZone(false);
     })();
     return () => { active = false; };
-  }, [coords, orderType, restaurant?.id, deliveryOverrides]);
+  // Remove deliveryOverrides from deps — validate-location is the authoritative source
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coords, orderType, restaurant?.id]);
 
   useEffect(() => {
     let active = true;
@@ -2320,7 +2336,11 @@ function CartScreen({
     return campaign.discountValue || 0;
   }, [selectedPersonalDeal, subtotal]);
 
-  const deliveryFee = orderType === "DELIVERY" ? deliveryCheck?.deliveryFee ?? restaurantSettings.deliveryFee : 0;
+  // Fee priority: zone check result → homepage override → restaurant base fee (from DB)
+  const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
+  const deliveryFee = orderType === "DELIVERY"
+    ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? restaurantSettings.deliveryFee)
+    : 0;
   const isTestCode = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
   const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee - personalDiscount);
 
@@ -2395,30 +2415,44 @@ function CartScreen({
         return;
       }
       if (active) setZoneCheckStatus("checking");
-      const response = await api
-        .get("/api/delivery/check", { params: { lat: coords.lat, lng: coords.lng, restaurantId: currentRestaurantId } })
-        .catch(() => ({ data: null }));
-      if (!active) return;
-      if (response.data) {
+      try {
+        // Use validate-location (POST) — authoritative zone fees, same as homepage
+        const res = await api.post("/api/cities/validate-location", {
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+        if (!active) return;
+
+        if (!res.data?.covered) {
+          setDeliveryCheck({ available: false });
+          setZoneCheckStatus("error");
+          return;
+        }
+
+        const allRests: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
+        const thisRest = allRests.find((r: any) => r.id === currentRestaurantId);
+
+        if (!thisRest) {
+          setDeliveryCheck({ available: false });
+          setZoneCheckStatus("error");
+          return;
+        }
+
+        // Fees: öre → kr; also honour any existing override from home screen
         const ovr = deliveryOverrides[currentRestaurantId];
-        const finalData = { ...response.data };
-        if (ovr) {
-          finalData.deliveryFee = ovr.deliveryFee;
-          finalData.minOrder = ovr.minOrderAmount;
-        }
-        // else: use response.data values directly — backend already returns in kr
+        const fee = ovr ? ovr.deliveryFee : (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+        const min = ovr ? ovr.minOrderAmount : (thisRest.matchedZone?.minOrder ?? 0) / 100;
+
+        const finalData = { available: true, deliveryFee: fee, minOrder: min };
         setDeliveryCheck(finalData);
-        setZoneCheckStatus(finalData.available ? "ok" : "error");
-        // Update restaurant settings with correct zone fee
-        if (finalData.available) {
-          setRestaurantSettings(prev => ({
-            ...prev,
-            deliveryFee: finalData.deliveryFee ?? prev.deliveryFee,
-            minOrderAmount: finalData.minOrder ?? prev.minOrderAmount,
-          }));
-        }
-      } else {
-        setZoneCheckStatus(null);
+        setZoneCheckStatus("ok");
+        setRestaurantSettings(prev => ({
+          ...prev,
+          deliveryFee: fee,
+          minOrderAmount: min,
+        }));
+      } catch {
+        if (active) setZoneCheckStatus(null);
       }
     })();
     return () => { active = false; };
@@ -2466,13 +2500,26 @@ function CartScreen({
         return;
       }
 
-      // ── Last-mile zone check (delivery/check — works for open AND closed restaurants) ──
+      // ── Last-mile zone check (validate-location — authoritative) ──────────────
       if (orderType === "DELIVERY" && coords && currentRestaurantId) {
         try {
-          const zRes = await api.get("/api/delivery/check", {
-            params: { lat: coords.lat, lng: coords.lng, restaurantId: currentRestaurantId },
+          const zRes = await api.post("/api/cities/validate-location", {
+            lat: coords.lat,
+            lng: coords.lng,
           });
-          if (!zRes.data.available) {
+          if (!zRes.data?.covered) {
+            setZoneCheckStatus("error");
+            Alert.alert(
+              "Utanför leveransområde",
+              "Vi levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
+              [{ text: "OK" }]
+            );
+            setSubmitting(false);
+            return;
+          }
+          const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+          const ok = allRests.some((r: any) => r.id === currentRestaurantId);
+          if (!ok) {
             setZoneCheckStatus("error");
             Alert.alert(
               "Leverans ej möjlig",
@@ -2483,7 +2530,7 @@ function CartScreen({
             return;
           }
           setZoneCheckStatus("ok");
-        } catch { /* Fail open on network error only */ }
+        } catch { /* Fail open on network error */ }
       }
       // ────────────────────────────────────────────────────────────────────────
 
