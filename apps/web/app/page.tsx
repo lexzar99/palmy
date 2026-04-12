@@ -248,7 +248,7 @@ export default function HomePage() {
       // Deal filter — when user clicks a deal card
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
 
-      return matchCuisine && matchQuery && matchZone && matchDeal;
+      return matchCuisine && matchQuery && matchDeal;
     });
 
     // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
@@ -477,13 +477,17 @@ export default function HomePage() {
                <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-200 border-b border-gold-500/50 pb-1 hover:text-gold-500 transition-all">Visa Alla</Link>
             </div>
             <div className="flex lg:grid lg:grid-cols-4 gap-6 overflow-x-auto lg:overflow-visible pb-10 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-              {featured.map((r, i) => (
+              {featured.map((r, i) => {
+                const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
+                const dimmed = r.isOpen === false || !inZone;
+                return (
                 <motion.div
                   key={r.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.1 }}
                   whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className={`transition-opacity duration-300 ${dimmed ? "opacity-50 grayscale-[50%]" : ""}`}
                 >
                   <Link
                     href={getRestaurantHref(r)}
@@ -582,13 +586,17 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-1 xl:grid-cols-2 gap-8">
-              {filtered.map((r, i) => (
+              {filtered.map((r, i) => {
+                const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
+                const dimmed = r.isOpen === false || !inZone;
+                return (
                 <motion.div
                   key={r.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.05 }}
                   whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  className={`transition-opacity duration-300 ${dimmed ? "opacity-50 grayscale-[50%]" : ""}`}
                 >
                   <Link
                     href={getRestaurantHref(r)}
