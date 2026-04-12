@@ -87,7 +87,9 @@ export default function CartPage() {
   const sessionToken = useRef<string>("");
 
   useEffect(() => {
-    sessionToken.current = crypto.randomUUID();
+    sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+      ? crypto.randomUUID() 
+      : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
   }, []);
 
   const fetchPredictions = useCallback(async (text: string) => {
@@ -147,7 +149,9 @@ export default function CartPage() {
         const coords = { lat: data.location.lat, lng: data.location.lng };
         localStorage.setItem("platform_coords", JSON.stringify(coords));
         localStorage.setItem("platform_address", pred.description);
-        sessionToken.current = crypto.randomUUID();
+        sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID) 
+          ? crypto.randomUUID() 
+          : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
         checkDeliverySpecific(coords.lat, coords.lng);
       }
     } catch {} finally {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ChevronRight, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 export interface SponsorData {
@@ -19,6 +19,12 @@ export interface SponsorData {
 export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
   const [flipped, setFlipped] = useState(false);
 
+  const handleFlip = () => {
+    // We allow flipping even if not clickable for a better UI experience, 
+    // but the CTA button on the back only works if isClickable is true.
+    setFlipped(!flipped);
+  };
+
   const handleCTAClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!sponsor.isClickable) return;
@@ -27,7 +33,6 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     if (!target) return;
 
     if (sponsor.linkType === 'DEAL') {
-      // In a real app, this might open a modal or navigate to a specialized deal page
       window.location.href = `/search?deal=${target}`;
     } else if (sponsor.linkType === 'RESTAURANT') {
       window.location.href = `/restaurants/${target}`;
@@ -36,37 +41,31 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     }
   };
 
-  if (!sponsor.isClickable) {
-    return (
-      <div className="shrink-0 w-80 h-44 rounded-[2.5rem] overflow-hidden border border-white/5 bg-zinc-900 shadow-2xl grayscale opacity-80">
-        <img src={sponsor.imageUrl} alt={sponsor.name} className="w-full h-full object-cover" />
-      </div>
-    );
-  }
-
   return (
     <div 
       className="relative shrink-0 w-80 h-44 perspective-1000 group"
-      onClick={() => setFlipped(!flipped)}
+      onClick={handleFlip}
     >
       <motion.div
         className="relative w-full h-full preserve-3d cursor-pointer"
         animate={{ rotateY: flipped ? 180 : 0 }}
         transition={{ 
           type: "spring", 
-          stiffness: 150, 
-          damping: 20,
+          stiffness: 140, 
+          damping: 18,
           mass: 0.8
         }}
-        style={{ transformStyle: "preserve-3d" }}
       >
         {/* Front Side */}
         <div 
           className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] overflow-hidden border border-white/10 bg-zinc-950 shadow-2xl"
-          style={{ backfaceVisibility: "hidden" }}
         >
-          <img src={sponsor.imageUrl} alt={sponsor.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-6">
+          <img 
+            src={sponsor.imageUrl} 
+            alt={sponsor.name} 
+            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent flex flex-col justify-end p-6">
             <div className="flex items-center justify-between">
               <div className="px-3 py-1 bg-gold-500/20 backdrop-blur-md rounded-full border border-gold-500/30">
                 <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-400">Partner Spotlight</span>
@@ -88,7 +87,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         {/* Back Side */}
         <div 
           className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] border border-gold-500/40 bg-zinc-950 p-8 flex flex-col justify-between shadow-2xl shadow-gold-500/20"
-          style={{ transform: "rotateY(180deg)", backfaceVisibility: "hidden" }}
+          style={{ transform: "rotateY(180deg)" }}
         >
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-5">
@@ -112,13 +111,15 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
                <span className="text-[10px] font-black text-zinc-500">MATGO SPOTLIGHT</span>
              </div>
              
-             <button 
-               onClick={handleCTAClick}
-               className="group/btn flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-gold-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-xl shadow-gold-500/20"
-             >
-               {sponsor.ctaText || "Utforska"} 
-               <ArrowRight size={12} className="group-hover/btn:translate-x-1 transition-transform" />
-             </button>
+             {sponsor.isClickable && (
+               <button 
+                 onClick={handleCTAClick}
+                 className="group/btn flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-gold-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest hover:bg-white hover:scale-105 active:scale-95 transition-all shadow-xl shadow-gold-500/20"
+               >
+                 {sponsor.ctaText || "Utforska"} 
+                 <ArrowRight size={12} className="group-hover/btn:translate-x-1 transition-transform" />
+               </button>
+             )}
           </div>
 
           {/* Abstract Back Design */}
