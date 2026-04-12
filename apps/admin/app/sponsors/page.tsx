@@ -23,6 +23,7 @@ interface Sponsor {
   ctaLink?: string;
   linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
   linkTarget?: string;
+  showName?: boolean;
   sortOrder: number;
   createdAt: string;
 }
@@ -37,6 +38,7 @@ const emptyForm = (): Omit<Sponsor, "id" | "sortOrder" | "createdAt"> => ({
   ctaLink: "",
   linkType: "EXTERNAL",
   linkTarget: "",
+  showName: true,
 });
 
 export default function SponsorsPage() {
@@ -201,15 +203,27 @@ export default function SponsorsPage() {
               </div>
             )}
 
-            {/* Clickable toggle */}
-            <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
-              <button onClick={() => setForm(p => ({ ...p, isClickable: !p.isClickable }))}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
-                  form.isClickable ? "bg-violet-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
-                }`}>
-                {form.isClickable ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                {form.isClickable ? "Interaktiv (flippar)" : "Statisk (ingen interaktion)"}
-              </button>
+            {/* Toggles */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
+                <button onClick={() => setForm(p => ({ ...p, isClickable: !p.isClickable }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
+                    form.isClickable ? "bg-violet-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  }`}>
+                  {form.isClickable ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
+                  {form.isClickable ? "Interaktiv (flippar)" : "Statisk"}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
+                <button onClick={() => setForm(p => ({ ...p, showName: !p.showName }))}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
+                    form.showName ? "bg-emerald-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
+                  }`}>
+                  {form.showName ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
+                  {form.showName ? "Visa Namn" : "Dölj Namn"}
+                </button>
+              </div>
             </div>
 
             {/* Clickable info fields */}
@@ -319,6 +333,9 @@ export default function SponsorsPage() {
                     <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase ${
                       s.isClickable ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
                     }`}>{s.isClickable ? "Interaktiv" : "Statisk"}</span>
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                      s.showName !== false ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                    }`}>{s.showName !== false ? "Namn synligt" : "Namn dolt (banner)"}</span>
                   </div>
                   {s.isClickable && s.infoText && (
                     <p className="text-[10px] text-[var(--text-secondary)] font-bold truncate max-w-sm">{s.infoText}</p>
