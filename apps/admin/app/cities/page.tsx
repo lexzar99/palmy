@@ -35,7 +35,7 @@ function parseZones(raw: any): Zone[] {
   try {
     const arr = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
     return arr
-      .filter((z: any) => z?.id && z?.name)
+      .filter((z: any) => z?.id)
       .map((z: any): Zone | null => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const type: "circle" | "polygon" = z.type === "polygon" ? "polygon" : "circle";
 
@@ -74,7 +74,7 @@ function parseZones(raw: any): Zone[] {
 function serializeZones(zones: Zone[]): object[] {
   return zones.map(z => ({
     id: z.id,
-    name: z.name,
+    name: z.name || "Namnlös Zon",
     type: z.type,
     centerLat:   z.centerLat,
     centerLng:   z.centerLng,

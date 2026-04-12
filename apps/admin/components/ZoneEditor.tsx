@@ -358,7 +358,7 @@ export default function ZoneEditor({
       const idx     = current.length;
       const newZone: Zone = {
         id:          uid(),
-        name:        `Zon ${idx + 1}`,
+        name:        cityName ? `${cityName} - Zon ${idx + 1}` : `Zon ${idx + 1}`,
         type:        "circle",
         centerLat:   centre.lat(),
         centerLng:   centre.lng(),
@@ -394,7 +394,7 @@ export default function ZoneEditor({
       const idx     = current.length;
       const newZone: Zone = {
         id:          uid(),
-        name:        `Zon ${idx + 1}`,
+        name:        cityName ? `${cityName} - Zon ${idx + 1}` : `Zon ${idx + 1}`,
         type:        "polygon",
         polygon:     coords,
         radiusKm:    0,
