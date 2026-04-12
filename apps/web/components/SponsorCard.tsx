@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ExternalLink, ChevronRight, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,13 +13,14 @@ export interface SponsorData {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
-  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT';
+  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT' | 'NONE';
   linkTarget?: string;
   showName?: boolean;
 }
 
 export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
   const [flipped, setFlipped] = useState(false);
+  const router = useRouter();
 
   const handleFlip = () => {
     setFlipped(!flipped);
@@ -26,19 +28,21 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   const handleCTAClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!sponsor.isClickable) return;
+    if (!sponsor.isClickable || sponsor.linkType === 'NONE') return;
 
     const target = sponsor.linkTarget || sponsor.ctaLink;
     if (!target) return;
 
     if (sponsor.linkType === 'DEAL') {
-      window.location.href = `/search?deal=${target}`;
+      router.push(`/search?deal=${target}`);
     } else if (sponsor.linkType === 'RESTAURANT') {
-      window.location.href = `/restaurants/${target}`;
+      router.push(`/restaurants/${target}`);
     } else {
       window.open(target, '_blank', 'noopener,noreferrer');
     }
   };
+
+  const showName = sponsor.showName !== false;
 
   return (
     <div 
@@ -62,25 +66,25 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
             alt={sponsor.name} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent flex flex-col justify-end p-6">
-            <div className="flex items-center justify-between">
-              <div className="px-3 py-1 bg-gold-500/20 backdrop-blur-md rounded-full border border-gold-500/30">
-                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-400">Partner Spotlight</span>
-              </div>
-              <motion.div 
-                animate={{ x: [0, 4, 0] }} 
-                transition={{ repeat: Infinity, duration: 2 }}
-                className="text-white/40 group-hover:text-white/80 transition-colors"
-              >
-                <div className="bg-white/10 p-2 rounded-full backdrop-blur-sm">
-                   <ChevronRight size={12} />
+          {showName && (
+            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent flex flex-col justify-end p-6">
+              <div className="flex items-center justify-between">
+                <div className="px-3 py-1 bg-gold-500/20 backdrop-blur-md rounded-full border border-gold-500/30">
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-400">Partner Spotlight</span>
                 </div>
-              </motion.div>
-            </div>
-            {sponsor.showName !== false && (
+                <motion.div 
+                  animate={{ x: [0, 4, 0] }} 
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="text-white/40 group-hover:text-white/80 transition-colors"
+                >
+                  <div className="bg-white/10 p-2 rounded-full backdrop-blur-sm">
+                    <ChevronRight size={12} />
+                  </div>
+                </motion.div>
+              </div>
               <h3 className="text-lg font-black text-white mt-2 uppercase tracking-tight leading-none italic">{sponsor.name}</h3>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Back Side */}
@@ -112,7 +116,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
                <span className="text-[9px] font-black text-white uppercase">MATGO DEALS</span>
              </div>
              
-             {sponsor.isClickable && sponsor.ctaText && (
+             {sponsor.isClickable && sponsor.ctaText && sponsor.linkType !== 'NONE' && (
                <button 
                  onClick={handleCTAClick}
                  className="group/btn flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-gold-500 text-zinc-950 text-[9px] font-black uppercase tracking-widest hover:bg-white hover:scale-105 transition-all shadow-xl shadow-gold-500/20"
