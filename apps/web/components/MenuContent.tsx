@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X } from "lucide-react";
+import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -36,12 +36,72 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingProduct, setPendingProduct] = useState<any>(null);
+  // Zone check state
+  const [zoneAvailable, setZoneAvailable] = useState<boolean | null>(null); // null = not checked yet
+  const [checkingZone, setCheckingZone] = useState(false);
 
   const router = useRouter();
 
   const items = useCartStore((state) => state.items);
+  const deliveryOverrides = useCartStore((state) => state.deliveryOverrides);
+  const updateDeliveryOverride = useCartStore((state) => state.updateDeliveryOverride);
   const subtotal = useCartStore((state) => state.getTotal());
   const productIds = items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
+
+  /**
+   * Check zone using validate-location (same endpoint as homepage) so fees are
+   * always consistent. Returns: true = in zone, false = out of zone, null = no coords.
+   * Also updates deliveryOverrides so the cart shows the correct fee.
+   */
+  const checkZone = useCallback(async (restaurantData: any): Promise<boolean | null> => {
+    if (typeof window === "undefined") return null;
+    const storedCoords = localStorage.getItem("platform_coords");
+    const storedType = localStorage.getItem("platform_order_type") || "DELIVERY";
+    if (!storedCoords || storedType !== "DELIVERY" || !restaurantData?.id) {
+      setZoneAvailable(null);
+      return null;
+    }
+    setCheckingZone(true);
+    try {
+      const coords = JSON.parse(storedCoords);
+      // Use validate-location for consistent zone + fee (identical to homepage logic)
+      const res = await axios.post(`${API_URL}/api/cities/validate-location`, {
+        lat: coords.lat,
+        lng: coords.lng,
+      });
+
+      if (!res.data.covered) {
+        setZoneAvailable(false);
+        return false;
+      }
+
+      // Find this specific restaurant in the zone results
+      const allRestaurants: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
+      const thisRest = allRestaurants.find((r: any) => r.id === restaurantData.id);
+
+      if (!thisRest) {
+        setZoneAvailable(false);
+        return false;
+      }
+
+      // Zone OK — compute kr fees (matchedZone values are in öre)
+      const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+      const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
+
+      setZoneAvailable(true);
+      setRestaurant((prev: any) =>
+        prev ? { ...prev, deliveryFee: fee, minOrderAmount: min } : null
+      );
+      // Keep cart store in sync so the checkout shows the same fee
+      updateDeliveryOverride(restaurantData.id, fee, min);
+      return true;
+    } catch {
+      setZoneAvailable(null); // fail open
+      return null;
+    } finally {
+      setCheckingZone(false);
+    }
+  }, [updateDeliveryOverride]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -61,23 +121,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       setCategories(menuRes.data);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
-        if (typeof window !== "undefined") {
-          const storedCoords = localStorage.getItem("platform_coords");
-          const storedType = localStorage.getItem("platform_order_type") || "DELIVERY";
-          if (storedCoords && storedType === "DELIVERY") {
-            try {
-              const coords = JSON.parse(storedCoords);
-              const checkRes = await axios.get(`${API_URL}/api/delivery/check`, {
-                params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurantRes.data.id }
-              });
-              if (checkRes.data) {
-                restaurantRes.data.deliveryFee = checkRes.data.deliveryFee ?? restaurantRes.data.deliveryFee;
-                restaurantRes.data.minOrderAmount = checkRes.data.minOrder ?? restaurantRes.data.minOrderAmount;
-              }
-            } catch {}
-          }
-        }
         setRestaurant(restaurantRes.data);
+        // Run zone check after setting restaurant
+        await checkZone(restaurantRes.data);
       } else {
         const settingsRes = await axios.get(`${API_URL}/api/settings`);
         setRestaurant({
@@ -96,7 +142,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, restaurantSlug]);
+  }, [restaurantId, restaurantSlug, checkZone]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -182,7 +228,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         {/* Glass Back Button */}
         <Link
           href="/"
-          whileTap={{ scale: 0.95 }} className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100"
+          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100 active:scale-95"
         >
           <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
           <span className="text-[10px] font-black uppercase tracking-widest text-white">Tillbaka</span>
@@ -226,12 +272,55 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
       <div className="mx-auto max-w-5xl px-6 lg:px-12 pt-12 relative">
 
+        {/* Out-of-zone banner + full overlay */}
+        <AnimatePresence>
+          {zoneAvailable === false && orderType === "DELIVERY" && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="mb-6 p-6 rounded-[2rem] bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center gap-4"
+            >
+              <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
+                <AlertTriangle size={22} className="text-rose-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-black uppercase tracking-widest text-rose-400 mb-1">
+                  Levererar inte till din adress
+                </p>
+                <p className="text-[11px] font-bold text-rose-400/70 leading-relaxed">
+                  {address
+                    ? `Den här restaurangen levererar tyvärr inte till "${address}".`
+                    : "Den här restaurangen levererar tyvärr inte till din adress."}{" "}
+                  Ange en ny adress eller gå tillbaka till startsidan.
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setShowAddressModal(true)}
+                  className="px-4 py-2.5 bg-rose-500 text-white rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-600 transition-all active:scale-95"
+                >
+                  Ny adress
+                </button>
+                <Link
+                  href="/"
+                  className="px-4 py-2.5 bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all"
+                >
+                  Tillbaka
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">
            <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Avgift</div>
-              <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.deliveryFee} KR</div>
+              <div className="text-sm font-black text-white italic uppercase tracking-tighter">
+                {zoneAvailable === false ? "–" : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
+              </div>
            </div>
            <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
               <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
@@ -312,18 +401,23 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                     {cat.products.map((p: any) => (
-                       <motion.div
-                          key={p.id}
-                          onClick={() => {
-                             if (!restaurant?.isOpen) return;
-                             if (!address.trim()) {
-                                setPendingProduct(p);
-                                setShowAddressModal(true);
-                             } else {
-                                setSelectedProduct(p);
-                             }
-                          }}
-                          whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : "cursor-pointer"}`}
+                        <motion.div
+                           key={p.id}
+                           onClick={() => {
+                              if (!restaurant?.isOpen) return;
+                              if (zoneAvailable === false) {
+                                 // Scroll to the out-of-zone banner
+                                 window.scrollTo({ top: 0, behavior: "smooth" });
+                                 return;
+                              }
+                              if (!address.trim() || orderType === "DELIVERY" && !localStorage.getItem("platform_coords")) {
+                                 setPendingProduct(p);
+                                 setShowAddressModal(true);
+                              } else {
+                                 setSelectedProduct(p);
+                              }
+                           }}
+                           whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : zoneAvailable === false ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                        >
                           {p.imageUrl && (
                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">
@@ -415,18 +509,28 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       <AddressModal
         isOpen={showAddressModal}
         onClose={() => { setShowAddressModal(false); setPendingProduct(null); }}
-        onConfirm={(newAddress, newOrderType) => {
+        onConfirm={async (newAddress, newOrderType, coords) => {
           setAddress(newAddress);
           setOrderType(newOrderType);
           if (typeof window !== "undefined") {
             localStorage.setItem("platform_address", newAddress);
             localStorage.setItem("platform_order_type", newOrderType);
+            if (coords) localStorage.setItem("platform_coords", JSON.stringify(coords));
           }
           setShowAddressModal(false);
-          if (pendingProduct) {
-            setSelectedProduct(pendingProduct);
-            setPendingProduct(null);
+          // Re-check zone — checkZone returns the result directly (avoids stale state)
+          let zoneOk: boolean | null = null;
+          if (restaurant && newOrderType === "DELIVERY") {
+            zoneOk = await checkZone(restaurant);
+          } else {
+            setZoneAvailable(null);
+            zoneOk = null;
           }
+          // Only open product modal if zone check didn't fail
+          if (pendingProduct && zoneOk !== false) {
+            setSelectedProduct(pendingProduct);
+          }
+          setPendingProduct(null);
         }}
         orderType={orderType}
         setOrderType={setOrderType}

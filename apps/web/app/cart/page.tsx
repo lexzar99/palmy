@@ -83,6 +83,7 @@ export default function CartPage() {
   const [addressInput, setAddressInput] = useState("");
   const [predictions, setPredictions] = useState<any[]>([]);
   const [addressLoading, setAddressLoading] = useState(false);
+  const [addressZoneStatus, setAddressZoneStatus] = useState<"ok" | "error" | "checking" | null>(null);
   const debounceRef = useRef<any>(null);
   const sessionToken = useRef<string>("");
 
@@ -116,17 +117,42 @@ export default function CartPage() {
   const checkDeliverySpecific = async (lat: number, lng: number) => {
     if (!currentRestaurantId) return;
     setCheckingDelivery(true);
+    setAddressZoneStatus("checking");
     try {
-      const res = await axios.get(`${API_URL}/api/delivery/check`, { params: { lat, lng, restaurantId: currentRestaurantId } });
-      setDeliveryCheck(res.data);
-      if (res.data.available) {
-        setRestaurantSettings(prev => ({ 
-          ...prev, 
-          deliveryFee: res.data.deliveryFee,
-          minOrderAmount: res.data.minOrder
-        }));
+      // Use validate-location (same as homepage) for consistent fee calculation
+      const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
+      const ovr = deliveryOverrides[currentRestaurantId];
+
+      if (!res.data.covered) {
+        setDeliveryCheck({ available: false });
+        setAddressZoneStatus("error");
+        return;
       }
-    } catch {} finally {
+
+      const allRestaurants: any[] = (res.data.cities || []).flatMap((c: any) => c.restaurants || []);
+      const thisRest = allRestaurants.find((r: any) => r.id === currentRestaurantId);
+
+      if (!thisRest) {
+        setDeliveryCheck({ available: false });
+        setAddressZoneStatus("error");
+        return;
+      }
+
+      // Fees in öre from validate-location → convert to kr
+      const fee = ovr ? ovr.deliveryFee : (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+      const min = ovr ? ovr.minOrderAmount : (thisRest.matchedZone?.minOrder ?? 0) / 100;
+
+      const finalData = { available: true, deliveryFee: fee, minOrder: min };
+      setDeliveryCheck(finalData);
+      setAddressZoneStatus("ok");
+      setRestaurantSettings(prev => ({
+        ...prev,
+        deliveryFee: fee,
+        minOrderAmount: min,
+      }));
+    } catch {
+      setAddressZoneStatus(null);
+    } finally {
       setCheckingDelivery(false);
     }
   };
@@ -168,6 +194,22 @@ export default function CartPage() {
 
   const subtotal = getTotal();
   const currentRestaurantId = useCartStore((s) => s.restaurantId);
+  const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
+
+  // Sync delivery fees from global overrides
+  useEffect(() => {
+    if (currentRestaurantId && deliveryOverrides[currentRestaurantId] && orderType === "DELIVERY") {
+      const ovr = deliveryOverrides[currentRestaurantId];
+      if (restaurantSettings.deliveryFee !== ovr.deliveryFee || restaurantSettings.minOrderAmount !== ovr.minOrderAmount) {
+        setRestaurantSettings(prev => ({
+          ...prev,
+          deliveryFee: ovr.deliveryFee,
+          minOrderAmount: ovr.minOrderAmount
+        }));
+      }
+    }
+  }, [currentRestaurantId, restaurantSettings.deliveryFee, restaurantSettings.minOrderAmount, deliveryOverrides, orderType]);
+
   const deliveryFee = orderType === "DELIVERY" ? restaurantSettings.deliveryFee : 0;
   const minOrder = restaurantSettings.minOrderAmount;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
@@ -243,31 +285,13 @@ export default function CartPage() {
         }
       }
 
-      // Delivery check if coords available
-      if (orderType === "DELIVERY" && currentRestaurantId) {
-        const storedCoords = localStorage.getItem("platform_coords");
-        if (storedCoords) {
-          const { lat, lng } = JSON.parse(storedCoords);
-          setCheckingDelivery(true);
-          try {
-            const dRes = await axios.get(`${API_URL}/api/delivery/check`, { params: { lat, lng, restaurantId: currentRestaurantId } });
-            setDeliveryCheck(dRes.data);
-            if (dRes.data.available) {
-              setRestaurantSettings(prev => ({ 
-                ...prev, 
-                deliveryFee: dRes.data.deliveryFee,
-                minOrderAmount: dRes.data.minOrder
-              }));
-            }
-          } catch {} finally { setCheckingDelivery(false); }
-        }
-      }
+      // Delivery zone check is handled by the address useEffect below
     } catch (err) {
       console.error(err);
     } finally {
       setPageLoading(false);
     }
-  }, [currentRestaurantId, orderType]);
+  }, [currentRestaurantId, orderType, deliveryOverrides]);
 
   const handleApplyPromo = () => {
     const code = promoCodeInput.trim().toLowerCase();
@@ -297,33 +321,44 @@ export default function CartPage() {
     fetchContext();
   }, [fetchContext]);
 
-  // Handle address type selection and auto-fill address
+  // Auto-fill address from localStorage and run zone check
   useEffect(() => {
     const storedAddress = localStorage.getItem("platform_address");
     const storedType = localStorage.getItem("platform_order_type");
     
+    if (storedType === "PICKUP" || storedType === "DELIVERY") {
+      setOrderType(storedType as "PICKUP" | "DELIVERY");
+    }
+
     if (storedAddress) {
-      console.log("[Checkout] Autofilling address from storage:", storedAddress);
+      // Populate visible autocomplete field
+      setAddressInput(storedAddress);
       
-      // Split by comma: "Street 1, 123 45 City, Country"
-      const parts = storedAddress.split(',').map(p => p.trim());
+      // Parse street and zip from the stored address string
+      const parts = storedAddress.split(',').map((p: string) => p.trim());
       const street = parts[0] || "";
-      
-      // Try to find zip (e.g. 123 45 or 12345)
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
       
       setFormData(prev => ({
         ...prev,
-        deliveryStreet: street,
-        deliveryZip: zip
+        deliveryStreet: prev.deliveryStreet || street,
+        deliveryZip: prev.deliveryZip || zip,
       }));
-    }
 
-    if (storedType === "PICKUP" || storedType === "DELIVERY") {
-      setOrderType(storedType as "PICKUP" | "DELIVERY");
+      // Run zone check with stored geocoded coords (if available)
+      if (storedType !== "PICKUP") {
+        const storedCoords = localStorage.getItem("platform_coords");
+        if (storedCoords && currentRestaurantId) {
+          try {
+            const { lat, lng } = JSON.parse(storedCoords);
+            checkDeliverySpecific(lat, lng);
+          } catch {}
+        }
+      }
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRestaurantId]);
 
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
@@ -401,13 +436,25 @@ export default function CartPage() {
         try {
           const { lat, lng } = JSON.parse(storedCoords);
           const zRes = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
-          const coveredRestaurants = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-          const covered = coveredRestaurants.some((r: any) => r.id === currentRestaurantId);
-          if (zRes.data.covered && !covered) {
-            setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller en annan adress.");
+          if (!zRes.data.covered) {
+            setAddressZoneStatus("error");
+            setError("Vi levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress i leveransfältet ovan.");
             return;
           }
+          const coveredRestaurants = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+          const covered = coveredRestaurants.some((r: any) => r.id === currentRestaurantId);
+          if (!covered) {
+            setAddressZoneStatus("error");
+            setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress.");
+            return;
+          }
+          setAddressZoneStatus("ok");
         } catch { /* Fail open — don't block if network error */ }
+      } else if (formData.deliveryStreet) {
+        // User has typed an address but it hasn't been geocoded (no coords)
+        // We can't verify zone — warn the user
+        setError("Välj din adress från autocomplete-listan för att verifiera leveranszonen.");
+        return;
       }
     }
     // ────────────────────────────────────────────────────────────────────────
@@ -608,12 +655,31 @@ export default function CartPage() {
                                   <input 
                                     value={addressInput} 
                                     onChange={e => handleAddressChange(e.target.value)} 
-                                    className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all pl-12" 
+                                    className={`w-full bg-obsidian/60 border rounded-2xl p-5 text-sm font-bold text-white focus:outline-none transition-all pl-12 pr-12 ${
+                                      addressZoneStatus === "error"
+                                        ? "border-rose-500/60 focus:border-rose-500"
+                                        : addressZoneStatus === "ok"
+                                          ? "border-emerald-500/40 focus:border-emerald-500/60"
+                                          : "border-white/5 focus:border-gold-500/40"
+                                    }`}
                                     placeholder="Din Gatuadress, Postnummer..." 
                                   />
                                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
-                                  {addressLoading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-gold-500 animate-spin" size={18} />}
+                                  {addressLoading || checkingDelivery || addressZoneStatus === "checking" ? (
+                                    <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-gold-500 animate-spin" size={18} />
+                                  ) : addressZoneStatus === "ok" ? (
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                                    </div>
+                                  ) : addressZoneStatus === "error" ? (
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center">
+                                      <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                                    </div>
+                                  ) : null}
                                 </div>
+                                {addressZoneStatus === "error" && (
+                                  <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">Restaurangen levererar inte till denna adress.</p>
+                                )}
                                 
                                 <AnimatePresence>
                                   {predictions.length > 0 && (
@@ -701,13 +767,31 @@ export default function CartPage() {
                       </div>
                     )}
 
-                    <button 
-                       onClick={startCheckout} 
-                       disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen}
-                       className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
-                    >
-                       {loading ? <Loader2 className="animate-spin" size={24} /> : !user ? "Logga in för att beställa" : subtotal < minOrder ? `Köp för ${minOrder - subtotal} kr till` : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
-                    </button>
+                     {/* Zone error summary line above checkout button */}
+                     {addressZoneStatus === "error" && orderType === "DELIVERY" && (
+                       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center gap-3">
+                         <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
+                           <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 1l6 6M7 1L1 7" stroke="white" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                         </div>
+                         <p className="text-[10px] font-bold text-rose-400 leading-snug">Restaurangen levererar inte till den angivna adressen. Ändra adressen ovan.</p>
+                       </motion.div>
+                     )}
+                     {addressZoneStatus === "ok" && orderType === "DELIVERY" && (
+                       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
+                         <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+                           <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                         </div>
+                         <p className="text-[10px] font-bold text-emerald-400">Adressen är verifierad — vi levererar dit!</p>
+                       </motion.div>
+                     )}
+
+                     <button 
+                        onClick={startCheckout} 
+                        disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen || addressZoneStatus === "error"}
+                        className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
+                     >
+                        {loading ? <Loader2 className="animate-spin" size={24} /> : !user ? "Logga in för att beställa" : subtotal < minOrder ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                     </button>
                  </motion.div>
                )}
              </AnimatePresence>

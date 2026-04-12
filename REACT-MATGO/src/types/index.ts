@@ -217,6 +217,7 @@ export interface AppStoreState {
   filteredRestaurantIds: string[] | null;
   activeOrderId: string | null;
   dislikedIngredients: string[];
+  deliveryOverrides: Record<string, { deliveryFee: number; minOrderAmount: number }>;
   addItem: (item: Omit<CartItem, "cartItemId">) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
@@ -232,5 +233,6 @@ export interface AppStoreState {
   clearSession: () => void;
   setActiveOrder: (id: string | null) => void;
   setDislikedIngredients: (ingredients: string[]) => void;
+  setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
   hydrate: () => Promise<void>;
 }

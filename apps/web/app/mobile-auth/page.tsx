@@ -29,12 +29,24 @@ function MobileAuthContent() {
     if (status === "authenticated" && (session as any)?.platformToken) {
       const token = encodeURIComponent((session as any).platformToken as string);
       const separator = redirectTarget.includes("?") ? "&" : "?";
-      window.location.replace(`${redirectTarget}${separator}token=${token}`);
-      return;
+      const finalUrl = `${redirectTarget}${separator}token=${token}`;
+      
+      console.log("[MobileAuth] Redirecting back to app:", finalUrl);
+      
+      // Attempt automatic redirect
+      window.location.href = finalUrl;
+      
+      // Fallback: If still on page after 2s, maybe browser blocked automatic redirect
+      const timer = setTimeout(() => {
+        // No-op, visual state will show the button
+      }, 2000);
+      
+      return () => clearTimeout(timer);
     }
 
     if (status === "unauthenticated" && provider && !hasStartedRef.current) {
       hasStartedRef.current = true;
+      console.log("[MobileAuth] Starting automatic signIn for provider:", provider);
       void signIn(provider, { callbackUrl: buildCallbackUrl(redirectTarget) });
     }
   }, [provider, redirectTarget, session, status]);
@@ -81,7 +93,7 @@ function MobileAuthContent() {
           )}
 
           {status === "authenticated" && (
-            <div className="pt-4 border-t border-white/5">
+            <div className="pt-4 border-t border-white/5 space-y-4">
               <button
                 onClick={() => {
                   const token = (session as any)?.platformToken;
@@ -90,12 +102,15 @@ function MobileAuthContent() {
                     return;
                   }
                   const separator = redirectTarget.includes("?") ? "&" : "?";
-                  window.location.replace(`${redirectTarget}${separator}token=${token}`);
+                  window.location.href = `${redirectTarget}${separator}token=${token}`;
                 }}
                 className="w-full py-4 px-5 rounded-2xl bg-gold-500 text-black font-black uppercase tracking-widest text-[11px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all"
               >
                 Öppna i appen
               </button>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                Klicka på knappen om du inte skickas tillbaka automatiskt
+              </p>
             </div>
           )}
         </div>

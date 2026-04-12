@@ -379,21 +379,28 @@ const dayLabels: Record<string, string> = {
   sunday: "Sön",
 };
 
-function sortRestaurantsForHome(restaurants: Restaurant[]) {
+function sortRestaurantsForHome(restaurants: Restaurant[], zoneIds: string[] | null = null) {
   return [...restaurants].sort((a, b) => {
+    // 0. Prioritize IN-ZONE if zoneIds is provided
+    if (zoneIds !== null) {
+      const aIn = zoneIds.includes(a.id) ? 1 : 0;
+      const bIn = zoneIds.includes(b.id) ? 1 : 0;
+      if (aIn !== bIn) return bIn - aIn;
+    }
+
     const aOpen = a.isOpen !== false ? 1 : 0;
     const bOpen = b.isOpen !== false ? 1 : 0;
     
-    // 1. Prioritize OPEN status above all else
+    // 1. Prioritize OPEN status
     if (aOpen !== bOpen) return bOpen - aOpen;
 
-    // 2. Among restaurants with the same open status, prioritize Premium (1) then Standard (2)
+    // 2. Prioritize Premium
     const aRank = a.featuredClass === 1 ? 2 : (a.featuredClass === 2 ? 1 : 0);
     const bRank = b.featuredClass === 1 ? 2 : (b.featuredClass === 2 ? 1 : 0);
     
     if (aRank !== bRank) return bRank - aRank;
 
-    // 3. Alphabetical fallback
+    // 3. Alphabetical
     return a.name.localeCompare(b.name);
   });
 }
@@ -570,7 +577,6 @@ function HomeScreen({
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
-  const [restaurantOverrides, setRestaurantOverrides] = useState<Record<string, { deliveryFee: number; minOrderAmount: number }>>({});
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [sponsors, setSponsors] = useState<any[]>([]);
 
@@ -578,14 +584,16 @@ function HomeScreen({
   const coords = useAppStore((s) => s.coords);
   const orderType = useAppStore((s) => s.orderType);
   const token = useAppStore((s) => s.token);
+  const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
   const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
+  const setDeliveryOverrides = useAppStore((s) => s.setDeliveryOverrides);
   const cartCount = useAppStore((s) => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
   const validateZone = useCallback(async (lat: number, lng: number) => {
     try {
-      const res = await api.post(`/api/cities/validate-location`, { lat, lng });
+      const res = await api.get(`/api/cities/validate-location`, { params: { lat, lng } });
       if (res.data && res.data.covered && Array.isArray(res.data.cities)) {
         const ids = res.data.cities.flatMap((c: any) => 
           Array.isArray(c.restaurants) ? c.restaurants.map((r: any) => r.id) : []
@@ -605,16 +613,17 @@ function HomeScreen({
           }
         });
 
-        setRestaurantOverrides(overrides);
+        setDeliveryOverrides(overrides);
         setZoneRestaurantIds(ids);
         setZoneError(null);
       } else {
         setZoneRestaurantIds([]);
-        setRestaurantOverrides({});
+        setDeliveryOverrides({});
         setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
       }
     } catch {
       setZoneRestaurantIds(null); // fail open
+      setDeliveryOverrides({});
       setZoneError(null);
     }
   }, []);
@@ -677,22 +686,18 @@ function HomeScreen({
           return (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
         }
 
-        // Delivery: filter by zones
-        if (orderType === "DELIVERY" && Array.isArray(zoneRestaurantIds)) {
-          return zoneRestaurantIds.includes(restaurant.id);
-        }
-
         return true;
-      })
+      }),
+      orderType === "DELIVERY" ? zoneRestaurantIds : null
     );
 
     // Apply overrides
     return raw.map(r => {
-      const ovr = restaurantOverrides[r.id];
+      const ovr = deliveryOverrides[r.id];
       if (!ovr) return r;
       return { ...r, deliveryFee: ovr.deliveryFee, minOrderAmount: ovr.minOrderAmount };
     });
-  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, restaurantOverrides]);
+  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, deliveryOverrides]);
 
   const featured = useMemo(() => {
     const allPremium = filtered.filter(r => r.featuredClass === 1 || r.featuredClass === 2);
@@ -1065,14 +1070,20 @@ function HomeScreen({
             </View>
 
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCards}>
-              {featured.map((restaurant) => (
-                <RestaurantCard
-                  key={restaurant.id}
-                  restaurant={restaurant}
-                  onPress={() => openRestaurant(restaurant.slug)}
-                  containerStyle={{ width: 320, opacity: restaurant.isOpen === false ? 0.7 : 1 }}
-                />
-              ))}
+              {featured.map((restaurant) => {
+                const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
+                const isClosed = restaurant.isOpen === false;
+                const dimmed = isClosed || isOutOfZone;
+                return (
+                  <RestaurantCard
+                    key={restaurant.id}
+                    restaurant={restaurant}
+                    isOutOfZone={isOutOfZone}
+                    onPress={() => openRestaurant(restaurant.slug)}
+                    containerStyle={{ width: 320, opacity: dimmed ? 0.6 : 1 }}
+                  />
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -1088,14 +1099,16 @@ function HomeScreen({
           </View>
         ) : (
           filtered.map((restaurant) => {
-            const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(restaurant.id);
-            const dimmed = restaurant.isOpen === false || !inZone;
+            const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
+            const isClosed = restaurant.isOpen === false;
+            const dimmed = isClosed || isOutOfZone;
             return (
               <RestaurantCard
                 key={restaurant.id}
                 restaurant={restaurant}
+                isOutOfZone={isOutOfZone}
                 onPress={() => openRestaurant(restaurant.slug)}
-                containerStyle={{ opacity: dimmed ? 0.7 : 1, marginBottom: 20 }}
+                containerStyle={{ opacity: dimmed ? 0.6 : 1, marginBottom: 20 }}
               />
             );
           })
@@ -1577,6 +1590,8 @@ function RestaurantScreen({
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<MenuProduct | null>(null);
+  const [zoneAvailable, setZoneAvailable] = useState<boolean | null>(null);
+  const [checkingZone, setCheckingZone] = useState(false);
 
   const menuScrollRef = useRef<ScrollView | null>(null);
   const categoryRailRef = useRef<ScrollView | null>(null);
@@ -1588,11 +1603,27 @@ function RestaurantScreen({
   const coords = useAppStore((s) => s.coords);
   const cartItems = useAppStore((s) => s.items);
   const orderType = useAppStore((s) => s.orderType);
+  const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
   const [cities, setCities] = useState<City[]>([]);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [cityModalOpen, setCityModalOpen] = useState(false);
+
+  // Sync delivery fees from global overrides
+  useEffect(() => {
+    if (restaurant?.id && deliveryOverrides[restaurant.id] && orderType === "DELIVERY") {
+      const ovr = deliveryOverrides[restaurant.id];
+      // Only update if there is an actual difference to avoid loops
+      if (restaurant.deliveryFee !== ovr.deliveryFee || restaurant.minOrderAmount !== ovr.minOrderAmount) {
+        setRestaurant(prev => prev ? {
+          ...prev,
+          deliveryFee: ovr.deliveryFee,
+          minOrderAmount: ovr.minOrderAmount
+        } : null);
+      }
+    }
+  }, [restaurant?.id, restaurant?.deliveryFee, restaurant?.minOrderAmount, deliveryOverrides, orderType]);
 
   useEffect(() => {
     let active = true;
@@ -1609,7 +1640,15 @@ function RestaurantScreen({
         if (!active) return;
         setCategories(menuRes.data || []);
         setActiveCategory(menuRes.data?.[0]?.id || null);
-        setRestaurant(restaurantRes.data || null);
+        
+        const rawRest = restaurantRes.data || null;
+        if (rawRest && deliveryOverrides[rawRest.id] && orderType === "DELIVERY") {
+          const ovr = deliveryOverrides[rawRest.id];
+          rawRest.deliveryFee = ovr.deliveryFee;
+          rawRest.minOrderAmount = ovr.minOrderAmount;
+        }
+        setRestaurant(rawRest);
+        
         setDeals(dealsRes.data || []);
         setCities(citiesRes.data || []);
       } catch {
@@ -1628,26 +1667,47 @@ function RestaurantScreen({
   useEffect(() => {
     let active = true;
     (async () => {
-      if (orderType !== "DELIVERY" || !coords || !restaurant?.id) return;
+      if (orderType !== "DELIVERY" || !coords || !restaurant?.id) {
+        setZoneAvailable(null);
+        return;
+      }
+      setCheckingZone(true);
       const res = await api.get("/api/delivery/check", { 
         params: { lat: coords.lat, lng: coords.lng, restaurantId: restaurant.id } 
       }).catch(() => null);
       
-      if (active && res && res.data) {
-        setRestaurant(prev => prev ? { 
-          ...prev, 
-          deliveryFee: res.data.deliveryFee ?? prev.deliveryFee,
-          minOrderAmount: res.data.minOrder ?? prev.minOrderAmount
-        } : null);
+      if (active) {
+        if (res && res.data) {
+          setZoneAvailable(res.data.available === true);
+          const ovr = deliveryOverrides[restaurant.id];
+          setRestaurant(prev => {
+            if (!prev) return null;
+            // Backend /api/delivery/check already returns fees in kr (divided by 100)
+            // ovr.deliveryFee is also in kr (set from validate-location which divides by 100)
+            const finalFee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? prev.deliveryFee);
+            const finalMin = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? prev.minOrderAmount);
+            if (prev.deliveryFee === finalFee && prev.minOrderAmount === finalMin) return prev;
+            return {
+              ...prev,
+              deliveryFee: finalFee,
+              minOrderAmount: finalMin
+            };
+          });
+        } else {
+          setZoneAvailable(null);
+        }
       }
+      if (active) setCheckingZone(false);
     })();
     return () => { active = false; };
-  }, [coords, orderType, restaurant?.id]);
+  }, [coords, orderType, restaurant?.id, deliveryOverrides]);
 
   useEffect(() => {
+    let active = true;
     let socket: Socket | null = null;
     socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socket.on("settings:updated", (nextSettings: any) => {
+      if (!active) return;
       setRestaurant((current) => {
         if (!current) return current;
         const isMatch = nextSettings.slug === current.slug || nextSettings.restaurantId === current.id;
@@ -1810,6 +1870,19 @@ function RestaurantScreen({
                 </View>
               </View>
 
+              {zoneAvailable === false && orderType === "DELIVERY" && address && (
+                <View style={{ marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: "rgba(224, 61, 61, 0.15)", borderWidth: 1, borderColor: "rgba(224, 61, 61, 0.3)", flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Ionicons name="alert-circle-outline" size={18} color="#ff6b6b" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: "#ff6b6b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Levererar inte hit</Text>
+                    <Text style={{ color: "rgba(255,107,107,0.7)", fontSize: 9, fontWeight: "700" }}>Restaurangen levererar tyvärr inte till din adress.</Text>
+                  </View>
+                  <Pressable onPress={() => setAddressModalOpen(true)} style={{ backgroundColor: "rgba(224, 61, 61, 0.2)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
+                    <Text style={{ color: "#ff6b6b", fontSize: 9, fontWeight: "900", textTransform: "uppercase" }}>Ändra</Text>
+                  </Pressable>
+                </View>
+              )}
+
               {!!restaurant?.description && (
                 <Text numberOfLines={3} style={styles.restaurantHeroDescriptionPremium}>
                   {restaurant.description}
@@ -1823,7 +1896,9 @@ function RestaurantScreen({
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="bicycle-outline" size={18} color={palette.gold} />
             <Text style={styles.restaurantQuickStatLabel}>Avgift</Text>
-            <Text style={styles.restaurantQuickStatValue}>{Math.round(restaurant?.deliveryFee || 0)} KR</Text>
+            <Text style={styles.restaurantQuickStatValue}>
+              {zoneAvailable === false ? "–" : (restaurant?.deliveryFee === 0 ? "GRATIS" : `${Math.round(restaurant?.deliveryFee || 0)} KR`)}
+            </Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="time-outline" size={18} color={palette.gold} />
@@ -1900,14 +1975,18 @@ function RestaurantScreen({
 
                 <View style={styles.restaurantMenuProductList}>
                   {category.products.map((product) => {
-                    const disabled = restaurant?.isOpen === false;
+                    const disabled = restaurant?.isOpen === false || (zoneAvailable === false && orderType === "DELIVERY");
 
                     return (
                       <Pressable
                         key={product.id}
                         style={[styles.restaurantMenuProductCard, disabled && styles.restaurantMenuProductCardDisabled]}
                         onPress={() => {
-                          if (disabled) return;
+                          if (restaurant?.isOpen === false) return;
+                          if (zoneAvailable === false && orderType === "DELIVERY") {
+                            setAddressModalOpen(true);
+                            return;
+                          }
                           setSelectedProduct(product);
                         }}
                       >
@@ -2082,6 +2161,10 @@ function CartScreen({
   const orderType = useAppStore((s) => s.orderType);
   const setOrderType = useAppStore((s) => s.setOrderType);
   const setAddress = useAppStore((s) => s.setAddress);
+  const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
+  // Subscribe reactively so we can auto-fill once store is hydrated
+  const storeAddress = useAppStore((s) => s.address);
+  const hydrated = useAppStore((s) => s.hydrated);
 
   const [pageLoading, setPageLoading] = useState(true);
   const [cartRestaurant, setCartRestaurant] = useState<{ name: string; slug: string } | null>(null);
@@ -2091,6 +2174,21 @@ function CartScreen({
     minOrderAmount: 150,
     estimatedDeliveryTime: 35,
   });
+
+  // Sync delivery fees from global overrides
+  useEffect(() => {
+    if (currentRestaurantId && deliveryOverrides[currentRestaurantId] && orderType === "DELIVERY") {
+      const ovr = deliveryOverrides[currentRestaurantId];
+      if (restaurantSettings.deliveryFee !== ovr.deliveryFee || restaurantSettings.minOrderAmount !== ovr.minOrderAmount) {
+        setRestaurantSettings(prev => ({
+          ...prev,
+          deliveryFee: ovr.deliveryFee,
+          minOrderAmount: ovr.minOrderAmount
+        }));
+      }
+    }
+  }, [currentRestaurantId, restaurantSettings.deliveryFee, restaurantSettings.minOrderAmount, deliveryOverrides, orderType]);
+
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [promoCode, setPromoCode] = useState("");
@@ -2110,30 +2208,28 @@ function CartScreen({
   });
   const [autocompleteValue, setAutocompleteValue] = useState("");
 
-  // ── Auto-fill address from previously verified Google Places address ────────
+  // ── Auto-fill address — runs when store is hydrated OR address changes ──────
   useEffect(() => {
-    const storeAddress = useAppStore.getState().address || "";
-    const storedType = useAppStore.getState().orderType || "DELIVERY";
-    setOrderType(storedType);
+    if (!hydrated) return; // Wait for AsyncStorage hydration
+    if (!storeAddress) return;
 
-    if (storeAddress) {
-      setAutocompleteValue(storeAddress);
-      
-      const parts = storeAddress.split(",");
-      const street = parts[0]?.trim() || "";
-      const zipMatch = storeAddress.match(/\b(\d{3})\s?(\d{2})\b/);
-      const zip = zipMatch ? `${zipMatch[1]}${zipMatch[2]}` : "";
-      const cityMatch = storeAddress.match(/\d{3}\s?\d{2}\s+([^,]+)/);
-      const city = cityMatch ? cityMatch[1].trim() : (parts[1]?.trim() || "");
+    // Populate visible autocomplete field (only if not already typed by user)
+    setAutocompleteValue(prev => prev || storeAddress);
 
-      setFormData(prev => ({
-        ...prev,
-        deliveryStreet: prev.deliveryStreet || street,
-        deliveryZip:    prev.deliveryZip    || zip,
-        deliveryCity:   prev.deliveryCity   || city,
-      }));
-    }
-  }, []);
+    const parts = storeAddress.split(",");
+    const street = parts[0]?.trim() || "";
+    const zipMatch = storeAddress.match(/\b(\d{3})\s?(\d{2})\b/);
+    const zip = zipMatch ? `${zipMatch[1]}${zipMatch[2]}` : "";
+    const cityMatch = storeAddress.match(/\d{3}\s?\d{2}\s+([^,]+)/);
+    const city = cityMatch ? cityMatch[1].trim() : (parts[1]?.trim() || "");
+
+    setFormData(prev => ({
+      ...prev,
+      deliveryStreet: prev.deliveryStreet || street,
+      deliveryZip:    prev.deliveryZip    || zip,
+      deliveryCity:   prev.deliveryCity   || city,
+    }));
+  }, [hydrated, storeAddress]);
   // ─────────────────────────────────────────────────────────────────────────
 
   const subtotal = useMemo(
@@ -2228,13 +2324,21 @@ function CartScreen({
         .get("/api/delivery/check", { params: { lat: coords.lat, lng: coords.lng, restaurantId: currentRestaurantId } })
         .catch(() => ({ data: null }));
       if (active && response.data) {
-        setDeliveryCheck(response.data);
+        const ovr = deliveryOverrides[currentRestaurantId];
+        const finalData = { ...response.data };
+        
+        if (ovr) {
+          finalData.deliveryFee = ovr.deliveryFee;
+          finalData.minOrder = ovr.minOrderAmount;
+        }
+        // else: use response.data.deliveryFee directly — backend already returns in kr
+        setDeliveryCheck(finalData);
       }
     })();
     return () => {
       active = false;
     };
-  }, [coords, currentRestaurantId, orderType]);
+  }, [coords, currentRestaurantId, orderType, deliveryOverrides]);
 
   const handlePromo = useCallback(() => {
     const code = promoCode.trim().toLowerCase();
@@ -2282,20 +2386,28 @@ function CartScreen({
       if (orderType === "DELIVERY" && coords && currentRestaurantId) {
         try {
           const zRes = await api.post("/api/cities/validate-location", { lat: coords.lat, lng: coords.lng });
-          if (zRes.data.covered) {
-            const all = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-            const ok = all.some((r: any) => r.id === currentRestaurantId);
-            if (!ok) {
-              Alert.alert(
-                "Leverans ej möjlig",
-                "Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en annan adress.",
-                [{ text: "OK" }]
-              );
-              setSubmitting(false);
-              return;
-            }
+          if (!zRes.data.covered) {
+            Alert.alert(
+              "Utanför leveransområde",
+              "Vi kan tyvärr inte leverera till din adress. Välj avhämtning eller ange en annan adress.",
+              [{ text: "OK" }]
+            );
+            setSubmitting(false);
+            return;
           }
-        } catch { /* Fail open — don't block order on network error */ }
+
+          const all = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+          const ok = all.some((r: any) => r.id === currentRestaurantId);
+          if (!ok) {
+            Alert.alert(
+              "Leverans ej möjlig",
+              "Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en annan adress.",
+              [{ text: "OK" }]
+            );
+            setSubmitting(false);
+            return;
+          }
+        } catch { /* Fail open on network error only */ }
       }
       // ────────────────────────────────────────────────────────────────────────
 
@@ -4868,7 +4980,17 @@ function ScreenWrap({ children }: { children: React.ReactNode }) {
   return <ScrollView contentContainerStyle={styles.scrollContent}>{children}</ScrollView>;
 }
 
-function RestaurantCard({ restaurant, onPress, containerStyle }: { restaurant: Restaurant; onPress: () => void; containerStyle?: any }) {
+function RestaurantCard({ 
+  restaurant, 
+  onPress, 
+  containerStyle,
+  isOutOfZone = false
+}: { 
+  restaurant: Restaurant; 
+  onPress: () => void; 
+  containerStyle?: any;
+  isOutOfZone?: boolean;
+}) {
   return (
     <ScalePressable 
       style={[
@@ -4900,11 +5022,17 @@ function RestaurantCard({ restaurant, onPress, containerStyle }: { restaurant: R
         
         {/* Status + Stars Row */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)" }}>
-            <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
-              {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-            </Text>
-          </View>
+          {isOutOfZone ? (
+            <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: "rgba(220,38,38,0.15)" }}>
+              <Text style={{ color: "#fb7185", fontSize: 10, fontWeight: "900" }}>UTANFÖR ZON</Text>
+            </View>
+          ) : (
+            <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: restaurant.isOpen === false ? "rgba(220,38,38,0.15)" : "rgba(16,185,129,0.15)" }}>
+              <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
+                {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
+              </Text>
+            </View>
+          )}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <StarRating rating={restaurant.rating || 4.5} size={14} />
             <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "900", marginLeft: 2 }}>{restaurant.rating?.toFixed(1) || "4.5"}</Text>

@@ -27,6 +27,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
+import { useCartStore } from "@/store/cartStore";
 
 interface Restaurant {
   id: string;
@@ -78,6 +79,7 @@ export default function HomePage() {
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [orderType, setOrderType] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState(false);
   
   const [cities, setCities] = useState<City[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -94,6 +96,7 @@ export default function HomePage() {
   const [zoneDeliveryInfo, setZoneDeliveryInfo] = useState<Record<string, {
     deliveryFee: number; minOrder: number; etaMinutes?: number | null; zoneName?: string;
   }>>({});
+  const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -147,7 +150,9 @@ export default function HomePage() {
         const match = resCities.data.find((c: City) => c.name.toLowerCase() === initialAddress.toLowerCase());
         if (match) setSelectedCity(match);
       }
-    }).catch(() => {})
+    }).catch(() => {
+      setApiError(true);
+    })
     .finally(() => setLoading(false));
   }, []);
 
@@ -157,30 +162,37 @@ export default function HomePage() {
       if (res.data.covered) {
         const ids: string[] = [];
         const info: typeof zoneDeliveryInfo = {};
+        const overrides: Record<string, { deliveryFee: number; minOrderAmount: number }> = {};
         res.data.cities.forEach((c: any) => {
           c.restaurants.forEach((r: any) => {
             ids.push(r.id);
             if (r.matchedZone) {
+              const fee = (r.matchedZone.deliveryFee ?? 0) / 100;
+              const min = (r.matchedZone.minOrder    ?? 0) / 100;
               info[r.id] = {
-                deliveryFee: r.matchedZone.deliveryFee ?? 0,
-                minOrder:    r.matchedZone.minOrder    ?? 0,
+                deliveryFee: fee,
+                minOrder:    min,
                 etaMinutes:  r.matchedZone.etaMinutes  ?? null,
                 zoneName:    r.matchedZone.name,
               };
+              overrides[r.id] = { deliveryFee: fee, minOrderAmount: min };
             }
           });
         });
         setZoneRestaurantIds(ids);
         setZoneDeliveryInfo(info);
+        setDeliveryOverrides(overrides);
         setZoneError(null);
       } else {
         setZoneRestaurantIds([]);
         setZoneDeliveryInfo({});
+        setDeliveryOverrides({});
         setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
       }
     } catch {
       setZoneRestaurantIds(null); // fail open — show all restaurants
       setZoneDeliveryInfo({});
+      setDeliveryOverrides({});
     }
   };
 
@@ -239,11 +251,11 @@ export default function HomePage() {
         r.name.toLowerCase().includes(query.toLowerCase()) ||
         (r.description || "").toLowerCase().includes(query.toLowerCase());
       
-      // Zone-based filtering (most precise) — only applies for DELIVERY with coordinates
-      let matchZone = true;
-      if (orderType === "DELIVERY" && zoneRestaurantIds !== null) {
-        matchZone = zoneRestaurantIds.includes(r.id);
-      }
+      // Zone handling: Mark as out of zone instead of filtering out
+      const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
+      
+      // We no longer filter out by zone here, we'll handle it in sorting and UI
+      const matchZone = true; 
 
       // Deal filter — when user clicks a deal card
       const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
@@ -257,14 +269,22 @@ export default function HomePage() {
       return matchCuisine && matchQuery && matchZone && matchCity && matchDeal;
     });
 
-    // Sort: 1) Open Premium, 2) Open, 3) Closed Premium, 4) Closed
+    // Sort: 1) Open Premium, 2) Open, 3) Closed/OutOfZone
     return list.sort((a, b) => {
+      const aInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(a.id);
+      const bInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(b.id);
+      
+      // Prioritize in-zone
+      if (aInZone !== bInZone) return aInZone ? -1 : 1;
+
       const aOpen = a.isOpen !== false ? 1 : 0;
       const bOpen = b.isOpen !== false ? 1 : 0;
       if (aOpen !== bOpen) return bOpen - aOpen;
+
       const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
       const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
       if (aPremium !== bPremium) return bPremium - aPremium;
+      
       return a.name.localeCompare(b.name);
     });
   }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal]);
@@ -541,13 +561,13 @@ export default function HomePage() {
                     </div>
 
                     <div className="px-3 pb-4">
-                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight truncate leading-none mb-2">{r.name}</h3>
+                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-2">{r.name}</h3>
                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
                        
                         <div className="flex items-center justify-between border-t border-white/5 pt-5">
                            {(() => {
                              const zi = zoneDeliveryInfo[r.id];
-                             const fee = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
+                             const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
                              const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
                              return (
                                <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-wider text-zinc-400">
@@ -577,7 +597,21 @@ export default function HomePage() {
             </h2>
           </div>
 
-          {loading ? (
+          {apiError ? (
+            <div className="py-24 text-center">
+              <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-rose-500/10">
+                <X size={32} className="text-rose-500" />
+              </div>
+              <p className="text-2xl font-black uppercase tracking-tight text-white mb-2">Kan inte nå servern</p>
+              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest mb-6">Kontrollera din anslutning och försök igen.</p>
+              <button
+                onClick={() => { setApiError(false); setLoading(true); window.location.reload(); }}
+                className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
+              >
+                Ladda om
+              </button>
+            </div>
+          ) : loading ? (
             <div className="space-y-6">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="h-44 rounded-[3rem] glass-panel animate-pulse shadow-sm" />
@@ -594,8 +628,9 @@ export default function HomePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-1 xl:grid-cols-2 gap-8">
               {filtered.map((r, i) => {
-                const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
-                const dimmed = r.isOpen === false || !inZone;
+                const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
+                const isClosed = r.isOpen === false;
+                const dimmed = isClosed || isOutOfZone;
                 return (
                 <motion.div
                   key={r.id}
@@ -617,9 +652,19 @@ export default function HomePage() {
                         <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
                       )}
                       
-                      {r.isOpen === false && (
-                        <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center">
-                          <span className="text-[10px] font-black text-rose-400 bg-rose-500/10 uppercase tracking-[0.2em] border border-rose-500/20 px-5 py-2.5 rounded-2xl shadow-lg">Stängt</span>
+                      {/* Out of Zone / Closed Badge */}
+                      {(isClosed || isOutOfZone) && (
+                        <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center flex-col gap-2">
+                          {isOutOfZone && (
+                            <div className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
+                              Utanför zon
+                            </div>
+                          )}
+                          {isClosed && (
+                            <div className="px-4 py-2 rounded-xl bg-zinc-900/90 text-zinc-400 text-[10px] font-black uppercase tracking-widest border border-white/5">
+                              Stängt
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -647,8 +692,8 @@ export default function HomePage() {
                       <div className="mt-8 border-t border-white/5 pt-6">
                         {(() => {
                           const zi = zoneDeliveryInfo[r.id];
-                          const fee    = zi ? Math.round(zi.deliveryFee / 100) : (r.deliveryFee ?? 0);
-                          const minOrd = zi ? Math.round(zi.minOrder    / 100) : (r.minOrderAmount ?? 0);
+                          const fee    = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
+                          const minOrd = zi ? zi.minOrder    : (r.minOrderAmount ?? 0);
                           const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
                           return (
                             <div className="flex items-center flex-wrap gap-5 text-[10px] font-black uppercase tracking-widest text-zinc-400">

@@ -67,9 +67,21 @@ const handler = NextAuth({
     },
     async redirect({ url, baseUrl }) {
       if (url.includes("/mobile-auth")) return url;
+      // Relative URLs: prepend the base
       if (url.startsWith("/")) return `${baseUrl}${url}`;
-      else if (new URL(url).origin === baseUrl) return url;
-      return baseUrl;
+      try {
+        const parsed = new URL(url);
+        // Accept the same origin OR the configured base URL
+        if (parsed.origin === baseUrl || parsed.origin === new URL(baseUrl).origin) return url;
+        // Also accept our known production domain
+        const knownOrigins = [
+          "https://web-production-67f45.up.railway.app",
+          "http://localhost:3000",
+          "http://localhost:3001",
+        ];
+        if (knownOrigins.includes(parsed.origin)) return url;
+      } catch {}
+      return `${baseUrl}/profile`;
     },
     async session({ session, token }) {
       session.platformToken = token.platformToken;

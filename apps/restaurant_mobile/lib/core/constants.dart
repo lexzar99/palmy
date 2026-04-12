@@ -1,7 +1,7 @@
 class AppConstants {
   // Base URLs for production
-  static const String baseUrl = 'https://palmy-production-2021.up.railway.app';
-  static const String socketUrl = 'https://palmy-production-2021.up.railway.app';
+  static const String baseUrl = 'http://localhost:4000';
+  static const String socketUrl = 'http://localhost:4000';
   
   // Local storage keys
   static const String tokenKey = 'matgo_token';

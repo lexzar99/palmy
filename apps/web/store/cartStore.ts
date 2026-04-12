@@ -24,11 +24,15 @@ interface CartStore {
   restaurantSlug: string | null;
   lastAddedItemName: string | null;
   lastAddedAt: number;
+  deliveryOverrides: Record<string, { deliveryFee: number; minOrderAmount: number }>;
   addItem: (item: Omit<CartItem, 'cartItemId'> & { restaurantSlug?: string }) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
   clearCart: () => void;
   getTotal: () => number;
+  setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
+  /** Update a single restaurant's delivery override without clearing others */
+  updateDeliveryOverride: (restaurantId: string, deliveryFee: number, minOrderAmount: number) => void;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -39,6 +43,7 @@ export const useCartStore = create<CartStore>()(
       restaurantSlug: null,
       lastAddedItemName: null,
       lastAddedAt: 0,
+      deliveryOverrides: {},
       addItem: (item) => set((state) => {
         const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
         const nextRestaurantSlug = item.restaurantSlug ?? state.restaurantSlug ?? null;
@@ -84,6 +89,14 @@ export const useCartStore = create<CartStore>()(
           return total + ((item.price + itemExtrasTotal) * item.quantity);
         }, 0);
       },
+      setDeliveryOverrides: (overrides) => set({ deliveryOverrides: overrides }),
+      updateDeliveryOverride: (restaurantId, deliveryFee, minOrderAmount) =>
+        set((state) => ({
+          deliveryOverrides: {
+            ...state.deliveryOverrides,
+            [restaurantId]: { deliveryFee, minOrderAmount },
+          },
+        })),
     }),
     { name: 'matgo-cart' }
   )

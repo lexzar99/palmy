@@ -78,6 +78,7 @@ export default function RestaurantsPage() {
 
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTier, setFilterTier] = useState<number | "all">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "open" | "closed">("all");
@@ -90,11 +91,16 @@ export default function RestaurantsPage() {
 
   const fetchRestaurants = async () => {
     setLoading(true);
+    setFetchError(null);
     try {
       const res = await axios.get(`${API_URL}/api/restaurants`);
       setRestaurants(res.data);
-    } catch {
-      toastError("Kunde inte ladda restauranger");
+    } catch (err: any) {
+      const msg = err?.code === "ERR_NETWORK"
+        ? `Kan inte nå API-servern (${API_URL}). Kontrollera att backend körs.`
+        : err?.response?.data?.error || "Kunde inte ladda restauranger";
+      setFetchError(msg);
+      toastError(msg);
     } finally {
       setLoading(false);
     }
@@ -150,6 +156,26 @@ export default function RestaurantsPage() {
         <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[9px]">
           Laddar restauranger...
         </p>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-6 text-center p-8">
+        <div className="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+          <XCircle size={28} className="text-rose-500" />
+        </div>
+        <div>
+          <p className="text-sm font-black uppercase text-[var(--text-primary)] mb-2">Kunde inte hämta restauranger</p>
+          <p className="text-[10px] text-[var(--text-secondary)] max-w-sm">{fetchError}</p>
+        </div>
+        <button
+          onClick={fetchRestaurants}
+          className="flex items-center gap-2 px-5 py-3 bg-gold-500 text-[#0d0d0d] font-black uppercase text-[9px] tracking-widest rounded-xl active:scale-95 transition-all"
+        >
+          <RefreshCw size={14} /> Försök igen
+        </button>
       </div>
     );
   }

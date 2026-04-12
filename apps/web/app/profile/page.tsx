@@ -92,10 +92,15 @@ function SocialButton({
 }) {
   const [loading, setLoading] = useState(false);
 
-  // This component now only triggers the sign-in flow
   const handleClick = async () => {
     setLoading(true);
-    await signIn(provider, { callbackUrl: window.location.origin + "/profile" });
+    try {
+      // Use a relative callbackUrl so NextAuth redirects to the correct origin
+      // (avoids issues when NEXTAUTH_URL doesn't match the current browser URL)
+      await signIn(provider, { callbackUrl: "/profile" });
+    } catch {
+      setLoading(false);
+    }
   };
 
   return (
