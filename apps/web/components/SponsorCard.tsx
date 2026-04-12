@@ -28,15 +28,19 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   const handleCTAClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     if (!sponsor.isClickable || sponsor.linkType === 'NONE') return;
 
-    const target = sponsor.linkTarget || sponsor.ctaLink;
+    let target = sponsor.linkTarget || sponsor.ctaLink;
     if (!target) return;
+    
+    // Clean target if it has a leading slash for internal types
+    const cleanTarget = target.startsWith('/') ? target.slice(1) : target;
 
     if (sponsor.linkType === 'DEAL') {
-      router.push(`/search?deal=${target}`);
+      router.push(`/search?deal=${cleanTarget}`);
     } else if (sponsor.linkType === 'RESTAURANT') {
-      router.push(`/restaurants/${target}`);
+      router.push(`/restaurants/${cleanTarget}`);
     } else {
       window.open(target, '_blank', 'noopener,noreferrer');
     }
