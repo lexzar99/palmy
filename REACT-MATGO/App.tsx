@@ -2529,7 +2529,7 @@ function CartScreen({
               </View>
               {orderType === "DELIVERY" && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Frakt</Text>
+                  <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Leveransavgift</Text>
                   <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
                 </View>
               )}
