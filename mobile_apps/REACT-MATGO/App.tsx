@@ -633,117 +633,177 @@ function LiveOrderBanner({
   onDismiss: () => void;
 }) {
   const [order, setOrder] = useState<Order | null>(null);
+  const lastStatus = useRef<string | null>(null);
   const setActiveOrder = useAppStore((s) => s.setActiveOrder);
 
   useEffect(() => {
     const fetchO = async () => {
       try {
         const res = await api.get(`/api/orders/${id}`);
-        setOrder(res.data);
+        const data = res.data;
+        setOrder(data);
+
+        // Notify user on status update (Local Notification Simulation)
+        if (lastStatus.current && lastStatus.current !== data.status) {
+          const display = getStatusDisplay(data.status);
+          Alert.alert(
+            "Statusuppdatering",
+            `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
+            [{ text: "Visa", onPress: () => openOrder(id) }, { text: "Stäng", style: "cancel" }]
+          );
+          
+          if (data.status === "OUT_FOR_DELIVERY" || data.status === "DELIVERING") {
+            updateOrderActivity(id, "on_the_way", { etaMinutes: data.estimatedTime });
+          } else if (data.status === "ACCEPTED" || data.status === "PREPARING") {
+            updateOrderActivity(id, "preparing", { etaMinutes: data.estimatedTime });
+          }
+        }
+        lastStatus.current = data.status;
+
         // Auto-clear when order is finished
-        if (
-          res.data.status === "DELIVERED" ||
-          res.data.status === "COMPLETED" ||
-          res.data.status === "REJECTED"
-        ) {
+        const finished = ["DELIVERED", "COMPLETED", "REJECTED", "CANCELLED"].includes(data.status);
+        if (finished) {
+          endOrderActivity(id);
           setActiveOrder(null);
         }
       } catch {}
     };
+
     fetchO();
+    // Use Socket for real-time updates if possible, fallback to polling
+    const socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
+    socket.emit("join:order", id);
+    socket.on("order:status", (payload: any) => {
+      if (payload.orderId === id) fetchO();
+    });
+
     const inv = setInterval(fetchO, 15000);
-    return () => clearInterval(inv);
+    return () => {
+      socket.disconnect();
+      clearInterval(inv);
+    };
   }, [id, setActiveOrder]);
 
-  // Don't show for finished orders
-  if (
-    !order ||
-    order.status === "DELIVERED" ||
-    order.status === "COMPLETED" ||
-    order.status === "REJECTED"
-  )
-    return null;
+  if (!order) return null;
 
-  const isOnTheWay = order.status === "OUT_FOR_DELIVERY" || order.status === "ON_THE_WAY";
-  const statusLabel =
-    order.status === "PENDING"
-      ? "VÄNTAR..."
-      : order.status === "PREPARING" || order.status === "ACCEPTED"
-      ? "TILLAGAS"
-      : "PÅ VÄG";
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return { label: "GRANSKAS", icon: "time", color: "#f59e0b", bgColor: "rgba(245,158,11,0.1)" };
+      case "ACCEPTED":
+      case "PREPARING":
+        return { label: "TILLAGAS", icon: "flame", color: "#f97316", bgColor: "rgba(249,115,22,0.1)" };
+      case "READY":
+        return { label: "REDO!", icon: "checkmark-circle", color: "#0ea5e9", bgColor: "rgba(14,165,233,0.1)" };
+      case "OUT_FOR_DELIVERY":
+      case "DELIVERING":
+        return { label: "PÅ VÄG!", icon: "bicycle", color: "#10b981", bgColor: "rgba(16,185,129,0.1)" };
+      case "DELIVERED":
+      case "COMPLETED":
+        return { label: "LEVERERAD", icon: "checkmark-done", color: "#22c55e", bgColor: "rgba(34,197,94,0.1)" };
+      default:
+        return { label: "AKTIV", icon: "flash", color: palette.gold, bgColor: "rgba(231,178,75,0.1)" };
+    }
+  };
 
-  // Only show the banner when the order is actively being processed
-  // (i.e. not just placed and pending for a very long time in the background)
+  const display = getStatusDisplay(order.status);
+  const finished = ["DELIVERED", "COMPLETED", "REJECTED", "CANCELLED"].includes(order.status);
+  if (finished) return null;
 
   return (
     <View
       style={{
         position: "absolute",
         bottom: 100,
-        left: 16,
-        right: 16,
-        backgroundColor: "#19191d",
+        left: 12,
+        right: 12,
         borderRadius: 24,
-        padding: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
+        overflow: "hidden",
+        backgroundColor: "#111015",
         borderWidth: 1,
-        borderColor: isOnTheWay ? "rgba(34,197,94,0.4)" : "rgba(231,178,75,0.3)",
+        borderColor: "rgba(255,255,255,0.08)",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.4,
-        shadowRadius: 20,
-        elevation: 10,
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.5,
+        shadowRadius: 24,
+        elevation: 15,
       }}
     >
-      {/* Tap to open order */}
-      <Pressable
-        onPress={() => openOrder(id)}
-        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12 }}
+      <LinearGradient
+        colors={["rgba(255,255,255,0.03)", "transparent"]}
+        style={{ padding: 16 }}
       >
-        <View
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            backgroundColor: isOnTheWay ? palette.success : palette.gold,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+        <Pressable
+          onPress={() => openOrder(id)}
+          style={{ flexDirection: "row", alignItems: "center", gap: 14 }}
         >
-          <Ionicons name={isOnTheWay ? "bicycle" : "flash"} size={20} color="#000" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: isOnTheWay ? palette.success : palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>
-            {isOnTheWay ? "PÅ VÄG TILL DIG" : "AKTIV BESTÄLLNING"}
-          </Text>
-          <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }}>
-            {order.restaurantName || "Din beställning"} • {statusLabel}
-          </Text>
-        </View>
-        <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.05)" }}>
-          <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>~{order.estimatedTime || 30}m</Text>
-        </View>
-      </Pressable>
+          {/* Status Icon with matching background glow */}
+          <View
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 20,
+              backgroundColor: display.bgColor,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: `${display.color}30`,
+            }}
+          >
+            <Ionicons name={display.icon as any} size={24} color={display.color} />
+          </View>
 
-      {/* X button to dismiss banner */}
-      <Pressable
-        onPress={onDismiss}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 16,
-          backgroundColor: "rgba(255,255,255,0.08)",
-          alignItems: "center",
-          justifyContent: "center",
-          borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.1)",
-        }}
-        hitSlop={8}
-      >
-        <Ionicons name="close" size={16} color="#7f798a" />
-      </Pressable>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <Text style={{ color: display.color, fontSize: 10, fontWeight: "900", letterSpacing: 1.5 }}>
+                {display.label}
+              </Text>
+              <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)" }} />
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700" }}>
+                #{order.orderNumber?.slice(-4) || "..."}
+              </Text>
+            </View>
+            <Text numberOfLines={1} style={{ color: palette.text, fontSize: 15, fontWeight: "900", letterSpacing: -0.3 }}>
+              {order.restaurantName || "Din beställning"}
+            </Text>
+            
+            {/* Progress Bar */}
+            <View style={{ height: 4, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 2, marginTop: 8, overflow: "hidden", width: "80%" }}>
+              <Animated.View 
+                style={{ 
+                  height: "100%", 
+                  backgroundColor: display.color, 
+                  width: order.status === "PENDING" ? "20%" : order.status === "PREPARING" ? "50%" : order.status === "READY" ? "80%" : "100%",
+                  opacity: 0.8
+                }} 
+              />
+            </View>
+          </View>
+
+          <View style={{ alignItems: "flex-end", gap: 8 }}>
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.03)" }}>
+              <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", fontStyle: "italic" }}>
+                {order.estimatedTime || 30}m
+              </Text>
+            </View>
+            
+            <Pressable
+              onPress={onDismiss}
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: "rgba(255,255,255,0.05)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+              hitSlop={10}
+            >
+              <Ionicons name="close" size={14} color={palette.muted} />
+            </Pressable>
+          </View>
+        </Pressable>
+      </LinearGradient>
     </View>
   );
 }

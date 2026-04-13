@@ -189,23 +189,25 @@ export default function CartPage() {
   const subtotal = getTotal();
   const currentRestaurantId = useCartStore((s) => s.restaurantId);
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
+  const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
 
-  // Sync delivery fees from global overrides
+  // Sync delivery fees from global overrides — BUT only if no zone check has run yet
+  // Once the zone check provides authoritative fees, those take priority
   useEffect(() => {
-    if (currentRestaurantId && deliveryOverrides[currentRestaurantId] && orderType === "DELIVERY") {
-      const ovr = deliveryOverrides[currentRestaurantId];
-      if (restaurantSettings.deliveryFee !== ovr.deliveryFee || restaurantSettings.minOrderAmount !== ovr.minOrderAmount) {
-        setRestaurantSettings(prev => ({
-          ...prev,
-          deliveryFee: ovr.deliveryFee,
-          minOrderAmount: ovr.minOrderAmount
-        }));
-      }
+    if (currentRestaurantId && ovr && orderType === "DELIVERY" && !addressZoneStatus) {
+      setRestaurantSettings(prev => ({
+        ...prev,
+        deliveryFee: ovr.deliveryFee,
+        minOrderAmount: ovr.minOrderAmount
+      }));
     }
-  }, [currentRestaurantId, restaurantSettings.deliveryFee, restaurantSettings.minOrderAmount, deliveryOverrides, orderType]);
+  }, [currentRestaurantId, ovr, orderType, addressZoneStatus]);
 
-  const deliveryFee = orderType === "DELIVERY" ? restaurantSettings.deliveryFee : 0;
-  const minOrder = restaurantSettings.minOrderAmount;
+  // Fee priority: zone check result → override from home page → restaurant default (fallback to 49 kr)
+  const deliveryFee = orderType === "DELIVERY"
+    ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? (restaurantSettings.deliveryFee || 49))
+    : 0;
+  const minOrder = deliveryCheck?.minOrder ?? ovr?.minOrderAmount ?? restaurantSettings.minOrderAmount;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
 
