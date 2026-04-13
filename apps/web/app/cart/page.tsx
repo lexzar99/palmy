@@ -319,39 +319,59 @@ export default function CartPage() {
   useEffect(() => {
     const storedAddress = localStorage.getItem("platform_address");
     const storedType = localStorage.getItem("platform_order_type");
+    const storedCoords = localStorage.getItem("platform_coords");
     
     if (storedType === "PICKUP" || storedType === "DELIVERY") {
       setOrderType(storedType as "PICKUP" | "DELIVERY");
     }
 
     if (storedAddress) {
-      // Populate visible autocomplete field
       setAddressInput(storedAddress);
       
-      // Parse street and zip from the stored address string
       const parts = storedAddress.split(',').map((p: string) => p.trim());
       const street = parts[0] || "";
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
+      // Enhanced parsing for city
+      const city = parts.length > 1 ? parts[1].replace(/\d+/g, '').trim() : "";
       
       setFormData(prev => ({
         ...prev,
         deliveryStreet: prev.deliveryStreet || street,
         deliveryZip: prev.deliveryZip || zip,
+        deliveryCity: prev.deliveryCity || city,
       }));
 
-      // Run zone check with stored geocoded coords (if available)
-      if (storedType !== "PICKUP") {
-        const storedCoords = localStorage.getItem("platform_coords");
-        if (storedCoords && currentRestaurantId) {
+      if (storedType !== "PICKUP" && currentRestaurantId) {
+        if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
             checkDeliverySpecific(lat, lng);
           } catch {}
+        } else {
+          // If address exists but no coords, try to geocode the string to fix the "delete and re-type" glitch
+          setAddressLoading(true);
+          fetch(`/api/places/autocomplete?input=${encodeURIComponent(storedAddress)}&sessiontoken=${sessionToken.current}`)
+            .then(r => r.json())
+            .then(data => {
+              const bestMatch = data.predictions?.[0];
+              if (bestMatch) {
+                return fetch(`/api/places/geocode?place_id=${bestMatch.place_id}&sessiontoken=${sessionToken.current}`);
+              }
+              throw new Error("No match");
+            })
+            .then(r => r.json())
+            .then(data => {
+              if (data.location) {
+                localStorage.setItem("platform_coords", JSON.stringify(data.location));
+                checkDeliverySpecific(data.location.lat, data.location.lng);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setAddressLoading(false));
         }
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentRestaurantId]);
 
   const submitOrder = async (paymentIntentId: string) => {
