@@ -27,6 +27,7 @@ import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { io, Socket } from "socket.io-client";
 import * as WebBrowser from "expo-web-browser";
+import { supabase } from "./src/lib/supabase";
 import {
   API_URL,
   SOCKET_URL,
@@ -90,28 +91,22 @@ const COUNTRY_CODES = [
 
 const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
 
+// Deep-link redirect URI for Supabase Auth → native app
+const SUPABASE_REDIRECT_URL = "matgo://auth/callback";
+
 /**
- * Native Google login that works with NO Google Cloud Console changes.
+ * Native Google OAuth via Supabase Auth.
  *
  * Flow:
- *  1. App opens WEB_URL/mobile-auth?provider=google&redirect=matgo://auth
- *     in an IN-APP browser (ASWebAuthenticationSession on iOS / Custom Tab on Android)
- *  2. The mobile-auth page runs NextAuth signIn("google")
- *  3. Google redirects to the web backend's callback URL
- *     (https://web-production.../api/auth/callback/google — already registered!)
- *  4. Web backend exchanges code, builds platformToken, then redirects to
- *     matgo://auth?token=PLATFORM_JWT
- *  5. openAuthSessionAsync detects the matgo:// redirect, closes the browser and
- *     returns the URL containing the token back to the app
- *
- * No custom scheme (matgo://) ever reaches Google — so redirect_uri_mismatch
- * is impossible. WebBrowser shows an embedded sheet, NOT external Safari.
+ *  1. supabase.auth.signInWithOAuth({ provider: 'google' }) returns a Google OAuth URL
+ *  2. openAuthSessionAsync opens it in an IN-APP browser (not Safari)
+ *  3. After Google login, Supabase redirects to matgo://auth/callback?code=...
+ *  4. App exchanges the code via supabase.auth.exchangeCodeForSession
+ *  5. Supabase session is stored in AsyncStorage (auto-refreshed)
+ *  6. Backend verifies the Supabase access_token via supabaseAdmin.auth.getUser
  */
-const MOBILE_AUTH_REDIRECT = "matgo://auth";
-
 function useGoogleAuth() {
   const [loading, setLoading] = useState(false);
-  // Dummy response state so callers can stay consistent
   const [tokenResult, setTokenResult] = useState<{ token: string; user: any } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,20 +115,35 @@ function useGoogleAuth() {
     setError(null);
     setTokenResult(null);
     try {
-      const mobileAuthUrl =
-        `${WEB_URL}/mobile-auth?provider=google&redirect=${encodeURIComponent(MOBILE_AUTH_REDIRECT)}`;
-      const result = await WebBrowser.openAuthSessionAsync(mobileAuthUrl, MOBILE_AUTH_REDIRECT);
+      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: SUPABASE_REDIRECT_URL,
+          skipBrowserRedirect: true, // We handle opening the browser ourselves
+        },
+      });
+      if (oauthError || !data.url) throw oauthError ?? new Error("Ingen OAuth-URL");
+
+      // Open in-app browser — NOT external Safari
+      const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
 
       if (result.type === "success" && result.url) {
-        // Extract token from matgo://auth?token=ENCODED_JWT
-        const match = result.url.match(/[?&]token=([^&]+)/);
-        const rawToken = match ? decodeURIComponent(match[1]) : null;
-        if (!rawToken) throw new Error("Ingen token mottogs från inloggningen.");
-        // Fetch the user profile using the received platform token
+        // Extract the code from the callback URL and exchange for session
+        const callbackUrl = new URL(result.url);
+        const code = callbackUrl.searchParams.get("code");
+        if (!code) throw new Error("Inget auth-code i callback-URL");
+
+        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+        if (sessionError) throw sessionError;
+
+        const accessToken = sessionData.session?.access_token;
+        if (!accessToken) throw new Error("Ingen session efter code exchange");
+
+        // Fetch profile from backend using the Supabase token
         const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${rawToken}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
-        setTokenResult({ token: rawToken, user: profileRes.data });
+        setTokenResult({ token: accessToken, user: profileRes.data });
       } else if (result.type === "cancel" || result.type === "dismiss") {
         setError("__cancelled__");
       }
@@ -493,10 +503,33 @@ function AppContent() {
   const { activeOrderId, setActiveOrder } = useAppStore();
   const onboardingComplete = useAppStore((s) => s.onboardingComplete);
   const token = useAppStore((s) => s.token);
+  const setToken = useAppStore((s) => s.setToken);
 
   useEffect(() => {
     hydrate().catch(() => {});
   }, [hydrate]);
+
+  // Handle deep-link callbacks for Supabase Auth (OAuth redirect back to app)
+  useEffect(() => {
+    const handleUrl = async (url: string) => {
+      if (!url.startsWith(SUPABASE_REDIRECT_URL)) return;
+      const parsed = new URL(url);
+      const code = parsed.searchParams.get("code");
+      if (!code) return;
+      try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error && data.session?.access_token) {
+          setToken(data.session.access_token);
+        }
+      } catch {}
+    };
+
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      handleUrl(url).catch(() => {});
+    });
+    Linking.getInitialURL().then((url) => { if (url) handleUrl(url).catch(() => {}); }).catch(() => {});
+    return () => subscription.remove();
+  }, [setToken]);
 
   const pushRoute = useCallback((next: AppRoute) => {
     setRouteStack((current) => [...current, next]);
@@ -3498,18 +3531,25 @@ function ProfileScreen({
       await googlePrompt();
       // Token/error handled in useEffects above
     } else {
-      // Facebook: use same WebBrowser approach (no redirect_uri issues)
+      // Facebook via Supabase Auth
       try {
-        const fbUrl = `${WEB_URL}/mobile-auth?provider=facebook&redirect=${encodeURIComponent(MOBILE_AUTH_REDIRECT)}`;
-        const result = await WebBrowser.openAuthSessionAsync(fbUrl, MOBILE_AUTH_REDIRECT);
+        const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+          provider: "facebook",
+          options: { redirectTo: SUPABASE_REDIRECT_URL, skipBrowserRedirect: true },
+        });
+        if (oauthErr || !data.url) throw oauthErr ?? new Error("No OAuth URL");
+        const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
         if (result.type === "success" && result.url) {
-          const match = result.url.match(/[?&]token=([^&]+)/);
-          const rawToken = match ? decodeURIComponent(match[1]) : null;
-          if (rawToken) {
-            const profileRes = await api.get("/api/profile", { headers: { Authorization: `Bearer ${rawToken}` } });
-            setToken(rawToken);
-            setProfile(profileRes.data);
-            fetchProfileData(rawToken);
+          const code = new URL(result.url).searchParams.get("code");
+          if (code) {
+            const { data: sd } = await supabase.auth.exchangeCodeForSession(code);
+            const accessToken = sd.session?.access_token;
+            if (accessToken) {
+              const profileRes = await api.get("/api/profile", { headers: { Authorization: `Bearer ${accessToken}` } });
+              setToken(accessToken);
+              setProfile(profileRes.data);
+              fetchProfileData(accessToken);
+            }
           }
         }
       } catch {

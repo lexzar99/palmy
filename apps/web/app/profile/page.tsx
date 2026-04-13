@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import {
   User, Settings, MapPin, Mail, Phone, LogOut, ChevronRight,
   Package, History, ShieldCheck, Lock, ArrowLeft, Loader2, Save, Bell, Check, Edit2, Sparkles, Ticket, Tag,
@@ -80,7 +81,7 @@ function CountryPicker({
   );
 }
 
-// ─── Social login button ───────────────────────────────────────────────────
+// ─── Social login button (Supabase Auth) ───────────────────────────────────
 function SocialButton({
   provider,
   label,
@@ -95,9 +96,16 @@ function SocialButton({
   const handleClick = async () => {
     setLoading(true);
     try {
-      // Use a relative callbackUrl so NextAuth redirects to the correct origin
-      // (avoids issues when NEXTAUTH_URL doesn't match the current browser URL)
-      await signIn(provider, { callbackUrl: "/profile" });
+      const supabase = createSupabaseBrowserClient();
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          // Callback URL registered in Supabase Dashboard > Auth > URL Configuration
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) throw error;
+      // Browser redirects to Google — no further action needed here
     } catch {
       setLoading(false);
     }
@@ -219,19 +227,49 @@ export default function ProfilePage() {
     }
   }, [status, session, token, user, fetchData, isLoggingOut]);
 
+  // ─── Supabase Auth session ───────────────────────────────────────────────
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+
+    // Check for an existing Supabase session on mount
+    supabase.auth.getSession().then(({ data: { session: sbSession } }) => {
+      if (sbSession?.access_token) {
+        const sbToken = sbSession.access_token;
+        localStorage.setItem("platform_user_token", sbToken);
+        setToken(sbToken);
+        fetchData(sbToken);
+      }
+    });
+
+    // Subscribe to auth state changes (e.g. after OAuth redirect)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, sbSession) => {
+        if (sbSession?.access_token) {
+          const sbToken = sbSession.access_token;
+          localStorage.setItem("platform_user_token", sbToken);
+          setToken(sbToken);
+          fetchData(sbToken);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [fetchData]);
+
   useEffect(() => {
     const visited = localStorage.getItem("platform_has_visited");
     if (visited) setHasVisited(true);
     else localStorage.setItem("platform_has_visited", "true");
 
+    // Also check legacy custom token in localStorage (backward compat)
     const savedToken = localStorage.getItem("platform_user_token");
-    if (savedToken) {
+    if (savedToken && !token) {
       setToken(savedToken);
       fetchData(savedToken);
-    } else {
+    } else if (!savedToken) {
       setLoading(false);
     }
-  }, [fetchData]);
+  }, [fetchData]);  // eslint-disable-line
 
   const handleSendOtp = async (e: React.FormEvent, customPhone?: string) => {
     if (e) e.preventDefault();
@@ -317,8 +355,12 @@ export default function ProfilePage() {
       setUser(null);
       setOrders([]);
       setDeals([]);
-      // Log out from NextAuth
-      await signOut({ redirect: false });
+      // Sign out of both Supabase and NextAuth (legacy)
+      const supabase = createSupabaseBrowserClient();
+      await Promise.allSettled([
+        supabase.auth.signOut(),
+        signOut({ redirect: false }),
+      ]);
     } finally {
       setIsLoggingOut(false);
     }
