@@ -2653,7 +2653,9 @@ function CartScreen({
     if (!hydrated) return; 
     if (!storeAddress) return;
 
-    setAutocompleteValue(prev => prev || storeAddress);
+    // ALWAYS set autocomplete and formData from the store address
+    // The user explicitly chose this address on the home page
+    setAutocompleteValue(storeAddress);
 
     const parts = storeAddress.split(",");
     const street = parts[0]?.trim() || "";
@@ -2664,9 +2666,9 @@ function CartScreen({
 
     setFormData(prev => ({
       ...prev,
-      deliveryStreet: prev.deliveryStreet || street,
-      deliveryZip:    prev.deliveryZip    || zip,
-      deliveryCity:   prev.deliveryCity   || city,
+      deliveryStreet: street || prev.deliveryStreet,
+      deliveryZip:    zip    || prev.deliveryZip,
+      deliveryCity:   city   || prev.deliveryCity,
     }));
 
     if (!coords && storeAddress) {
@@ -2774,6 +2776,9 @@ function CartScreen({
     setPendingPromoCode(null);
   }, [pendingPromoCode, personalDeals, setPendingPromoCode]);
 
+  // Zone check effect — runs when coords, restaurant, or order type change
+  // NOTE: deliveryOverrides intentionally NOT in deps to prevent infinite loop
+  // (this effect itself updates deliveryOverrides via updateDeliveryOverride)
   useEffect(() => {
     let active = true;
     (async () => {
@@ -2822,7 +2827,7 @@ function CartScreen({
       }
     })();
     return () => { active = false; };
-  }, [coords, currentRestaurantId, orderType, deliveryOverrides]);
+  }, [coords, currentRestaurantId, orderType]);
 
   const handlePromo = useCallback(() => {
     const code = promoCode.trim().toLowerCase();
@@ -2844,10 +2849,8 @@ function CartScreen({
     if (!formData.customerPhone.trim()) { Alert.alert("Telefon saknas", "Fyll i ditt telefonnummer."); return; }
     if (orderType === "DELIVERY") {
       const hasStreet = !!formData.deliveryStreet.trim();
-      const hasZip = !!formData.deliveryZip.trim();
-      const hasCity = !!formData.deliveryCity.trim();
       
-      if (!hasStreet || ((!hasZip || !hasCity) && zoneCheckStatus !== "ok")) {
+      if (!hasStreet) {
         Alert.alert("Adress saknas", "Fyll i en fullständig leveransadress.");
         return;
       }
@@ -2863,7 +2866,7 @@ function CartScreen({
         return;
       }
 
-      // ── Last-mile zone check (validate-location — authoritative) ──────────────
+      // ── Consolidated last-mile zone check (validate-location — authoritative) ──
       if (orderType === "DELIVERY" && currentRestaurantId) {
         let currentCoords = coords;
 
@@ -2888,61 +2891,58 @@ function CartScreen({
               lat: currentCoords.lat,
               lng: currentCoords.lng,
             });
-            const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-            const thisRest = allRests.find((r: any) => r.id === currentRestaurantId);
-            if (!thisRest || !thisRest.matchedZone) {
-              Alert.alert("Utanför leveransområde", "Vi kan tyvärr inte leverera till din adress.");
+
+            if (!zRes.data?.covered) {
+              setZoneCheckStatus("error");
+              Alert.alert(
+                "Utanför leveransområde",
+                "Vi levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
+                [{ text: "OK" }]
+              );
               setSubmitting(false);
               return;
             }
-          } catch { /* Fail open on network error for last-mile check */ }
+
+            const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+            const thisRest = allRests.find((r: any) => r.id === currentRestaurantId);
+
+            if (!thisRest || !thisRest.matchedZone) {
+              setZoneCheckStatus("error");
+              Alert.alert(
+                "Leverans ej möjlig",
+                "Den här restaurangen levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
+                [{ text: "OK" }]
+              );
+              setSubmitting(false);
+              return;
+            }
+
+            // ALWAYS update the fee from the fresh zone check result
+            const freshFee = (thisRest.matchedZone.deliveryFee ?? 0) / 100;
+            const freshMin = (thisRest.matchedZone.minOrder ?? 0) / 100;
+            useAppStore.getState().updateDeliveryOverride(currentRestaurantId, freshFee, freshMin);
+            setDeliveryCheck({ available: true, deliveryFee: freshFee, minOrder: freshMin });
+            setRestaurantSettings(prev => ({
+              ...prev,
+              deliveryFee: freshFee,
+              minOrderAmount: freshMin,
+            }));
+            setZoneCheckStatus("ok");
+          } catch { /* Fail open on network error */ }
+        } else if (formData.deliveryStreet) {
+          // Have address text but no coords and geocoding failed
+          Alert.alert("Kunde inte verifiera adress", "Vänligen välj din adress från förslagen.");
+          setSubmitting(false);
+          return;
         }
       }
+      // ────────────────────────────────────────────────────────────────────────
 
       if (subtotal < restaurantSettings.minOrderAmount) {
         Alert.alert("Minsta ordervärde", `Minsta ordervärde är ${restaurantSettings.minOrderAmount} kr.`);
         setSubmitting(false);
         return;
       }
-      if (orderType === "DELIVERY" && deliveryCheck && !deliveryCheck.available) {
-        Alert.alert("Utanför leveransområde", "Vi kan tyvärr inte leverera till din adress.");
-        setSubmitting(false);
-        return;
-      }
-
-      // ── Last-mile zone check (validate-location — authoritative) ──────────────
-      if (orderType === "DELIVERY" && coords && currentRestaurantId) {
-        try {
-          const zRes = await api.post("/api/cities/validate-location", {
-            lat: coords.lat,
-            lng: coords.lng,
-          });
-          if (!zRes.data?.covered) {
-            setZoneCheckStatus("error");
-            Alert.alert(
-              "Utanför leveransområde",
-              "Vi levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
-              [{ text: "OK" }]
-            );
-            setSubmitting(false);
-            return;
-          }
-          const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-          const ok = allRests.some((r: any) => r.id === currentRestaurantId);
-          if (!ok) {
-            setZoneCheckStatus("error");
-            Alert.alert(
-              "Leverans ej möjlig",
-              "Den här restaurangen levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.",
-              [{ text: "OK" }]
-            );
-            setSubmitting(false);
-            return;
-          }
-          setZoneCheckStatus("ok");
-        } catch { /* Fail open on network error */ }
-      }
-      // ────────────────────────────────────────────────────────────────────────
 
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
 

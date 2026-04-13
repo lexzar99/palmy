@@ -316,6 +316,8 @@ export default function CartPage() {
   }, [fetchContext]);
 
   // Auto-fill address from localStorage and run zone check
+  // Uses a ref to ensure the initial auto-fill only runs once per mount
+  const initialZoneCheckDone = useRef(false);
   useEffect(() => {
     const storedAddress = localStorage.getItem("platform_address");
     const storedType = localStorage.getItem("platform_order_type");
@@ -335,21 +337,24 @@ export default function CartPage() {
       // Enhanced parsing for city
       const city = parts.length > 1 ? parts[1].replace(/\d+/g, '').trim() : "";
       
+      // ALWAYS set the address from localStorage (overrides profile data)
+      // The user explicitly chose this address on the home page
       setFormData(prev => ({
         ...prev,
-        deliveryStreet: prev.deliveryStreet || street,
-        deliveryZip: prev.deliveryZip || zip,
-        deliveryCity: prev.deliveryCity || city,
+        deliveryStreet: street || prev.deliveryStreet,
+        deliveryZip: zip || prev.deliveryZip,
+        deliveryCity: city || prev.deliveryCity,
       }));
 
-      if (storedType !== "PICKUP" && currentRestaurantId) {
+      if (storedType !== "PICKUP" && currentRestaurantId && !initialZoneCheckDone.current) {
+        initialZoneCheckDone.current = true;
         if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
             checkDeliverySpecific(lat, lng);
           } catch {}
         } else {
-          // If address exists but no coords, try to geocode the string to fix the "delete and re-type" glitch
+          // If address exists but no coords, try to geocode the string
           setAddressLoading(true);
           fetch(`/api/places/autocomplete?input=${encodeURIComponent(storedAddress)}&sessiontoken=${sessionToken.current}`)
             .then(r => r.json())
@@ -364,16 +369,12 @@ export default function CartPage() {
             .then(data => {
               if (data.location) {
                 localStorage.setItem("platform_coords", JSON.stringify(data.location));
-                
-                // Try to parse full address details from the geocoded result if available
-                // Or at least ensure the formData has what we parsed from the string
                 setFormData(prev => ({
                   ...prev,
-                  deliveryStreet: prev.deliveryStreet || street,
-                  deliveryZip: prev.deliveryZip || zip,
-                  deliveryCity: prev.deliveryCity || city
+                  deliveryStreet: street || prev.deliveryStreet,
+                  deliveryZip: zip || prev.deliveryZip,
+                  deliveryCity: city || prev.deliveryCity
                 }));
-
                 checkDeliverySpecific(data.location.lat, data.location.lng);
               }
             })
@@ -442,10 +443,8 @@ export default function CartPage() {
     }
     if (orderType === "DELIVERY") {
       const hasStreet = !!formData.deliveryStreet.trim();
-      const hasZip = !!formData.deliveryZip.trim();
       
-      // If we have verified coordinates (ok/available), we can be more lenient about the zip string
-      if (!hasStreet || (!hasZip && addressZoneStatus !== "ok")) {
+      if (!hasStreet) {
         setError("Ange fullständig leveransadress.");
         return;
       }
@@ -511,6 +510,16 @@ export default function CartPage() {
             setLoading(false);
             return;
           }
+          // ALWAYS update the fee from the fresh zone check result
+          const freshFee = zRes.data.deliveryFee ?? 0;
+          const freshMin = zRes.data.minOrder ?? 0;
+          useCartStore.getState().updateDeliveryOverride(currentRestaurantId, freshFee, freshMin);
+          setDeliveryCheck({ available: true, deliveryFee: freshFee, minOrder: freshMin });
+          setRestaurantSettings(prev => ({
+            ...prev,
+            deliveryFee: freshFee,
+            minOrderAmount: freshMin,
+          }));
           setAddressZoneStatus("ok");
         } catch { /* Fail open — don't block if network error */ }
       } else if (formData.deliveryStreet) {
