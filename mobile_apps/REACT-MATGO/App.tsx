@@ -2862,6 +2862,43 @@ function CartScreen({
         setSubmitting(false);
         return;
       }
+
+      // ── Last-mile zone check (validate-location — authoritative) ──────────────
+      if (orderType === "DELIVERY" && currentRestaurantId) {
+        let currentCoords = coords;
+
+        // If no coords but we have a street, try geocoding fallback
+        if (!currentCoords && formData.deliveryStreet) {
+          try {
+            const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
+            const gRes = await fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(formData.deliveryStreet)}&filter=countrycode:se&limit=1&apiKey=${GEOAPIFY_KEY}`);
+            const gData = await gRes.json();
+            const feature = gData.features?.[0];
+            if (feature) {
+              const [lng, lat] = feature.geometry.coordinates;
+              currentCoords = { lat, lng };
+              setAddress(formData.deliveryStreet, currentCoords);
+            }
+          } catch {}
+        }
+
+        if (currentCoords) {
+          try {
+            const zRes = await api.post("/api/cities/validate-location", {
+              lat: currentCoords.lat,
+              lng: currentCoords.lng,
+            });
+            const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
+            const thisRest = allRests.find((r: any) => r.id === currentRestaurantId);
+            if (!thisRest || !thisRest.matchedZone) {
+              Alert.alert("Utanför leveransområde", "Vi kan tyvärr inte leverera till din adress.");
+              setSubmitting(false);
+              return;
+            }
+          } catch { /* Fail open on network error for last-mile check */ }
+        }
+      }
+
       if (subtotal < restaurantSettings.minOrderAmount) {
         Alert.alert("Minsta ordervärde", `Minsta ordervärde är ${restaurantSettings.minOrderAmount} kr.`);
         setSubmitting(false);

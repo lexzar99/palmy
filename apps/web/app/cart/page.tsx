@@ -461,24 +461,61 @@ export default function CartPage() {
 
     // ── Zone check (last-mile safeguard for delivery) ────────────────────────
     if (orderType === "DELIVERY" && currentRestaurantId) {
+      if (addressZoneStatus === "checking") {
+        setError("Vänligen vänta, vi kontrollerar din leveransadress...");
+        return;
+      }
+
+      let lat: number | null = null;
+      let lng: number | null = null;
+
       const storedCoords = localStorage.getItem("platform_coords");
       if (storedCoords) {
         try {
-          const { lat, lng } = JSON.parse(storedCoords);
-          // Use delivery/check — it works regardless of restaurant open status
+          const parsed = JSON.parse(storedCoords);
+          lat = parsed.lat;
+          lng = parsed.lng;
+        } catch {}
+      }
+
+      // If still no coords but we have a street, try one last time to get them
+      if ((!lat || !lng) && formData.deliveryStreet) {
+        setLoading(true);
+        setError("Veriferar adress...");
+        try {
+          const aRes = await fetch(`/api/places/autocomplete?input=${encodeURIComponent(formData.deliveryStreet)}&sessiontoken=${sessionToken.current}`);
+          const aData = await aRes.json();
+          const bestMatch = aData.predictions?.[0];
+          if (bestMatch) {
+            const gRes = await fetch(`/api/places/geocode?place_id=${bestMatch.place_id}&sessiontoken=${sessionToken.current}`);
+            const gData = await gRes.json();
+            if (gData.location) {
+              lat = gData.location.lat;
+              lng = gData.location.lng;
+              localStorage.setItem("platform_coords", JSON.stringify(gData.location));
+            }
+          }
+        } catch {
+          // Ignore geocode failure here, will fallback to generic error below
+        }
+      }
+
+      if (lat && lng) {
+        try {
           const zRes = await axios.get(`${API_URL}/api/delivery/check`, {
             params: { lat, lng, restaurantId: currentRestaurantId },
           });
           if (!zRes.data.available) {
             setAddressZoneStatus("error");
             setError("Den här restaurangen levererar tyvärr inte till din adress. Välj avhämtning eller ange en ny adress.");
+            setLoading(false);
             return;
           }
           setAddressZoneStatus("ok");
         } catch { /* Fail open — don't block if network error */ }
       } else if (formData.deliveryStreet) {
-        // Address typed but not geocoded — no coords to verify
-        setError("Välj din adress från autocomplete-listan för att verifiera leveranszonen.");
+        setError("Kunde inte verifiera din adress. Vänligen välj den från listan.");
+        setLoading(false);
         return;
       }
     }
