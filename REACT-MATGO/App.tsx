@@ -27,8 +27,6 @@ import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { io, Socket } from "socket.io-client";
 import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
-import * as AuthSession from "expo-auth-session";
 import {
   API_URL,
   SOCKET_URL,
@@ -80,19 +78,8 @@ const palette = {
   info: "#38bdf8",
 };
 
-// ─── Google OAuth Client IDs ──────────────────────────────────────────────────
-// Web Client ID: used for Expo Go development (proxy) + web builds
-// iOS/Android Client IDs: required for standalone/native builds
-// → Add these in Google Cloud Console > Credentials > OAuth 2.0 Client IDs
-//   iOS:     Bundle ID = com.matgo.reactnative
-//   Android: Package  = com.matgo.reactnative + SHA-1 fingerprint
-// After adding, paste the IDs below and set in .env as EXPO_PUBLIC_GOOGLE_*
-const GOOGLE_WEB_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-  "807518398146-e6ellpa1kl7ge78pffhuifmdlihte1cl.apps.googleusercontent.com";
-const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "";
-const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "";
-// ─────────────────────────────────────────────────────────────────────────────
+// Google login routes through the web backend (WEB_URL/mobile-auth) so no
+// Google Cloud Console redirect URI changes are ever needed for the native app.
 
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sverige" },
@@ -104,56 +91,63 @@ const COUNTRY_CODES = [
 const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
 
 /**
- * Reusable hook for native Google OAuth via expo-auth-session.
- * Uses the in-app browser — no external Safari opens.
- * Returns { prompt, loading, response }.
+ * Native Google login that works with NO Google Cloud Console changes.
+ *
+ * Flow:
+ *  1. App opens WEB_URL/mobile-auth?provider=google&redirect=matgo://auth
+ *     in an IN-APP browser (ASWebAuthenticationSession on iOS / Custom Tab on Android)
+ *  2. The mobile-auth page runs NextAuth signIn("google")
+ *  3. Google redirects to the web backend's callback URL
+ *     (https://web-production.../api/auth/callback/google — already registered!)
+ *  4. Web backend exchanges code, builds platformToken, then redirects to
+ *     matgo://auth?token=PLATFORM_JWT
+ *  5. openAuthSessionAsync detects the matgo:// redirect, closes the browser and
+ *     returns the URL containing the token back to the app
+ *
+ * No custom scheme (matgo://) ever reaches Google — so redirect_uri_mismatch
+ * is impossible. WebBrowser shows an embedded sheet, NOT external Safari.
  */
+const MOBILE_AUTH_REDIRECT = "matgo://auth";
+
 function useGoogleAuth() {
-  const redirectUri = AuthSession.makeRedirectUri({ scheme: "matgo", path: "auth" });
-
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    clientId: GOOGLE_WEB_CLIENT_ID,
-    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
-    scopes: ["profile", "email"],
-    redirectUri,
-  });
-
   const [loading, setLoading] = useState(false);
+  // Dummy response state so callers can stay consistent
+  const [tokenResult, setTokenResult] = useState<{ token: string; user: any } | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const prompt = useCallback(async () => {
-    if (!request) return;
     setLoading(true);
+    setError(null);
+    setTokenResult(null);
     try {
-      await promptAsync();
+      const mobileAuthUrl =
+        `${WEB_URL}/mobile-auth?provider=google&redirect=${encodeURIComponent(MOBILE_AUTH_REDIRECT)}`;
+      const result = await WebBrowser.openAuthSessionAsync(mobileAuthUrl, MOBILE_AUTH_REDIRECT);
+
+      if (result.type === "success" && result.url) {
+        // Extract token from matgo://auth?token=ENCODED_JWT
+        const match = result.url.match(/[?&]token=([^&]+)/);
+        const rawToken = match ? decodeURIComponent(match[1]) : null;
+        if (!rawToken) throw new Error("Ingen token mottogs från inloggningen.");
+        // Fetch the user profile using the received platform token
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${rawToken}` },
+        });
+        setTokenResult({ token: rawToken, user: profileRes.data });
+      } else if (result.type === "cancel" || result.type === "dismiss") {
+        setError("__cancelled__");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Google-inloggning misslyckades");
     } finally {
       setLoading(false);
     }
-  }, [promptAsync, request]);
+  }, []);
 
-  return { prompt, loading, response, setLoading };
+  return { prompt, loading, tokenResult, error, setLoading };
 }
 
-/**
- * Exchange a Google access token for a MatGo platform token.
- */
-async function exchangeGoogleToken(accessToken: string): Promise<{ token: string; user: any }> {
-  const userInfoRes = await fetch("https://www.googleapis.com/userinfo/v2/me", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  if (!userInfoRes.ok) throw new Error("Google userinfo mislyckades");
-  const userInfo = await userInfoRes.json();
 
-  const res = await api.post("/api/account/oauth-token", {
-    email: userInfo.email,
-    name: userInfo.name || userInfo.given_name,
-    provider: "google",
-    providerId: userInfo.id,
-    image: userInfo.picture,
-  });
-
-  return res.data;
-}
 
 function ScalePressable({ children, onPress, style }: { children: React.ReactNode; onPress?: () => void; style?: any }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -260,28 +254,23 @@ function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const [error, setError] = useState("");
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
 
-  const { prompt: googlePrompt, loading: googleLoading, response: googleResponse, setLoading: setGoogleLoading } = useGoogleAuth();
+  const { prompt: googlePrompt, loading: googleLoading, tokenResult: googleResult, error: googleError } = useGoogleAuth();
 
-  // Handle Google OAuth response
+  // Handle Google OAuth result
   useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const accessToken = googleResponse.authentication?.accessToken;
-      if (!accessToken) { setError("Google-token saknas"); setGoogleLoading(false); return; }
-      setGoogleLoading(true);
-      exchangeGoogleToken(accessToken)
-        .then((data) => {
-          setToken(data.token);
-          setProfile(data.user);
-          setOnboardingComplete(true);
-          onComplete();
-        })
-        .catch(() => setError("Google-inloggning misslyckades. Försök igen."))
-        .finally(() => setGoogleLoading(false));
-    } else if (googleResponse?.type === "error") {
-      setError("Google-inloggning avbröts.");
-      setGoogleLoading(false);
+    if (googleResult) {
+      setToken(googleResult.token);
+      setProfile(googleResult.user);
+      setOnboardingComplete(true);
+      onComplete();
     }
-  }, [googleResponse]);
+  }, [googleResult]);
+
+  useEffect(() => {
+    if (googleError && googleError !== "__cancelled__") {
+      setError(googleError);
+    }
+  }, [googleError]);
 
   const handleSkip = () => {
     setOnboardingComplete(true);
@@ -3308,26 +3297,23 @@ function ProfileScreen({
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
   // Native Google OAuth (in-app browser, no Safari)
-  const { prompt: googlePrompt, loading: googleLoading, response: googleResponse, setLoading: setGoogleLoading } = useGoogleAuth();
+  const { prompt: googlePrompt, loading: googleLoading, tokenResult: googleResult, error: googleError } = useGoogleAuth();
 
   useEffect(() => {
-    if (googleResponse?.type === "success") {
-      const accessToken = googleResponse.authentication?.accessToken;
-      if (!accessToken) { setSocialLoading(null); return; }
-      exchangeGoogleToken(accessToken)
-        .then((data) => {
-          setToken(data.token);
-          setProfile(data.user);
-          fetchProfileData(data.token);
-        })
-        .catch(() => setLoginError("Google-inloggning misslyckades"))
-        .finally(() => { setSocialLoading(null); setGoogleLoading(false); });
-    } else if (googleResponse?.type === "error") {
+    if (googleResult) {
+      setToken(googleResult.token);
+      setProfile(googleResult.user);
       setSocialLoading(null);
-      setGoogleLoading(false);
-      setLoginError("Google-inloggning avbröts.");
+      fetchProfileData(googleResult.token);
     }
-  }, [googleResponse]);
+  }, [googleResult]);
+
+  useEffect(() => {
+    if (googleError) {
+      setSocialLoading(null);
+      if (googleError !== "__cancelled__") setLoginError(googleError);
+    }
+  }, [googleError]);
 
   const getAuthHeaders = useCallback(
     (authToken: string) => ({ Authorization: `Bearer ${authToken}` }),
@@ -3509,19 +3495,30 @@ function ProfileScreen({
   const handleSocialLogin = useCallback(async (provider: "google" | "facebook") => {
     setSocialLoading(provider);
     if (provider === "google") {
-      setGoogleLoading(true);
       await googlePrompt();
-      // Response handled in the useEffect above
+      // Token/error handled in useEffects above
     } else {
-      // Facebook: fall back to web flow (no native SDK yet)
+      // Facebook: use same WebBrowser approach (no redirect_uri issues)
       try {
-        await Linking.openURL(`${WEB_URL}/mobile-auth?provider=${provider}&redirect=${encodeURIComponent(APP_AUTH_DEEP_LINK)}`);
+        const fbUrl = `${WEB_URL}/mobile-auth?provider=facebook&redirect=${encodeURIComponent(MOBILE_AUTH_REDIRECT)}`;
+        const result = await WebBrowser.openAuthSessionAsync(fbUrl, MOBILE_AUTH_REDIRECT);
+        if (result.type === "success" && result.url) {
+          const match = result.url.match(/[?&]token=([^&]+)/);
+          const rawToken = match ? decodeURIComponent(match[1]) : null;
+          if (rawToken) {
+            const profileRes = await api.get("/api/profile", { headers: { Authorization: `Bearer ${rawToken}` } });
+            setToken(rawToken);
+            setProfile(profileRes.data);
+            fetchProfileData(rawToken);
+          }
+        }
       } catch {
-        Alert.alert("Kunde inte öppna inloggning", "Kontrollera anslutningen och försök igen.");
+        Alert.alert("Inloggning misslyckades", "Kontrollera anslutningen och försök igen.");
+      } finally {
         setSocialLoading(null);
       }
     }
-  }, [googlePrompt, setGoogleLoading]);
+  }, [googlePrompt, fetchProfileData, setToken, setProfile]);
 
   const handleLogout = useCallback(() => {
     clearSession();
