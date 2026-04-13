@@ -1,0 +1,10 @@
+# Ignore mobile app directories so Railway doesn't pull or build them.
+mobile_apps/
+android/
+Mobile/
+mobile/
+
+# General dev stuff
+.vscode/
+.idea/
+*.log

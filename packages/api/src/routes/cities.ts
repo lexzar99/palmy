@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
         restaurants: {
           select: {
             id: true, name: true, slug: true, isOpen: true, city: true,
-            deliveryZones: true, freeDeliveryAbove: true,
+            freeDeliveryAbove: true, // EXCLUDED deliveryZones
             latitude: true, longitude: true,
           }
         }

@@ -5,7 +5,15 @@ import { getIO } from './socket';
 export async function checkAllRestaurantsStatus() {
   // console.log('[Watchdog] Checking all restaurants status...');
   try {
-    const restaurants = await prisma.restaurant.findMany();
+    const restaurants = await prisma.restaurant.findMany({
+      select: {
+        id: true,
+        name: true,
+        openingHours: true,
+        isOpen: true,
+        slug: true
+      }
+    });
     const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
     
     for (const r of restaurants) {
