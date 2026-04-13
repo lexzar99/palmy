@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import axios from "axios";
 import { 
   Plus, 
@@ -101,19 +101,24 @@ const UnifiedMenuPage = () => {
     sortOrder: 0,
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const params = useParams();
+  const urlRestaurantId = params.restaurantId as string;
   const { selectedRestaurantId } = useRestaurantStore();
+  
+  // Use URL param as primary ID, fallback to store
+  const currentRid = urlRestaurantId || selectedRestaurantId;
+
   const getToken = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
 
   const fetchData = useCallback(async () => {
-    if (!selectedRestaurantId) return;
+    if (!currentRid) return;
     setLoading(true);
     try {
       const [catRes, prodRes, extraRes, dealRes] = await Promise.all([
-        axios.get(`${API_URL}/api/admin/categories?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/products?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/extra-groups?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
-        axios.get(`${API_URL}/api/admin/deals?restaurantId=${selectedRestaurantId}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/categories?restaurantId=${currentRid}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/products?restaurantId=${currentRid}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/extra-groups?restaurantId=${currentRid}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
+        axios.get(`${API_URL}/api/admin/deals?restaurantId=${currentRid}`, { headers: { Authorization: `Bearer ${getToken()}` } }),
       ]);
       setCategories(catRes.data);
       setProducts(prodRes.data);
@@ -169,7 +174,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/products`, { ...productForm, restaurantId: selectedRestaurantId }, {
+        await axios.post(`${API_URL}/api/admin/products`, { ...productForm, restaurantId: currentRid }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -227,7 +232,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/categories`, { ...categoryForm, restaurantId: selectedRestaurantId }, {
+        await axios.post(`${API_URL}/api/admin/categories`, { ...categoryForm, restaurantId: currentRid }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -300,7 +305,7 @@ const UnifiedMenuPage = () => {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/extra-groups`, { ...payload, categoryIds, restaurantId: selectedRestaurantId }, {
+        await axios.post(`${API_URL}/api/admin/extra-groups`, { ...payload, categoryIds, restaurantId: currentRid }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -394,7 +399,7 @@ const UnifiedMenuPage = () => {
       validUntil: dealForm.validUntil ? new Date(dealForm.validUntil).toISOString() : null,
       sortOrder: dealForm.sortOrder,
       isGlobal: dealForm.isGlobal,
-      restaurantId: dealForm.isGlobal ? null : selectedRestaurantId,
+      restaurantId: dealForm.isGlobal ? null : currentRid,
     };
 
     try {
@@ -471,8 +476,8 @@ const UnifiedMenuPage = () => {
     if (!confirm("Importera den senaste Eatsmart-menyn och synka kategorier/produkter?")) return;
     setImporting(true);
     try {
-      if (!selectedRestaurantId) throw new Error("Ingen restaurang vald");
-      const res = await axios.post(`${API_URL}/api/admin/menu/import-eatsmart`, { restaurantId: selectedRestaurantId }, {
+      if (!currentRid) throw new Error("Ingen restaurang vald");
+      const res = await axios.post(`${API_URL}/api/admin/menu/import-eatsmart`, { restaurantId: currentRid }, {
         headers: { Authorization: `Bearer ${getToken()}` }
       });
       await fetchData();
