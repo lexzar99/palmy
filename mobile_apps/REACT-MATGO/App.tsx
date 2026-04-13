@@ -2805,10 +2805,9 @@ function CartScreen({
           return;
         }
 
-        // Fees: öre → kr; also honour any existing override from home screen
-        const ovr = deliveryOverrides[currentRestaurantId];
-        const fee = ovr ? ovr.deliveryFee : (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
-        const min = ovr ? ovr.minOrderAmount : (thisRest.matchedZone?.minOrder ?? 0) / 100;
+        const fee = (thisRest.matchedZone?.deliveryFee ?? 0) / 100;
+        const min = (thisRest.matchedZone?.minOrder ?? 0) / 100;
+        useAppStore.getState().updateDeliveryOverride(currentRestaurantId, fee, min);
 
         const finalData = { available: true, deliveryFee: fee, minOrder: min };
         setDeliveryCheck(finalData);
@@ -2843,9 +2842,16 @@ function CartScreen({
     if (submitting) return;
     if (!formData.customerName.trim()) { Alert.alert("Namn saknas", "Fyll i ditt namn."); return; }
     if (!formData.customerPhone.trim()) { Alert.alert("Telefon saknas", "Fyll i ditt telefonnummer."); return; }
-    if (orderType === "DELIVERY" && !formData.deliveryStreet.trim()) { Alert.alert("Adress saknas", "Fyll i leveransadress."); return; }
-    if (orderType === "DELIVERY" && !formData.deliveryZip.trim()) { Alert.alert("Postnummer saknas", "Fyll i postnummer."); return; }
-    if (orderType === "DELIVERY" && !formData.deliveryCity.trim()) { Alert.alert("Stad saknas", "Fyll i stad."); return; }
+    if (orderType === "DELIVERY") {
+      const hasStreet = !!formData.deliveryStreet.trim();
+      const hasZip = !!formData.deliveryZip.trim();
+      const hasCity = !!formData.deliveryCity.trim();
+      
+      if (!hasStreet || ((!hasZip || !hasCity) && zoneCheckStatus !== "ok")) {
+        Alert.alert("Adress saknas", "Fyll i en fullständig leveransadress.");
+        return;
+      }
+    }
     if (!items.length) { Alert.alert("Tom varukorg", "Lägg till produkter först."); return; }
 
     setSubmitting(true);

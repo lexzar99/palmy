@@ -119,12 +119,9 @@ export default function CartPage() {
     setCheckingDelivery(true);
     setAddressZoneStatus("checking");
     try {
-      // Use delivery/check — works for open AND closed restaurants
-      // (validate-location filters by isOpen which would incorrectly flag closed restaurants)
       const res = await axios.get(`${API_URL}/api/delivery/check`, {
         params: { lat, lng, restaurantId: currentRestaurantId },
       });
-      const ovr = deliveryOverrides[currentRestaurantId];
 
       if (!res.data.available) {
         setDeliveryCheck({ available: false });
@@ -132,9 +129,12 @@ export default function CartPage() {
         return;
       }
 
-      // Fee priority: deliveryOverrides (from homepage validate-location) → delivery/check fee (already in kr)
-      const fee = ovr ? ovr.deliveryFee : (res.data.deliveryFee ?? 0);
-      const min = ovr ? ovr.minOrderAmount : (res.data.minOrder ?? 0);
+      // Fresh check always takes priority over previous overrides from home screen
+      const fee = res.data.deliveryFee ?? 0;
+      const min = res.data.minOrder ?? 0;
+
+      // Update global store so future syncs or page loads use this new address's fee
+      useCartStore.getState().updateDeliveryOverride(currentRestaurantId, fee, min);
 
       const finalData = { available: true, deliveryFee: fee, minOrder: min };
       setDeliveryCheck(finalData);
@@ -364,6 +364,16 @@ export default function CartPage() {
             .then(data => {
               if (data.location) {
                 localStorage.setItem("platform_coords", JSON.stringify(data.location));
+                
+                // Try to parse full address details from the geocoded result if available
+                // Or at least ensure the formData has what we parsed from the string
+                setFormData(prev => ({
+                  ...prev,
+                  deliveryStreet: prev.deliveryStreet || street,
+                  deliveryZip: prev.deliveryZip || zip,
+                  deliveryCity: prev.deliveryCity || city
+                }));
+
                 checkDeliverySpecific(data.location.lat, data.location.lng);
               }
             })
@@ -430,9 +440,15 @@ export default function CartPage() {
       setError("Ange namn och telefonnummer.");
       return;
     }
-    if (orderType === "DELIVERY" && (!formData.deliveryStreet.trim() || !formData.deliveryZip.trim())) {
-      setError("Ange fullständig leveransadress.");
-      return;
+    if (orderType === "DELIVERY") {
+      const hasStreet = !!formData.deliveryStreet.trim();
+      const hasZip = !!formData.deliveryZip.trim();
+      
+      // If we have verified coordinates (ok/available), we can be more lenient about the zip string
+      if (!hasStreet || (!hasZip && addressZoneStatus !== "ok")) {
+        setError("Ange fullständig leveransadress.");
+        return;
+      }
     }
     if (subtotal < minOrder) {
       setError(`Minsta ordervärde är ${minOrder} kr.`);
