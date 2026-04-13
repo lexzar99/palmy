@@ -501,21 +501,34 @@ export default function CartPage() {
            </Link>
         </div>
 
+        {/* Login prompt — soft, not blocking (guest can still order) */}
         {!user && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="glass-panel p-10 rounded-[3rem] mb-12 border-gold-500/10 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-[-20%] right-[-10%] w-[40%] h-[80%] bg-gold-500/5 blur-[80px] rounded-full" />
-            <div className="flex flex-col sm:flex-row items-center gap-8 relative z-10">
-               <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 shadow-xl shadow-gold-500/5 group-hover:scale-110 transition-transform">
-                  <Lock size={32} />
-               </div>
-               <div className="text-center sm:text-left flex-1">
-                  <h2 className="text-2xl font-black text-white uppercase italic tracking-tight mb-2">Logga in för att beställa</h2>
-                  <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed opacity-60">Du behöver ett konto för att slutföra ditt köp och för att kunna följa din order i realtid.</p>
-               </div>
-               <div className="flex gap-4 w-full sm:w-auto">
-                  <Link href="/profile" className="px-8 py-5 bg-gold-500 text-zinc-950 rounded-[1.8rem] font-black uppercase tracking-widest text-[10px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all">Logga In</Link>
-                  <Link href="/register" className="px-8 py-5 border border-white/5 bg-white/3 text-white rounded-[1.8rem] font-black uppercase tracking-widest text-[10px] hover:bg-white/5 active:scale-95 transition-all">Skapa Konto</Link>
-               </div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-[2.5rem] mb-10 border border-gold-500/20 bg-gold-500/5 backdrop-blur-sm p-6 flex flex-col sm:flex-row items-center gap-6">
+            <div className="w-12 h-12 shrink-0 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center">
+              <UserIcon size={20} className="text-gold-500" />
+            </div>
+            <div className="flex-1 text-center sm:text-left">
+              <p className="text-[12px] font-black uppercase tracking-widest text-gold-400 mb-0.5">
+                Lojalitetsprogram
+              </p>
+              <p className="text-[11px] font-bold text-zinc-400 leading-relaxed">
+                Logga in för att spara adresser, se orderhistorik och ta del av personliga erbjudanden.
+                Du kan även betala som gäst.
+              </p>
+            </div>
+            <div className="flex gap-3 shrink-0">
+              <Link
+                href="/profile"
+                className="px-5 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all"
+              >
+                Logga in
+              </Link>
+              <Link
+                href="/register"
+                className="px-5 py-3 border border-white/10 bg-white/3 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] hover:bg-white/5 active:scale-95 transition-all"
+              >
+                Skapa konto
+              </Link>
             </div>
           </motion.div>
         )}
@@ -749,12 +762,17 @@ export default function CartPage() {
 
                     {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
 
-                    {/* Not logged in — show clear message instead of silent disabled button */}
-                    {!user && (
-                      <div className="mt-8 p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[10px] font-black uppercase tracking-widest text-center">
-                        Du måste logga in för att beställa
-                      </div>
-                    )}
+                     {/* Guest info banner — not blocking, just informative */}
+                     {!user && (
+                       <div className="mt-8 p-4 rounded-2xl bg-zinc-800/60 border border-white/5 flex items-center gap-3">
+                         <UserIcon size={16} className="text-zinc-400 shrink-0" />
+                         <p className="text-[10px] font-bold text-zinc-400 leading-snug flex-1">
+                           Du handlar som gäst.{" "}
+                           <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">Logga in</Link>{" "}
+                           för sparade adresser och personliga erbjudanden.
+                         </p>
+                       </div>
+                     )}
 
                      {/* Zone error summary line above checkout button */}
                      {addressZoneStatus === "error" && orderType === "DELIVERY" && (
@@ -774,12 +792,12 @@ export default function CartPage() {
                        </motion.div>
                      )}
 
-                     <button 
-                        onClick={startCheckout} 
-                        disabled={loading || !user || subtotal < minOrder || !restaurantSettings.isOpen || addressZoneStatus === "error"}
+                      <button 
+                         onClick={startCheckout} 
+                         disabled={loading || subtotal < minOrder || !restaurantSettings.isOpen || addressZoneStatus === "error"}
                         className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                      >
-                        {loading ? <Loader2 className="animate-spin" size={24} /> : !user ? "Logga in för att beställa" : subtotal < minOrder ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                        {loading ? <Loader2 className="animate-spin" size={24} /> : subtotal < minOrder ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                      </button>
                  </motion.div>
                )}

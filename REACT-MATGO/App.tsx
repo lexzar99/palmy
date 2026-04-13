@@ -8,6 +8,7 @@ import {
   FlatList,
   Image,
   Linking,
+  KeyboardAvoidingView,
   Modal,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -25,6 +26,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { io, Socket } from "socket.io-client";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as AuthSession from "expo-auth-session";
 import {
   API_URL,
   SOCKET_URL,
@@ -33,6 +37,9 @@ import {
   api,
   getImageUrl,
 } from "./src/lib/api";
+
+// Required for expo-auth-session to handle redirects on Android/web
+WebBrowser.maybeCompleteAuthSession();
 import DealFlipCard, { type DealFlipCardData } from "./src/components/DealFlipCard";
 import HomeAddressInput from "./src/components/HomeAddressInput";
 import AddressAutocomplete from "./src/components/AddressAutocomplete";
@@ -73,6 +80,20 @@ const palette = {
   info: "#38bdf8",
 };
 
+// ─── Google OAuth Client IDs ──────────────────────────────────────────────────
+// Web Client ID: used for Expo Go development (proxy) + web builds
+// iOS/Android Client IDs: required for standalone/native builds
+// → Add these in Google Cloud Console > Credentials > OAuth 2.0 Client IDs
+//   iOS:     Bundle ID = com.matgo.reactnative
+//   Android: Package  = com.matgo.reactnative + SHA-1 fingerprint
+// After adding, paste the IDs below and set in .env as EXPO_PUBLIC_GOOGLE_*
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+  "807518398146-e6ellpa1kl7ge78pffhuifmdlihte1cl.apps.googleusercontent.com";
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || "";
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || "";
+// ─────────────────────────────────────────────────────────────────────────────
+
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sverige" },
   { code: "+45", flag: "🇩🇰", name: "Danmark" },
@@ -81,6 +102,58 @@ const COUNTRY_CODES = [
 ];
 
 const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
+
+/**
+ * Reusable hook for native Google OAuth via expo-auth-session.
+ * Uses the in-app browser — no external Safari opens.
+ * Returns { prompt, loading, response }.
+ */
+function useGoogleAuth() {
+  const redirectUri = AuthSession.makeRedirectUri({ scheme: "matgo", path: "auth" });
+
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID || undefined,
+    scopes: ["profile", "email"],
+    redirectUri,
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  const prompt = useCallback(async () => {
+    if (!request) return;
+    setLoading(true);
+    try {
+      await promptAsync();
+    } finally {
+      setLoading(false);
+    }
+  }, [promptAsync, request]);
+
+  return { prompt, loading, response, setLoading };
+}
+
+/**
+ * Exchange a Google access token for a MatGo platform token.
+ */
+async function exchangeGoogleToken(accessToken: string): Promise<{ token: string; user: any }> {
+  const userInfoRes = await fetch("https://www.googleapis.com/userinfo/v2/me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!userInfoRes.ok) throw new Error("Google userinfo mislyckades");
+  const userInfo = await userInfoRes.json();
+
+  const res = await api.post("/api/account/oauth-token", {
+    email: userInfo.email,
+    name: userInfo.name || userInfo.given_name,
+    provider: "google",
+    providerId: userInfo.id,
+    image: userInfo.picture,
+  });
+
+  return res.data;
+}
 
 function ScalePressable({ children, onPress, style }: { children: React.ReactNode; onPress?: () => void; style?: any }) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -172,12 +245,257 @@ function PaymentButton({ amount, disabled, onPaid }: PaymentButtonProps) {
   );
 }
 
+// ─── OnboardingScreen ─────────────────────────────────────────────────────────
+function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
+  const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
+  const setToken = useAppStore((s) => s.setToken);
+  const setProfile = useAppStore((s) => s.setProfile);
+
+  const [step, setStep] = useState<"landing" | "phone" | "otp">("landing");
+  const [countryCode, setCountryCode] = useState("+46");
+  const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpPhone, setOtpPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+
+  const { prompt: googlePrompt, loading: googleLoading, response: googleResponse, setLoading: setGoogleLoading } = useGoogleAuth();
+
+  // Handle Google OAuth response
+  useEffect(() => {
+    if (googleResponse?.type === "success") {
+      const accessToken = googleResponse.authentication?.accessToken;
+      if (!accessToken) { setError("Google-token saknas"); setGoogleLoading(false); return; }
+      setGoogleLoading(true);
+      exchangeGoogleToken(accessToken)
+        .then((data) => {
+          setToken(data.token);
+          setProfile(data.user);
+          setOnboardingComplete(true);
+          onComplete();
+        })
+        .catch(() => setError("Google-inloggning misslyckades. Försök igen."))
+        .finally(() => setGoogleLoading(false));
+    } else if (googleResponse?.type === "error") {
+      setError("Google-inloggning avbröts.");
+      setGoogleLoading(false);
+    }
+  }, [googleResponse]);
+
+  const handleSkip = () => {
+    setOnboardingComplete(true);
+    onComplete();
+  };
+
+  const buildPhone = (cc: string, raw: string) => `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
+
+  const handleSendOtp = async () => {
+    if (!phone.trim()) { setError("Ange ditt telefonnummer"); return; }
+    const full = buildPhone(countryCode, phone);
+    setLoading(true); setError("");
+    try {
+      await api.post("/api/account/send-otp", { phone: full });
+      setOtpPhone(full);
+      setStep("otp");
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Kunde inte skicka SMS");
+    } finally { setLoading(false); }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) { setError("Ange koden från SMS:et"); return; }
+    setLoading(true); setError("");
+    try {
+      const res = await api.post("/api/account/verify-otp", { phone: otpPhone, code: otpCode });
+      setToken(res.data.token);
+      setProfile(res.data.user);
+      setOnboardingComplete(true);
+      onComplete();
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Felaktig kod");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <LinearGradient colors={["#0f0c17", "#07060c"]} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
+          <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+
+            {/* Logo + tagline */}
+            <View style={{ alignItems: "center", marginBottom: 40 }}>
+              <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "rgba(231,178,75,0.12)", borderWidth: 1, borderColor: "rgba(231,178,75,0.3)", alignItems: "center", justifyContent: "center", marginBottom: 20, shadowColor: palette.gold, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } }}>
+                <Ionicons name="restaurant" size={36} color={palette.gold} />
+              </View>
+              <Text style={{ color: palette.gold, fontSize: 32, fontWeight: "900", letterSpacing: -1, fontStyle: "italic" }}>MatGo</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", marginTop: 6, textAlign: "center", letterSpacing: 0.5 }}>
+                {step === "otp" ? `Kod skickad till ${otpPhone}` : "Mat levererat till din dörr"}
+              </Text>
+            </View>
+
+            {/* Step: Landing */}
+            {step === "landing" && (
+              <View style={{ gap: 16 }}>
+                <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900", textAlign: "center", marginBottom: 8 }}>Välkommen!</Text>
+                <Text style={{ color: palette.muted, fontSize: 13, textAlign: "center", lineHeight: 20, marginBottom: 24 }}>
+                  Skapa ett konto för att beställa, spara adresser och ta del av personliga erbjudanden.
+                </Text>
+
+                {/* Phone button */}
+                <Pressable onPress={() => setStep("phone")} style={{ backgroundColor: palette.gold, borderRadius: 20, paddingVertical: 18, alignItems: "center", shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 8 } }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Ionicons name="phone-portrait-outline" size={20} color="#000" />
+                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 14, letterSpacing: 0.5 }}>Fortsätt med telefonnummer</Text>
+                  </View>
+                </Pressable>
+
+                {/* Divider */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 4 }}>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>ELLER</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.08)" }} />
+                </View>
+
+                {/* Google button */}
+                <Pressable
+                  onPress={googlePrompt}
+                  disabled={googleLoading}
+                  style={{ backgroundColor: "#fff", borderRadius: 20, paddingVertical: 16, alignItems: "center", opacity: googleLoading ? 0.6 : 1 }}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    {googleLoading
+                      ? <ActivityIndicator size="small" color="#333" />
+                      : <Text style={{ fontSize: 18 }}>G</Text>
+                    }
+                    <Text style={{ color: "#111", fontWeight: "900", fontSize: 14 }}>Fortsätt med Google</Text>
+                  </View>
+                </Pressable>
+
+                {/* Guest link */}
+                <Pressable onPress={handleSkip} style={{ alignItems: "center", paddingTop: 12 }}>
+                  <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", textDecorationLine: "underline" }}>Fortsätt som gäst</Text>
+                </Pressable>
+
+                {!!error && <Text style={{ color: palette.danger, fontSize: 11, textAlign: "center", marginTop: 8 }}>{error}</Text>}
+              </View>
+            )}
+
+            {/* Step: Phone */}
+            {step === "phone" && (
+              <View style={{ gap: 16 }}>
+                <Text style={{ color: palette.text, fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 8 }}>Ditt telefonnummer</Text>
+                <Text style={{ color: palette.muted, fontSize: 12, textAlign: "center", marginBottom: 16 }}>Vi skickar en SMS-kod för att verifiera dig.</Text>
+
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <Pressable onPress={() => setCountryPickerOpen(true)} style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, paddingHorizontal: 14, paddingVertical: 16, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>
+                      {COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🇸🇪"} {countryCode}
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color={palette.muted} />
+                  </Pressable>
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, paddingHorizontal: 18, paddingVertical: 16, color: palette.text, fontSize: 16, fontWeight: "700", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }}
+                    placeholder="70 123 45 67"
+                    placeholderTextColor={palette.muted}
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={setPhone}
+                    returnKeyType="send"
+                    onSubmitEditing={handleSendOtp}
+                  />
+                </View>
+
+                {/* Country picker modal */}
+                <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
+                  <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setCountryPickerOpen(false)}>
+                    <View style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#1a1624", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, gap: 8 }}>
+                      <Text style={{ color: palette.text, fontWeight: "900", fontSize: 14, marginBottom: 8, textAlign: "center" }}>Välj landsnummer</Text>
+                      {COUNTRY_CODES.map(cc => (
+                        <Pressable key={cc.code} onPress={() => { setCountryCode(cc.code); setCountryPickerOpen(false); }} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderRadius: 16, backgroundColor: countryCode === cc.code ? "rgba(231,178,75,0.1)" : "transparent" }}>
+                          <Text style={{ fontSize: 24 }}>{cc.flag}</Text>
+                          <Text style={{ color: palette.text, fontWeight: "700", flex: 1 }}>{cc.name}</Text>
+                          <Text style={{ color: palette.gold, fontWeight: "900" }}>{cc.code}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </Pressable>
+                </Modal>
+
+                {!!error && <Text style={{ color: palette.danger, fontSize: 11, textAlign: "center" }}>{error}</Text>}
+
+                <Pressable onPress={handleSendOtp} disabled={loading} style={{ backgroundColor: palette.gold, borderRadius: 20, paddingVertical: 18, alignItems: "center", opacity: loading ? 0.6 : 1, marginTop: 8 }}>
+                  {loading ? <ActivityIndicator color="#000" /> : <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>Skicka SMS-kod →</Text>}
+                </Pressable>
+
+                <Pressable onPress={() => setStep("landing")} style={{ alignItems: "center", paddingTop: 8 }}>
+                  <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>← Tillbaka</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Step: OTP */}
+            {step === "otp" && (
+              <View style={{ gap: 16 }}>
+                <Text style={{ color: palette.text, fontSize: 20, fontWeight: "900", textAlign: "center", marginBottom: 8 }}>Ange koden</Text>
+
+                <TextInput
+                  style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 16, paddingHorizontal: 18, paddingVertical: 20, color: palette.text, fontSize: 28, fontWeight: "900", textAlign: "center", letterSpacing: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" }}
+                  placeholder="------"
+                  placeholderTextColor={palette.muted}
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  value={otpCode}
+                  onChangeText={setOtpCode}
+                  returnKeyType="done"
+                  onSubmitEditing={handleVerifyOtp}
+                />
+
+                {!!error && <Text style={{ color: palette.danger, fontSize: 11, textAlign: "center" }}>{error}</Text>}
+
+                <Pressable onPress={handleVerifyOtp} disabled={loading} style={{ backgroundColor: palette.gold, borderRadius: 20, paddingVertical: 18, alignItems: "center", opacity: loading ? 0.6 : 1 }}>
+                  {loading ? <ActivityIndicator color="#000" /> : <Text style={{ color: "#000", fontWeight: "900", fontSize: 14 }}>Verifiera →</Text>}
+                </Pressable>
+
+                <Pressable onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }} style={{ alignItems: "center", paddingTop: 8 }}>
+                  <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Skicka ny kod</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Benefits list — only on landing */}
+            {step === "landing" && (
+              <View style={{ marginTop: 40, gap: 16 }}>
+                {[
+                  { icon: "gift-outline", text: "Personliga erbjudanden & lojalitetspoäng" },
+                  { icon: "location-outline", text: "Spara adresser för snabbare beställning" },
+                  { icon: "receipt-outline", text: "Spara och följ alla dina ordrar" },
+                ].map((item) => (
+                  <View key={item.icon} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                    <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: "rgba(231,178,75,0.08)", borderWidth: 1, borderColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
+                      <Ionicons name={item.icon as any} size={18} color={palette.gold} />
+                    </View>
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "700", flex: 1 }}>{item.text}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </LinearGradient>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 function AppContent() {
   const [routeStack, setRouteStack] = useState<AppRoute[]>([{ name: "home" }]);
   const route = routeStack[routeStack.length - 1];
   const hydrated = useAppStore((s) => s.hydrated);
   const hydrate = useAppStore((s) => s.hydrate);
   const { activeOrderId, setActiveOrder } = useAppStore();
+  const onboardingComplete = useAppStore((s) => s.onboardingComplete);
+  const token = useAppStore((s) => s.token);
 
   useEffect(() => {
     hydrate().catch(() => {});
@@ -207,6 +525,11 @@ function AppContent() {
         </View>
       </SafeAreaView>
     );
+  }
+
+  // Show onboarding on first launch (no token AND onboarding not yet completed)
+  if (!onboardingComplete && !token) {
+    return <OnboardingScreen onComplete={() => {}} />;
   }
 
   const tabValue = route.name === "restaurant" || route.name === "order" || route.name === "register" ? "home" : route.name;
@@ -2976,6 +3299,28 @@ function ProfileScreen({
   const [addrSaving, setAddrSaving] = useState(false);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
+  // Native Google OAuth (in-app browser, no Safari)
+  const { prompt: googlePrompt, loading: googleLoading, response: googleResponse, setLoading: setGoogleLoading } = useGoogleAuth();
+
+  useEffect(() => {
+    if (googleResponse?.type === "success") {
+      const accessToken = googleResponse.authentication?.accessToken;
+      if (!accessToken) { setSocialLoading(null); return; }
+      exchangeGoogleToken(accessToken)
+        .then((data) => {
+          setToken(data.token);
+          setProfile(data.user);
+          fetchProfileData(data.token);
+        })
+        .catch(() => setLoginError("Google-inloggning misslyckades"))
+        .finally(() => { setSocialLoading(null); setGoogleLoading(false); });
+    } else if (googleResponse?.type === "error") {
+      setSocialLoading(null);
+      setGoogleLoading(false);
+      setLoginError("Google-inloggning avbröts.");
+    }
+  }, [googleResponse]);
+
   const getAuthHeaders = useCallback(
     (authToken: string) => ({ Authorization: `Bearer ${authToken}` }),
     [],
@@ -3155,14 +3500,20 @@ function ProfileScreen({
 
   const handleSocialLogin = useCallback(async (provider: "google" | "facebook") => {
     setSocialLoading(provider);
-    try {
-      await Linking.openURL(`${WEB_URL}/mobile-auth?provider=${provider}&redirect=${encodeURIComponent(APP_AUTH_DEEP_LINK)}`);
-    } catch {
-      Alert.alert("Kunde inte öppna inloggning", "Kontrollera att webbinloggningen är tillgänglig och försök igen.");
-    } finally {
-      setSocialLoading(null);
+    if (provider === "google") {
+      setGoogleLoading(true);
+      await googlePrompt();
+      // Response handled in the useEffect above
+    } else {
+      // Facebook: fall back to web flow (no native SDK yet)
+      try {
+        await Linking.openURL(`${WEB_URL}/mobile-auth?provider=${provider}&redirect=${encodeURIComponent(APP_AUTH_DEEP_LINK)}`);
+      } catch {
+        Alert.alert("Kunde inte öppna inloggning", "Kontrollera anslutningen och försök igen.");
+        setSocialLoading(null);
+      }
     }
-  }, []);
+  }, [googlePrompt, setGoogleLoading]);
 
   const handleLogout = useCallback(() => {
     clearSession();

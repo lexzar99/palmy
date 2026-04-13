@@ -21,6 +21,7 @@ const persistState = async (state: AppStoreState) => {
       activeOrderId: state.activeOrderId,
       dislikedIngredients: state.dislikedIngredients,
       deliveryOverrides: state.deliveryOverrides,
+      onboardingComplete: state.onboardingComplete,
     })
   );
 };
@@ -43,6 +44,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   activeOrderId: null,
   dislikedIngredients: [],
   deliveryOverrides: {},
+  onboardingComplete: false,
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -212,6 +214,12 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
   setDeliveryOverrides: (deliveryOverrides) => {
     set({ deliveryOverrides });
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setOnboardingComplete: (onboardingComplete) => {
+    set({ onboardingComplete });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

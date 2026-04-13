@@ -97,6 +97,7 @@ export default function HomePage() {
     deliveryFee: number; minOrder: number; etaMinutes?: number | null; zoneName?: string;
   }>>({});
   const setDeliveryOverrides = useCartStore((s) => s.setDeliveryOverrides);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
@@ -105,6 +106,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      setIsLoggedIn(!!localStorage.getItem("platform_user_token"));
       const stored = localStorage.getItem("platform_address");
       if (stored) setAddress(stored);
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
@@ -591,6 +593,20 @@ export default function HomePage() {
 
         {/* Dynamic List Section */}
         <section>
+          {/* Loyalty banner — shown to guests when restaurant list has loaded */}
+          {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
+            <div className="mb-8 p-4 rounded-[2rem] border border-gold-500/15 bg-gold-500/5 flex flex-col sm:flex-row items-center gap-4">
+              <div className="w-10 h-10 shrink-0 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center">
+                <span className="text-xl">🎁</span>
+              </div>
+              <p className="text-[11px] font-bold text-zinc-400 text-center sm:text-left flex-1">
+                Ta del av{" "}
+                <span className="text-gold-400 font-black">personliga erbjudanden</span>, spara adresser och följ dina ordrar.{" "}
+                <a href="/profile" className="text-gold-400 underline font-black hover:text-gold-300">Logga in gratis →</a>
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-10 px-4">
             <h2 className="text-xl font-black tracking-[0.2em] uppercase text-zinc-600">
               {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine} <span className="text-zinc-800 ml-2">/ {filtered.length} st</span>

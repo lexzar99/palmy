@@ -235,4 +235,7 @@ export interface AppStoreState {
   setDislikedIngredients: (ingredients: string[]) => void;
   setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
   hydrate: () => Promise<void>;
+  /** True once the user has completed or dismissed the first-launch onboarding */
+  onboardingComplete: boolean;
+  setOnboardingComplete: (value: boolean) => void;
 }
