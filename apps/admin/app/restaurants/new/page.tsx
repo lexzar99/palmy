@@ -68,6 +68,7 @@ export default function NewRestaurantPage() {
   const { success, error: toastError } = useToast();
 
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     cuisine: "",
@@ -79,6 +80,33 @@ export default function NewRestaurantPage() {
     imageUrl: "",
     heroImageUrl: "",
   });
+
+  const handleImageUpload = async (file: File, field: 'imageUrl' | 'heroImageUrl') => {
+    // Validate size (2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toastError("Bilden är för stor (max 2MB)");
+      return;
+    }
+
+    setUploading(field);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await axios.post(`${API_URL}/api/admin/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      setForm((p) => ({ ...p, [field]: res.data.url }));
+      success("Bild uppladdad");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ladda upp bild");
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const token =
     typeof window !== "undefined"
@@ -288,31 +316,113 @@ export default function NewRestaurantPage() {
             <Upload size={15} className="text-gold-500" /> Bilder
           </h2>
 
-          <div className="space-y-4">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Profile Image */}
+            <div className="space-y-3">
               <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
-                Logotyp / Profilbild (URL)
+                Logotyp / Profilbild (Max 2MB)
               </label>
-              <input
-                type="url"
-                value={form.imageUrl}
-                onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))}
-                placeholder="https://..."
-                className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-gold-500/30"
-              />
+              
+              <div 
+                className={`relative aspect-square rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden bg-[var(--bg-primary)] ${
+                  form.imageUrl ? 'border-transparent' : 'border-[var(--border-subtle)] hover:border-gold-500/50'
+                }`}
+              >
+                {form.imageUrl ? (
+                  <>
+                    <img 
+                      src={form.imageUrl} 
+                      alt="Profil" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, imageUrl: "" }))}
+                      className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg shadow-lg hover:scale-105 transition-all text-[10px] font-bold uppercase px-2"
+                    >
+                      Ta bort
+                    </button>
+                  </>
+                ) : (
+                  <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4 group">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'imageUrl');
+                      }}
+                    />
+                    <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-all">
+                      <Upload size={18} className="text-gold-500" />
+                    </div>
+                    <span className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-tight">Välj bild</span>
+                    <span className="text-[8px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
+                  </label>
+                )}
+                
+                {uploading === 'imageUrl' && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                    <Loader2 size={24} className="text-gold-500 animate-spin mb-2" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Laddar upp...</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div>
+            {/* Hero Image */}
+            <div className="space-y-3">
               <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
-                Hero-bild (URL)
+                Hero / Banner (Max 2MB)
               </label>
-              <input
-                type="url"
-                value={form.heroImageUrl}
-                onChange={(e) => setForm((p) => ({ ...p, heroImageUrl: e.target.value }))}
-                placeholder="https://..."
-                className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-black outline-none focus:border-gold-500/30"
-              />
+              
+              <div 
+                className={`relative aspect-[16/9] md:aspect-square rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center overflow-hidden bg-[var(--bg-primary)] ${
+                  form.heroImageUrl ? 'border-transparent' : 'border-[var(--border-subtle)] hover:border-gold-500/50'
+                }`}
+              >
+                {form.heroImageUrl ? (
+                  <>
+                    <img 
+                      src={form.heroImageUrl} 
+                      alt="Hero" 
+                      className="w-full h-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, heroImageUrl: "" }))}
+                      className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-lg shadow-lg hover:scale-105 transition-all text-[10px] font-bold uppercase px-2"
+                    >
+                      Ta bort
+                    </button>
+                  </>
+                ) : (
+                  <label className="w-full h-full flex flex-col items-center justify-center cursor-pointer p-4 group">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'heroImageUrl');
+                      }}
+                    />
+                    <div className="w-10 h-10 rounded-full bg-gold-500/10 flex items-center justify-center mb-2 group-hover:scale-110 transition-all">
+                      <Upload size={18} className="text-gold-500" />
+                    </div>
+                    <span className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-tight">Välj bild</span>
+                    <span className="text-[8px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
+                  </label>
+                )}
+
+                {uploading === 'heroImageUrl' && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                    <Loader2 size={24} className="text-gold-500 animate-spin mb-2" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Laddar upp...</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
