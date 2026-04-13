@@ -236,17 +236,24 @@ export default function CartPage() {
         currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       ]);
 
+      // Only spread non-fee fields from global settings to avoid overwriting zone-specific fees
       if (settingsRes.data && Object.keys(settingsRes.data).length > 0) {
-        setRestaurantSettings((prev) => ({ ...prev, ...settingsRes.data }));
+        const { deliveryFee: _df, minOrderAmount: _mo, ...nonFeeSettings } = settingsRes.data;
+        setRestaurantSettings((prev) => ({ ...prev, ...nonFeeSettings }));
       }
       
+      // Restaurant-specific settings take priority, but only set if NO zone check has run yet
       if (restaurantRes.data) {
-        setRestaurantSettings((prev) => ({ 
-          ...prev, 
-          deliveryFee: restaurantRes.data.deliveryFee !== undefined ? restaurantRes.data.deliveryFee : prev.deliveryFee,
-          minOrderAmount: restaurantRes.data.minOrderAmount !== undefined ? restaurantRes.data.minOrderAmount : prev.minOrderAmount,
-          isOpen: restaurantRes.data.isOpen ?? prev.isOpen
-        }));
+        setRestaurantSettings((prev) => {
+          // If zone check already ran (addressZoneStatus is 'ok'), don't overwrite fee/min
+          const zoneAlreadyChecked = addressZoneStatus === 'ok';
+          return {
+            ...prev,
+            deliveryFee: zoneAlreadyChecked ? prev.deliveryFee : (restaurantRes.data.deliveryFee !== undefined ? restaurantRes.data.deliveryFee : prev.deliveryFee),
+            minOrderAmount: zoneAlreadyChecked ? prev.minOrderAmount : (restaurantRes.data.minOrderAmount !== undefined ? restaurantRes.data.minOrderAmount : prev.minOrderAmount),
+            isOpen: restaurantRes.data.isOpen ?? prev.isOpen
+          };
+        });
       }
 
       setDeals(dealsRes.data || []);
@@ -285,7 +292,7 @@ export default function CartPage() {
     } finally {
       setPageLoading(false);
     }
-  }, [currentRestaurantId, orderType, deliveryOverrides]);
+  }, [currentRestaurantId]);
 
   const handleApplyPromo = () => {
     const code = promoCodeInput.trim().toLowerCase();
@@ -316,7 +323,6 @@ export default function CartPage() {
   }, [fetchContext]);
 
   // Auto-fill address from localStorage and run zone check
-  // Uses a ref to ensure the initial auto-fill only runs once per mount
   const initialZoneCheckDone = useRef(false);
   useEffect(() => {
     const storedAddress = localStorage.getItem("platform_address");
@@ -334,11 +340,9 @@ export default function CartPage() {
       const street = parts[0] || "";
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-      // Enhanced parsing for city
       const city = parts.length > 1 ? parts[1].replace(/\d+/g, '').trim() : "";
       
-      // ALWAYS set the address from localStorage (overrides profile data)
-      // The user explicitly chose this address on the home page
+      // ALWAYS set the address from localStorage
       setFormData(prev => ({
         ...prev,
         deliveryStreet: street || prev.deliveryStreet,
@@ -346,15 +350,17 @@ export default function CartPage() {
         deliveryCity: city || prev.deliveryCity,
       }));
 
+      // Run zone check — guards against running before restaurantId is available
       if (storedType !== "PICKUP" && currentRestaurantId && !initialZoneCheckDone.current) {
         initialZoneCheckDone.current = true;
         if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
-            checkDeliverySpecific(lat, lng);
+            // Small delay to let fetchContext finish first so it doesn't overwrite our zone fee
+            setTimeout(() => checkDeliverySpecific(lat, lng), 300);
           } catch {}
         } else {
-          // If address exists but no coords, try to geocode the string
+          // If address exists but no coords, try to geocode
           setAddressLoading(true);
           fetch(`/api/places/autocomplete?input=${encodeURIComponent(storedAddress)}&sessiontoken=${sessionToken.current}`)
             .then(r => r.json())

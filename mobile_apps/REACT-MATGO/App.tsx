@@ -2726,13 +2726,19 @@ function CartScreen({
         ]);
 
         if (!active) return;
-        setRestaurantSettings((current) => ({
-          ...current,
-          ...settingsRes.data,
-          deliveryFee: restaurantRes.data?.deliveryFee ?? settingsRes.data?.deliveryFee ?? current.deliveryFee,
-          minOrderAmount: restaurantRes.data?.minOrderAmount ?? settingsRes.data?.minOrderAmount ?? current.minOrderAmount,
-          isOpen: restaurantRes.data?.isOpen ?? settingsRes.data?.isOpen ?? current.isOpen,
-        }));
+        // Only spread non-fee fields from global settings to avoid overwriting zone fees
+        const { deliveryFee: _df, minOrderAmount: _mo, ...nonFeeSettings } = (settingsRes.data || {});
+        setRestaurantSettings((current) => {
+          // If zone check already ran, don't overwrite fee/min from restaurant defaults
+          const zoneAlreadyChecked = zoneCheckStatus === 'ok';
+          return {
+            ...current,
+            ...nonFeeSettings,
+            deliveryFee: zoneAlreadyChecked ? current.deliveryFee : (restaurantRes.data?.deliveryFee ?? current.deliveryFee),
+            minOrderAmount: zoneAlreadyChecked ? current.minOrderAmount : (restaurantRes.data?.minOrderAmount ?? current.minOrderAmount),
+            isOpen: restaurantRes.data?.isOpen ?? settingsRes.data?.isOpen ?? current.isOpen,
+          };
+        });
 
         // Store restaurant name for Live Activity
         if (restaurantRes.data?.name) {

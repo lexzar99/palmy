@@ -231,8 +231,10 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // Validera leveransadress om delivery
+    // Only require street — zip is optional since the zone check via GPS coordinates
+    // is the authoritative validation for delivery availability and fee.
     if (data.type === 'DELIVERY') {
-      if (!data.deliveryStreet || !data.deliveryZip) {
+      if (!data.deliveryStreet) {
         res.status(400).json({ error: 'Leveransadress krävs för hemkörning' });
         return;
       }
