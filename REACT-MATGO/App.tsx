@@ -323,6 +323,14 @@ function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <ScrollView contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 28, paddingTop: 32, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
 
+            {/* Skip button — always visible top-right */}
+            <Pressable
+              onPress={handleSkip}
+              style={{ alignSelf: "flex-end", paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", marginBottom: 16 }}
+            >
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", letterSpacing: 0.5 }}>Hoppa över →</Text>
+            </Pressable>
+
             {/* Logo + tagline */}
             <View style={{ alignItems: "center", marginBottom: 40 }}>
               <View style={{ width: 80, height: 80, borderRadius: 24, backgroundColor: "rgba(231,178,75,0.12)", borderWidth: 1, borderColor: "rgba(231,178,75,0.3)", alignItems: "center", justifyContent: "center", marginBottom: 20, shadowColor: palette.gold, shadowOpacity: 0.3, shadowRadius: 20, shadowOffset: { width: 0, height: 8 } }}>
