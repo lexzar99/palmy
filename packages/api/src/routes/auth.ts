@@ -148,27 +148,41 @@ router.post('/verify-otp', async (req, res) => {
     // Check if we are currently authenticated (e.g. via Google OAuth)
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
+      let currentUserId: string | null = null;
+      const token = authHeader.split(' ')[1];
       try {
-        const payload = jwt.verify(authHeader.split(' ')[1], JWT_SECRET) as any;
-        
-        // Before updating, check if this phone is already taken by another account
-        const existingWithPhone = await (prisma as any).user.findUnique({ where: { phone } });
-        
-        if (existingWithPhone && existingWithPhone.id !== payload.id) {
-          // If the existing account is just a guest (no Google/Email), we can "consume" its phone number
-          if (!existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password) {
-             await (prisma as any).user.delete({ where: { id: existingWithPhone.id } });
-          } else {
-             return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto' });
-          }
+        const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
+        if (sbUser) {
+          currentUserId = sbUser.id;
+        } else {
+          const payload = jwt.verify(token, JWT_SECRET) as any;
+          currentUserId = payload.id;
         }
-
-        user = await (prisma as any).user.update({
-          where: { id: payload.id },
-          data: { phone, isVerified: true }
-        });
       } catch (e) {
-        console.error('Link phone error:', e);
+        console.error('Token extraction failed in verify-otp:', e);
+      }
+
+      if (currentUserId) {
+        try {
+          // Before updating, check if this phone is already taken by another account
+          const existingWithPhone = await (prisma as any).user.findUnique({ where: { phone } });
+          
+          if (existingWithPhone && existingWithPhone.id !== currentUserId) {
+            // If the existing account is just a guest (no Google/Email), we can "consume" its phone number
+            if (!existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password) {
+               await (prisma as any).user.delete({ where: { id: existingWithPhone.id } });
+            } else {
+               return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto' });
+            }
+          }
+
+          user = await (prisma as any).user.update({
+            where: { id: currentUserId },
+            data: { phone, isVerified: true }
+          });
+        } catch (e) {
+          console.error('Link phone error:', e);
+        }
       }
     }
 
