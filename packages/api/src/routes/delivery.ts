@@ -28,12 +28,12 @@ router.get('/check', async (req: Request, res: Response) => {
     }
 
     if (!restaurant.latitude || !restaurant.longitude) {
-      // No GPS set — fall back to restaurant's default delivery fee or system default
+      // No GPS set — fall back to restaurant's default delivery fee
       return res.json({
         available: true,
         zone: null,
-        deliveryFee: (restaurant.deliveryFee || (DEFAULT_DELIVERY_FEE * 100)) / 100,
-        minOrder: (restaurant.minOrderAmount || (DEFAULT_MIN_ORDER_AMOUNT * 100)) / 100,
+        deliveryFee: (restaurant.deliveryFee || 0) / 100,
+        minOrder: (restaurant.minOrderAmount || 0) / 100,
         distanceKm: null,
         message: 'GPS ej konfigurerat för restaurangen. Standardavgift används.'
       });
@@ -67,12 +67,12 @@ router.get('/check', async (req: Request, res: Response) => {
     }
 
     if (zones.length === 0) {
-      // No zones configured — use restaurant default or system default
+      // No zones configured — use default
       return res.json({
         available: true,
         zone: null,
-        deliveryFee: (restaurant.deliveryFee || (DEFAULT_DELIVERY_FEE * 100)) / 100,
-        minOrder: (restaurant.minOrderAmount || (DEFAULT_MIN_ORDER_AMOUNT * 100)) / 100,
+        deliveryFee: (restaurant.deliveryFee || 0) / 100,
+        minOrder: (restaurant.minOrderAmount || 0) / 100,
         distanceKm: Math.round(distanceKm * 10) / 10
       });
     }

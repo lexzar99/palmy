@@ -203,11 +203,11 @@ export default function CartPage() {
     }
   }, [currentRestaurantId, ovr, orderType, addressZoneStatus]);
 
-  // Fee priority: zone check result → override from home page → restaurant default (fallback to 49 kr)
+  // Fee priority: zone check result → restaurant default
   const deliveryFee = orderType === "DELIVERY"
-    ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? (restaurantSettings.deliveryFee || 49))
+    ? (deliveryCheck?.deliveryFee ?? restaurantSettings.deliveryFee)
     : 0;
-  const minOrder = deliveryCheck?.minOrder ?? ovr?.minOrderAmount ?? restaurantSettings.minOrderAmount;
+  const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
 
@@ -251,8 +251,8 @@ export default function CartPage() {
           const zoneAlreadyChecked = addressZoneStatus === 'ok';
           return {
             ...prev,
-            deliveryFee: zoneAlreadyChecked ? prev.deliveryFee : (restaurantRes.data.deliveryFee !== undefined ? restaurantRes.data.deliveryFee : prev.deliveryFee),
-            minOrderAmount: zoneAlreadyChecked ? prev.minOrderAmount : (restaurantRes.data.minOrderAmount !== undefined ? restaurantRes.data.minOrderAmount : prev.minOrderAmount),
+            deliveryFee: zoneAlreadyChecked ? prev.deliveryFee : (restaurantRes.data.deliveryFee ?? prev.deliveryFee),
+            minOrderAmount: zoneAlreadyChecked ? prev.minOrderAmount : (restaurantRes.data.minOrderAmount ?? prev.minOrderAmount),
             isOpen: restaurantRes.data.isOpen ?? prev.isOpen
           };
         });
