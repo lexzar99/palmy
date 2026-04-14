@@ -27,6 +27,7 @@ import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { io, Socket } from "socket.io-client";
 import * as WebBrowser from "expo-web-browser";
+import * as Notifications from "expo-notifications";
 import { supabase } from "./src/lib/supabase";
 import {
   API_URL,
@@ -39,6 +40,15 @@ import {
 
 // Required for expo-auth-session to handle redirects on Android/web
 WebBrowser.maybeCompleteAuthSession();
+
+// Configure notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 import DealFlipCard, { type DealFlipCardData } from "./src/components/DealFlipCard";
 import HomeAddressInput from "./src/components/HomeAddressInput";
 import AddressAutocomplete from "./src/components/AddressAutocomplete";
@@ -643,15 +653,20 @@ function LiveOrderBanner({
         const data = res.data;
         setOrder(data);
 
-        // Notify user on status update (Local Notification Simulation)
+        // Notify user on status update
         if (lastStatus.current && lastStatus.current !== data.status) {
           const display = getStatusDisplay(data.status);
-          Alert.alert(
-            "Statusuppdatering",
-            `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
-            [{ text: "Visa", onPress: () => openOrder(id) }, { text: "Stäng", style: "cancel" }]
-          );
           
+          // Trigger Local Notification
+          Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Statusuppdatering",
+              body: `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
+              data: { orderId: id },
+            },
+            trigger: null,
+          });
+
           if (data.status === "OUT_FOR_DELIVERY" || data.status === "DELIVERING") {
             updateOrderActivity(id, "on_the_way", { etaMinutes: data.estimatedTime });
           } else if (data.status === "ACCEPTED" || data.status === "PREPARING") {
@@ -714,19 +729,19 @@ function LiveOrderBanner({
     <View
       style={{
         position: "absolute",
-        bottom: 100,
-        left: 12,
-        right: 12,
-        borderRadius: 24,
+        bottom: 115,
+        left: 10,
+        right: 10,
+        borderRadius: 28,
         overflow: "hidden",
         backgroundColor: "#111015",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1.5,
+        borderColor: "rgba(255,255,255,0.12)",
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.5,
-        shadowRadius: 24,
-        elevation: 15,
+        shadowOffset: { width: 0, height: 16 },
+        shadowOpacity: 0.6,
+        shadowRadius: 32,
+        elevation: 20,
       }}
     >
       <LinearGradient
