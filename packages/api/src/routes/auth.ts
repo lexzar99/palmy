@@ -31,11 +31,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
       const dbUser = await (prisma as any).user.upsert({
         where: { id: user.id },
         update: {
-          email: user.email ?? undefined,
-          name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? undefined,
-          image: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? undefined,
-          phone: user.phone ?? undefined,
-          isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
+          email: user.email || undefined,
+          name: user.user_metadata?.name || user.user_metadata?.full_name || undefined,
+          image: user.user_metadata?.avatar_url || user.user_metadata?.picture || undefined,
+          phone: user.phone || undefined,
+          isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
         },
         create: {
           id: user.id,
