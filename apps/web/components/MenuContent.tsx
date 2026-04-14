@@ -148,7 +148,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         setRestaurant({
           name: "MatGo Lund",
           isOpen: settingsRes.data.isOpen ?? true,
-          deliveryFee: settingsRes.data.deliveryFee ?? 49,
+          deliveryFee: settingsRes.data.deliveryFee ?? 0,
           minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
           etaMinutes: settingsRes.data.estimatedDeliveryTime ?? 35,
         });
@@ -191,7 +191,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             isOpen: nextSettings.isOpen ?? prev.isOpen ?? true,
             // Don't overwrite zone-checked fee with socket base fee
             // (socket sends the restaurant's base fee; zone fee takes priority)
-            deliveryFee: zoneWasChecked ? prev.deliveryFee : (nextSettings.deliveryFee ?? prev.deliveryFee ?? 49),
+            deliveryFee: zoneWasChecked ? prev.deliveryFee : (nextSettings.deliveryFee ?? prev.deliveryFee ?? 0),
             minOrderAmount: zoneWasChecked ? prev.minOrderAmount : (nextSettings.minOrderAmount ?? prev.minOrderAmount ?? 150),
             etaMinutes: nextSettings.estimatedDeliveryTime ?? nextSettings.etaMinutes ?? prev.etaMinutes ?? 35,
           };

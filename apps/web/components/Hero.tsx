@@ -12,7 +12,7 @@ const Hero = () => {
   const [settings, setSettings] = useState({
     isOpen: true,
     estimatedPickupTime: 20,
-    deliveryFee: 49,
+    deliveryFee: 0,
     minOrderAmount: 150,
   });
 

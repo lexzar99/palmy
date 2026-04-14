@@ -62,7 +62,7 @@ export default function CartPage() {
 
   const [restaurantSettings, setRestaurantSettings] = useState({
     isOpen: true,
-    deliveryFee: 49,
+    deliveryFee: 0,
     minOrderAmount: 150,
     estimatedPickupTime: 20,
     estimatedDeliveryTime: 35,
