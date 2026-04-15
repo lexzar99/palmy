@@ -205,13 +205,14 @@ export default function SponsorsPage() {
                   className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono uppercase" />
               </div>
               <div>
-                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild-URL *</label>
+                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild (URL eller Ladda upp) *</label>
                 <div className="flex gap-2">
                   <input value={form.imageUrl || ""} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
-                    placeholder="https://..."
+                    placeholder="Klistra in länk eller ladda upp bild..."
                     className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono" />
-                  <label className="shrink-0 flex items-center justify-center w-11 h-11 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
-                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={20} />}
+                  <label className="shrink-0 flex items-center justify-center gap-2 px-4 h-11 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
+                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                    <span className="text-[10px] font-black uppercase tracking-widest">Ladda upp</span>
                     <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading} />
                   </label>
                 </div>

@@ -143,7 +143,6 @@ router.post('/validate-location', async (req, res) => {
       where: { isActive: true },
       include: {
         restaurants: {
-          where: { isOpen: true },
           select: {
             id: true, name: true, slug: true, imageUrl: true, heroImageUrl: true,
             deliveryFee: true, minOrderAmount: true, etaMinutes: true,
@@ -206,10 +205,14 @@ router.post('/validate-location', async (req, res) => {
           } else {
             // Restaurant inherits city zones
             rZone = matchedZone;
+            
             // Extra check: restaurant delivery radius (legacy)
+            // If we matched a city zone, we increase the legacy radius limit to be more lenient (e.g. 50km)
+            // to avoid filtering out restaurants that are meant to be in the city zone.
             if (r.latitude && r.longitude) {
               const dist = haversineKm(lat, lng, r.latitude, r.longitude);
-              if (dist > (r.deliveryRadius || 50)) return null;
+              const maxDist = Math.max(r.deliveryRadius || 0, 50); // Use at least 50km fallback if city zone matches
+              if (dist > maxDist) return null;
             }
           }
 

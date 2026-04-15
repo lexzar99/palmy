@@ -38,7 +38,7 @@ pnpm-debug.log*
 Thumbs.db
 
 # Mobile Apps (Isolated)
-mobile_apps/
+# mobile_apps/
 
 # Project-wide ignore
 **/.env

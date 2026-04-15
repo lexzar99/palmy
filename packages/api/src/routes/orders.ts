@@ -139,6 +139,7 @@ router.post('/', async (req: Request, res: Response) => {
           authenticatedUserId = authUser.id;
           // Force use official profile phone to prevent discount abuse
           data.customerPhone = authUser.phone;
+          // Note: allergens from authUser will be used below
         }
       } catch (e) {
         // Token invalid, proceed as guest
@@ -531,6 +532,7 @@ router.post('/', async (req: Request, res: Response) => {
         paymentMethod: 'ONLINE',
         estimatedTime,
         userId: authenticatedUserId,
+        allergens: authUser?.allergens || '[]',
 
         items: {
           create: orderItems.map(item => ({
@@ -585,6 +587,7 @@ router.post('/', async (req: Request, res: Response) => {
       paymentMethod: order.paymentMethod,
       discountCode: order.discountCode,
       stripePaymentIntentId: order.stripePaymentIntentId,
+      allergens: order.allergens,
       items: order.items.map((i: any) => ({
         ...i,
         basePrice: i.basePrice / 100,
@@ -745,6 +748,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       estimatedTime: order.estimatedTime,
       createdAt: order.createdAt,
       customerPhone: order.customerPhone,
+      allergens: order.allergens,
       deliveryStreet: order.deliveryStreet,
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
