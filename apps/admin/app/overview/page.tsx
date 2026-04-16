@@ -20,6 +20,15 @@ import {
   CheckCircle2,
   XCircle,
   Package,
+  Bell,
+  Tag,
+  MapPin,
+  MessageSquare,
+  Sparkles,
+  Shield,
+  ArrowRight,
+  Truck,
+  RefreshCw,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useRestaurantStore } from "@/store/restaurantStore";
@@ -42,12 +51,24 @@ const RANGE_OPTIONS: { id: Range; label: string }[] = [
   { id: "30d", label: "30 dagar" },
 ];
 
+const QUICK_LINKS = [
+  { href: "/orders/new", label: "Nya ordrar", icon: Bell, color: "text-rose-400", bg: "bg-rose-500/10" },
+  { href: "/restaurants", label: "Restauranger", icon: Store, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+  { href: "/deals", label: "Kampanjer", icon: Tag, color: "text-violet-400", bg: "bg-violet-500/10" },
+  { href: "/coupons", label: "Rabattkoder", icon: Tag, color: "text-amber-400", bg: "bg-amber-500/10" },
+  { href: "/customers", label: "Kunder", icon: Users, color: "text-sky-400", bg: "bg-sky-500/10" },
+  { href: "/reviews", label: "Recensioner", icon: MessageSquare, color: "text-pink-400", bg: "bg-pink-500/10" },
+  { href: "/cities", label: "Zoner", icon: MapPin, color: "text-teal-400", bg: "bg-teal-500/10" },
+  { href: "/staff", label: "Personal", icon: Shield, color: "text-indigo-400", bg: "bg-indigo-500/10" },
+];
+
 export default function OverviewPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>("today");
+  const [lastRefresh, setLastRefresh] = useState(new Date());
   const { selectedRestaurantId } = useRestaurantStore();
 
   const token = () =>
@@ -70,6 +91,7 @@ export default function OverviewPage() {
       if (ordersRes.status === "fulfilled") setOrders(ordersRes.value.data.orders || []);
       if (restaurantsRes.status === "fulfilled") setRestaurants(restaurantsRes.value.data);
       if (customersRes.status === "fulfilled") setCustomers(customersRes.value.data);
+      setLastRefresh(new Date());
     } catch {
       // silent
     } finally {
@@ -147,6 +169,7 @@ export default function OverviewPage() {
         revDiff, countDiff,
         delivered: curr.filter((o) => o.status === "DELIVERED").length,
         cancelled: curr.filter((o) => ["CANCELLED", "REJECTED"].includes(o.status)).length,
+        pending: curr.filter((o) => o.status === "PENDING").length,
         recent: [...curr].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8),
       },
       prev: cmp,
@@ -186,29 +209,64 @@ export default function OverviewPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
             Dashboard
           </h1>
-          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1 flex items-center gap-2">
             Plattformsöversikt i realtid
+            <span className="opacity-40">·</span>
+            <span className="opacity-40 flex items-center gap-1">
+              <Clock size={9} />
+              Uppdaterad {lastRefresh.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+            </span>
           </p>
         </div>
-        <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
-          {RANGE_OPTIONS.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => setRange(r.id)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                range === r.id
-                  ? "bg-gold-500 text-[#0d0d0d]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchAll}
+            className="w-9 h-9 rounded-xl flex items-center justify-center border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
+            title="Uppdatera"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
+            {RANGE_OPTIONS.map((r) => (
+              <button
+                key={r.id}
+                onClick={() => setRange(r.id)}
+                className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                  range === r.id
+                    ? "bg-gold-gradient text-[#0d0d0d] glow-gold-sm"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
+      {/* Quick Access Grid */}
+      <div className="grid grid-cols-4 lg:grid-cols-8 gap-2">
+        {QUICK_LINKS.map((link) => {
+          const Icon = link.icon;
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="flex flex-col items-center gap-2 p-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-gold-500/15 transition-all group"
+            >
+              <div className={`w-9 h-9 rounded-xl ${link.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                <Icon size={16} className={link.color} />
+              </div>
+              <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                {link.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+
       {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           {
             label: "Omsättning",
@@ -242,23 +300,35 @@ export default function OverviewPage() {
             bg: "bg-emerald-500/10",
             diff: null,
           },
+          {
+            label: "Väntande",
+            value: current.pending,
+            icon: Clock,
+            color: "text-amber-400",
+            bg: "bg-amber-500/10",
+            diff: null,
+          },
         ].map((s) => {
           const Icon = s.icon;
           return (
             <div
               key={s.label}
-              className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] relative overflow-hidden"
+              className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] relative overflow-hidden group hover:border-gold-500/10 transition-all"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center`}>
-                  <Icon size={16} className={s.color} />
+              {/* Subtle glow on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-gold-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center`}>
+                    <Icon size={16} className={s.color} />
+                  </div>
+                  {s.diff !== null && <Diff value={s.diff} />}
                 </div>
-                {s.diff !== null && <Diff value={s.diff} />}
+                <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+                  {s.label}
+                </div>
+                <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
               </div>
-              <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
-                {s.label}
-              </div>
-              <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
             </div>
           );
         })}
@@ -282,7 +352,7 @@ export default function OverviewPage() {
             href: "/customers",
           },
           {
-            label: "Avbokade idag",
+            label: "Avbokade",
             value: current.cancelled,
             sub: "Nekade + avbokade",
             icon: XCircle,
@@ -294,7 +364,7 @@ export default function OverviewPage() {
             <Link
               key={s.label}
               href={s.href}
-              className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex items-center gap-4 hover:border-gold-500/20 transition-all group"
+              className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex items-center gap-4 hover:border-gold-500/15 transition-all group"
             >
               <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors">
                 <Icon size={17} />
@@ -327,33 +397,34 @@ export default function OverviewPage() {
             <AreaChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#E7B24B" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#E7B24B" stopOpacity={0.25} />
                   <stop offset="95%" stopColor="#E7B24B" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
               <XAxis
                 dataKey="time"
-                tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700 }}
+                tick={{ fill: "rgba(255,255,255,0.2)", fontSize: 9, fontWeight: 700 }}
                 axisLine={false}
                 tickLine={false}
                 interval={range === "today" || range === "yesterday" ? 3 : "preserveStartEnd"}
               />
               <YAxis
-                tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 9, fontWeight: 700 }}
+                tick={{ fill: "rgba(255,255,255,0.2)", fontSize: 9, fontWeight: 700 }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
                 contentStyle={{
                   background: "var(--bg-secondary)",
-                  border: "1px solid rgba(255,255,255,0.08)",
+                  border: "1px solid rgba(255,255,255,0.06)",
                   borderRadius: 12,
                   fontSize: 11,
                   fontWeight: 700,
+                  boxShadow: "0 10px 40px rgba(0,0,0,0.3)",
                 }}
                 formatter={(v: any) => [`${Math.round(v)} kr`, "Omsättning"]}
-                labelStyle={{ color: "rgba(255,255,255,0.5)", fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}
+                labelStyle={{ color: "rgba(255,255,255,0.4)", fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}
               />
               <Area
                 type="monotone"
@@ -389,7 +460,7 @@ export default function OverviewPage() {
             current.recent.map((o) => (
               <div
                 key={o.id}
-                className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]"
+                className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/10 transition-all"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-[8px] font-black text-[var(--text-secondary)]">
@@ -415,6 +486,8 @@ export default function OverviewPage() {
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : o.status === "PENDING"
                         ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                        : o.status === "PREPARING"
+                        ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
                         : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                     }`}
                   >
@@ -446,9 +519,9 @@ export default function OverviewPage() {
               <Link
                 key={r.id}
                 href={`/restaurants/${r.id}`}
-                className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/20 transition-all group"
+                className="flex items-center gap-3 p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
               >
-                <div className={`w-2 h-2 rounded-full shrink-0 ${r.isOpen ? "bg-emerald-400 animate-pulse" : "bg-[var(--text-secondary)] opacity-30"}`} />
+                <div className={`w-2 h-2 rounded-full shrink-0 ${r.isOpen ? "bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-[var(--text-secondary)] opacity-30"}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black uppercase truncate text-[var(--text-primary)]">{r.name}</p>
                   <p className="text-[8px] font-bold text-[var(--text-secondary)]">{r.isOpen ? "Öppen" : "Stängd"}</p>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import AdminRealtimeBridge from "@/components/AdminRealtimeBridge";
+import CommandPalette from "@/components/CommandPalette";
 import { ToastProvider } from "@/components/Toast";
 import { API_URL } from "@/lib/api";
 import axios from "axios";
@@ -160,7 +161,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             window.location.href = "/login";
           }}
           style={{
-            background: "#e7b24b",
+            background: "linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%)",
             color: "#0d0d0d",
             border: "none",
             padding: "12px 28px",
@@ -187,24 +188,47 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "var(--bg-primary)",
+          background: "#09090b",
           flexDirection: "column",
           gap: "24px",
           padding: "20px",
           textAlign: "center",
         }}
       >
+        {/* Animated logo */}
         <div
           style={{
-            width: 32,
-            height: 32,
-            border: "2px solid rgba(231, 178, 75, 0.1)",
+            width: 56,
+            height: 56,
+            borderRadius: 16,
+            background: "linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 0 40px rgba(231, 178, 75, 0.15)",
+            animation: "pulse-glow-load 2s ease-in-out infinite",
+          }}
+        >
+          <span style={{ color: "#0d0d0d", fontWeight: 900, fontSize: 24, fontStyle: "italic" }}>M</span>
+        </div>
+
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            border: "2px solid rgba(231, 178, 75, 0.08)",
             borderTopColor: "#e7b24b",
             borderRadius: "50%",
             animation: "spin 0.6s linear infinite",
           }}
         />
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{`
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes pulse-glow-load {
+            0%, 100% { box-shadow: 0 0 20px rgba(231, 178, 75, 0.1); }
+            50% { box-shadow: 0 0 50px rgba(231, 178, 75, 0.25); }
+          }
+        `}</style>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
           <p
@@ -217,7 +241,19 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               margin: 0,
             }}
           >
-            Laddar Admin
+            MatGo Control
+          </p>
+          <p
+            style={{
+              color: "rgba(255,255,255,0.2)",
+              fontSize: 10,
+              letterSpacing: "0.15em",
+              textTransform: "uppercase",
+              fontWeight: 700,
+              margin: 0,
+            }}
+          >
+            Laddar admin…
           </p>
           {showRetry && (
             <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, margin: 0 }}>
@@ -230,7 +266,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <button
             onClick={() => window.location.reload()}
             style={{
-              background: "#e7b24b",
+              background: "linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%)",
               color: "#0d0d0d",
               border: "none",
               padding: "10px 20px",
@@ -252,9 +288,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     <ToastProvider>
       <div className="flex min-h-screen text-[var(--text-primary)] bg-[var(--bg-primary)] overflow-x-hidden font-sans">
         <AdminRealtimeBridge />
+        <CommandPalette />
         <Sidebar />
-        <main className="flex-1 lg:ml-[260px] pt-14 lg:pt-0 min-h-screen">
-          <div className="p-5 lg:p-8 max-w-[1400px] mx-auto">
+        <main className="flex-1 lg:ml-[260px] pt-14 lg:pt-0 min-h-screen bg-dot-pattern">
+          <div className="p-5 lg:p-8 max-w-[1400px] mx-auto fade-in">
             {children}
           </div>
         </main>

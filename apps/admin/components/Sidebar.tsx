@@ -12,7 +12,6 @@ import {
   LogOut,
   ToggleLeft,
   ToggleRight,
-  Clock,
   Menu,
   X,
   Store,
@@ -21,7 +20,6 @@ import {
   MapPin,
   Users,
   Zap,
-  Target,
   Sun,
   Moon,
   LayoutDashboard,
@@ -30,12 +28,22 @@ import {
   ActivitySquare,
   History,
   ChevronDown,
-  RefreshCw,
+  ChevronRight,
   Printer,
   Calculator,
   Server,
   Sparkles,
   Truck,
+  Command,
+  Shield,
+  FileText,
+  Key,
+  Clock,
+  MessageSquare,
+  Megaphone,
+  Palette,
+  HelpCircle,
+  ExternalLink,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -47,6 +55,9 @@ import { useTheme } from "./ThemeProvider";
 
 interface NavGroup {
   label: string;
+  icon?: React.ElementType;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   links: NavLink[];
 }
 
@@ -55,6 +66,7 @@ interface NavLink {
   label: string;
   icon: React.ElementType;
   badge?: number;
+  isNew?: boolean;
 }
 
 interface NotificationItem {
@@ -77,6 +89,7 @@ const Sidebar = () => {
   const [pendingCount, setPendingCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const notifRef = useRef<HTMLDivElement>(null);
 
   const { selectedRestaurantId, selectedRestaurantName, setRestaurant } = useRestaurantStore();
@@ -191,10 +204,25 @@ const Sidebar = () => {
   const markAllRead = () =>
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
 
+  const toggleGroup = (label: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [label]: !prev[label],
+    }));
+  };
+
   const navGroups: NavGroup[] = [
     {
       label: "Live Monitor",
+      icon: Zap,
+      collapsible: true,
+      defaultOpen: true,
       links: [
+        {
+          href: "/overview",
+          label: "Dashboard",
+          icon: LayoutDashboard,
+        },
         {
           href: "/orders",
           label: "Alla Ordrar",
@@ -202,7 +230,7 @@ const Sidebar = () => {
         },
         {
           href: "/orders/new",
-          label: "Nya",
+          label: "Nya Ordrar",
           icon: Bell,
           badge: pendingCount || undefined,
         },
@@ -217,11 +245,6 @@ const Sidebar = () => {
           icon: Truck,
         },
         {
-          href: "/overview",
-          label: "Dashboard",
-          icon: LayoutDashboard,
-        },
-        {
           href: "/history",
           label: "Orderhistorik",
           icon: History,
@@ -230,32 +253,69 @@ const Sidebar = () => {
     },
     {
       label: "Plattform",
+      icon: Globe,
+      collapsible: true,
+      defaultOpen: true,
       links: [
         { href: "/restaurants", label: "Restauranger", icon: Store },
         { href: "/customers", label: "Kunder & Support", icon: Users },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
+        { href: "/coupons", label: "Rabattkoder", icon: Tag, isNew: true },
+        { href: "/deals/push", label: "Push Notiser", icon: Megaphone },
         { href: "/cities", label: "Städer & Zoner", icon: MapPin },
         { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
+        { href: "/reviews", label: "Recensioner", icon: MessageSquare, isNew: true },
       ],
     },
     {
-      label: "Analytics & Fakturering",
+      label: "Analytics & Finans",
+      icon: BarChart3,
+      collapsible: true,
+      defaultOpen: false,
       links: [
         { href: "/bi", label: "Business Intel.", icon: BarChart3 },
-        { href: "/analytics", label: "Analys", icon: Globe },
+        { href: "/analytics", label: "Trafikanalys", icon: Globe },
         { href: "/billing", label: "Fakturering & Prov.", icon: Calculator },
+        { href: "/stats", label: "Statistik", icon: BarChart3 },
       ],
     },
     {
-      label: "System",
+      label: "System & Config",
+      icon: Server,
+      collapsible: true,
+      defaultOpen: false,
       links: [
         { href: "/menu", label: "Menyer", icon: Utensils },
+        { href: "/settings", label: "Inställningar", icon: Settings },
         { href: "/settings/receipt", label: "Kvittolayout", icon: Printer },
+        { href: "/staff", label: "Personal & Roller", icon: Shield, isNew: true },
         { href: "/system", label: "Systemhälsa", icon: Server },
         { href: "/log", label: "Aktivitetslogg", icon: ActivitySquare },
       ],
     },
   ];
+
+  // Determine which group should be open based on active route
+  useEffect(() => {
+    if (!isMounted) return;
+    const initial: Record<string, boolean> = {};
+    navGroups.forEach((group) => {
+      const isGroupActive = group.links.some(
+        (link) =>
+          pathname === link.href ||
+          (link.href !== "/overview" &&
+            link.href !== "/" &&
+            link.href !== "/orders" &&
+            pathname.startsWith(link.href + "/"))
+      );
+      if (isGroupActive) {
+        initial[group.label] = false; // false = not collapsed = open
+      } else {
+        initial[group.label] = !(group.defaultOpen ?? true);
+      }
+    });
+    setCollapsedGroups(initial);
+  }, [isMounted]);
 
   if (!isMounted) return null;
 
@@ -271,19 +331,25 @@ const Sidebar = () => {
       <Link
         href={link.href}
         onClick={() => setIsMobileMenuOpen(false)}
-        className={`relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-[11px] font-bold uppercase tracking-wide ${
+        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-[10px] font-bold uppercase tracking-wide ${
           isActive
-            ? "bg-gold-500/15 text-gold-500 border border-gold-500/20"
-            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/4"
+            ? "bg-gold-500/10 text-gold-500"
+            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03]"
         }`}
       >
+        {isActive && <div className="sidebar-active-indicator" />}
         <Icon
-          size={16}
+          size={15}
           className={isActive ? "text-gold-500" : "text-[var(--text-secondary)]"}
         />
-        <span className="flex-1">{link.label}</span>
+        <span className="flex-1 truncate">{link.label}</span>
+        {link.isNew && (
+          <span className="px-1.5 py-0.5 rounded text-[7px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
+            Ny
+          </span>
+        )}
         {link.badge && link.badge > 0 ? (
-          <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center shadow-lg animate-pulse">
+          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30 animate-pulse">
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
@@ -294,23 +360,23 @@ const Sidebar = () => {
   const sidebarContent = (
     <div className="flex flex-col h-full border-r border-[var(--border-subtle)]" style={{ background: "var(--bg-primary)" }}>
       {/* Header */}
-      <div className="p-5 pb-0">
+      <div className="p-4 pb-0">
         {/* Logo row */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gold-500 flex items-center justify-center shadow-lg shadow-gold-500/20">
+            <div className="w-9 h-9 rounded-xl bg-gold-gradient flex items-center justify-center shadow-lg glow-gold-sm">
               <span className="text-[#0d0d0d] font-black text-base italic">M</span>
             </div>
             <div>
-              <div className="text-[9px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] opacity-60">
+              <div className="text-[8px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] opacity-50">
                 Super Admin
               </div>
               <div className="font-black text-[var(--text-primary)] text-sm uppercase tracking-tight leading-none">
-                MatGo <span className="text-gold-500">Control</span>
+                MatGo <span className="text-gold-gradient">Control</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* Notification Bell */}
             <div ref={notifRef} className="relative">
               <button
@@ -318,11 +384,11 @@ const Sidebar = () => {
                   setShowNotifications((v) => !v);
                   if (!showNotifications) markAllRead();
                 }}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all relative"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition-all relative"
               >
-                <Bell size={16} />
+                <Bell size={15} />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -403,7 +469,7 @@ const Sidebar = () => {
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 transition-all"
+              className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition-all"
             >
               {theme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
             </button>
@@ -411,15 +477,33 @@ const Sidebar = () => {
             {/* Mobile close */}
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:bg-white/5"
+              className="lg:hidden w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:bg-white/[0.04]"
             >
               <X size={18} />
             </button>
           </div>
         </div>
 
+        {/* Command Palette Trigger */}
+        <button
+          onClick={() =>
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", metaKey: true })
+            )
+          }
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/15 transition-all mb-3"
+        >
+          <Command size={13} className="opacity-40" />
+          <span className="flex-1 text-left text-[9px] font-bold uppercase tracking-wider opacity-40">
+            Sök kommandon…
+          </span>
+          <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[7px] font-black text-[var(--text-secondary)] uppercase">
+            ⌘K
+          </kbd>
+        </button>
+
         {/* Restaurant Selector */}
-        <div className="mb-4 space-y-2">
+        <div className="mb-3 space-y-2">
           <div className="relative">
             <select
               value={selectedRestaurantId || ""}
@@ -431,7 +515,7 @@ const Sidebar = () => {
                   setRestaurant(r?.id || null, r?.name || null);
                 }
               }}
-              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[10px] font-black text-[var(--text-primary)] appearance-none cursor-pointer focus:outline-none focus:border-gold-500/40 transition-all uppercase tracking-wider"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2.5 text-[9px] font-black text-[var(--text-primary)] appearance-none cursor-pointer focus:outline-none focus:border-gold-500/30 transition-all uppercase tracking-wider"
             >
               <option value="">Alla restauranger</option>
               {restaurants.map((r) => (
@@ -441,7 +525,7 @@ const Sidebar = () => {
               ))}
             </select>
             <ChevronDown
-              size={13}
+              size={12}
               className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]"
             />
           </div>
@@ -451,13 +535,13 @@ const Sidebar = () => {
             <button
               onClick={toggleOpen}
               disabled={toggling}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-[10px] font-black uppercase tracking-wider ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase tracking-wider ${
                 isOpen
-                  ? "bg-emerald-500/8 border-emerald-500/20 text-emerald-500"
-                  : "bg-rose-500/8 border-rose-500/20 text-rose-500"
+                  ? "bg-emerald-500/8 border-emerald-500/15 text-emerald-400"
+                  : "bg-rose-500/8 border-rose-500/15 text-rose-400"
               } ${toggling ? "opacity-50" : "active:scale-[0.98]"}`}
             >
-              {isOpen ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+              {isOpen ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
               <span className="flex-1 text-left">
                 {isOpen ? "Restaurangen är öppen" : "Restaurangen är stängd"}
               </span>
@@ -466,24 +550,122 @@ const Sidebar = () => {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="px-4 mb-2">
+        <div className="grid grid-cols-3 gap-1.5">
+          <Link
+            href="/orders/new"
+            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
+          >
+            <Bell size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
+            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+              Nya
+            </span>
+            {pendingCount > 0 && (
+              <span className="min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[7px] font-black flex items-center justify-center">
+                {pendingCount > 9 ? "9+" : pendingCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/restaurants"
+            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
+          >
+            <Store size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
+            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+              Restauranger
+            </span>
+          </Link>
+          <Link
+            href="/customers"
+            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
+          >
+            <Users size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
+            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+              Kunder
+            </span>
+          </Link>
+        </div>
+      </div>
+
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto no-scrollbar px-4 py-2 space-y-5">
-        {navGroups.map((group) => (
-          <div key={group.label}>
-            <div className="px-4 mb-2 text-[8px] font-black uppercase tracking-[0.35em] text-[var(--text-secondary)] opacity-40">
-              {group.label}
+      <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-2 space-y-1">
+        {navGroups.map((group) => {
+          const isCollapsed = collapsedGroups[group.label] ?? false;
+          const GroupIcon = group.icon;
+          const hasActiveLink = group.links.some(
+            (link) =>
+              pathname === link.href ||
+              (link.href !== "/overview" &&
+                link.href !== "/" &&
+                link.href !== "/orders" &&
+                pathname.startsWith(link.href + "/"))
+          );
+
+          return (
+            <div key={group.label} className="mb-1">
+              {group.collapsible ? (
+                <button
+                  onClick={() => toggleGroup(group.label)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-lg hover:bg-white/[0.02]"
+                >
+                  {GroupIcon && (
+                    <GroupIcon
+                      size={11}
+                      className={hasActiveLink ? "text-gold-500/60" : "opacity-40"}
+                    />
+                  )}
+                  <span className={`flex-1 text-left ${hasActiveLink ? "text-gold-500/60" : "opacity-40"}`}>
+                    {group.label}
+                  </span>
+                  <ChevronRight
+                    size={10}
+                    className={`opacity-30 transition-transform duration-200 ${
+                      !isCollapsed ? "rotate-90" : ""
+                    }`}
+                  />
+                </button>
+              ) : (
+                <div className="px-3 py-2 text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] opacity-40">
+                  {group.label}
+                </div>
+              )}
+              <AnimatePresence initial={false}>
+                {!isCollapsed && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-0.5 py-0.5">
+                      {group.links.map((link) => (
+                        <NavItem key={link.href} link={link} />
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            <div className="space-y-0.5">
-              {group.links.map((link) => (
-                <NavItem key={link.href} link={link} />
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-[var(--border-subtle)] space-y-1.5">
+      <div className="p-3 border-t border-[var(--border-subtle)] space-y-1">
+        {/* System status indicator */}
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-1">
+          <div className="status-dot online" />
+          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 flex-1">
+            System Online
+          </span>
+          <Clock size={10} className="text-[var(--text-secondary)] opacity-40" />
+          <span className="text-[8px] font-bold text-[var(--text-secondary)] opacity-40">
+            {new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+
         {/* Test order button */}
         {selectedRestaurantId && (
           <button
@@ -516,20 +698,29 @@ const Sidebar = () => {
                 // silent
               }
             }}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all text-[9px] font-black uppercase tracking-widest border border-[var(--border-subtle)]"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all text-[8px] font-black uppercase tracking-widest border border-[var(--border-subtle)]"
           >
-            <Zap size={13} /> Testorder
+            <Zap size={12} /> Testorder
           </button>
         )}
+
+        {/* Help link */}
+        <Link
+          href="/system"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03] transition-all text-[8px] font-black uppercase tracking-widest"
+        >
+          <HelpCircle size={12} /> Hjälp & System
+        </Link>
+
         <button
           onClick={() => {
             localStorage.removeItem("matgo_token");
             localStorage.removeItem("matgo_admin");
             window.location.href = "/login";
           }}
-          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-rose-500/50 hover:text-rose-500 hover:bg-rose-500/5 transition-all text-[9px] font-black uppercase tracking-widest"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-[8px] font-black uppercase tracking-widest"
         >
-          <LogOut size={13} /> Logga ut
+          <LogOut size={12} /> Logga ut
         </button>
       </div>
     </div>
@@ -538,9 +729,9 @@ const Sidebar = () => {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 w-full h-14 border-b border-[var(--border-subtle)] z-40 flex items-center justify-between px-5 shadow-sm" style={{ background: "var(--bg-primary)" }}>
+      <div className="lg:hidden fixed top-0 w-full h-14 border-b border-[var(--border-subtle)] z-40 flex items-center justify-between px-5" style={{ background: "var(--bg-primary)" }}>
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gold-500 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-gold-gradient flex items-center justify-center glow-gold-sm">
             <span className="text-[#0d0d0d] font-black text-sm italic">M</span>
           </div>
           <span className="font-black text-[var(--text-primary)] text-sm uppercase tracking-tight">
@@ -549,7 +740,7 @@ const Sidebar = () => {
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && (
-            <span className="px-2 py-1 rounded-lg bg-rose-500 text-white text-[9px] font-black">
+            <span className="px-2 py-1 rounded-lg bg-rose-500 text-white text-[9px] font-black shadow-lg shadow-rose-500/30 animate-pulse">
               {pendingCount} ny
             </span>
           )}
