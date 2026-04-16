@@ -546,10 +546,8 @@ const AdminOrdersPage = () => {
     success(`Exporterade ${allOrders.length} ordrar`);
   };
 
-  // Filtered orders - use the new applyFilters function
-  const displayOrders = useMemo(() => {
-    return filteredOrders;
-  }, [filteredOrders]);
+  // Filtered orders - use applyFilters directly
+  const displayOrders = useMemo(() => applyFilters(orders), [applyFilters, orders]);
 
   const stats = useMemo(() => {
     const today = new Date();
@@ -806,7 +804,7 @@ const AdminOrdersPage = () => {
 
         {/* Result count */}
         <div className="text-[9px] font-black text-[var(--text-secondary)]">
-          Visar {filteredOrders.length} av {orders.length} ordrar
+          Visar {displayOrders.length} av {orders.length} ordrar
         </div>
       </div>
 
