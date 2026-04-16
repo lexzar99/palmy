@@ -258,13 +258,13 @@ const Sidebar = () => {
       defaultOpen: true,
       links: [
         { href: "/restaurants", label: "Restauranger", icon: Store },
-        { href: "/customers", label: "Kunder & Support", icon: Users },
+        { href: "/customers", label: "Kunder", icon: Users },
+        { href: "/support", label: "HelpDesk & Support", icon: MessageSquare },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
-        { href: "/coupons", label: "Rabattkoder", icon: Tag, isNew: true },
-        { href: "/deals/push", label: "Push Notiser", icon: Megaphone },
+        { href: "/push", label: "Push Notiser", icon: Megaphone },
         { href: "/cities", label: "Städer & Zoner", icon: MapPin },
         { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
-        { href: "/reviews", label: "Recensioner", icon: MessageSquare, isNew: true },
+        { href: "/reviews", label: "Recensioner", icon: MessageSquare },
       ],
     },
     {

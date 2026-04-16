@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, ActivityIndicator, StatusBar, StyleSheet, Modal } from 'react-native';
+import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../store/useAppStore';
@@ -20,19 +20,30 @@ const COUNTRY_CODES = [
   { code: "+1", flag: "🇺🇸", name: "USA" },
 ];
 
+const PREFERENCE_OPTIONS = [
+  "Gluten", "Laktos", "Nötter", "Ägg", "Fisk", "Skaldjur", 
+  "Soja", "Selleri", "Senap", "Sesam", "Vetemjöl", "Mjölk"
+];
+
 export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
+  const setDislikedIngredients = useAppStore((s) => s.setDislikedIngredients);
 
-  const [step, setStep] = useState<"landing" | "phone" | "otp">("landing");
+  const [step, setStep] = useState<"landing" | "phone" | "profile" | "allergens" | "otp">("landing");
   const [countryCode, setCountryCode] = useState("+46");
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [allergens, setAllergens] = useState<string[]>([]);
   const [otpCode, setOtpCode] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [isGoogleLinking, setIsGoogleLinking] = useState(false);
 
   // Entrance animation
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -59,8 +70,15 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
     if (googleResult) {
       setToken(googleResult.token);
       setProfile(googleResult.user);
-      setOnboardingComplete(true);
-      onComplete();
+      
+      // Mandatory phone link check
+      if (googleResult.user.needsPhone) {
+        setIsGoogleLinking(true);
+        setStep("phone");
+      } else {
+        setOnboardingComplete(true);
+        onComplete();
+      }
     }
   }, [googleResult]);
 
@@ -77,30 +95,94 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const buildPhone = (cc: string, raw: string) => `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
-  const handleSendOtp = async () => {
+  const handleCheckPhone = async () => {
     if (!phone.trim()) { setError("Ange ditt telefonnummer"); return; }
     const full = buildPhone(countryCode, phone);
     setLoading(true); setError("");
     try {
-      await api.post("/api/account/send-otp", { phone: full });
+      // 1. Check if phone exists and is part of a previous registration
+      const { data: lookup } = await api.post("/api/auth/lookup-phone", { phone: full });
+      
+      // Keep track of the full phone number for subsequent steps
+      const phoneExists = !!lookup.exists;
+      setOtpPhone(full);
+
+      // We only prompt for profile info if it's a completely NEW phone number
+      // However, if the user logged in via Google (isGoogleLinking), we consider it an existing flow where we just need to verify the phone.
+      if (!isGoogleLinking && !phoneExists) {
+        // New phone user: must fill profile first before sending OTP
+        setIsNewUser(true);
+        setStep("profile");
+      } else {
+        // Existing phone user OR Google linking flow: go straight to OTP
+        setIsNewUser(false);
+        await triggerOtp(full);
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.error || "Kunde inte kontrollera nummer");
+    } finally { setLoading(false); }
+  };
+
+  const triggerOtp = async (full: string) => {
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone: full });
+      if (error) throw error;
       setOtpPhone(full);
       setStep("otp");
     } catch (e: any) {
-      setError(e?.response?.data?.error || "Kunde inte skicka SMS");
-    } finally { setLoading(false); }
+      setError(e.message || "Kunde inte skicka SMS");
+    }
+  };
+
+  const handleProfileSubmit = async () => {
+    if (!name.trim()) { setError("Ange ditt namn"); return; }
+    if (!email.trim() || !email.includes("@")) { setError("Ange en giltig e-post"); return; }
+    
+    // Once profile is filled, prompt for allergens
+    setStep("allergens");
+  };
+
+  const handleAllergensSubmit = async () => {
+    setLoading(true);
+    await triggerOtp(otpPhone);
+    setLoading(false);
   };
 
   const handleVerifyOtp = async () => {
     if (!otpCode.trim()) { setError("Ange koden från SMS:et"); return; }
     setLoading(true); setError("");
     try {
-      const res = await api.post("/api/account/verify-otp", { phone: otpPhone, code: otpCode });
-      setToken(res.data.token);
-      setProfile(res.data.user);
-      setOnboardingComplete(true);
-      onComplete();
+      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+        phone: otpPhone,
+        token: otpCode,
+        type: 'sms',
+      });
+      
+      if (verifyErr) throw verifyErr;
+      
+      if (data.session) {
+        // If it was a new user, we might want to update the profile metadata immediately
+        if (isNewUser) {
+          await supabase.auth.updateUser({
+            data: { name: name.trim(), full_name: name.trim() }
+          });
+        }
+
+        const token = data.session.access_token;
+        setToken(token);
+        
+        // Fetch full profile from API to ensure sync
+        const profileRes = await api.get("/api/auth/me", {
+           headers: { Authorization: `Bearer ${token}` }
+        });
+
+        setProfile(profileRes.data);
+        setDislikedIngredients(allergens);
+        setOnboardingComplete(true);
+        onComplete();
+      }
     } catch (e: any) {
-      setError(e?.response?.data?.error || "Felaktig kod");
+      setError(e.message || "Felaktig kod");
     } finally { setLoading(false); }
   };
 
@@ -226,6 +308,16 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 </Text>
               </>
             )}
+            {step === "profile" && (
+              <>
+                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                  Din profil
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                  Det verkar vara ditt första besök! Berätta lite mer om dig själv.
+                </Text>
+              </>
+            )}
             {step === "otp" && (
               <>
                 <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
@@ -252,7 +344,12 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
               <>
                 {/* Phone CTA — primary */}
                 <Pressable
-                  onPress={() => { setError(""); setStep("phone"); }}
+                  onPress={() => { 
+                    setError(""); 
+                    setIsGoogleLinking(false); 
+                    setIsNewUser(false);
+                    setStep("phone"); 
+                  }}
                   style={{
                     backgroundColor: palette.gold,
                     borderRadius: 22,
@@ -402,8 +499,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                     keyboardType="phone-pad"
                     value={phone}
                     onChangeText={(t) => { setPhone(t); setError(""); }}
-                    returnKeyType="send"
-                    onSubmitEditing={handleSendOtp}
+                    returnKeyType="done"
                     autoFocus
                   />
                 </View>
@@ -460,7 +556,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 )}
 
                 <Pressable
-                  onPress={handleSendOtp}
+                  onPress={handleCheckPhone}
                   disabled={loading || !phone.trim()}
                   style={{
                     backgroundColor: palette.gold,
@@ -477,11 +573,119 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 >
                   {loading
                     ? <ActivityIndicator color="#000" />
-                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Skicka SMS-kod →</Text>
+                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{isGoogleLinking ? "Verifiera mitt nummer →" : "Fortsätt →"}</Text>
+                  }
+                </Pressable>
+              </>
+            )}
+
+            {/* ── PROFILE ── */}
+            {step === "profile" && (
+              <>
+                <TextInput
+                  style={[styles.input, { paddingVertical: 18 }]}
+                  placeholder="Förnamn & Efternamn"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  value={name}
+                  onChangeText={(t) => { setName(t); setError(""); }}
+                />
+                <TextInput
+                  style={[styles.input, { paddingVertical: 18 }]}
+                  placeholder="Din e-post"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={(t) => { setEmail(t); setError(""); }}
+                />
+
+                {!!error && (
+                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  onPress={handleProfileSubmit}
+                  disabled={!name.trim() || !email.trim()}
+                  style={{
+                    backgroundColor: palette.gold,
+                    borderRadius: 22,
+                    paddingVertical: 18,
+                    alignItems: "center",
+                    opacity: !name.trim() || !email.trim() ? 0.55 : 1,
+                    marginTop: 4,
+                  }}
+                >
+                  <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Nästa →</Text>
+                </Pressable>
+
+                <Pressable onPress={() => { setStep("phone"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
+                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>← Ändra nummer</Text>
+                </Pressable>
+              </>
+            )}
+
+            {/* ── ALLERGENS ── */}
+            {step === "allergens" && (
+              <>
+                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                  Matallergier?
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                  Välj om du har några allergier så kan vi dölja fel mat från din meny.
+                </Text>
+                
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 24, marginBottom: 16 }}>
+                  {PREFERENCE_OPTIONS.map((pref) => {
+                    const active = allergens.includes(pref);
+                    return (
+                      <Pressable
+                        key={pref}
+                        onPress={() => {
+                          if (active) setAllergens(allergens.filter(a => a !== pref));
+                          else setAllergens([...allergens, pref]);
+                        }}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          borderRadius: 14,
+                          backgroundColor: active ? "rgba(231,178,75,0.15)" : "#1a1624",
+                          borderWidth: 1,
+                          borderColor: active ? palette.gold : "rgba(255,255,255,0.05)",
+                        }}
+                      >
+                        <Text style={{ color: active ? palette.gold : "#7f798a", fontSize: 13, fontWeight: "800" }}>{pref}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {!!error && (
+                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                  </View>
+                )}
+
+                <Pressable
+                  onPress={handleAllergensSubmit}
+                  disabled={loading}
+                  style={{
+                    backgroundColor: palette.gold,
+                    borderRadius: 22,
+                    paddingVertical: 18,
+                    alignItems: "center",
+                    opacity: loading ? 0.55 : 1,
+                    marginTop: 4,
+                  }}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#000" />
+                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Se koden →</Text>
                   }
                 </Pressable>
 
-                <Pressable onPress={() => { setStep("landing"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
+                <Pressable onPress={() => { setStep("profile"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10, marginTop: 10 }}>
                   <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>← Tillbaka</Text>
                 </Pressable>
               </>

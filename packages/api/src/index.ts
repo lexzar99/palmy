@@ -26,6 +26,7 @@ import campaignRoutes from './routes/campaigns';
 import deliveryRoutes from './routes/delivery';
 import reportRoutes from './routes/reports';
 import uploadRoutes from './routes/upload';
+import notificationRoutes from './routes/notifications';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
@@ -132,6 +133,7 @@ app.use('/api/admin/reports', reportRoutes);
 app.use('/api/admin/upload', uploadRoutes);
 app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
 
 // Serve uploaded images

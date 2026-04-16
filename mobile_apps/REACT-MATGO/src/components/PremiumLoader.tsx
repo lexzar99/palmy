@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -14,10 +14,28 @@ import { Ionicons } from "@expo/vector-icons";
 const { width } = Dimensions.get("window");
 
 const palette = {
-  bg: "#0b0a0f",
-  gold: "#FFD700",
-  text: "#f9f7f3",
-  muted: "#b2a8bf",
+  bg: "#171513",
+  gold: "#EAB545",
+  text: "#FFF8EA",
+  muted: "#B8AA95",
+};
+
+const TypewriterText = ({ message }: { message: string }) => {
+  const [displayedText, setDisplayedText] = useState("");
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index < message.length) {
+        setDisplayedText(message.slice(0, index + 1));
+        index++;
+      } else {
+        clearInterval(interval);
+      }
+    }, 45); // Adjust speed here for faster/slower typing
+    return () => clearInterval(interval);
+  }, [message]);
+
+  return <Text style={styles.message}>{displayedText.toUpperCase()}</Text>;
 };
 
 export default function PremiumLoader({ message }: { message?: string }) {
@@ -118,7 +136,7 @@ export default function PremiumLoader({ message }: { message?: string }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#120f18", "#09080c"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={["#211C19", "#171513"]} style={StyleSheet.absoluteFill} />
 
       {/* Background glow */}
       <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
@@ -157,7 +175,7 @@ export default function PremiumLoader({ message }: { message?: string }) {
         </View>
 
         {message && (
-          <Text style={styles.message}>{message.toUpperCase()}</Text>
+          <TypewriterText message={message} />
         )}
       </View>
 
@@ -200,9 +218,9 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 32,
-    backgroundColor: "rgba(231,178,75,0.1)",
+    backgroundColor: "rgba(234,181,69,0.12)",
     borderWidth: 1.5,
-    borderColor: "rgba(231,178,75,0.3)",
+    borderColor: "rgba(234,181,69,0.3)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
@@ -221,12 +239,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 1.5,
     fontStyle: "italic",
-    textShadowColor: "rgba(231,178,75,0.4)",
+    textShadowColor: "rgba(234,181,69,0.35)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
   },
   message: {
-    color: "rgba(255,255,255,0.35)",
+    color: "rgba(255,248,234,0.42)",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 4,

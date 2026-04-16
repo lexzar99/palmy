@@ -89,16 +89,16 @@ export default function HomeAddressInput({
           alignItems: "center",
           gap: 12,
           borderRadius: 20,
-          backgroundColor: "#101015",
+          backgroundColor: palette.bg,
           paddingHorizontal: 16,
           paddingVertical: 14,
           marginBottom: 10,
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.05)",
+          borderColor: palette.border,
         }}
       >
         <Ionicons name="location-outline" size={18} color={palette.gold} />
-        <Text numberOfLines={1} style={{ flex: 1, color: value ? "#f9f7f3" : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
+        <Text numberOfLines={1} style={{ flex: 1, color: value ? palette.text : palette.muted, fontSize: 14, fontWeight: "800" }}>
           {value || "Ange din adress..."}
         </Text>
       </Pressable>
@@ -114,7 +114,7 @@ export default function HomeAddressInput({
           alignItems: "center",
           gap: 12,
           borderRadius: 20,
-          backgroundColor: "#101015",
+          backgroundColor: palette.bg,
           paddingHorizontal: 16,
           paddingVertical: 14,
           marginBottom: 10,
@@ -124,11 +124,11 @@ export default function HomeAddressInput({
       >
         <Ionicons name="location-outline" size={18} color={palette.gold} />
         <TextInput
-          style={{ flex: 1, color: "#f9f7f3", fontSize: 14, fontWeight: "800", padding: 0, margin: 0 }}
+          style={{ flex: 1, color: palette.text, fontSize: 14, fontWeight: "800", padding: 0, margin: 0 }}
           value={value}
           onChangeText={handleChange}
           placeholder="Ange din adress..."
-          placeholderTextColor="#6e6a77"
+          placeholderTextColor={palette.muted}
           autoFocus
           onBlur={() => {
             if (!value) setIsEditing(false);
@@ -152,7 +152,7 @@ export default function HomeAddressInput({
               style={styles.suggestionItem}
               onPress={() => handleSelect(suggestion)}
             >
-              <Ionicons name="location-outline" size={16} color="#b2a8bf" />
+              <Ionicons name="location-outline" size={16} color={palette.muted} />
               <Text style={styles.suggestionText} numberOfLines={2}>
                 {suggestion.properties.formatted}
               </Text>
@@ -174,10 +174,10 @@ const styles = StyleSheet.create({
     top: 60,
     left: 0,
     right: 0,
-    backgroundColor: "#17151d",
+    backgroundColor: palette.panel,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#322b3e",
+    borderColor: palette.border,
     overflow: "hidden",
     zIndex: 200,
   },
@@ -188,11 +188,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
+    borderBottomColor: "rgba(255,248,234,0.06)",
   },
   suggestionText: {
     flex: 1,
-    color: "#f9f7f3",
+    color: palette.text,
     fontSize: 13,
     fontWeight: "700",
   },

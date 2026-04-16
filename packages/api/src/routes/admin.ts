@@ -1290,13 +1290,17 @@ const normalizeDealInputForDb = (body: any) => {
         ? body.applicableRestaurantIds
         : JSON.stringify(applicableRestaurantIds);
 
-    if (body.restaurantId === undefined && body.isGlobal !== true) {
+    // If global, we don't want a specific restaurantId
+    if (body.isGlobal === true) {
+      next.restaurantId = null;
+    } else if (body.restaurantId === undefined) {
+      // If NOT global and no ID provided, try to resolve from the list
       next.restaurantId = applicableRestaurantIds.length === 1 ? applicableRestaurantIds[0] : null;
     }
   }
 
   if (body.restaurantId !== undefined) {
-    next.restaurantId = body.restaurantId ? String(body.restaurantId) : null;
+    next.restaurantId = body.restaurantId && body.isGlobal !== true ? String(body.restaurantId) : null;
   }
 
   if (body.isGlobal !== undefined) {
@@ -1408,21 +1412,29 @@ router.get('/deals', async (req, res) => {
 router.post('/deals', async (req, res) => {
   try {
     const { restaurantId, ...rest } = req.body;
+    
+    // Permission check: Merchant must have a restaurant, Super Admin can be global (null)
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
+      
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const normalized = normalizeDealInputForDb(rest);
+    
+    // Ensure the deal is actually linked to the scoped restaurant if not global
+    if (scopedRestaurantId) {
+      normalized.restaurantId = scopedRestaurantId;
+    }
+
     const deal = await prisma.deal.create({
-      data: {
-        ...(normalized as any),
-        ...(scopedRestaurantId ? { restaurant: { connect: { id: scopedRestaurantId } } } : {}),
-      },
+      data: normalized as any,
     });
+
     res.status(201).json(formatDealForAdmin(deal));
-  } catch {
-    res.status(500).json({ error: 'Serverfel' });
+  } catch (error) {
+    console.error('Create deal error:', error);
+    res.status(500).json({ error: 'Kunde inte skapa deal' });
   }
 });
 

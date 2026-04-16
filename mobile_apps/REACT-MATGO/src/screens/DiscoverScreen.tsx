@@ -78,7 +78,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 </>
               )}
             </Text>
-            <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
               {filteredTitle ? `${filteredRestaurants.length} RESTAURANGER` : "HITTA DIN NÄSTA FAVORITUPPLEVELSE"}
             </Text>
           </View>
@@ -89,14 +89,14 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 width: 58,
                 height: 58,
                 borderRadius: 20,
-                backgroundColor: "#17171b",
+                backgroundColor: palette.panel,
                 borderWidth: 1,
-                borderColor: "#2b2a31",
+                borderColor: palette.border,
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Ionicons name="close" size={26} color="#7f798a" />
+              <Ionicons name="close" size={26} color={palette.muted} />
             </Pressable>
           ) : (
             <Pressable
@@ -105,9 +105,9 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 width: 58,
                 height: 58,
                 borderRadius: 20,
-                backgroundColor: "#17171b",
+                backgroundColor: palette.panel,
                 borderWidth: 1,
-                borderColor: "#2b2a31",
+                borderColor: palette.border,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -125,18 +125,18 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
             borderRadius: 30,
             borderWidth: 1,
             borderColor: "rgba(255,255,255,0.08)",
-            backgroundColor: "#17171b",
+            backgroundColor: palette.panel,
             paddingHorizontal: 20,
             paddingVertical: 16,
             marginBottom: 18,
           }}
         >
-          <Ionicons name="search-outline" size={24} color="#6f667d" />
+          <Ionicons name="search-outline" size={24} color={palette.muted} />
           <TextInput
             value={activeSearch}
             onChangeText={setActiveSearch}
             placeholder="Hitta din favorit..."
-            placeholderTextColor="#6f667d"
+            placeholderTextColor={palette.muted}
             style={{ flex: 1, color: palette.text, fontSize: 16, fontWeight: "700", marginBottom: 0, padding: 0 }}
           />
         </View>
@@ -162,9 +162,9 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                   width: 100,
                   height: 120,
                   borderRadius: 24,
-                  backgroundColor: "#19191d",
+                  backgroundColor: palette.panel,
                   borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.05)",
+                  borderColor: palette.border,
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 12,
@@ -182,7 +182,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 >
                   <Ionicons name={category.icon as any} size={22} color={category.tint} />
                 </View>
-                <Text style={{ color: "#b8b2c2", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>{category.name.toUpperCase()}</Text>
+                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>{category.name.toUpperCase()}</Text>
               </ScalePressable>
             ))}
           </ScrollView>
@@ -199,10 +199,10 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
               key={restaurant.id}
               onPress={() => openRestaurant(restaurant.slug)}
               style={{
-                backgroundColor: "#19191d",
+                backgroundColor: palette.panel,
                 borderRadius: 30,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.05)",
+                borderColor: palette.border,
                 padding: 16,
                 flexDirection: "row",
                 alignItems: "center",
@@ -210,7 +210,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 marginBottom: 14,
               }}
             >
-              <View style={{ width: 82, height: 82, borderRadius: 24, overflow: "hidden", backgroundColor: "#111015" }}>
+              <View style={{ width: 82, height: 82, borderRadius: 24, overflow: "hidden", backgroundColor: palette.bg }}>
                 {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
                   <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
                 )}
@@ -233,7 +233,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <StarRating rating={restaurant.rating} size={12} showNumber={true} />
-                  <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
                 </View>
               </View>
               <Ionicons name="chevron-forward-outline" size={20} color={palette.gold} />
@@ -257,10 +257,10 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                 key={restaurant.id}
                 onPress={() => openRestaurant(restaurant.slug)}
                 style={{
-                  backgroundColor: "#19191d",
+                  backgroundColor: palette.panel,
                   borderRadius: 28,
                   borderWidth: 1,
-                  borderColor: "rgba(168,85,247,0.3)",
+                  borderColor: "rgba(234,181,69,0.24)",
                   padding: 16,
                   flexDirection: "row",
                   alignItems: "center",
@@ -268,7 +268,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                   marginBottom: 14,
                 }}
               >
-                <View style={{ width: 90, height: 90, borderRadius: 22, overflow: "hidden", backgroundColor: "#111015" }}>
+                <View style={{ width: 90, height: 90, borderRadius: 22, overflow: "hidden", backgroundColor: palette.bg }}>
                   {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
                     <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
                   )}
@@ -291,20 +291,20 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 8 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="time-outline" size={13} color="#a855f7" />
-                      <Text style={{ color: "#a855f7", fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
+                      <Ionicons name="time-outline" size={13} color={palette.gold} />
+                      <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
                     </View>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="receipt-outline" size={13} color="#a855f7" />
-                      <Text style={{ color: "#a855f7", fontSize: 11, fontWeight: "900" }}>MIN {restaurant.minOrderAmount || 0} KR</Text>
+                      <Ionicons name="receipt-outline" size={13} color={palette.gold} />
+                      <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900" }}>MIN {restaurant.minOrderAmount || 0} KR</Text>
                     </View>
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <StarRating rating={restaurant.rating} size={12} />
-                    <Text style={{ color: "#7f798a", fontSize: 11, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward-outline" size={20} color="#a855f7" />
+                <Ionicons name="chevron-forward-outline" size={20} color={palette.gold} />
               </ScalePressable>
             ))
           )}

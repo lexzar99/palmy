@@ -67,7 +67,7 @@ export default function ProfileScreen({
   openOrder,
   openCart,
 }: {
-  openRegister: () => void;
+  openRegister: (initialPhone?: string) => void;
   openOrder: (id: string) => void;
   openCart: () => void;
 }) {
@@ -230,14 +230,16 @@ export default function ProfileScreen({
     setLoginError("");
     setAddPhoneError("");
     try {
-      await api.post("/api/account/send-otp", { phone: phoneNumber });
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+      });
+      if (error) throw error;
       setOtpPhone(phoneNumber);
       setShowOtp(true);
       setShowAddPhone(false);
     } catch (error: any) {
-      const message = error?.response?.data?.error || "Kunde inte skicka kod";
-      setLoginError(message);
-      setAddPhoneError(message);
+      setLoginError(error.message || "Kunde inte skicka kod");
+      setAddPhoneError(error.message || "Kunde inte skicka kod");
     } finally {
       setAuthLoading(false);
       setAddPhoneLoading(false);
@@ -254,8 +256,25 @@ export default function ProfileScreen({
       Alert.alert("Nummer krävs", "Ange ett giltigt telefonnummer.");
       return;
     }
-    await sendOtpToPhone(internationalPhone);
-  }, [buildInternationalPhone, countryCode, normalizePhone, phone, sendOtpToPhone]);
+
+    setAuthLoading(true);
+    try {
+      // Check if phone exists in DB before sending OTP
+      const { data: lookup } = await api.post("/api/auth/lookup-phone", { phone: internationalPhone });
+
+      if (!lookup.exists) {
+        setAuthLoading(false);
+        // It's a new number, force them to the registration flow
+        openRegister(internationalPhone);
+        return;
+      }
+
+      await sendOtpToPhone(internationalPhone);
+    } catch (e: any) {
+       setAuthLoading(false);
+       setLoginError("Kunde inte verifiera numret. Försök igen.");
+    }
+  }, [buildInternationalPhone, countryCode, normalizePhone, phone, sendOtpToPhone, openRegister]);
 
   const handleAddPhone = useCallback(async () => {
     if (!addPhoneNum.trim()) {
@@ -272,25 +291,37 @@ export default function ProfileScreen({
     setAuthLoading(true);
     setLoginError("");
     try {
-      const response = await api.post(
-        "/api/account/verify-otp",
-        { phone: otpPhone, code: otpCode },
-        { headers: token ? getAuthHeaders(token) : {} }
-      );
-      const nextToken = response.data?.token as string | undefined;
-      if (!nextToken) throw new Error("Ingen session returnerades");
-      setToken(nextToken);
-      setShowOtp(false);
-      setOtpCode("");
-      setPhone("");
-      setAddPhoneNum("");
-      setPageLoading(true);
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: otpPhone,
+        token: otpCode,
+        type: 'sms',
+      });
+      
+      if (error) throw error;
+      
+      if (data.session) {
+        setToken(data.session.access_token);
+        const nextProfile = {
+          id: data.user?.id || "",
+          name: data.user?.user_metadata?.name || data.user?.user_metadata?.full_name || `Gäst ${otpPhone.slice(-4)}`,
+          phone: data.user?.phone || otpPhone,
+          email: data.user?.email,
+          image: data.user?.user_metadata?.avatar_url,
+          isVerified: true
+        };
+        setProfile(nextProfile);
+        setShowOtp(false);
+        setOtpCode("");
+        setPhone("");
+        setAddPhoneNum("");
+        setPageLoading(true);
+      }
     } catch (error: any) {
-      setLoginError(error?.response?.data?.error || "Felaktig kod");
+      setLoginError(error.message || "Felaktig kod");
     } finally {
       setAuthLoading(false);
     }
-  }, [getAuthHeaders, otpCode, otpPhone, setToken, token]);
+  }, [otpCode, otpPhone, setProfile, setToken]);
 
   const handleSocialLogin = useCallback(
     async (provider: "google" | "facebook") => {
@@ -328,7 +359,12 @@ export default function ProfileScreen({
     [googlePrompt, fetchProfileData, setToken, setProfile]
   );
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Supabase signout issue:", e);
+    }
     clearSession();
     setOrders([]);
     setDeals([]);
@@ -596,7 +632,7 @@ export default function ProfileScreen({
             </View>
           </View>
 
-          <Pressable style={{ marginTop: 24 }} onPress={openRegister}>
+          <Pressable style={{ marginTop: 24 }} onPress={() => openRegister()}>
             <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "900", textAlign: "center" }}>
               INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
             </Text>
@@ -610,7 +646,7 @@ export default function ProfileScreen({
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Kod skickad till {otpPhone}</Text>
               <TextInput
                 style={styles.input}
-                placeholder="000 000"
+                placeholder="123 456"
                 placeholderTextColor={palette.muted}
                 value={otpCode}
                 onChangeText={(value) => setOtpCode(value.replace(/[^0-9]/g, ""))}

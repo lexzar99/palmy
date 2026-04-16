@@ -7,7 +7,7 @@ export type AppRoute =
   | { name: "restaurant"; slug: string }
   | { name: "cart" }
   | { name: "profile" }
-  | { name: "register" }
+  | { name: "register"; initialPhone?: string }
   | { name: "order"; id: string }
   | { name: "discover-filtered"; restaurantIds: string[]; dealId?: string; dealTitle?: string };
 

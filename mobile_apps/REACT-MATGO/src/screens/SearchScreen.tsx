@@ -51,24 +51,24 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
             gap: 12,
             borderRadius: 30,
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            backgroundColor: "#17171b",
+            borderColor: palette.border,
+            backgroundColor: palette.panel,
             paddingHorizontal: 20,
             paddingVertical: 16,
             marginBottom: 18,
           }}
         >
-          <Ionicons name="search-outline" size={24} color="#6f667d" />
+          <Ionicons name="search-outline" size={24} color={palette.muted} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="Hitta din favorit..."
-            placeholderTextColor="#6f667d"
+            placeholderTextColor={palette.muted}
             style={{ flex: 1, color: palette.text, fontSize: 16, fontWeight: "700", marginBottom: 0, padding: 0 }}
           />
           {!!query && (
             <Pressable onPress={() => setQuery("")}>
-              <Ionicons name="close-circle" size={20} color="#6f667d" />
+              <Ionicons name="close-circle" size={20} color={palette.muted} />
             </Pressable>
           )}
         </View>
@@ -92,9 +92,9 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
                       width: "47%",
                       minHeight: 140,
                       borderRadius: 22,
-                      backgroundColor: "#19191d",
+                      backgroundColor: palette.panel,
                       borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.05)",
+                      borderColor: palette.border,
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 12,
@@ -103,7 +103,7 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
                     <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: category.bg, alignItems: "center", justifyContent: "center" }}>
                       <Ionicons name={category.icon as any} size={24} color={category.tint} />
                     </View>
-                    <Text style={{ color: "#b8b2c2", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>{category.name.toUpperCase()}</Text>
+                    <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>{category.name.toUpperCase()}</Text>
                   </ScalePressable>
                 ))}
               </View>

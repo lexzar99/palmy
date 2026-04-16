@@ -1,18 +1,19 @@
 import { StyleSheet } from 'react-native';
 
 export const palette = {
-  bg: "#050505", // Deeper black for more contrast
-  panel: "#121217",
-  panelMuted: "#1a1a1f",
-  card: "#1e1e26",
-  border: "rgba(255,255,255,0.08)",
-  text: "#FFFFFF",
-  muted: "#8E8E93",
-  gold: "#FFD700", // Richer gold
-  goldDark: "#B8860B",
+  bg: "#171513",
+  panel: "#211C19",
+  panelMuted: "#2A241F",
+  card: "#322A24",
+  border: "rgba(255,248,234,0.10)",
+  text: "#FFF8EA",
+  muted: "#B8AA95",
+  gold: "#EAB545",
+  goldDark: "#D99500",
+  orange: "#F07A13",
   success: "#34C759",
-  danger: "#FF3B30",
-  info: "#007AFF",
+  danger: "#FF6B6B",
+  info: "#68B6FF",
 };
 
 export const ui = {
@@ -56,7 +57,7 @@ export const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,248,234,0.08)",
     justifyContent: "space-between",
   },
   restaurantHeroCoverImage: {
@@ -79,10 +80,10 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(18,17,23,0.7)",
+    backgroundColor: "rgba(23,21,19,0.78)",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,248,234,0.1)",
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -102,10 +103,10 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(18,17,23,0.7)",
+    backgroundColor: "rgba(23,21,19,0.78)",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,248,234,0.1)",
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
@@ -197,7 +198,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   restaurantHeroCuisine: {
-    color: "rgba(249,247,243,0.42)",
+    color: "rgba(255,248,234,0.52)",
     fontSize: 10,
     fontWeight: "900",
     textTransform: "uppercase",
@@ -214,12 +215,12 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
   },
   restaurantHeroRatingCount: {
-    color: "rgba(249,247,243,0.32)",
+    color: "rgba(255,248,234,0.38)",
     fontSize: 11,
     fontWeight: "800",
   },
   restaurantHeroDescriptionPremium: {
-    color: "rgba(249,247,243,0.74)",
+    color: "rgba(255,248,234,0.8)",
     fontSize: 14,
     lineHeight: 21,
     maxWidth: "88%",
@@ -243,7 +244,7 @@ export const styles = StyleSheet.create({
     gap: 6,
   },
   restaurantQuickStatLabel: {
-    color: "rgba(178,168,191,0.7)",
+    color: "rgba(184,170,149,0.76)",
     fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
@@ -262,7 +263,7 @@ export const styles = StyleSheet.create({
     backgroundColor: palette.bg,
   },
   restaurantStickyNavCard: {
-    backgroundColor: "rgba(23,21,29,0.96)",
+    backgroundColor: "rgba(33,28,25,0.96)",
     borderRadius: 28,
     borderWidth: 1,
     borderColor: palette.border,
@@ -270,7 +271,7 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   restaurantSearchInputWrap: {
-    backgroundColor: "rgba(11,10,15,0.75)",
+    backgroundColor: "rgba(23,21,19,0.88)",
     borderRadius: 22,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -337,7 +338,7 @@ export const styles = StyleSheet.create({
   restaurantMenuSectionDivider: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(255,248,234,0.06)",
   },
   restaurantMenuProductList: {
     gap: 12,
@@ -383,10 +384,10 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
   },
   restaurantMenuPriceBadge: {
-    backgroundColor: "rgba(231,178,75,0.1)",
+    backgroundColor: "rgba(234,181,69,0.14)",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(231,178,75,0.2)",
+    borderColor: "rgba(234,181,69,0.26)",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -396,7 +397,7 @@ export const styles = StyleSheet.create({
     fontWeight: "900",
   },
   restaurantMenuProductDescription: {
-    color: "rgba(178,168,191,0.78)",
+    color: "rgba(184,170,149,0.82)",
     fontSize: 11,
     lineHeight: 17,
     fontWeight: "800",

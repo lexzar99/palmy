@@ -297,6 +297,7 @@ model User {
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]
   allergens      String         @default("[]")
+  pushToken      String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }

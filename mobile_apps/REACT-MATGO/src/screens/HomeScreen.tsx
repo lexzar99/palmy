@@ -2,10 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Animated,
+  FlatList,
   Pressable,
   ScrollView,
   Text,
   View,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DealFlipCard, { type DealFlipCardData } from "../components/DealFlipCard";
@@ -40,6 +43,14 @@ type PersonalDeal = {
     validUntil?: string | null;
   } | null;
 };
+
+type PromoCarouselItem =
+  | { id: string; kind: "deal"; deal: DealFlipCardData }
+  | { id: string; kind: "sponsor"; sponsor: any };
+
+const PROMO_CARD_WIDTH = 300;
+const PROMO_CARD_GAP = 16;
+const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 function formatPersonalDealReward(deal: PersonalDeal) {
   const campaign = deal.campaign || {};
@@ -99,6 +110,8 @@ export default function HomeScreen({
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [sponsors, setSponsors] = useState<any[]>([]);
+  const promoListRef = useRef<FlatList<PromoCarouselItem> | null>(null);
+  const promoIndexRef = useRef(0);
 
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
@@ -289,7 +302,7 @@ export default function HomeScreen({
         validUntil: campaign.validUntil || null,
         minOrderText: campaign.minOrder && campaign.minOrder > 0 ? `MIN ${campaign.minOrder} KR` : null,
         tags: [],
-        tone: isWelcome ? "gold" : "emerald",
+        tone: isWelcome ? "orange" : "gold",
         variant: "personal",
       } satisfies DealFlipCardData;
     });
@@ -319,7 +332,7 @@ export default function HomeScreen({
         validUntil: deal.validUntil || null,
         minOrderText: deal.minOrder && deal.minOrder > 0 ? `MIN ${deal.minOrder} KR` : null,
         tags: deal.comboProductNames || [],
-        tone: deal.isGlobal ? "gold" : "purple",
+        tone: "purple",
         variant: "public",
         relatedRestaurantIds,
         onNavigateToFilteredRestaurants: () => {
@@ -341,6 +354,54 @@ export default function HomeScreen({
 
     return [...personalCards, ...publicCards];
   }, [deals, openRestaurant, personalDeals, restaurants, pushRoute]);
+
+  const promoCards = useMemo<PromoCarouselItem[]>(() => {
+    const dealItems = homeDeals.map((deal) => ({ id: deal.id, kind: "deal" as const, deal }));
+    const sponsorItems = sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+
+    if (dealItems.length === 0) return sponsorItems;
+    if (sponsorItems.length === 0) return dealItems;
+
+    const merged: PromoCarouselItem[] = [];
+    let sponsorIndex = 0;
+
+    dealItems.forEach((item, index) => {
+      merged.push(item);
+      const shouldInsertSponsor = (index + 1) % 2 === 0 && sponsorIndex < sponsorItems.length;
+      if (shouldInsertSponsor) {
+        merged.push(sponsorItems[sponsorIndex]);
+        sponsorIndex += 1;
+      }
+    });
+
+    while (sponsorIndex < sponsorItems.length) {
+      merged.push(sponsorItems[sponsorIndex]);
+      sponsorIndex += 1;
+    }
+
+    return merged;
+  }, [homeDeals, sponsors]);
+
+  const handlePromoMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / PROMO_SNAP);
+    promoIndexRef.current = Math.max(0, Math.min(nextIndex, Math.max(promoCards.length - 1, 0)));
+  }, [promoCards.length]);
+
+  useEffect(() => {
+    promoIndexRef.current = 0;
+    if (promoCards.length <= 1) return;
+
+    const interval = setInterval(() => {
+      const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
+      promoIndexRef.current = nextIndex;
+      promoListRef.current?.scrollToOffset({
+        offset: nextIndex * PROMO_SNAP,
+        animated: true,
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [promoCards.length]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -390,9 +451,9 @@ export default function HomeScreen({
           <View
             style={{
               marginTop: 28,
-              backgroundColor: "#111115",
+              backgroundColor: palette.panel,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
+              borderColor: palette.border,
               borderRadius: 22,
               padding: 5,
               flexDirection: "row",
@@ -435,9 +496,9 @@ export default function HomeScreen({
                     zIndex: 2,
                   }}
                 >
-                  <Ionicons name={item.icon} size={18} color={active ? "#000" : "#8E8E93"} />
+                  <Ionicons name={item.icon} size={18} color={active ? "#000" : palette.muted} />
                   <Text style={{ 
-                    color: active ? "#000" : "#8E8E93", 
+                    color: active ? "#000" : palette.muted, 
                     fontWeight: "900", 
                     fontSize: 13,
                     letterSpacing: 0.5
@@ -454,35 +515,71 @@ export default function HomeScreen({
               marginTop: 12,
               borderRadius: 18,
               padding: 6,
-              backgroundColor: "rgba(24,24,27,0.8)",
+              backgroundColor: "rgba(33,28,25,0.9)",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.05)",
+              borderColor: palette.border,
             }}
           >
             {orderType === "DELIVERY" ? (
-              <ScalePressable
-                onPress={() => setAddressModalOpen(true)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                  borderRadius: 20,
-                  backgroundColor: "#101015",
-                  paddingHorizontal: 16,
-                  paddingVertical: 14,
-                  marginBottom: 10,
-                }}
-              >
-                <Ionicons name="location-outline" size={18} color={palette.gold} />
-                <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
-                  {address || "Ange din adress..."}
-                </Text>
-              </ScalePressable>
+              <View style={{ marginBottom: 10 }}>
+                {!address && (
+                  <View
+                    style={{
+                      alignSelf: "center",
+                      maxWidth: 292,
+                      marginBottom: 10,
+                      paddingHorizontal: 16,
+                      paddingVertical: 12,
+                      borderRadius: 18,
+                      backgroundColor: "#3D66A8",
+                      position: "relative",
+                    }}
+                  >
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: -8,
+                        left: "50%",
+                        marginLeft: -10,
+                        width: 0,
+                        height: 0,
+                        borderLeftWidth: 10,
+                        borderRightWidth: 10,
+                        borderBottomWidth: 10,
+                        borderLeftColor: "transparent",
+                        borderRightColor: "transparent",
+                        borderBottomColor: "#3D66A8",
+                      }}
+                    />
+                    <Text style={{ color: "#F7FBFF", fontSize: 12, lineHeight: 18, fontWeight: "800" }}>
+                      Nu visas en generell plats. Uppdatera adressen så kan vi visa restauranger nara dig.
+                    </Text>
+                  </View>
+                )}
+
+                <ScalePressable
+                  onPress={() => setAddressModalOpen(true)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    borderRadius: 20,
+                    backgroundColor: palette.bg,
+                    paddingHorizontal: 16,
+                    paddingVertical: 14,
+                  }}
+                >
+                  <Ionicons name="location-outline" size={18} color={palette.gold} />
+                  <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : palette.muted, fontSize: 14, fontWeight: "800" }}>
+                    {address || "Ange din adress..."}
+                  </Text>
+                </ScalePressable>
+              </View>
             ) : (
               <View style={{ marginBottom: 10 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 10, marginBottom: 12, marginTop: 4 }}>
                   <Ionicons name="map-outline" size={14} color={palette.gold} />
-                  <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>VÄLJ STAD FÖR HÄMTNING</Text>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>VÄLJ STAD FÖR HÄMTNING</Text>
                 </View>
 
                 <ScalePressable
@@ -492,7 +589,7 @@ export default function HomeScreen({
                     alignItems: "center",
                     gap: 12,
                     borderRadius: 20,
-                    backgroundColor: "#101015",
+                    backgroundColor: palette.bg,
                     paddingHorizontal: 16,
                     paddingVertical: 14,
                     borderWidth: 1,
@@ -500,17 +597,17 @@ export default function HomeScreen({
                   }}
                 >
                   <Ionicons name="business-outline" size={18} color={palette.gold} />
-                  <Text style={{ flex: 1, color: address ? palette.text : "#6e6a77", fontSize: 14, fontWeight: "800" }}>
+                  <Text style={{ flex: 1, color: address ? palette.text : palette.muted, fontSize: 14, fontWeight: "800" }}>
                     {selectedCity?.name || "Alla städer"}
                   </Text>
-                  <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={18} color="#6e6a77" />
+                  <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={18} color={palette.muted} />
                 </ScalePressable>
 
                 {cityDropdownOpen && (
-                  <View style={{ marginTop: 8, backgroundColor: "#101015", borderRadius: 20, padding: 8, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+                  <View style={{ marginTop: 8, backgroundColor: palette.bg, borderRadius: 20, padding: 8, borderWidth: 1, borderColor: palette.border }}>
                     <Pressable
                       onPress={() => { setAddress("", null); setCityDropdownOpen(false); }}
-                      style={{ padding: 12, borderRadius: 12, backgroundColor: !selectedCity ? "rgba(231,178,75,0.1)" : "transparent" }}
+                      style={{ padding: 12, borderRadius: 12, backgroundColor: !selectedCity ? "rgba(234,181,69,0.12)" : "transparent" }}
                     >
                       <Text style={{ color: !selectedCity ? palette.gold : palette.text, fontWeight: "800" }}>Alla städer</Text>
                     </Pressable>
@@ -518,7 +615,7 @@ export default function HomeScreen({
                       <Pressable
                         key={city.id}
                         onPress={() => { setAddress(city.name, null); setCityDropdownOpen(false); }}
-                        style={{ padding: 12, borderRadius: 12, backgroundColor: selectedCity?.id === city.id ? "rgba(231,178,75,0.1)" : "transparent" }}
+                        style={{ padding: 12, borderRadius: 12, backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.12)" : "transparent" }}
                       >
                         <Text style={{ color: selectedCity?.id === city.id ? palette.gold : palette.text, fontWeight: "800" }}>{city.name}</Text>
                       </Pressable>
@@ -535,14 +632,14 @@ export default function HomeScreen({
                 alignItems: "center",
                 gap: 12,
                 borderRadius: 20,
-                backgroundColor: "#101015",
+                backgroundColor: palette.bg,
                 paddingLeft: 16,
                 paddingRight: 6,
                 paddingVertical: 6,
               }}
             >
-              <Ionicons name="search-outline" size={18} color="#5f5b66" />
-              <Text style={{ flex: 1, color: "#5f5b66", fontSize: 14, fontWeight: "800" }}>Hitta din favorit...</Text>
+              <Ionicons name="search-outline" size={18} color={palette.muted} />
+              <Text style={{ flex: 1, color: palette.muted, fontSize: 14, fontWeight: "800" }}>Hitta din favorit...</Text>
               <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="arrow-forward" size={18} color="#000" />
               </View>
@@ -559,39 +656,44 @@ export default function HomeScreen({
           {coords && !zoneError && orderType === "DELIVERY" && (
             <View style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Ionicons name="checkmark-circle" size={20} color="#34d399" />
-              <Text style={{ flex: 1, color: "#6ee7b7", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>Adress verifierad — Kontrollerad mot exakta leveranszoner.</Text>
+              <Text style={{ flex: 1, color: "#6ee7b7", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>Adress ar verifierad.</Text>
             </View>
           )}
         </View>
 
-        {/* ── Sponsors ── */}
-        {sponsors.length > 0 && (
+        {promoCards.length > 0 && (
           <View style={{ marginTop: 24, marginBottom: 12 }}>
             <View style={{ paddingHorizontal: 18, marginBottom: 16 }}>
-              <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>SPONSRAT</Text>
-              <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>UTVALDA PARTNERS OCH ERBJUDANDEN</Text>
+              <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>AKTUELLT</Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
+                PERSONLIGA KAMPANJER, RESTAURANGERBJUDANDEN OCH SPONSRAT I EN SCROLL
+              </Text>
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingHorizontal: 16 }}>
-              {sponsors.map((s: any) => (
-                <SponsorTile key={s.id} sponsor={s} openRestaurant={openRestaurant} pushRoute={pushRoute} />
-              ))}
-            </ScrollView>
-          </View>
-        )}
-
-        {!!homeDeals.length && (
-          <View style={{ marginTop: 10, marginBottom: 8 }}>
-            <View style={[styles.sectionTitleRow, { marginBottom: 16 }]}>
-              <View>
-                <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>ERBJUDANDEN</Text>
-                <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>PERSONLIGA OCH PUBLIKA DEALS JUST NU</Text>
-              </View>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingHorizontal: 4 }}>
-              {homeDeals.map((deal) => (
-                <DealFlipCard key={deal.id} deal={deal} />
-              ))}
-            </ScrollView>
+            <FlatList
+              ref={promoListRef}
+              data={promoCards}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              decelerationRate="fast"
+              snapToInterval={PROMO_SNAP}
+              snapToAlignment="start"
+              disableIntervalMomentum
+              bounces={false}
+              onMomentumScrollEnd={handlePromoMomentumEnd}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}
+              renderItem={({ item, index }) => (
+                <View style={{ width: PROMO_CARD_WIDTH, marginRight: index === promoCards.length - 1 ? 0 : PROMO_CARD_GAP }}>
+                  {item.kind === "sponsor" ? (
+                    <SponsorTile sponsor={item.sponsor} openRestaurant={openRestaurant} pushRoute={pushRoute} />
+                  ) : (
+                    <View style={{ alignItems: "center" }}>
+                      <DealFlipCard deal={item.deal} />
+                    </View>
+                  )}
+                </View>
+              )}
+            />
           </View>
         )}
 
@@ -611,10 +713,10 @@ export default function HomeScreen({
             <View style={[styles.sectionTitleRow, { marginBottom: 20 }]}>
               <View>
                 <Text style={{ color: palette.gold, fontSize: 28, fontWeight: "900", fontStyle: "italic" }}>HETA LISTAN</Text>
-                <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "900", letterSpacing: 3, marginTop: 8 }}>TOPPVALEN I DIN STAD JUST NU</Text>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 3, marginTop: 8 }}>TOPPVALEN I DIN STAD JUST NU</Text>
               </View>
               <ScalePressable onPress={() => openTab("discover")}>
-                <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: "#74521d", paddingBottom: 4 }}>VISA ALLA</Text>
+                <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
               </ScalePressable>
             </View>
 
@@ -638,7 +740,7 @@ export default function HomeScreen({
         )}
 
         <View style={styles.sectionTitleRow}>
-          <Text style={{ color: "#6f667d", fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>
+          <Text style={{ color: palette.muted, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>
             {(activeCuisine === "Alla" ? "ALLA RESTAURANGER" : activeCuisine.toUpperCase()) + ` / ${filtered.length} ST`}
           </Text>
         </View>

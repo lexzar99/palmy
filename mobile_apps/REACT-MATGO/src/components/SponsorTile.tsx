@@ -6,6 +6,9 @@ import { getImageUrl } from '../lib/api';
 import { palette } from '../constants/theme';
 import ScalePressable from './ScalePressable';
 
+const TILE_WIDTH = 300;
+const TILE_HEIGHT = 210;
+
 export default function SponsorTile({ 
   sponsor, 
   openRestaurant, 
@@ -13,7 +16,7 @@ export default function SponsorTile({
 }: { 
   sponsor: any; 
   openRestaurant: (slug: string) => void;
-  pushRoute: (route: any) => void;
+  pushRoute?: (route: any) => void;
 }) {
   const [flipped, setFlipped] = useState(false);
   const showName = sponsor.showName !== false;
@@ -41,6 +44,10 @@ export default function SponsorTile({
     // Alert.alert("Sponsor Klick", `Typ: ${type}\nMål: ${cleanTarget}`);
 
     if (type === 'DEAL') {
+      if (!pushRoute) {
+        Alert.alert("Info", "Det här erbjudandet kan inte öppnas just nu.");
+        return;
+      }
       pushRoute({ name: 'discover-filtered', restaurantIds: [cleanTarget], dealTitle: sponsor.name });
     } else if (type === 'RESTAURANT') {
       openRestaurant(cleanTarget);
@@ -51,25 +58,25 @@ export default function SponsorTile({
 
   if (!sponsor.isClickable) {
     return (
-      <View style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,255,255,0.06)", backgroundColor: "#111015" }}>
-        {!!imgUri && <Image source={{ uri: imgUri }} style={{ width: 300, height: 160 }} resizeMode="cover" />}
+      <View style={{ width: TILE_WIDTH, height: TILE_HEIGHT, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,248,234,0.08)", backgroundColor: palette.bg }}>
+        {!!imgUri && <Image source={{ uri: imgUri }} style={{ width: TILE_WIDTH, height: TILE_HEIGHT }} resizeMode="cover" />}
       </View>
     );
   }
 
   return (
-    <View style={{ width: 300, height: 160, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: flipped ? palette.gold : "rgba(255,255,255,0.06)", backgroundColor: "#121217", shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
+    <View style={{ width: TILE_WIDTH, height: TILE_HEIGHT, borderRadius: 32, overflow: "hidden", borderWidth: 1, borderColor: flipped ? palette.gold : "rgba(255,248,234,0.08)", backgroundColor: palette.panel, shadowColor: "#000", shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
       {!flipped ? (
-        <ScalePressable onPress={() => setFlipped(true)} style={{ width: 300, height: 160 }}>
-          <Image source={{ uri: imgUri }} style={{ width: 300, height: 160 }} resizeMode="cover" />
+        <ScalePressable onPress={() => setFlipped(true)} style={{ width: TILE_WIDTH, height: TILE_HEIGHT }}>
+          <Image source={{ uri: imgUri }} style={{ width: TILE_WIDTH, height: TILE_HEIGHT }} resizeMode="cover" />
           {showName && (
-            <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, justifyContent: "flex-end", padding: 18 }}>
+            <LinearGradient colors={["transparent", "rgba(23,21,19,0.92)"]} style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 96, justifyContent: "flex-end", padding: 18 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(231,178,75,0.2)', borderRadius: 4 }}>
+                <View style={{ paddingHorizontal: 6, paddingVertical: 2, backgroundColor: 'rgba(234,181,69,0.18)', borderRadius: 4 }}>
                    <Text style={{ color: palette.gold, fontSize: 7, fontWeight: "900", letterSpacing: 1 }}>PARTNER</Text>
                 </View>
               </View>
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
+              <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
             </LinearGradient>
           )}
         </ScalePressable>
@@ -78,9 +85,9 @@ export default function SponsorTile({
           <Pressable onPress={() => setFlipped(false)} style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <Ionicons name="sparkles" size={14} color={palette.gold} />
-              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
+              <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", fontStyle: "italic" }}>{(sponsor.name || "").toUpperCase()}</Text>
             </View>
-            {!!sponsor.infoText && <Text style={{ color: "#b2a8bf", fontSize: 11, fontWeight: "700", lineHeight: 16 }} numberOfLines={4}>{sponsor.infoText}</Text>}
+            {!!sponsor.infoText && <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", lineHeight: 16 }} numberOfLines={4}>{sponsor.infoText}</Text>}
           </Pressable>
           
           {sponsor.linkType !== 'NONE' && !!sponsor.ctaText && (

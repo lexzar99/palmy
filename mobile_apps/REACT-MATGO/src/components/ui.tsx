@@ -13,6 +13,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from "react-native";
@@ -134,12 +135,12 @@ export function RestaurantCard({
     <ScalePressable
       style={[
         {
-          backgroundColor: "#121217",
+          backgroundColor: palette.panel,
           borderRadius: 32,
           overflow: "hidden",
           marginBottom: 20,
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.06)",
+          borderColor: "rgba(255,248,234,0.08)",
         },
         containerStyle,
       ]}
@@ -153,32 +154,34 @@ export function RestaurantCard({
           />
         )}
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.9)"]}
+          colors={["transparent", "rgba(23,21,19,0.94)"]}
           style={{ ...StyleSheet.absoluteFillObject }}
         />
         
         <View style={{ position: "absolute", top: 16, right: 16 }}>
           <View style={{ 
-            backgroundColor: "rgba(0,0,0,0.6)", 
+            backgroundColor: "rgba(23,21,19,0.72)", 
             paddingHorizontal: 10, 
             paddingVertical: 6, 
             borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "rgba(255,248,234,0.08)",
             flexDirection: "row",
             alignItems: "center",
             gap: 4
           }}>
             <Ionicons name="star" size={12} color={palette.gold} />
-            <Text style={{ color: "#FFF", fontSize: 12, fontWeight: "900" }}>
+            <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>
               {restaurant.rating?.toFixed(1) || "4.5"}
             </Text>
           </View>
         </View>
 
         <View style={{ position: "absolute", bottom: 16, left: 16, right: 16 }}>
-          <Text style={{ color: "#FFF", fontSize: 24, fontWeight: "900", textTransform: "uppercase", fontStyle: "italic" }}>
+          <Text style={{ color: palette.text, fontSize: 24, fontWeight: "900", textTransform: "uppercase", fontStyle: "italic" }}>
             {restaurant.name}
           </Text>
-          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>
+          <Text style={{ color: "rgba(255,248,234,0.72)", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>
             {restaurant.cuisine || "Restaurang"}
           </Text>
         </View>
@@ -267,10 +270,10 @@ export function Badge({
   tone: "success" | "danger" | "gold" | "info";
 }) {
   const map = {
-    success: { bg: "#163520", text: palette.success },
-    danger: { bg: "#33151a", text: palette.danger },
-    gold: { bg: "#32220b", text: palette.gold },
-    info: { bg: "#132d36", text: palette.info },
+    success: { bg: "rgba(52,199,89,0.14)", text: palette.success },
+    danger: { bg: "rgba(255,107,107,0.14)", text: palette.danger },
+    gold: { bg: "rgba(234,181,69,0.14)", text: palette.gold },
+    info: { bg: "rgba(104,182,255,0.14)", text: palette.info },
   };
   return (
     <View style={[styles.badge, { backgroundColor: map[tone].bg }]}>
@@ -358,7 +361,7 @@ export function PrimaryButton({
       ]}
     >
       <LinearGradient
-        colors={[palette.gold, "#FFB800"]}
+        colors={[palette.gold, palette.goldDark]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={{

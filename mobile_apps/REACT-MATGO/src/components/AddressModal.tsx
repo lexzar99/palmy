@@ -58,20 +58,20 @@ interface AddressModalProps {
 
 // ── Colours ──────────────────────────────────────────────────────────────────
 const C = {
-  bg:        "#0d0c14",
-  card:      "#13111e",
-  surface:   "#1c1929",
-  border:    "#2b2440",
-  gold:      "#d4a017",
-  goldDim:   "#d4a01740",
-  text:      "#f5f3ef",
-  muted:     "#6b6080",
-  dim:       "#9891a8",
+  bg:        "#171513",
+  card:      "#211C19",
+  surface:   "#2A241F",
+  border:    "rgba(255,248,234,0.10)",
+  gold:      "#EAB545",
+  goldDim:   "rgba(234,181,69,0.25)",
+  text:      "#FFF8EA",
+  muted:     "#B8AA95",
+  dim:       "#D7CBB8",
   green:     "#10b981",
   greenBg:   "#10b98118",
   red:       "#ef4444",
   redBg:     "#ef444418",
-  overlay:   "rgba(8,7,16,0.92)",
+  overlay:   "rgba(23,21,19,0.92)",
 };
 
 const { width: SW } = Dimensions.get("window");
@@ -267,7 +267,7 @@ export default function AddressModal({
                 <Ionicons
                   name={t === "DELIVERY" ? "bicycle-outline" : "storefront-outline"}
                   size={14}
-                  color={orderType === t ? "#fff" : C.muted}
+                  color={orderType === t ? "#000" : C.muted}
                 />
                 <Text style={[s.toggleTxt, orderType === t && s.toggleTxtActive]}>
                   {t === "DELIVERY" ? "Leverans" : "Avhämtning"}
@@ -311,7 +311,7 @@ export default function AddressModal({
               {confirmedCoords && !error && (
                 <View style={s.badge}>
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
-                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress bekräftad – kontrollerar leveranszon…</Text>
+                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress ar verifierad.</Text>
                 </View>
               )}
 
@@ -423,7 +423,7 @@ export default function AddressModal({
             <Text style={s.confirmTxt}>
               {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
             </Text>
-            <Ionicons name="arrow-forward" size={19} color="#fff" />
+            <Ionicons name="arrow-forward" size={19} color="#000" />
           </Pressable>
 
         </Animated.View>
@@ -487,7 +487,7 @@ const s = StyleSheet.create({
     shadowColor: C.gold, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.35, shadowRadius: 8, elevation: 4,
   },
   toggleTxt: { fontSize: 11, fontWeight: "900", letterSpacing: 0.8, color: C.muted, textTransform: "uppercase" },
-  toggleTxtActive: { color: "#fff" },
+  toggleTxtActive: { color: "#000" },
 
   // Delivery input
   inputRow: {
@@ -496,8 +496,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 13,
     borderWidth: 1.5, borderColor: C.border,
   },
-  inputRowErr: { borderColor: "#ef444460" },
-  inputRowOk:  { borderColor: "#10b98150" },
+  inputRowErr: { borderColor: "rgba(239,68,68,0.38)" },
+  inputRowOk:  { borderColor: "rgba(16,185,129,0.32)" },
   textInput: {
     flex: 1, color: C.text, fontSize: 14,
     fontWeight: "700", padding: 0, margin: 0,
@@ -507,7 +507,7 @@ const s = StyleSheet.create({
   badge: {
     flexDirection: "row", alignItems: "center", gap: 7,
     padding: 10, borderRadius: 12,
-    backgroundColor: C.greenBg, borderWidth: 1, borderColor: "#10b98130",
+    backgroundColor: C.greenBg, borderWidth: 1, borderColor: "rgba(16,185,129,0.2)",
   },
   badgeTxt: { flex: 1, fontSize: 11, fontWeight: "700" },
 
@@ -521,7 +521,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
   },
   predItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  predItemPress: { backgroundColor: "#ffffff0a" },
+  predItemPress: { backgroundColor: "rgba(255,248,234,0.05)" },
   predIcon: {
     width: 26, height: 26, borderRadius: 7,
     backgroundColor: C.goldDim, alignItems: "center", justifyContent: "center",
@@ -539,8 +539,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 14,
   },
   cityItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  cityItemSelected: { backgroundColor: "#d4a01710" },
-  cityItemPress: { backgroundColor: "#ffffff08" },
+  cityItemSelected: { backgroundColor: "rgba(234,181,69,0.1)" },
+  cityItemPress: { backgroundColor: "rgba(255,248,234,0.05)" },
   cityRadio: {
     width: 18, height: 18, borderRadius: 9,
     borderWidth: 2, borderColor: C.muted,
@@ -561,7 +561,7 @@ const s = StyleSheet.create({
   errorBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 7,
     padding: 11, borderRadius: 12,
-    backgroundColor: C.redBg, borderWidth: 1, borderColor: "#ef444430",
+    backgroundColor: C.redBg, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)",
   },
   errorTxt: { flex: 1, color: C.red, fontSize: 12, fontWeight: "700" },
 
@@ -579,7 +579,7 @@ const s = StyleSheet.create({
     shadowColor: C.gold, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.35, shadowRadius: 14, elevation: 8,
   },
   confirmTxt: {
-    color: "#fff", fontSize: 13, fontWeight: "900",
+    color: "#000", fontSize: 13, fontWeight: "900",
     letterSpacing: 1.8, textTransform: "uppercase",
   },
 });

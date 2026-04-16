@@ -54,9 +54,9 @@ export default function BottomTabs({
           borderRadius: 45,
           paddingVertical: 8,
           paddingHorizontal: 8,
-          backgroundColor: "rgba(18, 18, 20, 0.85)",
+          backgroundColor: "rgba(33, 28, 25, 0.9)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.08)",
+          borderColor: palette.border,
           shadowColor: "#000",
           shadowOffset: { width: 0, height: 20 },
           shadowOpacity: 0.6,
@@ -80,7 +80,7 @@ export default function BottomTabs({
         }}
       >
         <LinearGradient
-          colors={[palette.gold, palette.goldDark]} // More balanced/richer gold
+          colors={[palette.gold, palette.goldDark]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{ 
@@ -167,7 +167,7 @@ function TabItem({
           <Ionicons 
             name={isFocused ? (tab.icon.replace("-outline", "") as any) : tab.icon} 
             size={22} 
-            color={isFocused ? "#000" : "#a1a1aa"} // Changed to black for contrast on gold
+            color={isFocused ? "#000" : palette.muted}
           />
           {tab.count !== undefined && tab.count > 0 && !isFocused && (
             <View style={{
@@ -179,7 +179,7 @@ function TabItem({
               height: 14,
               borderRadius: 7,
               borderWidth: 1.5,
-              borderColor: "#121214",
+              borderColor: palette.panel,
               alignItems: "center",
               justifyContent: "center",
               shadowColor: palette.gold,

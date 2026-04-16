@@ -13,7 +13,7 @@ export type DealFlipCardData = {
   validUntil?: string | null;
   minOrderText?: string | null;
   tags?: string[];
-  tone?: "gold" | "emerald" | "purple";
+  tone?: "gold" | "orange" | "purple";
   variant?: "public" | "personal";
   relatedRestaurantIds?: string[];
   onNavigateToFilteredRestaurants?: (restaurantIds: string[]) => void;
@@ -26,16 +26,16 @@ type DealFlipCardProps = {
 
 const tones = {
   gold: {
-    accent: "#FFD700",
-    accentSoft: "rgba(255,215,0,0.12)",
-    border: "rgba(255,215,0,0.22)",
-    tagBg: "rgba(255,215,0,0.12)",
+    accent: "#EAB545",
+    accentSoft: "rgba(234,181,69,0.12)",
+    border: "rgba(234,181,69,0.22)",
+    tagBg: "rgba(234,181,69,0.12)",
   },
-  emerald: {
-    accent: "#22c55e",
-    accentSoft: "rgba(34,197,94,0.12)",
-    border: "rgba(34,197,94,0.22)",
-    tagBg: "rgba(34,197,94,0.12)",
+  orange: {
+    accent: "#F07A13",
+    accentSoft: "rgba(240,122,19,0.12)",
+    border: "rgba(240,122,19,0.24)",
+    tagBg: "rgba(240,122,19,0.12)",
   },
   purple: {
     accent: "#a855f7",
@@ -108,12 +108,12 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
           <View style={styles.rowBetween}>
             <View style={styles.badgeRow}>
               <View style={[styles.iconBubble, { backgroundColor: tone.accentSoft }]}> 
-                <Ionicons name={deal.tone === "emerald" ? "pricetag-outline" : "sparkles-outline"} size={14} color={tone.accent} />
+                <Ionicons name={deal.tone === "purple" ? "pricetag-outline" : "sparkles-outline"} size={14} color={tone.accent} />
               </View>
               <Text style={[styles.badgeText, { color: tone.accent }]}>{deal.badgeLabel}</Text>
             </View>
             <View style={styles.chevronBubble}>
-              <Ionicons name="chevron-forward" size={15} color="#7c7388" />
+              <Ionicons name="chevron-forward" size={15} color="#B8AA95" />
             </View>
           </View>
 
@@ -145,7 +145,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
           <View style={styles.rowBetween}>
             <Text style={[styles.badgeText, { color: tone.accent }]}>MER INFO</Text>
             <Pressable hitSlop={10} onPress={toggleFlip}>
-              <Ionicons name="close" size={18} color="#7c7388" />
+              <Ionicons name="close" size={18} color="#B8AA95" />
             </Pressable>
           </View>
 
@@ -223,10 +223,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   front: {
-    backgroundColor: "#17151d",
+    backgroundColor: "#211C19",
   },
   back: {
-    backgroundColor: "#110f16",
+    backgroundColor: "#171513",
   },
   pressable: {
     flex: 1,
@@ -259,7 +259,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,248,234,0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   title: {
-    color: "#f9f7f3",
+    color: "#FFF8EA",
     fontSize: 19,
     lineHeight: 22,
     fontWeight: "900",
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   subtitle: {
-    color: "#8f879a",
+    color: "#B8AA95",
     fontSize: 11,
     lineHeight: 16,
     fontWeight: "800",
@@ -295,13 +295,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   hint: {
-    color: "#5f5968",
+    color: "#8D7C67",
     fontSize: 9,
     fontWeight: "900",
     letterSpacing: 1,
   },
   description: {
-    color: "#b1a8bc",
+    color: "#D7CBB8",
     fontSize: 12,
     lineHeight: 18,
     fontWeight: "700",
@@ -311,18 +311,18 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(255,248,234,0.05)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.07)",
+    borderColor: "rgba(255,248,234,0.07)",
   },
   codeText: {
-    color: "#f9f7f3",
+    color: "#FFF8EA",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1.5,
   },
   autoAppliedText: {
-    color: "#6a6473",
+    color: "#8D7C67",
     fontSize: 10,
     fontWeight: "700",
   },
@@ -354,13 +354,13 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.05)",
   },
   tagText: {
-    color: "#9a91a6",
+    color: "#B8AA95",
     fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
   },
   validUntil: {
-    color: "#6a6473",
+    color: "#8D7C67",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1,
