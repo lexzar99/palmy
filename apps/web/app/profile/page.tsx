@@ -369,7 +369,7 @@ export default function ProfilePage() {
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen bg-obsidian flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#171513" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -378,12 +378,12 @@ export default function ProfilePage() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!token || !user) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center px-6 pt-20 pb-32">
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-32" style={{ backgroundColor: "#171513" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-8">
 
           {/* Header */}
           <div className="text-center space-y-3">
-            <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto">
+            <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-gold-500 mx-auto" style={{ backgroundColor: "rgba(231,178,75,0.1)", border: "1px solid rgba(231,178,75,0.2)" }}>
               <Lock size={36} />
             </div>
             <h1 className="text-4xl font-black uppercase tracking-tight text-white">
@@ -456,7 +456,7 @@ export default function ProfilePage() {
               <div className="w-full border-t border-white/5" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-obsidian px-4 text-[10px] font-black uppercase tracking-widest text-zinc-600">
+              <span className="px-4 text-[10px] font-black uppercase tracking-widest text-zinc-600" style={{ backgroundColor: "#171513" }}>
                 Eller med socialt konto
               </span>
             </div>
@@ -502,7 +502,7 @@ export default function ProfilePage() {
   // ─── Add phone prompt (for OAuth users without phone) ─────────────────────
   if (showAddPhone) {
     return (
-      <div className="min-h-screen bg-obsidian flex items-center justify-center px-6">
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#171513" }}>
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
@@ -541,7 +541,7 @@ export default function ProfilePage() {
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="min-h-screen bg-obsidian pt-20 pb-32 px-6">
+    <div className="min-h-screen pt-20 pb-32 px-6" style={{ backgroundColor: "#171513" }}>
       <div className="max-w-xl mx-auto space-y-8">
 
         {/* Header */}
@@ -1048,7 +1048,7 @@ export default function ProfilePage() {
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-obsidian/90 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(23,21,19,0.9)" }}
         >
           <motion.div 
             initial={{ scale: 0.9, y: 20 }}

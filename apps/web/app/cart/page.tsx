@@ -559,7 +559,7 @@ export default function CartPage() {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "#171513" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -567,8 +567,8 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-24 h-24 bg-obsidian/40 rounded-[3rem] border border-white/5 flex items-center justify-center mb-8">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "#171513" }}>
+        <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "rgba(23,21,19,0.4)", border: "1px solid rgba(255,255,255,0.05)" }}>
           <ShoppingBag size={48} className="text-zinc-800" />
         </div>
         <h1 className="text-4xl font-black uppercase text-white italic tracking-tight mb-4">Din kasse är <span className="text-gold-500">tom</span></h1>
@@ -639,7 +639,7 @@ export default function CartPage() {
                          {item.extras.length > 0 && (
                            <div className="flex flex-wrap gap-2">
                               {item.extras.map(e => (
-                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 bg-obsidian/40 px-2 py-0.5 rounded-md border border-white/5">{e.name}</span>
+                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 px-2 py-0.5 rounded-md border border-white/5" style={{ backgroundColor: "rgba(23,21,19,0.4)" }}>{e.name}</span>
                               ))}
                            </div>
                          )}
@@ -903,7 +903,7 @@ export default function CartPage() {
       {/* Modern Deals Modal */}
       <AnimatePresence>
         {showDealsModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setShowDealsModal(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
                <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 text-zinc-800 hover:text-white transition-colors"><X size={24}/></button>
                <h2 className="text-2xl font-black uppercase text-white italic tracking-tight mb-8">Dina <span className="text-gold-gradient">Erbjudanden</span></h2>

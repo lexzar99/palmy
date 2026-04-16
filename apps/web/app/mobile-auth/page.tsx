@@ -56,7 +56,7 @@ function MobileAuthContent() {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian flex items-center justify-center px-6 py-12">
+    <div className="min-h-screen flex items-center justify-center px-6 py-12" style={{ backgroundColor: "#171513" }}>
       <div className="w-full max-w-sm bg-white/5 border border-white/5 rounded-[2.5rem] p-8 text-center shadow-2xl space-y-6">
         <div className="w-16 h-16 bg-gold-500/10 rounded-[1.6rem] border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto">
           {status === "loading" || provider ? <Loader2 size={28} className="animate-spin" /> : <ShieldCheck size={28} />}
@@ -121,7 +121,7 @@ function MobileAuthContent() {
 
 export default function MobileAuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-obsidian flex items-center justify-center"><Loader2 className="animate-spin text-gold-500" /></div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#171513" }}><Loader2 className="animate-spin text-gold-500" /></div>}>
       <MobileAuthContent />
     </Suspense>
   );

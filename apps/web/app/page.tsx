@@ -558,7 +558,7 @@ export default function HomePage() {
                 className={`whitespace-nowrap flex items-center gap-2 rounded-[1.1rem] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all border-2 active:scale-95 ${
                   activeCuisine === c.label
                     ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(231,178,75,0.1)]"
-                    : "bg-obsidian/20 text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
+                    : "text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
                 }`}
               >
                 <span className="text-base grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
@@ -807,7 +807,7 @@ export default function HomePage() {
         {/* Info Modal Implementation */}
         <AnimatePresence>
           {infoRestaurant && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setInfoRestaurant(null)}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setInfoRestaurant(null)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
               <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
                 <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                     <Info size={32} />
@@ -876,7 +876,7 @@ export default function HomePage() {
       {/* Closed popup handling */}
       <AnimatePresence>
         {closedRestaurant && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setClosedRestaurant(null)}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setClosedRestaurant(null)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border border-white/10" onClick={e => e.stopPropagation()}>
                 <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>

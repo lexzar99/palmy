@@ -31,7 +31,7 @@ const VerifyPhonePage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian pt-24 pb-32 px-6 flex flex-col items-center justify-center">
+    <div className="min-h-screen pt-24 pb-32 px-6 flex flex-col items-center justify-center" style={{ backgroundColor: "#171513" }}>
       <Link href="/profile" className="absolute top-8 left-8 text-zinc-500 hover:text-white transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]">
         <ArrowLeft size={16} /> Tillbaka
       </Link>

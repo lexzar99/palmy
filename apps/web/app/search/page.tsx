@@ -74,7 +74,7 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-obsidian">
+    <div className="min-h-screen text-zinc-100" style={{ backgroundColor: "#171513" }}>
       <div className="mx-auto max-w-2xl px-4 pt-8 pb-32">
         <header className="mb-8">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Sök i plattformen</p>
