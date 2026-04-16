@@ -31,8 +31,6 @@ function MobileAuthContent() {
       const separator = redirectTarget.includes("?") ? "&" : "?";
       const finalUrl = `${redirectTarget}${separator}token=${token}`;
       
-      console.log("[MobileAuth] Redirecting back to app:", finalUrl);
-      
       // Attempt automatic redirect
       window.location.href = finalUrl;
       
@@ -46,7 +44,6 @@ function MobileAuthContent() {
 
     if (status === "unauthenticated" && provider && !hasStartedRef.current) {
       hasStartedRef.current = true;
-      console.log("[MobileAuth] Starting automatic signIn for provider:", provider);
       void signIn(provider, { callbackUrl: buildCallbackUrl(redirectTarget) });
     }
   }, [provider, redirectTarget, session, status]);
