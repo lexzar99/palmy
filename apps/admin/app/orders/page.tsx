@@ -29,9 +29,6 @@ import {
   Package,
   TrendingUp,
   Download,
-  Calendar,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
@@ -389,7 +386,6 @@ const OrderCard = ({
 // ─── Main Page ───────────────────────────────────────────────────────────────
 const AdminOrdersPage = () => {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -399,15 +395,6 @@ const AdminOrdersPage = () => {
   const [filter, setFilter] = useState<"all" | "PENDING" | "active" | "done">("all");
   const [search, setSearch] = useState("");
   const [isMounted, setIsMounted] = useState(false);
-  
-  // Extended filters
-  const [dateRange, setDateRange] = useState<"today" | "yesterday" | "7d" | "30d" | "custom">("today");
-  const [customDateStart, setCustomDateStart] = useState("");
-  const [customDateEnd, setCustomDateEnd] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | "DELIVERY" | "PICKUP">("all");
-  const [restaurantFilter, setRestaurantFilter] = useState<string>("all");
-  
   const { selectedRestaurantId } = useRestaurantStore();
   const { success, error: toastError, info } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -432,19 +419,15 @@ const AdminOrdersPage = () => {
       const restaurantParam = selectedRestaurantId
         ? `&restaurantId=${selectedRestaurantId}`
         : "";
-      const [ordersRes, restaurantsRes] = await Promise.all([
-        axios.get(
-          `${API_URL}/api/admin/orders?limit=200${restaurantParam}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } }
-        ),
-        axios.get(`${API_URL}/api/restaurants`).catch(() => ({ data: [] }))
-      ]);
-      const sorted = [...(ordersRes.data.orders || [])].sort(
+      const res = await axios.get(
+        `${API_URL}/api/admin/orders?limit=200${restaurantParam}`,
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
+      const sorted = [...(res.data.orders || [])].sort(
         (a: Order, b: Order) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setOrders(sorted);
-      setRestaurants(restaurantsRes.data || []);
     } catch (err: any) {
       if (err.response?.status === 404) setError("Restaurang ej hittad.");
       else setError("Kunde inte hämta ordrar.");
@@ -546,8 +529,32 @@ const AdminOrdersPage = () => {
     success(`Exporterade ${allOrders.length} ordrar`);
   };
 
-  // Filtered orders - use applyFilters directly
-  const displayOrders = useMemo(() => applyFilters(orders), [applyFilters, orders]);
+  // Filtered orders
+  const displayOrders = useMemo(() => {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    let result = orders.filter((o) => new Date(o.createdAt) >= startOfToday);
+
+    if (filter === "PENDING") result = result.filter((o) => o.status === "PENDING");
+    else if (filter === "active")
+      result = result.filter((o) => ["ACCEPTED", "PREPARING", "READY", "DELIVERING"].includes(o.status));
+    else if (filter === "done")
+      result = result.filter((o) => ["DELIVERED", "CANCELLED", "REJECTED"].includes(o.status));
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (o) =>
+          o.customerName.toLowerCase().includes(q) ||
+          o.orderNumber.toString().includes(q) ||
+          o.restaurantName?.toLowerCase().includes(q) ||
+          o.customerPhone.includes(q)
+      );
+    }
+
+    return result;
+  }, [orders, filter, search]);
 
   const stats = useMemo(() => {
     const today = new Date();
@@ -562,69 +569,6 @@ const AdminOrdersPage = () => {
         .reduce((sum, o) => sum + o.total, 0),
     };
   }, [orders]);
-
-  // Filter logic
-  const applyFilters = useCallback((ordersToFilter: Order[]) => {
-    let filtered = ordersToFilter;
-    
-    // Date range filter
-    const now = new Date();
-    if (dateRange === "today") {
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      filtered = filtered.filter(o => new Date(o.createdAt) >= start);
-    } else if (dateRange === "yesterday") {
-      const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      filtered = filtered.filter(o => {
-        const d = new Date(o.createdAt);
-        return d >= yesterday && d < today;
-      });
-    } else if (dateRange === "7d") {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(o => new Date(o.createdAt) >= weekAgo);
-    } else if (dateRange === "30d") {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(o => new Date(o.createdAt) >= monthAgo);
-    } else if (dateRange === "custom" && customDateStart && customDateEnd) {
-      const start = new Date(customDateStart);
-      const end = new Date(customDateEnd);
-      end.setHours(23, 59, 59);
-      filtered = filtered.filter(o => {
-        const d = new Date(o.createdAt);
-        return d >= start && d <= end;
-      });
-    }
-    
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(o => o.status === statusFilter);
-    }
-    
-    // Type filter (delivery/pickup)
-    if (typeFilter !== "all") {
-      filtered = filtered.filter(o => o.type === typeFilter);
-    }
-    
-    // Restaurant filter
-    if (restaurantFilter !== "all") {
-      filtered = filtered.filter(o => o.restaurantId === restaurantFilter);
-    }
-    
-    // Search filter
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter(o => 
-        o.customerName?.toLowerCase().includes(q) ||
-        o.customerPhone?.includes(q) ||
-        o.orderNumber?.toLowerCase().includes(q) ||
-        o.restaurantName?.toLowerCase().includes(q)
-      );
-    }
-    
-    return filtered;
-  }, [dateRange, customDateStart, customDateEnd, statusFilter, typeFilter, restaurantFilter, search]);
-
-  const filteredOrders = useMemo(() => applyFilters(orders), [applyFilters, orders]);
 
   if (!isMounted) return null;
 
@@ -683,128 +627,39 @@ const AdminOrdersPage = () => {
       </div>
 
       {/* Filter + search */}
-      <div className="space-y-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-        {/* Date range */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Calendar size={14} className="text-[var(--text-secondary)]" />
-          <div className="flex gap-1">
-            {[
-              { id: "today", label: "Idag" },
-              { id: "yesterday", label: "Igår" },
-              { id: "7d", label: "7 dagar" },
-              { id: "30d", label: "30 dagar" },
-              { id: "custom", label: "Annat" },
-            ].map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setDateRange(d.id as typeof dateRange)}
-                className={`px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${
-                  dateRange === d.id
-                    ? "bg-gold-500 text-[#0d0d0d]"
-                    : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
-                }`}
-              >
-                {d.label}
-              </button>
-            ))}
-          </div>
-          
-          {/* Custom date inputs */}
-          {dateRange === "custom" && (
-            <div className="flex gap-2 items-center">
-              <input
-                type="date"
-                value={customDateStart}
-                onChange={(e) => setCustomDateStart(e.target.value)}
-                className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[9px] text-[var(--text-primary)]"
-              />
-              <span className="text-[var(--text-secondary)]">-</span>
-              <input
-                type="date"
-                value={customDateEnd}
-                onChange={(e) => setCustomDateEnd(e.target.value)}
-                className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[9px] text-[var(--text-primary)]"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Status + Type + Restaurant filters */}
-        <div className="flex flex-wrap gap-2">
-          {/* Status dropdown */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-[9px] font-black text-[var(--text-primary)]"
-          >
-            <option value="all">Alla status</option>
-            <option value="PENDING">Ny order</option>
-            <option value="ACCEPTED">Bekräftad</option>
-            <option value="PREPARING">Tillagas</option>
-            <option value="READY">Klar</option>
-            <option value="DELIVERING">På väg</option>
-            <option value="DELIVERED">Levererad</option>
-            <option value="CANCELLED">Avbokad</option>
-            <option value="REJECTED">Nekad</option>
-          </select>
-
-          {/* Type dropdown */}
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-            className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-[9px] font-black text-[var(--text-primary)]"
-          >
-            <option value="all">Alla typer</option>
-            <option value="DELIVERY">Leverans</option>
-            <option value="PICKUP">Hämtning</option>
-          </select>
-
-          {/* Restaurant dropdown */}
-          <select
-            value={restaurantFilter}
-            onChange={(e) => setRestaurantFilter(e.target.value)}
-            className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg px-3 py-2 text-[9px] font-black text-[var(--text-primary)]"
-          >
-            <option value="all">Alla restauranger</option>
-            {restaurants.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
-          </select>
-
-          {/* Search */}
-          <div className="relative flex-1 min-w-[150px]">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Sök kund, ordernummer..."
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-lg pl-9 pr-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30 text-[var(--text-primary)]"
-            />
-          </div>
-
-          {/* Clear filters */}
-          {(statusFilter !== "all" || typeFilter !== "all" || restaurantFilter !== "all" || dateRange !== "today" || search) && (
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex gap-1.5 p-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+          {[
+            { id: "all", label: "Alla" },
+            { id: "PENDING", label: `Nya (${stats.pending})` },
+            { id: "active", label: `Aktiva (${stats.active})` },
+            { id: "done", label: "Klara" },
+          ].map((f) => (
             <button
-              onClick={() => {
-                setStatusFilter("all");
-                setTypeFilter("all");
-                setRestaurantFilter("all");
-                setDateRange("today");
-                setSearch("");
-              }}
-              className="px-3 py-2 rounded-lg text-[8px] font-black uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+              key={f.id}
+              onClick={() => setFilter(f.id as any)}
+              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                filter === f.id
+                  ? "bg-gold-500 text-[#0d0d0d]"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
             >
-              Rensa
+              {f.label}
             </button>
-          )}
+          ))}
         </div>
 
-        {/* Result count */}
-        <div className="text-[9px] font-black text-[var(--text-secondary)]">
-          Visar {displayOrders.length} av {orders.length} ordrar
+        <div className="relative flex-1">
+          <Search
+            size={14}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]"
+          />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Sök kund, ordernummer..."
+            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
+          />
         </div>
       </div>
 
