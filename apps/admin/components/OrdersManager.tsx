@@ -379,7 +379,10 @@ const OrderCard = ({
                   >
                     <Edit2 size={13} /> Redigera
                   </button>
-                  {order.paymentMethod === "STRIPE" && !order.refundedAt && (
+                  {order.stripePaymentIntentId && 
+                   order.stripePaymentIntentId !== "TEST_PAYMENT" && 
+                   order.stripePaymentIntentId !== "BOT_ORDER" && 
+                   !order.refundedAt && (
                     <button
                       onClick={onRefund}
                       className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[9px] font-black uppercase tracking-wider text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
