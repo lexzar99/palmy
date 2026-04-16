@@ -9,6 +9,8 @@ import {
   FileText, Calendar, Settings, Store, Check, Search,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { API_URL } from "@/lib/api";
 import { useToast } from "@/components/Toast";
 
@@ -461,32 +463,99 @@ function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
 
   const exportRestaurantPDF = () => {
     if (typeof window === "undefined") return;
-    // Simple data export as CSV for this restaurant
-    const lines = [
-      `Restaurang: ${row.restaurant.name}`,
-      `Period: ${period.from} - ${period.to}`,
-      `Tier: ${row.tier?.label}`,
-      ``,
-      `Ordrar: ${row.totalOrders}`,
-      `Omsättning: ${kr(row.totalRevenue)}`,
-      `Nya kunder: ${report?.summary?.newCustomers ?? "—"}`,
-      `Genomsnittlig orderstorlek: ${kr(report?.summary?.avgOrderValue ?? 0)}`,
-      ``,
-      `Prenumerationsavgift (${row.periodDays} dgr): ${kr(row.proratedSubscription)}`,
-      `Provision (${row.tierCfg.commissionPct}%): ${kr(row.commission)}`,
-      `Plattformens intäkt: ${kr(row.totalPlatformIncome)}`,
-      `Restaurangens utbetalning: ${kr(row.restaurantPayout)}`,
-      ``,
-      `Topp produkter:`,
-      ...(report?.topProducts ?? []).map((p: any) => `  ${p.name}: ${p.count} sålda · ${kr(p.revenue)}`),
-    ];
-    const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${row.restaurant.slug}_rapport_${period.from}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const doc = new jsPDF();
+    
+    // Header & Logo simulation
+    doc.setFillColor(13, 13, 13);
+    doc.rect(0, 0, 210, 40, "F");
+    
+    doc.setTextColor(231, 178, 75); // Gold
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(28);
+    doc.text("MatGo", 14, 25);
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("UTBETALNINGSUNDERLAG / SJÄLVFAKTURA", 14, 32);
+    
+    // Right side header info
+    doc.text([
+      `Datum: ${new Date().toLocaleDateString("sv-SE")}`,
+      `Period: ${period.from} till ${period.to}`
+    ], 196, 20, { align: "right" });
+
+    // Business Info
+    doc.setTextColor(30, 30, 30);
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("RESTAURANG", 14, 55);
+    
+    doc.setFontSize(18);
+    doc.text(row.restaurant.name.toUpperCase(), 14, 65);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text([
+      `Stad: ${row.restaurant.city || "Sverige"}`,
+      `Partner-tier: ${row.tier?.label || "Standard"}`,
+      `Dagar i perioden: ${row.periodDays} st`
+    ], 14, 72);
+
+    // Summary Table
+    autoTable(doc, {
+      startY: 90,
+      head: [["BERÄKNINGSGRUND", "DETALJER", "SUMMA"]],
+      body: [
+        ["Total försäljning", `${row.totalOrders} st genomförda ordrar`, kr(row.totalRevenue)],
+        ["Plattformsavgift", `Provision (${row.tierCfg.commissionPct}%) på försäljning`, `-${kr(row.commission)}`],
+        ["Fast månadsavgift", `Prorata för perioden (${row.periodDays} dgr)`, `-${kr(row.proratedSubscription)}`],
+      ],
+      headStyles: { fillColor: [13, 13, 13], textColor: [231, 178, 75], fontStyle: "bold" },
+      styles: { font: "helvetica", fontSize: 10 },
+      columnStyles: { 2: { halign: "right", fontStyle: "bold" } }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Total Box
+    doc.setFillColor(231, 178, 75, 0.1);
+    doc.rect(120, finalY, 76, 30, "F");
+    
+    doc.setTextColor(30, 30, 30);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("TOTAL UTBETALNING", 125, finalY + 12);
+    
+    doc.setFontSize(18);
+    doc.setTextColor(34, 197, 94); // Emerald
+    doc.text(kr(row.restaurantPayout), 125, finalY + 22);
+
+    // Product insights (small table)
+    if (report?.topProducts?.length > 0) {
+      doc.setTextColor(30, 30, 30);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("TOPPSÄLJANDE PRODUKTER", 14, finalY + 12);
+      
+      autoTable(doc, {
+        startY: finalY + 15,
+        margin: { right: 100 },
+        head: [["Produkt", "Antal", "Omsättning"]],
+        body: report.topProducts.slice(0, 5).map((p: any) => [p.name, p.count, kr(p.revenue)]),
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [100, 100, 100] }
+      });
+    }
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont("helvetica", "italic");
+    doc.text("Detta dokument fungerar som underlag för utbetalning. Utbetalning sker normalt inom 3-5 bankdagar efter periodens slut.", 14, 285);
+
+    doc.save(`${row.restaurant.slug}_billing_${period.from}.pdf`);
   };
 
   const sendReport = async () => {
