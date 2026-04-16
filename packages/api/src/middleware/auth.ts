@@ -74,3 +74,5 @@ export const requireSuperAdmin = (
   }
   next();
 };
+
+export const isSuperAdmin = requireSuperAdmin;
