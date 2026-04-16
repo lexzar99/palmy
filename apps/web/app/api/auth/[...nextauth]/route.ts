@@ -80,7 +80,9 @@ const handler = NextAuth({
           "http://localhost:3001",
         ];
         if (knownOrigins.includes(parsed.origin)) return url;
-      } catch {}
+      } catch (err) {
+        console.warn("Failed to parse callback URL:", err);
+      }
       return `${baseUrl}/profile`;
     },
     async session({ session, token }) {

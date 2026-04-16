@@ -174,7 +174,9 @@ export default function CartPage() {
           : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
         checkDeliverySpecific(coords.lat, coords.lng);
       }
-    } catch {} finally {
+    } catch (err) {
+      console.warn("Failed to load address coords:", err);
+    } finally {
       setAddressLoading(false);
     }
   };
@@ -284,7 +286,9 @@ export default function CartPage() {
                 deliveryZip: prev.deliveryZip || defaultAddr.zip 
               }));
             }
-          } catch {}
+          } catch (err) {
+            console.warn("Failed to load default address:", err);
+          }
         }
       }
 
@@ -360,7 +364,9 @@ export default function CartPage() {
             const { lat, lng } = JSON.parse(storedCoords);
             // Small delay to let fetchContext finish first so it doesn't overwrite our zone fee
             setTimeout(() => checkDeliverySpecific(lat, lng), 300);
-          } catch {}
+          } catch (err) {
+            console.warn("Failed to parse stored coords:", err);
+          }
         } else {
           // If address exists but no coords, try to geocode
           setAddressLoading(true);
@@ -482,7 +488,9 @@ export default function CartPage() {
           const parsed = JSON.parse(storedCoords);
           lat = parsed.lat;
           lng = parsed.lng;
-        } catch {}
+        } catch (err) {
+          console.warn("Failed to parse coords:", err);
+        }
       }
 
       // If still no coords but we have a street, try one last time to get them

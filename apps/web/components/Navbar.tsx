@@ -25,7 +25,9 @@ const Navbar = () => {
       try {
         const res = await axios.get(`${API_URL}/api/settings`);
         setRestaurantOpen(Boolean(res.data.isOpen));
-      } catch {}
+      } catch (err) {
+        console.warn("Failed to load restaurant status:", err);
+      }
     };
 
     loadStatus();

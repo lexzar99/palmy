@@ -55,7 +55,9 @@ export default function SearchPage() {
           })
           .catch(() => setDeliverableIds(null));
       }
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to load zone data:", err);
+    }
   }, []);
 
   const filtered = useMemo(() => {

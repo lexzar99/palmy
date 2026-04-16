@@ -196,7 +196,9 @@ export default function ProfilePage() {
         try {
           const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers: { Authorization: `Bearer ${authToken}` } });
           setSavedAddresses(addrRes.data || []);
-        } catch {}
+        } catch (err) {
+          console.warn("Failed to load addresses:", err);
+        }
       }
       
       // If user has no phone and we are not in the middle of verifying one, prompt them
@@ -919,7 +921,9 @@ export default function ProfilePage() {
                               try {
                                 await axios.patch(`${API_URL}/api/profile/addresses/${addr.id}`, { isDefault: true }, { headers: { Authorization: `Bearer ${token}` } });
                                 fetchData(token!);
-                              } catch {}
+                              } catch (err) {
+                                console.warn("Failed to set default address:", err);
+                              }
                             }}
                             className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-gold-500 transition-colors"
                             title="Gör till standard"

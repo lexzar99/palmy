@@ -132,7 +132,9 @@ export default function HomePage() {
         try {
           const coords = JSON.parse(storedCoords);
           validateZone(coords.lat, coords.lng);
-        } catch {}
+        } catch (err) {
+          console.warn("Failed to parse stored coords:", err);
+        }
       }
     }
   }, []);

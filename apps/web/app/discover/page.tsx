@@ -59,7 +59,9 @@ export default function DiscoverPage() {
           })
           .catch(() => setDeliverableIds(null)); // fail open
       }
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to load zone data:", err);
+    }
   }, []);
 
   const fetchData = async (authToken: string | null) => {

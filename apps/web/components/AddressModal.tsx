@@ -66,7 +66,9 @@ export default function AddressModal({
       setInput(stored);
       setSelectedAddress(stored || null);
       if (storedCoords) {
-        try { setSelectedCoords(JSON.parse(storedCoords)); } catch {}
+        try { setSelectedCoords(JSON.parse(storedCoords)); } catch (err) {
+          console.warn("Failed to parse stored coords:", err);
+        }
       }
     }
 
