@@ -35,6 +35,7 @@ import {
   Calculator,
   Server,
   Sparkles,
+  Truck,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -196,9 +197,24 @@ const Sidebar = () => {
       links: [
         {
           href: "/orders",
-          label: "Ordrar",
+          label: "Alla Ordrar",
           icon: ShoppingCart,
+        },
+        {
+          href: "/orders/new",
+          label: "Nya",
+          icon: Bell,
           badge: pendingCount || undefined,
+        },
+        {
+          href: "/orders/preparing",
+          label: "Tillagas",
+          icon: Utensils,
+        },
+        {
+          href: "/orders/ready",
+          label: "Klara / På väg",
+          icon: Truck,
         },
         {
           href: "/overview",
@@ -249,6 +265,7 @@ const Sidebar = () => {
       pathname === link.href ||
       (link.href !== "/overview" &&
         link.href !== "/" &&
+        link.href !== "/orders" &&
         pathname.startsWith(link.href + "/"));
     return (
       <Link
