@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
@@ -18,7 +18,6 @@ import {
   ArrowRight,
   X,
   Sparkles,
-  Tag,
   Percent,
   Info,
   Phone,
@@ -70,9 +69,18 @@ const cuisineFilters = [
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
+const PROMO_CARD_WIDTH = 300;
+const PROMO_CARD_GAP = 16;
+const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
+
+type PromoCardItem =
+  | { id: string; kind: "deal"; deal: DealCardData }
+  | { id: string; kind: "sponsor"; sponsor: SponsorData };
 
 export default function HomePage() {
   const router = useRouter();
+  const promoRailRef = useRef<HTMLDivElement | null>(null);
+  const promoIndexRef = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [address, setAddress] = useState("");
   const [query, setQuery] = useState("");
@@ -295,11 +303,9 @@ export default function HomePage() {
 
   // Build DealFlipCard data array
   const allDealCards = useMemo<DealCardData[]>(() => {
-    const restaurantById = new Map(restaurants.map(r => [r.id, r]));
-
     const personal: DealCardData[] = personalDeals.map(d => ({
       id: `personal-${d.id}`,
-      badgeLabel: "Personligt",
+      badgeLabel: (d.campaign?.title || "").toLowerCase().includes("välkomst") ? "Välkomst" : "Personligt",
       title: d.campaign?.title || "Erbjudande",
       subtitle: d.code ? `Din kod: ${d.code}` : "Knutet till ditt konto",
       rewardLabel: d.campaign?.discountType === "PERCENTAGE"
@@ -309,7 +315,7 @@ export default function HomePage() {
       code: d.code,
       validUntil: d.campaign?.validUntil,
       minOrderText: d.campaign?.minOrder ? `Min ${d.campaign.minOrder} kr` : null,
-      tone: "emerald" as const,
+      tone: (d.campaign?.title || "").toLowerCase().includes("välkomst") ? "orange" as const : "gold" as const,
       variant: "personal" as const,
     }));
 
@@ -326,7 +332,7 @@ export default function HomePage() {
         validUntil: d.validUntil,
         minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
         tags: d.tags || [],
-        tone: "gold" as const,
+        tone: "purple" as const,
         variant: "public" as const,
         relatedRestaurantIds: related,
         onNavigateToFiltered: (ids, title) => setFilteredByDeal({ ids, title }),
@@ -335,6 +341,57 @@ export default function HomePage() {
 
     return [...personal, ...pub];
   }, [deals, personalDeals, restaurants]);
+
+  const promoCards = useMemo<PromoCardItem[]>(() => {
+    const dealItems = allDealCards.map((deal) => ({ id: deal.id, kind: "deal" as const, deal }));
+    const sponsorItems = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+
+    if (dealItems.length === 0) return sponsorItems;
+    if (sponsorItems.length === 0) return dealItems;
+
+    const merged: PromoCardItem[] = [];
+    let sponsorIndex = 0;
+
+    dealItems.forEach((item, index) => {
+      merged.push(item);
+      if ((index + 1) % 2 === 0 && sponsorIndex < sponsorItems.length) {
+        merged.push(sponsorItems[sponsorIndex]);
+        sponsorIndex += 1;
+      }
+    });
+
+    while (sponsorIndex < sponsorItems.length) {
+      merged.push(sponsorItems[sponsorIndex]);
+      sponsorIndex += 1;
+    }
+
+    return merged;
+  }, [allDealCards, sponsors]);
+
+  const handlePromoScroll = useCallback(() => {
+    const rail = promoRailRef.current;
+    if (!rail) return;
+    promoIndexRef.current = Math.max(
+      0,
+      Math.min(Math.round(rail.scrollLeft / PROMO_SNAP), Math.max(promoCards.length - 1, 0))
+    );
+  }, [promoCards.length]);
+
+  useEffect(() => {
+    promoIndexRef.current = 0;
+    if (promoCards.length <= 1) return;
+
+    const interval = window.setInterval(() => {
+      const rail = promoRailRef.current;
+      if (!rail) return;
+
+      const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
+      promoIndexRef.current = nextIndex;
+      rail.scrollTo({ left: nextIndex * PROMO_SNAP, behavior: "smooth" });
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [promoCards.length]);
 
   const getRestaurantHref = (r: Restaurant) => `/restaurants/${r.slug}`;
 
@@ -356,7 +413,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-[#18181b] pt-10 pb-32">
+    <div className="min-h-screen text-zinc-100 bg-[#171513] pt-10 pb-32">
       <div className="relative mx-auto max-w-6xl px-6 lg:px-10">
         {/* Modern Header */}
         <header className="mb-12 relative overflow-hidden">
@@ -400,22 +457,40 @@ export default function HomePage() {
             className="flex flex-col sm:grid sm:grid-cols-[1fr,1.3fr] gap-2 p-2 rounded-[2rem] glass-panel shadow-2xl relative z-20"
           >
             <div className="relative group">
+              {orderType === "DELIVERY" && !address && (
+                <div className="mb-3 max-w-[320px] rounded-[1.2rem] px-4 py-3 text-left shadow-xl relative" style={{ backgroundColor: "#3D66A8" }}>
+                  <div
+                    className="absolute -bottom-2 left-1/2 -translate-x-1/2"
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderLeft: "10px solid transparent",
+                      borderRight: "10px solid transparent",
+                      borderTop: "10px solid #3D66A8",
+                    }}
+                  />
+                  <span className="text-[12px] font-bold leading-[1.45] text-[#F7FBFF]">
+                    Nu visas en generell plats. Uppdatera adressen så kan vi visa restauranger nära dig.
+                  </span>
+                </div>
+              )}
               <motion.div 
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowAddressModal(true)}
-                className="flex items-center gap-2 rounded-[1.5rem] bg-obsidian/40 px-4 py-3 border border-white/5 hover:border-gold-500/50 transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-[1.5rem] px-4 py-3 border hover:border-gold-500/50 transition-all cursor-pointer"
+                style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
               >
                 <MapPin className="text-gold-500 shrink-0" size={16} />
-                <span className={`w-full text-xs font-bold ${address ? 'text-white' : 'text-zinc-600'} truncate`}>
+                <span className="w-full text-xs font-bold truncate" style={{ color: address ? "#FFF8EA" : "#B8AA95" }}>
                   {address || "Ange din adress..."}
                 </span>
               </motion.div>
             </div>
 
 
-            <Link href="/search" className="flex items-center gap-2 rounded-[1.5rem] bg-obsidian/40 px-4 py-3 border border-white/5 hover:border-gold-500/50 transition-all group shadow-sm">
-               <Search size={16} className="text-zinc-700 group-hover:text-gold-500/60 transition-colors shrink-0" />
-               <span className="text-xs text-zinc-600 font-bold line-clamp-1 flex-1">Vilken restaurang eller maträtt?</span>
+            <Link href="/search" className="flex items-center gap-2 rounded-[1.5rem] px-4 py-3 border hover:border-gold-500/50 transition-all group shadow-sm" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
+               <Search size={16} className="transition-colors shrink-0" style={{ color: "#B8AA95" }} />
+               <span className="text-xs font-bold line-clamp-1 flex-1" style={{ color: "#B8AA95" }}>Vilken restaurang eller maträtt?</span>
                <div className="ml-auto w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
                   <ArrowRight size={18} />
                </div>
@@ -423,50 +498,49 @@ export default function HomePage() {
           </motion.div>
         </header>
 
-        {/* Sponsors prominently displayed (Replaces old welcome section) */}
-        {sponsors.length > 0 && (
+        {promoCards.length > 0 && (
           <section className="mb-16">
             <div className="flex items-center justify-between mb-6 px-1">
               <div>
                 <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                  <Sparkles size={18} className="text-gold-500" /> Sponsrat
+                  <Sparkles size={18} className="text-gold-500" /> Aktuellt
                 </h2>
                 <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
-                  Exklusivt från våra partners • Flippa för info
+                  Personliga kampanjer, restaurangerbjudanden och sponsrat i en scroll
                 </p>
               </div>
             </div>
-            <div className="flex gap-6 overflow-x-auto pb-8 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-              {sponsors.map(s => (
-                <SponsorCard key={s.id} sponsor={s} />
+            <div
+              ref={promoRailRef}
+              onScroll={handlePromoScroll}
+              className="flex gap-4 overflow-x-auto pb-8 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
+              style={{ scrollSnapType: "x mandatory" }}
+            >
+              {promoCards.map((item) => (
+                <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+                  {item.kind === "sponsor" ? (
+                    <SponsorCard sponsor={item.sponsor} />
+                  ) : (
+                    <DealFlipCard deal={item.deal} />
+                  )}
+                </div>
               ))}
             </div>
           </section>
         )}
 
-        {/* ── Deals & Erbjudanden (RESTORED) ── */}
-        {allDealCards.length > 0 && (
-          <section className="mb-16">
-            <div className="flex items-center justify-between mb-6 px-1">
+        {filteredByDeal && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
               <div>
-                <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                  <Tag size={18} className="text-gold-500" /> Erbjudanden
-                </h2>
-                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
-                  {filteredByDeal ? `Visar: ${filteredByDeal.title}` : "Flippa korten för mer info"}
-                </p>
+                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "#B8AA95" }}>Filtrerat erbjudande</p>
+                <p className="text-sm font-black uppercase" style={{ color: "#FFF8EA" }}>{filteredByDeal.title}</p>
               </div>
-              {filteredByDeal && (
-                <button onClick={() => setFilteredByDeal(null)}
-                  className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all border border-white/10 px-3 py-1.5 rounded-xl">
-                  <X size={11} /> Rensa filter
-                </button>
-              )}
-            </div>
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-              {allDealCards.map(d => (
-                <DealFlipCard key={d.id} deal={d} />
-              ))}
+              <button onClick={() => setFilteredByDeal(null)}
+                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
+                style={{ color: "#B8AA95", borderColor: "rgba(255,248,234,0.10)" }}>
+                <X size={11} /> Rensa filter
+              </button>
             </div>
           </section>
         )}

@@ -50,7 +50,8 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   return (
     <div 
-      className="relative shrink-0 w-80 h-44 perspective-1000 group"
+      className="relative shrink-0 perspective-1000 group"
+      style={{ width: 300, height: 210 }}
       onClick={handleFlip}
     >
       <motion.div
@@ -64,16 +65,16 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         }}
       >
         {/* Front Side */}
-        <div className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] overflow-hidden border border-white/10 bg-zinc-950 shadow-2xl">
+        <div className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] overflow-hidden border shadow-2xl" style={{ borderColor: "rgba(255,248,234,0.08)", backgroundColor: "#171513" }}>
           <img 
             src={sponsor.imageUrl} 
             alt={sponsor.name} 
             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
           />
           {showName && (
-            <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-transparent flex flex-col justify-end p-6">
+            <div className="absolute inset-0 flex flex-col justify-end p-6" style={{ background: "linear-gradient(to top, rgba(23,21,19,0.95), rgba(23,21,19,0.08), transparent)" }}>
               <div className="flex items-center justify-between">
-                <div className="px-3 py-1 bg-gold-500/20 backdrop-blur-md rounded-full border border-gold-500/30">
+                <div className="px-3 py-1 backdrop-blur-md rounded-full border" style={{ backgroundColor: "rgba(234,181,69,0.18)", borderColor: "rgba(234,181,69,0.22)" }}>
                   <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-400">Partner Spotlight</span>
                 </div>
                 <motion.div 
@@ -81,20 +82,20 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
                   transition={{ repeat: Infinity, duration: 2 }}
                   className="text-white/40 group-hover:text-white/80 transition-colors"
                 >
-                  <div className="bg-white/10 p-2 rounded-full backdrop-blur-sm">
+                  <div className="p-2 rounded-full backdrop-blur-sm" style={{ backgroundColor: "rgba(255,248,234,0.08)" }}>
                     <ChevronRight size={12} />
                   </div>
                 </motion.div>
               </div>
-              <h3 className="text-lg font-black text-white mt-2 uppercase tracking-tight leading-none italic">{sponsor.name}</h3>
+              <h3 className="text-lg font-black mt-2 uppercase tracking-tight leading-none italic" style={{ color: "#FFF8EA" }}>{sponsor.name}</h3>
             </div>
           )}
         </div>
 
         {/* Back Side */}
         <div 
-          className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] border border-gold-500/40 bg-zinc-950 p-6 flex flex-col justify-between shadow-2xl shadow-gold-500/20"
-          style={{ transform: "rotateY(180deg)" }}
+          className="absolute inset-0 w-full h-full backface-hidden rounded-[2.5rem] border p-6 flex flex-col justify-between shadow-2xl shadow-gold-500/20"
+          style={{ borderColor: "rgba(234,181,69,0.4)", backgroundColor: "#211C19", transform: "rotateY(180deg)" }}
         >
           <div className="relative z-10 min-w-0">
             <div className="flex items-center gap-3 mb-4">
