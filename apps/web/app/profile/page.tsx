@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import ConfirmModal from "@/components/ConfirmModal";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -171,6 +172,11 @@ export default function ProfilePage() {
   const [addPhoneLoading, setAddPhoneLoading] = useState(false);
   const [addPhoneError, setAddPhoneError] = useState("");
   const [isChangingPhone, setIsChangingPhone] = useState(false); // Link to edit phone number
+
+  // Modal states
+  const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
+  const [deleteAddressModalOpen, setDeleteAddressModalOpen] = useState(false);
+  const [addressToDelete, setAddressToDelete] = useState<any>(null);
 
   const fetchData = useCallback(async (authToken: string) => {
     try {
@@ -798,22 +804,7 @@ export default function ProfilePage() {
                 <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Konto-hantering</div>
                 <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
                   <button 
-                    onClick={async () => {
-                      const confirm1 = confirm("Är du säker på att du vill radera ditt konto?");
-                      if (!confirm1) return;
-                      const confirm2 = confirm("Detta går INTE att ångra. All din orderhistorik kommer anonymiseras och dina sparade adresser raderas permanent. Vill du fortsätta?");
-                      if (!confirm2) return;
-
-                      try {
-                        await axios.delete(`${API_URL}/api/profile`, {
-                          headers: { Authorization: `Bearer ${token}` }
-                        });
-                        alert("Ditt konto har raderats. Hoppas vi ses igen!");
-                        handleLogout();
-                      } catch (err: any) {
-                        alert(err.response?.data?.error || "Kunde inte radera kontot");
-                      }
-                    }}
+                    onClick={() => setDeleteAccountModalOpen(true)}
                     className="w-full text-left p-6 flex items-center justify-between group hover:bg-red-500/5 transition-all rounded-[2.5rem]"
                   >
                     <div className="flex items-center gap-4">
@@ -937,12 +928,9 @@ export default function ProfilePage() {
                           </button>
                         )}
                         <button
-                          onClick={async () => {
-                            if (!confirm('Radera denna adress?')) return;
-                            try {
-                              await axios.delete(`${API_URL}/api/profile/addresses/${addr.id}`, { headers: { Authorization: `Bearer ${token}` } });
-                              setSavedAddresses(prev => prev.filter(a => a.id !== addr.id));
-                            } catch {}
+                          onClick={() => {
+                            setAddressToDelete(addr);
+                            setDeleteAddressModalOpen(true);
                           }}
                           className="p-2 bg-white/5 rounded-lg text-zinc-600 hover:text-rose-500 transition-colors"
                         >
@@ -1097,9 +1085,54 @@ export default function ProfilePage() {
               </button>
             </form>
           </motion.div>
-        </motion.div>
-      )}
+</motion.div>
+        )}
     </AnimatePresence>
+
+    {/* Delete Account Modal */}
+    <ConfirmModal
+      isOpen={deleteAccountModalOpen}
+      onClose={() => setDeleteAccountModalOpen(false)}
+      onConfirm={async () => {
+        try {
+          await axios.delete(`${API_URL}/api/profile`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          alert("Ditt konto har raderats. Hoppas vi ses igen!");
+          handleLogout();
+        } catch (err: any) {
+          alert(err.response?.data?.error || "Kunde inte radera kontot");
+        }
+      }}
+      title="Radera konto?"
+      message="Detta går INTE att ångra. All din orderhistorik kommer anonymiseras och dina sparade adresser raderas permanent."
+      confirmText="Ja, radera"
+      cancelText="Avbryt"
+    />
+
+    {/* Delete Address Modal */}
+    <ConfirmModal
+      isOpen={deleteAddressModalOpen}
+      onClose={() => {
+        setDeleteAddressModalOpen(false);
+        setAddressToDelete(null);
+      }}
+      onConfirm={async () => {
+        if (!addressToDelete) return;
+        try {
+          await axios.delete(`${API_URL}/api/profile/addresses/${addressToDelete.id}`, { headers: { Authorization: `Bearer ${token}` } });
+          setSavedAddresses(prev => prev.filter(a => a.id !== addressToDelete.id));
+        } catch (err: any) {
+          alert(err.response?.data?.error || "Kunde inte radera adressen");
+        } finally {
+          setAddressToDelete(null);
+        }
+      }}
+      title="Radera adress?"
+      message={`Vill du verkligen radera adressen "${addressToDelete?.label}"?`}
+      confirmText="Ja, radera"
+      cancelText="Avbryt"
+    />
     </>
   );
 }
