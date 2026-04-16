@@ -85,28 +85,29 @@ export default function DiscoverPage() {
   const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-obsidian text-white pb-32">
+    <div className="min-h-screen text-white pb-32" style={{ backgroundColor: "#171513" }}>
       {/* Header & Search */}
-      <div className="bg-obsidian border-b border-white/5 pt-16 pb-8 px-6 sticky top-0 z-40">
+      <div className="pt-16 pb-8 px-6 sticky top-0 z-40" style={{ backgroundColor: "#171513", borderBottom: "1px solid rgba(255,248,234,0.06)" }}>
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-black uppercase italic tracking-tighter">Upptäck <span className="text-gold-500">MatGo</span></h1>
               <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Hitta din nästa favoritupplevelse</p>
             </div>
-            <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center text-gold-500">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
                <Compass size={24} className="animate-spin-slow" />
             </div>
           </div>
 
           <div className="relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-500 group-focus-within:text-gold-500 transition-colors" size={20} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "#B8AA95" }} size={20} />
             <input 
               type="text"
               value={activeSearch}
               onChange={(e) => setActiveSearch(e.target.value)}
               placeholder="Sök restauranger, rätter eller smaker..."
-              className="w-full bg-white/5 border border-white/10 rounded-3xl py-5 pl-14 pr-6 font-bold text-white placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all shadow-2xl"
+              className="w-full rounded-3xl py-5 pl-14 pr-6 font-bold text-white outline-none focus:ring-2 focus:ring-gold-500/30 transition-all shadow-2xl"
+              style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
             />
           </div>
         </div>
@@ -126,12 +127,13 @@ export default function DiscoverPage() {
                 key={cat.name}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSearch(cat.name)}
-                className="flex items-center gap-3 px-6 py-4 bg-white/5 border border-white/5 rounded-full hover:bg-white/10 transition-all shrink-0 group"
+                className="flex items-center gap-3 px-6 py-4 rounded-full transition-all shrink-0 group"
+                style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
               >
                 <div className={`w-6 h-6 ${cat.color} rounded-lg flex items-center justify-center transition-transform group-hover:scale-110`}>
                   <cat.icon size={12} />
                 </div>
-                <p className="font-black text-[9px] uppercase tracking-widest text-zinc-400 group-hover:text-white transition-colors">{cat.name}</p>
+                <p className="font-black text-[9px] uppercase tracking-widest group-hover:text-white transition-colors" style={{ color: "#D7CBB8" }}>{cat.name}</p>
               </motion.button>
             ))}
           </div>
@@ -150,9 +152,10 @@ export default function DiscoverPage() {
                 <Link 
                   key={rest.id}
                   href={`/restaurants/${rest.slug}`}
-                  className="flex items-center gap-4 p-3 bg-white/5 border border-white/5 rounded-[2rem] hover:bg-white/10 transition-all group overflow-hidden relative"
+                  className="flex items-center gap-4 p-3 rounded-[2rem] transition-all group overflow-hidden relative"
+                  style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
                 >
-                  <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
                     <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -200,7 +203,7 @@ export default function DiscoverPage() {
             </div>
             <div className="space-y-4">
               {filteredRestaurants.length === 0 ? (
-                <div className="py-20 text-center bg-white/2 rounded-[2.5rem] border border-dashed border-white/5">
+                <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
                   <Utensils size={48} className="mx-auto mb-4 text-zinc-800" />
                   <p className="font-black uppercase text-zinc-600">Inga restauranger hittade</p>
                   <p className="text-xs text-zinc-800 mt-2">Prova att söka på något annat</p>
@@ -213,10 +216,11 @@ export default function DiscoverPage() {
                       key={rest.id}
                       href={`/restaurants/${rest.slug}`}
                       className={`flex items-center gap-6 p-4 border rounded-[2.5rem] transition-all group relative overflow-hidden ${
-                        inZone ? "bg-white/5 border-white/5 hover:bg-white/10" : "bg-white/2 border-white/5 opacity-50"
+                        inZone ? "" : "opacity-50"
                       }`}
+                      style={{ backgroundColor: inZone ? "#211C19" : "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
                     >
-                      <div className="w-16 h-16 bg-zinc-900 rounded-[1.2rem] border border-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+                      <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
                         <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                       </div>
                       <div className="flex-1 min-w-0">

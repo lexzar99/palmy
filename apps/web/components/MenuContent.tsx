@@ -240,7 +240,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 bg-obsidian selection:bg-gold-500/30">
+    <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "#171513" }}>
       {/* Dynamic Cover Image with Parallax-ish feel */}
       <div className="relative w-full h-[50vh] overflow-hidden">
         {heroImage ? (
@@ -340,7 +340,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">
-           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Avgift</div>
                <div className="text-sm font-black text-white italic uppercase tracking-tighter">
@@ -349,12 +349,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                    : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
                </div>
            </div>
-           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
               <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Väntetid</div>
               <div className="text-sm font-black text-white italic uppercase tracking-tighter">~{restaurant.etaMinutes} MIN</div>
            </div>
-           <div className="glass-panel rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all">
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
               <Store size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Minsta Order</div>
               <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.minOrderAmount} KR</div>
@@ -363,15 +363,16 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-6 z-40 mb-16">
-           <div className="glass-panel rounded-[2.5rem] p-2 flex items-center gap-3 shadow-2xl border-white/5">
+           <div className="rounded-[2.5rem] p-2 flex items-center gap-3 shadow-2xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
               <div className="relative flex-1 group">
-                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-700 group-focus-within:text-gold-500 transition-colors" />
+                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "#B8AA95" }} />
                  <input 
                     type="text" 
                     placeholder="Vad är du sugen på?" 
                     value={searchTerm} 
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full bg-zinc-950/40 border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold text-white focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-800"
+                    className="w-full border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold text-white focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-800"
+                    style={{ backgroundColor: "#171513" }}
                  />
               </div>
 <div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
@@ -444,10 +445,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                  setSelectedProduct(p);
                               }
                            }}
-                           whileTap={{ scale: 0.99 }} className={`group glass-card rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                           whileTap={{ scale: 0.99 }} className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
+                           style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
                        >
                           {p.imageUrl && (
-                             <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden bg-zinc-950/50 shrink-0 relative">
+                             <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "#171513" }}>
                                 <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
                                 <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                              </div>

@@ -579,7 +579,7 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-obsidian bg-dot-pattern pt-24 pb-48 px-6">
+    <div className="min-h-screen bg-dot-pattern pt-24 pb-48 px-6" style={{ backgroundColor: "#171513" }}>
       <div className="max-w-5xl mx-auto">
         <div className="flex items-end justify-between mb-12 px-4">
            <div>
@@ -629,9 +629,9 @@ export default function CartPage() {
             {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
             <div className="space-y-4">
               {items.map((item) => (
-                <motion.div key={item.cartItemId} layout className="glass-panel p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-white/5 transition-all group">
+                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
                    <div className="flex items-center gap-6">
-                      <div className="w-14 h-14 bg-obsidian border border-white/5 rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner">
+                      <div className="w-14 h-14 border rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }}>
                          {item.quantity}x
                       </div>
                       <div>
@@ -646,7 +646,7 @@ export default function CartPage() {
                       </div>
                    </div>
                    <div className="flex items-center justify-between sm:justify-end gap-10">
-                      <div className="flex items-center gap-6 glass-panel px-4 py-3 rounded-2xl border-white/5">
+                      <div className="flex items-center gap-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
                          <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
                          <span className="text-base font-black text-white w-4 text-center italic">{item.quantity}</span>
                          <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Plus size={18} /></button>
@@ -656,7 +656,7 @@ export default function CartPage() {
                             <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
                             <span className="text-[8px] uppercase tracking-widest text-zinc-800 leading-none">SEK</span>
                          </div>
-                         <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90">
+                         <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl border flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90" style={{ backgroundColor: "#2A241F", borderColor: "rgba(255,248,234,0.06)" }}>
                             <Trash2 size={20} />
                          </button>
                       </div>
@@ -682,8 +682,8 @@ export default function CartPage() {
                     <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest text-zinc-700 hover:text-white transition-colors">← Tillbaka till uppgifter</button>
                  </motion.div>
                ) : (
-                 <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-10 rounded-[3.5rem] shadow-2xl relative">
-                    <div className="flex gap-4 p-1.5 glass-panel rounded-[1.8rem] mb-10">
+                 <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-10 rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+                    <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)" }}>
                        {(['DELIVERY', 'PICKUP'] as const).map(type => (
                           <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-600 hover:text-zinc-200'}`}>
                              {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
@@ -696,11 +696,11 @@ export default function CartPage() {
                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div className="space-y-2">
                              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Ditt Namn</label>
-                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Namn" />
+                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="Namn" />
                           </div>
                           <div className="space-y-2">
                              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Telefon</label>
-                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" placeholder="Nummer" />
+                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="Nummer" />
                           </div>
                        </div>
 
@@ -747,13 +747,16 @@ export default function CartPage() {
                                   <input 
                                     value={addressInput} 
                                     onChange={e => handleAddressChange(e.target.value)} 
-                                    className={`w-full bg-obsidian/60 border rounded-2xl p-5 text-sm font-bold text-white focus:outline-none transition-all pl-12 pr-12 ${
-                                      addressZoneStatus === "error"
-                                        ? "border-rose-500/60 focus:border-rose-500"
-                                        : addressZoneStatus === "ok"
-                                          ? "border-emerald-500/40 focus:border-emerald-500/60"
-                                          : "border-white/5 focus:border-gold-500/40"
-                                    }`}
+                                    className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:outline-none transition-all pl-12 pr-12"
+                                    style={{
+                                      backgroundColor: "#171513",
+                                      borderColor:
+                                        addressZoneStatus === "error"
+                                          ? "rgba(244,63,94,0.6)"
+                                          : addressZoneStatus === "ok"
+                                            ? "rgba(16,185,129,0.4)"
+                                            : "rgba(255,248,234,0.06)",
+                                    }}
                                     placeholder="Din Gatuadress, Postnummer..." 
                                   />
                                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
@@ -775,9 +778,9 @@ export default function CartPage() {
                                 
                                 <AnimatePresence>
                                   {predictions.length > 0 && (
-                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 bg-zinc-800 border border-white/10 rounded-2xl overflow-hidden shadow-2xl z-50">
+                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50" style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)" }}>
                                       {predictions.map(pred => (
-                                        <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 hover:bg-zinc-700/50 transition-all border-b border-white/5 last:border-none flex flex-col gap-1">
+                                        <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 transition-all border-b last:border-none flex flex-col gap-1" style={{ borderColor: "rgba(255,248,234,0.05)" }}>
                                           <span className="text-sm font-bold text-zinc-100">{pred.description.split(",")[0]}</span>
                                           <span className="text-[10px] text-zinc-400">{pred.description.split(",").slice(1).join(",").trim()}</span>
                                         </button>
@@ -818,7 +821,7 @@ export default function CartPage() {
 
                        <div className="space-y-2">
                           <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Extranotering</label>
-                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full bg-obsidian/60 border border-white/5 rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
+                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
                        </div>
 
                        {/* Promo Code Integrated */}
@@ -827,7 +830,8 @@ export default function CartPage() {
                           <input 
                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
                              onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-                             className={`w-full bg-obsidian/60 border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all ${selectedPersonalDeal ? "border-emerald-500/40 text-emerald-400" : "border-white/5 text-zinc-500 focus:border-gold-500/40"}`}
+                             className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all"
+                             style={{ backgroundColor: "#171513", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "rgba(255,248,234,0.06)", color: selectedPersonalDeal ? "#34d399" : "#B8AA95" }}
                              placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
                           />
                           <button 
