@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Store,
   Truck,
-  Flame,
   ArrowRight,
   X,
   Sparkles,
