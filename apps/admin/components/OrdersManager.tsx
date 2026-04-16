@@ -31,6 +31,8 @@ import {
   TrendingUp,
   Download,
   Bell,
+  RotateCcw,
+  ShieldCheck,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
@@ -87,6 +89,9 @@ interface Order {
   items: any[];
   paymentMethod?: string;
   stripePaymentIntentId?: string;
+  refundedAmount?: number;
+  refundedAt?: string;
+  refundReason?: string;
 }
 
 // ─── Order Card ─────────────────────────────────────────────────────────────
@@ -98,6 +103,7 @@ const OrderCard = ({
   onStatus,
   onEdit,
   onDeleteTest,
+  onRefund,
 }: {
   order: Order;
   expanded: boolean;
@@ -106,6 +112,7 @@ const OrderCard = ({
   onStatus: (s: string) => void;
   onEdit: () => void;
   onDeleteTest: () => void;
+  onRefund: () => void;
 }) => {
   const isTest =
     order.stripePaymentIntentId === "TEST_PAYMENT" ||
@@ -174,6 +181,11 @@ const OrderCard = ({
             >
               {STATUS_LABELS[order.status] || order.status}
             </span>
+            {order.refundedAt && (
+              <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[8px] font-black uppercase border border-rose-500/20 shadow-lg shadow-rose-500/20">
+                Återbetald {Math.round(order.refundedAmount! / 100)} kr
+              </span>
+            )}
           </div>
           <div className="text-[10px] text-[var(--text-secondary)] font-bold mt-0.5">
             {new Date(order.createdAt).toLocaleTimeString([], {
@@ -367,6 +379,14 @@ const OrderCard = ({
                   >
                     <Edit2 size={13} /> Redigera
                   </button>
+                  {order.paymentMethod === "STRIPE" && !order.refundedAt && (
+                    <button
+                      onClick={onRefund}
+                      className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[9px] font-black uppercase tracking-wider text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RotateCcw size={13} /> Återbetala
+                    </button>
+                  )}
                   {isTest && (
                     <button
                       onClick={onDeleteTest}
@@ -385,6 +405,97 @@ const OrderCard = ({
   );
 };
 
+// ─── Refund Modal Content ──────────────────────────────────────────────────
+const RefundModalContent = ({ order, onConfirm, onClose }: { order: Order; onConfirm: (amt: number, reason: string) => void; onClose: () => void }) => {
+  const [amount, setAmount] = useState(order.total / 100);
+  const [reason, setReason] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      <div className="p-4 bg-rose-500/5 rounded-2xl border border-rose-500/20">
+        <div className="flex items-center gap-3 mb-2">
+           <ShieldCheck size={18} className="text-rose-400" />
+           <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Säkerhetskontroll</span>
+        </div>
+        <p className="text-[11px] text-[var(--text-secondary)] font-medium leading-relaxed">
+          Du håller på att återbetala pengar till kunden via Stripe. Denna handling kan inte ångras och dras direkt från restaurangens saldo.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        <div>
+           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Belopp (SEK)</label>
+           <div className="relative">
+              <input 
+                type="number"
+                value={amount}
+                onChange={(e) => setAmount(Number(e.target.value))}
+                className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-rose-500/30 transition-all text-[var(--text-primary)]"
+              />
+              <button 
+                onClick={() => setAmount(order.total / 100)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[9px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+              >
+                Max ({Math.round(order.total / 100)} kr)
+              </button>
+           </div>
+        </div>
+
+        <div>
+           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Anledning</label>
+           <input 
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="T.ex. Slutsåld vara, kund ångrade sig..."
+            className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-rose-500/30 transition-all text-[var(--text-primary)]"
+           />
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-2">
+         <button 
+           onClick={() => setConfirmed(!confirmed)}
+           className={`w-full flex items-center gap-3 p-4 rounded-2xl border transition-all ${
+             confirmed 
+               ? "bg-rose-500/10 border-rose-500/40 text-rose-400" 
+               : "bg-[var(--bg-primary)] border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-rose-500/20"
+           }`}
+         >
+           <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
+             confirmed ? "bg-rose-500 border-rose-500" : "border-[var(--border-subtle)]"
+           }`}>
+             {confirmed && <CheckCircle2 size={12} className="text-white" />}
+           </div>
+           <span className="text-[10px] font-black uppercase tracking-widest">
+             Jag bekräftar {amount === order.total/100 ? "full" : "partiell"} återbetalning på {amount} kr
+           </span>
+         </button>
+
+         <div className="flex gap-3">
+            <button 
+              onClick={onClose}
+              className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
+            >
+              Avbryt
+            </button>
+            <button 
+              disabled={!confirmed || amount <= 0 || amount > (order.total/100 + 0.01)}
+              onClick={() => onConfirm(amount, reason)}
+              className={`flex-2 py-3.5 px-8 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                confirmed 
+                  ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-95" 
+                  : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] opacity-50 cursor-not-allowed"
+              }`}
+            >
+              Utför återbetalning
+            </button>
+         </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 interface OrdersManagerProps {
   initialFilter?: "all" | "PENDING" | "preparing" | "ready" | "done";
@@ -400,6 +511,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
   const [acceptDialog, setAcceptDialog] = useState<{ orderId: string; time: number } | null>(null);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [deleteTestOrder, setDeleteTestOrder] = useState<Order | null>(null);
+  const [refundOrder, setRefundOrder] = useState<Order | null>(null);
   const [filter, setFilter] = useState<"all" | "PENDING" | "preparing" | "ready" | "done">(initialFilter);
   const [search, setSearch] = useState("");
   const [isMounted, setIsMounted] = useState(false);
@@ -499,6 +611,21 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       await fetchData();
     } catch {
       toastError("Kunde inte uppdatera orderstatus");
+    }
+  };
+
+  const handleRefund = async (orderId: string, amount: number, reason: string) => {
+    try {
+      await axios.post(
+        `${API_URL}/api/admin/orders/${orderId}/refund`,
+        { amount, reason },
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
+      setRefundOrder(null);
+      success("Återbetalning genomförd");
+      fetchData();
+    } catch {
+      toastError("Kunde inte genomföra återbetalning");
     }
   };
 
@@ -730,6 +857,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
               onStatus={(s) => updateStatus(order.id, s)}
               onEdit={() => setEditingOrder(order)}
               onDeleteTest={() => setDeleteTestOrder(order)}
+              onRefund={() => setRefundOrder(order)}
             />
           ))}
         </div>
@@ -905,6 +1033,22 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
         title="Radera testorder?"
         message="Detta kommer permanent radera testordern från systemet."
       />
+
+      {/* Stripe Refund Modal */}
+      <Modal 
+        open={!!refundOrder}
+        onClose={() => setRefundOrder(null)}
+        title={refundOrder ? `Återbetala Order #${refundOrder.orderNumber}` : "Återbetalning"}
+        maxWidth="max-w-sm"
+      >
+        {refundOrder && (
+          <RefundModalContent 
+            order={refundOrder}
+            onConfirm={(amt, reason) => handleRefund(refundOrder.id, amt, reason)}
+            onClose={() => setRefundOrder(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 };
