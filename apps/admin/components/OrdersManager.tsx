@@ -676,7 +676,11 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
     const today = new Date();
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    let result = orders.filter((o) => new Date(o.createdAt) >= startOfToday);
+    let result = orders.filter((o) => {
+      const isToday = new Date(o.createdAt) >= startOfToday;
+      const isPending = o.status === "PENDING";
+      return isToday || isPending;
+    });
 
     if (filter === "PENDING") result = result.filter((o) => o.status === "PENDING");
     else if (filter === "preparing")

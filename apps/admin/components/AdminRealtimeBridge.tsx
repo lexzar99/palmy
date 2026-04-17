@@ -7,12 +7,14 @@ import axios from "axios";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { playNotificationSound, primeNotificationAudio } from "@/lib/notificationSounds";
+import { useToast } from "@/components/Toast";
 
 export default function AdminRealtimeBridge() {
   const [soundId, setSoundId] = useState("signal-1");
   const [pendingCount, setPendingCount] = useState(0);
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const { info } = useToast();
   const soundIdRef = useRef("signal-1");
   const pendingIdsRef = useRef<Set<string>>(new Set());
   const pollRef = useRef<number | null>(null);
@@ -61,7 +63,7 @@ export default function AdminRealtimeBridge() {
       soundLoopRef.current = null;
     }
 
-    if (pendingCount <= 0 || isSuperAdmin) {
+    if (pendingCount <= 0) {
       return () => {
         if (soundLoopRef.current) {
           window.clearInterval(soundLoopRef.current);
@@ -134,6 +136,7 @@ export default function AdminRealtimeBridge() {
       if (!pendingIdsRef.current.has(order.id)) {
         pendingIdsRef.current.add(order.id);
         setPendingCount(pendingIdsRef.current.size);
+        info(`Ny order: ${order.customerName || "Okänd kund"}`);
       }
     });
 

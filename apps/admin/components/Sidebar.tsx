@@ -135,13 +135,31 @@ const Sidebar = () => {
       transports: ["websocket", "polling"],
     });
 
+    const fetchPendingCount = async () => {
+      try {
+        const restaurantParam = selectedRestaurantId
+          ? `&restaurantId=${selectedRestaurantId}`
+          : "";
+        const res = await axios.get(
+          `${API_URL}/api/admin/orders?limit=100${restaurantParam}`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        );
+        const pending = (res.data.orders || []).filter(
+          (o: any) => o.status === "PENDING"
+        );
+        setPendingCount(pending.length);
+      } catch {
+        // ignore
+      }
+    };
+
     socket.on("settings:updated", (data: any) => {
       if (data.restaurantId === selectedRestaurantId)
         setIsOpen(data.manualIsOpen ?? data.isOpen ?? true);
     });
 
     socket.on("order:new", (order: any) => {
-      setPendingCount((prev) => prev + 1);
+      fetchPendingCount();
       const notif: NotificationItem = {
         id: order.id || Math.random().toString(36).slice(2),
         title: "Ny beställning",
@@ -153,33 +171,18 @@ const Sidebar = () => {
       setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
     });
 
+    socket.on("order:updated", () => {
+      fetchPendingCount();
+    });
+
+    fetchPendingCount();
+
     return () => {
       socket.disconnect();
     };
   }, [selectedRestaurantId]);
 
-  // Fetch pending count on mount
-  useEffect(() => {
-    if (!isMounted) return;
-    const fetchPending = async () => {
-      try {
-        const restaurantParam = selectedRestaurantId
-          ? `&restaurantId=${selectedRestaurantId}`
-          : "";
-        const res = await axios.get(
-          `${API_URL}/api/admin/orders?limit=50${restaurantParam}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } }
-        );
-        const pending = (res.data.orders || []).filter(
-          (o: any) => o.status === "PENDING"
-        );
-        setPendingCount(pending.length);
-      } catch {
-        // ignore
-      }
-    };
-    fetchPending();
-  }, [isMounted, selectedRestaurantId]);
+  // Sidebar is already handling mounting/restaurant changes in the main useEffect with socket.
 
   const toggleOpen = async () => {
     if (!selectedRestaurantId) return;
