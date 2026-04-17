@@ -50,9 +50,11 @@ const corsOptions: cors.CorsOptions = {
     // Allow requests with no origin (mobile apps, curl, server-to-server)
     if (!origin) return callback(null, true);
     const allowed = getAllowedOrigins();
-    // Also allow any localhost or 192.168.x.x for dev
+    // Also allow any localhost or 192.168.x.x for dev, or any vercel deployments
     const isLocalDev = /^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    if (allowed.includes(origin) || isLocalDev) {
+    const isVercel = origin.endsWith('.vercel.app');
+    
+    if (allowed.includes(origin) || isLocalDev || isVercel) {
       callback(null, true);
     } else {
       console.warn(`🚫 CORS blocked origin: ${origin}`);
