@@ -36,7 +36,7 @@ function parseZones(raw: any): Zone[] {
     const arr = typeof raw === "string" ? JSON.parse(raw) : (Array.isArray(raw) ? raw : []);
     return arr
       .filter((z: any) => z?.id)
-      .map((z: any): Zone | null => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      .map((z: any): Zone | null => {  
         const type: "circle" | "polygon" = z.type === "polygon" ? "polygon" : "circle";
 
         // Validate geometry exists

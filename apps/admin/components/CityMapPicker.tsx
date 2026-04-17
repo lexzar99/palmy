@@ -307,7 +307,7 @@ export default function CityMapPicker({
       zoneOverlays.current.forEach(o => o.setMap(null));
       infoWindows.current.forEach(w => w.close());
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [ready]);
 
   // Re-draw zone circles whenever zones or center changes

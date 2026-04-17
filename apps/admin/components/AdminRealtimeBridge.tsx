@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+ 
+ 
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -103,7 +103,7 @@ export default function AdminRealtimeBridge() {
     window.addEventListener("keydown", prime);
 
     void loadSettings();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     void syncPendingOrders();
 
     const socket = socketIO(SOCKET_URL, {

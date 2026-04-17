@@ -428,7 +428,7 @@ export default function ZoneEditor({
       overlays.current.forEach(ov => ov.setMap(null));
       overlays.current.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [mapsReady]);
 
   // ── City-centre search with Places autocomplete ────────────────────────────
