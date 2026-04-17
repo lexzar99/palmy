@@ -35,7 +35,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
-import confetti from "canvas-confetti";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { useRestaurantStore } from "@/store/restaurantStore";
 import { Modal, ConfirmModal } from "@/components/Modal";
@@ -602,14 +601,6 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       setAcceptDialog(null);
-      if (status === "PREPARING") {
-        confetti({
-          particleCount: 100,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ["#e7b24b", "#f3c96e", "#ffffff"],
-        });
-      }
       success(`Order ${STATUS_LABELS[status] || status}`);
       await fetchData();
     } catch {

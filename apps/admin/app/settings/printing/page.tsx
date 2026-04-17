@@ -18,7 +18,6 @@ import {
   Trash2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
 
 interface PrinterDevice {
   id: string;
@@ -60,7 +59,6 @@ const PrintingSettingsPage = () => {
   };
 
   const handleTestPrint = () => {
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
     // logic for test print
   };
 
