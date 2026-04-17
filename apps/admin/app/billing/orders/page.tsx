@@ -6,7 +6,7 @@ import {
   Calculator, Download, Loader2, Search, Calendar,
   ShoppingCart, RefreshCw, ChevronDown, ChevronRight,
   ArrowDownUp, RotateCcw, CheckCircle, XCircle, Clock,
-  Wallet, FileText, Store, CalendarDays,
+  Wallet, FileText, Store, CalendarDays, Truck,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { API_URL } from "@/lib/api";
@@ -161,13 +161,33 @@ export default function OrderStatementsPage() {
         <RotateCcw size={10} /> Refunded
       </span>;
     }
-    if (order.status === "COMPLETED" || order.status === "DELIVERED") {
+    if (order.status === "DELIVERED") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400">
-        <CheckCircle size={10} /> Paid
+        <CheckCircle size={10} /> Delivered
       </span>;
     }
-    return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-amber-500/10 text-amber-400">
-      <Clock size={10} /> {order.status}
+    if (order.status === "DELIVERING") {
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-sky-500/10 text-sky-400">
+        <Truck size={10} /> On the way
+      </span>;
+    }
+    if (order.status === "READY") {
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-blue-500/10 text-blue-400">
+        <ShoppingCart size={10} /> Ready
+      </span>;
+    }
+    if (order.status === "PENDING" || order.status === "ACCEPTED" || order.status === "PREPARING") {
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-amber-500/10 text-amber-400">
+        <Clock size={10} /> Processing
+      </span>;
+    }
+    if (order.status === "CANCELLED" || order.status === "REJECTED") {
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-red-500/10 text-red-400">
+        <XCircle size={10} /> Cancelled
+      </span>;
+    }
+    return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-gray-500/10 text-gray-400">
+      {order.status}
     </span>;
   };
 
