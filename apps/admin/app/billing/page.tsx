@@ -1,4 +1,3 @@
- 
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -7,20 +6,19 @@ import {
   Crown, Medal, Award, Calculator, Download, Loader2,
   TrendingUp, ShoppingCart, CreditCard, RefreshCw, ChevronDown,
   FileText, Calendar, Settings, Store, Check, Search,
-  Mail, Clock, CheckCircle, XCircle, History, AlarmClock,
+  Clock, CheckCircle, XCircle, Banknote, Plus, Minus, Edit2,
+  Trash2, Send, DollarSign, ArrowUpRight,
 } from "lucide-react";
-import { motion } from "framer-motion";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import { motion, AnimatePresence } from "framer-motion";
 import { API_URL } from "@/lib/api";
 import { useToast } from "@/components/Toast";
+import { Modal, ConfirmModal } from "@/components/Modal";
 
-// ── Tier config stored in localStorage ───────────────────────────────────────
 const LS_KEY = "matgo_billing_config";
 
 interface TierConfig {
-  subscriptionFee: number;   // kr/month
-  commissionPct: number;     // % of order revenue
+  subscriptionFee: number;
+  commissionPct: number;
 }
 
 interface BillingConfig {
@@ -29,19 +27,46 @@ interface BillingConfig {
   standard: TierConfig;
 }
 
+interface PayoutAdjustment {
+  id: string;
+  type: "discount" | "extra_service" | "product";
+  label: string;
+  amount: number;
+}
+
+interface RestaurantPayout {
+  restaurant: any;
+  period: { from: string; to: string };
+  totalSales: number;
+  totalOrders: number;
+  commission: number;
+  subscription: number;
+  adjustments: PayoutAdjustment[];
+  finalPayout: number;
+  status: "pending" | "approved" | "paid";
+  bankInfo?: {
+    bankName: string;
+    accountNumber: string;
+    clearingNumber: string;
+    giro?: string;
+  };
+  notes?: string;
+}
+
 const DEFAULT_CONFIG: BillingConfig = {
   gold:     { subscriptionFee: 1990, commissionPct: 8  },
   silver:   { subscriptionFee: 990,  commissionPct: 10 },
   standard: { subscriptionFee: 490,  commissionPct: 12 },
 };
 
-const TIER_META: Record<number, { label: string; key: keyof BillingConfig; icon: any; color: string; bg: string }> = {
-  1: { label: "Guld",     key: "gold",     icon: Crown,  color: "text-gold-500",  bg: "bg-gold-500/10" },
-  2: { label: "Silver",   key: "silver",   icon: Medal,  color: "text-blue-400",  bg: "bg-blue-500/10" },
-  3: { label: "Standard", key: "standard", icon: Award,  color: "text-[var(--text-secondary)]", bg: "bg-[var(--border-subtle)]" },
+const TIER_META: Record<number, { label: string; key: keyof BillingConfig; icon: any }> = {
+  1: { label: "Guld", key: "gold", icon: Crown },
+  2: { label: "Silver", key: "silver", icon: Medal },
+  3: { label: "Standard", key: "standard", icon: Award },
 };
 
-// ── Period helpers ────────────────────────────────────────────────────────────
+const kr = (n: number) => `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
+
 const today = () => new Date().toISOString().slice(0, 10);
 const daysAgo = (n: number) => {
   const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10);
@@ -55,91 +80,39 @@ const endOfLastMonth = () => {
 };
 
 const PERIODS = [
-  { label: "Idag", from: today(), to: today() },
-  { label: "Senaste 7 dagar", from: daysAgo(7), to: today() },
-  { label: "Senaste 30 dagar", from: daysAgo(30), to: today() },
   { label: "Denna månad", from: startOfMonth(), to: today() },
   { label: "Förra månaden", from: startOfLastMonth(), to: endOfLastMonth() },
+  { label: "Senaste 30 dagar", from: daysAgo(30), to: today() },
 ];
 
-const kr = (n: number) => `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
-
-// ── Component ─────────────────────────────────────────────────────────────────
 export default function BillingPage() {
-  const { error: toastError } = useToast();
+  const { success, error: toastError } = useToast();
   const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [reports, setReports] = useState<Record<string, any>>({});
+  const [payouts, setPayouts] = useState<Record<string, RestaurantPayout>>({});
   const [loading, setLoading] = useState(false);
-  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(3); // This month
-  const [customFrom, setCustomFrom] = useState(daysAgo(30));
-  const [customTo, setCustomTo] = useState(today());
-  const [useCustom, setUseCustom] = useState(false);
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
   const [config, setConfig] = useState<BillingConfig>(DEFAULT_CONFIG);
   const [showConfig, setShowConfig] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [tierFilter, setTierFilter] = useState<number | "all">("all");
-  const [showHistory, setShowHistory] = useState(false);
-  const [showScheduler, setShowScheduler] = useState(false);
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [scheduleConfig, setScheduleConfig] = useState({
-    frequency: "monthly",
-    dayOfMonth: 1,
-    autoSend: false,
-  });
-
-  const period = useCustom ? { from: customFrom, to: customTo } : PERIODS[selectedPeriodIndex];
+  const [selectedRestaurant, setSelectedRestaurant] = useState<string | null>(null);
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  
+  const period = PERIODS[selectedPeriodIndex];
   const token = () => localStorage.getItem("matgo_token") || "";
 
-  // Load config from localStorage
   useEffect(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(raw) });
-    } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem("matgo_billing_schedule");
-      if (raw) setScheduleConfig(JSON.parse(raw));
     } catch {}
   }, []);
 
-  // Load invoice history
-  useEffect(() => {
-    if (!showHistory) return;
-    const fetchHistory = async () => {
-      try {
-        const token = localStorage.getItem("matgo_token") || "";
-        const res = await axios.get(`${API_URL}/api/admin/invoices`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        setInvoices(res.data);
-      } catch { setInvoices([]); }
-    };
-    fetchHistory();
-  }, [showHistory]);
-
-  const saveSchedule = () => {
-    localStorage.setItem("matgo_billing_schedule", JSON.stringify(scheduleConfig));
-    axios.post(`${API_URL}/api/admin/schedule/billing`, scheduleConfig, {
-      headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token")}` },
-    }).catch(() => {});
-    setShowScheduler(false);
-  };
-
-  const saveConfig = () => {
-    localStorage.setItem(LS_KEY, JSON.stringify(config));
-    setShowConfig(false);
-  };
-
-  // Fetch restaurants
   useEffect(() => {
     axios.get(`${API_URL}/api/restaurants`).then((r) => setRestaurants(r.data)).catch(() => {});
   }, []);
 
-  // Fetch reports for all restaurants
-  const fetchReports = async () => {
+  const fetchPayouts = async () => {
     if (restaurants.length === 0) return;
     setLoading(true);
     try {
@@ -151,95 +124,112 @@ export default function BillingPage() {
           })
         )
       );
-      const map: Record<string, any> = {};
+      const map: Record<string, RestaurantPayout> = {};
       results.forEach((res, i) => {
         if (res.status === "fulfilled") {
-          map[restaurants[i].id] = res.value.data;
+          const r = restaurants[i];
+          const report = res.value.data;
+          const tierKey = TIER_META[r.featuredClass ?? 3]?.key ?? "standard";
+          const tierCfg = config[tierKey];
+          const sales = report?.summary?.totalRevenue ?? 0;
+          const orders = report?.summary?.totalOrders ?? 0;
+          const periodDays = Math.max(1, Math.round(
+            (new Date(period.to).getTime() - new Date(period.from).getTime()) / (1000 * 60 * 60 * 24)
+          ));
+          const subscription = (tierCfg.subscriptionFee / 30) * periodDays;
+          const commission = (sales * tierCfg.commissionPct) / 100;
+          
+          map[r.id] = {
+            restaurant: r,
+            period,
+            totalSales: sales,
+            totalOrders: orders,
+            commission,
+            subscription,
+            adjustments: [],
+            finalPayout: sales - commission - subscription,
+            status: "pending",
+          };
         }
       });
-      setReports(map);
+      setPayouts(map);
     } catch {
-      toastError("Kunde inte hämta rapporter");
+      toastError("Kunde inte hämta data");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (restaurants.length > 0) fetchReports();
+    if (restaurants.length > 0) fetchPayouts();
   }, [restaurants, period.from, period.to]);
 
-  // Commission calculations per restaurant
-  const rows = useMemo(() => {
-    return restaurants
-      .filter((r) => {
-        const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesTier = tierFilter === "all" || r.featuredClass === tierFilter;
-        return matchesSearch && matchesTier;
-      })
-      .map((r) => {
-        const report = reports[r.id];
-        const tierKey = TIER_META[r.featuredClass ?? 3]?.key ?? "standard";
-        const tierCfg = config[tierKey];
-        const totalRevenue = report?.summary?.totalRevenue ?? 0;
-        const totalOrders = report?.summary?.totalOrders ?? 0;
+  const saveConfig = () => {
+    localStorage.setItem(LS_KEY, JSON.stringify(config));
+    setShowConfig(false);
+  };
 
-        // Prorated subscription for the period
-        const periodDays = Math.max(1, Math.round(
-          (new Date(period.to).getTime() - new Date(period.from).getTime()) / (1000 * 60 * 60 * 24)
-        ));
-        const proratedSubscription = (tierCfg.subscriptionFee / 30) * periodDays;
-        const commission = (totalRevenue * tierCfg.commissionPct) / 100;
-        const totalPlatformIncome = proratedSubscription + commission;
-        const restaurantPayout = totalRevenue - commission; // subscription is flat fee, not deducted from payout
-
-        return {
-          restaurant: r,
-          report,
-          tier: TIER_META[r.featuredClass ?? 3],
-          tierCfg,
-          totalRevenue,
-          totalOrders,
-          proratedSubscription,
-          commission,
-          totalPlatformIncome,
-          restaurantPayout,
-          periodDays,
-        };
-      });
-  }, [restaurants, reports, config, period, searchTerm, tierFilter]);
+  const filteredPayouts = useMemo(() => {
+    return Object.values(payouts).filter((p) => 
+      p.restaurant.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [payouts, searchTerm]);
 
   const totals = useMemo(() => ({
-    revenue: rows.reduce((s, r) => s + r.totalRevenue, 0),
-    orders: rows.reduce((s, r) => s + r.totalOrders, 0),
-    subscriptions: rows.reduce((s, r) => s + r.proratedSubscription, 0),
-    commission: rows.reduce((s, r) => s + r.commission, 0),
-    platformTotal: rows.reduce((s, r) => s + r.totalPlatformIncome, 0),
-    payout: rows.reduce((s, r) => s + r.restaurantPayout, 0),
-  }), [rows]);
+    sales: filteredPayouts.reduce((s, p) => s + p.totalSales, 0),
+    orders: filteredPayouts.reduce((s, p) => s + p.totalOrders, 0),
+    commission: filteredPayouts.reduce((s, p) => s + p.commission, 0),
+    subscription: filteredPayouts.reduce((s, p) => s + p.subscription, 0),
+    adjustments: filteredPayouts.reduce((s, p) => s + p.adjustments.reduce((a, adj) => a + adj.amount, 0), 0),
+    payout: filteredPayouts.reduce((s, p) => s + p.finalPayout, 0),
+  }), [filteredPayouts]);
 
-  const exportCSV = () => {
-    const headers = ["Restaurang", "Tier", "Ordrar", "Omsättning", "Prenumeration", "Provision", "Plattformsintäkt", "Restaurangutbetalning"];
-    const dataRows = rows.map((r) => [
-      r.restaurant.name,
-      r.tier?.label ?? "Standard",
-      r.totalOrders,
-      r.totalRevenue.toFixed(2),
-      r.proratedSubscription.toFixed(2),
-      r.commission.toFixed(2),
-      r.totalPlatformIncome.toFixed(2),
-      r.restaurantPayout.toFixed(2),
-    ]);
-    const csv = [headers, ...dataRows, ["TOTALT", "", totals.orders, totals.revenue.toFixed(2), totals.subscriptions.toFixed(2), totals.commission.toFixed(2), totals.platformTotal.toFixed(2), totals.payout.toFixed(2)]]
-      .map((r) => r.join(","))
-      .join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `matgo_fakturering_${period.from}_${period.to}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const updateAdjustment = (restaurantId: string, adjustments: PayoutAdjustment[]) => {
+    const existing = payouts[restaurantId];
+    if (!existing) return;
+    
+    const adjustmentTotal = adjustments.reduce((s, a) => s + a.amount, 0);
+    const newPayout = existing.totalSales - existing.commission - existing.subscription + adjustmentTotal;
+    
+    setPayouts((prev) => ({
+      ...prev,
+      [restaurantId]: {
+        ...existing,
+        adjustments,
+        finalPayout: newPayout,
+      },
+    }));
+  };
+
+  const saveBankInfo = (restaurantId: string, bankInfo: RestaurantPayout["bankInfo"]) => {
+    const existing = payouts[restaurantId];
+    if (!existing) return;
+    setPayouts((prev) => ({
+      ...prev,
+      [restaurantId]: { ...existing, bankInfo },
+    }));
+    setShowBankModal(false);
+    success("Bankuppgifter sparade");
+  };
+
+  const approvePayout = (restaurantId: string) => {
+    const existing = payouts[restaurantId];
+    if (!existing) return;
+    setPayouts((prev) => ({
+      ...prev,
+      [restaurantId]: { ...existing, status: "approved" },
+    }));
+    success("Utbetalning godkänd");
+  };
+
+  const markAsPaid = (restaurantId: string) => {
+    const existing = payouts[restaurantId];
+    if (!existing) return;
+    setPayouts((prev) => ({
+      ...prev,
+      [restaurantId]: { ...existing, status: "paid" },
+    }));
+    success("Utbetalning markerad som betald");
   };
 
   const inputCls = "bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-gold-500/30 w-full";
@@ -250,61 +240,30 @@ export default function BillingPage() {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
-            <Calculator size={22} className="text-gold-500" /> Fakturering & Provisioner
+            <DollarSign size={22} className="text-gold-500" /> Utbetalningshantering
           </h1>
           <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
-            Beräkna plattformsintäkter, restaurangutbetalningar och provisioner per period
+            Hantera restaurangers försäljning, avgifter och utbetalningar per period
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={fetchReports} disabled={loading}
+          <button onClick={fetchPayouts} disabled={loading}
             className="w-9 h-9 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all">
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
           <button onClick={() => setShowConfig(!showConfig)}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showConfig ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-            <Settings size={13} /> Prismodell
-          </button>
-          <button onClick={exportCSV}
-            className="flex items-center gap-2 px-4 py-2.5 border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-gold-500 transition-all font-black uppercase tracking-widest text-[9px] rounded-xl">
-            <Download size={13} /> Exportera CSV
-          </button>
-          <button 
-            onClick={async () => {
-              if (!confirm(`Vill du skicka rapporter till alla ${rows.length} restauranger i listan?`)) return;
-              for (const row of rows) {
-                try {
-                  const email = row.restaurant.adminEmail || `${row.restaurant.slug}@matgo.se`;
-                  await axios.post(`${API_URL}/api/admin/reports/restaurant/${row.restaurant.id}/send`, {
-                    email,
-                    period: `${period.from} - ${period.to}`
-                  }, {
-                    headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token")}` }
-                  });
-                } catch (e) { console.error(e); }
-              }
-              alert("Klar! Rapporter skickade till alla i kön (MOCK).");
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
-            <RefreshCw size={13} /> Skicka till alla
-          </button>
-          <button onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showHistory ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-            <History size={13} /> Fakturahistorik
-          </button>
-          <button onClick={() => setShowScheduler(!showScheduler)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showScheduler ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-            <AlarmClock size={13} /> Schemalägg
+            <Settings size={13} /> Avgiftsmodell
           </button>
         </div>
       </div>
 
-      {/* Pricing config panel */}
+      {/* Config Panel */}
       {showConfig && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="p-5 rounded-2xl border border-gold-500/20 bg-gold-500/5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-gold-500">Prismodell per Tier</h2>
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-gold-500">Avgiftsmodell per Tier</h2>
             <button onClick={saveConfig}
               className="flex items-center gap-1.5 px-4 py-2 bg-gold-500 text-[#0d0d0d] rounded-xl text-[9px] font-black uppercase">
               <Check size={12} /> Spara
@@ -331,126 +290,6 @@ export default function BillingPage() {
               </div>
             ))}
           </div>
-          <p className="text-[8px] text-[var(--text-secondary)] mt-3 font-bold">
-            Månadsavgiften fördelas proportionellt om perioden är kortare/längre än 30 dagar.
-          </p>
-        </motion.div>
-      )}
-
-      {showHistory && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">Fakturahistorik</h2>
-            <button onClick={() => setShowHistory(false)}
-              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-              <XCircle size={16} />
-            </button>
-          </div>
-          {invoices.length === 0 ? (
-            <p className="text-[10px] text-[var(--text-secondary)]">Inga fakturor hittades.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-              <table className="w-full text-[10px] font-bold">
-                <thead>
-                  <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
-                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Faktura #</th>
-                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Restaurang</th>
-                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Datum</th>
-                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Period</th>
-                    <th className="px-3 py-2 text-right text-[8px] font-black uppercase text-[var(--text-secondary)]">Belopp</th>
-                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Status</th>
-                    <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Åtgärder</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv: any) => (
-                    <tr key={inv.id} className="border-b border-[var(--border-subtle)]">
-                      <td className="px-3 py-2 font-black text-gold-500">{inv.invoiceNumber}</td>
-                      <td className="px-3 py-2">{inv.restaurantName}</td>
-                      <td className="px-3 py-2 text-[var(--text-secondary)]">{inv.date}</td>
-                      <td className="px-3 py-2 text-[var(--text-secondary)]">{inv.period}</td>
-                      <td className="px-3 py-2 text-right font-black">{kr(inv.amount)}</td>
-                      <td className="px-3 py-2">
-                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase w-fit ${
-                          inv.status === "paid" ? "bg-emerald-500/10 text-emerald-400" :
-                          inv.status === "sent" ? "bg-blue-500/10 text-blue-400" :
-                          inv.status === "overdue" ? "bg-red-500/10 text-red-400" :
-                          "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
-                        }`}>
-                          {inv.status === "paid" && <CheckCircle size={10} />}
-                          {inv.status === "sent" && <Clock size={10} />}
-                          {inv.status === "overdue" && <XCircle size={10} />}
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <button className="text-gold-500 hover:text-gold-400 mr-2" title="Ladda ner PDF">
-                          <Download size={12} />
-                        </button>
-                        <button className="text-blue-400 hover:text-blue-300" title="Skicka igen">
-                          <Mail size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {showScheduler && (
-        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="p-5 rounded-2xl border border-gold-500/20 bg-gold-500/5">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[11px] font-black uppercase tracking-widest text-gold-500">Automatisk fakturering</h2>
-            <button onClick={() => setShowScheduler(false)}
-              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-              <XCircle size={16} />
-            </button>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Frekvens</label>
-              <select 
-                value={scheduleConfig.frequency}
-                onChange={(e) => setScheduleConfig((p) => ({ ...p, frequency: e.target.value }))}
-                className={inputCls}>
-                <option value="monthly">Månadsvis</option>
-                <option value="weekly">Veckovis</option>
-                <option value="quarterly">Kvartalsvis</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Dag i månad (1-28)</label>
-              <input 
-                type="number" min={1} max={28}
-                value={scheduleConfig.dayOfMonth}
-                onChange={(e) => setScheduleConfig((p) => ({ ...p, dayOfMonth: Number(e.target.value) }))}
-                className={inputCls} />
-            </div>
-            <div className="flex items-center gap-2">
-              <input 
-                type="checkbox" id="autoSend"
-                checked={scheduleConfig.autoSend}
-                onChange={(e) => setScheduleConfig((p) => ({ ...p, autoSend: e.target.checked }))}
-                className="w-4 h-4" />
-              <label htmlFor="autoSend" className="text-[9px] font-bold text-[var(--text-primary)]">
-                Skicka automatiskt via e-post
-              </label>
-            </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <button onClick={saveSchedule}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gold-500 text-[#0d0d0d] rounded-xl text-[9px] font-black uppercase">
-              <Check size={12} /> Spara schema
-            </button>
-          </div>
-          <p className="text-[8px] text-[var(--text-secondary)] mt-3 font-bold">
-            Faktureringsperioden beräknas automatiskt baserat på frekvens.
-          </p>
         </motion.div>
       )}
 
@@ -459,413 +298,291 @@ export default function BillingPage() {
         <Calendar size={14} className="text-[var(--text-secondary)]" />
         <div className="flex flex-wrap gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
           {PERIODS.map((p, i) => (
-            <button key={p.label} onClick={() => { setSelectedPeriodIndex(i); setUseCustom(false); }}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${!useCustom && selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
+            <button key={p.label} onClick={() => setSelectedPeriodIndex(i)}
+              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
               {p.label}
             </button>
           ))}
-          <button onClick={() => setUseCustom(true)}
-            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${useCustom ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
-            Anpassad
-          </button>
         </div>
-        {useCustom && (
-          <>
-            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
-              className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
-            <span className="text-[var(--text-secondary)] text-xs">–</span>
-            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)}
-              className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
-          </>
-        )}
         <span className="text-[9px] font-black text-[var(--text-secondary)]">
           {period.from} → {period.to}
         </span>
       </div>
 
-      {/* Search & Filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
-          <input 
-            value={searchTerm} 
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Sök restaurang..."
-            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
-          />
-        </div>
-        <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
-          <button onClick={() => setTierFilter("all")}
-            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${tierFilter === "all" ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
-            Alla Tiers
-          </button>
-          {[
-            { value: 1, label: "Guld", color: "text-gold-500", bg: "bg-gold-500/10 border-gold-500/20" },
-            { value: 2, label: "Silver", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" },
-            { value: 3, label: "Standard", color: "text-[var(--text-secondary)]", bg: "bg-[var(--border-subtle)]" },
-          ].map((t) => (
-            <button key={t.value} onClick={() => setTierFilter(t.value)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${tierFilter === t.value ? `${t.bg} ${t.color}` : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
+      {/* Search */}
+      <div className="relative flex-1">
+        <Search size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+        <input 
+          value={searchTerm} 
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Sök restaurang..."
+          className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
+        />
       </div>
 
-      {/* Summary KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3">
         {[
-          { label: "Total omsättning", value: kr(totals.revenue), icon: TrendingUp, color: "text-[var(--text-primary)]", sub: "Grovomsättning" },
-          { label: "Totalt ordrar", value: totals.orders.toString(), icon: ShoppingCart, color: "text-blue-400", sub: "Volym per period" },
-          { label: "Fast intäkt", value: kr(totals.subscriptions), icon: Calendar, color: "text-purple-400", sub: "Prenumerationer" },
-          { label: "Rörlig intäkt", value: kr(totals.commission), icon: RefreshCw, color: "text-gold-500", sub: "Provisioner" },
-          { label: "Plattform vinst", value: kr(totals.platformTotal), icon: CreditCard, color: "text-emerald-400", sub: "Total för plattformen", highlight: true },
-          { label: "Utbetalning", value: kr(totals.payout), icon: Store, color: "text-rose-400", sub: "Till restauranger" },
+          { label: "Total försäljning", value: kr(totals.sales), icon: TrendingUp, color: "text-[var(--text-primary)]" },
+          { label: "Ordrar", value: totals.orders.toString(), icon: ShoppingCart, color: "text-blue-400" },
+          { label: "Provision", value: kr(totals.commission), icon: Calculator, color: "text-gold-500" },
+          { label: "Avgift", value: kr(totals.subscription), icon: Calendar, color: "text-purple-400" },
+          { label: "Justeringar", value: kr(totals.adjustments), icon: Plus, color: "text-emerald-400" },
+          { label: "Att betala", value: kr(totals.payout), icon: ArrowUpRight, color: "text-emerald-400", highlight: true },
         ].map((kpi) => (
           <div key={kpi.label} 
-            className={`p-4 rounded-2xl border transition-all ${kpi.highlight ? "bg-emerald-500/5 border-emerald-500/20" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]"}`}>
+            className={`p-4 rounded-2xl border transition-all ${kpi.highlight ? "bg-emerald-500/10 border-emerald-500/30" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]"}`}>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
               <kpi.icon size={12} className={kpi.color} />
             </div>
             <p className={`text-lg font-black ${kpi.color}`}>{kpi.value}</p>
-            <p className="text-[8px] font-medium text-[var(--text-secondary)] mt-1">{kpi.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Per-restaurant table */}
+      {/* Payout Table */}
       {loading ? (
         <div className="flex items-center justify-center py-16 gap-3">
           <Loader2 className="animate-spin text-gold-500" size={24} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Beräknar...</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Laddar...</span>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[var(--border-subtle)]">
           <table className="w-full text-[10px] font-bold">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                {["Restaurang", "Tier", "Ordrar", "Omsättning", `Prenumeration (${rows[0]?.periodDays ?? "—"} dgr)`, "Provision", "Plattformens intäkt", "Restaurangens utbet."].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{h}</th>
-                ))}
+                <th className="px-4 py-3 text-left text-[9px] font-black uppercase text-[var(--text-secondary)]">Restaurang</th>
+                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Försäljning</th>
+                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Provision</th>
+                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Avgift</th>
+                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Justering</th>
+                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Att betala</th>
+                <th className="px-4 py-3 text-center text-[9px] font-black uppercase text-[var(--text-secondary)]">Status</th>
+                <th className="px-4 py-3 text-center text-[9px] font-black uppercase text-[var(--text-secondary)]">Åtgärder</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const Icon = row.tier?.icon ?? Award;
+              {filteredPayouts.map((p) => {
+                const adjustmentTotal = p.adjustments.reduce((s, a) => s + a.amount, 0);
                 return (
-                  <tr key={row.restaurant.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-secondary)] transition-colors">
+                  <tr key={p.restaurant.id} className="border-b border-[var(--border-subtle)] hover:bg-[var(--bg-secondary)] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        <div className="relative">
-                          <Store size={13} className="text-[var(--text-secondary)] shrink-0" />
-                          {row.totalRevenue > 0 && row.totalRevenue === Math.max(...rows.map(r => r.totalRevenue)) && (
-                            <Crown size={8} className="absolute -top-1.5 -right-1.5 text-gold-500 fill-gold-500 animate-bounce" />
-                          )}
-                        </div>
+                        <Store size={13} className="text-[var(--text-secondary)]" />
                         <div>
-                          <p className="font-black text-[var(--text-primary)]">{row.restaurant.name}</p>
-                          <p className="text-[8px] text-[var(--text-secondary)] opacity-50">{row.restaurant.city || "—"}</p>
+                          <p className="font-black text-[var(--text-primary)]">{p.restaurant.name}</p>
+                          <p className="text-[8px] text-[var(--text-secondary)]">{p.restaurant.city || "—"}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`flex items-center gap-1 w-fit px-2 py-1 rounded-lg ${row.tier?.bg ?? ""} ${row.tier?.color ?? ""} text-[8px] font-black uppercase`}>
-                        <Icon size={10} /> {row.tier?.label ?? "Standard"}
+                    <td className="px-4 py-3 text-right font-black text-[var(--text-primary)]">{kr(p.totalSales)}</td>
+                    <td className="px-4 py-3 text-right text-gold-500">-{kr(p.commission)}</td>
+                    <td className="px-4 py-3 text-right text-purple-400">-{kr(p.subscription)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-400">{adjustmentTotal !== 0 ? `+${kr(adjustmentTotal)}` : "—"}</td>
+                    <td className="px-4 py-3 text-right font-black text-emerald-400">{kr(p.finalPayout)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase w-fit ${
+                        p.status === "paid" ? "bg-emerald-500/10 text-emerald-400" :
+                        p.status === "approved" ? "bg-blue-500/10 text-blue-400" :
+                        "bg-amber-500/10 text-amber-400"
+                      }`}>
+                        {p.status === "paid" && <CheckCircle size={10} />}
+                        {p.status === "approved" && <Clock size={10} />}
+                        {p.status === "pending" && <Clock size={10} />}
+                        {p.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-black text-blue-400">{row.totalOrders}</td>
-                    <td className="px-4 py-3 font-black text-[var(--text-primary)]">{kr(row.totalRevenue)}</td>
-                    <td className="px-4 py-3 text-purple-400">{kr(row.proratedSubscription)}</td>
-                    <td className="px-4 py-3 text-gold-500">
-                      {kr(row.commission)}
-                      <span className="text-[8px] text-[var(--text-secondary)] ml-1">({row.tierCfg.commissionPct}%)</span>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => { setSelectedRestaurant(p.restaurant.id); setShowPayoutModal(true); }}
+                          className="p-2 rounded-lg hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-gold-500" title="Justera">
+                          <Edit2 size={12} />
+                        </button>
+                        <button onClick={() => { setSelectedRestaurant(p.restaurant.id); setShowBankModal(true); }}
+                          className="p-2 rounded-lg hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-gold-500" title="Bankuppgifter">
+                          <Banknote size={12} />
+                        </button>
+                        {p.status === "pending" && (
+                          <button onClick={() => approvePayout(p.restaurant.id)}
+                            className="p-2 rounded-lg hover:bg-emerald-500/10 text-[var(--text-secondary)] hover:text-emerald-400" title="Godkänn">
+                            <Check size={12} />
+                          </button>
+                        )}
+                        {p.status === "approved" && (
+                          <button onClick={() => markAsPaid(p.restaurant.id)}
+                            className="p-2 rounded-lg hover:bg-blue-500/10 text-[var(--text-secondary)] hover:text-blue-400" title="Markera betald">
+                            <Send size={12} />
+                          </button>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 font-black text-gold-500">{kr(row.totalPlatformIncome)}</td>
-                    <td className="px-4 py-3 font-black text-emerald-400">{kr(row.restaurantPayout)}</td>
                   </tr>
                 );
               })}
-
-              {/* Totals row */}
               <tr className="bg-gold-500/5 border-t-2 border-gold-500/20">
-                <td className="px-4 py-3 font-black text-[var(--text-primary)] uppercase" colSpan={2}>TOTALT</td>
-                <td className="px-4 py-3 font-black text-blue-400">{totals.orders}</td>
-                <td className="px-4 py-3 font-black text-[var(--text-primary)]">{kr(totals.revenue)}</td>
-                <td className="px-4 py-3 font-black text-purple-400">{kr(totals.subscriptions)}</td>
-                <td className="px-4 py-3 font-black text-gold-500">{kr(totals.commission)}</td>
-                <td className="px-4 py-3 font-black text-gold-500">{kr(totals.platformTotal)}</td>
-                <td className="px-4 py-3 font-black text-emerald-400">{kr(totals.payout)}</td>
+                <td className="px-4 py-3 font-black text-[var(--text-primary)] uppercase">TOTALT</td>
+                <td className="px-4 py-3 text-right font-black text-[var(--text-primary)]">{kr(totals.sales)}</td>
+                <td className="px-4 py-3 text-right font-black text-gold-500">-{kr(totals.commission)}</td>
+                <td className="px-4 py-3 text-right font-black text-purple-400">-{kr(totals.subscription)}</td>
+                <td className="px-4 py-3 text-right font-black text-emerald-400">+{kr(totals.adjustments)}</td>
+                <td className="px-4 py-3 text-right font-black text-emerald-400">{kr(totals.payout)}</td>
+                <td colSpan={2}></td>
               </tr>
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Per-restaurant detail cards */}
-      <div className="space-y-4">
-        <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Detaljerad per restaurang</h2>
-        {rows.map((row) => (
-          <RestaurantDetailCard key={row.restaurant.id} row={row} period={period} />
-        ))}
-      </div>
+      {/* Bank Modal */}
+      <Modal open={showBankModal} onClose={() => setShowBankModal(false)} title="Bankuppgifter">
+        {selectedRestaurant && payouts[selectedRestaurant] && (
+          <BankInfoForm 
+            restaurant={payouts[selectedRestaurant].restaurant} 
+            initialData={payouts[selectedRestaurant].bankInfo}
+            onSave={(data) => saveBankInfo(selectedRestaurant, data)}
+            onCancel={() => setShowBankModal(false)}
+          />
+        )}
+      </Modal>
+
+      {/* Adjustment Modal */}
+      <Modal open={showPayoutModal} onClose={() => setShowPayoutModal(false)} title="Justera utbetalning">
+        {selectedRestaurant && payouts[selectedRestaurant] && (
+          <AdjustmentForm 
+            restaurant={payouts[selectedRestaurant].restaurant}
+            initialAdjustments={payouts[selectedRestaurant].adjustments}
+            onSave={(adjustments) => {
+              updateAdjustment(selectedRestaurant, adjustments);
+              setShowPayoutModal(false);
+              success("Justering sparad");
+            }}
+            onCancel={() => setShowPayoutModal(false)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }
 
-// ── Per-restaurant collapsible card ──────────────────────────────────────────
-function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [sending, setSending] = useState(false);
-  const { success, error: toastError } = useToast();
+function BankInfoForm({ restaurant, initialData, onSave, onCancel }: {
+  restaurant: any;
+  initialData?: RestaurantPayout["bankInfo"];
+  onSave: (data: RestaurantPayout["bankInfo"]) => void;
+  onCancel: () => void;
+}) {
+  const [bankName, setBankName] = useState(initialData?.bankName || "");
+  const [accountNumber, setAccountNumber] = useState(initialData?.accountNumber || "");
+  const [clearingNumber, setClearingNumber] = useState(initialData?.clearingNumber || "");
+  const [giro, setGiro] = useState(initialData?.giro || "");
 
-  const Icon = row.tier?.icon ?? Award;
-  const report = row.report;
-
-  const kr = (n: number) => `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
-
-  const generateOCR = (restaurantId: string, amount: number) => {
-    const base = `${restaurantId}${Date.now()}`.replace(/-/g, "").slice(0, 19);
-    const checksum = base.split("").reduce((s, d, i) => s + parseInt(d) * (i % 2 === 0 ? 2 : 1), 0) % 10;
-    return `${base}${checksum}`;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave({ bankName, accountNumber, clearingNumber, giro });
   };
 
-  const invoiceNumber = () => `MG-${Date.now().toString(36).toUpperCase()}`;
-
-  const exportRestaurantPDF = () => {
-    if (typeof window === "undefined") return;
-    const doc = new jsPDF();
-    const invNum = invoiceNumber();
-    const ocrRef = generateOCR(row.restaurant.id, row.totalPlatformIncome);
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    
-    // Företagsuppgifter - Header
-    doc.setFillColor(231, 178, 75);
-    doc.rect(0, 0, 210, 45, "F");
-    
-    doc.setTextColor(13, 13, 13);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.text("MatGo AB", 14, 22);
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text("Org. nr: 559123-4567", 14, 30);
-    doc.text("BankGiro: 5050-7854", 14, 36);
-    
-    // faktura uppgifter right side
-    doc.setTextColor(13, 13, 13);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(28);
-    doc.text("FAKTURA", 196, 18, { align: "right" });
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Fakturanr: ${invNum}`, 196, 26, { align: "right" });
-    doc.text(`OCR: ${ocrRef}`, 196, 32, { align: "right" });
-    doc.text(`Datum: ${new Date().toLocaleDateString("sv-SE")}`, 196, 38, { align: "right" });
-    doc.text(`Förfallodatum: ${dueDate.toLocaleDateString("sv-SE")}`, 196, 44, { align: "right" });
-
-    // Mottagare / Faktureringsuppgifter
-    let y = 60;
-    doc.setTextColor(30, 30, 30);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("FAKTURAMOTTAGARE", 14, y);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    y += 8;
-    doc.text(row.restaurant.name.toUpperCase(), 14, y);
-    y += 6;
-    doc.text(row.restaurant.address || "Adress saknas", 14, y);
-    y += 6;
-    doc.text(`${row.restaurant.zip || ""} ${row.restaurant.city || "Sverige"}`.trim(), 14, y);
-    y += 6;
-    if (row.restaurant.invoiceEmail) {
-      doc.text(`E-post: ${row.restaurant.invoiceEmail}`, 14, y);
-    }
-
-    // Period
-    y += 14;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text(`Period: ${period.from} - ${period.to} (${row.periodDays} dagar)`, 14, y);
-    doc.text(`Tier: ${row.tier?.label || "Standard"}`, 80, y);
-
-    // Items table
-    y += 15;
-    autoTable(doc, {
-      startY: y,
-      head: [["Beskrivning", "Antal/Period", "Pris"]],
-      body: [
-        ["Plattformsprovision", `${row.tierCfg.commissionPct}% på ${kr(row.totalRevenue)}`, `-${kr(row.commission)}`],
-        ["Månadsavgift", `${row.periodDays} dagar av ${row.tierCfg.subscriptionFee} kr/mån`, `-${kr(row.proratedSubscription)}`],
-      ],
-      headStyles: { fillColor: [231, 178, 75], textColor: [13, 13, 13], fontStyle: "bold", fontSize: 10 },
-      styles: { font: "helvetica", fontSize: 10 },
-      columnStyles: { 2: { halign: "right", fontStyle: "bold" } }
-    });
-
-    const tableY = (doc as any).lastAutoTable.finalY + 10;
-    
-    // Summa box
-    doc.setFillColor(245, 245, 245);
-    doc.rect(120, tableY, 76, 25, "F");
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("ATT BETALA", 125, tableY + 10);
-    doc.setTextColor(34, 197, 94);
-    doc.setFontSize(16);
-    doc.text(kr(row.totalPlatformIncome), 125, tableY + 20);
-    
-    // BankGiro info
-    doc.setTextColor(100, 100, 100);
-    doc.setFontSize(8);
-    doc.text("BankGiro: 5050-7854", 14, tableY + 10);
-    doc.text("Swish: 123 456 789 0", 14, tableY + 16);
-    doc.text("OCR: " + ocrRef, 14, tableY + 22);
-
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.setFont("helvetica", "italic");
-    doc.text("MatGo AB - Strandvägen 8, 114 56 Stockholm - info@matgo.se - www.matgo.se", 14, 280);
-    doc.text("Betalning ska ske inom 30 dagar. Vid förfallodag tillkommer dröjsmålsränta.", 14, 286);
-
-    doc.save(`${row.restaurant.slug}_faktura_${invNum}.pdf`);
-  };
-
-  const sendReport = async () => {
-    if (!email || !email.includes("@")) {
-      toastError("Ange en giltig e-postadress");
-      return;
-    }
-    setSending(true);
-    try {
-      const token = localStorage.getItem("matgo_token") || "";
-      await axios.post(`${API_URL}/api/admin/reports/restaurant/${row.restaurant.id}/send`, {
-        email,
-        period: `${period.from} - ${period.to}`
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      success(`Rapport skickad till ${email}`);
-      setEmail("");
-    } catch {
-      toastError("Kunde inte skicka rapport");
-    } finally {
-      setSending(false);
-    }
-  };
+  const inputCls = "bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 w-full";
 
   return (
-    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] overflow-hidden">
-      <button onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between p-4 hover:bg-[var(--bg-primary)] transition-colors">
-        <div className="flex items-center gap-3">
-          <span className={`flex items-center gap-1 px-2 py-1 rounded-lg ${row.tier?.bg ?? ""} ${row.tier?.color ?? ""} text-[8px] font-black uppercase`}>
-            <Icon size={10} /> {row.tier?.label ?? "Standard"}
-          </span>
-          <span className="font-black uppercase text-[var(--text-primary)]">{row.restaurant.name}</span>
-          <span className="text-[9px] text-[var(--text-secondary)]">{row.totalOrders} ordrar · {kr(row.totalRevenue)}</span>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Bank</label>
+        <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="t.ex. Swedbank, SEB" className={inputCls} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Clearingnr</label>
+          <input value={clearingNumber} onChange={(e) => setClearingNumber(e.target.value)} placeholder="t.ex. 8300" className={inputCls} />
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[9px] font-black text-gold-500">Platform: {kr(row.totalPlatformIncome)}</span>
-          <span className="text-[9px] font-black text-emerald-400">Rest.: {kr(row.restaurantPayout)}</span>
-          <ChevronDown size={16} className={`text-[var(--text-secondary)] transition-transform ${open ? "rotate-180" : ""}`} />
+        <div>
+          <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Kontonr</label>
+          <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="t.ex. 1234567890" className={inputCls} />
         </div>
+      </div>
+      <div>
+        <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">BankGiro (valfritt)</label>
+        <input value={giro} onChange={(e) => setGiro(e.target.value)} placeholder="t.ex. 5050-1234" className={inputCls} />
+      </div>
+      <div className="flex gap-2 pt-4">
+        <button type="button" onClick={onCancel} className="flex-1 py-3 border border-[var(--border-subtle)] rounded-xl font-black uppercase">Avbryt</button>
+        <button type="submit" className="flex-1 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase">Spara</button>
+      </div>
+    </form>
+  );
+}
+
+function AdjustmentForm({ restaurant, initialAdjustments, onSave, onCancel }: {
+  restaurant: any;
+  initialAdjustments: PayoutAdjustment[];
+  onSave: (adjustments: PayoutAdjustment[]) => void;
+  onCancel: () => void;
+}) {
+  const [adjustments, setAdjustments] = useState<PayoutAdjustment[]>(
+    initialAdjustments.length > 0 ? initialAdjustments : [{ id: crypto.randomUUID(), type: "discount", label: "", amount: 0 }]
+  );
+
+  const addAdjustment = () => {
+    setAdjustments([...adjustments, { id: crypto.randomUUID(), type: "discount", label: "", amount: 0 }]);
+  };
+
+  const removeAdjustment = (id: string) => {
+    setAdjustments(adjustments.filter((a) => a.id !== id));
+  };
+
+  const updateAdjustment = (id: string, field: keyof PayoutAdjustment, value: any) => {
+    setAdjustments(adjustments.map((a) => a.id === id ? { ...a, [field]: value } : a));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const filtered = adjustments.filter((a) => a.label && a.amount !== 0);
+    onSave(filtered);
+  };
+
+  const inputCls = "bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 w-full";
+  const selectCls = "bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <p className="text-[10px] text-[var(--text-secondary)]">{restaurant.name}</p>
+      
+      {adjustments.map((adj, idx) => (
+        <div key={adj.id} className="flex gap-2 items-start">
+          <select 
+            value={adj.type} 
+            onChange={(e) => updateAdjustment(adj.id, "type", e.target.value)}
+            className={selectCls}>
+            <option value="discount">Rabatt</option>
+            <option value="extra_service">Extra tjänst</option>
+            <option value="product">Extra produkt</option>
+          </select>
+          <input 
+            value={adj.label} 
+            onChange={(e) => updateAdjustment(adj.id, "label", e.target.value)}
+            placeholder="Beskrivning"
+            className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30"
+          />
+          <input 
+            type="number"
+            value={adj.amount} 
+            onChange={(e) => updateAdjustment(adj.id, "amount", Number(e.target.value))}
+            placeholder="Belopp"
+            className="w-28 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30"
+          />
+          <button type="button" onClick={() => removeAdjustment(adj.id)} className="p-3 text-red-400 hover:text-red-300">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ))}
+
+      <button type="button" onClick={addAdjustment} className="flex items-center gap-2 text-gold-500 text-[10px] font-black uppercase">
+        <Plus size={12} /> Lägg till justering
       </button>
 
-      {open && (
-        <div className="px-4 pb-4 space-y-4 border-t border-[var(--border-subtle)]">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-4">
-            {[
-              { label: "Ordrar", value: row.totalOrders, color: "text-blue-400" },
-              { label: "Omsättning", value: kr(row.totalRevenue), color: "text-[var(--text-primary)]" },
-              { label: "Nya kunder", value: report?.summary?.newCustomers ?? "—", color: "text-purple-400" },
-              { label: "Snitt-order", value: kr(report?.summary?.avgOrderValue ?? 0), color: "text-[var(--text-secondary)]" },
-              { label: "Leverans-ordrar", value: report?.summary?.deliveryOrders ?? 0, color: "text-sky-400" },
-              { label: "Avhämtning", value: report?.summary?.pickupOrders ?? 0, color: "text-sky-400" },
-            ].map((s) => (
-              <div key={s.label} className="p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
-                <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</p>
-                <p className={`text-sm font-black ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* Billing breakdown */}
-          <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] space-y-2">
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Fakturering</p>
-            {[
-              { label: `Prenumerationsavgift (${row.periodDays} dagar av ${row.tierCfg.subscriptionFee} kr/mån)`, value: kr(row.proratedSubscription), color: "text-purple-400" },
-              { label: `Provision ${row.tierCfg.commissionPct}% × ${kr(row.totalRevenue)}`, value: kr(row.commission), color: "text-gold-500" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between">
-                <span className="text-[9px] text-[var(--text-secondary)]">{item.label}</span>
-                <span className={`text-[10px] font-black ${item.color}`}>{item.value}</span>
-              </div>
-            ))}
-            <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between">
-              <span className="text-[10px] font-black text-[var(--text-primary)]">Plattformens intäkt</span>
-              <span className="text-sm font-black text-gold-500">{kr(row.totalPlatformIncome)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black text-[var(--text-primary)]">Restaurangens utbetalning</span>
-              <span className="text-sm font-black text-emerald-400">{kr(row.restaurantPayout)}</span>
-            </div>
-          </div>
-
-          {/* Top products */}
-          {report?.topProducts?.length > 0 && (
-            <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
-              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Toppsäljare</p>
-              <div className="space-y-2">
-                {report.topProducts.slice(0, 5).map((p: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-lg bg-gold-500/10 text-gold-500 text-[8px] font-black flex items-center justify-center">{i + 1}</span>
-                      <span className="text-[9px] font-bold text-[var(--text-primary)]">{p.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[9px] font-black text-gold-500">{kr(p.revenue)}</span>
-                      <span className="text-[8px] text-[var(--text-secondary)] ml-2">{p.count}st</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="pt-4 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-4">
-            <button onClick={exportRestaurantPDF}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
-              <FileText size={13} /> Exportera (.txt)
-            </button>
-            <div className="flex items-center gap-2 flex-wrap">
-              <input 
-                type="email"
-                placeholder="ange@epost.se" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30 transition-all placeholder:opacity-30"
-              />
-              <button 
-                onClick={sendReport}
-                disabled={sending}
-                className="flex items-center gap-2 px-4 py-2 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all disabled:opacity-50"
-              >
-                {sending ? <Loader2 size={12} className="animate-spin" /> : "Skicka Rapport"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <div className="flex gap-2 pt-4">
+        <button type="button" onClick={onCancel} className="flex-1 py-3 border border-[var(--border-subtle)] rounded-xl font-black uppercase">Avbryt</button>
+        <button type="submit" className="flex-1 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase">Spara</button>
+      </div>
+    </form>
   );
 }
