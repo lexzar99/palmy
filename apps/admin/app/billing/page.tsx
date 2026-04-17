@@ -7,6 +7,7 @@ import {
   Crown, Medal, Award, Calculator, Download, Loader2,
   TrendingUp, ShoppingCart, CreditCard, RefreshCw, ChevronDown,
   FileText, Calendar, Settings, Store, Check, Search,
+  Mail, Clock, CheckCircle, XCircle, History, AlarmClock,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import jsPDF from "jspdf";
@@ -77,6 +78,14 @@ export default function BillingPage() {
   const [showConfig, setShowConfig] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [tierFilter, setTierFilter] = useState<number | "all">("all");
+  const [showHistory, setShowHistory] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [scheduleConfig, setScheduleConfig] = useState({
+    frequency: "monthly",
+    dayOfMonth: 1,
+    autoSend: false,
+  });
 
   const period = useCustom ? { from: customFrom, to: customTo } : PERIODS[selectedPeriodIndex];
   const token = () => localStorage.getItem("matgo_token") || "";
@@ -88,6 +97,36 @@ export default function BillingPage() {
       if (raw) setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(raw) });
     } catch { /* ignore */ }
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("matgo_billing_schedule");
+      if (raw) setScheduleConfig(JSON.parse(raw));
+    } catch {}
+  }, []);
+
+  // Load invoice history
+  useEffect(() => {
+    if (!showHistory) return;
+    const fetchHistory = async () => {
+      try {
+        const token = localStorage.getItem("matgo_token") || "";
+        const res = await axios.get(`${API_URL}/api/admin/invoices`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setInvoices(res.data);
+      } catch { setInvoices([]); }
+    };
+    fetchHistory();
+  }, [showHistory]);
+
+  const saveSchedule = () => {
+    localStorage.setItem("matgo_billing_schedule", JSON.stringify(scheduleConfig));
+    axios.post(`${API_URL}/api/admin/schedule/billing`, scheduleConfig, {
+      headers: { Authorization: `Bearer ${localStorage.getItem("matgo_token")}` },
+    }).catch(() => {});
+    setShowScheduler(false);
+  };
 
   const saveConfig = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(config));
@@ -249,6 +288,14 @@ export default function BillingPage() {
             className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-emerald-500/20 transition-all">
             <RefreshCw size={13} /> Skicka till alla
           </button>
+          <button onClick={() => setShowHistory(!showHistory)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showHistory ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+            <History size={13} /> Fakturahistorik
+          </button>
+          <button onClick={() => setShowScheduler(!showScheduler)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showScheduler ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+            <AlarmClock size={13} /> Schemalägg
+          </button>
         </div>
       </div>
 
@@ -286,6 +333,123 @@ export default function BillingPage() {
           </div>
           <p className="text-[8px] text-[var(--text-secondary)] mt-3 font-bold">
             Månadsavgiften fördelas proportionellt om perioden är kortare/längre än 30 dagar.
+          </p>
+        </motion.div>
+      )}
+
+      {showHistory && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">Fakturahistorik</h2>
+            <button onClick={() => setShowHistory(false)}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+              <XCircle size={16} />
+            </button>
+          </div>
+          {invoices.length === 0 ? (
+            <p className="text-[10px] text-[var(--text-secondary)]">Inga fakturor hittades.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+              <table className="w-full text-[10px] font-bold">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-primary)]">
+                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Faktura #</th>
+                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Restaurang</th>
+                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Datum</th>
+                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Period</th>
+                    <th className="px-3 py-2 text-right text-[8px] font-black uppercase text-[var(--text-secondary)]">Belopp</th>
+                    <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Status</th>
+                    <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Åtgärder</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((inv: any) => (
+                    <tr key={inv.id} className="border-b border-[var(--border-subtle)]">
+                      <td className="px-3 py-2 font-black text-gold-500">{inv.invoiceNumber}</td>
+                      <td className="px-3 py-2">{inv.restaurantName}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{inv.date}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{inv.period}</td>
+                      <td className="px-3 py-2 text-right font-black">{kr(inv.amount)}</td>
+                      <td className="px-3 py-2">
+                        <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase w-fit ${
+                          inv.status === "paid" ? "bg-emerald-500/10 text-emerald-400" :
+                          inv.status === "sent" ? "bg-blue-500/10 text-blue-400" :
+                          inv.status === "overdue" ? "bg-red-500/10 text-red-400" :
+                          "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
+                        }`}>
+                          {inv.status === "paid" && <CheckCircle size={10} />}
+                          {inv.status === "sent" && <Clock size={10} />}
+                          {inv.status === "overdue" && <XCircle size={10} />}
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <button className="text-gold-500 hover:text-gold-400 mr-2" title="Ladda ner PDF">
+                          <Download size={12} />
+                        </button>
+                        <button className="text-blue-400 hover:text-blue-300" title="Skicka igen">
+                          <Mail size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {showScheduler && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="p-5 rounded-2xl border border-gold-500/20 bg-gold-500/5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-gold-500">Automatisk fakturering</h2>
+            <button onClick={() => setShowScheduler(false)}
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+              <XCircle size={16} />
+            </button>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Frekvens</label>
+              <select 
+                value={scheduleConfig.frequency}
+                onChange={(e) => setScheduleConfig((p) => ({ ...p, frequency: e.target.value }))}
+                className={inputCls}>
+                <option value="monthly">Månadsvis</option>
+                <option value="weekly">Veckovis</option>
+                <option value="quarterly">Kvartalsvis</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Dag i månad (1-28)</label>
+              <input 
+                type="number" min={1} max={28}
+                value={scheduleConfig.dayOfMonth}
+                onChange={(e) => setScheduleConfig((p) => ({ ...p, dayOfMonth: Number(e.target.value) }))}
+                className={inputCls} />
+            </div>
+            <div className="flex items-center gap-2">
+              <input 
+                type="checkbox" id="autoSend"
+                checked={scheduleConfig.autoSend}
+                onChange={(e) => setScheduleConfig((p) => ({ ...p, autoSend: e.target.checked }))}
+                className="w-4 h-4" />
+              <label htmlFor="autoSend" className="text-[9px] font-bold text-[var(--text-primary)]">
+                Skicka automatiskt via e-post
+              </label>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button onClick={saveSchedule}
+              className="flex items-center gap-1.5 px-4 py-2 bg-gold-500 text-[#0d0d0d] rounded-xl text-[9px] font-black uppercase">
+              <Check size={12} /> Spara schema
+            </button>
+          </div>
+          <p className="text-[8px] text-[var(--text-secondary)] mt-3 font-bold">
+            Faktureringsperioden beräknas automatiskt baserat på frekvens.
           </p>
         </motion.div>
       )}
@@ -461,101 +625,118 @@ function RestaurantDetailCard({ row, period }: { row: any; period: any }) {
 
   const kr = (n: number) => `${n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
 
+  const generateOCR = (restaurantId: string, amount: number) => {
+    const base = `${restaurantId}${Date.now()}`.replace(/-/g, "").slice(0, 19);
+    const checksum = base.split("").reduce((s, d, i) => s + parseInt(d) * (i % 2 === 0 ? 2 : 1), 0) % 10;
+    return `${base}${checksum}`;
+  };
+
+  const invoiceNumber = () => `MG-${Date.now().toString(36).toUpperCase()}`;
+
   const exportRestaurantPDF = () => {
     if (typeof window === "undefined") return;
     const doc = new jsPDF();
+    const invNum = invoiceNumber();
+    const ocrRef = generateOCR(row.restaurant.id, row.totalPlatformIncome);
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 30);
     
-    // Header & Logo simulation
-    doc.setFillColor(13, 13, 13);
-    doc.rect(0, 0, 210, 40, "F");
+    // Företagsuppgifter - Header
+    doc.setFillColor(231, 178, 75);
+    doc.rect(0, 0, 210, 45, "F");
     
-    doc.setTextColor(231, 178, 75); // Gold
+    doc.setTextColor(13, 13, 13);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("MatGo AB", 14, 22);
+    
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("Org. nr: 559123-4567", 14, 30);
+    doc.text("BankGiro: 5050-7854", 14, 36);
+    
+    // faktura uppgifter right side
+    doc.setTextColor(13, 13, 13);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(28);
-    doc.text("MatGo", 14, 25);
+    doc.text("FAKTURA", 196, 18, { align: "right" });
     
-    doc.setTextColor(255, 255, 255);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("UTBETALNINGSUNDERLAG / SJÄLVFAKTURA", 14, 32);
-    
-    // Right side header info
-    doc.text([
-      `Datum: ${new Date().toLocaleDateString("sv-SE")}`,
-      `Period: ${period.from} till ${period.to}`
-    ], 196, 20, { align: "right" });
+    doc.text(`Fakturanr: ${invNum}`, 196, 26, { align: "right" });
+    doc.text(`OCR: ${ocrRef}`, 196, 32, { align: "right" });
+    doc.text(`Datum: ${new Date().toLocaleDateString("sv-SE")}`, 196, 38, { align: "right" });
+    doc.text(`Förfallodatum: ${dueDate.toLocaleDateString("sv-SE")}`, 196, 44, { align: "right" });
 
-    // Business Info
+    // Mottagare / Faktureringsuppgifter
+    let y = 60;
     doc.setTextColor(30, 30, 30);
-    doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
-    doc.text("RESTAURANG", 14, 55);
+    doc.setFontSize(11);
+    doc.text("FAKTURAMOTTAGARE", 14, y);
     
-    doc.setFontSize(18);
-    doc.text(row.restaurant.name.toUpperCase(), 14, 65);
-    
-    doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text([
-      `Stad: ${row.restaurant.city || "Sverige"}`,
-      `Partner-tier: ${row.tier?.label || "Standard"}`,
-      `Dagar i perioden: ${row.periodDays} st`
-    ], 14, 72);
+    doc.setFontSize(10);
+    y += 8;
+    doc.text(row.restaurant.name.toUpperCase(), 14, y);
+    y += 6;
+    doc.text(row.restaurant.address || "Adress saknas", 14, y);
+    y += 6;
+    doc.text(`${row.restaurant.zip || ""} ${row.restaurant.city || "Sverige"}`.trim(), 14, y);
+    y += 6;
+    if (row.restaurant.invoiceEmail) {
+      doc.text(`E-post: ${row.restaurant.invoiceEmail}`, 14, y);
+    }
 
-    // Summary Table
+    // Period
+    y += 14;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(`Period: ${period.from} - ${period.to} (${row.periodDays} dagar)`, 14, y);
+    doc.text(`Tier: ${row.tier?.label || "Standard"}`, 80, y);
+
+    // Items table
+    y += 15;
     autoTable(doc, {
-      startY: 90,
-      head: [["BERÄKNINGSGRUND", "DETALJER", "SUMMA"]],
+      startY: y,
+      head: [["Beskrivning", "Antal/Period", "Pris"]],
       body: [
-        ["Total försäljning", `${row.totalOrders} st genomförda ordrar`, kr(row.totalRevenue)],
-        ["Plattformsavgift", `Provision (${row.tierCfg.commissionPct}%) på försäljning`, `-${kr(row.commission)}`],
-        ["Fast månadsavgift", `Prorata för perioden (${row.periodDays} dgr)`, `-${kr(row.proratedSubscription)}`],
+        ["Plattformsprovision", `${row.tierCfg.commissionPct}% på ${kr(row.totalRevenue)}`, `-${kr(row.commission)}`],
+        ["Månadsavgift", `${row.periodDays} dagar av ${row.tierCfg.subscriptionFee} kr/mån`, `-${kr(row.proratedSubscription)}`],
       ],
-      headStyles: { fillColor: [13, 13, 13], textColor: [231, 178, 75], fontStyle: "bold" },
+      headStyles: { fillColor: [231, 178, 75], textColor: [13, 13, 13], fontStyle: "bold", fontSize: 10 },
       styles: { font: "helvetica", fontSize: 10 },
       columnStyles: { 2: { halign: "right", fontStyle: "bold" } }
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Total Box
-    doc.setFillColor(231, 178, 75, 0.1);
-    doc.rect(120, finalY, 76, 30, "F");
+    const tableY = (doc as any).lastAutoTable.finalY + 10;
     
-    doc.setTextColor(30, 30, 30);
+    // Summa box
+    doc.setFillColor(245, 245, 245);
+    doc.rect(120, tableY, 76, 25, "F");
+    
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("TOTAL UTBETALNING", 125, finalY + 12);
+    doc.setFontSize(9);
+    doc.text("ATT BETALA", 125, tableY + 10);
+    doc.setTextColor(34, 197, 94);
+    doc.setFontSize(16);
+    doc.text(kr(row.totalPlatformIncome), 125, tableY + 20);
     
-    doc.setFontSize(18);
-    doc.setTextColor(34, 197, 94); // Emerald
-    doc.text(kr(row.restaurantPayout), 125, finalY + 22);
-
-    // Product insights (small table)
-    if (report?.topProducts?.length > 0) {
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text("TOPPSÄLJANDE PRODUKTER", 14, finalY + 12);
-      
-      autoTable(doc, {
-        startY: finalY + 15,
-        margin: { right: 100 },
-        head: [["Produkt", "Antal", "Omsättning"]],
-        body: report.topProducts.slice(0, 5).map((p: any) => [p.name, p.count, kr(p.revenue)]),
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [100, 100, 100] }
-      });
-    }
+    // BankGiro info
+    doc.setTextColor(100, 100, 100);
+    doc.setFontSize(8);
+    doc.text("BankGiro: 5050-7854", 14, tableY + 10);
+    doc.text("Swish: 123 456 789 0", 14, tableY + 16);
+    doc.text("OCR: " + ocrRef, 14, tableY + 22);
 
     // Footer
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.setFont("helvetica", "italic");
-    doc.text("Detta dokument fungerar som underlag för utbetalning. Utbetalning sker normalt inom 3-5 bankdagar efter periodens slut.", 14, 285);
+    doc.text("MatGo AB - Strandvägen 8, 114 56 Stockholm - info@matgo.se - www.matgo.se", 14, 280);
+    doc.text("Betalning ska ske inom 30 dagar. Vid förfallodag tillkommer dröjsmålsränta.", 14, 286);
 
-    doc.save(`${row.restaurant.slug}_billing_${period.from}.pdf`);
+    doc.save(`${row.restaurant.slug}_faktura_${invNum}.pdf`);
   };
 
   const sendReport = async () => {
