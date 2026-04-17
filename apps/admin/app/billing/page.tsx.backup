@@ -290,14 +290,13 @@ export default function BillingPage() {
       if (payout.bankInfo.giro) doc.text(`BankGiro: ${payout.bankInfo.giro}`, 80, y + 38);
     }
 
-    const commissionPct = 10;
     const tableBody = [
       ["Total sales", payout.totalOrders + " orders", krNum(payout.totalSales) + " kr"],
-      ["Provision", commissionPct + "%", "-" + krNum(payout.commission) + " kr"],
+      ["Provision", (config[TIER_META[payout.restaurant.featuredClass ?? 3]?.key || "standard").commissionPct + "%", "-" + krNum(payout.commission) + " kr"],
       ["Monthly fee", payout.period.to, "-" + krNum(payout.subscription) + " kr"],
     ];
     if (adjustmentTotal !== 0) {
-      tableBody.push(["Adjustments", "Adjustments", "+" + krNum(adjustmentTotal) + " kr"]);
+      tableBody.push(["Adjustments", payout.adjustments.map(a => a.label).join(", "), "+" + krNum(adjustmentTotal) + " kr"]);
     }
 
     y = 120;
