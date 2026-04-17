@@ -7,10 +7,8 @@ import {
   TrendingUp, ShoppingCart, CreditCard, RefreshCw, ChevronDown,
   FileText, Calendar, Settings, Store, Check, Search,
   Clock, CheckCircle, XCircle, Banknote, Plus, Minus, Edit2,
-  Trash2, Send, DollarSign, ArrowUpRight, Receipt,
+  Trash2, Send, DollarSign, ArrowUpRight,
 } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_URL } from "@/lib/api";
 import { useToast } from "@/components/Toast";
@@ -234,125 +232,6 @@ export default function BillingPage() {
     success("Utbetalning markerad som betald");
   };
 
-  const generatePayoutPDF = (restaurantId: string) => {
-    const payout = payouts[restaurantId];
-    if (!payout) return;
-    if (typeof window === "undefined") return;
-
-    const doc = new jsPDF();
-    const krNum = (n: number) => n.toLocaleString("sv-SE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const todayStr = new Date().toLocaleDateString("sv-SE");
-    const tierLabel = TIER_META[payout.restaurant.featuredClass ?? 3]?.label || "Standard";
-    const adjustmentTotal = payout.adjustments.reduce((s, a) => s + a.amount, 0);
-
-    // Premium header
-    doc.setFillColor(13, 13, 13);
-    doc.rect(0, 0, 210, 50, "F");
-    
-    doc.setTextColor(231, 178, 75);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(32);
-    doc.text("MatGo", 14, 30);
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("UTRÄCKNINGSUNDERLAG", 14, 42);
-    
-    doc.setFontSize(12);
-    doc.text(`Period: ${payout.period.from} — ${payout.period.to}`, 196, 30, { align: "right" });
-    doc.setFontSize(10);
-    doc.text(`Utfärdat: ${todayStr}`, 196, 38, { align: "right" });
-    doc.setFontSize(9);
-    doc.text(`Status: ${payout.status.toUpperCase()}`, 196, 45, { align: "right" });
-
-    // Restaurant info
-    let y = 65;
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("RESTAURANG", 14, y);
-    
-    doc.setFontSize(16);
-    doc.text(payout.restaurant.name.toUpperCase(), 14, y + 10);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100, 100, 100);
-    doc.text(`${payout.restaurant.city || "Sverige"}`.replace(/å/g,"a").replace(/ä/g,"a").replace(/ö/g,"o"), 14, y + 18);
-    doc.text(`Tier: ${tierLabel}`, 14, y + 24);
-    
-    if (payout.bankInfo) {
-      doc.setTextColor(80, 80, 80);
-      if (payout.bankInfo.bankName) doc.text(`Bank: ${payout.bankInfo.bankName}`, 14, y + 32);
-      if (payout.bankInfo.clearingNumber) doc.text(`Clearing: ${payout.bankInfo.clearingNumber}`, 80, y + 32);
-      if (payout.bankInfo.accountNumber) doc.text(`Konto: ${payout.bankInfo.accountNumber}`, 14, y + 38);
-      if (payout.bankInfo.giro) doc.text(`BankGiro: ${payout.bankInfo.giro}`, 80, y + 38);
-    }
-
-    const commissionPct = 10;
-    const tableBody = [
-      ["Total sales", payout.totalOrders + " orders", krNum(payout.totalSales) + " kr"],
-      ["Provision", commissionPct + "%", "-" + krNum(payout.commission) + " kr"],
-      ["Monthly fee", payout.period.to, "-" + krNum(payout.subscription) + " kr"],
-    ];
-    if (adjustmentTotal !== 0) {
-      tableBody.push(["Adjustments", "Adjustments", "+" + krNum(adjustmentTotal) + " kr"]);
-    }
-
-    y = 120;
-    autoTable(doc, {
-      startY: y,
-      head: [["ITEM", "DETAILS", "AMOUNT"]],
-      body: tableBody,
-      headStyles: { fillColor: [245, 245, 245], textColor: [60, 60, 60], fontStyle: "bold", fontSize: 10 },
-      styles: { fontSize: 10, cellPadding: 4 },
-      columnStyles: { 
-        0: { fontStyle: "bold", cellWidth: 50 },
-        1: { cellWidth: 100 },
-        2: { halign: "right", fontStyle: "bold" }
-      }
-    });
-
-    const tableY = (doc as any).lastAutoTable.finalY + 10;
-    
-    // Total payout box - premium design
-    doc.setFillColor(231, 178, 75, 0.15);
-    doc.roundedRect(120, tableY, 76, 40, 3, 3, "F");
-    
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(10);
-    doc.text("ATT BETALA", 130, tableY + 15);
-    
-    doc.setTextColor(34, 197, 94);
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text(krNum(payout.finalPayout) + " kr", 130, tableY + 30);
-    
-    // Bank info box
-    doc.setFillColor(245, 245, 245);
-    doc.roundedRect(14, tableY, 90, 25, 2, 2, "F");
-    doc.setTextColor(80, 80, 80);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    if (payout.bankInfo?.bankName) {
-      doc.text(`Bank: ${payout.bankInfo.bankName}`, 18, tableY + 8);
-      doc.text(`Clearing: ${payout.bankInfo.clearingNumber || "—"}`, 18, tableY + 14);
-      doc.text(`Konto: ${payout.bankInfo.accountNumber || "—"}`, 18, tableY + 20);
-    } else {
-      doc.text("Ingen bankuppgift registrerad", 18, tableY + 10);
-    }
-
-    // Footer
-    doc.setTextColor(150, 150, 150);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "italic");
-    doc.text("MatGo AB - Org. nr: 559123-4567 - BankGiro: 5050-7854 - info@matgo.se", 105, 280, { align: "center" });
-    doc.text("Utbetalning sker inom 5 bankdagar efter godkännande.", 105, 286, { align: "center" });
-
-    doc.save(`${payout.restaurant.slug}_utbetalning_${payout.period.from}.pdf`);
-  };
-
   const inputCls = "bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-gold-500/30 w-full";
 
   return (
@@ -516,10 +395,6 @@ export default function BillingPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => generatePayoutPDF(p.restaurant.id)}
-                          className="p-2 rounded-lg hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-gold-500" title="Ladda ner PDF">
-                          <Receipt size={12} />
-                        </button>
                         <button onClick={() => { setSelectedRestaurant(p.restaurant.id); setShowPayoutModal(true); }}
                           className="p-2 rounded-lg hover:bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-gold-500" title="Justera">
                           <Edit2 size={12} />

@@ -304,12 +304,7 @@ const Sidebar = () => {
     const initial: Record<string, boolean> = {};
     navGroups.forEach((group) => {
       const isGroupActive = group.links.some(
-        (link) =>
-          pathname === link.href ||
-          (link.href !== "/overview" &&
-            link.href !== "/" &&
-            link.href !== "/orders" &&
-            pathname.startsWith(link.href + "/"))
+        (link) => pathname === link.href
       );
       if (isGroupActive) {
         initial[group.label] = false; // false = not collapsed = open
@@ -324,12 +319,7 @@ const Sidebar = () => {
 
   const NavItem = ({ link }: { link: NavLink }) => {
     const Icon = link.icon;
-    const isActive =
-      pathname === link.href ||
-      (link.href !== "/overview" &&
-        link.href !== "/" &&
-        link.href !== "/orders" &&
-        pathname.startsWith(link.href + "/"));
+    const isActive = pathname === link.href;
     return (
       <Link
         href={link.href}
