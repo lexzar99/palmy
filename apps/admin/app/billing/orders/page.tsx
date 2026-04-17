@@ -53,7 +53,6 @@ interface RestaurantOrders {
 
 export default function OrderStatementsPage() {
   const { success, error: toastError } = useToast();
-  const [restaurants, setRestaurants] = useState<any[]>([]);
   const [restaurantOrders, setRestaurantOrders] = useState<Record<string, RestaurantOrders>>({});
   const [loading, setLoading] = useState(false);
   const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(0);
@@ -67,39 +66,39 @@ export default function OrderStatementsPage() {
   const period = useCustom ? { from: customFrom, to: customTo } : PERIODS[selectedPeriodIndex];
   const token = () => localStorage.getItem("matgo_token") || "";
 
-  useEffect(() => {
-    axios.get(`${API_URL}/api/restaurants`).then((r) => setRestaurants(r.data)).catch(() => {});
-  }, []);
-
   const fetchOrders = async () => {
-    if (restaurants.length === 0) return;
     setLoading(true);
     try {
-      const results = await Promise.allSettled(
-        restaurants.map((r) =>
-          axios.get(`${API_URL}/api/admin/orders/restaurant/${r.id}`, {
-            params: { from: period.from, to: period.to },
-            headers: { Authorization: `Bearer ${token()}` },
-          })
-        )
-      );
+      const token = localStorage.getItem("matgo_token") || "";
+      const res = await axios.get(`${API_URL}/api/admin/orders?limit=500`, {
+        params: { from: period.from, to: period.to },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      const allOrders: Order[] = (res.data.orders || res.data || []).map((o: any) => ({
+        id: o.id,
+        orderNumber: o.orderNumber || o.id?.slice(-6) || "N/A",
+        createdAt: o.createdAt || o.created_at || new Date().toISOString(),
+        totalAmount: o.totalAmount || o.total || 0,
+        status: o.status || "COMPLETED",
+        customerName: o.customerName || o.customer?.name || "Guest",
+        paymentMethod: o.paymentMethod || o.payment_method || "CARD",
+        isRefunded: o.isRefunded || o.refunded || false,
+        refundedAt: o.refundedAt || o.refunded_at,
+        restaurantId: o.restaurantId || o.restaurant_id,
+        restaurantName: o.restaurantName || o.restaurant?.name || "Unknown",
+      }));
+
       const map: Record<string, RestaurantOrders> = {};
-      results.forEach((res, i) => {
-        if (res.status === "fulfilled") {
-          const r = restaurants[i];
-          const orders: Order[] = (res.value.data.orders || res.value.data || []).map((o: any) => ({
-            id: o.id,
-            orderNumber: o.orderNumber || o.id?.slice(-6) || "N/A",
-            createdAt: o.createdAt || o.created_at || new Date().toISOString(),
-            totalAmount: o.totalAmount || o.totalAmount || o.total || 0,
-            status: o.status || "COMPLETED",
-            customerName: o.customerName || o.customer?.name || o.customerName || "Guest",
-            paymentMethod: o.paymentMethod || o.payment_method || "CARD",
-            isRefunded: o.isRefunded || o.refunded || false,
-            refundedAt: o.refundedAt || o.refunded_at,
-          }));
-          map[r.id] = { restaurant: r, orders };
+      allOrders.forEach((o) => {
+        const rId = o.restaurantId || "unknown";
+        if (!map[rId]) {
+          map[rId] = {
+            restaurant: { id: rId, name: o.restaurantName },
+            orders: []
+          };
         }
+        map[rId].orders.push(o);
       });
       setRestaurantOrders(map);
     } catch {
@@ -110,8 +109,8 @@ export default function OrderStatementsPage() {
   };
 
   useEffect(() => {
-    if (restaurants.length > 0) fetchOrders();
-  }, [restaurants, period.from, period.to]);
+    fetchOrders();
+  }, [period.from, period.to]);
 
   const filteredRestaurants = useMemo(() => {
     const data = Object.values(restaurantOrders);
