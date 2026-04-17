@@ -278,7 +278,8 @@ const Sidebar = () => {
       links: [
         { href: "/bi", label: "Business Intel.", icon: BarChart3 },
         { href: "/analytics", label: "Trafikanalys", icon: Globe },
-        { href: "/billing", label: "Fakturering & Prov.", icon: Calculator },
+        { href: "/billing", label: "Utbetalningar", icon: Calculator },
+        { href: "/billing/orders", label: "Order Statement", icon: FileText },
         { href: "/stats", label: "Statistik", icon: BarChart3 },
       ],
     },
