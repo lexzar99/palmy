@@ -34,6 +34,8 @@ const PERIODS = [
   { label: "Last 90 days", from: daysAgo(90), to: todayStr() },
 ];
 
+const PAID_STATUSES = ["ACCEPTED", "PREPARING", "READY", "DELIVERING", "DELIVERED"];
+
 interface Order {
   id: string;
   orderNumber: string;
@@ -45,6 +47,8 @@ interface Order {
   isRefunded: boolean;
   refundedAt?: string;
 }
+
+const isPaidOrder = (status: string) => PAID_STATUSES.includes(status);
 
 interface RestaurantOrders {
   restaurant: any;
@@ -127,6 +131,8 @@ export default function OrderStatementsPage() {
     let totalRefunded = 0;
     let totalOrders = 0;
     let refundedCount = 0;
+    let paidRevenue = 0;
+    let paidOrders = 0;
     filteredRestaurants.forEach((ro) => {
       ro.orders.forEach((o) => {
         totalOrders++;
@@ -135,20 +141,28 @@ export default function OrderStatementsPage() {
           totalRefunded += o.totalAmount;
           refundedCount++;
         }
+        if (isPaidOrder(o.status)) {
+          paidRevenue += o.totalAmount;
+          paidOrders++;
+        }
       });
     });
-    return { totalRevenue, totalRefunded, totalOrders, refundedCount, netAmount: totalRevenue - totalRefunded };
+    return { totalRevenue, totalRefunded, totalOrders, refundedCount, netAmount: totalRevenue - totalRefunded, paidRevenue, paidOrders };
   }, [filteredRestaurants]);
 
   const restaurantStats = useMemo(() => {
     if (!selectedData) return null;
-    const stats = { totalRevenue: 0, totalRefunded: 0, totalOrders: 0, refundedCount: 0 };
+    const stats = { totalRevenue: 0, totalRefunded: 0, totalOrders: 0, refundedCount: 0, paidRevenue: 0, paidOrders: 0 };
     selectedData.orders.forEach((o) => {
       stats.totalOrders++;
       stats.totalRevenue += o.totalAmount;
       if (o.isRefunded) {
         stats.totalRefunded += o.totalAmount;
         stats.refundedCount++;
+      }
+      if (isPaidOrder(o.status)) {
+        stats.paidRevenue += o.totalAmount;
+        stats.paidOrders++;
       }
     });
     stats.netAmount = stats.totalRevenue - stats.totalRefunded;
@@ -158,32 +172,37 @@ export default function OrderStatementsPage() {
   const statusBadge = (order: Order) => {
     if (order.isRefunded) {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-red-500/10 text-red-400">
-        <RotateCcw size={10} /> Refunded
+        <RotateCcw size={10} /> Återbetald
       </span>;
     }
     if (order.status === "DELIVERED") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400">
-        <CheckCircle size={10} /> Delivered
+        <CheckCircle size={10} /> Levererad
       </span>;
     }
     if (order.status === "DELIVERING") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-sky-500/10 text-sky-400">
-        <Truck size={10} /> On the way
+        <Truck size={10} /> På väg
       </span>;
     }
     if (order.status === "READY") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-blue-500/10 text-blue-400">
-        <ShoppingCart size={10} /> Ready
+        <ShoppingCart size={10} /> Klar
       </span>;
     }
-    if (order.status === "PENDING" || order.status === "ACCEPTED" || order.status === "PREPARING") {
+    if (order.status === "PENDING") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-amber-500/10 text-amber-400">
-        <Clock size={10} /> Processing
+        <Clock size={10} /> Väntande
+      </span>;
+    }
+    if (order.status === "ACCEPTED" || order.status === "PREPARING") {
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400">
+        <CheckCircle size={10} /> Betald
       </span>;
     }
     if (order.status === "CANCELLED" || order.status === "REJECTED") {
       return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-red-500/10 text-red-400">
-        <XCircle size={10} /> Cancelled
+        <XCircle size={10} /> Avbruten
       </span>;
     }
     return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-gray-500/10 text-gray-400">
@@ -248,12 +267,14 @@ export default function OrderStatementsPage() {
         />
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
         {[
           { label: "Total Revenue", value: kr(totals.totalRevenue), icon: Wallet, color: "text-[var(--text-primary)]", highlight: false },
           { label: "Refunded", value: kr(totals.totalRefunded), icon: RotateCcw, color: "text-red-400", highlight: false },
           { label: "Orders", value: totals.totalOrders.toString(), icon: ShoppingCart, color: "text-blue-400", highlight: false },
-          { label: "Net Amount", value: kr(totals.netAmount), icon: ArrowDownUp, color: "text-emerald-400", highlight: true },
+          { label: "Paid", value: kr(totals.paidRevenue), icon: CheckCircle, color: "text-emerald-400", highlight: false },
+          { label: "Paid Orders", value: totals.paidOrders.toString(), icon: CheckCircle, color: "text-emerald-400", highlight: false },
+          { label: "Net Amount", value: kr(totals.netAmount), icon: ArrowDownUp, color: "text-gold-500", highlight: true },
         ].map((kpi) => (
           <div key={kpi.label} 
             className={"p-4 rounded-2xl border transition-all " + (kpi.highlight ? "bg-emerald-500/10 border-emerald-500/30" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]")}>
@@ -315,22 +336,27 @@ export default function OrderStatementsPage() {
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                     className="border-t border-[var(--border-subtle)]">
                     <div className="p-4 bg-[var(--bg-primary)]">
-                      <div className="grid grid-cols-4 gap-3 mb-4">
+                      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
                         <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
                           <p className="text-[8px] font-black uppercase text-[var(--text-secondary)]">Total</p>
                           <p className="text-sm font-black text-[var(--text-primary)]">{kr(stats.totalRevenue)}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
-                          <p className="text-[8px] font-black uppercase text-red-400">Refunded</p>
+                          <p className="text-[8px] font-black uppercase text-red-400">Återbetald</p>
                           <p className="text-sm font-black text-red-400">-{kr(stats.totalRefunded)}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                          <p className="text-[8px] font-black uppercase text-[var(--text-secondary)]">Orders</p>
+                          <p className="text-[8px] font-black uppercase text-[var(--text-secondary)]">Ordrar</p>
                           <p className="text-sm font-black text-blue-400">{stats.totalOrders}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                          <p className="text-[8px] font-black uppercase text-emerald-400">Net</p>
-                          <p className="text-sm font-black text-emerald-400">{kr(stats.netAmount)}</p>
+                          <p className="text-[8px] font-black uppercase text-emerald-400">Betald</p>
+                          <p className="text-sm font-black text-emerald-400">{kr(stats.paidRevenue)}</p>
+                          <p className="text-[8px] text-emerald-400">{stats.paidOrders} ordrar</p>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gold-500/10 border border-gold-500/20">
+                          <p className="text-[8px] font-black uppercase text-gold-500">Netto</p>
+                          <p className="text-sm font-black text-gold-500">{kr(stats.netAmount)}</p>
                         </div>
                       </div>
 
@@ -339,10 +365,11 @@ export default function OrderStatementsPage() {
                           <thead>
                             <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
                               <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Order #</th>
-                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Date/Time</th>
-                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Customer</th>
-                              <th className="px-3 py-2 text-right text-[8px] font-black uppercase text-[var(--text-secondary)]">Amount</th>
+                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Datum/Tid</th>
+                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Kund</th>
+                              <th className="px-3 py-2 text-right text-[8px] font-black uppercase text-[var(--text-secondary)]">Belopp</th>
                               <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Status</th>
+                              <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Betalt</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -357,18 +384,27 @@ export default function OrderStatementsPage() {
                                   {o.isRefunded ? <span className="line-through text-red-400">{kr(o.totalAmount)}</span> : kr(o.totalAmount)}
                                 </td>
                                 <td className="px-3 py-2 text-center">{statusBadge(o)}</td>
+                                <td className="px-3 py-2 text-center">
+                                  {isPaidOrder(o.status) ? (
+                                    <CheckCircle size={14} className="text-emerald-400" />
+                                  ) : (
+                                    <Clock size={14} className="text-amber-400" />
+                                  )}
+                                </td>
                               </tr>
                             ))}
                             {ro.orders.length > 50 && (
                               <tr>
-                                <td colSpan={5} className="px-3 py-2 text-center text-[8px] text-[var(--text-secondary)]">
-                                  ... and {ro.orders.length - 50} more orders
+                                <td colSpan={6} className="px-3 py-2 text-center text-[8px] text-[var(--text-secondary)]">
+                                  ... och {ro.orders.length - 50} fler ordrar
                                 </td>
                               </tr>
                             )}
                             <tr className="bg-gold-500/5 border-t-2 border-gold-500/20">
-                              <td colSpan={3} className="px-3 py-2 font-black uppercase">TOTAL</td>
+                              <td colSpan={3} className="px-3 py-2 font-black uppercase">TOTALT</td>
                               <td className="px-3 py-2 text-right font-black">{kr(stats.totalRevenue)}</td>
+                              <td></td>
+                              <td></td>
                               <td></td>
                             </tr>
                           </tbody>

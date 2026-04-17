@@ -205,6 +205,20 @@ export default function CartPage() {
     }
   }, [currentRestaurantId, ovr, orderType, addressZoneStatus]);
 
+  // Reset delivery check when switching to DELIVERY and we have a saved address
+  useEffect(() => {
+    if (orderType === "DELIVERY" && currentRestaurantId && formData.deliveryStreet && addressZoneStatus !== "ok") {
+      // Try to re-check delivery when switching to delivery mode
+      const storedCoords = localStorage.getItem("platform_coords");
+      if (storedCoords) {
+        try {
+          const coords = JSON.parse(storedCoords);
+          checkDeliverySpecific(coords.lat, coords.lng);
+        } catch {}
+      }
+    }
+  }, [orderType]);
+
   // Fee priority: zone check result → restaurant default
   const deliveryFee = orderType === "DELIVERY"
     ? (deliveryCheck?.deliveryFee ?? restaurantSettings.deliveryFee)
@@ -403,6 +417,7 @@ export default function CartPage() {
     setLoading(true);
     try {
       const token = localStorage.getItem("platform_user_token");
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const orderData = {
         type: orderType,
         customerName: formData.customerName,
@@ -431,9 +446,7 @@ export default function CartPage() {
           note: i.note,
         })),
       };
-      const res = await axios.post(`${API_URL}/api/orders`, orderData, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await axios.post(`${API_URL}/api/orders`, orderData, { headers });
       clearCart();
       router.push(`/order/${res.data.orderId}`);
     } catch (err: any) {
