@@ -82,8 +82,8 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mb-4 flex items-center gap-3 p-3 rounded-2xl border"
-      style={{ backgroundColor: "#211C19", borderColor: "rgba(234,181,69,0.3)" }}
+      className="mb-4 flex items-center gap-3 p-3 rounded-2xl border shadow-sm"
+      style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(234,181,69,0.22)", boxShadow: "var(--card-shadow)" }}
     >
       <div className="w-9 h-9 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center shrink-0">
         <Clock size={16} />
@@ -92,7 +92,7 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
         <div className="text-[9px] font-black uppercase tracking-[0.25em] text-gold-500">
           Du beställde här senast
         </div>
-        <div className="text-[11px] font-bold text-white truncate">
+        <div className="text-[11px] font-bold truncate" style={{ color: "var(--text-primary)" }}>
           {summary.itemCount} {summary.itemCount === 1 ? "rätt" : "rätter"} · {summary.total} kr
           {summary.items?.length ? ` · ${summary.items.map((i) => i.name).slice(0, 2).join(", ")}${summary.items.length > 2 ? "…" : ""}` : ""}
         </div>

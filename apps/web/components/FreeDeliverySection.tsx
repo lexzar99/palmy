@@ -70,10 +70,10 @@ export default function FreeDeliverySection() {
             transition={{ delay: i * 0.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push(`/restaurants/${r.slug}`)}
-            className="shrink-0 w-72 rounded-[1.8rem] border overflow-hidden text-left group"
-            style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+            className="shrink-0 w-72 rounded-[1.8rem] border overflow-hidden text-left group shadow-sm"
+            style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(16,185,129,0.14)", boxShadow: "var(--card-shadow)" }}
           >
-            <div className="relative w-full h-40 bg-obsidian/50 overflow-hidden">
+            <div className="relative w-full h-40 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
               {r.heroImageUrl || r.imageUrl ? (
                 <img src={getImg(r.heroImageUrl || r.imageUrl)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
               ) : (
@@ -85,14 +85,14 @@ export default function FreeDeliverySection() {
               </div>
             </div>
             <div className="p-4">
-              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 truncate">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] truncate" style={{ color: "var(--text-secondary)" }}>
                 {r.cuisine || r.city || "Restaurang"}
               </div>
-              <div className="text-[16px] font-black text-white truncate flex items-center justify-between mt-1">
+              <div className="text-[16px] font-black truncate flex items-center justify-between mt-1" style={{ color: "var(--text-primary)" }}>
                 <span className="truncate">{r.name}</span>
-                <ArrowRight size={14} className="text-zinc-600 group-hover:text-emerald-400 transition-colors shrink-0 ml-2" />
+                <ArrowRight size={14} className="group-hover:text-emerald-400 transition-colors shrink-0 ml-2" style={{ color: "var(--text-secondary)" }} />
               </div>
-              <div className="text-[11px] text-zinc-400 font-bold mt-2">
+              <div className="text-[11px] font-bold mt-2" style={{ color: "var(--text-secondary)" }}>
                 {r.etaMinutes ?? 30} min <span className="opacity-50 mx-1">•</span> {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
               </div>
             </div>

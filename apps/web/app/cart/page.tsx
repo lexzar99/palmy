@@ -795,44 +795,44 @@ export default function CartPage() {
             {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
             <div className="space-y-4">
               {items.map((item) => (
-                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                    <button
                      type="button"
                      onClick={() => handleEditCartItem(item)}
                      className="flex items-center gap-6 text-left flex-1 min-w-0"
                    >
-                      <div className="w-14 h-14 border rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }}>
-                         {item.quantity}x
-                      </div>
-                      <div className="min-w-0">
-                         <h3 className="text-lg font-black text-white uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase truncate">{item.name}</h3>
-                         {item.extras.length > 0 && (
-                           <div className="flex flex-wrap gap-2">
-                              {item.extras.map(e => (
-                                 <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-700 px-2 py-0.5 rounded-md border border-white/5" style={{ backgroundColor: "rgba(23,21,19,0.4)" }}>{e.name}</span>
-                              ))}
-                           </div>
-                         )}
-                         <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">Tryck för att redigera</span>
-                      </div>
-                   </button>
-                   <div className="flex items-center justify-between sm:justify-end gap-10">
-                      <div className="flex items-center gap-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
-                         <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
-                         <span className="text-base font-black text-white w-4 text-center italic">{item.quantity}</span>
-                         <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Plus size={18} /></button>
-                      </div>
-                      <div className="flex items-center gap-8">
-                         <div className="text-lg font-black italic text-white flex flex-col items-end">
-                            <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
-                            <span className="text-[8px] uppercase tracking-widest text-zinc-800 leading-none">SEK</span>
-                         </div>
-                         <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl border flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90" style={{ backgroundColor: "#2A241F", borderColor: "rgba(255,248,234,0.06)" }}>
-                            <Trash2 size={20} />
-                         </button>
-                      </div>
-                   </div>
-                </motion.div>
+                       <div className="w-14 h-14 border rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                          {item.quantity}x
+                       </div>
+                       <div className="min-w-0">
+                          <h3 className="text-lg font-black uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase truncate" style={{ color: "var(--text-primary)" }}>{item.name}</h3>
+                          {item.extras.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                               {item.extras.map(e => (
+                                  <span key={e.extraId} className="text-[8px] font-black uppercase tracking-[0.1em] px-2 py-0.5 rounded-md border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>{e.name}</span>
+                               ))}
+                            </div>
+                          )}
+                          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">Tryck för att redigera</span>
+                       </div>
+                    </button>
+                    <div className="flex items-center justify-between sm:justify-end gap-10">
+                       <div className="flex items-center gap-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                          <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-gold-500 transition-colors active:scale-75"><Minus size={18} /></button>
+                          <span className="text-base font-black w-4 text-center italic" style={{ color: "var(--text-primary)" }}>{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.cartItemId, 1)} className="text-zinc-500 hover:text-gold-500 transition-colors active:scale-75"><Plus size={18} /></button>
+                       </div>
+                       <div className="flex items-center gap-8">
+                          <div className="text-lg font-black italic flex flex-col items-end" style={{ color: "var(--text-primary)" }}>
+                             <span className="text-gold-500">{(item.price * item.quantity).toFixed(0)}</span>
+                             <span className="text-[8px] uppercase tracking-widest leading-none" style={{ color: "var(--text-secondary)" }}>SEK</span>
+                          </div>
+                          <button onClick={() => removeItem(item.cartItemId)} className="w-12 h-12 rounded-2xl border flex items-center justify-center text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-all active:scale-90" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                             <Trash2 size={20} />
+                          </button>
+                       </div>
+                    </div>
+                 </motion.div>
               ))}
             </div>
           </div>
@@ -841,83 +841,84 @@ export default function CartPage() {
           <div className="lg:col-span-12 xl:col-span-5">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret ? (
-                 <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-10 rounded-[3.5rem] border-white/10 shadow-2xl">
-                    <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
-                       <CreditCard size={18} /> Betala Tryggt
-                    </div>
-                    <div className="bg-obsidian/40 rounded-3xl p-6 mb-10 border border-white/5">
-                       <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#e7b24b', colorBackground: '#09090b', colorText: '#ffffff' } } }}>
-                          <StripeCheckout amount={total} onSuccess={submitOrder} />
-                       </Elements>
-                    </div>
-                    <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest text-zinc-700 hover:text-white transition-colors">← Tillbaka till uppgifter</button>
-                 </motion.div>
-               ) : (
-                 <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-10 rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
-                    <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)" }}>
-                       {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                          <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-600 hover:text-zinc-200'}`}>
-                             {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
-                             {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
-                          </button>
-                       ))}
-                    </div>
+                  <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-10 rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                     <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
+                        <CreditCard size={18} /> Betala Tryggt
+                     </div>
+                     <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
+                           <StripeCheckout amount={total} onSuccess={submitOrder} />
+                        </Elements>
+                     </div>
+                     <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>← Tillbaka till uppgifter</button>
+                  </motion.div>
+                ) : (
+                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-10 rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                     <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                        {(['DELIVERY', 'PICKUP'] as const).map(type => (
+                           <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                              {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
+                              {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
+                           </button>
+                        ))}
+                     </div>
 
-                    <div className="space-y-8">
-                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Ditt Namn</label>
-                             <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="Namn" />
-                          </div>
-                          <div className="space-y-2">
-                             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Telefon</label>
-                             <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="Nummer" />
-                          </div>
-                       </div>
+                     <div className="space-y-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                           <div className="space-y-2">
+                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Ditt Namn</label>
+                              <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Namn" />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Telefon</label>
+                              <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Nummer" />
+                           </div>
+                        </div>
 
-                       {orderType === 'DELIVERY' && (
-                          <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                             {quickAddresses.length > 0 && (
-                                <div className="space-y-2">
-                                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">3 sparade adresser</label>
-                                  <div className="flex gap-2 flex-wrap">
-                                    {quickAddresses.map(addr => (
-                                      <button
-                                        key={`${addr.street}-${addr.zip || ''}-${addr.city || ''}`}
-                                        type="button"
-                                        onClick={() => handleQuickAddressSelect(addr)}
-                                        className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                          formatQuickAddress(addr) === addressInput
-                                            ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                                            : 'bg-white/3 border-white/5 text-zinc-500 hover:text-white hover:border-white/10'
-                                        }`}
-                                      >
-                                        {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                                        {formatQuickAddress(addr)}
-                                        {addr.isDefault && <span className="text-[8px] text-gold-500">• Standard</span>}
+                        {orderType === 'DELIVERY' && (
+                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                              {quickAddresses.length > 0 && (
+                                 <div className="space-y-2">
+                                   <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>3 sparade adresser</label>
+                                   <div className="flex gap-2 flex-wrap">
+                                     {quickAddresses.map(addr => (
+                                       <button
+                                         key={`${addr.street}-${addr.zip || ''}-${addr.city || ''}`}
+                                         type="button"
+                                         onClick={() => handleQuickAddressSelect(addr)}
+                                         className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                           formatQuickAddress(addr) === addressInput
+                                             ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                                            : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/20'
+                                         }`}
+                                       >
+                                         {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
+                                         {formatQuickAddress(addr)}
+                                         {addr.isDefault && <span className="text-[8px] text-gold-500">• Standard</span>}
                                       </button>
                                     ))}
                                   </div>
                                 </div>
                               )}
-                             <div className="space-y-2 relative z-50">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Leveransadress</label>
-                                <div className="relative">
-                                  <input 
-                                    value={addressInput} 
-                                    onChange={e => handleAddressChange(e.target.value)} 
-                                    className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:outline-none transition-all pl-12 pr-12"
-                                    style={{
-                                      backgroundColor: "#171513",
-                                      borderColor:
-                                        addressZoneStatus === "error"
-                                          ? "rgba(244,63,94,0.6)"
-                                          : addressZoneStatus === "ok"
-                                            ? "rgba(16,185,129,0.4)"
-                                            : "rgba(255,248,234,0.06)",
-                                    }}
-                                    placeholder="Din Gatuadress, Postnummer..." 
-                                  />
+                              <div className="space-y-2 relative z-50">
+                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Leveransadress</label>
+                                 <div className="relative">
+                                   <input 
+                                     value={addressInput} 
+                                     onChange={e => handleAddressChange(e.target.value)} 
+                                     className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:outline-none transition-all pl-12 pr-12"
+                                     style={{
+                                       backgroundColor: "var(--bg-deep)",
+                                       color: "var(--text-primary)",
+                                       borderColor:
+                                         addressZoneStatus === "error"
+                                           ? "rgba(244,63,94,0.6)"
+                                         : addressZoneStatus === "ok"
+                                             ? "rgba(16,185,129,0.4)"
+                                            : "var(--border-muted)",
+                                     }}
+                                     placeholder="Din Gatuadress, Postnummer..." 
+                                   />
                                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-gold-500/50" size={18} />
                                   {addressLoading || checkingDelivery || addressZoneStatus === "checking" ? (
                                     <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 text-gold-500 animate-spin" size={18} />
@@ -934,97 +935,97 @@ export default function CartPage() {
                                 {addressZoneStatus === "error" && (
                                   <p className="text-[10px] font-bold text-rose-400 ml-3 mt-1">Restaurangen levererar inte till denna adress.</p>
                                 )}
-                                
-                                <AnimatePresence>
-                                  {predictions.length > 0 && (
-                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50" style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)" }}>
-                                      {predictions.map(pred => (
-                                        <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 transition-all border-b last:border-none flex flex-col gap-1" style={{ borderColor: "rgba(255,248,234,0.05)" }}>
-                                          <span className="text-sm font-bold text-zinc-100">{pred.description.split(",")[0]}</span>
-                                          <span className="text-[10px] text-zinc-400">{pred.description.split(",").slice(1).join(",").trim()}</span>
-                                        </button>
-                                      ))}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+
+                                 <AnimatePresence>
+                                   {predictions.length > 0 && (
+                                     <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                                       {predictions.map(pred => (
+                                         <button key={pred.place_id} type="button" onClick={() => handleAddressSelect(pred)} className="w-full text-left px-5 py-4 transition-all border-b last:border-none flex flex-col gap-1 hover:bg-[var(--bg-deep)]" style={{ borderColor: "var(--border-muted)" }}>
+                                           <span className="text-sm font-bold" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
+                                           <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
+                                         </button>
+                                       ))}
+                                     </motion.div>
+                                   )}
+                                 </AnimatePresence>
                              </div>
 
                              {/* Delivery Instructions Presets */}
                              <div className="space-y-2">
-                                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Leveransinstruktioner</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {[
-                                    { value: 'RING_DOORBELL', label: 'Ring på dörren', icon: Bell },
-                                    { value: 'LEAVE_AT_DOOR', label: 'Lämna vid dörren', icon: DoorOpen },
+                                 <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Leveransinstruktioner</label>
+                                 <div className="grid grid-cols-2 gap-2">
+                                   {[
+                                     { value: 'RING_DOORBELL', label: 'Ring på dörren', icon: Bell },
+                                     { value: 'LEAVE_AT_DOOR', label: 'Lämna vid dörren', icon: DoorOpen },
                                     { value: 'MEET_OUTSIDE', label: 'Möt mig utanför', icon: UserIcon },
                                     { value: 'ENTER_CODE', label: 'Portkod behövs', icon: KeyRound },
                                   ].map(opt => (
                                     <button
                                       key={opt.value}
                                       type="button"
-                                      onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
-                                      className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                        formData.deliveryInstructions === opt.value
-                                          ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                                          : 'bg-white/3 border-white/5 text-zinc-600 hover:text-zinc-300 hover:border-white/10'
-                                      }`}
-                                    >
-                                      <opt.icon size={14} />
-                                      {opt.label}
+                                       onClick={() => setFormData(prev => ({ ...prev, deliveryInstructions: prev.deliveryInstructions === opt.value ? '' : opt.value }))}
+                                       className={`flex items-center gap-2.5 px-4 py-3.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                         formData.deliveryInstructions === opt.value
+                                           ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
+                                          : 'bg-[var(--bg-deep)] border-[var(--border-muted)] text-zinc-600 hover:text-gold-500 hover:border-gold-500/20'
+                                       }`}
+                                     >
+                                       <opt.icon size={14} />
+                                       {opt.label}
                                     </button>
                                   ))}
                                 </div>
                              </div>
                           </div>
-                       )}
+                        )}
 
-                       <div className="space-y-2">
-                          <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Extranotering</label>
-                          <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold text-white focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }} placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
-                       </div>
+                        <div className="space-y-2">
+                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Extranotering</label>
+                           <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
+                        </div>
 
-                       {/* Promo Code Integrated */}
-                       <div className="relative group flex items-center">
+                        {/* Promo Code Integrated */}
+                        <div className="relative group flex items-center">
                           <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
-                          <input 
-                             value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
-                             onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
-                             className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest outline-none transition-all"
-                             style={{ backgroundColor: "#171513", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "rgba(255,248,234,0.06)", color: selectedPersonalDeal ? "#34d399" : "#B8AA95" }}
-                             placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
-                          />
-                          <button 
-                             type="button" 
-                             onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
-                             className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-white/10 text-gold-500 hover:bg-gold-500 hover:text-dark-500"}`}
-                          >
-                             {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
-                          </button>
-                       </div>
-                    </div>
+                           <input 
+                              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCodeInput} 
+                              onChange={e => { if(selectedPersonalDeal) setSelectedPersonalDeal(null); setPromoCodeInput(e.target.value); }}
+                              className="w-full border rounded-2xl py-6 pl-14 pr-24 text-[11px] font-black uppercase tracking-widest placeholder:text-zinc-400 outline-none transition-all"
+                              style={{ backgroundColor: "var(--bg-deep)", borderColor: selectedPersonalDeal ? "rgba(16,185,129,0.4)" : "var(--border-muted)", color: selectedPersonalDeal ? "#34d399" : "var(--text-primary)" }}
+                              placeholder={selectedPersonalDeal ? "Tillämpad" : "Rabattkod"} 
+                           />
+                           <button 
+                              type="button" 
+                              onClick={selectedPersonalDeal ? () => { setSelectedPersonalDeal(null); setPromoCodeInput(""); } : handleApplyPromo}
+                              className={`absolute right-3 px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedPersonalDeal ? "bg-rose-500/10 text-rose-500 hover:bg-rose-500/20" : "bg-gold-500/10 text-gold-600 hover:bg-gold-500 hover:text-zinc-950"}`}
+                           >
+                              {selectedPersonalDeal ? "Ta Bort" : "Kolla"}
+                           </button>
+                        </div>
+                     </div>
 
-                    <div className="border-t border-white/5 mt-10 pt-10 space-y-4">
-                       <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
-                       {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
-                       {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
-                       <div className="flex justify-between items-center mt-6">
-                          <span className="text-3xl font-black text-white italic uppercase tracking-tighter">TOTALT</span>
-                          <span className="text-5xl font-black text-white italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic">SEK</span></span>
-                       </div>
-                    </div>
+                     <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
+                        <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
+                        {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
+                        {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
+                        <div className="flex justify-between items-center mt-6">
+                           <span className="text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
+                           <span className="text-5xl font-black italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
+                        </div>
+                     </div>
 
                     {error && <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 p-5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[10px] font-black uppercase tracking-widest text-center italic">{error}</motion.div>}
 
-                     {/* Guest info banner — not blocking, just informative */}
-                     {!user && (
-                       <div className="mt-8 p-4 rounded-2xl bg-zinc-800/60 border border-white/5 flex items-center gap-3">
-                         <UserIcon size={16} className="text-zinc-400 shrink-0" />
-                         <p className="text-[10px] font-bold text-zinc-400 leading-snug flex-1">
-                           Du handlar som gäst.{" "}
-                           <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">Logga in</Link>{" "}
-                           för sparade adresser och personliga erbjudanden.
-                         </p>
-                       </div>
+                      {/* Guest info banner — not blocking, just informative */}
+                      {!user && (
+                        <div className="mt-8 p-4 rounded-2xl border flex items-center gap-3" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                          <UserIcon size={16} className="text-zinc-400 shrink-0" />
+                          <p className="text-[10px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
+                            Du handlar som gäst.{" "}
+                            <Link href="/profile" className="text-gold-400 hover:text-gold-300 underline">Logga in</Link>{" "}
+                            för sparade adresser och personliga erbjudanden.
+                          </p>
+                        </div>
                      )}
 
                      {/* Zone error summary line above checkout button */}
@@ -1059,27 +1060,27 @@ export default function CartPage() {
       {/* Modern Deals Modal */}
       <AnimatePresence>
         {showDealsModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
-               <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 text-zinc-800 hover:text-white transition-colors"><X size={24}/></button>
-               <h2 className="text-2xl font-black uppercase text-white italic tracking-tight mb-8">Dina <span className="text-gold-gradient">Erbjudanden</span></h2>
-               <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
-                  {personalDeals.map(deal => {
-                    const isEligible = subtotal >= deal.campaign.minOrder;
-                    return (
-                       <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all ${isEligible ? "bg-white/3 border-white/5 hover:border-gold-500/40 group active:scale-[0.98]" : "opacity-30 border-white/2 grayscale"}`}>
-                          <div className="flex items-center justify-between mb-4">
-                             <div className="text-[9px] font-black uppercase tracking-widest text-zinc-700">{deal.campaign.title}</div>
-                             {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}
-                          </div>
-                          <div className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none mb-2 group-hover:text-gold-500 transition-colors">
-                             {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
-                          </div>
-                          <div className="text-[9px] font-bold text-zinc-800 uppercase tracking-widest">Gäller vid köp över {deal.campaign.minOrder} kr</div>
-                       </button>
-                    );
-                  })}
-               </div>
+           <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setShowDealsModal(false)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
+             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }} onClick={e => e.stopPropagation()}>
+                <button onClick={() => setShowDealsModal(false)} className="absolute top-8 right-8 p-2 hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}><X size={24}/></button>
+                <h2 className="text-2xl font-black uppercase italic tracking-tight mb-8" style={{ color: "var(--text-primary)" }}>Dina <span className="text-gold-gradient">Erbjudanden</span></h2>
+                <div className="space-y-4 max-h-[400px] overflow-y-auto no-scrollbar">
+                   {personalDeals.map(deal => {
+                     const isEligible = subtotal >= deal.campaign.minOrder;
+                     return (
+                        <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all group ${isEligible ? "active:scale-[0.98]" : "opacity-30 grayscale"}`} style={{ backgroundColor: "var(--bg-deep)", borderColor: isEligible ? "rgba(231,178,75,0.2)" : "var(--border-muted)" }}>
+                           <div className="flex items-center justify-between mb-4">
+                              <div className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{deal.campaign.title}</div>
+                              {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}
+                           </div>
+                           <div className="text-2xl font-black italic uppercase tracking-tighter leading-none mb-2 group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>
+                              {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
+                           </div>
+                           <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Gäller vid köp över {deal.campaign.minOrder} kr</div>
+                        </button>
+                     );
+                   })}
+                </div>
             </motion.div>
           </div>
         )}

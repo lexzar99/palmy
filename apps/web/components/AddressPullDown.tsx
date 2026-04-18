@@ -108,13 +108,13 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               className="absolute top-full left-0 right-0 mt-2 rounded-2xl border p-2 shadow-2xl z-30"
-              style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+              style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}
             >
-              <p className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600 px-3 pt-1 pb-2">
+              <p className="text-[8px] font-black uppercase tracking-[0.3em] px-3 pt-1 pb-2" style={{ color: "var(--text-secondary)" }}>
                 Mina adresser ({addresses.length}/{MAX_ADDRESSES})
               </p>
               {addresses.length === 0 && (
-                <p className="text-[10px] text-zinc-500 px-3 py-2">Inga sparade adresser än.</p>
+                <p className="text-[10px] px-3 py-2" style={{ color: "var(--text-secondary)" }}>Inga sparade adresser än.</p>
               )}
               {addresses.map((a, i) => (
                 <div
@@ -132,16 +132,16 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
                   }}
                   tabIndex={0}
                   role="button"
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left cursor-pointer"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-[var(--bg-deep)] transition-colors text-left cursor-pointer"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gold-500/10 text-gold-500 flex items-center justify-center">
                     {pickIcon(a.label)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-black uppercase tracking-wider text-white truncate">
+                    <div className="text-[11px] font-black uppercase tracking-wider truncate" style={{ color: "var(--text-primary)" }}>
                       {a.label || "Adress"}
                     </div>
-                    <div className="text-[10px] text-zinc-500 truncate">{formatQuickAddress(a)}</div>
+                    <div className="text-[10px] truncate" style={{ color: "var(--text-secondary)" }}>{formatQuickAddress(a)}</div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {a.isDefault && (
@@ -155,7 +155,7 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
                           event.stopPropagation();
                           setAddresses(setDefaultQuickAddress(a).slice(0, MAX_ADDRESSES));
                         }}
-                        className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-500 hover:text-gold-500"
+                        className="w-7 h-7 rounded-lg border bg-[var(--bg-deep)] border-[var(--border-muted)] hover:border-gold-500/20 flex items-center justify-center text-zinc-500 hover:text-gold-500"
                         aria-label="Gör till standard"
                       >
                         <Circle size={12} />
@@ -163,29 +163,29 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
                     )}
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setOpen(false);
-                        onOpenFull();
-                      }}
-                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-500 hover:text-white"
-                      aria-label="Ändra adress"
-                    >
-                      <Pencil size={12} />
-                    </button>
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setOpen(false);
+                          onOpenFull();
+                        }}
+                       className="w-7 h-7 rounded-lg border bg-[var(--bg-deep)] border-[var(--border-muted)] hover:border-gold-500/20 flex items-center justify-center text-zinc-500 hover:text-gold-500"
+                       aria-label="Ändra adress"
+                     >
+                       <Pencil size={12} />
+                     </button>
                     <button
                       type="button"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        setAddresses(removeQuickAddress(a).slice(0, MAX_ADDRESSES));
-                      }}
-                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/10 flex items-center justify-center text-zinc-500 hover:text-rose-400"
-                      aria-label="Ta bort adress"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                       onClick={(event) => {
+                         event.preventDefault();
+                         event.stopPropagation();
+                         setAddresses(removeQuickAddress(a).slice(0, MAX_ADDRESSES));
+                       }}
+                       className="w-7 h-7 rounded-lg border bg-[var(--bg-deep)] border-[var(--border-muted)] hover:border-rose-500/20 hover:bg-rose-500/5 flex items-center justify-center text-zinc-500 hover:text-rose-400"
+                       aria-label="Ta bort adress"
+                     >
+                       <Trash2 size={12} />
+                     </button>
                   </div>
                 </div>
               ))}

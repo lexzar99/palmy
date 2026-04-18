@@ -91,10 +91,10 @@ export default function DiscountedDishesSection() {
               transition={{ delay: i * 0.03 }}
               whileTap={{ scale: 0.97 }}
               onClick={() => router.push(`/restaurants/${d.restaurant.slug}?highlight=${d.id}`)}
-              className="shrink-0 w-44 rounded-2xl border overflow-hidden text-left group"
-              style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+              className="shrink-0 w-44 rounded-2xl border overflow-hidden text-left group shadow-sm"
+              style={{ backgroundColor: "var(--bg-secondary)", borderColor: "rgba(231,178,75,0.16)", boxShadow: "var(--card-shadow)" }}
             >
-              <div className="relative w-full h-32 bg-obsidian/50 overflow-hidden">
+              <div className="relative w-full h-32 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                 {d.imageUrl ? (
                   <img src={getImg(d.imageUrl)} alt={d.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                 ) : (
@@ -109,14 +109,14 @@ export default function DiscountedDishesSection() {
                 </div>
               </div>
               <div className="p-3">
-                <div className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 truncate">
+                <div className="text-[8px] font-black uppercase tracking-[0.2em] truncate" style={{ color: "var(--text-secondary)" }}>
                   {d.restaurant.name}
                 </div>
-                <div className="text-[12px] font-black text-white truncate mt-0.5">{d.name}</div>
+                <div className="text-[12px] font-black truncate mt-0.5" style={{ color: "var(--text-primary)" }}>{d.name}</div>
                 <div className="flex items-baseline gap-2 mt-2">
                   <span className="text-gold-500 font-black text-sm">{d.discountPrice} kr</span>
-                  <span className="text-zinc-600 text-[10px] line-through">{d.originalPrice} kr</span>
-                  <ArrowRight size={12} className="ml-auto text-zinc-600 group-hover:text-gold-500 transition-colors" />
+                  <span className="text-[10px] line-through" style={{ color: "var(--text-secondary)" }}>{d.originalPrice} kr</span>
+                  <ArrowRight size={12} className="ml-auto group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
                 </div>
               </div>
             </motion.button>
