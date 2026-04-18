@@ -355,30 +355,12 @@ export default function HomePage() {
   }, [deals, personalDeals, restaurants]);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
-    const dealItems = allDealCards.map((deal) => ({ id: deal.id, kind: "deal" as const, deal }));
-    const sponsorItems = sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+    return sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+  }, [sponsors]);
 
-    if (dealItems.length === 0) return sponsorItems;
-    if (sponsorItems.length === 0) return dealItems;
-
-    const merged: PromoCardItem[] = [];
-    let sponsorIndex = 0;
-
-    dealItems.forEach((item, index) => {
-      merged.push(item);
-      if ((index + 1) % 2 === 0 && sponsorIndex < sponsorItems.length) {
-        merged.push(sponsorItems[sponsorIndex]);
-        sponsorIndex += 1;
-      }
-    });
-
-    while (sponsorIndex < sponsorItems.length) {
-      merged.push(sponsorItems[sponsorIndex]);
-      sponsorIndex += 1;
-    }
-
-    return merged;
-  }, [allDealCards, sponsors]);
+  const getDealForRestaurant = useCallback((restaurantId: string) => {
+    return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
+  }, [allDealCards]);
 
   const handlePromoScroll = useCallback(() => {
     const rail = promoRailRef.current;
@@ -541,11 +523,7 @@ export default function HomePage() {
             >
               {promoCards.map((item) => (
                 <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  {item.kind === "sponsor" ? (
-                    <SponsorCard sponsor={item.sponsor} />
-                  ) : (
-                    <DealFlipCard deal={item.deal} />
-                  )}
+                  <SponsorCard sponsor={(item as any).sponsor} />
                 </div>
               ))}
             </div>
@@ -581,8 +559,19 @@ export default function HomePage() {
                   <Link
                     href={getRestaurantHref(r)}
                     onClick={(e) => handleRestaurantClick(e, r)}
-                    className="group relative block w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col"
+                    className="group relative block w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
                   >
+                    {(() => {
+                      const activeDeal = getDealForRestaurant(r.id);
+                      if (activeDeal) {
+                        return (
+                          <div className={`absolute top-10 -left-8 -rotate-45 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-10 py-1.5 shadow-2xl z-20`}>
+                            <p className="text-[8px] font-black uppercase tracking-widest text-center">{activeDeal.rewardLabel}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                     <div className="h-44 lg:h-56 w-full rounded-[2.2rem] bg-obsidian/50 relative overflow-hidden mb-6">
                       {r.heroImageUrl || r.imageUrl ? (
                         <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
@@ -597,31 +586,25 @@ export default function HomePage() {
                         </div>
                       </div>
 
-                      <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
-                        <button 
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                          className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
-                        >
-                          <Info size={16} />
-                        </button>
-                        <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
-                          {r.rating ? (
-                            <>
-                              <Star size={12} className="fill-gold-500 text-gold-500" />
-                              <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
-                            </>
-                          ) : (
-                            <span className="text-[10px] font-black italic text-emerald-400">NY!</span>
-                          )}
-                        </div>
-                        {deals.find(d => d.isGlobal || d.restaurantId === r.id) && (
-                          <div className="px-3 py-1.5 rounded-full bg-emerald-500 text-dark-500 flex items-center gap-1 shadow-lg">
-                             <Percent size={10} strokeWidth={4} />
-                             <span className="text-[8px] font-black uppercase">{deals.find(d => d.isGlobal || d.restaurantId === r.id).title}</span>
+                        <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                          <button 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                            className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
+                          >
+                            <Info size={16} />
+                          </button>
+                          <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
+                            {r.rating ? (
+                              <>
+                                <Star size={12} className="fill-gold-500 text-gold-500" />
+                                <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] font-black italic text-emerald-400">NY!</span>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
 
                     <div className="px-3 pb-4">
                        <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-2">{r.name}</h3>
@@ -781,91 +764,113 @@ export default function HomePage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-1 xl:grid-cols-2 gap-8">
-              {filtered.map((r, i) => {
-                const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-                const isClosed = r.isOpen === false;
-                const dimmed = isClosed || isOutOfZone;
-                return (
-                <motion.div
-                  key={r.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
-                  whileTap={{ opacity: 0.7, scale: 0.99 }}
-                  className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
-                >
-                  <Link
-                    href={getRestaurantHref(r)}
-                    onClick={(e) => handleRestaurantClick(e, r)}
-                    className="group flex flex-col sm:flex-row glass-panel rounded-[3.5rem] p-6 gap-8 hover:border-gold-500/30 hover:bg-white/5 transition-all active:scale-[0.99] border border-white/5 shadow-2xl"
-                  >
-                    <div className="w-full sm:w-60 h-52 sm:h-52 shrink-0 rounded-[2.5rem] overflow-hidden relative shadow-inner bg-zinc-900">
-                      {r.imageUrl || r.heroImageUrl ? (
-                        <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-110 transition-all duration-700" />
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
-                      )}
-                      
-                      {/* Out of Zone / Closed Badge */}
-                      {(isClosed || isOutOfZone) && (
-                        <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center flex-col gap-2">
-                          {isOutOfZone && (
-                            <div className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
-                              Utanför zon
+                {filtered.map((r, i) => {
+                  const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
+                  const isClosed = r.isOpen === false;
+                  const dimmed = isClosed || isOutOfZone;
+                  const injectDeal = (i + 1) % 4 === 0 ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
+
+                  return (
+                    <React.Fragment key={r.id}>
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
+                        whileTap={{ opacity: 0.7, scale: 0.99 }}
+                        className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
+                      >
+                        <Link
+                          href={getRestaurantHref(r)}
+                          onClick={(e) => handleRestaurantClick(e, r)}
+                          className="group flex flex-col sm:flex-row glass-panel rounded-[3.5rem] p-6 gap-8 hover:border-gold-500/30 hover:bg-white/5 transition-all active:scale-[0.99] border border-white/5 shadow-2xl relative overflow-hidden h-full"
+                        >
+                          {(() => {
+                            const activeDeal = getDealForRestaurant(r.id);
+                            if (activeDeal) {
+                              return (
+                                <div className={`absolute top-0 right-0 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-6 py-2 shadow-2xl z-20 rounded-bl-[2rem]`}>
+                                  <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Sparkles size={12}/> {activeDeal.rewardLabel}</p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
+                          <div className="w-full sm:w-60 h-52 sm:h-52 shrink-0 rounded-[2.5rem] overflow-hidden relative shadow-inner bg-zinc-900">
+                            {r.imageUrl || r.heroImageUrl ? (
+                              <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-110 transition-all duration-700" />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
+                            )}
+                            
+                            {/* Out of Zone / Closed Badge */}
+                            {(isClosed || isOutOfZone) && (
+                              <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center flex-col gap-2">
+                                {isOutOfZone && (
+                                  <div className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
+                                    Utanför zon
+                                  </div>
+                                )}
+                                {isClosed && (
+                                  <div className="px-4 py-2 rounded-xl bg-zinc-900/90 text-zinc-400 text-[10px] font-black uppercase tracking-widest border border-white/5">
+                                    Stängt
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            <div className="absolute top-4 left-4">
+                              <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-gold-500 font-black italic shadow-xl">
+                                <Star size={12} className="fill-gold-500" />
+                                <span className="text-[10px]">{(r.rating ?? 4.6).toFixed(1)}</span>
+                              </div>
                             </div>
-                          )}
-                          {isClosed && (
-                            <div className="px-4 py-2 rounded-xl bg-zinc-900/90 text-zinc-400 text-[10px] font-black uppercase tracking-widest border border-white/5">
-                              Stängt
+                          </div>
+
+                          <div className="flex-1 py-2 flex flex-col min-w-0">
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                              <h3 className="text-3xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tighter leading-none italic">{r.name}</h3>
+                              <button 
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                                className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5 shrink-0"
+                              >
+                                <Info size={16} />
+                              </button>
                             </div>
-                          )}
+                            
+                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-relaxed mb-auto mt-1 line-clamp-2">{r.description || r.cuisine || "MatGo Selection"}</p>
+                            
+                            <div className="mt-8 border-t border-white/5 pt-6">
+                              {(() => {
+                                const zi = zoneDeliveryInfo[r.id];
+                                const fee    = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
+                                const minOrd = zi ? zi.minOrder    : (r.minOrderAmount ?? 0);
+                                const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                                return (
+                                  <div className="flex items-center flex-wrap gap-5 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                                    <span className="flex items-center gap-2"><Clock size={14} className="text-gold-500/50" /> {eta} MIN</span>
+                                    <span className="flex items-center gap-2"><Bike size={14} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                                    <span className="text-zinc-700">MIN {minOrd} KR</span>
+                                    {zi?.zoneName && <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-[8px] border border-gold-500/10 tracking-normal">{zi.zoneName}</span>}
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        </Link>
+                      </motion.div>
+
+                      {/* Option 1: Inline Deal Injection */}
+                      {injectDeal && (
+                        <div className="flex items-center justify-center w-full" style={{ padding: "0 10px" }}>
+                          <DealFlipCard deal={injectDeal} />
                         </div>
                       )}
-
-                      <div className="absolute top-4 left-4">
-                        <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-gold-500 font-black italic shadow-xl">
-                          <Star size={12} className="fill-gold-500" />
-                          <span className="text-[10px]">{(r.rating ?? 4.6).toFixed(1)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 py-2 flex flex-col min-w-0">
-                      <div className="flex items-start justify-between gap-4 mb-3">
-                         <h3 className="text-3xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tighter leading-none italic">{r.name}</h3>
-                         <button 
-                           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                           className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5 shrink-0"
-                         >
-                           <Info size={16} />
-                         </button>
-                      </div>
-                      
-                      <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-relaxed mb-auto mt-1 line-clamp-2">{r.description || r.cuisine || "MatGo Selection"}</p>
-                      
-                      <div className="mt-8 border-t border-white/5 pt-6">
-                        {(() => {
-                          const zi = zoneDeliveryInfo[r.id];
-                          const fee    = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
-                          const minOrd = zi ? zi.minOrder    : (r.minOrderAmount ?? 0);
-                          const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
-                          return (
-                            <div className="flex items-center flex-wrap gap-5 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                              <span className="flex items-center gap-2"><Clock size={14} className="text-gold-500/50" /> {eta} MIN</span>
-                              <span className="flex items-center gap-2"><Bike size={14} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
-                              <span className="text-zinc-700">MIN {minOrd} KR</span>
-                              {zi?.zoneName && <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-[8px] border border-gold-500/10 tracking-normal">{zi.zoneName}</span>}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-                );
-              })}
-            </div>
-          )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            )}
         </section>
 
         {/* Info Modal Implementation */}

@@ -367,44 +367,26 @@ export default function HomeScreen({
     return [...personalCards, ...publicCards];
   }, [deals, openRestaurant, personalDeals, restaurants, pushRoute]);
 
-  const promoCards = useMemo<PromoCarouselItem[]>(() => {
-    const dealItems = homeDeals.map((deal) => ({ id: deal.id, kind: "deal" as const, deal }));
-    const sponsorItems = sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+  const sponsorCards = useMemo<PromoCarouselItem[]>(() => {
+    return sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
+  }, [sponsors]);
 
-    if (dealItems.length === 0) return sponsorItems;
-    if (sponsorItems.length === 0) return dealItems;
-
-    const merged: PromoCarouselItem[] = [];
-    let sponsorIndex = 0;
-
-    dealItems.forEach((item, index) => {
-      merged.push(item);
-      const shouldInsertSponsor = (index + 1) % 2 === 0 && sponsorIndex < sponsorItems.length;
-      if (shouldInsertSponsor) {
-        merged.push(sponsorItems[sponsorIndex]);
-        sponsorIndex += 1;
-      }
-    });
-
-    while (sponsorIndex < sponsorItems.length) {
-      merged.push(sponsorItems[sponsorIndex]);
-      sponsorIndex += 1;
-    }
-
-    return merged;
-  }, [homeDeals, sponsors]);
+  // Determine an active deal for a given restaurant
+  const getDealForRestaurant = useCallback((restaurantId: string) => {
+    return homeDeals.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
+  }, [homeDeals]);
 
   const handlePromoMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / PROMO_SNAP);
-    promoIndexRef.current = Math.max(0, Math.min(nextIndex, Math.max(promoCards.length - 1, 0)));
-  }, [promoCards.length]);
+    promoIndexRef.current = Math.max(0, Math.min(nextIndex, Math.max(sponsorCards.length - 1, 0)));
+  }, [sponsorCards.length]);
 
   useEffect(() => {
     promoIndexRef.current = 0;
-    if (promoCards.length <= 1) return;
+    if (sponsorCards.length <= 1) return;
 
     const interval = setInterval(() => {
-      const nextIndex = (promoIndexRef.current + 1) % promoCards.length;
+      const nextIndex = (promoIndexRef.current + 1) % sponsorCards.length;
       promoIndexRef.current = nextIndex;
       promoListRef.current?.scrollToOffset({
         offset: nextIndex * PROMO_SNAP,
@@ -413,7 +395,7 @@ export default function HomeScreen({
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [promoCards.length]);
+  }, [sponsorCards.length]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -605,7 +587,7 @@ export default function HomeScreen({
           })}
         </ScrollView>
 
-        {promoCards.length > 0 && (
+        {sponsorCards.length > 0 && (
           <View style={{ marginTop: 18, marginBottom: 6 }}>
             <View style={{ paddingHorizontal: 18, marginBottom: 10 }}>
               <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2 }}>AKTUELLT</Text>
@@ -615,7 +597,7 @@ export default function HomeScreen({
             </View>
             <FlatList
               ref={promoListRef}
-              data={promoCards}
+              data={sponsorCards}
               keyExtractor={(item) => item.id}
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -627,14 +609,8 @@ export default function HomeScreen({
               onMomentumScrollEnd={handlePromoMomentumEnd}
               contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}
               renderItem={({ item, index }) => (
-                <View style={{ width: PROMO_CARD_WIDTH, marginRight: index === promoCards.length - 1 ? 0 : PROMO_CARD_GAP }}>
-                  {item.kind === "sponsor" ? (
-                    <SponsorTile sponsor={item.sponsor} openRestaurant={openRestaurant} pushRoute={pushRoute} />
-                  ) : (
-                    <View style={{ alignItems: "center" }}>
-                      <DealFlipCard deal={item.deal} />
-                    </View>
-                  )}
+                <View style={{ width: PROMO_CARD_WIDTH, marginRight: index === sponsorCards.length - 1 ? 0 : PROMO_CARD_GAP }}>
+                  <SponsorTile sponsor={item.sponsor} openRestaurant={openRestaurant} pushRoute={pushRoute} />
                 </View>
               )}
             />
@@ -662,11 +638,14 @@ export default function HomeScreen({
                 const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
                 const isClosed = restaurant.isOpen === false;
                 const dimmed = isClosed || isOutOfZone;
+                const activeDeal = getDealForRestaurant(restaurant.id);
                 return (
                   <RestaurantCard
                     key={restaurant.id}
                     restaurant={restaurant}
                     isOutOfZone={isOutOfZone}
+                    dealText={activeDeal?.rewardLabel}
+                    dealTone={activeDeal?.tone}
                     onPress={() => openRestaurant(restaurant.slug)}
                     containerStyle={{ width: 300, opacity: dimmed ? 0.6 : 1 }}
                   />
@@ -739,18 +718,30 @@ export default function HomeScreen({
             ))}
           </View>
         )}
-        {!loading && filtered.map((restaurant) => {
+        {!loading && filtered.map((restaurant, index) => {
           const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
           const isClosed = restaurant.isOpen === false;
           const dimmed = isClosed || isOutOfZone;
+          const activeDeal = getDealForRestaurant(restaurant.id);
+          const injectDeal = (index + 1) % 4 === 0 ? homeDeals[Math.floor(index / 4) % homeDeals.length] : null;
+
           return (
-            <RestaurantCard
-              key={restaurant.id}
-              restaurant={restaurant}
-              isOutOfZone={isOutOfZone}
-              onPress={() => openRestaurant(restaurant.slug)}
-              containerStyle={{ opacity: dimmed ? 0.6 : 1, marginBottom: 20 }}
-            />
+            <View key={restaurant.id}>
+              <RestaurantCard
+                restaurant={restaurant}
+                isOutOfZone={isOutOfZone}
+                dealText={activeDeal?.rewardLabel}
+                dealTone={activeDeal?.tone}
+                onPress={() => openRestaurant(restaurant.slug)}
+                containerStyle={{ opacity: dimmed ? 0.6 : 1, marginBottom: 20 }}
+              />
+              {/* Option 1: Inline Feed Injection */}
+              {injectDeal && (
+                 <View style={{ opacity: 1, paddingHorizontal: 16, marginBottom: 20, alignItems: "center" }}>
+                    <DealFlipCard deal={injectDeal} />
+                 </View>
+              )}
+            </View>
           );
         })}
 

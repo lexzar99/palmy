@@ -125,11 +125,15 @@ export function RestaurantCard({
   onPress,
   containerStyle,
   isOutOfZone = false,
+  dealText,
+  dealTone = "gold",
 }: {
   restaurant: Restaurant;
   onPress: () => void;
   containerStyle?: any;
   isOutOfZone?: boolean;
+  dealText?: string;
+  dealTone?: "gold" | "purple" | "orange";
 }) {
   return (
     <ScalePressable
@@ -158,6 +162,19 @@ export function RestaurantCard({
           style={{ ...StyleSheet.absoluteFillObject }}
         />
         
+        {dealText && (
+          <View style={{ 
+            position: "absolute", top: 16, left: 0, 
+            backgroundColor: dealTone === "purple" ? "#a855f7" : dealTone === "orange" ? "#fb923c" : palette.gold, 
+            paddingHorizontal: 16, paddingVertical: 6, 
+            borderTopRightRadius: 12, borderBottomRightRadius: 12, 
+            elevation: 5, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, 
+            zIndex: 10 
+          }}>
+             <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", letterSpacing: 1, textTransform: "uppercase" }}>✨ {dealText}</Text>
+          </View>
+        )}
+
         <View style={{ position: "absolute", top: 16, right: 16 }}>
           <View style={{ 
             backgroundColor: "rgba(23,21,19,0.72)", 
