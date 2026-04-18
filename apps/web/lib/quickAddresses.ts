@@ -19,8 +19,27 @@ const normalize = (value?: string | null) =>
     .replace(/\s+/g, " ")
     .trim();
 
-export const formatQuickAddress = (address: QuickAddress) =>
-  [address.street, address.zip, address.city].filter(Boolean).join(", ") || address.street;
+export const formatQuickAddress = (address: QuickAddress) => {
+  let street = address.street;
+  let zip = address.zip;
+  
+  if (!zip && street) {
+    const zipMatch = street.match(/\b(\d{3,5})\b/);
+    if (zipMatch) {
+      zip = zipMatch[1];
+    }
+  }
+  
+  if (street && zip && street.toLowerCase().includes(zip.toLowerCase())) {
+    street = street.replace(zip, "").replace(/,\s*,/g, ",").replace(/^,|,$/g, "").trim();
+  }
+  
+  const parts = [street, zip].filter(Boolean);
+  if (address.city && !street.toLowerCase().includes(address.city.toLowerCase())) {
+    parts.push(address.city);
+  }
+  return parts.join(", ") || address.street;
+};
 
 const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
   if (

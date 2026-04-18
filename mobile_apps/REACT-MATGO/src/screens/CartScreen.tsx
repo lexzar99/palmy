@@ -771,8 +771,8 @@ export default function CartScreen({
                           size={14}
                           color={autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.muted}
                         />
-                        <Text style={{ color: autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                          {addr.label || "Adress"}
+                        <Text numberOfLines={1} style={{ color: autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.text, fontSize: 10, fontWeight: "900" }}>
+                          {formatQuickAddress(addr)}
                         </Text>
                         {addr.isDefault && <Text style={{ color: palette.gold, fontSize: 8, fontWeight: "900" }}>• STANDARD</Text>}
                       </Pressable>

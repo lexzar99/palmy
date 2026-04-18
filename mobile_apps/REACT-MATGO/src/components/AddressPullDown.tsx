@@ -114,8 +114,7 @@ export default function AddressPullDown({ onOpenFull, zoneStatus }: Props) {
                     <Ionicons name={iconFor(a.label) as any} size={14} color={palette.gold} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.text, fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>{(a.label || 'ADRESS').toUpperCase()}</Text>
-                    <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 11 }}>{formatQuickAddress(a)}</Text>
+                    <Text numberOfLines={1} style={{ color: palette.text, fontSize: 12, fontWeight: '900' }}>{formatQuickAddress(a)}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     {a.isDefault && (

@@ -892,7 +892,7 @@ export default function CartPage() {
                                         }`}
                                       >
                                         {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                                        {addr.label || 'Adress'}
+                                        {formatQuickAddress(addr)}
                                         {addr.isDefault && <span className="text-[8px] text-gold-500">• Standard</span>}
                                       </button>
                                     ))}
