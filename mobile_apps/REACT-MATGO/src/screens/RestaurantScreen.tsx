@@ -390,6 +390,45 @@ export default function RestaurantScreen({
           </View>
         </View>
 
+        {(() => {
+          const allProducts = categories.flatMap((c) => c.products);
+          const discounted = allProducts.filter((p) => p.discountActive);
+          if (discounted.length === 0) return null;
+          return (
+            <View style={styles.discountedRail}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discountedRailContent}>
+                {discounted.map((product) => (
+                  <Pressable
+                    key={product.id}
+                    style={styles.discountedProductCard}
+                    onPress={() => {
+                      if (restaurant?.isOpen === false) return;
+                      if (zoneAvailable === false && orderType === "DELIVERY") {
+                        setAddressModalOpen(true);
+                        return;
+                      }
+                      setSelectedProduct(product);
+                    }}
+                  >
+                    {!!product.imageUrl && (
+                      <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.discountedProductImage} />
+                    )}
+                    <View style={styles.discountedProductInfo}>
+                      <Text numberOfLines={1} style={styles.discountedProductTitle}>{product.name}</Text>
+                      <View style={styles.discountedPriceRow}>
+                        <Text style={styles.discountedOriginalPrice}>{product.price} KR</Text>
+                        <Text style={styles.discountedNewPrice}>
+                          {product.discountPrice || Math.round(product.price - (product.price * (product.discountPercent || 0) / 100))} KR
+                        </Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          );
+        })()}
+
         <View style={styles.restaurantStickyNavWrap}>
           <View style={styles.restaurantStickyNavCard}>
             <View style={styles.restaurantSearchInputWrap}>
@@ -476,9 +515,20 @@ export default function RestaurantScreen({
                             <Text numberOfLines={1} style={styles.restaurantMenuProductTitle}>
                               {product.name}
                             </Text>
-                            <View style={styles.restaurantMenuPriceBadge}>
-                              <Text style={styles.restaurantMenuPriceBadgeText}>{product.price} KR</Text>
-                            </View>
+                            {product.discountActive ? (
+                              <View>
+                                <Text style={[styles.restaurantMenuDiscountedPrice, { textAlign: "right" }]}>
+                                  {product.price} KR
+                                </Text>
+                                <Text style={[styles.restaurantMenuDiscountedPriceCurrent, { textAlign: "right" }]}>
+                                  {product.discountPrice || Math.round(product.price - product.price * (product.discountPercent || 0) / 100)} KR
+                                </Text>
+                              </View>
+                            ) : (
+                              <View style={styles.restaurantMenuPriceBadge}>
+                                <Text style={styles.restaurantMenuPriceBadgeText}>{product.price} KR</Text>
+                              </View>
+                            )}
                           </View>
 
                           <Text numberOfLines={2} style={styles.restaurantMenuProductDescription}>

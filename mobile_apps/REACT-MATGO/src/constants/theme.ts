@@ -396,6 +396,17 @@ export const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "900",
   },
+  restaurantMenuDiscountedPrice: {
+    color: palette.muted,
+    fontSize: 10,
+    fontWeight: "900",
+    textDecorationLine: "line-through",
+  },
+  restaurantMenuDiscountedPriceCurrent: {
+    color: palette.gold,
+    fontSize: 11,
+    fontWeight: "900",
+  },
   restaurantMenuProductDescription: {
     color: "rgba(184,170,149,0.82)",
     fontSize: 11,
@@ -1277,5 +1288,50 @@ export const styles = StyleSheet.create({
   badgeText: {
     fontSize: 12,
     fontWeight: "700",
+  },
+  discountedRail: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: palette.bg,
+  },
+  discountedRailContent: {
+    gap: 12,
+    paddingRight: 16,
+  },
+  discountedProductCard: {
+    width: 160,
+    borderRadius: 16,
+    backgroundColor: "rgba(33,28,25,0.96)",
+    borderWidth: 1,
+    borderColor: "rgba(231,178,75,0.2)",
+    overflow: "hidden",
+  },
+  discountedProductImage: {
+    width: "100%",
+    height: 100,
+  },
+  discountedProductInfo: {
+    padding: 10,
+  },
+  discountedProductTitle: {
+    color: palette.text,
+    fontSize: 12,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  discountedPriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  discountedOriginalPrice: {
+    color: palette.muted,
+    fontSize: 10,
+    textDecorationLine: "line-through",
+  },
+  discountedNewPrice: {
+    color: palette.gold,
+    fontSize: 13,
+    fontWeight: "900",
   },
 });
