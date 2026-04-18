@@ -646,9 +646,9 @@ const UnifiedMenuPage = () => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} key="cat" className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredCategories.map(cat => (
                 <div key={cat.id} className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2rem] overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col h-full">
-                  <div className="h-32 bg-dark-400 relative overflow-hidden">
+                  <div className="h-32 bg-[var(--bg-primary)] relative overflow-hidden">
                     {cat.imageUrl ? <img src={cat.imageUrl} className="w-full h-full object-cover opacity-60" /> : <div className="w-full h-full flex items-center justify-center opacity-5"><ImageIcon size={40} /></div>}
-                    <div className="absolute inset-0 bg-gradient-to-t from-dark-500 via-dark-500/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/20 to-transparent" />
                     <div className="absolute bottom-4 left-6">
                        <h3 className="font-black text-xl uppercase tracking-widest">{cat.name}</h3>
                     </div>
@@ -792,8 +792,8 @@ const UnifiedMenuPage = () => {
       {/* Product Modal */}
       {isProductModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
-             <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center bg-dark-400 z-10 sticky top-0">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
+              <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center bg-[var(--bg-card)] z-10 sticky top-0">
                <div>
                   <h2 className="text-3xl font-black uppercase tracking-tight">{editingId ? 'Redigera Artikel' : 'Ny Artikel'}</h2>
                   <p className="text-[var(--text-primary)]/40 text-sm mt-1">Ställ in priser, tillbehör och kategorier.</p>
@@ -918,7 +918,7 @@ const UnifiedMenuPage = () => {
       {/* Category Modal - simplified */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
-           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-lg shadow-2xl">
+           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Kategori' : 'Ny Kategori'}</h2>
                  <button onClick={() => setIsCategoryModalOpen(false)} className="p-3 bg-[var(--border-subtle)] rounded-full"><X size={20} /></button>
@@ -941,7 +941,7 @@ const UnifiedMenuPage = () => {
       {/* Extra Modal - Simplified table-like */}
       {isExtraModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
-           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Grupp' : 'Ny Grupp'}</h2>
                  <button onClick={() => setIsExtraModalOpen(false)} className="p-3 bg-[var(--border-subtle)] rounded-full"><X size={20} /></button>
@@ -1034,7 +1034,7 @@ const UnifiedMenuPage = () => {
                    </div>
                 </form>
               </div>
-              <div className="p-8 bg-dark-400 border-t border-[var(--border-subtle)]">
+              <div className="p-8 bg-[var(--bg-card)] border-t border-[var(--border-subtle)]">
                  <button form="extraForm" className="w-full py-5 bg-gold-500 text-[#0d0d0d] font-extrabold rounded-2xl uppercase tracking-widest">Spara Grupp</button>
               </div>
            </motion.div>
@@ -1043,7 +1043,7 @@ const UnifiedMenuPage = () => {
 
       {isDealModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
-          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
             <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
               <div>
                 <h2 className="text-3xl font-black uppercase tracking-tight">{editingId ? "Redigera Deal" : "Ny Deal"}</h2>
