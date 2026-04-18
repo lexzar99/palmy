@@ -15,7 +15,7 @@ export const api = axios.create({
 
 export function getImageUrl(path?: string | null) {
   if (!path) return "";
-  if (path.startsWith("http")) return path;
+  if (path.startsWith("http") || path.startsWith("data:")) return path;
   if (path.startsWith("/")) return `${API_URL}${path}`;
   return `${API_URL}/${path}`;
 }

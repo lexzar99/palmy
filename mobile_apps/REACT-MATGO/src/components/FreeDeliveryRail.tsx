@@ -43,13 +43,13 @@ export default function FreeDeliveryRail({ openRestaurant }: { openRestaurant: (
         keyExtractor={(d) => d.id}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
         renderItem={({ item: r }) => (
           <ScalePressable
             onPress={() => openRestaurant(r.slug)}
-            style={{ width: 200, borderRadius: 18, overflow: 'hidden', backgroundColor: palette.panel, borderWidth: 1, borderColor: 'rgba(255,248,234,0.08)' }}
+            style={{ width: 300, borderRadius: 24, overflow: 'hidden', backgroundColor: palette.panel, borderWidth: 1, borderColor: 'rgba(255,248,234,0.08)' }}
           >
-            <View style={{ width: '100%', height: 90, backgroundColor: palette.bg }}>
+            <View style={{ width: '100%', height: 160, backgroundColor: palette.bg }}>
               {(r.heroImageUrl || r.imageUrl) ? (
                 <Image source={{ uri: getImageUrl((r.heroImageUrl || r.imageUrl) as string) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
               ) : (
@@ -57,25 +57,31 @@ export default function FreeDeliveryRail({ openRestaurant }: { openRestaurant: (
                   <Text style={{ fontSize: 28 }}>🍽️</Text>
                 </View>
               )}
-              <View style={{ position: 'absolute', top: 8, left: 8, backgroundColor: '#10b981', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                <Text style={{ color: '#000', fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>
+              <View style={{ position: 'absolute', top: 12, left: 12, backgroundColor: '#10b981', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                <Text style={{ color: '#000', fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>
                   {r.isFullyFree ? 'FRI LEVERANS' : `FRI ÖVER ${r.freeDeliveryAbove} KR`}
                 </Text>
               </View>
             </View>
-            <View style={{ padding: 10 }}>
-              <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1 }}>
+            <View style={{ padding: 14 }}>
+              <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>
                 {(r.cuisine || r.city || 'RESTAURANG').toUpperCase()}
               </Text>
-              <Text numberOfLines={1} style={{ color: palette.text, fontSize: 12, fontWeight: '900', marginTop: 2 }}>
+              <Text numberOfLines={1} style={{ color: palette.text, fontSize: 16, fontWeight: '900', marginTop: 4 }}>
                 {r.name}
               </Text>
-              <Text style={{ color: palette.muted, fontSize: 10, marginTop: 4 }}>
+              <Text style={{ color: palette.muted, fontSize: 11, marginTop: 6, fontWeight: '600' }}>
                 {(r.etaMinutes ?? 30)} min · {r.rating ? `${r.rating.toFixed(1)}★` : 'Ny'}
               </Text>
             </View>
           </ScalePressable>
         )}
+        ListEmptyComponent={
+          <View style={{ width: 300, height: 160, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.panel, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,248,234,0.05)' }}>
+            <Ionicons name="bicycle-outline" size={32} color={palette.muted} style={{ marginBottom: 8 }} />
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: '700' }}>Inga kampanjer för fri frakt aktiva</Text>
+          </View>
+        }
       />
     </View>
   );

@@ -61,7 +61,7 @@ export default function FreeDeliverySection() {
         </div>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+      <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
         {restaurants.map((r, i) => (
           <motion.button
             key={r.id}
@@ -70,30 +70,30 @@ export default function FreeDeliverySection() {
             transition={{ delay: i * 0.03 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => router.push(`/restaurants/${r.slug}`)}
-            className="shrink-0 w-56 rounded-2xl border overflow-hidden text-left group"
+            className="shrink-0 w-72 rounded-[1.8rem] border overflow-hidden text-left group"
             style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
           >
-            <div className="relative w-full h-28 bg-obsidian/50 overflow-hidden">
+            <div className="relative w-full h-40 bg-obsidian/50 overflow-hidden">
               {r.heroImageUrl || r.imageUrl ? (
-                <img src={getImg(r.heroImageUrl || r.imageUrl)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                <img src={getImg(r.heroImageUrl || r.imageUrl)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl">🍽️</div>
+                <div className="w-full h-full flex items-center justify-center text-4xl">🍽️</div>
               )}
-              <div className="absolute top-2 left-2 px-2 py-1 rounded-md bg-emerald-500 text-zinc-950 text-[9px] font-black uppercase tracking-widest shadow-xl flex items-center gap-1">
-                <Bike size={10} />
+              <div className="absolute top-3 left-3 px-2.5 py-1.5 rounded-lg bg-emerald-500 text-zinc-950 text-[10px] font-black uppercase tracking-widest shadow-xl flex items-center gap-1.5">
+                <Bike size={12} />
                 {r.isFullyFree ? "Fri leverans" : `Fri över ${r.freeDeliveryAbove} kr`}
               </div>
             </div>
-            <div className="p-3">
-              <div className="text-[8px] font-black uppercase tracking-[0.2em] text-zinc-500 truncate">
+            <div className="p-4">
+              <div className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 truncate">
                 {r.cuisine || r.city || "Restaurang"}
               </div>
-              <div className="text-[12px] font-black text-white truncate mt-0.5 flex items-center justify-between">
+              <div className="text-[16px] font-black text-white truncate flex items-center justify-between mt-1">
                 <span className="truncate">{r.name}</span>
-                <ArrowRight size={12} className="text-zinc-600 group-hover:text-emerald-400 transition-colors shrink-0 ml-2" />
+                <ArrowRight size={14} className="text-zinc-600 group-hover:text-emerald-400 transition-colors shrink-0 ml-2" />
               </div>
-              <div className="text-[9px] text-zinc-500 mt-1">
-                {r.etaMinutes ?? 30} min · {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
+              <div className="text-[11px] text-zinc-400 font-bold mt-2">
+                {r.etaMinutes ?? 30} min <span className="opacity-50 mx-1">•</span> {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
               </div>
             </div>
           </motion.button>

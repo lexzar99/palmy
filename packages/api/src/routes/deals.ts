@@ -31,15 +31,24 @@ router.get('/', async (req, res) => {
       where: {
         showOnSite: true,
         isActive: true,
-        ...(targetRestaurantId
-          ? {
-              OR: [
-                { isGlobal: true },
-                { restaurantId: targetRestaurantId },
-                { applicableRestaurantIds: { contains: `"${targetRestaurantId}"` } },
-              ],
-            }
-          : {}),
+        AND: [
+          {
+            OR: [
+              { isGlobal: true },
+              { restaurant: { isOpen: true } },
+              { restaurantId: null } // Fallback for deals not bound to a specific restaurant
+            ]
+          },
+          ...(targetRestaurantId
+            ? [{
+                OR: [
+                  { isGlobal: true },
+                  { restaurantId: targetRestaurantId },
+                  { applicableRestaurantIds: { contains: `"${targetRestaurantId}"` } },
+                ]
+              }]
+            : [])
+        ]
       },
       include: {
         restaurant: {

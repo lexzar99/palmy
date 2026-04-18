@@ -79,6 +79,12 @@ export default function DiscountedDishesRail({ openRestaurant }: { openRestauran
             </View>
           </ScalePressable>
         )}
+        ListEmptyComponent={
+          <View style={{ width: 300, height: 100, justifyContent: 'center', alignItems: 'center', backgroundColor: palette.panel, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,248,234,0.05)' }}>
+            <Ionicons name="fast-food-outline" size={24} color={palette.muted} style={{ marginBottom: 4 }} />
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '700' }}>Inga rabatter släppta än</Text>
+          </View>
+        }
       />
     </View>
   );

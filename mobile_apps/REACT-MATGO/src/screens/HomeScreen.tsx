@@ -88,7 +88,15 @@ function sortRestaurantsForHome(restaurants: Restaurant[], zoneIds: string[] | n
   });
 }
 
-const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
+const cuisineFilters = [
+  { name: "Alla", emoji: "🍽️" },
+  { name: "Pizza", emoji: "🍕" },
+  { name: "Sushi", emoji: "🍣" },
+  { name: "Kebab", emoji: "🥙" },
+  { name: "Burgare", emoji: "🍔" },
+  { name: "Pasta", emoji: "🍝" },
+  { name: "Asiatiskt", emoji: "🥢" },
+];
 
 export default function HomeScreen({
   openRestaurant,
@@ -572,6 +580,31 @@ export default function HomeScreen({
           )}
         </View>
 
+        {/* Categories / Cuisine filters (Flyttad högst upp likt Foodora/UberEats) */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 8, marginTop: 14 }}>
+          {cuisineFilters.map((filter) => {
+            const active = activeCuisine === filter.name;
+            return (
+              <ScalePressable
+                key={filter.name}
+                onPress={() => setActiveCuisine(filter.name)}
+                style={{ alignItems: "center", gap: 8 }}
+              >
+                <View style={{
+                  width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: active ? palette.gold : 'rgba(255,248,234,0.03)',
+                  borderWidth: 1, borderColor: active ? palette.gold : 'rgba(255,248,234,0.08)'
+                }}>
+                  <Text style={{ fontSize: 26, opacity: active ? 1 : 0.8 }}>{filter.emoji}</Text>
+                </View>
+                <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5 }}>
+                  {filter.name === "Alla" ? "ALLA" : filter.name.toUpperCase()}
+                </Text>
+              </ScalePressable>
+            );
+          })}
+        </ScrollView>
+
         {promoCards.length > 0 && (
           <View style={{ marginTop: 18, marginBottom: 6 }}>
             <View style={{ paddingHorizontal: 18, marginBottom: 10 }}>
@@ -608,34 +641,23 @@ export default function HomeScreen({
           </View>
         )}
 
-        {/* NYA SEKTIONER: discounted + free delivery */}
+        {/* REA & RABATTER (Flyttad upp under Aktuellt enligt önskemål) */}
         <DiscountedDishesRail openRestaurant={openRestaurant} />
-        <FreeDeliveryRail openRestaurant={openRestaurant} />
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4, marginTop: 14 }}>
-          {cuisineFilters.map((filter) => (
-            <ToggleChip
-              key={filter}
-              label={filter === "Alla" ? "ALLA RESTAURANGER" : filter.toUpperCase()}
-              active={activeCuisine === filter}
-              onPress={() => setActiveCuisine(filter)}
-            />
-          ))}
-        </ScrollView>
-
+        {/* HETA LISTAN (Alltid överst bland restauranglistorna) */}
         {!!featured.length && (
-          <View style={{ marginTop: 12 }}>
-            <View style={[styles.sectionTitleRow, { marginBottom: 20 }]}>
+          <View style={{ marginTop: 18 }}>
+            <View style={[styles.sectionTitleRow, { marginBottom: 14 }]}>
               <View>
-                <Text style={{ color: palette.gold, fontSize: 28, fontWeight: "900", fontStyle: "italic" }}>HETA LISTAN</Text>
-                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 3, marginTop: 8 }}>TOPPVALEN I DIN STAD JUST NU</Text>
+                <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", fontStyle: "italic" }}>HETA LISTAN</Text>
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 3, marginTop: 6 }}>TOPPVALEN I DIN STAD JUST NU</Text>
               </View>
               <ScalePressable onPress={() => openTab("discover")}>
-                <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
+                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
               </ScalePressable>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14, paddingHorizontal: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
               {featured.map((restaurant) => {
                 const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
                 const isClosed = restaurant.isOpen === false;
@@ -646,13 +668,57 @@ export default function HomeScreen({
                     restaurant={restaurant}
                     isOutOfZone={isOutOfZone}
                     onPress={() => openRestaurant(restaurant.slug)}
-                    containerStyle={{ width: 320, opacity: dimmed ? 0.6 : 1 }}
+                    containerStyle={{ width: 300, opacity: dimmed ? 0.6 : 1 }}
                   />
                 );
               })}
             </ScrollView>
           </View>
         )}
+
+
+
+        {/* FRI LEVERANS (Stor kategori) */}
+        {orderType !== "PICKUP" && <FreeDeliveryRail openRestaurant={openRestaurant} />}
+
+        {/* SNABB LEVERANS (Liten kategori - fungerar som "avskiljare" nr 2) */}
+        {(() => {
+          const fast = filtered.filter(r => r.etaMinutes !== null && r.etaMinutes <= 25).slice(0, 10);
+          if (fast.length === 0) return null;
+          return (
+            <View style={{ marginTop: 14, marginBottom: 14 }}>
+              <View style={[styles.sectionTitleRow, { marginBottom: 10, paddingHorizontal: 16 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="flash" size={14} color="#f59e0b" />
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2, textTransform: 'uppercase' }}>SNABBAST LEVERANS</Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+                {fast.map((r) => (
+                  <ScalePressable
+                    key={r.id}
+                    onPress={() => openRestaurant(r.slug)}
+                    style={{ width: 140, borderRadius: 16, overflow: 'hidden', backgroundColor: palette.panel, borderWidth: 1, borderColor: "rgba(255,248,234,0.08)" }}
+                  >
+                    <View style={{ width: '100%', height: 75, backgroundColor: palette.bg }}>
+                      {r.heroImageUrl || r.imageUrl ? (
+                        <Image source={{ uri: getImageUrl((r.heroImageUrl || r.imageUrl) as string) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                      ) : null}
+                    </View>
+                    <View style={{ padding: 10 }}>
+                      <Text numberOfLines={1} style={{ color: palette.text, fontSize: 13, fontWeight: '900' }}>{r.name}</Text>
+                      <Text style={{ color: palette.muted, fontSize: 10, marginTop: 4, fontWeight: '700' }}>{r.etaMinutes} min • {r.rating ? r.rating.toFixed(1) + '★' : 'Ny'}</Text>
+                    </View>
+                  </ScalePressable>
+                ))}
+              </ScrollView>
+            </View>
+          );
+        })()}
+
+
+
+
 
         <View style={styles.sectionTitleRow}>
           <Text style={{ color: palette.muted, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>
@@ -661,9 +727,16 @@ export default function HomeScreen({
         </View>
 
         {loading && (
-          <View style={{ alignItems: "center", paddingVertical: 40, gap: 12 }}>
-            <ActivityIndicator size="large" color={palette.gold} />
-            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" }}>Laddar restauranger...</Text>
+          <View style={{ padding: 16, gap: 16 }}>
+            {[1, 2, 3].map((i) => (
+              <View key={i} style={{ width: '100%', height: 200, backgroundColor: palette.panel, borderRadius: 24, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' }}>
+                <View style={{ width: '100%', height: 140, backgroundColor: 'rgba(255,248,234,0.02)' }} />
+                <View style={{ padding: 14, gap: 8 }}>
+                  <View style={{ width: '60%', height: 14, backgroundColor: 'rgba(255,248,234,0.04)', borderRadius: 4 }} />
+                  <View style={{ width: '40%', height: 10, backgroundColor: 'rgba(255,248,234,0.02)', borderRadius: 4 }} />
+                </View>
+              </View>
+            ))}
           </View>
         )}
         {!loading && filtered.map((restaurant) => {

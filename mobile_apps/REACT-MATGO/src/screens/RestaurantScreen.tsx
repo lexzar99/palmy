@@ -436,15 +436,24 @@ export default function RestaurantScreen({
 
         <View style={styles.restaurantStickyNavWrap} id="category-sticky">
           <View style={styles.restaurantStickyNavCard}>
-            <View style={styles.restaurantSearchInputWrap}>
-              <Ionicons name="search-outline" size={18} color={palette.muted} />
-              <TextInput
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-                placeholder="Vad ar du sugen pa?"
-                placeholderTextColor={palette.muted}
-                style={styles.restaurantSearchInput}
-              />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Pressable 
+                onPress={goBack} 
+                style={{ backgroundColor: "rgba(23,21,19,0.88)", padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center' }}
+              >
+                <Ionicons name="chevron-back" size={22} color="#EAB545" />
+              </Pressable>
+              
+              <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
+                <Ionicons name="search-outline" size={18} color="#B8AA95" />
+                <TextInput
+                  value={searchTerm}
+                  onChangeText={setSearchTerm}
+                  placeholder="Vad ar du sugen pa?"
+                  placeholderTextColor="#B8AA95"
+                  style={styles.restaurantSearchInput}
+                />
+              </View>
             </View>
 
             <ScrollView

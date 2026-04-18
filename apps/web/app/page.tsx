@@ -491,6 +491,33 @@ export default function HomePage() {
           </Link>
         </header>
 
+        {/* Cuisine Selector (Flyttad upp likt Foodora/UberEats) */}
+        <section className="mb-8">
+          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+            {cuisineFilters.map((c, i) => (
+              <motion.button
+                key={c.label}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.1 + i * 0.05 }}
+                onClick={() => setActiveCuisine(c.label)}
+                className="flex flex-col items-center gap-2 transition-all active:scale-95 flex-shrink-0 group"
+              >
+                <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border transition-all ${
+                  activeCuisine === c.label
+                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(231,178,75,0.2)]"
+                    : "bg-[#211C19] border-[rgba(255,248,234,0.08)] group-hover:border-white/15"
+                }`}>
+                  <span className={`${activeCuisine === c.label ? "" : "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
+                </div>
+                <span className={`text-[9.5px] font-black uppercase tracking-widest ${activeCuisine === c.label ? "text-gold-500" : "text-zinc-500 group-hover:text-zinc-300"}`}>
+                  {c.label === "Alla" ? "Alla" : c.label}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+
         {promoCards.length > 0 && (
           <section className="mb-8">
             <div className="flex items-center justify-between mb-3 px-1">
@@ -525,52 +552,12 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* NYA SEKTIONER: rabatterade rätter + fri leverans */}
+        {/* REA & RABATTER (Liten kategori - fungerar som "avskiljare" nr 1, placerad efter Aktuellt enligt önskemål) */}
         <DiscountedDishesSection />
-        <FreeDeliverySection />
 
-        {filteredByDeal && (
-          <section className="mb-10">
-            <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "#B8AA95" }}>Filtrerat erbjudande</p>
-                <p className="text-sm font-black uppercase" style={{ color: "#FFF8EA" }}>{filteredByDeal.title}</p>
-              </div>
-              <button onClick={() => setFilteredByDeal(null)}
-                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
-                style={{ color: "#B8AA95", borderColor: "rgba(255,248,234,0.10)" }}>
-                <X size={11} /> Rensa filter
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Cuisine Selector */}
-        <section className="mb-16">
-          <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
-            {cuisineFilters.map((c, i) => (
-              <motion.button
-                key={c.label}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 + i * 0.05 }}
-                onClick={() => setActiveCuisine(c.label)}
-                className={`whitespace-nowrap flex items-center gap-2 rounded-[1.1rem] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.15em] transition-all border-2 active:scale-95 ${
-                  activeCuisine === c.label
-                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(231,178,75,0.1)]"
-                    : "text-zinc-500 border-white/5 hover:border-white/10 hover:text-zinc-100"
-                }`}
-              >
-                <span className="text-base grayscale-[0.5] group-hover:grayscale-0">{c.emoji}</span>
-                <span>{c.label === "Alla" ? "Alla Restauranger" : c.label}</span>
-              </motion.button>
-            ))}
-          </div>
-        </section>
-
-        {/* Featured Section */}
+        {/* Featured Section (HETA LISTAN) kommer efter Rabatter. */}
         {featured.length > 0 && (
-          <section className="mb-20">
+          <section className="mb-10">
             <div className="flex items-end justify-between mb-8 px-4">
                <div>
                   <h2 className="text-gold-gradient text-3xl font-black tracking-tight leading-none italic uppercase">HETA LISTAN</h2>
@@ -665,6 +652,70 @@ export default function HomePage() {
           </section>
         )}
 
+        {/* FRI LEVERANS */}
+        {orderType !== "PICKUP" && <FreeDeliverySection />}
+
+        {/* SNABB LEVERANS (Liten kategori - fungerar som "avskiljare" nr 2) */}
+        {(() => {
+          const fast = filtered.filter(r => r.etaMinutes !== null && r.etaMinutes <= 25).slice(0, 10);
+          if (fast.length === 0) return null;
+          return (
+            <section className="mb-12 mt-4">
+              <div className="flex items-center justify-between mb-4 px-1">
+                <h2 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
+                  <span className="text-amber-500 text-lg leading-none">⚡</span> Snabbast leverans
+                </h2>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+                {fast.map((r, i) => (
+                  <motion.button
+                    key={r.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={(e) => handleRestaurantClick(e as any, r)}
+                    className="shrink-0 w-40 rounded-2xl border overflow-hidden text-left group"
+                    style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+                  >
+                    <div className="w-full h-24 bg-obsidian/50 relative overflow-hidden">
+                      {r.heroImageUrl || r.imageUrl ? (
+                        <img src={getCardImage(r)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                      ) : null}
+                    </div>
+                    <div className="p-3">
+                      <div className="text-[13px] font-black text-white truncate">{r.name}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1 font-bold">
+                        {r.etaMinutes} min <span className="opacity-50 mx-1">•</span> {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
+                      </div>
+                    </div>
+                  </motion.button>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
+
+        {filteredByDeal && (
+          <section className="mb-10">
+            <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "#B8AA95" }}>Filtrerat erbjudande</p>
+                <p className="text-sm font-black uppercase" style={{ color: "#FFF8EA" }}>{filteredByDeal.title}</p>
+              </div>
+              <button onClick={() => setFilteredByDeal(null)}
+                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
+                style={{ color: "#B8AA95", borderColor: "rgba(255,248,234,0.10)" }}>
+                <X size={11} /> Rensa filter
+              </button>
+            </div>
+          </section>
+        )}
+
+
+
+
+
         {/* Dynamic List Section */}
         <section>
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
@@ -703,8 +754,21 @@ export default function HomePage() {
             </div>
           ) : loading ? (
             <div className="space-y-6">
+              {/* Extra skeleton elements to avoid the "empty" startup look */}
+              <div className="flex gap-4 overflow-hidden mb-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={`deal-${i}`} className="w-[260px] h-[140px] bg-[#211C19] border border-[rgba(255,248,234,0.03)] rounded-[2rem] animate-pulse shrink-0" />
+                ))}
+              </div>
+              <div className="w-48 h-6 bg-[#211C19] rounded-full animate-pulse mb-4" />
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-44 rounded-[3rem] glass-panel animate-pulse shadow-sm" />
+                <div key={i} className="h-44 rounded-[3rem] bg-[#211C19] border border-[rgba(255,248,234,0.03)] animate-pulse shadow-sm flex" >
+                  <div className="w-1/3 h-full bg-[rgba(255,248,234,0.02)] rounded-[3rem]" />
+                  <div className="p-6 flex-1 flex flex-col justify-center gap-3">
+                    <div className="w-2/3 h-6 bg-[rgba(255,248,234,0.03)] rounded m-1" />
+                    <div className="w-1/2 h-4 bg-[rgba(255,248,234,0.02)] rounded m-1" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : filtered.length === 0 ? (
