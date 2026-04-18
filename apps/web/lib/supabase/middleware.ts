@@ -5,29 +5,38 @@ import { type NextRequest, NextResponse } from "next/server";
  * Refresh Supabase sessions in middleware so they never expire mid-request.
  */
 export async function updateSupabaseSession(request: NextRequest) {
+  // Skip if no Supabase credentials
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (cookiesToSet) => {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: (cookiesToSet) => {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
         },
-      },
-    }
-  );
+      }
+    );
 
-  // Refresh session — do not remove this line
-  await supabase.auth.getUser();
+    // Refresh session — do not remove this line
+    await supabase.auth.getUser();
+  } catch (err) {
+    console.error("Supabase session refresh failed:", err);
+  }
 
   return supabaseResponse;
 }
