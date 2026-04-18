@@ -21,13 +21,15 @@ export interface QuickAddress {
 
 interface Props {
   onOpenFull: () => void;
+  /** "ok" = grön prick, "error" = röd prick, null = ingen prick. */
+  zoneStatus?: 'ok' | 'error' | null;
 }
 
 /**
  * Kompakt adressväljare i toppen. Drag ner / tryck för att öppna sheet med upp
  * till 3 sparade adresser. Använder `/api/profile/addresses` för inloggade.
  */
-export default function AddressPullDown({ onOpenFull }: Props) {
+export default function AddressPullDown({ onOpenFull, zoneStatus }: Props) {
   const address = useAppStore((s) => s.address);
   const setAddress = useAppStore((s) => s.setAddress);
   const token = useAppStore((s) => s.token);
@@ -69,6 +71,12 @@ export default function AddressPullDown({ onOpenFull }: Props) {
         <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : palette.muted, fontSize: 12, fontWeight: '800' }}>
           {address || 'Välj adress'}
         </Text>
+        {zoneStatus === 'ok' && (
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981' }} />
+        )}
+        {zoneStatus === 'error' && (
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' }} />
+        )}
         <Ionicons name="chevron-down" size={14} color={palette.muted} />
         <View style={{ width: 24, height: 4, borderRadius: 2, backgroundColor: palette.border }} />
       </ScalePressable>

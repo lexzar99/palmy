@@ -327,11 +327,10 @@ export default function AddressModal({
               </motion.div>
             )}
 
-            {/* Confirmed address badge */}
+            {/* Verifierad = bara en liten grön prick. Felaktig = liten röd. Ingen text. */}
             {selectedCoords && orderType === "DELIVERY" && (
-              <div className="mb-4 px-3 py-2 rounded-xl flex items-center gap-2" style={{ backgroundColor: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                <CheckCircle2 size={13} className="text-emerald-400" />
-                <span className="text-[10px] font-bold text-emerald-400">Adress är verifierad.</span>
+              <div className="mb-4 flex items-center justify-end">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />
               </div>
             )}
 

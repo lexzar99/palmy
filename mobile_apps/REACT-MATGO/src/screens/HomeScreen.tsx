@@ -429,7 +429,10 @@ export default function HomeScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={{ paddingTop: 14, marginBottom: 6 }}>
           {/* Compact adresspil i toppen */}
-          <AddressPullDown onOpenFull={() => setAddressModalOpen(true)} />
+          <AddressPullDown
+            onOpenFull={() => setAddressModalOpen(true)}
+            zoneStatus={orderType === 'DELIVERY' ? (zoneError ? 'error' : coords ? 'ok' : null) : null}
+          />
 
           {/* Kompakt greeting + toggle */}
           <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -467,8 +470,8 @@ export default function HomeScreen({
               />
               {(
                 [
-                  { key: "DELIVERY", label: "LEVER", icon: "bicycle-outline" },
-                  { key: "PICKUP", label: "HÄMTA", icon: "storefront-outline" },
+                  { key: "DELIVERY", label: "LEVERANS", icon: "bicycle-outline" },
+                  { key: "PICKUP", label: "HÄMTNING", icon: "storefront-outline" },
                 ] as const
               ).map((item) => {
                 const active = orderType === item.key;
@@ -476,7 +479,7 @@ export default function HomeScreen({
                   <Pressable
                     key={item.key}
                     onPress={() => setOrderType(item.key)}
-                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, zIndex: 2 }}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, zIndex: 2 }}
                   >
                     <Ionicons name={item.icon} size={12} color={active ? "#000" : palette.muted} />
                     <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 10, letterSpacing: 1 }}>
@@ -557,17 +560,13 @@ export default function HomeScreen({
             </View>
           </ScalePressable>
 
+          {/* Zonstatus visas nu som en liten färgad prick på adress-pilen ovan istället för en
+              hel banner – zonError behåller däremot fullständigt fel-meddelande så användaren
+              förstår varför de inte ser några restauranger. */}
           {zoneError && orderType === "DELIVERY" && (
-            <View style={{ backgroundColor: "rgba(220, 38, 38, 0.15)", borderColor: "rgba(220, 38, 38, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Ionicons name="information-circle" size={20} color="#f87171" />
-              <Text style={{ flex: 1, color: "#fca5a5", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>{zoneError}</Text>
-            </View>
-          )}
-
-          {coords && !zoneError && orderType === "DELIVERY" && (
-            <View style={{ backgroundColor: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Ionicons name="checkmark-circle" size={20} color="#34d399" />
-              <Text style={{ flex: 1, color: "#6ee7b7", fontSize: 11, fontWeight: "800", lineHeight: 16 }}>Adress ar verifierad.</Text>
+            <View style={{ backgroundColor: "rgba(220, 38, 38, 0.12)", borderColor: "rgba(220, 38, 38, 0.3)", borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="alert-circle" size={14} color="#f87171" />
+              <Text style={{ flex: 1, color: "#fca5a5", fontSize: 10, fontWeight: "800", lineHeight: 14 }}>{zoneError}</Text>
             </View>
           )}
         </View>

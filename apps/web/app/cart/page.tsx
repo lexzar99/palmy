@@ -388,6 +388,9 @@ export default function CartPage() {
 
   useEffect(() => {
     fetchContext();
+    // Failsafe: om API är långsamt så ska inte kassan snurra i evighet.
+    const safety = setTimeout(() => setPageLoading(false), 8000);
+    return () => clearTimeout(safety);
   }, [fetchContext]);
 
   // Auto-fill address from localStorage and run zone check
@@ -966,11 +969,8 @@ export default function CartPage() {
                        </motion.div>
                      )}
                      {addressZoneStatus === "ok" && orderType === "DELIVERY" && (
-                       <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mt-6 p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
-                         <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
-                           <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                         </div>
-                         <p className="text-[10px] font-bold text-emerald-400">Adressen är verifierad — vi levererar dit!</p>
+                       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-4 flex items-center justify-end">
+                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />
                        </motion.div>
                      )}
 

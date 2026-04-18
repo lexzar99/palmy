@@ -209,8 +209,8 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    width: 292,
-    height: 210,
+    width: 260,
+    height: 150,
   },
   card: {
     position: "absolute",

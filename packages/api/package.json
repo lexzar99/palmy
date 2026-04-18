@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "nodemon src/index.ts",
     "build": "prisma generate --schema prisma/schema.prisma && tsc",
-    "start": "node dist/index.js"
+    "start": "prisma db push --schema prisma/schema.prisma --skip-generate --accept-data-loss && node dist/index.js"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",

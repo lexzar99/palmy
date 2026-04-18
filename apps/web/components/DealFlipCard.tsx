@@ -51,7 +51,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
   };
 
   return (
-    <div className="relative shrink-0" style={{ width: 300, height: 210 }}>
+    <div className="relative shrink-0" style={{ width: 260, height: 150 }}>
       {/* ── Front ── */}
       <div
         className="absolute inset-0 rounded-[1.75rem] p-[18px] border flex flex-col cursor-pointer transition-all duration-300"

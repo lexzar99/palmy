@@ -71,8 +71,8 @@ const cuisineFilters = [
 ];
 
 const ORDER_TYPE_KEY = "platform_order_type";
-const PROMO_CARD_WIDTH = 300;
-const PROMO_CARD_GAP = 16;
+const PROMO_CARD_WIDTH = 260;
+const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 type PromoCardItem =
@@ -457,11 +457,11 @@ export default function HomePage() {
                 className="absolute inset-y-0.5 h-auto bg-gold-500 rounded-full transition-all duration-300"
                 style={{ width: 'calc(50% - 2px)', left: orderType === 'DELIVERY' ? '2px' : '50%' }}
               />
-              <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex items-center gap-1.5 px-3 py-2 text-[9px] font-black uppercase tracking-widest ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
-                <Truck size={12} /> Lever
+              <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                <Truck size={12} /> Leverans
               </button>
-              <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex items-center gap-1.5 px-3 py-2 text-[9px] font-black uppercase tracking-widest ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
-                <Store size={12} /> Hämta
+              <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                <Store size={12} /> Hämtning
               </button>
             </div>
           </motion.div>
