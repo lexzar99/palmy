@@ -1,4 +1,4 @@
- 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -35,6 +35,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
+import confetti from "canvas-confetti";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import { useRestaurantStore } from "@/store/restaurantStore";
 import { Modal, ConfirmModal } from "@/components/Modal";
@@ -601,6 +602,14 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       setAcceptDialog(null);
+      if (status === "PREPARING") {
+        confetti({
+          particleCount: 100,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ["#e7b24b", "#f3c96e", "#ffffff"],
+        });
+      }
       success(`Order ${STATUS_LABELS[status] || status}`);
       await fetchData();
     } catch {
@@ -667,11 +676,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
     const today = new Date();
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-    let result = orders.filter((o) => {
-      const isToday = new Date(o.createdAt) >= startOfToday;
-      const isPending = o.status === "PENDING";
-      return isToday || isPending;
-    });
+    let result = orders.filter((o) => new Date(o.createdAt) >= startOfToday);
 
     if (filter === "PENDING") result = result.filter((o) => o.status === "PENDING");
     else if (filter === "preparing")

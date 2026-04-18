@@ -1,6 +1,6 @@
- 
- 
- 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
 import { useEffect, useState, useRef } from "react";
@@ -135,31 +135,13 @@ const Sidebar = () => {
       transports: ["websocket", "polling"],
     });
 
-    const fetchPendingCount = async () => {
-      try {
-        const restaurantParam = selectedRestaurantId
-          ? `&restaurantId=${selectedRestaurantId}`
-          : "";
-        const res = await axios.get(
-          `${API_URL}/api/admin/orders?limit=100${restaurantParam}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } }
-        );
-        const pending = (res.data.orders || []).filter(
-          (o: any) => o.status === "PENDING"
-        );
-        setPendingCount(pending.length);
-      } catch {
-        // ignore
-      }
-    };
-
     socket.on("settings:updated", (data: any) => {
       if (data.restaurantId === selectedRestaurantId)
         setIsOpen(data.manualIsOpen ?? data.isOpen ?? true);
     });
 
     socket.on("order:new", (order: any) => {
-      fetchPendingCount();
+      setPendingCount((prev) => prev + 1);
       const notif: NotificationItem = {
         id: order.id || Math.random().toString(36).slice(2),
         title: "Ny beställning",
@@ -171,18 +153,33 @@ const Sidebar = () => {
       setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
     });
 
-    socket.on("order:updated", () => {
-      fetchPendingCount();
-    });
-
-    fetchPendingCount();
-
     return () => {
       socket.disconnect();
     };
   }, [selectedRestaurantId]);
 
-  // Sidebar is already handling mounting/restaurant changes in the main useEffect with socket.
+  // Fetch pending count on mount
+  useEffect(() => {
+    if (!isMounted) return;
+    const fetchPending = async () => {
+      try {
+        const restaurantParam = selectedRestaurantId
+          ? `&restaurantId=${selectedRestaurantId}`
+          : "";
+        const res = await axios.get(
+          `${API_URL}/api/admin/orders?limit=50${restaurantParam}`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
+        );
+        const pending = (res.data.orders || []).filter(
+          (o: any) => o.status === "PENDING"
+        );
+        setPendingCount(pending.length);
+      } catch {
+        // ignore
+      }
+    };
+    fetchPending();
+  }, [isMounted, selectedRestaurantId]);
 
   const toggleOpen = async () => {
     if (!selectedRestaurantId) return;
@@ -278,8 +275,7 @@ const Sidebar = () => {
       links: [
         { href: "/bi", label: "Business Intel.", icon: BarChart3 },
         { href: "/analytics", label: "Trafikanalys", icon: Globe },
-        { href: "/billing", label: "Utbetalningar", icon: Calculator },
-        { href: "/billing/orders", label: "Order Statement", icon: FileText },
+        { href: "/billing", label: "Fakturering & Prov.", icon: Calculator },
         { href: "/stats", label: "Statistik", icon: BarChart3 },
       ],
     },
@@ -305,7 +301,12 @@ const Sidebar = () => {
     const initial: Record<string, boolean> = {};
     navGroups.forEach((group) => {
       const isGroupActive = group.links.some(
-        (link) => pathname === link.href
+        (link) =>
+          pathname === link.href ||
+          (link.href !== "/overview" &&
+            link.href !== "/" &&
+            link.href !== "/orders" &&
+            pathname.startsWith(link.href + "/"))
       );
       if (isGroupActive) {
         initial[group.label] = false; // false = not collapsed = open
@@ -320,7 +321,12 @@ const Sidebar = () => {
 
   const NavItem = ({ link }: { link: NavLink }) => {
     const Icon = link.icon;
-    const isActive = pathname === link.href;
+    const isActive =
+      pathname === link.href ||
+      (link.href !== "/overview" &&
+        link.href !== "/" &&
+        link.href !== "/orders" &&
+        pathname.startsWith(link.href + "/"));
     return (
       <Link
         href={link.href}
