@@ -791,7 +791,7 @@ const UnifiedMenuPage = () => {
       {/* MODALS */}
       {/* Product Modal */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] pb-[10vh] px-6 overflow-y-auto bg-[var(--bg-primary)]/90 backdrop-blur-md no-scrollbar">
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center bg-[var(--bg-card)] z-10 sticky top-0">
                <div>
@@ -917,7 +917,7 @@ const UnifiedMenuPage = () => {
 
       {/* Category Modal - simplified */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] pb-[10vh] px-6 overflow-y-auto bg-[var(--bg-primary)]/90 backdrop-blur-md no-scrollbar">
            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Kategori' : 'Ny Kategori'}</h2>
@@ -940,7 +940,7 @@ const UnifiedMenuPage = () => {
 
       {/* Extra Modal - Simplified table-like */}
       {isExtraModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] pb-[10vh] px-6 overflow-y-auto bg-[var(--bg-primary)]/90 backdrop-blur-md no-scrollbar">
            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Grupp' : 'Ny Grupp'}</h2>
@@ -1042,7 +1042,7 @@ const UnifiedMenuPage = () => {
       )}
 
       {isDealModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] pb-[10vh] px-6 overflow-y-auto bg-[var(--bg-primary)]/90 backdrop-blur-md no-scrollbar">
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
             <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
               <div>
