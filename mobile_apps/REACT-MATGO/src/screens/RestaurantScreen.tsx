@@ -281,7 +281,7 @@ export default function RestaurantScreen({
     <>
       <ScrollView
         ref={menuScrollRef}
-        stickyHeaderIndices={[2]}
+        stickyHeaderIndices={[4]}
         onScroll={handleMenuScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -370,7 +370,7 @@ export default function RestaurantScreen({
           />
         )}
 
-        <View style={styles.restaurantQuickStatsRow}>
+        <View style={styles.restaurantQuickStatsRow} id="stats-sticky">
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="bicycle-outline" size={18} color={palette.gold} />
             <Text style={styles.restaurantQuickStatLabel}>Avgift</Text>
@@ -429,7 +429,7 @@ export default function RestaurantScreen({
           );
         })()}
 
-        <View style={styles.restaurantStickyNavWrap}>
+        <View style={styles.restaurantStickyNavWrap} id="category-sticky">
           <View style={styles.restaurantStickyNavCard}>
             <View style={styles.restaurantSearchInputWrap}>
               <Ionicons name="search-outline" size={18} color={palette.muted} />
