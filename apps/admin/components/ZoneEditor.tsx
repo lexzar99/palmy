@@ -571,7 +571,7 @@ export default function ZoneEditor({
           ))}
         </div>
         <div className="ml-10 p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">API-nyckel</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">API-nyckel</p>
           <code className="text-[10px] font-mono text-gold-400">{MAPS_KEY || "NEXT_PUBLIC_GOOGLE_MAPS_KEY ej satt"}</code>
         </div>
         <a href="https://console.cloud.google.com/apis/library/maps-backend.googleapis.com" target="_blank" rel="noopener noreferrer"
@@ -623,7 +623,7 @@ export default function ZoneEditor({
                   <MapPin size={11} className="text-gold-500 shrink-0" />
                   <div>
                     <span className="text-[11px] font-bold text-[var(--text-primary)] block">{s.description.split(",")[0]}</span>
-                    <span className="text-[9px] text-[var(--text-secondary)]">{s.description.split(",").slice(1).join(",").trim()}</span>
+                    <span className="text-[10px] text-[var(--text-secondary)]">{s.description.split(",").slice(1).join(",").trim()}</span>
                   </div>
                 </button>
               ))}
@@ -631,7 +631,7 @@ export default function ZoneEditor({
           )}
         </div>
         <button onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20 shrink-0">
+          className="flex items-center gap-1.5 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20 shrink-0">
           {searching ? <Loader2 size={12} className="animate-spin" /> : <Navigation2 size={12} />}
           Sätt stadsmitt
         </button>
@@ -639,17 +639,17 @@ export default function ZoneEditor({
         {/* Drawing mode */}
         {drawing ? (
           <button onClick={cancelDraw}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 hover:bg-red-400 text-white text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all">
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-red-500 hover:bg-red-400 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all">
             <X size={12} /> Avbryt
           </button>
         ) : (
           <>
             <button onClick={() => startDraw("circle")} disabled={!mapsReady}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-sky-500/20">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-sky-500 hover:bg-sky-400 disabled:opacity-40 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-sky-500/20">
               <Plus size={11} /><CircleIcon size={10} /> Cirkel
             </button>
             <button onClick={() => startDraw("polygon")} disabled={!mapsReady}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-500 hover:bg-violet-400 disabled:opacity-40 text-white text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-violet-500/20">
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-violet-500 hover:bg-violet-400 disabled:opacity-40 text-white text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-violet-500/20">
               <Plus size={11} /><PenLine size={10} /> Polygon
             </button>
           </>
@@ -657,7 +657,7 @@ export default function ZoneEditor({
 
         {zones.length > 0 && (
           <button onClick={fitBounds} disabled={!mapsReady}
-            className="flex items-center gap-1.5 px-3 py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all">
+            className="flex items-center gap-1.5 px-3 py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all">
             <ZoomIn size={12} /> Anpassa vy
           </button>
         )}
@@ -671,14 +671,14 @@ export default function ZoneEditor({
           {!mapsReady && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[var(--bg-primary)] z-10">
               <Loader2 size={24} className="animate-spin text-gold-500" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Laddar Google Maps…</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Laddar Google Maps…</span>
             </div>
           )}
           <div ref={mapRef} className="w-full h-full" />
 
           {/* Drawing hint banner */}
           {drawing && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none px-5 py-2.5 backdrop-blur-sm text-white text-[9px] font-black uppercase tracking-widest rounded-2xl shadow-xl"
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none px-5 py-2.5 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl"
               style={{ background: drawing === "circle" ? "rgba(59,130,246,0.92)" : "rgba(139,92,246,0.92)" }}>
               {drawing === "circle"
                 ? "Klicka + håll nere musen och dra för att rita en cirkel"
@@ -690,7 +690,7 @@ export default function ZoneEditor({
           {mapsReady && (
             <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 px-3 py-2 bg-[var(--bg-primary)]/90 backdrop-blur-sm border border-gold-500/30 rounded-xl">
               <div className="w-3 h-3 rounded-full bg-gold-500 border-2 border-white" />
-              <span className="text-[8px] font-black uppercase tracking-widest text-gold-400">Stadsmitt — dra för att flytta</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold-400">Stadsmitt — dra för att flytta</span>
             </div>
           )}
 
@@ -698,7 +698,7 @@ export default function ZoneEditor({
           {zones.length === 0 && !drawing && mapsReady && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none text-center">
               <div className="px-5 py-3 bg-[var(--bg-primary)]/85 backdrop-blur-sm border border-[var(--border-subtle)] rounded-2xl">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                   Klicka "Cirkel" eller "Polygon" ovan för att rita din första leveranszon
                 </p>
               </div>
@@ -711,7 +711,7 @@ export default function ZoneEditor({
           {zones.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 p-6 text-center border border-dashed border-[var(--border-subtle)] rounded-2xl">
               <MapPin size={22} className="text-[var(--text-secondary)] opacity-30" />
-              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-40 leading-relaxed">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-40 leading-relaxed">
                 Rita en zon på kartan — den dyker upp här
               </p>
             </div>
@@ -736,7 +736,7 @@ export default function ZoneEditor({
 
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-black truncate text-[var(--text-primary)]">{zone.name}</p>
-                      <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-wide mt-0.5">
+                      <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wide mt-0.5">
                         {zone.type === "circle"
                           ? `● Cirkel${zone.radiusKm ? ` — ${zone.radiusKm} km` : ""}`
                           : `◆ Polygon${zone.polygon ? ` — ${zone.polygon.length - 1} pts` : ""}`}
@@ -764,7 +764,7 @@ export default function ZoneEditor({
                     <div className="px-3.5 pb-3.5 space-y-2.5" onClick={e => e.stopPropagation()}>
                       {/* Name */}
                       <div>
-                        <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Zonnamn</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Zonnamn</label>
                         <input
                           className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[11px] font-black outline-none focus:border-gold-500/40 text-[var(--text-primary)]"
                           value={zone.name}
@@ -776,7 +776,7 @@ export default function ZoneEditor({
                       {/* Fee + MinOrder — use draft strings so the user can clear & retype */}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Avgift (kr)</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Avgift (kr)</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -800,7 +800,7 @@ export default function ZoneEditor({
                           />
                         </div>
                         <div>
-                          <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Minimiorder (kr)</label>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">Minimiorder (kr)</label>
                           <input
                             type="text"
                             inputMode="numeric"
@@ -824,7 +824,7 @@ export default function ZoneEditor({
 
                       {/* ETA */}
                       <div>
-                        <label className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">ETA (minuter, lämna tomt = restaurangens standard)</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-0.5">ETA (minuter, lämna tomt = restaurangens standard)</label>
                         <input
                           type="text"
                           inputMode="numeric"
@@ -852,7 +852,7 @@ export default function ZoneEditor({
                       </div>
 
                       {/* Summary pill */}
-                      <div className="px-3 py-2 rounded-xl border text-[8px] font-bold text-[var(--text-secondary)]"
+                      <div className="px-3 py-2 rounded-xl border text-[10px] font-bold text-[var(--text-secondary)]"
                         style={{ borderColor: c.main + "40", backgroundColor: c.main + "0a" }}>
                         {zone.deliveryFee === 0 ? "✅ Gratis leverans" : `🚚 ${zone.deliveryFee} kr`}
                         {" · "}{zone.minOrder > 0 ? `min ${zone.minOrder} kr` : "ingen min"}
@@ -870,7 +870,7 @@ export default function ZoneEditor({
       {/* ── Info bar ── */}
       <div className="flex items-start gap-2.5 px-4 py-3 bg-[var(--bg-primary)]/40 border border-[var(--border-subtle)] rounded-2xl">
         <Info size={12} className="text-[var(--text-secondary)] shrink-0 mt-0.5" />
-        <p className="text-[8px] text-[var(--text-secondary)] font-bold uppercase tracking-wide leading-relaxed">
+        <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-wide leading-relaxed">
           Söka stad → Sätt stadsmitt (guldpunkt) · Cirkel = klicka+dra · Polygon = klicka punkter, dubbelklicka avsluta ·
           Klicka zon i listan för att redigera · Dra guldpunkten för att flytta stadsmitt ·
           Spara via knappen längst ned

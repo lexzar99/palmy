@@ -148,7 +148,7 @@ export default function ReviewsPage() {
     return (
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <Loader2 className="animate-spin text-gold-500" size={32} />
-        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
           Laddar recensioner…
         </p>
       </div>
@@ -173,7 +173,7 @@ export default function ReviewsPage() {
         <div className="p-6 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] flex flex-col items-center justify-center gap-3">
           <div className="text-5xl font-black text-gold-500">{avgRating}</div>
           <Stars rating={Math.round(parseFloat(avgRating))} size={18} />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
             {reviews.length} recensioner totalt
           </p>
         </div>
@@ -200,10 +200,10 @@ export default function ReviewsPage() {
                     style={{ width: `${d.pct}%` }}
                   />
                 </div>
-                <span className="text-[9px] font-black text-[var(--text-secondary)] w-10 text-right">
+                <span className="text-[10px] font-black text-[var(--text-secondary)] w-10 text-right">
                   {d.count}
                 </span>
-                <span className="text-[8px] font-bold text-[var(--text-secondary)] w-8 text-right">
+                <span className="text-[10px] font-bold text-[var(--text-secondary)] w-8 text-right">
                   {d.pct}%
                 </span>
               </button>
@@ -252,7 +252,7 @@ export default function ReviewsPage() {
                   <Icon size={14} className={s.color} />
                 </div>
               </div>
-              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                 {s.label}
               </div>
               <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
@@ -273,7 +273,7 @@ export default function ReviewsPage() {
         {ratingFilter !== null && (
           <button
             onClick={() => setRatingFilter(null)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black uppercase text-gold-500 hover:text-gold-400"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase text-gold-500 hover:text-gold-400"
           >
             Rensa filter
           </button>
@@ -309,13 +309,13 @@ export default function ReviewsPage() {
                       <span className="text-[11px] font-black uppercase text-[var(--text-primary)]">
                         {review.customerName}
                       </span>
-                      <span className="text-[9px] font-bold text-[var(--text-secondary)] ml-2">
+                      <span className="text-[10px] font-bold text-[var(--text-secondary)] ml-2">
                         {review.restaurantName}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Stars rating={review.rating} />
-                      <span className="text-[9px] font-bold text-[var(--text-secondary)] ml-1">
+                      <span className="text-[10px] font-bold text-[var(--text-secondary)] ml-1">
                         {new Date(review.createdAt).toLocaleDateString("sv-SE")}
                       </span>
                     </div>
@@ -330,7 +330,7 @@ export default function ReviewsPage() {
                   {/* Reply */}
                   {review.reply && (
                     <div className="mt-3 p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
-                      <p className="text-[8px] font-black uppercase tracking-widest text-gold-500 mb-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gold-500 mb-1">
                         Svar från restaurang
                       </p>
                       <p className="text-[10px] font-medium text-[var(--text-secondary)]">
@@ -352,13 +352,13 @@ export default function ReviewsPage() {
                       />
                       <button
                         onClick={() => handleReply(review.id)}
-                        className="px-3 py-2 rounded-xl bg-gold-gradient text-[#0d0d0d] text-[9px] font-black uppercase"
+                        className="px-3 py-2 rounded-xl bg-gold-gradient text-[#0d0d0d] text-[10px] font-black uppercase"
                       >
                         Skicka
                       </button>
                       <button
                         onClick={() => { setReplyingTo(null); setReplyText(""); }}
-                        className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)]"
+                        className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)]"
                       >
                         Avbryt
                       </button>
@@ -370,14 +370,14 @@ export default function ReviewsPage() {
                     {!review.reply && replyingTo !== review.id && (
                       <button
                         onClick={() => setReplyingTo(review.id)}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all"
                       >
                         <MessageSquare size={11} /> Svara
                       </button>
                     )}
                     <button
                       onClick={() => toggleFlag(review.id, review.flagged)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                         review.flagged
                           ? "text-amber-400 bg-amber-500/10"
                           : "text-[var(--text-secondary)] hover:text-amber-400 hover:bg-amber-500/5"
@@ -387,7 +387,7 @@ export default function ReviewsPage() {
                     </button>
                     <button
                       onClick={() => deleteReview(review.id)}
-                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider text-rose-400/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all"
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider text-rose-400/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all"
                     >
                       <Trash2 size={11} /> Radera
                     </button>

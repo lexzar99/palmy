@@ -201,7 +201,7 @@ const StatsPage = () => {
           <button
             onClick={printReport}
             disabled={reportRows.length === 0}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-6 py-4 text-sm font-black uppercase tracking-[0.2em] text-dark-500 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-2xl bg-gold-500 px-6 py-4 text-sm font-black uppercase tracking-[0.2em] text-[#0d0d0d] disabled:opacity-50"
           >
             <Printer size={16} />
             Skriv ut PDF
@@ -209,7 +209,7 @@ const StatsPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-4">
             <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Från</label>
             <input
               type="date"
@@ -218,7 +218,7 @@ const StatsPage = () => {
               className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-4 py-3 outline-none"
             />
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-4">
             <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Till</label>
             <input
               type="date"
@@ -227,7 +227,7 @@ const StatsPage = () => {
               className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--border-subtle)] px-4 py-3 outline-none"
             />
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-4">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-4">
             <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20 mb-2">Betalsätt</label>
             <select
               value={filters.paymentMethod}
@@ -249,15 +249,15 @@ const StatsPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-primary)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Rader</div>
             <div className="text-3xl font-black text-gold-500">{reportRows.length}</div>
           </div>
-          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-primary)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Total Summa</div>
             <div className="text-3xl font-black text-gold-500">{reportTotal.toFixed(0)} kr</div>
           </div>
-          <div className="rounded-2xl border border-[var(--border-strong)] bg-dark-500 p-5">
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-primary)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Aktivt Filter</div>
             <div className="text-lg font-black text-gold-500">{filters.paymentMethod}</div>
           </div>

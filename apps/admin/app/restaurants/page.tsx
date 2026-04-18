@@ -153,7 +153,7 @@ export default function RestaurantsPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-gold-500" size={32} />
-        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[9px]">
+        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[10px]">
           Laddar restauranger...
         </p>
       </div>
@@ -172,7 +172,7 @@ export default function RestaurantsPage() {
         </div>
         <button
           onClick={fetchRestaurants}
-          className="flex items-center gap-2 px-5 py-3 bg-gold-500 text-[#0d0d0d] font-black uppercase text-[9px] tracking-widest rounded-xl active:scale-95 transition-all"
+          className="flex items-center gap-2 px-5 py-3 bg-gold-500 text-[#0d0d0d] font-black uppercase text-[10px] tracking-widest rounded-xl active:scale-95 transition-all"
         >
           <RefreshCw size={14} /> Försök igen
         </button>
@@ -188,7 +188,7 @@ export default function RestaurantsPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
             Restauranger
           </h1>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             {stats.total} totalt · {stats.open} öppna · {stats.gold} guld-tier
           </p>
         </div>
@@ -201,7 +201,7 @@ export default function RestaurantsPage() {
           </button>
           <button
             onClick={() => router.push("/restaurants/new")}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all active:scale-95"
+            className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all active:scale-95"
           >
             <Plus size={14} /> Ny restaurang
           </button>
@@ -231,7 +231,7 @@ export default function RestaurantsPage() {
             <button
               key={f.id}
               onClick={() => setFilterStatus(f.id as any)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                 filterStatus === f.id
                   ? "bg-gold-500 text-[#0d0d0d]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -244,7 +244,7 @@ export default function RestaurantsPage() {
         <div className="flex gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
           <button
             onClick={() => setFilterTier("all")}
-            className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+            className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
               filterTier === "all"
                 ? "bg-gold-500 text-[#0d0d0d]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -256,7 +256,7 @@ export default function RestaurantsPage() {
             <button
               key={t.value}
               onClick={() => setFilterTier(t.value)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                 filterTier === t.value
                   ? `${t.bg} ${t.color} border`
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -271,7 +271,7 @@ export default function RestaurantsPage() {
       {/* Restaurant grid */}
       {filtered.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga restauranger hittades
           </p>
         </div>
@@ -328,7 +328,7 @@ export default function RestaurantsPage() {
                   {/* Tier badge */}
                   <div className="absolute top-2 right-2">
                     <span
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[7px] font-black uppercase border ${tier.bg} ${tier.color}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black uppercase border ${tier.bg} ${tier.color}`}
                     >
                       <TierIcon size={8} /> {tier.label}
                     </span>
@@ -341,7 +341,7 @@ export default function RestaurantsPage() {
                       <h3 className="text-sm font-black uppercase text-[var(--text-primary)] leading-tight">
                         {r.name}
                       </h3>
-                      <p className="text-[8px] font-bold text-gold-500 uppercase tracking-widest mt-0.5">
+                      <p className="text-[10px] font-bold text-gold-500 uppercase tracking-widest mt-0.5">
                         {r.cuisine || "—"}
                       </p>
                     </div>
@@ -354,7 +354,7 @@ export default function RestaurantsPage() {
                         }`}
                       />
                       <span
-                        className={`text-[8px] font-black uppercase ${
+                        className={`text-[10px] font-black uppercase ${
                           isOnline ? "text-emerald-400" : "text-[var(--text-secondary)]"
                         }`}
                       >
@@ -364,7 +364,7 @@ export default function RestaurantsPage() {
                     {r.activeOrdersCount > 0 && (
                       <div className="flex items-center gap-1.5 bg-amber-500/10 px-2 py-1 rounded-lg border border-amber-500/20">
                         <ShoppingCart size={10} className="text-amber-500" />
-                        <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">
                           {r.activeOrdersCount}
                         </span>
                       </div>
@@ -373,26 +373,26 @@ export default function RestaurantsPage() {
 
                   <div className="grid grid-cols-3 gap-2 mb-3">
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
                         ETA
                       </p>
-                      <p className="text-[9px] font-black text-[var(--text-primary)]">
+                      <p className="text-[10px] font-black text-[var(--text-primary)]">
                         {r.baseEtaMinutes ?? r.etaMinutes} min
                       </p>
                     </div>
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
                         Frakt
                       </p>
-                      <p className="text-[9px] font-black text-[var(--text-primary)]">
+                      <p className="text-[10px] font-black text-[var(--text-primary)]">
                         {r.deliveryFee} kr
                       </p>
                     </div>
                     <div>
-                      <p className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
                         Min order
                       </p>
-                      <p className="text-[9px] font-black text-[var(--text-primary)]">
+                      <p className="text-[10px] font-black text-[var(--text-primary)]">
                         {r.minOrderAmount} kr
                       </p>
                     </div>
@@ -404,7 +404,7 @@ export default function RestaurantsPage() {
                         e.stopPropagation();
                         router.push(`/restaurants/${r.id}`);
                       }}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[8px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
                     >
                       Hantera <ChevronRight size={11} />
                     </button>
@@ -431,7 +431,7 @@ export default function RestaurantsPage() {
             <div className="w-10 h-10 rounded-xl bg-[var(--bg-secondary)] flex items-center justify-center text-[var(--text-secondary)] group-hover:text-gold-500 group-hover:bg-gold-500/10 transition-all mb-3">
               <Plus size={20} />
             </div>
-            <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
               Lägg till restaurang
             </p>
           </div>

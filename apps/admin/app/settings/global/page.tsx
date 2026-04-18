@@ -78,9 +78,10 @@ const GlobalSettingsPage = () => {
       await axios.patch(`${API_URL}/api/restaurants/${selectedRestaurantId}`, settings, {
         headers: { Authorization: `Bearer ${getToken()}` },
       });
-      alert(`✅ Inställningar sparade för ${selectedRestaurantName}!`);
+      // TODO: replace with toast when useToast is available
+      if (typeof window !== 'undefined') window.alert(`Inställningar sparade för ${selectedRestaurantName}!`);
     } catch (err: any) {
-      alert("Fel vid sparning");
+      if (typeof window !== 'undefined') window.alert("Fel vid sparning");
     } finally {
       setSaving(false);
     }
@@ -119,7 +120,7 @@ const GlobalSettingsPage = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-3 px-8 py-4 bg-gold-500 text-dark-500 font-extrabold rounded-2xl hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20 uppercase tracking-widest disabled:opacity-50"
+          className="flex items-center gap-3 px-8 py-4 bg-gold-500 text-[#0d0d0d] font-extrabold rounded-2xl hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20 uppercase tracking-widest disabled:opacity-50"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           Spara ändringar
@@ -135,7 +136,7 @@ const GlobalSettingsPage = () => {
             settings.isOpen ? "bg-emerald-500/10 border-emerald-500/20" : "bg-red-500/10 border-red-500/20"
           }`}
         >
-          <div className={`p-4 rounded-2xl shrink-0 ${settings.isOpen ? "bg-emerald-500 text-dark-500" : "bg-red-500 text-[var(--text-primary)]"}`}>
+          <div className={`p-4 rounded-2xl shrink-0 ${settings.isOpen ? "bg-emerald-500 text-[#0d0d0d]" : "bg-red-500 text-[var(--text-primary)]"}`}>
             {settings.isOpen ? <ToggleRight size={32} /> : <ToggleLeft size={32} />}
           </div>
           <div>
@@ -155,11 +156,11 @@ const GlobalSettingsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
            <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Support Email</label>
-              <input type="text" placeholder="support@matgo.se" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+              <input type="text" placeholder="support@matgo.se" className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
            <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Företagsnummer / Org.Nr</label>
-              <input type="text" placeholder="559XXX-XXXX" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+              <input type="text" placeholder="559XXX-XXXX" className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
         </div>
       </div>
@@ -170,11 +171,11 @@ const GlobalSettingsPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
            <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Support Telefon</label>
-              <input type="text" placeholder="08-XXX XXX XX" className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+              <input type="text" placeholder="08-XXX XXX XX" className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
            <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 ml-1">Instagram URL</label>
-              <input type="text" placeholder="https://instagram.com/..." className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
+              <input type="text" placeholder="https://instagram.com/..." className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-5 outline-none focus:ring-2 focus:ring-gold-500/30 font-bold text-sm" />
            </div>
         </div>
       </div>

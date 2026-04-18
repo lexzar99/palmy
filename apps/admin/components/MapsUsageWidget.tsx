@@ -102,7 +102,7 @@ export default function MapsUsageWidget() {
             <h3 className="text-sm font-black uppercase tracking-widest">
               Google Maps API
             </h3>
-            <p className="text-[9px] text-[var(--text-primary)]/30 font-bold uppercase tracking-widest mt-0.5">
+            <p className="text-[10px] text-[var(--text-primary)]/30 font-bold uppercase tracking-widest mt-0.5">
               Daglig användning & säkerhet
             </p>
           </div>
@@ -111,12 +111,12 @@ export default function MapsUsageWidget() {
           {data?.alerts.length ? (
             <button
               onClick={() => setShowAlerts(!showAlerts)}
-              className="relative flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[8px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-500/20 transition-all"
+              className="relative flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-500/20 transition-all"
             >
               <AlertTriangle size={10} />
               {data.alerts.length} alert{data.alerts.length !== 1 ? "s" : ""}
               {data.alerts.length > 0 && !showAlerts && (
-                <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full text-[7px] flex items-center justify-center font-black text-white">
+                <span className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 rounded-full text-[10px] flex items-center justify-center font-black text-white">
                   {data.alerts.length > 9 ? "9+" : data.alerts.length}
                 </span>
               )}
@@ -165,7 +165,7 @@ export default function MapsUsageWidget() {
             <div key={s.label} className="p-4 bg-[var(--bg-primary)]/60 rounded-2xl border border-[var(--border-subtle)] text-center">
               <s.icon size={16} className={`${s.color} mx-auto mb-2`} />
               <div className={`text-2xl font-black tabular-nums ${s.color}`}>{s.value}</div>
-              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 mt-0.5">{s.label}</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 mt-0.5">{s.label}</div>
             </div>
           ))}
         </div>
@@ -175,10 +175,10 @@ export default function MapsUsageWidget() {
       {data && (
         <div className="space-y-1.5">
           <div className="flex justify-between items-center">
-            <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/30">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30">
               Användning mot varningsgräns ({data.limits.dailyWarn})
             </span>
-            <span className={`text-[9px] font-black ${warn || block ? "text-amber-400" : "text-emerald-400"}`}>
+            <span className={`text-[10px] font-black ${warn || block ? "text-amber-400" : "text-emerald-400"}`}>
               {pct.toFixed(0)}%
             </span>
           </div>
@@ -196,7 +196,7 @@ export default function MapsUsageWidget() {
       {/* Flagged IPs */}
       {data?.flaggedIPs.length ? (
         <div className="space-y-2">
-          <p className="text-[8px] font-black uppercase tracking-widest text-red-400">
+          <p className="text-[10px] font-black uppercase tracking-widest text-red-400">
             Misstänkta IP-adresser ({data.flaggedIPs.length})
           </p>
           <div className="flex flex-wrap gap-2">
@@ -205,7 +205,7 @@ export default function MapsUsageWidget() {
                 key={ip}
                 className="flex items-center gap-2 px-3 py-1.5 bg-red-500/10 border border-red-500/20 rounded-xl"
               >
-                <span className="text-[9px] font-black text-red-400 font-mono">{ip}</span>
+                <span className="text-[10px] font-black text-red-400 font-mono">{ip}</span>
                 <button
                   onClick={() => unflagIP(ip)}
                   className="text-red-400/60 hover:text-red-400 transition-colors"
@@ -221,7 +221,7 @@ export default function MapsUsageWidget() {
       {/* Alerts panel */}
       {showAlerts && data?.alerts.length ? (
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          <p className="text-[8px] font-black uppercase tracking-widest text-amber-400">
+          <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
             Senaste varningar
           </p>
           {data.alerts.map((a) => (
@@ -231,8 +231,8 @@ export default function MapsUsageWidget() {
             >
               <AlertTriangle size={11} className="text-amber-400 shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-bold text-amber-300 leading-relaxed">{a.message}</p>
-                <p className="text-[8px] text-[var(--text-primary)]/20 font-bold mt-0.5">
+                <p className="text-[10px] font-bold text-amber-300 leading-relaxed">{a.message}</p>
+                <p className="text-[10px] text-[var(--text-primary)]/20 font-bold mt-0.5">
                   {new Date(a.ts).toLocaleTimeString("sv-SE")}
                 </p>
               </div>
@@ -242,7 +242,7 @@ export default function MapsUsageWidget() {
       ) : null}
 
       {/* Footer */}
-      <p className="text-[8px] text-[var(--text-primary)]/20 font-bold uppercase tracking-widest">
+      <p className="text-[10px] text-[var(--text-primary)]/20 font-bold uppercase tracking-widest">
         Uppdateras var 2:e minut ·{" "}
         {lastFetch
           ? `Senast: ${lastFetch.toLocaleTimeString("sv-SE")}`

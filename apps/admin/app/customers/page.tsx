@@ -252,7 +252,7 @@ export default function CustomersPage() {
             key={s.label}
             className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
           >
-            <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
               {s.label}
             </div>
             <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
@@ -283,7 +283,7 @@ export default function CustomersPage() {
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id as any)}
-                className={`flex-1 py-2 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                   filter === f.id
                     ? "bg-gold-500 text-[#0d0d0d]"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -294,33 +294,33 @@ export default function CustomersPage() {
             ))}
           </div>
 
-          <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50 px-1">
+          <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-50 px-1">
             {filtered.length} kunder
           </div>
 
           {/* Bulk actions */}
           {selectedIds.length > 0 && (
             <div className="flex items-center gap-2 p-2 bg-gold-500/10 border border-gold-500/20 rounded-xl">
-              <span className="text-[9px] font-black text-gold-500 px-2">
+              <span className="text-[10px] font-black text-gold-500 px-2">
                 {selectedIds.length} vald
               </span>
               <button
                 onClick={handleBulkActivate}
                 disabled={bulkLoading}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase border border-emerald-500/20 hover:bg-emerald-500/20 transition-all"
               >
                 <CheckCircle2 size={11} /> Aktivera
               </button>
               <button
                 onClick={handleBulkBlock}
                 disabled={bulkLoading}
-                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[8px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[10px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
               >
                 <Ban size={11} /> Blockera
               </button>
               <button
                 onClick={() => setSelectedIds([])}
-                className="ml-auto px-2 py-1.5 text-[8px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                className="ml-auto px-2 py-1.5 text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 Avbryt
               </button>
@@ -335,7 +335,7 @@ export default function CustomersPage() {
               ))
             ) : filtered.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
                   Inga kunder
                 </p>
               </div>
@@ -343,7 +343,7 @@ export default function CustomersPage() {
               <>
                 <button
                   onClick={toggleSelectAll}
-                  className="w-full flex items-center gap-2 p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                  className="w-full flex items-center gap-2 p-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                 >
                   <div className={`w-4 h-4 rounded border ${selectedIds.length === filtered.length && filtered.length > 0 ? "bg-gold-500 border-gold-500" : "border-[var(--border-subtle)]"} flex items-center justify-center`}>
                     {selectedIds.length === filtered.length && filtered.length > 0 && <CheckSquare size={10} className="text-[#0d0d0d]" />}
@@ -386,13 +386,13 @@ export default function CustomersPage() {
                       <p className="text-[11px] font-black uppercase truncate text-[var(--text-primary)]">
                         {c.name || "Gäst"}
                       </p>
-                      <p className="text-[9px] font-bold text-[var(--text-secondary)] truncate">
+                      <p className="text-[10px] font-bold text-[var(--text-secondary)] truncate">
                         {c.phone}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       {!c.isActive && (
-                        <span className="text-[7px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
                           Blockad
                         </span>
                       )}
@@ -429,21 +429,21 @@ export default function CustomersPage() {
                       <h2 className="text-lg font-black uppercase tracking-tight text-[var(--text-primary)]">
                         {selectedCustomer.name}
                       </h2>
-                      <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
                         Kund sedan {new Date(selectedCustomer.createdAt).toLocaleDateString("sv-SE")}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5">
                         {selectedCustomer.isVerified ? (
-                          <span className="flex items-center gap-1 text-[8px] font-black uppercase text-emerald-400">
+                          <span className="flex items-center gap-1 text-[10px] font-black uppercase text-emerald-400">
                             <CheckCircle2 size={10} /> Verifierad
                           </span>
                         ) : (
-                          <span className="text-[8px] font-black uppercase text-amber-400">
+                          <span className="text-[10px] font-black uppercase text-amber-400">
                             Ej verifierad
                           </span>
                         )}
                         {!selectedCustomer.isActive && (
-                          <span className="text-[8px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
+                          <span className="text-[10px] font-black uppercase text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">
                             Blockad
                           </span>
                         )}
@@ -513,7 +513,7 @@ export default function CustomersPage() {
                       >
                         <Icon size={13} className={`${s.color} mb-2`} />
                         <div className={`text-base font-black ${s.color}`}>{s.value}</div>
-                        <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">
                           {s.label}
                         </div>
                       </div>
@@ -537,7 +537,7 @@ export default function CustomersPage() {
                     <button
                       key={t.id}
                       onClick={() => setActiveTab(t.id)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                         activeTab === t.id
                           ? "bg-gold-500 text-[#0d0d0d]"
                           : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -575,7 +575,7 @@ export default function CustomersPage() {
                             <Icon size={14} />
                           </div>
                           <div>
-                            <div className="text-[7px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-0.5">
+                            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-0.5">
                               {item.label}
                             </div>
                             <div className="text-[11px] font-bold text-[var(--text-primary)]">
@@ -599,7 +599,7 @@ export default function CustomersPage() {
                     {selectedCustomer.orders?.length === 0 || !selectedCustomer.orders ? (
                       <div className="py-10 text-center rounded-xl border border-dashed border-[var(--border-subtle)]">
                         <ShoppingBag size={24} className="mx-auto mb-2 text-[var(--text-secondary)] opacity-20" />
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
                           Inga beställningar
                         </p>
                       </div>
@@ -610,20 +610,20 @@ export default function CustomersPage() {
                           className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[9px] font-black text-[var(--text-secondary)]">
+                            <div className="w-9 h-9 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[10px] font-black text-[var(--text-secondary)]">
                               #{order.orderNumber}
                             </div>
                             <div>
                               <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
                                 {order.restaurant?.name || "—"}
                               </p>
-                              <p className="text-[9px] font-bold text-[var(--text-secondary)]">
+                              <p className="text-[10px] font-bold text-[var(--text-secondary)]">
                                 {new Date(order.createdAt).toLocaleDateString("sv-SE")} · {Math.round((order.total || 0) / 100)} kr
                               </p>
                             </div>
                           </div>
                           <span
-                            className={`text-[7px] font-black uppercase px-2 py-1 rounded border ${
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded border ${
                               order.status === "DELIVERED"
                                 ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                 : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
@@ -648,7 +648,7 @@ export default function CustomersPage() {
                     {!selectedCustomer.deals || selectedCustomer.deals.length === 0 ? (
                       <div className="py-10 text-center rounded-xl border border-dashed border-[var(--border-subtle)]">
                         <Ticket size={24} className="mx-auto mb-2 text-[var(--text-secondary)] opacity-20" />
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
                           Inga personliga deals
                         </p>
                       </div>
@@ -670,20 +670,20 @@ export default function CustomersPage() {
                               <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
                                 {deal.campaign?.title || deal.code}
                               </p>
-                              <code className="text-[9px] text-gold-500/60 tracking-widest font-bold">
+                              <code className="text-[10px] text-gold-500/60 tracking-widest font-bold">
                                 {deal.code}
                               </code>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
                             {deal.isUsed && (
-                              <span className="text-[7px] font-black uppercase text-[var(--text-secondary)] bg-[var(--bg-primary)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
+                              <span className="text-[10px] font-black uppercase text-[var(--text-secondary)] bg-[var(--bg-primary)] px-1.5 py-0.5 rounded border border-[var(--border-subtle)]">
                                 Använd
                               </span>
                             )}
                             <button
                               onClick={() => handleUpdateDeal(deal.id, { isUsed: false, usageCount: 0 })}
-                              className="text-[8px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 transition-colors px-2 py-1 rounded border border-[var(--border-subtle)]"
+                              className="text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 transition-colors px-2 py-1 rounded border border-[var(--border-subtle)]"
                             >
                               Återställ
                             </button>
@@ -709,7 +709,7 @@ export default function CustomersPage() {
                     className="space-y-4"
                   >
                     <div className="p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">
                         Intern supportanteckning
                       </p>
                       <textarea
@@ -733,7 +733,7 @@ export default function CustomersPage() {
                           }
                         }}
                         disabled={sendingNote || !supportNote.trim()}
-                        className="mt-3 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
+                        className="mt-3 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
                       >
                         {sendingNote ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                         Spara anteckning
@@ -742,7 +742,7 @@ export default function CustomersPage() {
 
                     {selectedCustomer.internalInfo && (
                       <div className="p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                           Historik
                         </p>
                         <pre className="text-[10px] font-bold text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
@@ -796,7 +796,7 @@ export default function CustomersPage() {
                 { name: "city", label: "Stad", value: editingCustomer.city },
               ].map((f) => (
                 <div key={f.name}>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                     {f.label}
                   </label>
                   <input

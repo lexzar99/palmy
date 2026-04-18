@@ -61,7 +61,7 @@ export default function SystemHealthPage() {
             Realtidsövervakning av API, Databas & Resurser
           </p>
         </div>
-        <div className="text-[9px] font-bold text-[var(--text-secondary)]">
+        <div className="text-[10px] font-bold text-[var(--text-secondary)]">
           Senast uppdaterad: {new Date().toLocaleTimeString('sv-SE')}
         </div>
       </div>
@@ -114,7 +114,7 @@ export default function SystemHealthPage() {
           <div className="text-2xl font-black text-[var(--text-primary)]">
             {data ? formatBytes(data.memory.rss) : "-"}
           </div>
-          <div className="text-[9px] font-bold text-[var(--text-secondary)]">
+          <div className="text-[10px] font-bold text-[var(--text-secondary)]">
             Heap: {data ? formatBytes(data.memory.heapUsed) : "-"} / {data ? formatBytes(data.memory.heapTotal) : "-"}
           </div>
         </div>

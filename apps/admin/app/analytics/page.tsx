@@ -145,12 +145,12 @@ export default function AnalyticsPage() {
                       className="w-full bg-gold-400/20 group-hover:bg-gold-500/40 rounded-t-xl transition-colors border-t border-x border-gold-500/20"
                     />
                     {d.revenue > 0 && (
-                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all bg-white text-dark-500 px-3 py-1 rounded-lg text-[10px] font-black whitespace-nowrap shadow-2xl z-10">
+                      <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all bg-white text-[#0d0d0d] px-3 py-1 rounded-lg text-[10px] font-black whitespace-nowrap shadow-2xl z-10">
                         {Math.round(d.revenue)} kr
                       </div>
                     )}
                   </div>
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20">{dayName}</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/20">{dayName}</span>
                 </div>
               );
             }) : (
@@ -168,10 +168,10 @@ export default function AnalyticsPage() {
           <div className="space-y-4 flex-1">
             {data.topProducts?.length > 0 ? data.topProducts.slice(0, 6).map((p: any, i: number) => (
               <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-white/2 hover:bg-white/5 transition-all group">
-                <div className="w-10 h-10 rounded-xl bg-dark-500 flex items-center justify-center font-black text-gold-500/50 group-hover:text-gold-500 transition-colors border border-white/5 text-xs italic">{i+1}</div>
+                <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] flex items-center justify-center font-black text-gold-500/50 group-hover:text-gold-500 transition-colors border border-white/5 text-xs italic">{i+1}</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] font-black uppercase tracking-tight text-white mb-0.5 truncate">{p.name}</div>
-                  <div className="text-[9px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest">{p.totalSold} sålda · {Math.round(p.revenue)} kr</div>
+                  <div className="text-[10px] text-[var(--text-primary)]/20 font-black uppercase tracking-widest">{p.totalSold} sålda · {Math.round(p.revenue)} kr</div>
                 </div>
               </div>
             )) : (
@@ -226,9 +226,9 @@ export default function AnalyticsPage() {
                     transition={{ duration: 0.4, delay: i * 0.03 }}
                     className={`w-full rounded-t-md transition-colors ${h > 70 ? 'bg-gold-500/60' : h > 30 ? 'bg-gold-500/30' : 'bg-gold-500/10'} group-hover:bg-gold-500/50`}
                   />
-                  {i % 2 === 0 && <span className="text-[7px] font-bold text-[var(--text-primary)]/15">{i + 8}</span>}
+                  {i % 2 === 0 && <span className="text-[10px] font-bold text-[var(--text-primary)]/15">{i + 8}</span>}
                   {count > 0 && (
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition bg-white text-dark-500 px-2 py-0.5 rounded text-[8px] font-black whitespace-nowrap shadow-xl z-10">
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition bg-white text-[#0d0d0d] px-2 py-0.5 rounded text-[10px] font-black whitespace-nowrap shadow-xl z-10">
                       {count}
                     </div>
                   )}
@@ -250,14 +250,14 @@ export default function AnalyticsPage() {
             {data.recentReviews.slice(0, 6).map((r: any, i: number) => (
               <div key={i} className="p-6 rounded-3xl bg-white/2 border border-white/5 space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-gold-500/60">#{r.orderNumber} — {r.customerName || 'Kund'}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gold-500/60">#{r.orderNumber} — {r.customerName || 'Kund'}</span>
                   <div className="flex gap-0.5 text-gold-500">
                     {[...Array(5)].map((_, j) => <Star key={j} size={10} fill={j < (r.rating || 0) ? "currentColor" : "none"} className={j < (r.rating || 0) ? "" : "opacity-20"} />)}
                   </div>
                 </div>
                 <p className="text-sm text-white/50 italic leading-relaxed line-clamp-3">&quot;{r.review || 'Inget meddelande'}&quot;</p>
                 {r.reviewedAt && (
-                  <div className="text-[8px] font-medium text-white/10 uppercase tracking-widest">{new Date(r.reviewedAt).toLocaleDateString('sv-SE')}</div>
+                  <div className="text-[10px] font-medium text-white/10 uppercase tracking-widest">{new Date(r.reviewedAt).toLocaleDateString('sv-SE')}</div>
                 )}
               </div>
             ))}

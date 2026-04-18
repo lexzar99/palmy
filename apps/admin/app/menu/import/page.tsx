@@ -70,9 +70,9 @@ export default function BulkImportPage() {
           <h3 className="font-bold uppercase tracking-wider text-blue-300">Instruktioner</h3>
           <p className="text-sm text-blue-300/60 leading-relaxed">
             Klistra in dina produkter rad för rad i formatet:<br/>
-            <code className="bg-dark-500 px-2 py-1 rounded text-[var(--text-primary)]/80 font-mono text-xs">Kategori : Produktnamn : Pris : Beskrivning</code>
+            <code className="bg-[var(--bg-primary)] px-2 py-1 rounded text-[var(--text-primary)]/80 font-mono text-xs">Kategori : Produktnamn : Pris : Beskrivning</code>
           </p>
-          <div className="mt-4 p-4 bg-dark-500/50 rounded-xl font-mono text-[10px] text-[var(--text-primary)]/30 border border-[var(--border-subtle)] space-y-1">
+          <div className="mt-4 p-4 bg-[var(--bg-primary)]/50 rounded-xl font-mono text-[10px] text-[var(--text-primary)]/30 border border-[var(--border-subtle)] space-y-1">
              <div>Pizzor : Margherita : 95 : Tomat, ost</div>
              <div>Pizzor : Vesuvio : 105 : Tomat, ost, skinka</div>
              <div>Sallader : Kebabsallad : 110 : Kebab, isberg, lök, sås</div>
@@ -99,7 +99,7 @@ export default function BulkImportPage() {
         <button
           onClick={handleImport}
           disabled={loading || !text.trim()}
-          className="w-full sm:flex-1 py-5 bg-gold-500 text-dark-500 font-black uppercase tracking-[0.2em] text-sm rounded-2xl hover:bg-gold-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-xl shadow-gold-500/10"
+          className="w-full sm:flex-1 py-5 bg-gold-500 text-[#0d0d0d] font-black uppercase tracking-[0.2em] text-sm rounded-2xl hover:bg-gold-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-3 shadow-xl shadow-gold-500/10"
         >
           {loading ? (
             <Loader2 className="animate-spin" size={20} />

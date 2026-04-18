@@ -321,7 +321,7 @@ export default function BIPage() {
                 </div>
                 <div className="text-right">
                    <div className="text-lg font-black text-gold-500 italic">{p.revenue.toLocaleString()} kr</div>
-                   <div className="text-[8px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em]">{Math.round((p.revenue / data.summary.currentMonthRevenue) * 100)}% av omsättning</div>
+                   <div className="text-[10px] text-[var(--text-secondary)] font-black uppercase tracking-[0.2em]">{Math.round((p.revenue / data.summary.currentMonthRevenue) * 100)}% av omsättning</div>
                 </div>
               </div>
             ))}

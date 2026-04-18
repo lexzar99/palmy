@@ -242,7 +242,7 @@ export default function BillingPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
             <DollarSign size={22} className="text-gold-500" /> Utbetalningshantering
           </h1>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             Hantera restaurangers försäljning, avgifter och utbetalningar per period
           </p>
         </div>
@@ -252,7 +252,7 @@ export default function BillingPage() {
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
           <button onClick={() => setShowConfig(!showConfig)}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase ${showConfig ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all text-[10px] font-black uppercase ${showConfig ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
             <Settings size={13} /> Avgiftsmodell
           </button>
         </div>
@@ -265,7 +265,7 @@ export default function BillingPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-[11px] font-black uppercase tracking-widest text-gold-500">Avgiftsmodell per Tier</h2>
             <button onClick={saveConfig}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gold-500 text-[#0d0d0d] rounded-xl text-[9px] font-black uppercase">
+              className="flex items-center gap-1.5 px-4 py-2 bg-gold-500 text-[#0d0d0d] rounded-xl text-[10px] font-black uppercase">
               <Check size={12} /> Spara
             </button>
           </div>
@@ -278,12 +278,12 @@ export default function BillingPage() {
               <div key={key} className="space-y-3">
                 <p className={`text-[10px] font-black uppercase tracking-widest ${color}`}>{label}</p>
                 <div>
-                  <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Månadsavgift (kr)</label>
+                  <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">Månadsavgift (kr)</label>
                   <input type="number" className={inputCls} value={config[key].subscriptionFee}
                     onChange={(e) => setConfig((p) => ({ ...p, [key]: { ...p[key], subscriptionFee: Number(e.target.value) } }))} />
                 </div>
                 <div>
-                  <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Provision (%)</label>
+                  <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">Provision (%)</label>
                   <input type="number" className={inputCls} value={config[key].commissionPct} step={0.1}
                     onChange={(e) => setConfig((p) => ({ ...p, [key]: { ...p[key], commissionPct: Number(e.target.value) } }))} />
                 </div>
@@ -299,12 +299,12 @@ export default function BillingPage() {
         <div className="flex flex-wrap gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
           {PERIODS.map((p, i) => (
             <button key={p.label} onClick={() => setSelectedPeriodIndex(i)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
+              className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}>
               {p.label}
             </button>
           ))}
         </div>
-        <span className="text-[9px] font-black text-[var(--text-secondary)]">
+        <span className="text-[10px] font-black text-[var(--text-secondary)]">
           {period.from} → {period.to}
         </span>
       </div>
@@ -333,7 +333,7 @@ export default function BillingPage() {
           <div key={kpi.label} 
             className={`p-4 rounded-2xl border transition-all ${kpi.highlight ? "bg-emerald-500/10 border-emerald-500/30" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]"}`}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
               <kpi.icon size={12} className={kpi.color} />
             </div>
             <p className={`text-lg font-black ${kpi.color}`}>{kpi.value}</p>
@@ -352,14 +352,14 @@ export default function BillingPage() {
           <table className="w-full text-[10px] font-bold">
             <thead>
               <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                <th className="px-4 py-3 text-left text-[9px] font-black uppercase text-[var(--text-secondary)]">Restaurang</th>
-                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Försäljning</th>
-                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Provision</th>
-                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Avgift</th>
-                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Justering</th>
-                <th className="px-4 py-3 text-right text-[9px] font-black uppercase text-[var(--text-secondary)]">Att betala</th>
-                <th className="px-4 py-3 text-center text-[9px] font-black uppercase text-[var(--text-secondary)]">Status</th>
-                <th className="px-4 py-3 text-center text-[9px] font-black uppercase text-[var(--text-secondary)]">Åtgärder</th>
+                <th className="px-4 py-3 text-left text-[10px] font-black uppercase text-[var(--text-secondary)]">Restaurang</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Försäljning</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Provision</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Avgift</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Justering</th>
+                <th className="px-4 py-3 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Att betala</th>
+                <th className="px-4 py-3 text-center text-[10px] font-black uppercase text-[var(--text-secondary)]">Status</th>
+                <th className="px-4 py-3 text-center text-[10px] font-black uppercase text-[var(--text-secondary)]">Åtgärder</th>
               </tr>
             </thead>
             <tbody>
@@ -372,7 +372,7 @@ export default function BillingPage() {
                         <Store size={13} className="text-[var(--text-secondary)]" />
                         <div>
                           <p className="font-black text-[var(--text-primary)]">{p.restaurant.name}</p>
-                          <p className="text-[8px] text-[var(--text-secondary)]">{p.restaurant.city || "—"}</p>
+                          <p className="text-[10px] text-[var(--text-secondary)]">{p.restaurant.city || "—"}</p>
                         </div>
                       </div>
                     </td>
@@ -382,7 +382,7 @@ export default function BillingPage() {
                     <td className="px-4 py-3 text-right text-emerald-400">{adjustmentTotal !== 0 ? `+${kr(adjustmentTotal)}` : "—"}</td>
                     <td className="px-4 py-3 text-right font-black text-emerald-400">{kr(p.finalPayout)}</td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black uppercase w-fit ${
+                      <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black uppercase w-fit ${
                         p.status === "paid" ? "bg-emerald-500/10 text-emerald-400" :
                         p.status === "approved" ? "bg-blue-500/10 text-blue-400" :
                         "bg-amber-500/10 text-amber-400"
@@ -486,21 +486,21 @@ function BankInfoForm({ restaurant, initialData, onSave, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Bank</label>
+        <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">Bank</label>
         <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="t.ex. Swedbank, SEB" className={inputCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Clearingnr</label>
+          <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">Clearingnr</label>
           <input value={clearingNumber} onChange={(e) => setClearingNumber(e.target.value)} placeholder="t.ex. 8300" className={inputCls} />
         </div>
         <div>
-          <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">Kontonr</label>
+          <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">Kontonr</label>
           <input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="t.ex. 1234567890" className={inputCls} />
         </div>
       </div>
       <div>
-        <label className="text-[8px] font-black uppercase text-[var(--text-secondary)] block mb-1">BankGiro (valfritt)</label>
+        <label className="text-[10px] font-black uppercase text-[var(--text-secondary)] block mb-1">BankGiro (valfritt)</label>
         <input value={giro} onChange={(e) => setGiro(e.target.value)} placeholder="t.ex. 5050-1234" className={inputCls} />
       </div>
       <div className="flex gap-2 pt-4">

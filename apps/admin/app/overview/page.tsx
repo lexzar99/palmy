@@ -1,4 +1,4 @@
- 
+
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -134,6 +134,7 @@ export default function OverviewPage() {
     const countDiff = cmp.length > 0 ? ((curr.length - cmp.length) / cmp.length) * 100 : 0;
 
     // Chart: group by hour (today) or by day (others)
+    // NOTE: API already returns values in kr, not öre — no division needed
     const chartMap: Record<string, { revenue: number; orders: number }> = {};
     if (range === "today" || range === "yesterday") {
       for (let h = 0; h < 24; h++) {
@@ -142,7 +143,7 @@ export default function OverviewPage() {
       curr.forEach((o) => {
         const key = String(new Date(o.createdAt).getHours()).padStart(2, "0") + ":00";
         if (chartMap[key]) {
-          chartMap[key].revenue += (o.total || 0) / 100;
+          chartMap[key].revenue += o.total || 0;
           chartMap[key].orders += 1;
         }
       });
@@ -157,7 +158,7 @@ export default function OverviewPage() {
       curr.forEach((o) => {
         const key = new Date(o.createdAt).toLocaleDateString("sv-SE", { month: "short", day: "numeric" });
         if (chartMap[key]) {
-          chartMap[key].revenue += (o.total || 0) / 100;
+          chartMap[key].revenue += o.total || 0;
           chartMap[key].orders += 1;
         }
       });
@@ -181,7 +182,7 @@ export default function OverviewPage() {
     return (
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <Loader2 className="animate-spin text-gold-500" size={32} />
-        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
           Laddar dashboard...
         </p>
       </div>
@@ -190,7 +191,7 @@ export default function OverviewPage() {
 
   const Diff = ({ value }: { value: number }) => (
     <div
-      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[8px] font-black ${
+      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black ${
         value >= 0
           ? "bg-emerald-500/10 text-emerald-400"
           : "bg-rose-500/10 text-rose-400"
@@ -231,7 +232,7 @@ export default function OverviewPage() {
               <button
                 key={r.id}
                 onClick={() => setRange(r.id)}
-                className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                   range === r.id
                     ? "bg-gold-gradient text-[#0d0d0d] glow-gold-sm"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -252,12 +253,12 @@ export default function OverviewPage() {
             <Link
               key={link.href}
               href={link.href}
-              className="flex flex-col items-center gap-2 p-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-gold-500/15 transition-all group"
+              className="flex flex-col items-center gap-2 p-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-gold-500/15 hover:bg-[var(--bg-primary)] hover:shadow-[0_0_20px_rgba(231,178,75,0.06)] transition-all group"
             >
               <div className={`w-9 h-9 rounded-xl ${link.bg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
                 <Icon size={16} className={link.color} />
               </div>
-              <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
                 {link.label}
               </span>
             </Link>
@@ -270,11 +271,12 @@ export default function OverviewPage() {
         {[
           {
             label: "Omsättning",
-            value: `${Math.round(current.rev / 100).toLocaleString("sv-SE")} kr`,
+            value: `${Math.round(current.rev).toLocaleString("sv-SE")} kr`,
             icon: CreditCard,
             color: "text-gold-500",
             bg: "bg-gold-500/10",
             diff: current.revDiff,
+            accent: "border-l-gold-500/50 shadow-[inset_0_0_30px_rgba(231,178,75,0.04)]",
           },
           {
             label: "Beställningar",
@@ -283,14 +285,16 @@ export default function OverviewPage() {
             color: "text-blue-400",
             bg: "bg-blue-500/10",
             diff: current.countDiff,
+            accent: "border-l-blue-400/50 shadow-[inset_0_0_30px_rgba(96,165,250,0.04)]",
           },
           {
             label: "Snittorder",
-            value: `${Math.round(current.avg / 100)} kr`,
+            value: `${Math.round(current.avg)} kr`,
             icon: Zap,
             color: "text-emerald-400",
             bg: "bg-emerald-500/10",
             diff: null,
+            accent: "",
           },
           {
             label: "Levererade",
@@ -299,6 +303,7 @@ export default function OverviewPage() {
             color: "text-emerald-400",
             bg: "bg-emerald-500/10",
             diff: null,
+            accent: "",
           },
           {
             label: "Väntande",
@@ -307,13 +312,14 @@ export default function OverviewPage() {
             color: "text-amber-400",
             bg: "bg-amber-500/10",
             diff: null,
+            accent: current.pending > 0 ? "border-l-amber-400/50 shadow-[inset_0_0_30px_rgba(251,191,36,0.04)]" : "",
           },
         ].map((s) => {
           const Icon = s.icon;
           return (
             <div
               key={s.label}
-              className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] relative overflow-hidden group hover:border-gold-500/10 transition-all"
+              className={`p-5 rounded-2xl border border-[var(--border-subtle)] ${s.accent ? `border-l-2 ${s.accent}` : ""} bg-[var(--bg-secondary)] relative overflow-hidden group hover:border-gold-500/10 transition-all`}
             >
               {/* Subtle glow on hover */}
               <div className="absolute inset-0 bg-gradient-to-br from-gold-500/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -324,7 +330,7 @@ export default function OverviewPage() {
                   </div>
                   {s.diff !== null && <Diff value={s.diff} />}
                 </div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                   {s.label}
                 </div>
                 <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
@@ -370,11 +376,11 @@ export default function OverviewPage() {
                 <Icon size={17} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                   {s.label}
                 </div>
                 <div className="text-xl font-black text-[var(--text-primary)]">{s.value}</div>
-                <div className="text-[8px] text-[var(--text-secondary)] font-bold">{s.sub}</div>
+                <div className="text-[10px] text-[var(--text-secondary)] font-bold">{s.sub}</div>
               </div>
               <ChevronRight size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
             </Link>
@@ -388,7 +394,7 @@ export default function OverviewPage() {
           <h3 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)]">
             Omsättning
           </h3>
-          <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+          <span className="text-[10px] font-bold text-[var(--text-secondary)]">
             {range === "today" ? "Per timme" : range === "yesterday" ? "Per timme (igår)" : range === "7d" ? "Senaste 7 dagarna" : "Senaste 30 dagarna"}
           </span>
         </div>
@@ -446,14 +452,14 @@ export default function OverviewPage() {
           </h3>
           <Link
             href="/orders"
-            className="text-[9px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-400 flex items-center gap-1 transition-colors"
+            className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-400 flex items-center gap-1 transition-colors"
           >
             Visa alla <ChevronRight size={12} />
           </Link>
         </div>
         <div className="space-y-2">
           {current.recent.length === 0 ? (
-            <p className="py-8 text-center text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+            <p className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
               Inga beställningar
             </p>
           ) : (
@@ -463,14 +469,14 @@ export default function OverviewPage() {
                 className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/10 transition-all"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-[8px] font-black text-[var(--text-secondary)]">
+                  <div className="w-8 h-8 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] flex items-center justify-center text-[10px] font-black text-[var(--text-secondary)]">
                     #{o.orderNumber}
                   </div>
                   <div>
                     <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
                       {o.customerName}
                     </p>
-                    <p className="text-[9px] font-bold text-[var(--text-secondary)]">
+                    <p className="text-[10px] font-bold text-[var(--text-secondary)]">
                       {o.restaurantName && `${o.restaurantName} · `}
                       {new Date(o.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
                     </p>
@@ -478,10 +484,10 @@ export default function OverviewPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-black text-gold-500">
-                    {Math.round((o.total || 0) / 100)} kr
+                    {Math.round(o.total || 0)} kr
                   </span>
                   <span
-                    className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                    className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded border ${
                       o.status === "DELIVERED"
                         ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                         : o.status === "PENDING"
@@ -509,7 +515,7 @@ export default function OverviewPage() {
             </h3>
             <Link
               href="/restaurants"
-              className="text-[9px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-400 flex items-center gap-1 transition-colors"
+              className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-400 flex items-center gap-1 transition-colors"
             >
               Hantera <ChevronRight size={12} />
             </Link>
@@ -524,7 +530,7 @@ export default function OverviewPage() {
                 <div className={`w-2 h-2 rounded-full shrink-0 ${r.isOpen ? "bg-emerald-400 shadow-[0_0_8px_rgba(34,197,94,0.4)]" : "bg-[var(--text-secondary)] opacity-30"}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-black uppercase truncate text-[var(--text-primary)]">{r.name}</p>
-                  <p className="text-[8px] font-bold text-[var(--text-secondary)]">{r.isOpen ? "Öppen" : "Stängd"}</p>
+                  <p className="text-[10px] font-bold text-[var(--text-secondary)]">{r.isOpen ? "Öppen" : "Stängd"}</p>
                 </div>
                 <ChevronRight size={12} className="text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>

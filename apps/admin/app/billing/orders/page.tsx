@@ -171,41 +171,41 @@ export default function OrderStatementsPage() {
 
   const statusBadge = (order: Order) => {
     if (order.isRefunded) {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-red-500/10 text-red-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-red-500/10 text-red-400">
         <RotateCcw size={10} /> Återbetald
       </span>;
     }
     if (order.status === "DELIVERED") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400">
         <CheckCircle size={10} /> Levererad
       </span>;
     }
     if (order.status === "DELIVERING") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-sky-500/10 text-sky-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-sky-500/10 text-sky-400">
         <Truck size={10} /> På väg
       </span>;
     }
     if (order.status === "READY") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-blue-500/10 text-blue-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-blue-500/10 text-blue-400">
         <ShoppingCart size={10} /> Klar
       </span>;
     }
     if (order.status === "PENDING") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-amber-500/10 text-amber-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-amber-500/10 text-amber-400">
         <Clock size={10} /> Väntande
       </span>;
     }
     if (order.status === "ACCEPTED" || order.status === "PREPARING") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-emerald-500/10 text-emerald-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-emerald-500/10 text-emerald-400">
         <CheckCircle size={10} /> Betald
       </span>;
     }
     if (order.status === "CANCELLED" || order.status === "REJECTED") {
-      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-red-500/10 text-red-400">
+      return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-red-500/10 text-red-400">
         <XCircle size={10} /> Avbruten
       </span>;
     }
-    return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase bg-gray-500/10 text-gray-400">
+    return <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase bg-gray-500/10 text-gray-400">
       {order.status}
     </span>;
   };
@@ -217,7 +217,7 @@ export default function OrderStatementsPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
             <FileText size={22} className="text-gold-500" /> Order Statements
           </h1>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             Bank-like statement per restaurant with orders and refunds
           </p>
         </div>
@@ -234,12 +234,12 @@ export default function OrderStatementsPage() {
         <div className="flex flex-wrap gap-1 p-1 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl">
           {PERIODS.map((p, i) => (
             <button key={p.label} onClick={() => { setSelectedPeriodIndex(i); setUseCustom(false); }}
-              className={"px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all " + (!useCustom && selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
+              className={"px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all " + (!useCustom && selectedPeriodIndex === i ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
               {p.label}
             </button>
           ))}
           <button onClick={() => setUseCustom(true)}
-            className={"px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all " + (useCustom ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
+            className={"px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all " + (useCustom ? "bg-gold-500 text-[#0d0d0d]" : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]")}>
             Custom
           </button>
         </div>
@@ -252,7 +252,7 @@ export default function OrderStatementsPage() {
               className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
           </>
         )}
-        <span className="text-[9px] font-black text-[var(--text-secondary)]">
+        <span className="text-[10px] font-black text-[var(--text-secondary)]">
           {period.from} to {period.to}
         </span>
       </div>
@@ -279,12 +279,12 @@ export default function OrderStatementsPage() {
           <div key={kpi.label} 
             className={"p-4 rounded-2xl border transition-all " + (kpi.highlight ? "bg-emerald-500/10 border-emerald-500/30" : "bg-[var(--bg-secondary)] border-[var(--border-subtle)]")}>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">{kpi.label}</span>
               <kpi.icon size={12} className={kpi.color} />
             </div>
             <p className={"text-lg font-black " + kpi.color}>{kpi.value}</p>
             {kpi.label === "Refunded" && totals.refundedCount > 0 && (
-              <p className="text-[8px] text-red-400 mt-1">{totals.refundedCount} orders refunded</p>
+              <p className="text-[10px] text-red-400 mt-1">{totals.refundedCount} orders refunded</p>
             )}
           </div>
         ))}
@@ -320,13 +320,13 @@ export default function OrderStatementsPage() {
                     <Store size={16} className="text-[var(--text-secondary)]" />
                     <div className="text-left">
                       <p className="font-black text-[var(--text-primary)] text-[11px]">{ro.restaurant.name}</p>
-                      <p className="text-[8px] text-[var(--text-secondary)]">{ro.orders.length} orders</p>
+                      <p className="text-[10px] text-[var(--text-secondary)]">{ro.orders.length} orders</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
                       <p className="text-[10px] font-black text-[var(--text-primary)]">{kr(stats.totalRevenue)}</p>
-                      <p className="text-[8px] text-red-400">-{kr(stats.totalRefunded)}</p>
+                      <p className="text-[10px] text-red-400">-{kr(stats.totalRefunded)}</p>
                     </div>
                     <ChevronRight size={16} className={`text-[var(--text-secondary)] transition-transform ${isExpanded ? "rotate-90" : ""}`} />
                   </div>
@@ -338,38 +338,38 @@ export default function OrderStatementsPage() {
                     <div className="p-4 bg-[var(--bg-primary)]">
                       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
                         <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                          <p className="text-[8px] font-black uppercase text-[var(--text-secondary)]">Total</p>
+                          <p className="text-[10px] font-black uppercase text-[var(--text-secondary)]">Total</p>
                           <p className="text-sm font-black text-[var(--text-primary)]">{kr(stats.totalRevenue)}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-red-500/5 border border-red-500/20">
-                          <p className="text-[8px] font-black uppercase text-red-400">Återbetald</p>
+                          <p className="text-[10px] font-black uppercase text-red-400">Återbetald</p>
                           <p className="text-sm font-black text-red-400">-{kr(stats.totalRefunded)}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
-                          <p className="text-[8px] font-black uppercase text-[var(--text-secondary)]">Ordrar</p>
+                          <p className="text-[10px] font-black uppercase text-[var(--text-secondary)]">Ordrar</p>
                           <p className="text-sm font-black text-blue-400">{stats.totalOrders}</p>
                         </div>
                         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                          <p className="text-[8px] font-black uppercase text-emerald-400">Betald</p>
+                          <p className="text-[10px] font-black uppercase text-emerald-400">Betald</p>
                           <p className="text-sm font-black text-emerald-400">{kr(stats.paidRevenue)}</p>
-                          <p className="text-[8px] text-emerald-400">{stats.paidOrders} ordrar</p>
+                          <p className="text-[10px] text-emerald-400">{stats.paidOrders} ordrar</p>
                         </div>
                         <div className="p-3 rounded-xl bg-gold-500/10 border border-gold-500/20">
-                          <p className="text-[8px] font-black uppercase text-gold-500">Netto</p>
+                          <p className="text-[10px] font-black uppercase text-gold-500">Netto</p>
                           <p className="text-sm font-black text-gold-500">{kr(stats.netAmount)}</p>
                         </div>
                       </div>
 
                       <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-                        <table className="w-full text-[9px] font-bold">
+                        <table className="w-full text-[10px] font-bold">
                           <thead>
                             <tr className="border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Order #</th>
-                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Datum/Tid</th>
-                              <th className="px-3 py-2 text-left text-[8px] font-black uppercase text-[var(--text-secondary)]">Kund</th>
-                              <th className="px-3 py-2 text-right text-[8px] font-black uppercase text-[var(--text-secondary)]">Belopp</th>
-                              <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Status</th>
-                              <th className="px-3 py-2 text-center text-[8px] font-black uppercase text-[var(--text-secondary)]">Betalt</th>
+                              <th className="px-3 py-2 text-left text-[10px] font-black uppercase text-[var(--text-secondary)]">Order #</th>
+                              <th className="px-3 py-2 text-left text-[10px] font-black uppercase text-[var(--text-secondary)]">Datum/Tid</th>
+                              <th className="px-3 py-2 text-left text-[10px] font-black uppercase text-[var(--text-secondary)]">Kund</th>
+                              <th className="px-3 py-2 text-right text-[10px] font-black uppercase text-[var(--text-secondary)]">Belopp</th>
+                              <th className="px-3 py-2 text-center text-[10px] font-black uppercase text-[var(--text-secondary)]">Status</th>
+                              <th className="px-3 py-2 text-center text-[10px] font-black uppercase text-[var(--text-secondary)]">Betalt</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -395,7 +395,7 @@ export default function OrderStatementsPage() {
                             ))}
                             {ro.orders.length > 50 && (
                               <tr>
-                                <td colSpan={6} className="px-3 py-2 text-center text-[8px] text-[var(--text-secondary)]">
+                                <td colSpan={6} className="px-3 py-2 text-center text-[10px] text-[var(--text-secondary)]">
                                   ... och {ro.orders.length - 50} fler ordrar
                                 </td>
                               </tr>

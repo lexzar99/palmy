@@ -184,7 +184,7 @@ export default function CommandPalette() {
                 placeholder="Sök kommandon, sidor, åtgärder…"
                 className="flex-1 bg-transparent text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none"
               />
-              <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[8px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
+              <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[10px] font-black text-[var(--text-secondary)] uppercase tracking-widest">
                 ESC
               </kbd>
             </div>
@@ -200,7 +200,7 @@ export default function CommandPalette() {
               ) : (
                 Object.entries(groupedCommands).map(([category, items]) => (
                   <div key={category} className="mb-1">
-                    <div className="px-5 py-1.5 text-[8px] font-black uppercase tracking-[0.35em] text-[var(--text-secondary)] opacity-40">
+                    <div className="px-5 py-1.5 text-[10px] font-black uppercase tracking-[0.35em] text-[var(--text-secondary)] opacity-40">
                       {category}
                     </div>
                     {items.map((cmd) => {
@@ -231,13 +231,13 @@ export default function CommandPalette() {
                               {cmd.label}
                             </p>
                             {cmd.description && (
-                              <p className="text-[9px] font-medium text-[var(--text-secondary)] truncate mt-0.5">
+                              <p className="text-[10px] font-medium text-[var(--text-secondary)] truncate mt-0.5">
                                 {cmd.description}
                               </p>
                             )}
                           </div>
                           {isSelected && (
-                            <span className="text-[8px] font-black uppercase tracking-widest text-gold-500/60">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gold-500/60">
                               ↵
                             </span>
                           )}
@@ -250,7 +250,7 @@ export default function CommandPalette() {
             </div>
 
             {/* Footer hint */}
-            <div className="flex items-center gap-4 px-5 py-3 border-t border-[var(--border-subtle)] text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
+            <div className="flex items-center gap-4 px-5 py-3 border-t border-[var(--border-subtle)] text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
               <span className="flex items-center gap-1">
                 <kbd className="px-1 py-0.5 rounded border border-[var(--border-subtle)]">↑↓</kbd>
                 Navigera
@@ -280,11 +280,11 @@ export function CommandPaletteTrigger() {
           new KeyboardEvent("keydown", { key: "k", metaKey: true })
         );
       }}
-      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/20 transition-all text-[9px] font-bold"
+      className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/20 transition-all text-[10px] font-bold"
     >
       <Command size={12} />
       <span className="hidden sm:inline">Sök…</span>
-      <kbd className="hidden sm:flex items-center gap-0.5 px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[7px] font-black uppercase">
+      <kbd className="hidden sm:flex items-center gap-0.5 px-1 py-0.5 rounded border border-[var(--border-subtle)] text-[10px] font-black uppercase">
         ⌘K
       </kbd>
     </button>

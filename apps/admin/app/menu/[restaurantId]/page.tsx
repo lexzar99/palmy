@@ -51,6 +51,7 @@ const UnifiedMenuPage = () => {
   const [isDealModalOpen, setIsDealModalOpen] = useState(false);
   
   const [editingId, setEditingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms State
   const [productForm, setProductForm] = useState({
@@ -505,7 +506,7 @@ const UnifiedMenuPage = () => {
                 key={tab}
                 onClick={() => { setActiveTab(tab); setSearchTerm(""); }}
                 className={`px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-                  activeTab === tab ? "bg-gold-500 text-dark-500 shadow-lg shadow-gold-500/20" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"
+                  activeTab === tab ? "bg-gold-500 text-[#0d0d0d] shadow-lg shadow-gold-500/20" : "text-[var(--text-primary)]/40 hover:text-[var(--text-primary)]"
                 }`}
               >
                 {tab === "PRODUCTS" && "Artiklar"}
@@ -549,7 +550,7 @@ const UnifiedMenuPage = () => {
               if (activeTab === "EXTRAS") openExtraModal();
               if (activeTab === "DEALS") openDealModal();
             }}
-            className="flex items-center gap-2 px-8 py-3 bg-gold-500 text-dark-500 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
+            className="flex items-center gap-2 px-8 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
           >
             <Plus size={18} /> Lägg till
           </button>
@@ -594,13 +595,13 @@ const UnifiedMenuPage = () => {
                          <span className="font-black text-gold-500 whitespace-nowrap">{p.price} KR</span>
                       </div>
                       <p className="text-xs text-[var(--text-primary)]/40 mt-1 line-clamp-2">{p.description || "Ingen beskrivning"}</p>
-                      <div className="mt-2 text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 bg-[var(--border-subtle)] w-fit px-2 py-1 rounded">{p.category?.name}</div>
+                      <div className="mt-2 text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 bg-[var(--border-subtle)] w-fit px-2 py-1 rounded">{p.category?.name}</div>
                     </div>
                   </div>
                   <div className="mt-auto pt-6 border-t border-dashed border-[var(--border-strong)] flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       {p.isActive ? <span className="text-emerald-400 text-[10px] font-black uppercase flex items-center gap-1"><Check size={12} /> Aktiv</span> : <span className="text-red-400 text-[10px] font-black uppercase flex items-center gap-1"><X size={12} /> Dold</span>}
-                      <span className="text-[var(--text-primary)]/20 text-[9px] font-bold uppercase">{p.extraGroups?.length || 0} Tillbehör</span>
+                      <span className="text-[var(--text-primary)]/20 text-[10px] font-bold uppercase">{p.extraGroups?.length || 0} Tillbehör</span>
                     </div>
                     <div className="flex items-center gap-2">
                        <button onClick={() => openProductModal(p)} className="p-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-xl transition-all"><Edit2 size={16} /></button>
@@ -646,8 +647,8 @@ const UnifiedMenuPage = () => {
                     <div>
                       <h3 className="text-xl font-bold uppercase tracking-wider mb-2">{group.name}</h3>
                       <div className="flex gap-2">
-                        <span className="text-[9px] font-black uppercase bg-gold-500/10 text-gold-500 px-2 py-0.5 rounded ring-1 ring-gold-500/20">{group.type}</span>
-                        {group.required && <span className="text-[9px] font-black uppercase bg-red-500/10 text-red-400 px-2 py-0.5 rounded ring-1 ring-red-500/20">Obligatorisk</span>}
+                        <span className="text-[10px] font-black uppercase bg-gold-500/10 text-gold-500 px-2 py-0.5 rounded ring-1 ring-gold-500/20">{group.type}</span>
+                        {group.required && <span className="text-[10px] font-black uppercase bg-red-500/10 text-red-400 px-2 py-0.5 rounded ring-1 ring-red-500/20">Obligatorisk</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -718,7 +719,7 @@ const UnifiedMenuPage = () => {
                         <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-2">Combo</div>
                         <div className="flex flex-wrap gap-2">
                           {deal.comboProductNames.map((name: string) => (
-                            <span key={name} className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/60 bg-dark-500 px-3 py-1 rounded-full">
+                            <span key={name} className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-primary)]/60 bg-[var(--bg-primary)] px-3 py-1 rounded-full">
                               {name}
                             </span>
                           ))}
@@ -761,7 +762,7 @@ const UnifiedMenuPage = () => {
       {/* MODALS */}
       {/* Product Modal */}
       {isProductModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-dark-500/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
              <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center bg-dark-400 z-10 sticky top-0">
                <div>
@@ -838,7 +839,7 @@ const UnifiedMenuPage = () => {
                   </div>
                   
                   <div className="md:col-span-2 pt-10 border-t border-[var(--border-subtle)]">
-                    <button type="submit" disabled={saving} className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-dark-500 font-extrabold rounded-2xl transition-all shadow-xl shadow-gold-500/20 uppercase tracking-[0.2em] flex items-center justify-center gap-3">
+                    <button type="submit" disabled={saving} className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-extrabold rounded-2xl transition-all shadow-xl shadow-gold-500/20 uppercase tracking-[0.2em] flex items-center justify-center gap-3">
                       {saving ? <Loader2 size={24} className="animate-spin" /> : <Check size={24} />} Spara Artikel
                     </button>
                   </div>
@@ -850,7 +851,7 @@ const UnifiedMenuPage = () => {
 
       {/* Category Modal - simplified */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-dark-500/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-lg shadow-2xl">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Kategori' : 'Ny Kategori'}</h2>
@@ -865,7 +866,7 @@ const UnifiedMenuPage = () => {
                    <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-2">Bild URL</label>
                    <input value={categoryForm.imageUrl} onChange={e => setCategoryForm({...categoryForm, imageUrl: e.target.value})} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none" placeholder="https://..." />
                  </div>
-                 <button disabled={saving} className="w-full py-5 bg-gold-500 text-dark-500 font-extrabold rounded-2xl uppercase tracking-widest mt-4">Spara</button>
+                 <button disabled={saving} className="w-full py-5 bg-gold-500 text-[#0d0d0d] font-extrabold rounded-2xl uppercase tracking-widest mt-4">Spara</button>
               </form>
            </motion.div>
         </div>
@@ -873,7 +874,7 @@ const UnifiedMenuPage = () => {
 
       {/* Extra Modal - Simplified table-like */}
       {isExtraModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-dark-500/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
               <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
                  <h2 className="text-2xl font-black uppercase tracking-tight">{editingId ? 'Redigera Grupp' : 'Ny Grupp'}</h2>
@@ -893,7 +894,7 @@ const UnifiedMenuPage = () => {
                            type="number" 
                            value={extraForm.position} 
                            onChange={e => setExtraForm({...extraForm, position: parseInt(e.target.value) || 0})} 
-                           className="bg-dark-500 w-16 text-center border border-[var(--border-strong)] rounded-xl py-1 font-bold outline-none" 
+                           className="bg-[var(--bg-primary)] w-16 text-center border border-[var(--border-strong)] rounded-xl py-1 font-bold outline-none" 
                          />
                       </div>
                       <button
@@ -933,12 +934,12 @@ const UnifiedMenuPage = () => {
                            );
                          })}
                       </div>
-                      <p className="text-[9px] text-[var(--text-primary)]/20 italic">Markera kategorier för att koppla denna grupp till alla deras produkter vid spara.</p>
+                      <p className="text-[10px] text-[var(--text-primary)]/20 italic">Markera kategorier för att koppla denna grupp till alla deras produkter vid spara.</p>
                    </div>
                    <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest">Tillbehörsrader</label>
-                        <button type="button" onClick={() => setExtraForm({...extraForm, extras: [...extraForm.extras, {name: "", priceAddon: 0, isDefault: false}]})} className="text-[10px] font-black bg-gold-500 text-dark-500 px-3 py-1 rounded uppercase tracking-widest">+ Rad</button>
+                        <button type="button" onClick={() => setExtraForm({...extraForm, extras: [...extraForm.extras, {name: "", priceAddon: 0, isDefault: false}]})} className="text-[10px] font-black bg-gold-500 text-[#0d0d0d] px-3 py-1 rounded uppercase tracking-widest">+ Rad</button>
                       </div>
                       {extraForm.extras.map((ex, idx) => (
                         <div key={idx} className="flex gap-4">
@@ -968,14 +969,14 @@ const UnifiedMenuPage = () => {
                 </form>
               </div>
               <div className="p-8 bg-dark-400 border-t border-[var(--border-subtle)]">
-                 <button form="extraForm" className="w-full py-5 bg-gold-500 text-dark-500 font-extrabold rounded-2xl uppercase tracking-widest">Spara Grupp</button>
+                 <button form="extraForm" className="w-full py-5 bg-gold-500 text-[#0d0d0d] font-extrabold rounded-2xl uppercase tracking-widest">Spara Grupp</button>
               </div>
            </motion.div>
         </div>
       )}
 
       {isDealModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-dark-500/90 backdrop-blur-md">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[var(--bg-primary)]/90 backdrop-blur-md">
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-dark-400 border border-[var(--border-strong)] rounded-[2.5rem] w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl shadow-black">
             <div className="p-10 border-b border-[var(--border-subtle)] flex justify-between items-center">
               <div>
@@ -1099,7 +1100,7 @@ const UnifiedMenuPage = () => {
                   ))}
                 </div>
 
-                <button type="submit" disabled={saving} className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-dark-500 font-extrabold rounded-2xl transition-all shadow-xl shadow-gold-500/20 uppercase tracking-[0.2em] flex items-center justify-center gap-3">
+                <button type="submit" disabled={saving} className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-extrabold rounded-2xl transition-all shadow-xl shadow-gold-500/20 uppercase tracking-[0.2em] flex items-center justify-center gap-3">
                   {saving ? <Loader2 size={24} className="animate-spin" /> : <Sparkles size={22} />} Spara Deal
                 </button>
               </form>

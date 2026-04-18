@@ -33,6 +33,9 @@ import {
   Bell,
   RotateCcw,
   ShieldCheck,
+  Volume2,
+  VolumeX,
+  Timer,
 } from "lucide-react";
 import { io as socketIO } from "socket.io-client";
 import confetti from "canvas-confetti";
@@ -98,6 +101,87 @@ interface Order {
   refundReason?: string;
 }
 
+// ─── Time Elapsed Helper ────────────────────────────────────────────────────
+const TimeElapsed = ({ createdAt }: { createdAt: string }) => {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const diffMs = now - new Date(createdAt).getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+
+  let label: string;
+  if (diffMin < 1) label = "Just nu";
+  else if (diffMin < 60) label = `${diffMin} min sedan`;
+  else {
+    const hours = Math.floor(diffMin / 60);
+    label = `${hours}h ${diffMin % 60}m sedan`;
+  }
+
+  let colorClass: string;
+  if (diffMin < 5) colorClass = "text-emerald-400";
+  else if (diffMin <= 15) colorClass = "text-amber-400";
+  else colorClass = "text-rose-400";
+
+  return (
+    <span className={`text-[11px] font-bold ${colorClass} flex items-center gap-1`}>
+      <Clock size={11} />
+      {label}
+    </span>
+  );
+};
+
+// ─── Auto-Refresh Countdown ────────────────────────────────────────────────
+const RefreshCountdown = ({ interval, onRefresh }: { interval: number; onRefresh: () => void }) => {
+  const [remaining, setRemaining] = useState(interval);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setRemaining((prev) => {
+        if (prev <= 1) {
+          onRefresh();
+          return interval;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [interval, onRefresh]);
+
+  const pct = ((interval - remaining) / interval) * 100;
+
+  return (
+    <div className="flex items-center gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+      <div className="relative w-6 h-6">
+        <svg className="w-6 h-6 -rotate-90" viewBox="0 0 24 24">
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill="none"
+            stroke="var(--border-subtle)"
+            strokeWidth="2"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeDasharray={`${pct * 0.628} 62.8`}
+            className="text-gold-500 transition-all duration-1000"
+          />
+        </svg>
+      </div>
+      <span>{remaining}s</span>
+    </div>
+  );
+};
+
 // ─── Order Card ─────────────────────────────────────────────────────────────
 const OrderCard = ({
   order,
@@ -130,29 +214,42 @@ const OrderCard = ({
       layout
       className={`rounded-2xl overflow-hidden border transition-all ${
         isPending
-          ? "border-amber-500/40 shadow-lg shadow-amber-500/5"
+          ? "border-amber-500/40 shadow-lg shadow-amber-500/10 ring-1 ring-amber-500/20"
           : isActive
           ? "border-emerald-500/30 shadow-lg shadow-emerald-500/5"
           : "border-[var(--border-subtle)]"
       }`}
-      style={{ background: "var(--bg-secondary)" }}
+      style={{
+        background: isPending
+          ? "linear-gradient(135deg, var(--bg-secondary) 0%, rgba(245,158,11,0.04) 100%)"
+          : isActive
+          ? "linear-gradient(135deg, var(--bg-secondary) 0%, rgba(16,185,129,0.03) 100%)"
+          : "var(--bg-secondary)",
+      }}
     >
       {isTest && (
-        <div className="w-full bg-rose-500 text-white text-[8px] font-black uppercase py-1.5 tracking-[0.25em] text-center">
+        <div className="w-full bg-rose-500 text-white text-[10px] font-black uppercase py-1.5 tracking-[0.25em] text-center">
           Bot / Test Order
+        </div>
+      )}
+
+      {/* Pending pulse overlay */}
+      {isPending && (
+        <div className="absolute inset-0 rounded-2xl pointer-events-none">
+          <div className="absolute inset-0 rounded-2xl animate-pulse bg-amber-500/[0.03]" />
         </div>
       )}
 
       {/* Header row */}
       <div
         onClick={onToggle}
-        className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/2 transition-colors"
+        className="p-4 flex items-center gap-4 cursor-pointer hover:bg-white/[0.02] transition-colors relative"
       >
-        {/* Order number badge */}
+        {/* Order number badge — wider to fit XX-NNNN-YY */}
         <div
-          className={`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+          className={`min-w-[4.5rem] h-12 px-2.5 rounded-xl flex items-center justify-center font-black text-[11px] shrink-0 ${
             isPending
-              ? "bg-amber-500 text-[#0d0d0d]"
+              ? "bg-amber-500 text-[#0d0d0d] animate-pulse"
               : isActive
               ? "bg-emerald-500 text-white"
               : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
@@ -167,12 +264,12 @@ const OrderCard = ({
               {order.customerName}
             </span>
             {order.restaurantName && (
-              <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[8px] font-black uppercase">
+              <span className="px-2 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[10px] font-black uppercase">
                 {order.restaurantName}
               </span>
             )}
             <span
-              className={`px-1.5 py-0.5 rounded border text-[8px] font-black uppercase ${
+              className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase ${
                 isDelivery
                   ? "bg-sky-500/8 text-sky-400 border-sky-500/20"
                   : "bg-emerald-500/8 text-emerald-400 border-emerald-500/20"
@@ -181,28 +278,33 @@ const OrderCard = ({
               {isDelivery ? "Utkörning" : "Avhämtning"}
             </span>
             <span
-              className={`px-1.5 py-0.5 rounded border text-[8px] font-black uppercase ${STATUS_COLORS[order.status] || ""}`}
+              className={`px-2 py-0.5 rounded border text-[10px] font-black uppercase ${STATUS_COLORS[order.status] || ""}`}
             >
               {STATUS_LABELS[order.status] || order.status}
             </span>
             {order.refundedAt && (
-              <span className="px-1.5 py-0.5 rounded bg-rose-500 text-white text-[8px] font-black uppercase border border-rose-500/20 shadow-lg shadow-rose-500/20">
-                Återbetald {Math.round(order.refundedAmount! / 100)} kr
+              <span className="px-2 py-0.5 rounded bg-rose-500 text-white text-[10px] font-black uppercase border border-rose-500/20 shadow-lg shadow-rose-500/20">
+                Återbetald {Math.round(order.refundedAmount!)} kr
               </span>
             )}
           </div>
-          <div className="text-[10px] text-[var(--text-secondary)] font-bold mt-0.5">
-            {new Date(order.createdAt).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}{" "}
-            · {order.items?.length || 0} rätter
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[11px] text-[var(--text-secondary)] font-bold">
+              {new Date(order.createdAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}{" "}
+              · {order.items?.length || 0} rätter
+            </span>
+            {!["DELIVERED", "CANCELLED", "REJECTED"].includes(order.status) && (
+              <TimeElapsed createdAt={order.createdAt} />
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
           <span className="text-base font-black text-[var(--text-primary)]">
-            {Math.round(order.total / 100)} kr
+            {Math.round(order.total)} kr
           </span>
           <ChevronDown
             size={16}
@@ -227,20 +329,20 @@ const OrderCard = ({
               {/* Address / type panel */}
               {isDelivery ? (
                 <div className="bg-sky-500/8 border border-sky-500/20 rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-sky-400 text-[9px] font-black uppercase tracking-widest mb-2">
-                    <MapPin size={12} /> Leveransadress
+                  <div className="flex items-center gap-2 text-sky-400 text-[11px] font-black uppercase tracking-widest mb-2">
+                    <MapPin size={13} /> Leveransadress
                   </div>
                   <p className="text-sm font-black text-[var(--text-primary)] uppercase">
                     {order.deliveryStreet || "Adress saknas"}
                   </p>
-                  <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+                  <p className="text-[11px] text-[var(--text-secondary)] mt-0.5">
                     {order.deliveryZip} {order.deliveryCity}
                   </p>
                 </div>
               ) : (
                 <div className="bg-emerald-500/8 border border-emerald-500/20 rounded-xl p-4">
-                  <div className="flex items-center gap-2 text-emerald-400 text-[9px] font-black uppercase tracking-widest mb-1">
-                    <Store size={12} /> Avhämtning
+                  <div className="flex items-center gap-2 text-emerald-400 text-[11px] font-black uppercase tracking-widest mb-1">
+                    <Store size={13} /> Avhämtning
                   </div>
                   <p className="text-sm font-black text-[var(--text-primary)] uppercase">
                     Kunden hämtar på restaurangen
@@ -251,7 +353,7 @@ const OrderCard = ({
               {/* Customer contact */}
               <div className="flex items-center justify-between p-4 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]">
                 <div>
-                  <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                     Kundtelefon
                   </div>
                   <div className="text-sm font-black tracking-widest text-[var(--text-primary)]">
@@ -269,7 +371,7 @@ const OrderCard = ({
               {/* Note */}
               {order.note && (
                 <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-amber-400 mb-1.5">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-amber-400 mb-1.5">
                     Kundmeddelande
                   </div>
                   <p className="text-sm font-bold text-[var(--text-primary)] italic leading-relaxed">
@@ -288,35 +390,36 @@ const OrderCard = ({
                   return (
                     <div
                       key={idx}
-                      className="flex items-start gap-3 p-3 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]"
+                      className="flex items-start gap-3 p-3.5 bg-[var(--bg-primary)] rounded-xl border border-[var(--border-subtle)]"
                     >
-                      <span className="text-gold-500 font-black text-sm w-6 shrink-0">
+                      <span className="text-gold-500 font-black text-sm w-7 shrink-0">
                         {item.quantity}×
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">
+                        <p className="text-[12px] font-black uppercase text-[var(--text-primary)]">
                           {item.productName}
                         </p>
                         {extras.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
                             {extras.map((ex: any, i: number) => (
                               <span
                                 key={i}
-                                className="text-[9px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-1.5 py-0.5 rounded"
+                                className="text-[10px] font-bold text-[var(--text-secondary)] bg-[var(--bg-secondary)] px-2 py-0.5 rounded border border-[var(--border-subtle)]"
                               >
-                                {ex.extraName || ex.name}
+                                + {ex.extraName || ex.name}
                               </span>
                             ))}
                           </div>
                         )}
                         {item.note && (
-                          <p className="text-[9px] text-rose-400 font-black uppercase mt-1">
+                          <p className="text-[11px] text-rose-400 font-black uppercase mt-1.5 flex items-center gap-1">
+                            <AlertCircle size={11} />
                             {item.note}
                           </p>
                         )}
                       </div>
-                      <span className="text-[10px] font-black text-[var(--text-secondary)] shrink-0">
-                        {Math.round(item.subtotal / 100)} kr
+                      <span className="text-[11px] font-black text-[var(--text-secondary)] shrink-0">
+                        {Math.round(item.subtotal)} kr
                       </span>
                     </div>
                   );
@@ -324,48 +427,109 @@ const OrderCard = ({
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+              <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)]">
+                <span className="text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                   Totalt
                 </span>
                 <span className="text-lg font-black text-gold-500">
-                  {Math.round(order.total / 100)} kr
+                  {Math.round(order.total)} kr
                 </span>
               </div>
 
-              {/* Action buttons */}
+              {/* Action buttons — step-by-step status progression */}
               <div className="space-y-2 pt-1">
+                {/* PENDING: Godkänn + Neka — kept as is */}
                 {order.status === "PENDING" && (
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => onStatus("REJECTED")}
-                      className="py-3 rounded-xl bg-[var(--bg-primary)] border border-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-wider hover:bg-rose-500/10 transition-all"
+                      className="py-3 rounded-xl bg-[var(--bg-primary)] border border-rose-500/20 text-rose-400 text-[11px] font-black uppercase tracking-wider hover:bg-rose-500/10 transition-all flex items-center justify-center gap-1.5"
                     >
-                      <XCircle size={14} className="inline mr-1.5" />
+                      <XCircle size={15} />
                       Neka
                     </button>
                     <button
                       onClick={onAccept}
-                      className="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                      className="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-1.5"
                     >
-                      <CheckCircle2 size={14} className="inline mr-1.5" />
+                      <CheckCircle2 size={15} />
                       Godkänn
                     </button>
                   </div>
                 )}
-                {["ACCEPTED", "PREPARING", "READY"].includes(order.status) && (
+
+                {/* ACCEPTED / PREPARING: Markera klar → READY */}
+                {["ACCEPTED", "PREPARING"].includes(order.status) && (
                   <button
-                    onClick={() =>
-                      onStatus(
-                        order.type === "PICKUP" ? "DELIVERED" : "DELIVERING"
-                      )
-                    }
-                    className="w-full py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-[10px] font-black uppercase tracking-wider transition-all shadow-lg shadow-sky-500/20 active:scale-95 flex items-center justify-center gap-2"
+                    onClick={() => onStatus("READY")}
+                    className="w-full py-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20 active:scale-95 flex items-center justify-center gap-2"
                   >
-                    <Zap size={14} />
-                    Markera som{" "}
-                    {order.type === "PICKUP" ? "klar" : "på väg"}
+                    <CheckCircle2 size={15} />
+                    Markera klar
                   </button>
+                )}
+
+                {/* READY (pickup): Hämtad → DELIVERED */}
+                {order.status === "READY" && order.type === "PICKUP" && (
+                  <button
+                    onClick={() => onStatus("DELIVERED")}
+                    className="w-full py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-gold-500/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Package size={15} />
+                    Hämtad
+                  </button>
+                )}
+
+                {/* READY (delivery): Skicka ut → DELIVERING */}
+                {order.status === "READY" && order.type === "DELIVERY" && (
+                  <button
+                    onClick={() => onStatus("DELIVERING")}
+                    className="w-full py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-sky-500/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <Truck size={15} />
+                    Skicka ut
+                  </button>
+                )}
+
+                {/* DELIVERING: Levererad → DELIVERED */}
+                {order.status === "DELIVERING" && (
+                  <button
+                    onClick={() => onStatus("DELIVERED")}
+                    className="w-full py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[11px] font-black uppercase tracking-wider transition-all shadow-lg shadow-gold-500/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 size={15} />
+                    Levererad
+                  </button>
+                )}
+
+                {/* Status progression indicator */}
+                {isActive && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    {["PENDING", "ACCEPTED", "PREPARING", "READY", order.type === "DELIVERY" ? "DELIVERING" : null, "DELIVERED"]
+                      .filter(Boolean)
+                      .map((step, i, arr) => {
+                        const stepIdx = arr.indexOf(order.status);
+                        const isDone = i <= stepIdx;
+                        const isCurrent = step === order.status;
+                        return (
+                          <div key={step} className="flex items-center gap-1.5 flex-1">
+                            <div
+                              className={`h-1.5 flex-1 rounded-full transition-all ${
+                                isDone
+                                  ? "bg-emerald-500"
+                                  : "bg-[var(--border-subtle)]"
+                              } ${isCurrent ? "animate-pulse" : ""}`}
+                            />
+                            {i < arr.length - 1 && (
+                              <div className="w-0" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] ml-1 shrink-0">
+                      {STATUS_LABELS[order.status]}
+                    </span>
+                  </div>
                 )}
 
                 <div className="flex gap-2">
@@ -373,13 +537,13 @@ const OrderCard = ({
                     onClick={() =>
                       window.open(`/receipt?orderId=${order.id}`, "_blank")
                     }
-                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/20 transition-all flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/20 transition-all flex items-center justify-center gap-1.5"
                   >
                     <Printer size={13} /> Kvitto
                   </button>
                   <button
                     onClick={onEdit}
-                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[11px] font-black uppercase tracking-wider text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all flex items-center justify-center gap-1.5"
                   >
                     <Edit2 size={13} /> Redigera
                   </button>
@@ -389,7 +553,7 @@ const OrderCard = ({
                    !order.refundedAt && (
                     <button
                       onClick={onRefund}
-                      className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[9px] font-black uppercase tracking-wider text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
+                      className="flex-1 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-[11px] font-black uppercase tracking-wider text-rose-400 hover:bg-rose-500/20 transition-all flex items-center justify-center gap-1.5"
                     >
                       <RotateCcw size={13} /> Återbetala
                     </button>
@@ -414,7 +578,7 @@ const OrderCard = ({
 
 // ─── Refund Modal Content ──────────────────────────────────────────────────
 const RefundModalContent = ({ order, onConfirm, onClose }: { order: Order; onConfirm: (amt: number, reason: string) => void; onClose: () => void }) => {
-  const [amount, setAmount] = useState(order.total / 100);
+  const [amount, setAmount] = useState(order.total);
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
@@ -423,16 +587,16 @@ const RefundModalContent = ({ order, onConfirm, onClose }: { order: Order; onCon
       <div className="p-4 bg-rose-500/5 rounded-2xl border border-rose-500/20">
         <div className="flex items-center gap-3 mb-2">
            <ShieldCheck size={18} className="text-rose-400" />
-           <span className="text-[10px] font-black uppercase tracking-widest text-rose-400">Säkerhetskontroll</span>
+           <span className="text-[11px] font-black uppercase tracking-widest text-rose-400">Säkerhetskontroll</span>
         </div>
-        <p className="text-[11px] text-[var(--text-secondary)] font-medium leading-relaxed">
+        <p className="text-[12px] text-[var(--text-secondary)] font-medium leading-relaxed">
           Du håller på att återbetala pengar till kunden via Stripe. Denna handling kan inte ångras och dras direkt från restaurangens saldo.
         </p>
       </div>
 
       <div className="space-y-4">
         <div>
-           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Belopp (SEK)</label>
+           <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Belopp (SEK)</label>
            <div className="relative">
               <input 
                 type="number"
@@ -441,16 +605,16 @@ const RefundModalContent = ({ order, onConfirm, onClose }: { order: Order; onCon
                 className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-lg font-black outline-none focus:border-rose-500/30 transition-all text-[var(--text-primary)]"
               />
               <button 
-                onClick={() => setAmount(order.total / 100)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[9px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
+                onClick={() => setAmount(order.total)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 text-[10px] font-black uppercase border border-rose-500/20 hover:bg-rose-500/20 transition-all"
               >
-                Max ({Math.round(order.total / 100)} kr)
+                Max ({Math.round(order.total)} kr)
               </button>
            </div>
         </div>
 
         <div>
-           <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Anledning</label>
+           <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Anledning</label>
            <input 
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -474,22 +638,22 @@ const RefundModalContent = ({ order, onConfirm, onClose }: { order: Order; onCon
            }`}>
              {confirmed && <CheckCircle2 size={12} className="text-white" />}
            </div>
-           <span className="text-[10px] font-black uppercase tracking-widest">
-             Jag bekräftar {amount === order.total/100 ? "full" : "partiell"} återbetalning på {amount} kr
+           <span className="text-[11px] font-black uppercase tracking-widest">
+             Jag bekräftar {amount === order.total ? "full" : "partiell"} återbetalning på {amount} kr
            </span>
          </button>
 
          <div className="flex gap-3">
             <button 
               onClick={onClose}
-              className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
+              className="flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
             >
               Avbryt
             </button>
             <button 
-              disabled={!confirmed || amount <= 0 || amount > (order.total/100 + 0.01)}
+              disabled={!confirmed || amount <= 0 || amount > (order.total + 0.01)}
               onClick={() => onConfirm(amount, reason)}
-              className={`flex-2 py-3.5 px-8 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+              className={`flex-2 py-3.5 px-8 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all ${
                 confirmed 
                   ? "bg-rose-500 text-white shadow-lg shadow-rose-500/20 active:scale-95" 
                   : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border border-[var(--border-subtle)] opacity-50 cursor-not-allowed"
@@ -522,6 +686,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
   const [filter, setFilter] = useState<"all" | "PENDING" | "preparing" | "ready" | "done">(initialFilter);
   const [search, setSearch] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
   const { selectedRestaurantId } = useRestaurantStore();
   const { success, error: toastError, info } = useToast();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -531,12 +696,22 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
     if (typeof window !== "undefined") {
       audioRef.current = new Audio("/notification.mp3");
       if (audioRef.current) audioRef.current.volume = 1.0;
+      const stored = localStorage.getItem("matgo_sound_enabled");
+      if (stored !== null) setSoundEnabled(stored === "true");
     }
   }, []);
 
   useEffect(() => {
     setFilter(initialFilter);
   }, [initialFilter]);
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem("matgo_sound_enabled", String(next));
+      return next;
+    });
+  }, []);
 
   const getToken = () =>
     typeof window !== "undefined"
@@ -588,7 +763,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           )
         );
-        if (audioRef.current) {
+        if (soundEnabled && audioRef.current) {
           audioRef.current.currentTime = 0;
           audioRef.current.play().catch(() => {});
         }
@@ -596,7 +771,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
     });
     socket.on("order:updated", () => fetchData());
     return () => { socket.disconnect(); };
-  }, [isMounted, selectedRestaurantId, fetchData]);
+  }, [isMounted, selectedRestaurantId, fetchData, soundEnabled]);
 
   const updateStatus = async (orderId: string, status: string, estimatedTime?: number) => {
     try {
@@ -661,7 +836,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       o.customerName,
       o.restaurantName || "",
       o.status,
-      (o.total / 100).toFixed(2),
+      o.total.toFixed(2),
       new Date(o.createdAt).toLocaleString("sv-SE"),
     ]);
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
@@ -716,6 +891,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       revenue: todayOrders
         .filter((o) => o.status === "DELIVERED")
         .reduce((sum, o) => sum + o.total, 0),
+      total: todayOrders.length,
     };
   }, [orders]);
 
@@ -726,17 +902,34 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"}`} />
+          <div className="relative flex items-center justify-center">
+            <div className={`w-2.5 h-2.5 rounded-full ${loading ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+            {!loading && (
+              <div className="absolute w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping opacity-75" />
+            )}
+          </div>
           <h1 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]">
             {title || "Live Ordrar"}
           </h1>
           {selectedRestaurantId && (
-            <span className="px-2 py-1 rounded-lg bg-gold-500/10 text-gold-500 text-[9px] font-black uppercase border border-gold-500/20">
+            <span className="px-2 py-1 rounded-lg bg-gold-500/10 text-gold-500 text-[10px] font-black uppercase border border-gold-500/20">
               Filtrerat
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
+          <RefreshCountdown interval={30} onRefresh={fetchData} />
+          <button
+            onClick={toggleSound}
+            className={`w-9 h-9 rounded-xl border bg-[var(--bg-secondary)] flex items-center justify-center transition-all ${
+              soundEnabled
+                ? "border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+                : "border-rose-500/30 text-rose-400 hover:bg-rose-500/10"
+            }`}
+            title={soundEnabled ? "Ljud på" : "Ljud av"}
+          >
+            {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+          </button>
           <button
             onClick={fetchData}
             disabled={loading}
@@ -746,7 +939,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
           </button>
           <button
             onClick={handleExportCSV}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all text-[9px] font-black uppercase"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all text-[10px] font-black uppercase"
           >
             <Download size={13} /> CSV
           </button>
@@ -754,25 +947,77 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       </div>
 
       {/* Stats bar */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {[
-          { label: "Nya ordrar", value: stats.pending, color: "text-amber-400" },
-          { label: "Tillagas", value: stats.preparing, color: "text-blue-400" },
-          { label: "Klara / På väg", value: stats.ready, color: "text-emerald-400" },
+          {
+            label: "Nya ordrar",
+            value: stats.pending,
+            color: "text-amber-400",
+            bgAccent: "bg-amber-500/5",
+            borderAccent: "border-amber-500/20",
+            max: stats.total || 1,
+          },
+          {
+            label: "Tillagas",
+            value: stats.preparing,
+            color: "text-blue-400",
+            bgAccent: "bg-blue-500/5",
+            borderAccent: "border-blue-500/20",
+            max: stats.total || 1,
+          },
+          {
+            label: "Klara / På väg",
+            value: stats.ready,
+            color: "text-emerald-400",
+            bgAccent: "bg-emerald-500/5",
+            borderAccent: "border-emerald-500/20",
+            max: stats.total || 1,
+          },
+          {
+            label: "Levererade",
+            value: stats.done,
+            color: "text-[var(--text-secondary)]",
+            bgAccent: "bg-[var(--bg-primary)]",
+            borderAccent: "border-[var(--border-subtle)]",
+            max: stats.total || 1,
+          },
           {
             label: "Omsättning idag",
-            value: `${Math.round(stats.revenue / 100)} kr`,
+            value: `${Math.round(stats.revenue)} kr`,
             color: "text-gold-500",
+            bgAccent: "bg-gold-500/5",
+            borderAccent: "border-gold-500/20",
+            max: 0,
           },
         ].map((s) => (
           <div
             key={s.label}
-            className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]"
+            className={`p-4 rounded-xl border ${s.borderAccent} bg-[var(--bg-secondary)] relative overflow-hidden`}
+            style={{
+              background: `linear-gradient(135deg, var(--bg-secondary) 60%, transparent)`,
+            }}
           >
-            <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+            <div className="text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
               {s.label}
             </div>
             <div className={`text-xl font-black ${s.color}`}>{s.value}</div>
+            {/* Mini progress bar for count stats */}
+            {s.max > 0 && typeof s.value === "number" && (
+              <div className="mt-2 h-1 rounded-full bg-[var(--border-subtle)] overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    s.label === "Nya ordrar"
+                      ? "bg-amber-500"
+                      : s.label === "Tillagas"
+                      ? "bg-blue-500"
+                      : s.label === "Klara / På väg"
+                      ? "bg-emerald-500"
+                      : "bg-[var(--text-secondary)]"
+                  }`}
+                  style={{ width: `${Math.min(100, ((s.value as number) / s.max) * 100)}%` }}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -795,7 +1040,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
                 }
                 setFilter(f.id as any);
               }}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all ${
                 filter === f.id
                   ? "bg-gold-500 text-[#0d0d0d]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -815,7 +1060,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Sök kund, ordernummer..."
-            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
+            className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[12px] font-bold outline-none focus:border-gold-500/30 transition-all"
           />
         </div>
       </div>
@@ -824,12 +1069,12 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       {error ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-rose-500/20">
           <AlertCircle className="text-rose-500 mx-auto mb-4" size={36} />
-          <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mb-5">
+          <p className="text-[11px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mb-5">
             {error}
           </p>
           <button
             onClick={fetchData}
-            className="px-6 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-[10px]"
+            className="px-6 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-[11px]"
           >
             Försök igen
           </button>
@@ -837,19 +1082,19 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
       ) : loading ? (
         <div className="py-16 flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-gold-500" size={32} />
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] animate-pulse">
+          <p className="text-[11px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] animate-pulse">
             Hämtar ordrar...
           </p>
         </div>
       ) : displayOrders.length === 0 ? (
         <div className="py-16 flex flex-col items-center gap-4 rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <ShoppingCart size={32} className="text-[var(--text-secondary)] opacity-20" />
-          <p className="text-[9px] font-black uppercase tracking-[0.6em] text-[var(--text-secondary)] opacity-30">
+          <p className="text-[11px] font-black uppercase tracking-[0.6em] text-[var(--text-secondary)] opacity-30">
             Inga ordrar
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {displayOrders.map((order) => (
             <OrderCard
               key={order.id}
@@ -895,13 +1140,13 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
               </button>
             ))}
           </div>
-          <p className="text-center text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+          <p className="text-center text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
             Minuter
           </p>
           <div className="flex gap-3">
             <button
               onClick={() => setAcceptDialog(null)}
-              className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
+              className="flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
             >
               Avbryt
             </button>
@@ -909,7 +1154,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
               onClick={() => {
                 if (acceptDialog) updateStatus(acceptDialog.orderId, "PREPARING", acceptDialog.time);
               }}
-              className="flex-2 py-3.5 px-8 rounded-xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
+              className="flex-2 py-3.5 px-8 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20"
             >
               Godkänn
             </button>
@@ -947,7 +1192,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
           >
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                   Namn
                 </label>
                 <input
@@ -957,7 +1202,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
                 />
               </div>
               <div>
-                <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                   Telefon
                 </label>
                 <input
@@ -970,7 +1215,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
             {editingOrder.type === "DELIVERY" && (
               <>
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                  <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                     Adress
                   </label>
                   <input
@@ -981,7 +1226,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                       Postnr
                     </label>
                     <input
@@ -991,7 +1236,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
                     />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+                    <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                       Stad
                     </label>
                     <input
@@ -1004,7 +1249,7 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
               </>
             )}
             <div>
-              <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
                 Notering
               </label>
               <textarea
@@ -1018,13 +1263,13 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
               <button
                 type="button"
                 onClick={() => setEditingOrder(null)}
-                className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
+                className="flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
               >
                 Avbryt
               </button>
               <button
                 type="submit"
-                className="flex-2 py-3.5 px-8 rounded-xl bg-gold-500 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
+                className="flex-2 py-3.5 px-8 rounded-xl bg-gold-500 text-[#0d0d0d] text-[11px] font-black uppercase tracking-widest hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
               >
                 Spara ändringar
               </button>

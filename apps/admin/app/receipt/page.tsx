@@ -175,7 +175,7 @@ const ReceiptPageContent = () => {
     <div className={`min-h-screen ${showSettings ? 'flex' : ''} bg-gray-100`}>
       {/* Settings Sidebar (Göm vid utskrift) */}
       {showSettings && (
-        <div className="w-96 bg-dark-500 min-h-screen p-8 border-r border-[var(--border-strong)] no-print flex flex-col h-full overflow-y-auto print:hidden shrink-0">
+        <div className="w-96 bg-[var(--bg-primary)] min-h-screen p-8 border-r border-[var(--border-strong)] no-print flex flex-col h-full overflow-y-auto print:hidden shrink-0">
           <div className="flex items-center gap-3 mb-8 text-gold-500">
             <Settings2 size={24} />
             <h1 className="text-2xl font-black uppercase tracking-widest">Kvittolayout</h1>
@@ -244,7 +244,7 @@ const ReceiptPageContent = () => {
           <div className="mt-8 space-y-3 pt-4 border-t border-[var(--border-subtle)]">
             <button
               onClick={saveSettings}
-              className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${saveStatus ? 'bg-green-500 text-dark-500' : 'bg-gold-500 text-dark-500 hover:bg-gold-400'}`}
+              className={`w-full py-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${saveStatus ? 'bg-green-500 text-[#0d0d0d]' : 'bg-gold-500 text-[#0d0d0d] hover:bg-gold-400'}`}
             >
               {saveStatus ? <Check size={18} /> : <Settings2 size={18} />}
               {saveStatus ? "Sparat!" : "Spara inställningar"}

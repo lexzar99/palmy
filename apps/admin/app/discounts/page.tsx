@@ -204,7 +204,7 @@ export default function DiscountsPage() {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4">
         <Loader2 className="animate-spin text-gold-500" size={32} />
-        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[9px]">
+        <p className="text-[var(--text-secondary)] font-black uppercase tracking-widest text-[10px]">
           Laddar rabattkoder...
         </p>
       </div>
@@ -219,7 +219,7 @@ export default function DiscountsPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
             Rabattkoder
           </h1>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             {codes.length} koder · {codes.filter((c) => c.isActive).length} aktiva
           </p>
         </div>
@@ -238,7 +238,7 @@ export default function DiscountsPage() {
             });
             setCreateModal(true);
           }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all"
         >
           <Plus size={14} /> Ny rabattkod
         </button>
@@ -267,7 +267,7 @@ export default function DiscountsPage() {
             <button
               key={f.id}
               onClick={() => setFilterActive(f.id as any)}
-              className={`px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+              className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                 filterActive === f.id
                   ? "bg-gold-500 text-[#0d0d0d]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -283,7 +283,7 @@ export default function DiscountsPage() {
       {filtered.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <Tag size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga rabattkoder hittades
           </p>
         </div>
@@ -313,7 +313,7 @@ export default function DiscountsPage() {
                         <Copy size={12} />
                       </button>
                     </div>
-                    <p className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
+                    <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">
                       {code.discountType === "percentage"
                         ? `${code.discountValue}%`
                         : `${code.discountValue / 100} kr`}{" "}
@@ -347,7 +347,7 @@ export default function DiscountsPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--border-subtle)] text-[8px] font-black uppercase tracking-widest">
+              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-[var(--border-subtle)] text-[10px] font-black uppercase tracking-widest">
                 <span className={code.isActive ? "text-emerald-400" : "text-[var(--text-secondary)]"}>
                   {code.isActive ? "Aktiv" : "Inaktiv"}
                 </span>
@@ -381,7 +381,7 @@ export default function DiscountsPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
               Kod *
             </label>
             <input
@@ -395,7 +395,7 @@ export default function DiscountsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Typ
               </label>
               <select
@@ -410,7 +410,7 @@ export default function DiscountsPage() {
               </select>
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 {form.discountType === "percentage" ? "Procent" : "Belopp (kr)"}
               </label>
               <div className="relative">
@@ -438,7 +438,7 @@ export default function DiscountsPage() {
           </div>
 
           <div>
-            <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
               Restaurang
             </label>
             <select
@@ -457,7 +457,7 @@ export default function DiscountsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Minsta order (kr)
               </label>
               <input
@@ -471,7 +471,7 @@ export default function DiscountsPage() {
               />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Max användningar
               </label>
               <input
@@ -488,7 +488,7 @@ export default function DiscountsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Startdatum
               </label>
               <input
@@ -499,7 +499,7 @@ export default function DiscountsPage() {
               />
             </div>
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Slutdatum
               </label>
               <input

@@ -156,8 +156,8 @@ export default function PushCentralPage() {
                         >
                           <div className="flex items-center gap-2 mb-1.5 px-0.5">
                             <div className="w-5 h-5 rounded-lg bg-gold-500 flex items-center justify-center text-[10px] font-black text-black">M</div>
-                            <span className="text-[9px] font-black text-white/50 uppercase tracking-wider">MatGo</span>
-                            <span className="text-[8px] font-bold text-white/30 ml-auto uppercase tracking-tighter">Nu</span>
+                            <span className="text-[10px] font-black text-white/50 uppercase tracking-wider">MatGo</span>
+                            <span className="text-[10px] font-bold text-white/30 ml-auto uppercase tracking-tighter">Nu</span>
                           </div>
                           <p className="text-[11px] font-black text-white/95 leading-tight">{form.title}</p>
                           <p className="text-[10px] font-medium text-white/70 leading-tight mt-1">{form.body || "Ingen brödtext angiven..."}</p>
@@ -165,7 +165,7 @@ export default function PushCentralPage() {
                       ) : (
                         <div className="py-12 flex flex-col items-center opacity-20">
                             <Bell size={24} className="text-white mb-2" />
-                            <p className="text-[8px] font-black uppercase tracking-widest text-white text-center">Väntar på innehåll...</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white text-center">Väntar på innehåll...</p>
                         </div>
                       )}
                     </AnimatePresence>
@@ -179,14 +179,14 @@ export default function PushCentralPage() {
           {/* Stats Summary */}
           <div className="w-full grid grid-cols-2 gap-3">
              <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-center">
-                <p className="text-[9px] font-black uppercase text-[var(--text-secondary)] mb-1">Status</p>
+                <p className="text-[10px] font-black uppercase text-[var(--text-secondary)] mb-1">Status</p>
                 <div className="flex items-center justify-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <p className="text-xs font-black text-emerald-400 uppercase">Live</p>
                 </div>
              </div>
              <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-center">
-                <p className="text-[9px] font-black uppercase text-[var(--text-secondary)] mb-1">Plattform</p>
+                <p className="text-[10px] font-black uppercase text-[var(--text-secondary)] mb-1">Plattform</p>
                 <p className="text-xs font-black text-[var(--text-primary)] uppercase">IOS & Android</p>
              </div>
           </div>

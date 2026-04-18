@@ -145,11 +145,11 @@ export default function MenuSelectionHub() {
                    <div className="flex items-center justify-between mt-4">
                       <div className="flex items-center gap-4">
                          <div className="flex flex-col">
-                            <span className="text-[8px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest">Artiklar</span>
+                            <span className="text-[10px] font-black uppercase text-[var(--text-primary)]/20 tracking-widest">Artiklar</span>
                             <span className="text-xs font-black text-[var(--text-primary)]/60">Hantera Meny</span>
                          </div>
                       </div>
-                      <div className="w-10 h-10 rounded-full border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/10 group-hover:bg-gold-500 group-hover:text-dark-500 group-hover:border-gold-500 transition-all">
+                      <div className="w-10 h-10 rounded-full border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-primary)]/10 group-hover:bg-gold-500 group-hover:text-[#0d0d0d] group-hover:border-gold-500 transition-all">
                          <ChevronRight size={18} />
                       </div>
                    </div>

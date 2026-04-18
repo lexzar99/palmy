@@ -192,7 +192,7 @@ export default function LogPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setAutoRefresh((v) => !v)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
               autoRefresh
                 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
                 : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
@@ -227,7 +227,7 @@ export default function LogPage() {
           <button
             key={f.id}
             onClick={() => setFilter(f.id as any)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all border ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
               filter === f.id
                 ? "bg-gold-500/10 border-gold-500/30 text-gold-500"
                 : "border-[var(--border-subtle)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -235,7 +235,7 @@ export default function LogPage() {
           >
             {f.label}
             {f.count > 0 && (
-              <span className={`text-[7px] font-black px-1 py-0.5 rounded ${
+              <span className={`text-[10px] font-black px-1 py-0.5 rounded ${
                 filter === f.id ? "bg-gold-500/20" : "bg-[var(--bg-primary)]"
               }`}>
                 {f.count}
@@ -260,14 +260,14 @@ export default function LogPage() {
       {loading ? (
         <div className="py-12 flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-gold-500" size={28} />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
             Läser logg...
           </p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <ActivitySquare size={28} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga händelser
           </p>
         </div>
@@ -295,7 +295,7 @@ export default function LogPage() {
                       {log.action}
                     </span>
                     {log.restaurantName && (
-                      <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[7px] font-black uppercase border border-gold-500/20">
+                      <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[10px] font-black uppercase border border-gold-500/20">
                         {log.restaurantName}
                       </span>
                     )}
@@ -307,14 +307,14 @@ export default function LogPage() {
 
                 {/* Timestamp */}
                 <div className="shrink-0 text-right">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                     {new Date(log.timestamp).toLocaleTimeString("sv-SE", {
                       hour: "2-digit",
                       minute: "2-digit",
                       second: "2-digit",
                     })}
                   </p>
-                  <p className="text-[7px] text-[var(--text-secondary)] opacity-40 mt-0.5">
+                  <p className="text-[10px] text-[var(--text-secondary)] opacity-40 mt-0.5">
                     {new Date(log.timestamp).toLocaleDateString("sv-SE")}
                   </p>
                 </div>

@@ -293,7 +293,7 @@ export default function CitiesPage() {
           </div>
           <div>
             <h1 className="text-3xl font-black uppercase tracking-tight mb-0.5">Stadshantering & Zoner</h1>
-            <p className="text-[var(--text-primary)]/30 text-[9px] font-black uppercase tracking-[0.4em]">
+            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">
               Rita leveranszoner · Sätt avgifter · Koppla restauranger
             </p>
           </div>
@@ -311,14 +311,14 @@ export default function CitiesPage() {
         {/* ── Sidebar: city list ── */}
         <div className="space-y-4">
           <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-5 space-y-2.5">
-            <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Städer</div>
+            <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Städer</div>
             {loading ? (
               <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-[var(--text-primary)]/30" /></div>
             ) : cities.length === 0 ? (
               <div className="py-10 text-center space-y-3">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-40">Inga städer</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-40">Inga städer</p>
                 <button onClick={() => setShowAddModal(true)}
-                  className="w-full py-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[9px] font-black uppercase tracking-widest hover:bg-sky-500/20 transition-all">
+                  className="w-full py-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 text-[10px] font-black uppercase tracking-widest hover:bg-sky-500/20 transition-all">
                   + Lägg till Lund
                 </button>
               </div>
@@ -333,9 +333,9 @@ export default function CitiesPage() {
                   <div className="text-left">
                     <div className="text-base font-black uppercase tracking-tight mb-1 flex items-center gap-2">
                       {city.name}
-                      {!city.isActive && <span className="text-[7px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-full font-black">INAKTIV</span>}
+                      {!city.isActive && <span className="text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-full font-black">INAKTIV</span>}
                     </div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 flex items-center gap-1.5">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/30 flex items-center gap-1.5">
                       {parseZones(city.zones).length} zoner
                       <span className="opacity-20">·</span>
                       {(city.restaurants || []).length} rest.
@@ -355,9 +355,9 @@ export default function CitiesPage() {
           <div className="bg-sky-500/5 border border-sky-500/10 rounded-[2.5rem] p-6 space-y-3">
             <div className="flex items-center gap-2 text-sky-400">
               <Info size={14} />
-              <span className="text-[9px] font-black uppercase tracking-widest">Hur fungerar zoner?</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Hur fungerar zoner?</span>
             </div>
-            <p className="text-[9px] text-[var(--text-primary)]/40 leading-relaxed uppercase font-bold">
+            <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed uppercase font-bold">
               Rita cirklar eller polygoner direkt på kartan. Varje zon har egen avgift och minimiorder. Kunder valideras mot den minsta zon de befinner sig i. Restauranger kan ha egna zoner som ersätter stadens.
             </p>
           </div>
@@ -383,13 +383,13 @@ export default function CitiesPage() {
                       <ShieldCheck className="text-sky-500" size={26} />
                       {selectedCity.name}
                     </h2>
-                    <p className="text-[var(--text-primary)]/30 text-[9px] font-black uppercase tracking-widest mt-1">Övergripande inställningar</p>
+                    <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-widest mt-1">Övergripande inställningar</p>
                   </div>
                   {/* Active toggle */}
                   <div className="flex items-center gap-2 p-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl">
                     {[{ v: true, label: "Aktiv", cls: "bg-emerald-500 text-white" }, { v: false, label: "Inaktiv", cls: "bg-red-500 text-white" }].map(opt => (
                       <button key={String(opt.v)} onClick={() => updateCity("isActive", opt.v)}
-                        className={`px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive === opt.v ? opt.cls : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}>
+                        className={`px-5 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${selectedCity.isActive === opt.v ? opt.cls : "text-[var(--text-primary)]/20 hover:text-[var(--text-primary)]/40"}`}>
                         {opt.label}
                       </button>
                     ))}
@@ -409,7 +409,7 @@ export default function CitiesPage() {
                         <m.Icon size={20} />
                       </div>
                       <div className="font-black uppercase tracking-widest text-[10px] mb-0.5">{m.label}</div>
-                      <div className="text-[8px] font-bold text-[var(--text-primary)]/20 uppercase tracking-wide">{m.desc}</div>
+                      <div className="text-[10px] font-bold text-[var(--text-primary)]/20 uppercase tracking-wide">{m.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -417,7 +417,7 @@ export default function CitiesPage() {
                 {/* Free delivery + GPS coords */}
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-1.5">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gratis leverans över (kr) — 0 = ej aktivt</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">Gratis leverans över (kr) — 0 = ej aktivt</label>
                     <input type="number" min={0}
                       className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-3.5 px-5 outline-none focus:ring-2 focus:ring-emerald-500/30 font-black text-sm text-emerald-400"
                       value={selectedCity.freeDeliveryAbove || 0}
@@ -425,7 +425,7 @@ export default function CitiesPage() {
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">GPS Centrum (sätts automatiskt från kartan)</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20 ml-1">GPS Centrum (sätts automatiskt från kartan)</label>
                     <div className="flex items-center gap-2 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-3.5 px-5">
                       <MapPin size={14} className="text-gold-500 shrink-0" />
                       <span className="text-xs font-mono text-[var(--text-secondary)]">
@@ -444,7 +444,7 @@ export default function CitiesPage() {
                     <MapPin className="text-gold-500" size={26} />
                     Leveranszoner
                   </h2>
-                  <p className="text-[var(--text-primary)]/30 text-[9px] font-black uppercase tracking-widest mt-1">
+                  <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-widest mt-1">
                     Rita cirklar och polygoner — varje zon har sin egen form, avgift och minimiorder
                   </p>
                 </div>
@@ -469,19 +469,19 @@ export default function CitiesPage() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                     <div className="p-4 bg-[var(--bg-primary)]/60 border border-[var(--border-subtle)] rounded-2xl text-center">
                       <div className="text-2xl font-black text-sky-400">{cityZones.length}</div>
-                      <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Zoner totalt</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Zoner totalt</div>
                     </div>
                     <div className="p-4 bg-[var(--bg-primary)]/60 border border-[var(--border-subtle)] rounded-2xl text-center">
                       <div className="text-2xl font-black text-emerald-400">{cityZones.filter(z => z.isActive).length}</div>
-                      <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Aktiva</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Aktiva</div>
                     </div>
                     <div className="p-4 bg-[var(--bg-primary)]/60 border border-[var(--border-subtle)] rounded-2xl text-center">
                       <div className="text-2xl font-black text-amber-400">{cityZones.filter(z => z.type === "circle").length}</div>
-                      <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Cirklar</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Cirklar</div>
                     </div>
                     <div className="p-4 bg-[var(--bg-primary)]/60 border border-[var(--border-subtle)] rounded-2xl text-center">
                       <div className="text-2xl font-black text-violet-400">{cityZones.filter(z => z.type === "polygon").length}</div>
-                      <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Polygoner</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mt-0.5">Polygoner</div>
                     </div>
                   </div>
                 )}
@@ -497,14 +497,14 @@ export default function CitiesPage() {
                     <Store className="text-gold-500" size={26} />
                     Kopplade Restauranger
                   </h2>
-                  <p className="text-[var(--text-primary)]/30 text-[9px] font-black uppercase tracking-widest mt-1">
+                  <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-widest mt-1">
                     Välj restauranger och konfigurera deras leveranszoner
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-gold-500/5 border border-gold-500/20 flex items-start gap-3">
                   <Info size={14} className="text-gold-500 shrink-0 mt-0.5" />
-                  <p className="text-[9px] font-bold text-gold-400 leading-relaxed">
+                  <p className="text-[10px] font-bold text-gold-400 leading-relaxed">
                     <strong>Standard:</strong> Restaurangen ärver stadens zoner. <strong>Anpassad:</strong> Restaurangen har egna zoner (ersätter stadens). Perfekt när t.ex. en restaurang i Malmö inte levererar till hela staden.
                   </p>
                 </div>
@@ -524,7 +524,7 @@ export default function CitiesPage() {
                           </button>
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-black uppercase tracking-tight truncate">{r.name}</div>
-                            <div className="text-[8px] font-bold text-[var(--text-primary)]/20 uppercase tracking-widest">
+                            <div className="text-[10px] font-bold text-[var(--text-primary)]/20 uppercase tracking-widest">
                               {r.isOpen ? "🟢 Öppen" : "⚪ Stängd"}
                               {hasCustomZones && " · ✏️ Egna zoner"}
                             </div>
@@ -535,7 +535,7 @@ export default function CitiesPage() {
                           <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
                             {/* Free delivery for this restaurant */}
                             <div className="flex items-center gap-2">
-                              <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] shrink-0">Gratis fr.</span>
+                              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] shrink-0">Gratis fr.</span>
                               <input type="number" min={0}
                                 className="flex-1 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-xl px-2.5 py-1.5 text-[10px] font-black outline-none focus:border-gold-500/30 text-emerald-400 text-right"
                                 value={cityRest?.freeDeliveryAbove ?? 0}
@@ -545,13 +545,13 @@ export default function CitiesPage() {
                                 }))}
                                 placeholder="0 kr"
                               />
-                              <span className="text-[8px] font-bold text-[var(--text-secondary)]">kr</span>
+                              <span className="text-[10px] font-bold text-[var(--text-secondary)]">kr</span>
                             </div>
 
                             {/* Edit restaurant zones */}
                             <button
                               onClick={() => { setEditingRestId(r.id); setRestZonesModal(true); }}
-                              className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${hasCustomZones ? "bg-sky-500/20 border border-sky-500/30 text-sky-400" : "bg-white/5 text-[var(--text-secondary)] hover:text-white hover:bg-white/10"}`}>
+                              className={`w-full flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hasCustomZones ? "bg-sky-500/20 border border-sky-500/30 text-sky-400" : "bg-white/5 text-[var(--text-secondary)] hover:text-white hover:bg-white/10"}`}>
                               <Settings size={11} />
                               {hasCustomZones ? `${parseZones(cityRest?.deliveryZones).length} egna zoner` : "Konfigurera zoner"}
                             </button>
@@ -559,7 +559,7 @@ export default function CitiesPage() {
                             {hasCustomZones && (
                               <button
                                 onClick={() => setRestZones([])}
-                                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[8px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 transition-all">
+                                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-rose-400 hover:text-rose-300 transition-all">
                                 <RotateCcw size={9} /> Återställ till stadszon
                               </button>
                             )}
@@ -605,7 +605,7 @@ export default function CitiesPage() {
                     <Settings className="text-sky-400" size={22} />
                     {editingRest.name} — Egna Zoner
                   </h2>
-                  <p className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-1">
+                  <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-1">
                     Dessa zoner ersätter stadens zoner för just denna restaurang
                   </p>
                 </div>
@@ -617,7 +617,7 @@ export default function CitiesPage() {
 
               <div className="p-4 bg-sky-500/5 border border-sky-500/20 rounded-2xl flex items-start gap-3">
                 <Info size={14} className="text-sky-400 shrink-0 mt-0.5" />
-                <p className="text-[9px] font-bold text-sky-400 leading-relaxed">
+                <p className="text-[10px] font-bold text-sky-400 leading-relaxed">
                   Rita restaurangens egna leveranszoner. Kunder valideras mot DESSA zoner — inte stadens — för den här restaurangen.
                   Töm zonerna (ta bort alla) för att återgå till stadens zoner.
                 </p>
@@ -671,7 +671,7 @@ export default function CitiesPage() {
               <div className="text-center space-y-2">
                 <div className="w-14 h-14 bg-sky-500/10 rounded-3xl flex items-center justify-center text-sky-500 mx-auto mb-3"><MapPin size={28} /></div>
                 <h2 className="text-xl font-black uppercase tracking-tight">Ny Stad</h2>
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Ange stadens namn</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/20">Ange stadens namn</p>
               </div>
               <input autoFocus value={newCityName} onChange={e => setNewCityName(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleAddCity()}

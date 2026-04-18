@@ -141,7 +141,7 @@ export default function ReceiptSettingsPage() {
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
             <Printer size={20} className="text-gold-500" /> Kvittolayout
           </h1>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             Dra för att ändra ordning · Klicka element för att redigera stil
           </p>
         </div>
@@ -154,14 +154,14 @@ export default function ReceiptSettingsPage() {
 
       {/* Paper width */}
       <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Pappersbredd:</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Pappersbredd:</span>
         {(["58mm", "80mm", "A4"] as const).map((w) => (
           <button key={w} onClick={() => setS((p) => ({ ...p, paperWidth: w }))}
-            className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${s.paperWidth === w ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
+            className={`px-4 py-2 rounded-xl border text-[10px] font-black uppercase transition-all ${s.paperWidth === w ? "bg-gold-500/10 border-gold-500/30 text-gold-500" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>
             {w}
           </button>
         ))}
-        <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] ml-4">Plattformsnamn:</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] ml-4">Plattformsnamn:</span>
         <input value={s.platformName} onChange={(e) => setS((p) => ({ ...p, platformName: e.target.value }))}
           className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-gold-500/30 w-28" />
       </div>
@@ -170,7 +170,7 @@ export default function ReceiptSettingsPage() {
 
         {/* Element list (draggable) */}
         <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Ordning & synlighet</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Ordning & synlighet</p>
           <div className="space-y-1">
             {s.elements.map((el, i) => (
               <div
@@ -200,7 +200,7 @@ export default function ReceiptSettingsPage() {
         {/* Style editor for selected element */}
         <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
           {!selected ? (
-            <div className="flex items-center justify-center h-full text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+            <div className="flex items-center justify-center h-full text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
               Klicka ett element till vänster
             </div>
           ) : (
@@ -210,7 +210,7 @@ export default function ReceiptSettingsPage() {
               {/* Editable content for text elements */}
               {selected.content !== undefined && !isDivider(selected.key) && (
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Text</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">Text</label>
                   <input value={selected.content}
                     onChange={(e) => updateElement(selected.key, "content", e.target.value)}
                     className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30" />
@@ -221,7 +221,7 @@ export default function ReceiptSettingsPage() {
                 <>
                   {/* Font size */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Storlek (pt)</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Storlek (pt)</label>
                     <div className="flex flex-wrap gap-1">
                       {SIZES.map((sz) => (
                         <button key={sz} onClick={() => updateElement(selected.key, "size", sz)}
@@ -234,7 +234,7 @@ export default function ReceiptSettingsPage() {
 
                   {/* Font weight */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Tjocklek</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Tjocklek</label>
                     <div className="flex gap-2">
                       {WEIGHTS.map(({ id, label }) => (
                         <button key={id} onClick={() => updateElement(selected.key, "weight", id)}
@@ -247,7 +247,7 @@ export default function ReceiptSettingsPage() {
 
                   {/* Alignment */}
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Justering</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">Justering</label>
                     <div className="flex gap-2">
                       {ALIGNS.map(({ id, label }) => (
                         <button key={id} onClick={() => updateElement(selected.key, "align", id)}
@@ -260,7 +260,7 @@ export default function ReceiptSettingsPage() {
 
                   {/* Uppercase toggle */}
                   <label className="flex items-center gap-3 cursor-pointer">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">VERSALER</span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">VERSALER</span>
                     <button onClick={() => updateElement(selected.key, "uppercase", !selected.uppercase)}
                       className={`relative w-10 h-5 rounded-full transition-colors ${selected.uppercase ? "bg-gold-500" : "bg-[var(--border-subtle)]"}`}>
                       <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selected.uppercase ? "right-0.5" : "left-0.5"}`} />
@@ -271,7 +271,7 @@ export default function ReceiptSettingsPage() {
 
               {/* Visibility */}
               <label className="flex items-center gap-3 cursor-pointer">
-                <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Synlig</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Synlig</span>
                 <button onClick={() => updateElement(selected.key, "visible", !selected.visible)}
                   className={`relative w-10 h-5 rounded-full transition-colors ${selected.visible ? "bg-emerald-500" : "bg-[var(--border-subtle)]"}`}>
                   <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selected.visible ? "right-0.5" : "left-0.5"}`} />
@@ -283,7 +283,7 @@ export default function ReceiptSettingsPage() {
 
         {/* Live preview */}
         <div>
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Förhandsgranskning</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Förhandsgranskning</p>
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-4 flex justify-center overflow-x-auto">
             <div className="bg-white text-black font-mono p-4 rounded-xl shadow-xl overflow-hidden" style={{ width: previewWidth, minHeight: 400 }}>
               {s.elements.filter((e) => e.visible).map((el) => {
@@ -361,7 +361,7 @@ export default function ReceiptSettingsPage() {
               })}
             </div>
           </div>
-          <p className="text-[8px] text-[var(--text-secondary)] text-center mt-1 opacity-40">{s.paperWidth}</p>
+          <p className="text-[10px] text-[var(--text-secondary)] text-center mt-1 opacity-40">{s.paperWidth}</p>
         </div>
       </div>
     </div>

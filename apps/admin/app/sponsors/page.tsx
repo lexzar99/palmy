@@ -166,7 +166,7 @@ export default function SponsorsPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-black uppercase tracking-tight">Sponsorer</h1>
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-1">
             Annonsbilder i horisontell scroll · Webb & React-appen
           </p>
         </div>
@@ -179,7 +179,7 @@ export default function SponsorsPage() {
       {/* Info */}
       <div className="p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 flex items-start gap-3">
         <Info size={15} className="text-sky-400 shrink-0 mt-0.5" />
-        <div className="text-[9px] font-bold text-sky-400/80 leading-relaxed space-y-1">
+        <div className="text-[10px] font-bold text-sky-400/80 leading-relaxed space-y-1">
           <p><strong>Klickbar (interaktiv):</strong> Sponsorn flippar och visar infotext + CTA-knapp. Bra för erbjudanden.</p>
           <p><strong>Ej klickbar:</strong> Visas som ren annonsild i scrollen utan interaktion.</p>
           <p>Ordning styrs med pil-knapparna. Sponsors visas direkt under headern på hemsidan.</p>
@@ -199,13 +199,13 @@ export default function SponsorsPage() {
             </div>
 
               <div>
-                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Namn *</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Namn *</label>
                 <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                   placeholder="t.ex. CocaCola Sverige"
                   className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono uppercase" />
               </div>
               <div>
-                <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild (URL eller Ladda upp) *</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild (URL eller Ladda upp) *</label>
                 <div className="flex gap-2">
                   <input value={form.imageUrl || ""} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
                     placeholder="Klistra in länk eller ladda upp bild..."
@@ -222,7 +222,7 @@ export default function SponsorsPage() {
             {form.imageUrl && (
               <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
                 <img src={form.imageUrl} alt="preview" className="h-16 w-40 object-cover rounded-xl border border-white/10" onError={e => (e.currentTarget.style.opacity = "0.3")} />
-                <p className="text-[9px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Förhandsvisning</p>
+                <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Förhandsvisning</p>
               </div>
             )}
 
@@ -254,13 +254,13 @@ export default function SponsorsPage() {
               <div className="space-y-6 p-6 bg-violet-500/5 border border-violet-500/20 rounded-[2rem]">
                 <div className="grid md:grid-cols-2 gap-5">
                   <div>
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1">Info (Baksida)</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1">Info (Baksida)</label>
                     <textarea value={form.infoText || ""} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
                       rows={2} placeholder="Beskrivning..."
                       className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 resize-none transition-all italic" />
                   </div>
                   <div>
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1">Knapptext</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1">Knapptext</label>
                     <input value={form.ctaText || ""} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
                       placeholder="t.ex. Utforska"
                       className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 transition-all" />
@@ -269,7 +269,7 @@ export default function SponsorsPage() {
 
                 <div className="grid md:grid-cols-3 gap-5">
                   <div>
-                    <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Länktyp</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Länktyp</label>
                     <select value={form.linkType} onChange={e => setForm(p => ({ ...p, linkType: e.target.value as any, linkTarget: "" }))}
                       className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
                       <option value="EXTERNAL">Extern URL (Ny flik)</option>
@@ -282,7 +282,7 @@ export default function SponsorsPage() {
                   <div className="md:col-span-2">
                     {form.linkType !== 'NONE' && (
                       <>
-                        <label className="text-[8px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
                           {form.linkType === 'EXTERNAL' ? 'Mål-URL (https://...)' : form.linkType === 'DEAL' ? 'Välj Erbjudande' : 'Välj Restaurang'}
                         </label>
                         {form.linkType === 'EXTERNAL' ? (
@@ -334,7 +334,7 @@ export default function SponsorsPage() {
       ) : sorted.length === 0 ? (
         <div className="py-20 text-center border border-dashed border-[var(--border-subtle)] rounded-3xl">
           <ImageIcon size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga sponsorer ännu — klicka "Ny Sponsor" för att lägga till
           </p>
         </div>
@@ -355,13 +355,13 @@ export default function SponsorsPage() {
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-base font-black uppercase tracking-tight">{s.name}</p>
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
                       s.isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
                     }`}>{s.isActive ? "Aktiv" : "Dold"}</span>
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
                       s.isClickable ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
                     }`}>{s.isClickable ? "Interaktiv" : "Statisk"}</span>
-                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase ${
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
                       s.showName !== false ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                     }`}>{s.showName !== false ? "Namn synligt" : "Namn dolt (banner)"}</span>
                   </div>
@@ -370,8 +370,8 @@ export default function SponsorsPage() {
                   )}
                   {s.isClickable && (
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[8px] font-black uppercase text-violet-400/60">{s.linkType || 'EXTERNAL'}:</span>
-                      <p className="text-[9px] font-bold text-sky-400 truncate max-w-[200px]">
+                      <span className="text-[10px] font-black uppercase text-violet-400/60">{s.linkType || 'EXTERNAL'}:</span>
+                      <p className="text-[10px] font-bold text-sky-400 truncate max-w-[200px]">
                         {s.linkTarget || s.ctaLink || 'Ingen länk'}
                       </p>
                     </div>
@@ -394,7 +394,7 @@ export default function SponsorsPage() {
 
                   {/* Toggle clickable */}
                   <button onClick={() => toggleClickable(s)}
-                    className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
                       s.isClickable
                         ? "bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20"
                         : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
@@ -428,7 +428,7 @@ export default function SponsorsPage() {
               {s.isClickable && (
                 <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
                   <button onClick={() => setPreviewId(previewId === s.id ? null : s.id)}
-                    className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-all">
+                    className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-all">
                     <Info size={10} /> {previewId === s.id ? "Dölj" : "Visa"} baksidesinfo
                   </button>
                   {previewId === s.id && (

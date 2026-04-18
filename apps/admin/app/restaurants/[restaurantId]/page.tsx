@@ -53,7 +53,7 @@ const TABS: { id: Tab; label: string; icon: any }[] = [
 
 const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
   <div>
-    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">{label}</label>
+    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1.5">{label}</label>
     {children}
   </div>
 );
@@ -294,18 +294,18 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]">{restaurant.name}</h1>
-            <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[9px] font-black uppercase ${currentTier.bg} ${currentTier.color}`}>
+            <span className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black uppercase ${currentTier.bg} ${currentTier.color}`}>
               <TierIcon size={10} /> {currentTier.label}
             </span>
             <button onClick={toggleOpen} disabled={togglingOpen}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[9px] font-black uppercase transition-all ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[10px] font-black uppercase transition-all ${
                 isOpen ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"
               } ${togglingOpen ? "opacity-50" : ""}`}>
               {isOpen ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
               {isOpen ? "Öppen" : "Stängd"}
             </button>
           </div>
-          <p className="text-[var(--text-secondary)] text-[9px] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             {restaurant.cuisine || "—"} · {restaurant.city || "—"}
           </p>
         </div>
@@ -389,7 +389,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                     <div className="flex gap-2">
                       <input className={inputCls} value={profile[field]} placeholder="https://..."
                         onChange={(e) => setProfile((p) => ({ ...p, [field]: e.target.value }))} />
-                      <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all cursor-pointer shrink-0 ${uploadingImage === field ? "opacity-50" : ""}`}>
+                      <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all cursor-pointer shrink-0 ${uploadingImage === field ? "opacity-50" : ""}`}>
                         {uploadingImage === field
                           ? <Loader2 size={14} className="animate-spin" />
                           : <Upload size={14} />}
@@ -428,14 +428,14 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                     <button key={tier.value} onClick={() => setFeaturedClass(tier.value)}
                       className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all ${active ? `${tier.bg} shadow-md` : "border-[var(--border-subtle)] bg-[var(--bg-primary)]"}`}>
                       <Icon size={18} className={active ? tier.color : "text-[var(--text-secondary)]"} />
-                      <span className={`text-[8px] font-black uppercase tracking-widest ${active ? tier.color : "text-[var(--text-secondary)]"}`}>{tier.label}</span>
-                      <span className={`text-[7px] font-bold ${active ? tier.color : "text-[var(--text-secondary)] opacity-50"}`}>{tier.sublabel}</span>
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${active ? tier.color : "text-[var(--text-secondary)]"}`}>{tier.label}</span>
+                      <span className={`text-[10px] font-bold ${active ? tier.color : "text-[var(--text-secondary)] opacity-50"}`}>{tier.sublabel}</span>
                     </button>
                   );
                 })}
               </div>
               <button onClick={saveTier} disabled={saving}
-                className="w-full py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-gold-500 transition-all">
+                className="w-full py-2.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] hover:border-gold-500/30 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-gold-500 transition-all">
                 Spara tier
               </button>
             </div>
@@ -455,12 +455,12 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               <h2 className="text-[11px] font-black uppercase tracking-widest text-[var(--text-primary)] flex items-center gap-2">
                 <User size={14} className="text-gold-500" /> Admin-inloggning för restaurangen
               </h2>
-              <p className="text-[9px] text-[var(--text-secondary)] font-bold leading-relaxed">
+              <p className="text-[10px] text-[var(--text-secondary)] font-bold leading-relaxed">
                 Restaurangadmins loggar in via <strong className="text-[var(--text-primary)]">MatGo Business-appen</strong> (Flutter).
                 Användarnamnet är restaurangens slug: <code className="text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">{restaurant.slug}</code>
               </p>
               <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                <p className="text-[9px] text-amber-400 font-bold">
+                <p className="text-[10px] text-amber-400 font-bold">
                   Inloggningsuppgifterna gäller endast för restaurang-adminerna — inte super-admin.
                 </p>
               </div>
@@ -502,7 +502,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               </h2>
               <div className="flex flex-wrap gap-2">
                 <Link href={`/menu/${restaurantId}`}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
                   <Utensils size={12} /> Redigera meny
                 </Link>
               </div>
@@ -516,7 +516,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Öppettider</h2>
-                <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
+                <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
                   Upp till 2 skift per dag · Synkas direkt med appen
                 </p>
               </div>
@@ -534,7 +534,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                     <div className="flex items-center gap-4 p-4">
                       <div className="w-20 shrink-0">
                         <p className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">{day.label}</p>
-                        <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-0.5">Skift 1</p>
+                        <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mt-0.5">Skift 1</p>
                       </div>
                       <div className="flex items-center gap-2 flex-1">
                         <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2">
@@ -550,13 +550,13 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                         </div>
                       </div>
                       <button onClick={() => updateHours(day.key, "shift2", !h.shift2)} disabled={h.closed}
-                        className={`px-2.5 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${
+                        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all ${
                           h.shift2 ? "bg-sky-500/10 border-sky-500/20 text-sky-400" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
                         } disabled:opacity-30`}>
                         {h.shift2 ? "2 skift" : "+ Skift 2"}
                       </button>
                       <button onClick={() => updateHours(day.key, "closed", !h.closed)}
-                        className={`px-2.5 py-1.5 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all ${
+                        className={`px-2.5 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-widest transition-all ${
                           h.closed ? "bg-rose-500/10 border-rose-500/20 text-rose-400" : "bg-emerald-500/8 border-emerald-500/20 text-emerald-400"
                         }`}>
                         {h.closed ? "Stängd" : "Öppen"}
@@ -565,7 +565,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                     {h.shift2 && !h.closed && (
                       <div className="flex items-center gap-4 px-4 pb-4">
                         <div className="w-20 shrink-0">
-                          <p className="text-[8px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Skift 2</p>
+                          <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Skift 2</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1.5 bg-[var(--bg-primary)] border border-sky-500/20 rounded-xl px-3 py-2">
@@ -622,7 +622,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Standard ETA</h2>
-                  <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
+                  <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
                     Används när zonen inte har en specifik ETA
                   </p>
                 </div>
@@ -635,14 +635,14 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                 <div className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)]">
                   <div className="flex items-center gap-2 mb-3">
                     <Clock size={14} className="text-gold-500" />
-                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">ETA (minuter)</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">ETA (minuter)</label>
                   </div>
                   <input type="number" min={1} value={deliveryForm.etaMinutes}
                     onChange={(e) => setDeliveryForm((p) => ({ ...p, etaMinutes: Number(e.target.value) || 30 }))}
                     className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-2xl font-black outline-none focus:border-gold-500/30 text-gold-500" />
                 </div>
               </div>
-              <p className="text-[9px] text-[var(--text-secondary)] font-bold">
+              <p className="text-[10px] text-[var(--text-secondary)] font-bold">
                 Koordinater: {profile.latitude || "ej satt"}, {profile.longitude || "ej satt"}
               </p>
             </div>
@@ -659,7 +659,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                 { label: "Rating", value: (restaurant.rating ?? 4.6).toFixed(1), color: "text-amber-400" },
               ].map((s) => (
                 <div key={s.label} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
+                  <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
                   <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
                 </div>
               ))}
@@ -669,25 +669,25 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
             {orders.length === 0 ? (
               <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
                 <ShoppingCart size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">Inga ordrar</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">Inga ordrar</p>
               </div>
             ) : (
               orders.map((o) => (
                 <div key={o.id} className="flex items-center justify-between p-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[9px] font-black text-[var(--text-secondary)]">
+                    <div className="w-10 h-10 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[10px] font-black text-[var(--text-secondary)]">
                       #{o.orderNumber}
                     </div>
                     <div>
                       <p className="text-[11px] font-black uppercase text-[var(--text-primary)]">{o.customerName}</p>
-                      <p className="text-[9px] font-bold text-[var(--text-secondary)]">
+                      <p className="text-[10px] font-bold text-[var(--text-secondary)]">
                         {new Date(o.createdAt).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-[11px] font-black text-gold-500">{Math.round((o.total || 0) / 100)} kr</span>
-                    <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase border ${
                       o.status === "DELIVERED" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                       : o.status === "PENDING" ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
                       : o.status === "CANCELLED" || o.status === "REJECTED" ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
@@ -775,20 +775,20 @@ function ReportTab({ restaurantId, token, restaurantName }: { restaurantId: stri
     <motion.div key="report" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-5">
       {/* Period selector */}
       <div className="flex items-center gap-3 flex-wrap">
-        <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Period:</label>
+        <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Period:</label>
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
         <span className="text-[var(--text-secondary)] text-xs">–</span>
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-bold outline-none focus:border-gold-500/30" />
         <button onClick={fetchReport} disabled={loading}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[9px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+          className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
           {loading ? <Loader2 size={13} className="animate-spin" /> : <TrendingUp size={13} />}
           Hämta rapport
         </button>
         {data && (
           <button onClick={exportTxt}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all">
             <TrendingUp size={13} /> Exportera .txt
           </button>
         )}
@@ -813,7 +813,7 @@ function ReportTab({ restaurantId, token, restaurantName }: { restaurantId: stri
               { label: "Avhämtning", value: data.summary.pickupOrders, color: "text-sky-400" },
             ].map((s) => (
               <div key={s.label} className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-                <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</p>
                 <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
               </div>
             ))}
@@ -827,12 +827,12 @@ function ReportTab({ restaurantId, token, restaurantName }: { restaurantId: stri
                 {data.topProducts.map((p: any, i: number) => (
                   <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)]">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-gold-500/10 text-gold-500 text-[8px] font-black flex items-center justify-center">{i + 1}</span>
+                      <span className="w-6 h-6 rounded-lg bg-gold-500/10 text-gold-500 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
                       <span className="text-[10px] font-bold text-[var(--text-primary)]">{p.name}</span>
                     </div>
                     <div className="flex items-center gap-4 text-right">
-                      <span className="text-[9px] font-black text-gold-500">{Math.round(p.revenue)} kr</span>
-                      <span className="text-[9px] text-[var(--text-secondary)]">{p.count} st</span>
+                      <span className="text-[10px] font-black text-gold-500">{Math.round(p.revenue)} kr</span>
+                      <span className="text-[10px] text-[var(--text-secondary)]">{p.count} st</span>
                     </div>
                   </div>
                 ))}

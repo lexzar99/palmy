@@ -157,7 +157,7 @@ export default function ZoneTestTool() {
         </div>
         <div>
           <h2 className="text-xl font-black uppercase tracking-tight">Adress- & Zonkontroll</h2>
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-0.5">
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-0.5">
             Testa vilken zon en adress faller i — per stad och per restaurang
           </p>
         </div>
@@ -205,7 +205,7 @@ export default function ZoneTestTool() {
                   <MapPin size={12} className="text-violet-400 shrink-0" />
                   <div>
                     <span className="text-[11px] font-bold text-[var(--text-primary)] block">{pred.description.split(",")[0]}</span>
-                    <span className="text-[9px] text-[var(--text-secondary)]">{pred.description.split(",").slice(1).join(",").trim()}</span>
+                    <span className="text-[10px] text-[var(--text-secondary)]">{pred.description.split(",").slice(1).join(",").trim()}</span>
                   </div>
                 </button>
               ))}
@@ -274,7 +274,7 @@ export default function ZoneTestTool() {
               <p className={`text-base font-black uppercase tracking-tight ${result.covered ? "text-emerald-400" : "text-red-400"}`}>
                 {result.covered ? "Adressen täcks av leveranszon" : "Adressen täcks INTE av någon leveranszon"}
               </p>
-              <p className="text-[9px] font-bold text-[var(--text-primary)]/30 uppercase tracking-widest mt-0.5">
+              <p className="text-[10px] font-bold text-[var(--text-primary)]/30 uppercase tracking-widest mt-0.5">
                 {query.split(",")[0]} · GPS {result.lat.toFixed(5)}, {result.lng.toFixed(5)}
               </p>
             </div>
@@ -306,7 +306,7 @@ export default function ZoneTestTool() {
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-sky-500/10 border border-sky-500/20 rounded-xl">
                       <Layers size={12} className="text-sky-400" />
                       <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-sky-400/70">Stadszon</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-sky-400/70">Stadszon</p>
                         <p className="text-sm font-black text-sky-300">{city.matchedZone.name}</p>
                       </div>
                     </div>
@@ -314,7 +314,7 @@ export default function ZoneTestTool() {
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
                       <Truck size={12} className="text-emerald-400" />
                       <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-emerald-400/70">Leveransavgift</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/70">Leveransavgift</p>
                         <p className="text-sm font-black text-emerald-300">{kr(city.matchedZone.deliveryFee)}</p>
                       </div>
                     </div>
@@ -322,7 +322,7 @@ export default function ZoneTestTool() {
                     <div className="flex items-center gap-2 px-3.5 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                       <Package size={12} className="text-amber-400" />
                       <div>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-amber-400/70">Minimiorder</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/70">Minimiorder</p>
                         <p className="text-sm font-black text-amber-300">{kr(city.matchedZone.minOrder)}</p>
                       </div>
                     </div>
@@ -335,7 +335,7 @@ export default function ZoneTestTool() {
               {/* Restaurants in this city */}
               {city.restaurants.length > 0 && (
                 <div className="p-4 space-y-2">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] px-2 mb-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] px-2 mb-2">
                     Restauranger som levererar ({city.restaurants.length})
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -345,7 +345,7 @@ export default function ZoneTestTool() {
                         <div className="flex items-center gap-2">
                           <Store size={13} className="text-gold-500 shrink-0" />
                           <span className="text-[11px] font-black text-[var(--text-primary)] truncate">{r.name}</span>
-                          <span className={`ml-auto text-[8px] font-black px-1.5 py-0.5 rounded-full ${r.isOpen ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-500/20 text-zinc-400"}`}>
+                          <span className={`ml-auto text-[10px] font-black px-1.5 py-0.5 rounded-full ${r.isOpen ? "bg-emerald-500/20 text-emerald-400" : "bg-zinc-500/20 text-zinc-400"}`}>
                             {r.isOpen ? "Öppen" : "Stängd"}
                           </span>
                         </div>
@@ -354,20 +354,20 @@ export default function ZoneTestTool() {
                         {r.matchedZone ? (
                           <div className="grid grid-cols-3 gap-1.5 text-center">
                             <div className="px-2 py-1.5 bg-sky-500/10 border border-sky-500/20 rounded-xl">
-                              <p className="text-[7px] font-black uppercase tracking-widest text-sky-400/70">Zon</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-sky-400/70">Zon</p>
                               <p className="text-[10px] font-black text-sky-300 truncate">{r.matchedZone.name}</p>
                             </div>
                             <div className="px-2 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                              <p className="text-[7px] font-black uppercase tracking-widest text-emerald-400/70">Avgift</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400/70">Avgift</p>
                               <p className="text-[10px] font-black text-emerald-300">{kr(r.matchedZone.deliveryFee)}</p>
                             </div>
                             <div className="px-2 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                              <p className="text-[7px] font-black uppercase tracking-widest text-amber-400/70">Min</p>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-amber-400/70">Min</p>
                               <p className="text-[10px] font-black text-amber-300">{kr(r.matchedZone.minOrder)}</p>
                             </div>
                           </div>
                         ) : (
-                          <p className="text-[9px] font-bold text-[var(--text-secondary)] bg-[var(--bg-primary)] px-3 py-2 rounded-xl">
+                          <p className="text-[10px] font-bold text-[var(--text-secondary)] bg-[var(--bg-primary)] px-3 py-2 rounded-xl">
                             Restaurangens zoner täcker inte denna adress
                           </p>
                         )}
@@ -394,7 +394,7 @@ export default function ZoneTestTool() {
       {!result && !testing && !error && (
         <div className="py-8 text-center border border-dashed border-[var(--border-subtle)] rounded-3xl">
           <MapPin size={24} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-2" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Ange en adress ovan och välj från listan — systemet visar zon, avgift och vilka restauranger som kan leverera dit
           </p>
         </div>

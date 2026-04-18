@@ -47,7 +47,7 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="flex flex-col items-center justify-center mb-10">
-          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-dark-500 text-3xl shadow-2xl shadow-gold-500/20 mb-6">M</div>
+          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-[#0d0d0d] text-3xl shadow-2xl shadow-gold-500/20 mb-6">M</div>
           <div className="text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60 mb-2">Authenticated Access</div>
             <div className="text-2xl font-black tracking-tighter text-[var(--text-primary)] uppercase italic">MatGo <span className="text-gold-500">Admin</span></div>
@@ -103,7 +103,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-6 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-dark-500 font-black rounded-2xl transition-all shadow-2xl shadow-gold-500/10 uppercase tracking-widest flex items-center justify-center gap-4 active:scale-[0.98] text-sm"
+            className="w-full py-6 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-[#0d0d0d] font-black rounded-2xl transition-all shadow-2xl shadow-gold-500/10 uppercase tracking-widest flex items-center justify-center gap-4 active:scale-[0.98] text-sm"
           >
             {loading ? <Loader2 size={24} className="animate-spin" /> : <Lock size={24} />}
             {loading ? "Decrypting..." : "Initialize Admin"}

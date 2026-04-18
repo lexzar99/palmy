@@ -174,7 +174,7 @@ export default function StaffPage() {
     return (
       <div className="flex flex-col items-center justify-center py-40 gap-4">
         <Loader2 className="animate-spin text-gold-500" size={32} />
-        <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
+        <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
           Laddar personal…
         </p>
       </div>
@@ -219,12 +219,12 @@ export default function StaffPage() {
                   <Icon size={15} className={config.color} />
                 </div>
                 {roleFilter === roleKey && (
-                  <span className="text-[7px] font-black uppercase text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-black uppercase text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">
                     Filter
                   </span>
                 )}
               </div>
-              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
+              <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">
                 {config.label}
               </div>
               <div className={`text-xl font-black ${config.color}`}>{count}</div>
@@ -247,7 +247,7 @@ export default function StaffPage() {
         {roleFilter && (
           <button
             onClick={() => setRoleFilter(null)}
-            className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[8px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            className="px-3 py-2 rounded-xl border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             Rensa filter
           </button>
@@ -287,16 +287,16 @@ export default function StaffPage() {
                       <span className="text-[12px] font-black uppercase tracking-wide text-[var(--text-primary)]">
                         {member.name}
                       </span>
-                      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[7px] font-black ${roleConf.bg} ${roleConf.color} border border-current/20 uppercase`}>
+                      <span className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black ${roleConf.bg} ${roleConf.color} border border-current/20 uppercase`}>
                         <RoleIcon size={9} /> {roleConf.label}
                       </span>
                       {!member.active && (
-                        <span className="px-1.5 py-0.5 rounded text-[7px] font-black bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase">
                           Inaktiv
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[9px] font-bold text-[var(--text-secondary)]">
+                    <div className="flex items-center gap-3 mt-1 text-[10px] font-bold text-[var(--text-secondary)]">
                       <span className="flex items-center gap-1">
                         <Mail size={10} /> {member.email}
                       </span>
@@ -382,7 +382,7 @@ export default function StaffPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                     Namn
                   </label>
                   <input
@@ -394,7 +394,7 @@ export default function StaffPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                     Email
                   </label>
                   <input
@@ -407,7 +407,7 @@ export default function StaffPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                     Telefon (valfritt)
                   </label>
                   <input
@@ -419,7 +419,7 @@ export default function StaffPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                  <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                     Roll
                   </label>
                   <div className="grid grid-cols-2 gap-2">
@@ -436,7 +436,7 @@ export default function StaffPage() {
                           }`}
                         >
                           <Icon size={14} className={config.color} />
-                          <span className="text-[9px] font-black uppercase tracking-wider text-[var(--text-primary)]">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-primary)]">
                             {config.label}
                           </span>
                         </button>
@@ -447,7 +447,7 @@ export default function StaffPage() {
 
                 {(form.role === "RESTAURANT_ADMIN" || form.role === "STAFF") && restaurants.length > 0 && (
                   <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+                    <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
                       Restaurang
                     </label>
                     <select

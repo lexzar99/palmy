@@ -407,7 +407,7 @@ export default function CityMapPicker({
               : "Kontrollera att Maps JavaScript API är aktiverat i Google Cloud Console, och att nyckeln saknar restriktioner som blockerar admin-domänen."}
           </p>
           {!MAPS_KEY && (
-            <code className="block mt-3 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[9px] font-mono text-red-400">
+            <code className="block mt-3 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] font-mono text-red-400">
               NEXT_PUBLIC_GOOGLE_MAPS_KEY=din_nyckel_här
             </code>
           )}
@@ -444,7 +444,7 @@ export default function CityMapPicker({
         <button
           onClick={geocodeCity}
           disabled={isSearching || !searchQuery.trim() || !ready}
-          className="flex items-center gap-2 px-4 py-3 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[9px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20"
+          className="flex items-center gap-2 px-4 py-3 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-gold-500/20"
         >
           {isSearching ? (
             <Loader2 size={13} className="animate-spin" />
@@ -459,14 +459,14 @@ export default function CityMapPicker({
       <div className="flex flex-wrap items-center gap-2.5">
         <div className="flex items-center gap-2 px-3.5 py-2 bg-[var(--bg-primary)]/60 border border-[var(--border-subtle)] rounded-xl">
           <Target size={12} className="text-gold-500" />
-          <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+          <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
             Klicka på kartan för att sätta centrum
           </span>
         </div>
 
         <button
           onClick={startPolygonDraw}
-          className={`flex items-center gap-2 px-4 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all ${
+          className={`flex items-center gap-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
             mode === "polygon"
               ? "bg-sky-500 text-white shadow-lg shadow-sky-500/20"
               : "bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-sky-400 hover:border-sky-500/30"
@@ -479,7 +479,7 @@ export default function CityMapPicker({
         {hasPolygon && (
           <button
             onClick={clearPolygon}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-rose-500/20 text-rose-400 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-500/10 transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-rose-500/10 transition-all"
           >
             <RotateCcw size={12} /> Rensa gräns
           </button>
@@ -488,7 +488,7 @@ export default function CityMapPicker({
         {currentCenter && (
           <button
             onClick={fitToZones}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-[9px] font-black uppercase tracking-widest rounded-xl hover:text-[var(--text-primary)] transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-[10px] font-black uppercase tracking-widest rounded-xl hover:text-[var(--text-primary)] transition-all"
           >
             <ZoomIn size={12} /> Anpassa vy
           </button>
@@ -497,7 +497,7 @@ export default function CityMapPicker({
         {currentCenter && (
           <button
             onClick={handleSave}
-            className={`flex items-center gap-2 px-5 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg transition-all ${
               hasSaved
                 ? "bg-emerald-500 text-white shadow-emerald-500/30"
                 : "bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20"
@@ -514,7 +514,7 @@ export default function CityMapPicker({
         <div className="flex flex-wrap gap-2 p-3 bg-[var(--bg-primary)]/50 rounded-2xl border border-[var(--border-subtle)]">
           <div className="w-full flex items-center gap-2 mb-1">
             <Layers size={11} className="text-[var(--text-secondary)]" />
-            <span className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Leveranszoner ({activeZoneCount})</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Leveranszoner ({activeZoneCount})</span>
           </div>
           {sortedZones.map((zone, i) => {
             const color = ZONE_COLORS[Math.min(i, ZONE_COLORS.length - 1)];
@@ -532,7 +532,7 @@ export default function CityMapPicker({
                   style={{ backgroundColor: color.fill, borderColor: color.stroke }}
                 />
                 <span
-                  className="text-[9px] font-black uppercase tracking-wider"
+                  className="text-[10px] font-black uppercase tracking-wider"
                   style={{ color: color.stroke }}
                 >
                   {zone.name} • {zone.radiusKm} km
@@ -561,7 +561,7 @@ export default function CityMapPicker({
 
         {/* Drawing mode overlay hint */}
         {mode === "polygon" && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-5 py-2.5 bg-sky-500/95 backdrop-blur-sm text-white text-[9px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-sky-500/30 pointer-events-none">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 px-5 py-2.5 bg-sky-500/95 backdrop-blur-sm text-white text-[10px] font-black uppercase tracking-widest rounded-2xl shadow-xl shadow-sky-500/30 pointer-events-none">
             Klicka för punkter — dubbelklicka för att avsluta polygon
           </div>
         )}
@@ -571,7 +571,7 @@ export default function CityMapPicker({
           <div className="absolute bottom-4 left-4 z-10 px-4 py-2.5 bg-[var(--bg-primary)]/90 backdrop-blur-sm border border-gold-500/30 rounded-xl">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-gold-500 animate-pulse" />
-              <span className="text-[9px] font-black uppercase tracking-widest text-gold-400">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gold-400">
                 Centrum: {currentCenter.lat.toFixed(5)}, {currentCenter.lng.toFixed(5)}
               </span>
             </div>
@@ -583,7 +583,7 @@ export default function CityMapPicker({
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none text-center">
             <div className="px-5 py-3 bg-[var(--bg-primary)]/80 backdrop-blur-sm border border-[var(--border-subtle)] rounded-2xl">
               <MapPin size={20} className="text-gold-500 mx-auto mb-1" />
-              <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
+              <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">
                 Klicka på kartan för att sätta stadens centrum
               </p>
             </div>
@@ -594,7 +594,7 @@ export default function CityMapPicker({
       {/* ── Info footer ── */}
       <div className="flex items-start gap-3 p-4 bg-[var(--bg-primary)]/50 border border-[var(--border-subtle)] rounded-2xl">
         <Info size={13} className="text-[var(--text-secondary)] shrink-0 mt-0.5" />
-        <p className="text-[8px] text-[var(--text-secondary)] font-bold uppercase tracking-wide leading-relaxed">
+        <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-wide leading-relaxed">
           Klicka på kartan för att sätta centrum · Dra guldmarkören för att flytta · Cirklar genereras automatiskt från zon-tabellen nedan · Rita polygon för en anpassad leveransgräns · Tryck "Spara position" och sedan "Spara ändringar" för att synka med databasen.
         </p>
       </div>

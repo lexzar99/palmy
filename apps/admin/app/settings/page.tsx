@@ -101,7 +101,7 @@ const AdminSettingsPage = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex items-center gap-3 px-8 py-4 bg-gold-500 text-dark-500 font-extrabold rounded-2xl hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20 uppercase tracking-widest disabled:opacity-50"
+          className="flex items-center gap-3 px-8 py-4 bg-gold-500 text-[#0d0d0d] font-extrabold rounded-2xl hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20 uppercase tracking-widest disabled:opacity-50"
         >
           {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
           Spara
@@ -141,7 +141,7 @@ const AdminSettingsPage = () => {
               type="number"
               value={settings.deliveryFee}
               onChange={(e) => setSettings({ ...settings, deliveryFee: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
@@ -150,7 +150,7 @@ const AdminSettingsPage = () => {
               type="number"
               value={settings.minOrderAmount}
               onChange={(e) => setSettings({ ...settings, minOrderAmount: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
@@ -159,7 +159,7 @@ const AdminSettingsPage = () => {
               type="number"
               value={settings.deliveryRadius}
               onChange={(e) => setSettings({ ...settings, deliveryRadius: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
             />
           </div>
           <div>
@@ -170,7 +170,7 @@ const AdminSettingsPage = () => {
                 type="number"
                 value={settings.estimatedPickupTime}
                 onChange={(e) => setSettings({ ...settings, estimatedPickupTime: parseInt(e.target.value) || 20 })}
-                className="flex-1 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+                className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
               />
             </div>
           </div>
@@ -182,7 +182,7 @@ const AdminSettingsPage = () => {
                 type="number"
                 value={settings.estimatedDeliveryTime}
                 onChange={(e) => setSettings({ ...settings, estimatedDeliveryTime: parseInt(e.target.value) || 35 })}
-                className="flex-1 bg-dark-500 border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
+                className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
               />
             </div>
           </div>
@@ -197,7 +197,7 @@ const AdminSettingsPage = () => {
               key={sound.id}
               type="button"
               onClick={() => setSettings({ ...settings, notificationSound: sound.id })}
-              className={`rounded-2xl border p-5 text-left transition-all ${settings.notificationSound === sound.id ? "border-gold-500 bg-gold-500/10 text-gold-500" : "border-[var(--border-strong)] bg-dark-500 hover:bg-[var(--border-subtle)]"}`}
+              className={`rounded-2xl border p-5 text-left transition-all ${settings.notificationSound === sound.id ? "border-gold-500 bg-gold-500/10 text-gold-500" : "border-[var(--border-strong)] bg-[var(--bg-primary)] hover:bg-[var(--border-subtle)]"}`}
             >
               <div className="text-sm font-black uppercase tracking-[0.2em]">{sound.label}</div>
               <div className="mt-3 flex items-center justify-between">
@@ -220,21 +220,21 @@ const AdminSettingsPage = () => {
       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
         <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Butiksammanfattning</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Status</div>
             <div className={`text-lg font-black uppercase ${settings.isOpen ? "text-green-400" : "text-red-400"}`}>
               {settings.isOpen ? "Öppen" : "Stängd"}
             </div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransavgift</div>
             <div className="text-lg font-black text-gold-500">{settings.deliveryFee} kr</div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Minimiorder</div>
             <div className="text-lg font-black text-gold-500">{settings.minOrderAmount} kr</div>
           </div>
-          <div className="rounded-2xl bg-dark-500 border border-[var(--border-subtle)] p-5">
+          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransradie</div>
             <div className="text-lg font-black text-gold-500">{settings.deliveryRadius} km</div>
           </div>
@@ -248,7 +248,7 @@ const AdminSettingsPage = () => {
           {DAYS.map((day) => {
             const hours = settings.openingHours[day.key] || defaultHours;
             return (
-              <div key={day.key} className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${hours.closed ? "bg-white/2 opacity-50" : "bg-dark-500 border border-[var(--border-subtle)]"}`}>
+              <div key={day.key} className={`flex items-center gap-6 p-5 rounded-2xl transition-all ${hours.closed ? "bg-white/2 opacity-50" : "bg-[var(--bg-primary)] border border-[var(--border-subtle)]"}`}>
                 <div className="w-28 font-bold uppercase text-sm tracking-widest text-[var(--text-primary)]/60 flex-shrink-0">{day.label}</div>
                 <div className="flex items-center gap-4 flex-1">
                   <input
@@ -256,7 +256,7 @@ const AdminSettingsPage = () => {
                     value={hours.open}
                     disabled={hours.closed}
                     onChange={(e) => updateHours(day.key, "open", e.target.value)}
-                    className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                    className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
                   />
                   <span className="text-[var(--text-primary)]/20 font-black">–</span>
                   <input
@@ -264,7 +264,7 @@ const AdminSettingsPage = () => {
                     value={hours.close}
                     disabled={hours.closed}
                     onChange={(e) => updateHours(day.key, "close", e.target.value)}
-                    className="bg-dark-500 border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
+                    className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold disabled:opacity-30 focus:ring-2 focus:ring-gold-500/50 outline-none"
                   />
                 </div>
                 <button

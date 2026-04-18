@@ -260,8 +260,8 @@ const Sidebar = () => {
         { href: "/restaurants", label: "Restauranger", icon: Store },
         { href: "/customers", label: "Kunder & Support", icon: Users },
         { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
-        { href: "/coupons", label: "Rabattkoder", icon: Tag, isNew: true },
-        { href: "/deals/push", label: "Push Notiser", icon: Megaphone },
+        { href: "/discounts", label: "Rabattkoder", icon: Tag, isNew: true },
+        { href: "/push", label: "Push Notiser", icon: Megaphone },
         { href: "/cities", label: "Städer & Zoner", icon: MapPin },
         { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
         { href: "/reviews", label: "Recensioner", icon: MessageSquare, isNew: true },
@@ -344,12 +344,12 @@ const Sidebar = () => {
         />
         <span className="flex-1 truncate">{link.label}</span>
         {link.isNew && (
-          <span className="px-1.5 py-0.5 rounded text-[7px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
             Ny
           </span>
         )}
         {link.badge && link.badge > 0 ? (
-          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30 animate-pulse">
+          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30 animate-pulse">
             {link.badge > 99 ? "99+" : link.badge}
           </span>
         ) : null}
@@ -368,7 +368,7 @@ const Sidebar = () => {
               <span className="text-[#0d0d0d] font-black text-base italic">M</span>
             </div>
             <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] opacity-50">
+              <div className="text-[10px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] opacity-50">
                 Super Admin
               </div>
               <div className="font-black text-[var(--text-primary)] text-sm uppercase tracking-tight leading-none">
@@ -388,7 +388,7 @@ const Sidebar = () => {
               >
                 <Bell size={15} />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[8px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
@@ -409,7 +409,7 @@ const Sidebar = () => {
                       </span>
                       <button
                         onClick={markAllRead}
-                        className="text-[9px] font-bold uppercase text-gold-500 hover:text-gold-400"
+                        className="text-[10px] font-bold uppercase text-gold-500 hover:text-gold-400"
                       >
                         Markera alla lästa
                       </button>
@@ -447,7 +447,7 @@ const Sidebar = () => {
                               <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 truncate">
                                 {n.message}
                               </p>
-                              <p className="text-[9px] text-[var(--text-secondary)] opacity-40 mt-1 font-bold uppercase">
+                              <p className="text-[10px] text-[var(--text-secondary)] opacity-40 mt-1 font-bold uppercase">
                                 {n.time.toLocaleTimeString([], {
                                   hour: "2-digit",
                                   minute: "2-digit",
@@ -494,10 +494,10 @@ const Sidebar = () => {
           className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/15 transition-all mb-3"
         >
           <Command size={13} className="opacity-40" />
-          <span className="flex-1 text-left text-[9px] font-bold uppercase tracking-wider opacity-40">
+          <span className="flex-1 text-left text-[10px] font-bold uppercase tracking-wider opacity-40">
             Sök kommandon…
           </span>
-          <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[7px] font-black text-[var(--text-secondary)] uppercase">
+          <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[10px] font-black text-[var(--text-secondary)] uppercase">
             ⌘K
           </kbd>
         </button>
@@ -515,7 +515,7 @@ const Sidebar = () => {
                   setRestaurant(r?.id || null, r?.name || null);
                 }
               }}
-              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2.5 text-[9px] font-black text-[var(--text-primary)] appearance-none cursor-pointer focus:outline-none focus:border-gold-500/30 transition-all uppercase tracking-wider"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2.5 text-[10px] font-black text-[var(--text-primary)] appearance-none cursor-pointer focus:outline-none focus:border-gold-500/30 transition-all uppercase tracking-wider"
             >
               <option value="">Alla restauranger</option>
               {restaurants.map((r) => (
@@ -535,7 +535,7 @@ const Sidebar = () => {
             <button
               onClick={toggleOpen}
               disabled={toggling}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-[9px] font-black uppercase tracking-wider ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-[10px] font-black uppercase tracking-wider ${
                 isOpen
                   ? "bg-emerald-500/8 border-emerald-500/15 text-emerald-400"
                   : "bg-rose-500/8 border-rose-500/15 text-rose-400"
@@ -558,11 +558,11 @@ const Sidebar = () => {
             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
           >
             <Bell size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
               Nya
             </span>
             {pendingCount > 0 && (
-              <span className="min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[7px] font-black flex items-center justify-center">
+              <span className="min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
                 {pendingCount > 9 ? "9+" : pendingCount}
               </span>
             )}
@@ -572,7 +572,7 @@ const Sidebar = () => {
             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
           >
             <Store size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
               Restauranger
             </span>
           </Link>
@@ -581,7 +581,7 @@ const Sidebar = () => {
             className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
           >
             <Users size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[7px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
+            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
               Kunder
             </span>
           </Link>
@@ -607,7 +607,7 @@ const Sidebar = () => {
               {group.collapsible ? (
                 <button
                   onClick={() => toggleGroup(group.label)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-lg hover:bg-white/[0.02]"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-lg hover:bg-white/[0.02]"
                 >
                   {GroupIcon && (
                     <GroupIcon
@@ -626,7 +626,7 @@ const Sidebar = () => {
                   />
                 </button>
               ) : (
-                <div className="px-3 py-2 text-[8px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] opacity-40">
+                <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] opacity-40">
                   {group.label}
                 </div>
               )}
@@ -657,11 +657,11 @@ const Sidebar = () => {
         {/* System status indicator */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-1">
           <div className="status-dot online" />
-          <span className="text-[8px] font-black uppercase tracking-widest text-emerald-400 flex-1">
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex-1">
             System Online
           </span>
           <Clock size={10} className="text-[var(--text-secondary)] opacity-40" />
-          <span className="text-[8px] font-bold text-[var(--text-secondary)] opacity-40">
+          <span className="text-[10px] font-bold text-[var(--text-secondary)] opacity-40">
             {new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
           </span>
         </div>
@@ -698,7 +698,7 @@ const Sidebar = () => {
                 // silent
               }
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all text-[8px] font-black uppercase tracking-widest border border-[var(--border-subtle)]"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all text-[10px] font-black uppercase tracking-widest border border-[var(--border-subtle)]"
           >
             <Zap size={12} /> Testorder
           </button>
@@ -707,7 +707,7 @@ const Sidebar = () => {
         {/* Help link */}
         <Link
           href="/system"
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03] transition-all text-[8px] font-black uppercase tracking-widest"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03] transition-all text-[10px] font-black uppercase tracking-widest"
         >
           <HelpCircle size={12} /> Hjälp & System
         </Link>
@@ -718,7 +718,7 @@ const Sidebar = () => {
             localStorage.removeItem("matgo_admin");
             window.location.href = "/login";
           }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-[8px] font-black uppercase tracking-widest"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-[10px] font-black uppercase tracking-widest"
         >
           <LogOut size={12} /> Logga ut
         </button>
@@ -740,7 +740,7 @@ const Sidebar = () => {
         </div>
         <div className="flex items-center gap-2">
           {pendingCount > 0 && (
-            <span className="px-2 py-1 rounded-lg bg-rose-500 text-white text-[9px] font-black shadow-lg shadow-rose-500/30 animate-pulse">
+            <span className="px-2 py-1 rounded-lg bg-rose-500 text-white text-[10px] font-black shadow-lg shadow-rose-500/30 animate-pulse">
               {pendingCount} ny
             </span>
           )}

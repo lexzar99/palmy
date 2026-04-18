@@ -260,7 +260,7 @@ export default function DealsPage() {
           { label: "Pausade/Förbrukade", value: category === "restaurant" ? deals.filter((d) => !d.isActive).length : customerDeals.filter((d) => d.isUsed).length, color: "text-rose-400" },
         ].map((s) => (
           <div key={s.label} className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
             <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
           </div>
         ))}
@@ -281,14 +281,14 @@ export default function DealsPage() {
       {loading ? (
         <div className="py-12 flex flex-col items-center gap-4">
           <Loader2 className="animate-spin text-gold-500" size={32} />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
             Laddar deals...
           </p>
         </div>
       ) : category === "restaurant" ? filteredDeals.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <Gift size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga deals hittades
           </p>
         </div>
@@ -310,23 +310,23 @@ export default function DealsPage() {
                     {deal.title}
                   </span>
                   {deal.isGlobal && (
-                    <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 text-[7px] font-black uppercase border border-sky-500/20">
+                    <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase border border-sky-500/20">
                       Global
                     </span>
                   )}
                   {deal.restaurant && (
-                    <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[7px] font-black uppercase border border-gold-500/20">
+                    <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[10px] font-black uppercase border border-gold-500/20">
                       {deal.restaurant.name}
                     </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                     {deal.discountValue}
                     {deal.discountType === "PERCENTAGE" ? "%" : " kr"} rabatt
                   </span>
                   {deal.minOrder > 0 && (
-                    <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                       · Min {deal.minOrder} kr
                     </span>
                   )}
@@ -337,7 +337,7 @@ export default function DealsPage() {
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => toggleDealStatus(deal.id, deal.isActive)}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                     deal.isActive
                       ? "bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20"
                       : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
@@ -360,7 +360,7 @@ export default function DealsPage() {
               </div>
 
               {/* Status badge (always visible) */}
-              <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
                 deal.isActive
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                   : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
@@ -373,7 +373,7 @@ export default function DealsPage() {
       ) : filteredCustomerDeals.length === 0 ? (
         <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
           <Users size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
+          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
             Inga personliga deals hittades
           </p>
         </div>
@@ -394,22 +394,22 @@ export default function DealsPage() {
                   <span className="font-black text-sm text-[var(--text-primary)] uppercase truncate">
                     {deal.campaign?.title || "Okänd Kampanj"}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[7px] font-black uppercase border border-emerald-500/20">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase border border-emerald-500/20">
                     Kund: {deal.user?.name || deal.phone}
                   </span>
-                  <span className="px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400 text-[8px] font-black uppercase border border-zinc-500/20">
+                  <span className="px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400 text-[10px] font-black uppercase border border-zinc-500/20">
                     KOD: {deal.code}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                     {deal.campaign?.discountValue}
                     {deal.campaign?.discountType === "PERCENTAGE" ? "%" : " kr"} rabatt
                   </span>
-                  <span className="text-[9px] font-bold text-[var(--text-secondary)]">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
                     · Använt: {deal.usageCount} / {deal.maxUsages}
                   </span>
-                  <span className="text-[9px] font-bold text-[var(--text-secondary)] opacity-50">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] opacity-50">
                     · Skapad: {new Date(deal.createdAt).toLocaleDateString("sv-SE")}
                   </span>
                 </div>
@@ -419,7 +419,7 @@ export default function DealsPage() {
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={() => toggleCustomerDeal(deal.id, deal.isUsed)}
-                  className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                     !deal.isUsed
                       ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
                       : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
@@ -436,7 +436,7 @@ export default function DealsPage() {
               </div>
 
               {/* Status badge */}
-              <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
+              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
                 !deal.isUsed
                   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                   : "bg-surface-elevated text-zinc-500 border-zinc-800"
@@ -547,7 +547,7 @@ function DealForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Titel</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Titel</label>
           <input
             required
             value={form.title}
@@ -557,7 +557,7 @@ function DealForm({
           />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Rabatt-typ</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Rabatt-typ</label>
           <select
             value={form.discountType}
             onChange={(e) => setForm({ ...form, discountType: e.target.value })}
@@ -568,7 +568,7 @@ function DealForm({
           </select>
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
             Rabattvärde ({form.discountType === "PERCENTAGE" ? "%" : "kr"})
           </label>
           <input
@@ -580,7 +580,7 @@ function DealForm({
           />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Minsta order (kr)</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Minsta order (kr)</label>
           <input
             type="number"
             value={form.minOrder}
@@ -589,7 +589,7 @@ function DealForm({
           />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar (tom = obegränsad)</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar (tom = obegränsad)</label>
           <input
             type="number"
             value={form.maxUsages}
@@ -599,18 +599,18 @@ function DealForm({
           />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig från</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig från</label>
           <input type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} className={inputCls} />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
           <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className={inputCls} />
         </div>
       </div>
 
       {/* Restaurant scope */}
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
+        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
           Kopplade restauranger
         </label>
         <div className="p-3 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl space-y-2 max-h-48 overflow-y-auto">
@@ -649,7 +649,7 @@ function DealForm({
         <button
           type="button"
           onClick={() => setForm({ ...form, isActive: !form.isActive })}
-          className={`py-3 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
             form.isActive
               ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
               : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
@@ -660,7 +660,7 @@ function DealForm({
         <button
           type="button"
           onClick={() => setForm({ ...form, showOnSite: !form.showOnSite })}
-          className={`py-3 rounded-xl border text-[9px] font-black uppercase tracking-widest transition-all ${
+          className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
             form.showOnSite
               ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
               : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
@@ -754,22 +754,22 @@ function CustomerDealForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Segment filters */}
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Segmentfilter</label>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Segmentfilter</label>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Min ordrar</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Min ordrar</label>
             <input type="number" placeholder="t.ex. 1" value={minOrders}
               onChange={(e) => setMinOrders(e.target.value === "" ? "" : Number(e.target.value))}
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
           </div>
           <div>
-            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Max ordrar</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Max ordrar</label>
             <input type="number" placeholder="t.ex. 0 = nya kunder" value={maxOrders}
               onChange={(e) => setMaxOrders(e.target.value === "" ? "" : Number(e.target.value))}
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
           </div>
           <div>
-            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Stad</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Stad</label>
             <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)}
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
               <option value="">Alla städer</option>
@@ -777,7 +777,7 @@ function CustomerDealForm({
             </select>
           </div>
           <div>
-            <label className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Status</label>
+            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Status</label>
             <select value={filterActive} onChange={(e) => setFilterActive(e.target.value as any)}
               className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
               <option value="all">Alla</option>
@@ -786,19 +786,19 @@ function CustomerDealForm({
             </select>
           </div>
         </div>
-        <p className="text-[8px] font-black text-gold-500 mt-1">{filteredCusts.length} kunder matchar filtret</p>
+        <p className="text-[10px] font-black text-gold-500 mt-1">{filteredCusts.length} kunder matchar filtret</p>
       </div>
 
       {/* Who gets it */}
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Mottagare</label>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Mottagare</label>
         <div className="space-y-2">
           <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-[var(--bg-primary)] border-[var(--border-subtle)] hover:border-gold-500/20">
             <input type="checkbox" checked={sendToAll} onChange={(e) => { setSendToAll(e.target.checked); setSelectedIds([]); }}
               className="w-4 h-4 rounded accent-gold-500" />
             <div>
               <p className="text-[10px] font-black uppercase text-[var(--text-primary)]">Alla matchande kunder ({filteredCusts.length} st)</p>
-              <p className="text-[8px] font-bold text-[var(--text-secondary)]">Unik kod per kund genereras automatiskt</p>
+              <p className="text-[10px] font-bold text-[var(--text-secondary)]">Unik kod per kund genereras automatiskt</p>
             </div>
           </label>
 
@@ -808,28 +808,28 @@ function CustomerDealForm({
                 <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök namn/telefon..."
                   className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl pl-3 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30" />
                 <button type="button" onClick={selectAllFiltered}
-                  className="px-3 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[8px] font-black uppercase whitespace-nowrap">
+                  className="px-3 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase whitespace-nowrap">
                   Välj alla
                 </button>
               </div>
               <div className="max-h-40 overflow-y-auto space-y-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-2">
                 {filteredCusts.length === 0 ? (
-                  <p className="text-[9px] text-[var(--text-secondary)] text-center py-4">Inga kunder matchar filtret</p>
+                  <p className="text-[10px] text-[var(--text-secondary)] text-center py-4">Inga kunder matchar filtret</p>
                 ) : filteredCusts.map((c) => (
                   <label key={c.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedIds.includes(c.id) ? "bg-gold-500/10" : "hover:bg-[var(--bg-secondary)]"}`}>
                     <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)}
                       className="w-4 h-4 rounded accent-gold-500 shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-black text-[var(--text-primary)] truncate">{c.name || "Gäst"}</p>
-                      <p className="text-[8px] font-bold text-[var(--text-secondary)]">{c.phone} · {c._count?.orders ?? 0} ordrar {c.city ? `· ${c.city}` : ""}</p>
+                      <p className="text-[10px] font-bold text-[var(--text-secondary)]">{c.phone} · {c._count?.orders ?? 0} ordrar {c.city ? `· ${c.city}` : ""}</p>
                     </div>
                   </label>
                 ))}
               </div>
               {selectedIds.length > 0 && (
                 <div className="flex items-center justify-between">
-                  <p className="text-[9px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
-                  <button type="button" onClick={clearSelected} className="text-[8px] font-black text-[var(--text-secondary)] uppercase">Rensa</button>
+                  <p className="text-[10px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
+                  <button type="button" onClick={clearSelected} className="text-[10px] font-black text-[var(--text-secondary)] uppercase">Rensa</button>
                 </div>
               )}
             </>
@@ -839,20 +839,20 @@ function CustomerDealForm({
 
       {/* Deal details */}
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Dealnamn</label>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Dealnamn</label>
         <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
           placeholder="t.ex. Välkomstkampanj" className={inputCls} />
       </div>
 
       <div>
-        <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
+        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
           Baskod {sendToAll ? "(prefix — unik suffix läggs till per kund)" : ""}
         </label>
         <div className="flex gap-2">
           <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
             placeholder="WELCOME25" className={`${inputCls} font-mono tracking-widest`} />
           <button type="button" onClick={generateCode}
-            className="px-4 py-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[9px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all whitespace-nowrap">
+            className="px-4 py-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all whitespace-nowrap">
             Generera
           </button>
         </div>
@@ -860,22 +860,22 @@ function CustomerDealForm({
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Typ</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Typ</label>
           <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value })} className={inputCls}>
             <option value="PERCENTAGE">Procent (%)</option>
             <option value="FIXED">Fast (kr)</option>
           </select>
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Värde</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Värde</label>
           <input type="number" value={form.discountValue} onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })} className={inputCls} />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar / kund</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar / kund</label>
           <input type="number" min={1} value={form.maxUsages} onChange={(e) => setForm({ ...form, maxUsages: Number(e.target.value) })} className={inputCls} />
         </div>
         <div>
-          <label className="block text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
+          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
           <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className={inputCls} />
         </div>
       </div>

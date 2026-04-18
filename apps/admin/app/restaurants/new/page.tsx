@@ -158,7 +158,7 @@ export default function NewRestaurantPage() {
           <h1 className="text-xl font-black uppercase tracking-tight text-[var(--text-primary)]">
             Ny restaurang
           </h1>
-          <p className="text-[9px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
+          <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
             Skapa en ny restaurang i plattformen
           </p>
         </div>
@@ -173,7 +173,7 @@ export default function NewRestaurantPage() {
 
           <div className="space-y-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Restaurangnamn *
               </label>
               <input
@@ -187,7 +187,7 @@ export default function NewRestaurantPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                   Kök *
                 </label>
                 <select
@@ -205,7 +205,7 @@ export default function NewRestaurantPage() {
               </div>
 
               <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                   Stad *
                 </label>
                 <select
@@ -224,7 +224,7 @@ export default function NewRestaurantPage() {
             </div>
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Adress
               </label>
               <div className="relative">
@@ -252,7 +252,7 @@ export default function NewRestaurantPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Telefon
               </label>
               <div className="relative">
@@ -271,7 +271,7 @@ export default function NewRestaurantPage() {
             </div>
 
             <div>
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 E-post
               </label>
               <div className="relative">
@@ -290,7 +290,7 @@ export default function NewRestaurantPage() {
             </div>
 
             <div className="col-span-2">
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Webbplats
               </label>
               <div className="relative">
@@ -319,7 +319,7 @@ export default function NewRestaurantPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Profile Image */}
             <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Logotyp / Profilbild (Max 2MB)
               </label>
               
@@ -358,7 +358,7 @@ export default function NewRestaurantPage() {
                       <Upload size={18} className="text-gold-500" />
                     </div>
                     <span className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-tight">Välj bild</span>
-                    <span className="text-[8px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
                   </label>
                 )}
                 
@@ -373,7 +373,7 @@ export default function NewRestaurantPage() {
 
             {/* Hero Image */}
             <div className="space-y-3">
-              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-2">
                 Hero / Banner (Max 2MB)
               </label>
               
@@ -412,7 +412,7 @@ export default function NewRestaurantPage() {
                       <Upload size={18} className="text-gold-500" />
                     </div>
                     <span className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-tight">Välj bild</span>
-                    <span className="text-[8px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase mt-1">PNG, JPG (Max 2MB)</span>
                   </label>
                 )}
 
