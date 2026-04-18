@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 import axios from "axios";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -128,7 +128,7 @@ function SocialButton({
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
-export default function ProfilePage() {
+function ProfileContent() {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
@@ -1154,5 +1154,17 @@ export default function ProfilePage() {
       cancelText="Avbryt"
     />
     </>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <Loader2 className="animate-spin text-gold-500" size={40} />
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
   );
 }
