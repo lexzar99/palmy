@@ -118,6 +118,9 @@ export default function HomeScreen({
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  // Quick-filter state
+  const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
@@ -262,39 +265,8 @@ export default function HomeScreen({
     [address, cities]
   );
 
-  const filtered = useMemo(() => {
-    const raw = sortRestaurantsForHome(
-      restaurants.filter((restaurant) => {
-        const byCuisine =
-          activeCuisine === "Alla" ||
-          (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
-          (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
 
-        if (!byCuisine) return false;
-
-        if (orderType === "PICKUP" && selectedCity) {
-          return (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
-        }
-
-        return true;
-      }),
-      orderType === "DELIVERY" ? zoneRestaurantIds : null
-    );
-
-    return raw.map((r) => {
-      const ovr = deliveryOverrides[r.id];
-      if (!ovr) return r;
-      return { ...r, deliveryFee: ovr.deliveryFee, minOrderAmount: ovr.minOrderAmount };
-    });
-  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, deliveryOverrides]);
-
-  const featured = useMemo(() => {
-    const allPremium = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2);
-    const openPremium = allPremium.filter((r) => r.isOpen !== false);
-    if (openPremium.length > 0) return openPremium.slice(0, 8);
-    return allPremium.slice(0, 8);
-  }, [filtered]);
-
+  // homeDeals must be computed BEFORE filtered (filtered uses it for the "deals" quick-filter)
   const homeDeals = useMemo<DealFlipCardData[]>(() => {
     const restaurantById = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));
 
@@ -367,6 +339,48 @@ export default function HomeScreen({
     return [...personalCards, ...publicCards];
   }, [deals, openRestaurant, personalDeals, restaurants, pushRoute]);
 
+  const filtered = useMemo(() => {
+    const raw = sortRestaurantsForHome(
+      restaurants.filter((restaurant) => {
+        const byCuisine =
+          activeCuisine === "Alla" ||
+          (restaurant.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
+          (restaurant.tags || []).some((tag) => tag.toLowerCase().includes(activeCuisine.toLowerCase()));
+
+        if (!byCuisine) return false;
+
+        if (orderType === "PICKUP" && selectedCity) {
+          return (restaurant.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+        }
+
+        return true;
+      }),
+      orderType === "DELIVERY" ? zoneRestaurantIds : null
+    );
+
+    const withOverrides = raw.map((r) => {
+      const ovr = deliveryOverrides[r.id];
+      if (!ovr) return r;
+      return { ...r, deliveryFee: ovr.deliveryFee, minOrderAmount: ovr.minOrderAmount };
+    });
+
+    // Apply quick-filters
+    return withOverrides.filter((r) => {
+      if (quickFilter === "rated") return (r.rating || 0) >= 4.0;
+      if (quickFilter === "fast") return (r.etaMinutes || 999) < 30;
+      if (quickFilter === "deals") return homeDeals.some(d => d.relatedRestaurantIds?.includes(r.id));
+      if (quickFilter === "free") return !r.deliveryFee || r.deliveryFee === 0;
+      return true;
+    });
+  }, [activeCuisine, restaurants, selectedCity, orderType, zoneRestaurantIds, deliveryOverrides, quickFilter, homeDeals]);
+
+  const featured = useMemo(() => {
+    const allPremium = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2);
+    const openPremium = allPremium.filter((r) => r.isOpen !== false);
+    if (openPremium.length > 0) return openPremium.slice(0, 8);
+    return allPremium.slice(0, 8);
+  }, [filtered]);
+
   const sponsorCards = useMemo<PromoCarouselItem[]>(() => {
     return sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
   }, [sponsors]);
@@ -430,8 +444,8 @@ export default function HomeScreen({
             <Text numberOfLines={1} style={{ color: palette.text, fontSize: 22, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
               Vad blir det <Text style={{ color: palette.gold }}>idag?</Text>
             </Text>
-            <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 2 }}>
-              HITTA SNABBT · BESTÄLL ENKELT
+            <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: 2, marginTop: 2 }}>
+              Hitta snabbt · beställ enkelt
             </Text>
           </View>
 
@@ -574,13 +588,17 @@ export default function HomeScreen({
               >
                 <View style={{
                   width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: active ? palette.gold : 'rgba(255,248,234,0.03)',
-                  borderWidth: 1, borderColor: active ? palette.gold : 'rgba(255,248,234,0.08)'
+                  backgroundColor: active ? palette.gold : palette.panel,
+                  borderWidth: 1, borderColor: active ? palette.gold : palette.border,
+                  shadowColor: "#1C1C1E",
+                  shadowOpacity: active ? 0.15 : 0.04,
+                  shadowRadius: active ? 12 : 6,
+                  elevation: active ? 6 : 2,
                 }}>
-                  <Text style={{ fontSize: 26, opacity: active ? 1 : 0.8 }}>{filter.emoji}</Text>
+                  <Text style={{ fontSize: 26, opacity: active ? 1 : 0.9 }}>{filter.emoji}</Text>
                 </View>
-                <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5 }}>
-                  {filter.name === "Alla" ? "ALLA" : filter.name.toUpperCase()}
+                <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 9, fontWeight: "700", letterSpacing: 1 }}>
+                  {filter.name === "Alla" ? "Alla" : filter.name}
                 </Text>
               </ScalePressable>
             );
@@ -700,19 +718,44 @@ export default function HomeScreen({
 
 
         <View style={styles.sectionTitleRow}>
-          <Text style={{ color: palette.muted, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>
+          <Text style={{ color: palette.muted, fontSize: 15, fontWeight: "800", letterSpacing: 2 }}>
             {(activeCuisine === "Alla" ? "ALLA RESTAURANGER" : activeCuisine.toUpperCase()) + ` / ${filtered.length} ST`}
           </Text>
         </View>
 
+        {/* STICKY QUICK-FILTERS – sortering over lista */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+          {([
+            { key: "all",   label: "Alla",          icon: "apps-outline" },
+            { key: "rated", label: "Betyg 4.0+",     icon: "star-outline" },
+            { key: "fast",  label: "Under 30 min",   icon: "flash-outline" },
+            { key: "deals", label: "Erbjudanden",    icon: "pricetag-outline" },
+            { key: "free",  label: "Fri leverans",   icon: "bicycle-outline" },
+          ] as const).map((qf) => {
+            const active = quickFilter === qf.key;
+            return (
+              <ScalePressable
+                key={qf.key}
+                onPress={() => setQuickFilter(qf.key)}
+                style={[styles.quickFilterChip, active && styles.quickFilterChipActive]}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Ionicons name={qf.icon} size={12} color={active ? "#000" : palette.muted} />
+                  <Text style={[styles.quickFilterChipText, active && styles.quickFilterChipTextActive]}>{qf.label}</Text>
+                </View>
+              </ScalePressable>
+            );
+          })}
+        </ScrollView>
+
         {loading && (
           <View style={{ padding: 16, gap: 16 }}>
             {[1, 2, 3].map((i) => (
-              <View key={i} style={{ width: '100%', height: 200, backgroundColor: palette.panel, borderRadius: 24, borderWidth: 1, borderColor: palette.border, overflow: 'hidden' }}>
-                <View style={{ width: '100%', height: 140, backgroundColor: 'rgba(255,248,234,0.02)' }} />
+              <View key={i} style={{ width: '100%', height: 200, backgroundColor: palette.skeletonBase, borderRadius: 24, overflow: 'hidden' }}>
+                <View style={{ width: '100%', height: 140, backgroundColor: palette.skeletonHighlight }} />
                 <View style={{ padding: 14, gap: 8 }}>
-                  <View style={{ width: '60%', height: 14, backgroundColor: 'rgba(255,248,234,0.04)', borderRadius: 4 }} />
-                  <View style={{ width: '40%', height: 10, backgroundColor: 'rgba(255,248,234,0.02)', borderRadius: 4 }} />
+                  <View style={{ width: '60%', height: 14, backgroundColor: palette.skeletonBase, borderRadius: 4 }} />
+                  <View style={{ width: '40%', height: 10, backgroundColor: palette.skeletonHighlight, borderRadius: 4 }} />
                 </View>
               </View>
             ))}
@@ -733,7 +776,14 @@ export default function HomeScreen({
                 dealText={activeDeal?.rewardLabel}
                 dealTone={activeDeal?.tone}
                 onPress={() => openRestaurant(restaurant.slug)}
-                containerStyle={{ opacity: dimmed ? 0.6 : 1, marginBottom: 20 }}
+                containerStyle={{ opacity: dimmed ? 0.6 : 1 }}
+                isFavorite={favorites.has(restaurant.id)}
+                onToggleFavorite={() => setFavorites(prev => {
+                  const next = new Set(prev);
+                  if (next.has(restaurant.id)) next.delete(restaurant.id);
+                  else next.add(restaurant.id);
+                  return next;
+                })}
               />
               {/* Option 1: Inline Feed Injection */}
               {injectDeal && (

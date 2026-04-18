@@ -1,37 +1,45 @@
 @import "tailwindcss";
 
 @theme {
-  /* We maintain the "gold" naming in TSX but redefine the colors to our bold Saffron Orange */
+  /* Gold accent – bevarat som premium-signal */
   --color-gold-400: #F4D086;
   --color-gold-500: #E7B24B;
   --color-gold-600: #C28E2E;
-  
-  --color-obsidian: var(--bg-deep); /* Dynamic obsidian */
-  --color-zinc-glass: var(--glass-border);
 }
 
+/* ── "Silk / Light Luxury" design tokens ─────────────────────────────────────
+   Mat ser alltid godare ut mot en vit bakgrund → högre CTR.
+   Inspiration: Uber Eats, Wolt, Apple light mode.
+   ─────────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg-primary: #09090b;
-  --bg-secondary: #18181b;
-  --bg-deep: #09090b;
-  --bg-card: rgba(30, 30, 35, 0.95);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --glass-bg: rgba(24, 24, 27, 0.9);
-  --glass-border: rgba(255, 255, 255, 0.05);
-  --border-muted: rgba(255, 255, 255, 0.04);
+  --bg-primary:   #FCFCF9;         /* Mjuk off-white */
+  --bg-secondary: #FFFFFF;         /* Rena kortet */
+  --bg-deep:      #F5F5F2;         /* Subtila sektioner */
+  --bg-card:      #FFFFFF;
+  --text-primary: #1C1C1E;         /* Soft Black – WCAG-säker rubrik */
+  --text-secondary: #6E6E73;       /* Apple-grå metadata */
+  --glass-bg:     rgba(255,255,255,0.92);
+  --glass-border: rgba(28,28,30,0.07);
+  --border-muted: rgba(28,28,30,0.05);
+  --card-shadow:  0px 8px 24px rgba(28,28,30,0.04);
+  --skeleton-base: #EAEAEA;
+  --skeleton-highlight: #F5F5F5;
 }
 
-[data-theme='light'] {
-  --bg-primary: #f1f5f9;
-  --bg-secondary: #ffffff;
-  --bg-deep: #e2e8f0;
-  --bg-card: rgba(255, 255, 255, 0.95);
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --glass-bg: rgba(255, 255, 255, 0.9);
-  --glass-border: rgba(0, 0, 0, 0.05);
-  --border-muted: rgba(0, 0, 0, 0.03);
+/* Dark mode opt-in (om vi vill ha det i framtiden) */
+[data-theme='dark'] {
+  --bg-primary:   #09090b;
+  --bg-secondary: #18181b;
+  --bg-deep:      #09090b;
+  --bg-card:      rgba(30,30,35,0.95);
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255,255,255,0.6);
+  --glass-bg:     rgba(24,24,27,0.9);
+  --glass-border: rgba(255,255,255,0.05);
+  --border-muted: rgba(255,255,255,0.04);
+  --card-shadow:  0px 8px 24px rgba(0,0,0,0.3);
+  --skeleton-base: #27272a;
+  --skeleton-highlight: #3f3f46;
 }
 
 @layer base {
@@ -45,6 +53,7 @@
   body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "ss01";
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
@@ -52,7 +61,7 @@
   }
 }
 
-/* Glassmorphism Classes - optimized for mobile performance */
+/* ── Silk Card – vit med mjuk skugga ────────────────────────────────────────── */
 .glass-panel {
   background: var(--glass-bg);
   backdrop-filter: blur(8px);
@@ -63,19 +72,20 @@
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border-muted);
-  transition: opacity 0.2s ease, background 0.2s ease;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 @media (hover: hover) {
   .glass-card:hover {
-    background: rgba(40, 40, 45, 1);
-    border-color: rgba(255, 107, 53, 0.3);
+    box-shadow: 0px 16px 40px rgba(28,28,30,0.08);
+    transform: translateY(-1px);
   }
 }
 
-/* Typography Effects */
+/* ── Typography ──────────────────────────────────────────────────────────────── */
 .text-gradient {
-  background: linear-gradient(135deg, #ffffff 0%, rgba(255,255,255,0.6) 100%);
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -88,10 +98,55 @@
   -webkit-text-fill-color: transparent;
 }
 
-/* Animations */
+/* ── Skeleton loaders (ljusgrå för light mode) ────────────────────────────── */
+@keyframes silk-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 800px 100%;
+  animation: silk-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ── Quick-filter chips ──────────────────────────────────────────────────────── */
+.quick-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-muted);
+  border-radius: 999px;
+  box-shadow: var(--card-shadow);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.quick-filter-chip:hover {
+  border-color: rgba(234,181,69,0.4);
+  color: var(--text-primary);
+}
+
+.quick-filter-chip.active {
+  background: #EAB545;
+  border-color: #EAB545;
+  color: #000;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(234,181,69,0.3);
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────────── */
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+  0%   { transform: translateY(0px); }
+  50%  { transform: translateY(-10px); }
   100% { transform: translateY(0px); }
 }
 
@@ -99,44 +154,35 @@
   animation: float 6s ease-in-out infinite;
 }
 
-/* Utilities */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
+/* ── Utilities ────────────────────────────────────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 .bg-dot-pattern {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-image: radial-gradient(var(--border-muted) 1px, transparent 1px);
   background-size: 32px 32px;
 }
 
-/* Global soft click animations */
+/* Micro-interactions */
 button, a, [role="button"] {
   transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease;
 }
 
 @media (hover: hover) {
-  button:active:not(:disabled), 
-  a:active:not(:disabled), 
+  button:active:not(:disabled),
+  a:active:not(:disabled),
   [role="button"]:active:not(:disabled) {
     transform: scale(0.96);
   }
 }
 
-/* 3D Effects */
-.perspective-1000 {
-  perspective: 1000px;
-}
-.preserve-3d {
-  transform-style: preserve-3d;
-}
-.backface-hidden {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
-}
+/* ── 3D Effects ─────────────────────────────────────────────────────────────── */
+.perspective-1000  { perspective: 1000px; }
+.preserve-3d       { transform-style: preserve-3d; }
+.backface-hidden   { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
 
 .bg-gold-gradient {
   background: linear-gradient(135deg, #F4D086 0%, #E7B24B 45%, #C28E2E 100%);

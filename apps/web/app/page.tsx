@@ -99,6 +99,10 @@ export default function HomePage() {
   const [filteredByDeal, setFilteredByDeal] = useState<{ ids: string[]; title: string } | null>(null);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
+  // Quick-filter state
+  const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
+  // Favorites state (localStorage-backed)
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
@@ -127,6 +131,12 @@ export default function HomePage() {
         }
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
+
+      // Restore favorites
+      try {
+        const savedFavs = JSON.parse(localStorage.getItem("platform_favorites") || "[]");
+        if (Array.isArray(savedFavs)) setFavorites(new Set(savedFavs));
+      } catch {}
 
       const err = localStorage.getItem("platform_address_error");
       if (err) {
@@ -262,58 +272,7 @@ export default function HomePage() {
     }
   };
 
-  const filtered = useMemo(() => {
-    const list = restaurants.filter((r) => {
-      const matchCuisine =
-        activeCuisine === "Alla" ||
-        (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
-        (r.tags || []).some((t) => t.toLowerCase().includes(activeCuisine.toLowerCase()));
-      const matchQuery =
-        query.trim().length === 0 ||
-        r.name.toLowerCase().includes(query.toLowerCase()) ||
-        (r.description || "").toLowerCase().includes(query.toLowerCase());
-      
-      // Zone handling: Mark as out of zone instead of filtering out
-      const outOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
-      
-      // We no longer filter out by zone here, we'll handle it in sorting and UI
-      const matchZone = true; 
-
-      // Deal filter — when user clicks a deal card
-      const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
-
-      // Pickup: filter by city if selected
-      let matchCity = true;
-      if (orderType === "PICKUP" && selectedCity) {
-        matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
-      }
-
-      return matchCuisine && matchQuery && matchZone && matchCity && matchDeal;
-    });
-
-    // Sort: 1) Open Premium, 2) Open, 3) Closed/OutOfZone
-    return list.sort((a, b) => {
-      const aInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(a.id);
-      const bInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(b.id);
-      
-      // Prioritize in-zone
-      if (aInZone !== bInZone) return aInZone ? -1 : 1;
-
-      const aOpen = a.isOpen !== false ? 1 : 0;
-      const bOpen = b.isOpen !== false ? 1 : 0;
-      if (aOpen !== bOpen) return bOpen - aOpen;
-
-      const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
-      const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
-      if (aPremium !== bPremium) return bPremium - aPremium;
-      
-      return a.name.localeCompare(b.name);
-    });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal]);
-
-  const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
-
-  // Build DealFlipCard data array
+  // allDealCards must be defined before filtered (filtered uses it for the 'deals' quick-filter)
   const allDealCards = useMemo<DealCardData[]>(() => {
     const personal: DealCardData[] = personalDeals.map(d => ({
       id: `personal-${d.id}`,
@@ -347,12 +306,55 @@ export default function HomePage() {
         tone: "purple" as const,
         variant: "public" as const,
         relatedRestaurantIds: related,
-        onNavigateToFiltered: (ids, title) => setFilteredByDeal({ ids, title }),
+        onNavigateToFiltered: (ids: string[], title: string) => setFilteredByDeal({ ids, title }),
       };
     });
 
     return [...personal, ...pub];
   }, [deals, personalDeals, restaurants]);
+
+  const filtered = useMemo(() => {
+    const list = restaurants.filter((r) => {
+      const matchCuisine =
+        activeCuisine === "Alla" ||
+        (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
+        (r.tags || []).some((t) => t.toLowerCase().includes(activeCuisine.toLowerCase()));
+      const matchQuery =
+        query.trim().length === 0 ||
+        r.name.toLowerCase().includes(query.toLowerCase()) ||
+        (r.description || "").toLowerCase().includes(query.toLowerCase());
+      const matchDeal = !filteredByDeal || filteredByDeal.ids.includes(r.id);
+      let matchCity = true;
+      if (orderType === "PICKUP" && selectedCity) {
+        matchCity = (r.city || "").toLowerCase() === selectedCity.name.toLowerCase();
+      }
+      return matchCuisine && matchQuery && matchCity && matchDeal;
+    });
+
+    const sorted = list.sort((a, b) => {
+      const aInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(a.id);
+      const bInZone = zoneRestaurantIds === null || !orderType || orderType === "PICKUP" || zoneRestaurantIds.includes(b.id);
+      if (aInZone !== bInZone) return aInZone ? -1 : 1;
+      const aOpen = a.isOpen !== false ? 1 : 0;
+      const bOpen = b.isOpen !== false ? 1 : 0;
+      if (aOpen !== bOpen) return bOpen - aOpen;
+      const aPremium = (a.featuredClass === 1 || a.featuredClass === 2) ? 1 : 0;
+      const bPremium = (b.featuredClass === 1 || b.featuredClass === 2) ? 1 : 0;
+      if (aPremium !== bPremium) return bPremium - aPremium;
+      return a.name.localeCompare(b.name);
+    });
+
+    // Apply quick-filters
+    return sorted.filter((r) => {
+      if (quickFilter === "rated") return (r.rating || 0) >= 4.0;
+      if (quickFilter === "fast") return (r.etaMinutes || 999) < 30;
+      if (quickFilter === "deals") return allDealCards.some(d => d.relatedRestaurantIds?.includes(r.id));
+      if (quickFilter === "free") return !r.deliveryFee || r.deliveryFee === 0;
+      return true;
+    });
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal, quickFilter, allDealCards]);
+
+  const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
   const promoCards = useMemo<PromoCardItem[]>(() => {
     return sponsors.map((sponsor) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
@@ -407,7 +409,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-[#171513] pt-4 pb-32">
+    <div className="min-h-screen pt-4 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="relative mx-auto max-w-6xl px-4 lg:px-10">
         {/* COMPACT HEADER – adresspil i toppen, toggle + sök komprimerad */}
         <header className="mb-6 relative">
@@ -436,10 +438,10 @@ export default function HomePage() {
             className="flex items-center justify-between gap-3 mb-3"
           >
             <div className="min-w-0">
-              <h1 className="text-xl lg:text-2xl font-black tracking-tight leading-none text-white truncate">
+              <h1 className="text-xl lg:text-2xl font-black tracking-tight leading-none truncate" style={{ color: "var(--text-primary)" }}>
                 Vad blir det <span className="text-gold-500 italic">idag?</span>
               </h1>
-              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-600 mt-1">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: "var(--text-secondary)" }}>
                 Hitta snabbt · beställ enkelt
               </p>
             </div>
@@ -461,10 +463,10 @@ export default function HomePage() {
           <Link
             href="/search"
             className="flex items-center gap-2 rounded-2xl px-4 py-2.5 border hover:border-gold-500/50 transition-all group shadow-sm"
-            style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+            style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
           >
-            <Search size={14} className="shrink-0" style={{ color: "#B8AA95" }} />
-            <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "#B8AA95" }}>
+            <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
               Sök restaurang eller maträtt
             </span>
             <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
@@ -487,13 +489,15 @@ export default function HomePage() {
               >
                 <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border transition-all ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(231,178,75,0.2)]"
-                    : "bg-[#211C19] border-[rgba(255,248,234,0.08)] group-hover:border-white/15"
-                }`}>
-                  <span className={`${activeCuisine === c.label ? "" : "grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
+                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(234,181,69,0.2)]"
+                    : "border-[rgba(28,28,30,0.07)] group-hover:border-gold-500/20"
+                }`} style={{ backgroundColor: activeCuisine === c.label ? undefined : "var(--bg-card)", boxShadow: activeCuisine === c.label ? undefined : "var(--card-shadow)" }}>
+                  <span className={`${activeCuisine === c.label ? "" : "opacity-90 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
                 </div>
-                <span className={`text-[9.5px] font-black uppercase tracking-widest ${activeCuisine === c.label ? "text-gold-500" : "text-zinc-500 group-hover:text-zinc-300"}`}>
-                  {c.label === "Alla" ? "Alla" : c.label}
+                <span className={`text-[9.5px] font-bold uppercase tracking-widest ${
+                  activeCuisine === c.label ? "text-gold-500" : "group-hover:text-gold-400"
+                }`} style={{ color: activeCuisine === c.label ? undefined : "var(--text-secondary)" }}>
+                  {c.label}
                 </span>
               </motion.button>
             ))}
@@ -715,19 +719,40 @@ export default function HomePage() {
             </div>
           )}
 
-          <div className="flex items-center justify-between mb-10 px-4">
-            <h2 className="text-xl font-black tracking-[0.2em] uppercase text-zinc-600">
-              {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine} <span className="text-zinc-800 ml-2">/ {filtered.length} st</span>
+          <div className="flex items-center justify-between mb-4 px-1">
+            <h2 className="text-lg font-black tracking-[0.15em] uppercase" style={{ color: "var(--text-secondary)" }}>
+              {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine}{" "}
+              <span className="opacity-40 ml-1">/ {filtered.length} st</span>
             </h2>
+          </div>
+
+          {/* STICKY QUICK-FILTERS – scrollbara chips ovanför listan */}
+          <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 mb-6">
+            {([
+              { key: "all",   label: "Alla",          icon: "📊" },
+              { key: "rated", label: "Betyg 4.0+",     icon: "★" },
+              { key: "fast",  label: "Under 30 min",   icon: "⚡" },
+              { key: "deals", label: "Erbjudanden",    icon: "🎫" },
+              { key: "free",  label: "Fri leverans",   icon: "🚲" },
+            ] as const).map((qf) => (
+              <button
+                key={qf.key}
+                onClick={() => setQuickFilter(qf.key)}
+                className={`quick-filter-chip ${quickFilter === qf.key ? 'active' : ''}`}
+              >
+                <span>{qf.icon}</span>
+                <span>{qf.label}</span>
+              </button>
+            ))}
           </div>
 
           {apiError ? (
             <div className="py-24 text-center">
-              <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto mb-8 border border-rose-500/10">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 border" style={{ backgroundColor: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.15)" }}>
                 <X size={32} className="text-rose-500" />
               </div>
-              <p className="text-2xl font-black uppercase tracking-tight text-white mb-2">Kan inte nå servern</p>
-              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest mb-6">Kontrollera din anslutning och försök igen.</p>
+              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Kan inte nå servern</p>
+              <p className="text-[10px] font-black uppercase tracking-widest mb-6" style={{ color: "var(--text-secondary)" }}>Kontrollera din anslutning och försök igen.</p>
               <button
                 onClick={() => { setApiError(false); setLoading(true); window.location.reload(); }}
                 className="px-8 py-4 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all"
@@ -736,131 +761,132 @@ export default function HomePage() {
               </button>
             </div>
           ) : loading ? (
-            <div className="space-y-6">
-              {/* Extra skeleton elements to avoid the "empty" startup look */}
-              <div className="flex gap-4 overflow-hidden mb-8">
-                {[1, 2, 3].map((i) => (
-                  <div key={`deal-${i}`} className="w-[260px] h-[140px] bg-[#211C19] border border-[rgba(255,248,234,0.03)] rounded-[2rem] animate-pulse shrink-0" />
-                ))}
-              </div>
-              <div className="w-48 h-6 bg-[#211C19] rounded-full animate-pulse mb-4" />
+            <div className="space-y-4">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-44 rounded-[3rem] bg-[#211C19] border border-[rgba(255,248,234,0.03)] animate-pulse shadow-sm flex" >
-                  <div className="w-1/3 h-full bg-[rgba(255,248,234,0.02)] rounded-[3rem]" />
-                  <div className="p-6 flex-1 flex flex-col justify-center gap-3">
-                    <div className="w-2/3 h-6 bg-[rgba(255,248,234,0.03)] rounded m-1" />
-                    <div className="w-1/2 h-4 bg-[rgba(255,248,234,0.02)] rounded m-1" />
-                  </div>
-                </div>
+                <div key={i} className="skeleton h-48 rounded-[2rem]" />
               ))}
             </div>
           ) : filtered.length === 0 ? (
             <div className="py-24 text-center">
-              <div className="w-20 h-20 bg-obsidian/60 rounded-full flex items-center justify-center mx-auto mb-8 border border-white/5">
-                <Search size={32} className="text-zinc-800" />
+              <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                <Search size={32} style={{ color: "var(--text-secondary)" }} />
               </div>
-              <p className="text-2xl font-black uppercase tracking-tight text-white mb-2">Ingen träff</p>
-              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest">Här ekar det tomt just nu.</p>
+              <p className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Ingen träff</p>
+              <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Här ekar det tomt just nu.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-1 xl:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
                   const dimmed = isClosed || isOutOfZone;
                   const injectDeal = (i + 1) % 4 === 0 ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
+                  const activeDeal = getDealForRestaurant(r.id);
+                  const isFav = favorites.has(r.id);
+
+                  const toggleFav = (e: React.MouseEvent) => {
+                    e.preventDefault(); e.stopPropagation();
+                    setFavorites(prev => {
+                      const next = new Set(prev);
+                      if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
+                      localStorage.setItem("platform_favorites", JSON.stringify([...next]));
+                      return next;
+                    });
+                  };
 
                   return (
                     <React.Fragment key={r.id}>
                       <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
-                        whileTap={{ opacity: 0.7, scale: 0.99 }}
-                        className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 25 }}
+                        whileTap={{ scale: 0.99 }}
+                        className={`transition-opacity duration-300 ${dimmed ? "opacity-70" : ""}`}
                       >
                         <Link
                           href={getRestaurantHref(r)}
                           onClick={(e) => handleRestaurantClick(e, r)}
-                          className="group flex flex-col sm:flex-row glass-panel rounded-[3.5rem] p-6 gap-8 hover:border-gold-500/30 hover:bg-white/5 transition-all active:scale-[0.99] border border-white/5 shadow-2xl relative overflow-hidden h-full"
+                          className="group block glass-card rounded-[2rem] overflow-hidden hover:shadow-xl transition-all relative border"
+                          style={{ borderColor: "var(--border-muted)" }}
                         >
-                          {(() => {
-                            const activeDeal = getDealForRestaurant(r.id);
-                            if (activeDeal) {
-                              return (
-                                <div className={`absolute top-0 right-0 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-6 py-2 shadow-2xl z-20 rounded-bl-[2rem]`}>
-                                  <p className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5"><Sparkles size={12}/> {activeDeal.rewardLabel}</p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
+                          {/* DEAL RIBBON */}
+                          {activeDeal && (
+                            <div className={`absolute top-0 right-0 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-5 py-1.5 z-20 rounded-bl-[1.5rem]`}>
+                              <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {activeDeal.rewardLabel}</p>
+                            </div>
+                          )}
 
-                          <div className="w-full sm:w-60 h-52 sm:h-52 shrink-0 rounded-[2.5rem] overflow-hidden relative shadow-inner bg-zinc-900">
+                          {/* IMAGE */}
+                          <div className="h-44 w-full overflow-hidden relative">
                             {r.imageUrl || r.heroImageUrl ? (
-                              <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-110 transition-all duration-700" />
+                              <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
-                              <div className="h-full w-full flex items-center justify-center bg-obsidian text-4xl">🍱</div>
+                              <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍱</div>
                             )}
-                            
-                            {/* Out of Zone / Closed Badge */}
-                            {(isClosed || isOutOfZone) && (
-                              <div className="absolute inset-0 bg-obsidian/85 backdrop-blur-md flex items-center justify-center flex-col gap-2">
-                                {isOutOfZone && (
-                                  <div className="px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 text-[10px] font-black uppercase tracking-widest border border-rose-500/20">
-                                    Utanför zon
-                                  </div>
-                                )}
-                                {isClosed && (
-                                  <div className="px-4 py-2 rounded-xl bg-zinc-900/90 text-zinc-400 text-[10px] font-black uppercase tracking-widest border border-white/5">
-                                    Stängt
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                            {/* gradient overlay */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
-                            <div className="absolute top-4 left-4">
-                              <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-gold-500 font-black italic shadow-xl">
-                                <Star size={12} className="fill-gold-500" />
-                                <span className="text-[10px]">{(r.rating ?? 4.6).toFixed(1)}</span>
+                            {/* Status badge */}
+                            <div className="absolute top-3 left-3">
+                              <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md border ${r.isOpen !== false ? "bg-emerald-500/25 border-emerald-500/30 text-emerald-100" : "bg-zinc-900/80 border-white/10 text-zinc-300"}`}>
+                                <div className={`w-1.5 h-1.5 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-zinc-400"}`} />
+                                {isOutOfZone ? "Ej zon" : r.isOpen !== false ? "Öppet" : "Stängt"}
                               </div>
+                            </div>
+
+                            {/* HEART button */}
+                            <button
+                              onClick={toggleFav}
+                              className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                              style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
+                              aria-label={isFav ? "Ta bort favorit" : "Lägg till favorit"}
+                            >
+                              {isFav
+                                ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                : <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                              }
+                            </button>
+
+                            {/* Restaurant name on image */}
+                            <div className="absolute bottom-3 left-4 right-14">
+                              <h3 className="text-xl font-black text-white uppercase tracking-tight leading-none truncate italic">{r.name}</h3>
+                              <p className="text-[9px] font-bold text-white/70 uppercase tracking-widest mt-1 truncate">{r.cuisine || r.description || "Restaurang"}</p>
                             </div>
                           </div>
 
-                          <div className="flex-1 py-2 flex flex-col min-w-0">
-                            <div className="flex items-start justify-between gap-4 mb-3">
-                              <h3 className="text-3xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tighter leading-none italic">{r.name}</h3>
-                              <button 
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                                className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-zinc-600 hover:text-gold-500 hover:bg-gold-500/10 transition-all active:scale-95 border border-white/5 shrink-0"
-                              >
-                                <Info size={16} />
-                              </button>
+                          {/* CARD FOOTER Metadata */}
+                          <div className="flex items-center justify-between px-4 py-3">
+                            {/* Left: star · eta · fee */}
+                            <div className="flex items-center gap-3 text-[11px] font-semibold flex-wrap" style={{ color: "var(--text-secondary)" }}>
+                              <span className="flex items-center gap-1">
+                                <Star size={11} className="fill-gold-500 text-gold-500" />
+                                <span className="font-black" style={{ color: "var(--text-primary)" }}>{(r.rating ?? 4.5).toFixed(1)}</span>
+                              </span>
+                              <span style={{ color: "var(--border-muted)" }}>•</span>
+                              <span className="flex items-center gap-1">
+                                <Clock size={11} className="text-gold-500/60" />
+                                {(() => { const zi = zoneDeliveryInfo[r.id]; return zi?.etaMinutes ?? r.etaMinutes ?? 30; })()} min
+                              </span>
+                              <span style={{ color: "var(--border-muted)" }}>•</span>
+                              <span className="flex items-center gap-1">
+                                <Bike size={11} className="text-gold-500/60" />
+                                {(() => { const zi = zoneDeliveryInfo[r.id]; const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0); return fee === 0 ? <span className="text-emerald-600 font-black">Fri lev.</span> : `${fee} kr`; })()}
+                              </span>
                             </div>
-                            
-                            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-relaxed mb-auto mt-1 line-clamp-2">{r.description || r.cuisine || "MatGo Selection"}</p>
-                            
-                            <div className="mt-8 border-t border-white/5 pt-6">
-                              {(() => {
-                                const zi = zoneDeliveryInfo[r.id];
-                                const fee    = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
-                                const minOrd = zi ? zi.minOrder    : (r.minOrderAmount ?? 0);
-                                const eta    = zi?.etaMinutes ?? r.etaMinutes ?? 30;
-                                return (
-                                  <div className="flex items-center flex-wrap gap-5 text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                                    <span className="flex items-center gap-2"><Clock size={14} className="text-gold-500/50" /> {eta} MIN</span>
-                                    <span className="flex items-center gap-2"><Bike size={14} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
-                                    <span className="text-zinc-700">MIN {minOrd} KR</span>
-                                    {zi?.zoneName && <span className="bg-gold-500/10 text-gold-600 px-3 py-1 rounded-full text-[8px] border border-gold-500/10 tracking-normal">{zi.zoneName}</span>}
-                                  </div>
-                                );
-                              })()}
-                            </div>
+
+                            {/* Info button */}
+                            <button
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                              className="w-8 h-8 rounded-full flex items-center justify-center transition-all hover:bg-gold-500/10 hover:text-gold-600 border"
+                              style={{ color: "var(--text-secondary)", borderColor: "var(--border-muted)" }}
+                            >
+                              <Info size={14} />
+                            </button>
                           </div>
                         </Link>
                       </motion.div>
 
-                      {/* Option 1: Inline Deal Injection */}
+                      {/* Inline Deal Injection */}
                       {injectDeal && (
                         <div className="flex items-center justify-center w-full" style={{ padding: "0 10px" }}>
                           <DealFlipCard deal={injectDeal} />

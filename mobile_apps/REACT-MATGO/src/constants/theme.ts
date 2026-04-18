@@ -1,19 +1,24 @@
 import { StyleSheet } from 'react-native';
 
+// ── "Silk / Light Luxury" palette ────────────────────────────────────────
+// Ljus, krispig och inbjudande – inspirerad av Uber Eats / Wolt light-mode.
+// Mat ser alltid godare ut mot en vit bakgrund → högre CTR per visning.
 export const palette = {
-  bg: "#171513",
-  panel: "#211C19",
-  panelMuted: "#2A241F",
-  card: "#322A24",
-  border: "rgba(255,248,234,0.10)",
-  text: "#FFF8EA",
-  muted: "#B8AA95",
-  gold: "#EAB545",
+  bg: "#FCFCF9",           // Mjuk off-white – ingen brutal svart
+  panel: "#FFFFFF",        // Rena vita kort / paneler
+  panelMuted: "#F5F5F2",   // Lättare nyans för subtila sektioner
+  card: "#F8F8F5",         // Kortbakgrund
+  border: "rgba(28,28,30,0.07)",   // Minimalistisk ljus kant
+  text: "#1C1C1E",         // Soft Black – WCAG-säker rubrik
+  muted: "#6E6E73",        // Apple-grå för metadata
+  gold: "#EAB545",         // Guld behålls som premium-accent
   goldDark: "#D99500",
   orange: "#F07A13",
-  success: "#34C759",
-  danger: "#FF6B6B",
-  info: "#68B6FF",
+  success: "#34C759",      // Grön ENBART för "ÖPPET"-status
+  danger: "#FF3B30",
+  info: "#007AFF",
+  skeletonBase: "#EAEAEA", // Skeleton-loader bas
+  skeletonHighlight: "#F5F5F5", // Skeleton-loader highlight
 };
 
 export const ui = {
@@ -26,6 +31,14 @@ export const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: palette.bg,
+  },
+  // Light mode shadow helper – ersätter mörk border
+  cardShadow: {
+    shadowColor: "#1C1C1E",
+    shadowOpacity: 0.04,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   appBg: {
     flex: 1,
@@ -511,6 +524,32 @@ export const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
   },
+  // Quick-filter chips (sticky ovanför listan)
+  quickFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: palette.panel,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+    shadowColor: "#1C1C1E",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  quickFilterChipActive: {
+    backgroundColor: palette.gold,
+    borderColor: palette.gold,
+  },
+  quickFilterChipText: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  quickFilterChipTextActive: {
+    color: "#000",
+    fontWeight: "800",
+  },
   chipRow: {
     gap: 10,
     paddingRight: 20,
@@ -522,17 +561,22 @@ export const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 1,
     borderColor: palette.border,
+    shadowColor: "#1C1C1E",
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
   chipActive: {
     backgroundColor: palette.gold,
     borderColor: palette.gold,
   },
   chipText: {
-    color: palette.text,
+    color: palette.muted,
     fontWeight: "700",
   },
   chipTextActive: {
     color: "#000",
+    fontWeight: "800",
   },
   horizontalCards: {
     gap: 12,
@@ -558,11 +602,17 @@ export const styles = StyleSheet.create({
   },
   restaurantCard: {
     backgroundColor: palette.panel,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: palette.border,
     overflow: "hidden",
-    marginBottom: 14,
+    marginBottom: 16,
+    // "Silk" drop shadow
+    shadowColor: "#1C1C1E",
+    shadowOpacity: 0.04,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   restaurantImage: {
     width: "100%",
@@ -605,12 +655,16 @@ export const styles = StyleSheet.create({
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: "#110f16",
+    backgroundColor: palette.panel,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: palette.border,
     paddingVertical: 8,
     flexDirection: "row",
+    shadowColor: "#1C1C1E",
+    shadowOpacity: 0.10,
+    shadowRadius: 18,
+    elevation: 12,
   },
   bottomTab: {
     flex: 1,

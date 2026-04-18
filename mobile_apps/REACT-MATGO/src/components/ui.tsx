@@ -127,6 +127,8 @@ export function RestaurantCard({
   isOutOfZone = false,
   dealText,
   dealTone = "gold",
+  isFavorite,
+  onToggleFavorite,
 }: {
   restaurant: Restaurant;
   onPress: () => void;
@@ -134,105 +136,162 @@ export function RestaurantCard({
   isOutOfZone?: boolean;
   dealText?: string;
   dealTone?: "gold" | "purple" | "orange";
+  isFavorite?: boolean;
+  onToggleFavorite?: () => void;
 }) {
+  // Heart scale animation
+  const heartScale = useRef(new Animated.Value(1)).current;
+
+  const handleHeart = () => {
+    if (!onToggleFavorite) return;
+    Animated.sequence([
+      Animated.timing(heartScale, { toValue: 1.4, duration: 120, useNativeDriver: Platform.OS !== "web" }),
+      Animated.timing(heartScale, { toValue: 0.9, duration: 100, useNativeDriver: Platform.OS !== "web" }),
+      Animated.timing(heartScale, { toValue: 1, duration: 80, useNativeDriver: Platform.OS !== "web" }),
+    ]).start();
+    onToggleFavorite();
+  };
+
   return (
     <ScalePressable
       style={[
         {
           backgroundColor: palette.panel,
-          borderRadius: 32,
+          borderRadius: 28,
           overflow: "hidden",
-          marginBottom: 20,
+          marginBottom: 16,
           borderWidth: 1,
-          borderColor: "rgba(255,248,234,0.08)",
+          borderColor: palette.border,
+          shadowColor: "#1C1C1E",
+          shadowOpacity: 0.05,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 6 },
+          elevation: 3,
         },
         containerStyle,
       ]}
       onPress={onPress}
     >
-      <View style={{ height: 200, width: "100%" }}>
+      {/* IMAGE */}
+      <View style={{ height: 195, width: "100%" }}>
         {!!restaurant.imageUrl && (
           <Image
             source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }}
             style={{ width: "100%", height: "100%" }}
+            resizeMode="cover"
           />
         )}
+        {/* Subtle gradient over image for text legibility */}
         <LinearGradient
-          colors={["transparent", "rgba(23,21,19,0.94)"]}
-          style={{ ...StyleSheet.absoluteFillObject }}
+          colors={["transparent", "rgba(0,0,0,0.50)"]}
+          style={StyleSheet.absoluteFillObject}
         />
-        
+
+        {/* DEAL RIBBON – LEFT */}
         {dealText && (
-          <View style={{ 
-            position: "absolute", top: 16, left: 0, 
-            backgroundColor: dealTone === "purple" ? "#a855f7" : dealTone === "orange" ? "#fb923c" : palette.gold, 
-            paddingHorizontal: 16, paddingVertical: 6, 
-            borderTopRightRadius: 12, borderBottomRightRadius: 12, 
-            elevation: 5, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, 
-            zIndex: 10 
+          <View style={{
+            position: "absolute", top: 14, left: 0,
+            backgroundColor: dealTone === "purple" ? "#a855f7" : dealTone === "orange" ? "#fb923c" : palette.gold,
+            paddingHorizontal: 14, paddingVertical: 5,
+            borderTopRightRadius: 10, borderBottomRightRadius: 10,
+            elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 4,
+            zIndex: 10,
           }}>
-             <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", letterSpacing: 1, textTransform: "uppercase" }}>✨ {dealText}</Text>
+            <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", letterSpacing: 0.8, textTransform: "uppercase" }}>
+              ✨ {dealText}
+            </Text>
           </View>
         )}
 
-        <View style={{ position: "absolute", top: 16, right: 16 }}>
-          <View style={{ 
-            backgroundColor: "rgba(23,21,19,0.72)", 
-            paddingHorizontal: 10, 
-            paddingVertical: 6, 
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: "rgba(255,248,234,0.08)",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 4
-          }}>
-            <Ionicons name="star" size={12} color={palette.gold} />
-            <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900" }}>
-              {restaurant.rating?.toFixed(1) || "4.5"}
-            </Text>
-          </View>
-        </View>
+        {/* HEART – top-right, large hitSlop */}
+        {onToggleFavorite && (
+          <Pressable
+            onPress={handleHeart}
+            hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}
+            style={{ position: "absolute", top: 12, right: 12, zIndex: 20 }}
+          >
+            <Animated.View style={{
+              transform: [{ scale: heartScale }],
+              width: 36, height: 36, borderRadius: 18,
+              backgroundColor: "rgba(255,255,255,0.92)",
+              alignItems: "center", justifyContent: "center",
+              shadowColor: "#000", shadowOpacity: 0.12, shadowRadius: 8, elevation: 4,
+            }}>
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={18}
+                color={isFavorite ? "#FF3B30" : "#8E8E93"}
+              />
+            </Animated.View>
+          </Pressable>
+        )}
 
-        <View style={{ position: "absolute", bottom: 16, left: 16, right: 16 }}>
-          <Text style={{ color: palette.text, fontSize: 24, fontWeight: "900", textTransform: "uppercase", fontStyle: "italic" }}>
+        {/* Restaurant name + cuisine overlaid on image */}
+        <View style={{ position: "absolute", bottom: 14, left: 16, right: 52 }}>
+          <Text numberOfLines={1} style={{ color: "#FFFFFF", fontSize: 22, fontWeight: "900", textTransform: "uppercase", fontStyle: "italic", letterSpacing: -0.4 }}>
             {restaurant.name}
           </Text>
-          <Text style={{ color: "rgba(255,248,234,0.72)", fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1, marginTop: 4 }}>
+          <Text numberOfLines={1} style={{ color: "rgba(255,255,255,0.72)", fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.2, marginTop: 2 }}>
             {restaurant.cuisine || "Restaurang"}
           </Text>
         </View>
       </View>
 
-      <View style={{ padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <View style={{ flexDirection: "row", gap: 16 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="time-outline" size={14} color={palette.gold} />
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "800" }}>
-              {Math.round(restaurant.etaMinutes || 30)} MIN
+      {/* CARD FOOTER – Metadata */}
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        {/* Left: star · eta · fee */}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons name="star" size={12} color={palette.gold} />
+            <Text style={{ color: palette.text, fontSize: 13, fontWeight: "800" }}>
+              {restaurant.rating?.toFixed(1) || "4.5"}
             </Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "800" }}>
-              {Math.round(restaurant.deliveryFee || 0)} KR
+          <Text style={{ color: palette.muted, fontSize: 12 }}>•</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Ionicons name="time-outline" size={12} color={palette.muted} />
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
+              {Math.round(restaurant.etaMinutes || 30)} min
             </Text>
           </View>
+          {!!restaurant.deliveryFee && restaurant.deliveryFee > 0 && (
+            <>
+              <Text style={{ color: palette.muted, fontSize: 12 }}>•</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Ionicons name="bicycle-outline" size={12} color={palette.muted} />
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
+                  {Math.round(restaurant.deliveryFee)} kr
+                </Text>
+              </View>
+            </>
+          )}
+          {(!restaurant.deliveryFee || restaurant.deliveryFee === 0) && (
+            <>
+              <Text style={{ color: palette.muted, fontSize: 12 }}>•</Text>
+              <Text style={{ color: palette.success, fontSize: 12, fontWeight: "800" }}>Fri leverans</Text>
+            </>
+          )}
         </View>
-        
+
+        {/* Right: OPEN badge */}
         <View style={{
-          paddingHorizontal: 10,
-          paddingVertical: 5,
-          borderRadius: 8,
-          backgroundColor: isOutOfZone || restaurant.isOpen === false ? "rgba(255,59,48,0.1)" : "rgba(52,199,89,0.1)",
+          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+          backgroundColor: isOutOfZone || restaurant.isOpen === false
+            ? "rgba(255,59,48,0.10)"
+            : "rgba(52,199,89,0.12)",
         }}>
-          <Text style={{
-            color: isOutOfZone || restaurant.isOpen === false ? palette.danger : palette.success,
-            fontSize: 10,
-            fontWeight: "900"
-          }}>
-            {isOutOfZone ? "UTANFÖR ZON" : restaurant.isOpen === false ? "STÄNGD" : "ÖPPEN"}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <View style={{
+              width: 6, height: 6, borderRadius: 3,
+              backgroundColor: isOutOfZone || restaurant.isOpen === false ? palette.danger : palette.success,
+            }} />
+            <Text style={{
+              color: isOutOfZone || restaurant.isOpen === false ? palette.danger : palette.success,
+              fontSize: 10, fontWeight: "900",
+            }}>
+              {isOutOfZone ? "Ej zon" : restaurant.isOpen === false ? "Stängt" : "Öppet"}
+            </Text>
+          </View>
         </View>
       </View>
     </ScalePressable>
