@@ -153,7 +153,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         {product.imageUrl && (
         <div className="relative h-56 sm:h-64 shrink-0">
            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-           <div className="absolute inset-0 bg-gradient-to-t from-[#1c1c1f] via-[#1c1c1f]/50 to-transparent" />
+           <div className="absolute inset-0 bg-gradient-to-t" style={{ background: "linear-gradient(to top, var(--bg-secondary), rgba(252,252,249,0.4), transparent)" }} />
         </div>
         )}
 
@@ -164,8 +164,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
                  <Sparkles size={12} /> Specialité
               </div>
-              <h2 className="text-3xl sm:text-4xl font-black text-white uppercase italic tracking-tight leading-none mb-4">{product.name}</h2>
-              <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4">{product.description || "Ingen beskrivning tillgänglig."}</p>
+              <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-none mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
+              <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || "Ingen beskrivning tillgänglig."}</p>
            </div>
 
            {/* Extra Groups */}
