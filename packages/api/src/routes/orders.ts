@@ -14,6 +14,7 @@ import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
+import supabaseAdmin from '../lib/supabase';
 
 const router = Router();
 
@@ -127,22 +128,62 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     // 0. Check for auth user to link account
+    // Supports both Supabase JWTs (primary) and legacy custom JWTs (fallback)
     let authenticatedUserId: string | null = null;
     let authUser: any = null;
     const authHeader = req.headers.authorization;
     if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+
+      // ── 1. Try Supabase JWT ─────────────────────────────────────────────
       try {
-        const token = authHeader.split(' ')[1];
-        const payload = jwt.verify(token, JWT_SECRET) as any;
-        authUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
-        if (authUser) {
-          authenticatedUserId = authUser.id;
-          // Force use official profile phone to prevent discount abuse
-          data.customerPhone = authUser.phone;
-          // Note: allergens from authUser will be used below
+        const { data: { user: sbUser }, error } = await supabaseAdmin.auth.getUser(token);
+        if (!error && sbUser) {
+          // Ensure a corresponding row exists in the local User table
+          authUser = await (prisma as any).user.upsert({
+            where: { id: sbUser.id },
+            update: {
+              email: sbUser.email || undefined,
+              name: sbUser.user_metadata?.name || sbUser.user_metadata?.full_name || undefined,
+              image: sbUser.user_metadata?.avatar_url || sbUser.user_metadata?.picture || undefined,
+              phone: sbUser.phone || undefined,
+              isVerified: !!sbUser.phone_confirmed_at || !!sbUser.email_confirmed_at || undefined,
+            },
+            create: {
+              id: sbUser.id,
+              email: sbUser.email ?? null,
+              name: sbUser.user_metadata?.name ?? sbUser.user_metadata?.full_name ?? 'Användare',
+              image: sbUser.user_metadata?.avatar_url ?? sbUser.user_metadata?.picture ?? null,
+              phone: sbUser.phone ?? null,
+              oauthProvider: sbUser.app_metadata?.provider ?? null,
+              oauthId: sbUser.id,
+              isVerified: !!sbUser.phone_confirmed_at || !!sbUser.email_confirmed_at,
+            },
+          }).catch(() => null);
+
+          if (authUser) {
+            authenticatedUserId = authUser.id;
+            // Force use official profile phone to prevent discount abuse
+            if (authUser.phone) data.customerPhone = authUser.phone;
+          }
         }
-      } catch (e) {
-        // Token invalid, proceed as guest
+      } catch (_sbErr) {
+        // Not a Supabase JWT — try legacy
+      }
+
+      // ── 2. Fall back to legacy custom JWT ──────────────────────────────
+      if (!authenticatedUserId) {
+        try {
+          const payload = jwt.verify(token, JWT_SECRET) as any;
+          authUser = await (prisma as any).user.findUnique({ where: { id: payload.id } });
+          if (authUser) {
+            authenticatedUserId = authUser.id;
+            // Force use official profile phone to prevent discount abuse
+            if (authUser.phone) data.customerPhone = authUser.phone;
+          }
+        } catch (_jwtErr) {
+          // Token invalid, proceed as guest
+        }
       }
     }
 
