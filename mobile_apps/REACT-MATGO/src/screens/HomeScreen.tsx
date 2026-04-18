@@ -428,7 +428,7 @@ export default function HomeScreen({
 
   const left = toggleAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["2%", "50%"],
+    outputRange: ["1.5%", "49%"],
   });
 
   // No full-page loader — render UI shell immediately, data fills in
@@ -443,66 +443,66 @@ export default function HomeScreen({
             zoneStatus={orderType === 'DELIVERY' ? (zoneError ? 'error' : coords ? 'ok' : null) : null}
           />
 
-          {/* Kompakt greeting + toggle */}
-          <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ color: palette.text, fontSize: 20, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
-                Vad blir det <Text style={{ color: palette.gold }}>idag?</Text>
-              </Text>
-              <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 4 }}>
-                HITTA SNABBT · BESTÄLL ENKELT
-              </Text>
-            </View>
+          {/* Greeting */}
+          <View style={{ marginTop: 8 }}>
+            <Text numberOfLines={1} style={{ color: palette.text, fontSize: 22, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
+              Vad blir det <Text style={{ color: palette.gold }}>idag?</Text>
+            </Text>
+            <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 2 }}>
+              HITTA SNABBT · BESTÄLL ENKELT
+            </Text>
+          </View>
 
-            <View
+          {/* Stor toggle för Leverans / Hämtning på en egen rad */}
+          <View
+            style={{
+              marginTop: 12,
+              backgroundColor: palette.panel,
+              borderWidth: 1,
+              borderColor: palette.border,
+              borderRadius: 999,
+              padding: 4,
+              flexDirection: "row",
+              position: "relative",
+              height: 48,
+            }}
+          >
+            <Animated.View
               style={{
-                backgroundColor: palette.panel,
-                borderWidth: 1,
-                borderColor: palette.border,
+                position: "absolute",
+                top: 4,
+                bottom: 4,
+                left: left,
+                width: "50%",
+                backgroundColor: palette.gold,
                 borderRadius: 999,
-                padding: 3,
-                flexDirection: "row",
-                position: "relative",
-                height: 36,
               }}
-            >
-              <Animated.View
-                style={{
-                  position: "absolute",
-                  top: 3,
-                  bottom: 3,
-                  left: left,
-                  width: "50%",
-                  backgroundColor: palette.gold,
-                  borderRadius: 999,
-                }}
-              />
-              {(
-                [
-                  { key: "DELIVERY", label: "LEVERANS", icon: "bicycle-outline" },
-                  { key: "PICKUP", label: "HÄMTNING", icon: "storefront-outline" },
-                ] as const
-              ).map((item) => {
-                const active = orderType === item.key;
-                return (
-                  <Pressable
-                    key={item.key}
-                    onPress={() => setOrderType(item.key)}
-                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 14, zIndex: 2 }}
-                  >
-                    <Ionicons name={item.icon} size={12} color={active ? "#000" : palette.muted} />
-                    <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 10, letterSpacing: 1 }}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            />
+            {(
+              [
+                { key: "DELIVERY", label: "LEVERANS", icon: "bicycle-outline" },
+                { key: "PICKUP", label: "HÄMTNING", icon: "storefront-outline" },
+              ] as const
+            ).map((item) => {
+              const active = orderType === item.key;
+              return (
+                <Pressable
+                  key={item.key}
+                  onPress={() => setOrderType(item.key)}
+                  style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, zIndex: 2 }}
+                >
+                  <Ionicons name={item.icon} size={16} color={active ? "#000" : palette.muted} />
+                  <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 12, letterSpacing: 1.5 }}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
 
           {/* Pickup: city dropdown compact */}
           {orderType === "PICKUP" && (
-            <View style={{ marginTop: 10 }}>
+            <View style={{ marginTop: 8 }}>
               <ScalePressable
                 onPress={() => setCityDropdownOpen(!cityDropdownOpen)}
                 style={{
@@ -549,7 +549,7 @@ export default function HomeScreen({
           <ScalePressable
             onPress={() => openTab("discover")}
             style={{
-              marginTop: 10,
+              marginTop: 8,
               flexDirection: "row",
               alignItems: "center",
               gap: 10,
@@ -581,7 +581,7 @@ export default function HomeScreen({
         </View>
 
         {/* Categories / Cuisine filters (Flyttad högst upp likt Foodora/UberEats) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 8, marginTop: 14 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 4, marginTop: 8 }}>
           {cuisineFilters.map((filter) => {
             const active = activeCuisine === filter.name;
             return (
