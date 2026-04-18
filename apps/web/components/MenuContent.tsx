@@ -216,7 +216,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="w-12 h-12 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center">
           <Loader2 className="animate-spin text-gold-500" size={24} />
         </div>
@@ -227,12 +227,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
   if (error || (!restaurant && !loading)) {
     return (
-      <div className="min-h-screen bg-obsidian flex flex-col items-center justify-center p-6 text-center">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] border border-rose-500/20 flex items-center justify-center mb-8">
           <X size={40} className="text-rose-500" />
         </div>
-        <h2 className="text-2xl font-black uppercase italic tracking-tight text-white mb-2">Ett fel uppstod</h2>
-        <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mb-10 max-w-sm">{error || "Restaurangen hittades inte"}</p>
+        <h2 className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>Ett fel uppstod</h2>
+        <p className="text-xs font-bold uppercase tracking-widest mb-10 max-w-sm" style={{ color: "var(--text-secondary)" }}>{error || "Restaurangen hittades inte"}</p>
         <Link href="/" className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-xs shadow-xl active:scale-95 transition-all">Gå Hem</Link>
       </div>
     );
@@ -241,30 +241,32 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "#171513" }}>
+  return (
+    <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* Dynamic Cover Image with Parallax-ish feel */}
       <div className="relative w-full h-[50vh] overflow-hidden">
         {heroImage ? (
            <img src={heroImage} alt={restaurant?.name} className="w-full h-full object-cover scale-105" />
         ) : (
-           <div className="w-full h-full bg-gradient-to-b from-zinc-900 to-obsidian" />
+           <div className="w-full h-full bg-gradient-to-b" style={{ backgroundImage: "linear-gradient(to bottom, var(--bg-deep), var(--bg-primary))" }} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-obsidian/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(252,252,249,1)] via-[rgba(252,252,249,0.4)] to-transparent" />
         
         {/* Glass Back Button */}
         <Link
           href="/"
-          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100 active:scale-95"
+          className="absolute top-8 left-6 glass-panel px-5 py-3 rounded-2xl flex items-center gap-2 group transition-all opacity-90 hover:opacity-100 active:scale-95 shadow-sm"
+          style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
         >
           <ChevronLeft size={16} className="text-gold-500 group-hover:-translate-x-1 transition-transform" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-white">Tillbaka</span>
+          <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>Tillbaka</span>
         </Link>
 
         {/* Header Content in Overlap */}
         <div className="absolute bottom-10 left-0 w-full px-6 lg:px-12 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
               <div className="flex items-center gap-4 mb-3">
-                 <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] text-white italic">
+               <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] italic" style={{ color: "var(--text-primary)" }}>
                     {restaurant.name.split(" ")[0]}{" "}
                     <span className="text-gold-gradient">{restaurant.name.split(" ").slice(1).join(" ")}</span>
                  </h1>
@@ -274,17 +276,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                  </div>
               </div>
         <div className="flex items-center gap-5 flex-wrap">
-           <p className="text-[10px] font-black uppercase italic tracking-widest text-white/40">{restaurant.cuisine || "Restaurang"}</p>
+           <p className="text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || "Restaurang"}</p>
                  <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[11px]">
                     <Star size={12} className="fill-gold-500" />
                     {(restaurant.rating || 4.6).toFixed(1)}
-                    <span className="text-white/20 font-black ml-1">({restaurant.ratingCount || 120})</span>
+                    <span className="font-black ml-1" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>({restaurant.ratingCount || 120})</span>
                  </div>
               </div>
            </motion.div>
 
 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
-               <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-3 hover:bg-white/5 shadow-xl transition-all">
+               <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-sm hover:bg-gold-500/5 transition-all" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>
                   <Info size={16} className="text-gold-500/60" /> Info
                </motion.button>
                {restaurant.phone && (
@@ -346,39 +348,39 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Avgift</div>
-               <div className="text-sm font-black text-white italic uppercase tracking-tighter">
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Avgift</div>
+               <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>
                  {(zoneAvailable === false && restaurant?.isOpen)
                    ? "–"
                    : (restaurant.deliveryFee === 0 ? "GRATIS" : `${restaurant.deliveryFee} KR`)}
                </div>
            </div>
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Clock size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Väntetid</div>
-              <div className="text-sm font-black text-white italic uppercase tracking-tighter">~{restaurant.etaMinutes} MIN</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Väntetid</div>
+              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>~{restaurant.etaMinutes} MIN</div>
            </div>
-           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+           <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Store size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
-              <div className="text-[8px] font-black uppercase tracking-[0.3em] text-zinc-600">Minsta Order</div>
-              <div className="text-sm font-black text-white italic uppercase tracking-tighter">{restaurant.minOrderAmount} KR</div>
+              <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Minsta Order</div>
+              <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} KR</div>
            </div>
         </div>
 
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-6 z-40 mb-16">
-           <div className="rounded-[2.5rem] p-2 flex items-center gap-3 shadow-2xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+           <div className="rounded-[2.5rem] p-2 flex items-center gap-3 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
               <div className="relative flex-1 group">
-                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "#B8AA95" }} />
+                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
                  <input 
                     type="text" 
                     placeholder="Vad är du sugen på?" 
                     value={searchTerm} 
                     onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold text-white focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-800"
-                    style={{ backgroundColor: "#171513" }}
+                    className="w-full border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
+                    style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
                  />
               </div>
 <div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
@@ -431,8 +433,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                       }
                     }}
                     whileTap={{ scale: 0.95 }}
-                    className="shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all cursor-pointer"
-                    style={{ backgroundColor: "#211C19", border: "1px solid rgba(231,178,75,0.2)" }}
+                    className="shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all cursor-pointer shadow-sm"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(231,178,75,0.2)" }}
                   >
                     {p.imageUrl && (
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
@@ -440,7 +442,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-black text-white uppercase italic truncate leading-none mb-1">{p.name}</h4>
+                      <h4 className="text-xs font-black uppercase italic truncate leading-none mb-1" style={{ color: "var(--text-primary)" }}>{p.name}</h4>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-black text-zinc-500 line-through">{p.price} KR</span>
                         <span className="text-[11px] font-black text-gold-500">{p.discountPrice || p.price - (p.price * (p.discountPercent || 0) / 100)} KR</span>
@@ -477,10 +479,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                  transition={{ delay: catIdx * 0.1 }}
               >
                  <div className="flex items-center justify-between mb-10 px-4">
-                    <h2 className="text-3xl font-black tracking-tight text-white uppercase italic leading-none truncate max-w-[200px] lg:max-w-none">
+                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-none truncate max-w-[200px] lg:max-w-none" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                     </h2>
-                    <div className="h-px bg-white/5 flex-1 mx-8 hidden lg:block" />
+                    <div className="h-px bg-zinc-200 flex-1 mx-8 hidden lg:block" />
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
@@ -502,7 +504,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                               }
                            }}
                            whileTap={{ scale: 0.99 }} className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
-                           style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+                           style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
                        >
                           {p.imageUrl && (
                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "#171513" }}>
@@ -512,7 +514,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                           )}
                           <div className="flex-1 min-w-0 py-2">
 <div className="flex items-start justify-between gap-4 mb-2">
-                                 <h3 className="text-base font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none">{p.name}</h3>
+                                 <h3 className="text-base font-black group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none" style={{ color: "var(--text-primary)" }}>{p.name}</h3>
                                  {p.discountActive ? (
                                    <div className="flex flex-col items-end">
                                      <span className="text-[9px] font-black text-zinc-600 line-through">{p.price} KR</span>
@@ -522,7 +524,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                                    <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
                                  )}
                               </div>
-                             <p className="text-zinc-600 text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4">{p.description}</p>
+                             <p className="text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4" style={{ color: "var(--text-secondary)" }}>{p.description}</p>
                              
                              <div className="flex items-center gap-1.5 opacity-40">
                                 {p.isVegan && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}

@@ -142,8 +142,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-950/80 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
-      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.4 }} className="w-full max-w-2xl bg-[#1c1c1f] sm:rounded-2xl rounded-t-3xl border border-white/5 overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-950/20 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
+      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.4 }} className="w-full max-w-2xl bg-white sm:rounded-2xl rounded-t-3xl border border-zinc-200 overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
         
         <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all z-20">
            <X size={20} />
@@ -236,11 +236,11 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         </div>
 
         {/* Footer sticky block */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 sm:p-10 bg-zinc-950/80 backdrop-blur-3xl border-t border-white/5 flex flex-col sm:flex-row items-center gap-6">
-           <div className="flex items-center gap-8 glass-panel p-2 px-8 rounded-[2rem]">
-              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-500 hover:text-white transition-colors active:scale-75"><Minus size={22} /></button>
-              <span className="text-2xl font-black text-white w-8 text-center italic">{quantity}</span>
-              <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-500 hover:text-white transition-colors active:scale-75"><Plus size={22} /></button>
+        <div className="absolute bottom-0 left-0 right-0 p-8 sm:p-10 bg-white/90 backdrop-blur-3xl border-t flex flex-col sm:flex-row items-center gap-6" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--border-muted)" }}>
+           <div className="flex items-center gap-8 glass-panel p-2 px-8 rounded-[2rem]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+              <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Minus size={22} /></button>
+              <span className="text-2xl font-black w-8 text-center italic" style={{ color: "var(--text-primary)" }}>{quantity}</span>
+              <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Plus size={22} /></button>
            </div>
            
            <button onClick={handleAddToCart} className="w-full py-6 px-10 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group">

@@ -183,29 +183,29 @@ export default function AddressModal({
           <motion.div
             initial={{ scale: 0.96, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 30 }}
             className="w-full max-w-md rounded-[2rem] p-6 shadow-2xl relative"
-            style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.10)" }}
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
               <div>
                 <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gold-600 mb-1">Innan du beställer</p>
-                <h2 className="text-xl font-black uppercase tracking-tight" style={{ color: "#FFF8EA" }}>
-                  {orderType === "DELIVERY" ? "Din leveransadress" : "Välj stad"}
+                <h2 className="text-xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
+                   {orderType === "DELIVERY" ? "Din leveransadress" : "Välj stad"}
                 </h2>
               </div>
-              <button onClick={onClose} className="p-2 rounded-full transition-colors" style={{ backgroundColor: "#2A241F", color: "#B8AA95" }}>
+              <button onClick={onClose} className="p-2 rounded-full transition-colors hover:bg-zinc-100" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
                 <X size={17} />
               </button>
             </div>
 
             {/* Toggle */}
-            <div className="flex gap-2 mb-5 p-1 rounded-xl border" style={{ backgroundColor: "#2A241F", borderColor: "rgba(255,248,234,0.08)" }}>
+            <div className="flex gap-2 mb-5 p-1 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
               {(["DELIVERY", "PICKUP"] as const).map(type => (
                 <button key={type} onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                    orderType === type ? "bg-gold-500 text-black shadow-lg shadow-gold-500/20" : ""
+                    orderType === type ? "bg-white text-black shadow-sm" : ""
                   }`}
-                  style={{ color: orderType === type ? "#000" : "#B8AA95" }}
+                  style={{ color: orderType === type ? "#000" : "var(--text-secondary)" }}
                 >
                   {type === "DELIVERY" ? <Truck size={13} /> : <Store size={13} />}
                   {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
@@ -236,7 +236,7 @@ export default function AddressModal({
                     onKeyDown={e => e.key === "Enter" && predictions.length === 0 && handleSubmit()}
                     placeholder="Gatuadress, postnummer…"
                     className="w-full bg-transparent text-sm font-bold focus:outline-none"
-                    style={{ color: "#FFF8EA" }}
+                    style={{ color: "var(--text-primary)" }}
                     autoFocus
                   />
                   {loading && <Loader2 size={15} className="animate-spin text-gold-500 shrink-0" />}
@@ -259,15 +259,15 @@ export default function AddressModal({
                   {predictions.length > 0 && (
                     <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
                       className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-hidden z-[210] shadow-2xl"
-                      style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)" }}>
+                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                       {predictions.map(pred => (
                         <button key={pred.place_id} onClick={() => handleSelect(pred)}
                           className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none"
                           style={{ borderColor: "rgba(255,248,234,0.05)" }}>
                           <MapPin size={13} className="text-gold-500 mt-0.5 shrink-0" />
                           <div>
-                            <span className="text-[11px] font-bold block" style={{ color: "#FFF8EA" }}>{pred.description.split(",")[0]}</span>
-                            <span className="text-[10px]" style={{ color: "#B8AA95" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
+                            <span className="text-[11px] font-bold block" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
+                            <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
                           </div>
                         </button>
                       ))}
@@ -296,20 +296,20 @@ export default function AddressModal({
                       <button key={city.id} onClick={() => { setSelectedCity(city); setError(null); }}
                         className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all text-left"
                         style={{
-                          backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.1)" : "#2A241F",
-                          borderColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.4)" : "rgba(255,248,234,0.08)",
+                          backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.05)" : "var(--bg-deep)",
+                          borderColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.4)" : "var(--border-muted)",
                         }}>
                         <div className="w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0"
-                          style={{ borderColor: selectedCity?.id === city.id ? "#EAB545" : "#B8AA95", backgroundColor: selectedCity?.id === city.id ? "#EAB545" : "transparent" }}>
+                          style={{ borderColor: selectedCity?.id === city.id ? "#EAB545" : "var(--border-muted)", backgroundColor: selectedCity?.id === city.id ? "#EAB545" : "transparent" }}>
                           {selectedCity?.id === city.id && <div className="w-1.5 h-1.5 rounded-full bg-black" />}
                         </div>
                         <div className="flex-1">
-                          <span className="text-sm font-black" style={{ color: selectedCity?.id === city.id ? "#EAB545" : "#FFF8EA" }}>{city.name}</span>
-                          <span className="text-[9px] font-bold uppercase tracking-wide block mt-0.5" style={{ color: "#B8AA95" }}>
+                          <span className="text-sm font-black" style={{ color: selectedCity?.id === city.id ? "#EAB545" : "var(--text-primary)" }}>{city.name}</span>
+                          <span className="text-[9px] font-bold uppercase tracking-wide block mt-0.5" style={{ color: "var(--text-secondary)" }}>
                             {city.deliveryMode === "ALL" ? "Leverans & avhämtning" : "Endast avhämtning"}
                           </span>
                         </div>
-                        <ChevronRight size={14} className={selectedCity?.id === city.id ? "text-gold-500" : ""} style={{ color: selectedCity?.id === city.id ? "#EAB545" : "#B8AA95" }} />
+                        <ChevronRight size={14} className={selectedCity?.id === city.id ? "text-gold-500" : ""} style={{ color: selectedCity?.id === city.id ? "#EAB545" : "var(--text-secondary)" }} />
                       </button>
                     ))}
                   </div>
@@ -342,7 +342,7 @@ export default function AddressModal({
               </div>
             )}
 
-            <p className="text-[9px] font-bold mb-5" style={{ color: "#B8AA95" }}>
+            <p className="text-[9px] font-bold mb-5" style={{ color: "var(--text-secondary)" }}>
               {orderType === "DELIVERY"
                 ? "Vi visar restauranger som levererar till din adress."
                 : "Vi visar restauranger med avhämtning i vald stad."}

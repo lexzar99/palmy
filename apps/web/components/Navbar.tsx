@@ -63,43 +63,43 @@ const Navbar = () => {
 
   const statusClass =
     restaurantOpen === null
-      ? "bg-white/10 text-white/50 border border-white/10"
+      ? "bg-zinc-100 text-zinc-400 border border-zinc-200"
       : restaurantOpen
-        ? "bg-green-500/10 text-green-300 border border-green-500/20"
-        : "bg-red-500/10 text-red-300 border border-red-500/20";
+        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+        : "bg-rose-500/10 text-rose-600 border border-rose-500/20";
 
   const statusLabel =
     restaurantOpen === null ? "STATUS" : restaurantOpen ? "ÖPPET" : "STÄNGT";
 
   if (!mounted) return (
-    <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "#0d0d0d", borderBottom: "1px solid rgba(255,255,255,0.06)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
+    <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
           <img src="/logo.png" alt="MatGo Logo" className="w-10 h-10" />
-          <span className="text-xl font-black text-white">MATGO</span>
+          <span className="text-xl font-black" style={{ color: "var(--text-primary)" }}>MATGO</span>
        </div>
     </nav>
   );
   return (
-    <nav className={`fixed top-0 left-0 right-0 border-b border-white/5 transition-all duration-300 ${isOpen ? 'z-[200] bg-dark-500' : 'z-[100] bg-[#0d0d0d]/95 backdrop-blur-md'}`}>
+    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200] bg-white' : 'z-[100] bg-white/95 backdrop-blur-md'}`} style={{ borderColor: "var(--border-muted)" }}>
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-12 h-12 flex-shrink-0">
             <img src="/logo.png" alt="MatGo Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
           </div>
           <div className="flex flex-col -gap-1">
-            <span className="text-xl font-black tracking-tighter text-white leading-none">
+            <span className="text-xl font-black tracking-tighter leading-none" style={{ color: "var(--text-primary)" }}>
               MATGO
             </span>
           </div>
         </Link>
         
         {/* Desktops links... */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium text-white/60 uppercase tracking-widest">
+        <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
           <Link href="/" className="hover:text-gold-500 transition-colors">Hem</Link>
           <Link href="/menu" className="hover:text-gold-500 transition-colors">Meny</Link>
           <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
-          <Link href="/history" className="hover:text-gold-500 transition-colors border-l border-white/10 pl-8">Mina Beställningar</Link>
+          <Link href="/history" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina Beställningar</Link>
           <div className={`rounded-full px-3 py-1 text-[10px] font-black tracking-[0.25em] ${statusClass}`}>
             {statusLabel}
           </div>
@@ -108,21 +108,21 @@ const Navbar = () => {
         <div className="flex items-center gap-4 relative z-[100]">
           <button 
             onClick={toggleTheme}
-            className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors"
+            className="p-2 bg-zinc-100 rounded-full hover:bg-zinc-200 transition-colors"
           >
             {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
           </button>
 
           <Link 
             href="/cart" 
-            className="relative p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors group"
+            className="relative p-2 bg-zinc-100 rounded-full hover:bg-zinc-200 transition-colors group"
           >
-            <ShoppingCart size={20} className="text-gold-500 group-hover:scale-110 transition-transform" />
+            <ShoppingCart size={20} className="text-gold-600 group-hover:scale-110 transition-transform" />
             {itemCount > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-dark-500 text-[10px] font-bold rounded-full flex items-center justify-center"
+                className="absolute -top-1 -right-1 w-5 h-5 bg-gold-500 text-zinc-950 text-[10px] font-bold rounded-full flex items-center justify-center"
               >
                 {itemCount}
               </motion.span>
@@ -131,7 +131,7 @@ const Navbar = () => {
           <button 
             type="button" 
             onClick={() => setIsOpen(!isOpen)} 
-            className="md:hidden p-3 -mr-2 text-white bg-white/5 rounded-xl hover:bg-white/10 active:scale-95 transition-all select-none touch-manipulation"
+            className="md:hidden p-3 -mr-2 bg-zinc-100 rounded-xl hover:bg-zinc-200 active:scale-95 transition-all select-none touch-manipulation" style={{ color: "var(--text-primary)" }}
             aria-label="Toggle Menu"
           >
             {isOpen ? <X size={26} /> : <Menu size={26} />}
@@ -141,12 +141,12 @@ const Navbar = () => {
 
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
-        {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[190] md:hidden bg-[#0d0d0d] flex flex-col pt-24 pb-12 px-6 overflow-y-auto"
+            className="fixed inset-0 z-[190] md:hidden bg-white flex flex-col pt-24 pb-12 px-6 overflow-y-auto"
+            style={{ backgroundColor: "var(--bg-primary)" }}
           >
 
             {/* Close button for full screen menu */}
@@ -179,7 +179,7 @@ const Navbar = () => {
                   <Link 
                     href={link.href} 
                     onClick={() => setIsOpen(false)} 
-                    className="text-4xl font-black uppercase tracking-tight text-white hover:text-gold-500 active:text-gold-500 transition-colors"
+                    className="text-4xl font-black uppercase tracking-tight hover:text-gold-500 active:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}
                   >
                     {link.name}
                   </Link>

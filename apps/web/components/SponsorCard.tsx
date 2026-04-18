@@ -58,13 +58,13 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
       />
       {showName && (
-        <div className="absolute inset-0 flex flex-col justify-end p-4" style={{ background: "linear-gradient(to top, rgba(23,21,19,0.95), rgba(23,21,19,0.05), transparent)" }}>
+        <div className="absolute inset-0 flex flex-col justify-end p-4" style={{ background: "linear-gradient(to top, rgba(28,28,30,0.8), rgba(28,28,30,0.1), transparent)" }}>
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
               <div className="inline-block px-2 py-0.5 rounded-full border mb-1.5" style={{ backgroundColor: "rgba(234,181,69,0.18)", borderColor: "rgba(234,181,69,0.22)" }}>
                 <span className="text-[7px] font-black uppercase tracking-[0.2em] text-gold-400">Partner</span>
               </div>
-              <h3 className="text-sm font-black uppercase tracking-tight leading-none italic truncate" style={{ color: "#FFF8EA" }}>{sponsor.name}</h3>
+              <h3 className="text-sm font-black uppercase tracking-tight leading-none italic truncate" style={{ color: "white" }}>{sponsor.name}</h3>
             </div>
             {isInteractive && (
               <div className="w-8 h-8 rounded-full bg-gold-500 text-zinc-950 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">

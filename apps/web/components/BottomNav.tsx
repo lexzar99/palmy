@@ -23,7 +23,7 @@ const BottomNav = () => {
 
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-6">
-      <nav className="bg-[#121214]/80 backdrop-blur-3xl border border-white/5 rounded-[3rem] p-2 flex items-center justify-between shadow-[0_32px_64px_-16px_rgba(0,0,0,0.6)]">
+      <nav className="backdrop-blur-3xl border rounded-[3rem] p-2 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -38,7 +38,7 @@ const BottomNav = () => {
                 <motion.div
                   animate={{ 
                     scale: isActive ? 1.1 : 1,
-                    color: isActive ? "#ffffff" : "#a1a1aa"
+                    color: isActive ? "#000000" : "var(--text-secondary)"
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
@@ -55,7 +55,8 @@ const BottomNav = () => {
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 5 }}
-                      className="text-[8px] font-black uppercase tracking-[0.2em] text-white"
+                      className="text-[8px] font-black uppercase tracking-[0.2em]"
+                      style={{ color: "var(--text-primary)" }}
                     >
                       {item.label}
                     </motion.span>

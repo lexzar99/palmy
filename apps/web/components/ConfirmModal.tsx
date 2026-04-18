@@ -31,13 +31,14 @@ const ConfirmModal = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-zinc-950/20 backdrop-blur-sm"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="relative w-full max-w-sm bg-zinc-900 border border-white/5 rounded-[2rem] p-8 shadow-2xl overflow-hidden shadow-xl"
+            className="relative w-full max-w-sm rounded-[2rem] p-8 overflow-hidden shadow-2xl"
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
           >
             {/* Background design element */}
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-gold-500/10 rounded-full blur-3xl" />

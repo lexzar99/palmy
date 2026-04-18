@@ -29,9 +29,7 @@ const TONES: Record<DealTone, { accent: string; soft: string; border: string }> 
   purple: { accent: "#A855F7", soft: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.25)" },
 };
 
-export default function DealFlipCard({ deal }: { deal: DealCardData }) {
-  const [flipped, setFlipped] = useState(false);
-  const [copied, setCopied] = useState(false);
+  if (!deal) return null;
   const tone = TONES[deal.tone ?? "gold"];
 
   const copy = () => {
@@ -56,8 +54,9 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
       <div
         className="absolute inset-0 rounded-[1.5rem] p-[14px] border flex flex-col cursor-pointer transition-all duration-300 overflow-hidden"
         style={{
-          borderColor: tone.border,
-          backgroundColor: "#211C19",
+          borderColor: "var(--border-muted)",
+          backgroundColor: "var(--bg-secondary)",
+          boxShadow: "var(--card-shadow)",
           opacity: flipped ? 0 : 1,
           transform: flipped ? "scale(0.96) translateX(-10px)" : "scale(1) translateX(0)",
           pointerEvents: flipped ? "none" : "auto",
@@ -77,21 +76,21 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
               {deal.badgeLabel}
             </span>
           </div>
-          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,248,234,0.05)" }}>
-            <ArrowRight size={11} style={{ color: "#B8AA95" }} />
+          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)" }}>
+            <ArrowRight size={11} style={{ color: "var(--text-secondary)" }} />
           </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 flex flex-col justify-center mt-2 min-h-0">
-          <p className="text-[14px] font-black italic uppercase leading-[1.05] line-clamp-2" style={{ color: "#FFF8EA" }}>{deal.title}</p>
-          <p className="text-[8px] font-bold uppercase mt-1 line-clamp-2 leading-snug" style={{ color: "#B8AA95" }}>{deal.subtitle}</p>
+          <p className="text-[14px] font-black italic uppercase leading-[1.05] line-clamp-2" style={{ color: "var(--text-primary)" }}>{deal.title}</p>
+          <p className="text-[8px] font-bold uppercase mt-1 line-clamp-2 leading-snug" style={{ color: "var(--text-secondary)" }}>{deal.subtitle}</p>
         </div>
 
         {/* Footer */}
         <div className="flex items-end justify-between mt-auto">
           <span className="text-[13px] font-black uppercase leading-none max-w-[60%] line-clamp-1" style={{ color: tone.accent }}>{deal.rewardLabel}</span>
-          <span className="text-[7px] font-black uppercase tracking-wider shrink-0" style={{ color: "#8D7C67" }}>Tryck</span>
+          <span className="text-[7px] font-black uppercase tracking-wider shrink-0" style={{ color: "var(--text-secondary)" }}>Tryck</span>
         </div>
       </div>
 
@@ -99,8 +98,8 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
       <div
         className="absolute inset-0 rounded-[1.5rem] p-[14px] border flex flex-col overflow-hidden"
         style={{
-          borderColor: tone.border,
-          backgroundColor: "#171513",
+          borderColor: "var(--border-muted)",
+          backgroundColor: "var(--bg-deep)",
           opacity: flipped ? 1 : 0,
           transform: flipped ? "scale(1) translateX(0)" : "scale(0.96) translateX(10px)",
           pointerEvents: flipped ? "auto" : "none",
@@ -111,7 +110,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <span className="text-[7px] font-black uppercase tracking-[0.15em]" style={{ color: tone.accent }}>Mer info</span>
-          <button onClick={() => setFlipped(false)} className="w-6 h-6 rounded-full flex items-center justify-center transition-colors" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
+          <button onClick={() => setFlipped(false)} className="w-6 h-6 rounded-full flex items-center justify-center transition-colors" style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
             <X size={11} />
           </button>
         </div>
@@ -119,23 +118,23 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
         {/* Body */}
         <div className="flex-1 flex flex-col justify-center gap-1.5 mt-2 min-h-0">
           {deal.description && (
-            <p className="text-[9px] font-bold leading-snug line-clamp-2" style={{ color: "#D7CBB8" }}>{deal.description}</p>
+            <p className="text-[9px] font-bold leading-snug line-clamp-2" style={{ color: "var(--text-primary)" }}>{deal.description}</p>
           )}
 
           {/* Code pill */}
           {deal.code && (
             <button onClick={copy}
-              className="self-start flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all hover:border-white/20"
-              style={{ borderColor: "rgba(255,248,234,0.08)", backgroundColor: "rgba(255,248,234,0.05)" }}>
-              {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} style={{ color: "#B8AA95" }} />}
-              <span style={{ color: "#FFF8EA" }}>KOD: {deal.code}</span>
+              className="self-start flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all hover:border-gold-500/20"
+              style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-secondary)" }}>
+              {copied ? <Check size={10} className="text-emerald-500" /> : <Copy size={10} style={{ color: "var(--text-secondary)" }} />}
+              <span style={{ color: "var(--text-primary)" }}>KOD: {deal.code}</span>
             </button>
           )}
 
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5">
             {deal.minOrderText && (
-              <span className="px-2 py-1 rounded-full text-[7px] font-black uppercase" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
+              <span className="px-2 py-1 rounded-full text-[7px] font-black uppercase" style={{ backgroundColor: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
                 {deal.minOrderText}
               </span>
             )}
@@ -148,7 +147,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
           </div>
 
           {deal.validUntil && (
-            <p className="text-[7px] font-black uppercase tracking-widest line-clamp-1" style={{ color: "#8D7C67" }}>
+            <p className="text-[7px] font-black uppercase tracking-widest line-clamp-1" style={{ color: "var(--text-secondary)" }}>
               Gäller t.o.m {new Date(deal.validUntil).toLocaleDateString("sv-SE")}
             </p>
           )}

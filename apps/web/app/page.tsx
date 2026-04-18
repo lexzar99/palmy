@@ -611,8 +611,8 @@ export default function HomePage() {
                       </div>
 
                     <div className="px-3 pb-4">
-                       <h3 className="text-xl font-black text-white group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-2">{r.name}</h3>
-                       <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-6 truncate">{r.description || r.cuisine}</p>
+                       <h3 className="text-xl font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-2" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                       <p className="text-[9px] font-black uppercase tracking-widest mb-6 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
                        
                         <div className="flex items-center justify-between border-t border-white/5 pt-5">
                            {(() => {
@@ -663,16 +663,16 @@ export default function HomePage() {
                     whileTap={{ scale: 0.97 }}
                     onClick={(e) => handleRestaurantClick(e as any, r)}
                     className="shrink-0 w-40 rounded-2xl border overflow-hidden text-left group"
-                    style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+                    style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
                   >
-                    <div className="w-full h-24 bg-obsidian/50 relative overflow-hidden">
+                    <div className="w-full h-24 relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                       {r.heroImageUrl || r.imageUrl ? (
                         <img src={getCardImage(r)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       ) : null}
                     </div>
                     <div className="p-3">
-                      <div className="text-[13px] font-black text-white truncate">{r.name}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1 font-bold">
+                      <div className="text-[13px] font-black truncate" style={{ color: "var(--text-primary)" }}>{r.name}</div>
+                      <div className="text-[10px] mt-1 font-bold" style={{ color: "var(--text-secondary)" }}>
                         {r.etaMinutes} min <span className="opacity-50 mx-1">•</span> {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
                       </div>
                     </div>
@@ -685,10 +685,10 @@ export default function HomePage() {
 
         {filteredByDeal && (
           <section className="mb-10">
-            <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
+            <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
               <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "#B8AA95" }}>Filtrerat erbjudande</p>
-                <p className="text-sm font-black uppercase" style={{ color: "#FFF8EA" }}>{filteredByDeal.title}</p>
+                <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>Filtrerat erbjudande</p>
+                <p className="text-sm font-black uppercase" style={{ color: "var(--text-primary)" }}>{filteredByDeal.title}</p>
               </div>
               <button onClick={() => setFilteredByDeal(null)}
                 className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl border"
@@ -780,7 +780,7 @@ export default function HomePage() {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
                   const dimmed = isClosed || isOutOfZone;
-                  const injectDeal = (i + 1) % 4 === 0 ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
+                  const injectDeal = (allDealCards.length > 0 && (i + 1) % 4 === 0) ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
                   const activeDeal = getDealForRestaurant(r.id);
                   const isFav = favorites.has(r.id);
 
@@ -902,38 +902,38 @@ export default function HomePage() {
         {/* Info Modal Implementation */}
         <AnimatePresence>
           {infoRestaurant && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setInfoRestaurant(null)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
-              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setInfoRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
+              <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                 <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                     <Info size={32} />
                 </div>
-                <h2 className="text-3xl font-black uppercase italic text-white mb-2">{infoRestaurant.name}</h2>
-                <p className="text-zinc-600 text-[10px] font-black uppercase tracking-widest mb-10">Restaurang Information</p>
+                <h2 className="text-3xl font-black uppercase italic mb-2" style={{ color: "var(--text-primary)" }}>{infoRestaurant.name}</h2>
+                <p className="text-[10px] font-black uppercase tracking-widest mb-10" style={{ color: "var(--text-secondary)" }}>Restaurang Information</p>
                 
                 <div className="space-y-8">
                     {infoRestaurant.description && (
                       <div className="flex items-start gap-4">
                           <div className="min-w-0">
-                            <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Beskrivning</div>
-                            <p className="text-xs font-bold text-white/60 leading-relaxed uppercase tracking-wider italic">{infoRestaurant.description}</p>
+                            <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Beskrivning</div>
+                            <p className="text-xs font-bold leading-relaxed uppercase tracking-wider italic" style={{ color: "var(--text-primary)", opacity: 0.6 }}>{infoRestaurant.description}</p>
                           </div>
                       </div>
                     )}
                     {(infoRestaurant.address || infoRestaurant.city) && (
                       <div className="flex items-start gap-4">
-                        <MapPin className="text-zinc-700 mt-1" size={18} />
+                        <MapPin className="mt-1" size={18} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Hitta Hit</div>
-                          <div className="text-sm font-black text-white italic uppercase">{infoRestaurant.address}</div>
-                          <div className="text-sm font-black text-white italic uppercase opacity-40">{infoRestaurant.zip} {infoRestaurant.city}</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Hitta Hit</div>
+                          <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{infoRestaurant.address}</div>
+                          <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-primary)" }}>{infoRestaurant.zip} {infoRestaurant.city}</div>
                         </div>
                       </div>
                     )}
                     {infoRestaurant.phone && (
                       <div className="flex items-start gap-4">
-                        <Phone className="text-zinc-700 mt-1" size={18} />
+                        <Phone className="mt-1" size={18} style={{ color: "var(--text-secondary)" }} />
                         <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Ring Oss</div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] mb-1" style={{ color: "var(--text-secondary)" }}>Ring Oss</div>
                           <a href={`tel:${infoRestaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-400 transition-colors uppercase italic">{infoRestaurant.phone}</a>
                         </div>
                       </div>
@@ -958,7 +958,7 @@ export default function HomePage() {
               </div>
               <button 
                 onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
-                className="px-10 py-5 bg-obsidian text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
+                className="px-10 py-5 bg-zinc-950 text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
               >
                 Hämta Appen
               </button>
@@ -971,16 +971,16 @@ export default function HomePage() {
       {/* Closed popup handling */}
       <AnimatePresence>
         {closedRestaurant && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setClosedRestaurant(null)} style={{ backgroundColor: "rgba(23,21,19,0.95)" }}>
-             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border border-white/10" onClick={e => e.stopPropagation()}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md" onClick={() => setClosedRestaurant(null)} style={{ backgroundColor: "rgba(252,252,249,0.92)" }}>
+             <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] text-center border overflow-hidden" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                 <div className="w-20 h-20 bg-rose-500/10 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-rose-500/20 shadow-lg shadow-rose-500/10">
                    <span className="text-4xl text-rose-500 group-hover:scale-110 transition-transform">🌙</span>
                 </div>
-                <h3 className="text-2xl font-black text-white uppercase tracking-tight italic mb-2">{closedRestaurant.name}</h3>
-                <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed">Tyvärr är köket stängt för dagen. <br /> Vill du se menyn ändå?</p>
+                <h3 className="text-2xl font-black uppercase tracking-tight italic mb-2" style={{ color: "var(--text-primary)" }}>{closedRestaurant.name}</h3>
+                <p className="text-[11px] font-bold uppercase tracking-widest mb-10 leading-relaxed" style={{ color: "var(--text-secondary)" }}>Tyvärr är köket stängt för dagen. <br /> Vill du se menyn ändå?</p>
                 <div className="flex flex-col gap-3">
                    <button onClick={() => { router.push(getRestaurantHref(closedRestaurant)); setClosedRestaurant(null); }} className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all">Se Meny</button>
-                   <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 text-zinc-500 font-black uppercase text-[10px] tracking-widest hover:text-zinc-300">Stäng</button>
+                   <button onClick={() => setClosedRestaurant(null)} className="w-full py-5 font-black uppercase text-[10px] tracking-widest transition-colors" style={{ color: "var(--text-secondary)" }}>Stäng</button>
                 </div>
              </motion.div>
           </motion.div>
