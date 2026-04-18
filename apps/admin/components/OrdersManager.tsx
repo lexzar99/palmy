@@ -66,9 +66,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const formatOrderNumber = (num: any) => {
-  const n = String(num).replace("PX-", "");
-  const prefix = String.fromCharCode(65 + (parseInt(n) % 26));
-  return `${prefix}${n}`;
+  const str = String(num);
+  // New format: XX-NNNN-YY — display as-is
+  if (/^[A-Z]{2}-\d{4,}-[A-Z]{2}$/.test(str)) {
+    return str;
+  }
+  // Legacy PX-NNNN format — display as-is without the old letter prefix hack
+  return str;
 };
 
 interface Order {

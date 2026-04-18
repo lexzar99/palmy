@@ -140,6 +140,22 @@ export default function LiveOrderBanner({
     };
   }, [id, setActiveOrder, progressAnim]);
 
+  // ── Auto-transition DELIVERING → DELIVERED after 12 min ──────────────────────
+  useEffect(() => {
+    const deliveringAt = (order as any)?.deliveringAt;
+    if (!deliveringAt || order?.status !== "DELIVERING") return;
+    const deliveringTime = new Date(deliveringAt).getTime();
+    const msRemaining = (deliveringTime + 12 * 60 * 1000) - Date.now();
+    if (msRemaining <= 0) {
+      setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
+    }, msRemaining);
+    return () => clearTimeout(timer);
+  }, [(order as any)?.deliveringAt, order?.status]);
+
   // ── Slowly creep the progress bar forward within the current status band ──────
   useEffect(() => {
     if (!order) return;

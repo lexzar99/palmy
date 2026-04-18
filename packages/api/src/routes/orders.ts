@@ -535,17 +535,51 @@ router.post('/', async (req: Request, res: Response) => {
       throw new OrderValidationError('Kunde inte verifiera betalningen');
     }
 
-    const lastOrder = await prisma.order.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { orderNumber: true }
-    });
-    
-    let nextNum = 1001;
-    if (lastOrder?.orderNumber) {
-      const match = lastOrder.orderNumber.match(/\d+/);
-      if (match) nextNum = parseInt(match[0]) + 1;
-    }
-    const nextNumber = `PX-${nextNum}`;
+    // ── Unified Order Number Generation ──────────────────────────────
+    // Format: XX-NNNN-YY where XX = restaurant initials, NNNN = sequential, YY = random suffix
+    // This ensures uniqueness even if two restaurants share initials
+    const generateOrderNumber = async (): Promise<string> => {
+      const restaurantName = restaurant?.name || 'MG';
+      // Get first two consonants or first two chars from restaurant name
+      const cleaned = restaurantName.replace(/[^a-zA-ZåäöÅÄÖ]/g, '').toUpperCase();
+      let prefix = cleaned.slice(0, 2);
+      if (prefix.length < 2) prefix = (prefix + 'X').slice(0, 2);
+      // Replace Swedish chars
+      prefix = prefix.replace(/Å/g, 'A').replace(/Ä/g, 'A').replace(/Ö/g, 'O');
+
+      // Get the last order number with this prefix to find next sequential number
+      const lastOrderWithPrefix = await prisma.order.findFirst({
+        where: { orderNumber: { startsWith: `${prefix}-` } },
+        orderBy: { createdAt: 'desc' },
+        select: { orderNumber: true },
+      });
+
+      let nextNum = 1001;
+      if (lastOrderWithPrefix?.orderNumber) {
+        const match = lastOrderWithPrefix.orderNumber.match(/\d+/);
+        if (match) nextNum = parseInt(match[0]) + 1;
+      }
+
+      // Pad to 4 digits minimum
+      const numStr = String(nextNum).padStart(4, '0');
+
+      // Random 2-letter suffix to prevent collisions
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // No I or O to avoid confusion with 1 and 0
+      const suffix = chars[Math.floor(Math.random() * chars.length)] + chars[Math.floor(Math.random() * chars.length)];
+
+      const orderNumber = `${prefix}-${numStr}-${suffix}`;
+
+      // Verify uniqueness
+      const exists = await prisma.order.findUnique({ where: { orderNumber } });
+      if (exists) {
+        // Extremely rare collision — retry with different suffix
+        return generateOrderNumber();
+      }
+
+      return orderNumber;
+    };
+
+    const nextNumber = await generateOrderNumber();
 
     const order: any = await prisma.order.create({
       data: {
@@ -775,10 +809,20 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
+    // For customer-facing view: if order was recently marked as DELIVERING (stored as DELIVERED in DB),
+    // show DELIVERING status for 12 minutes, then switch to DELIVERED
+    let customerStatus = order.status;
+    if (order.status === 'DELIVERED' && order.deliveringAt) {
+      const minutesSinceDelivering = (Date.now() - new Date(order.deliveringAt).getTime()) / 60000;
+      if (minutesSinceDelivering < 12) {
+        customerStatus = 'DELIVERING';
+      }
+    }
+
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
-      status: order.status,
+      status: customerStatus,
       type: order.type,
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
@@ -791,6 +835,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       customerPhone: order.customerPhone,
       allergens: order.allergens,
       deliveryStreet: order.deliveryStreet,
+      deliveringAt: order.deliveringAt,
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
       restaurantZip: order.restaurant?.zip || '',

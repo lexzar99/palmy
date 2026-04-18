@@ -71,6 +71,20 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; colorClass: stri
     textClass: "text-rose-500",
     desc: "Tyvärr kunde vi inte ta emot din order. Du har ej debiterats.",
   },
+  DELIVERED: {
+    label: "Levererad!",
+    icon: Check,
+    colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
+    textClass: "text-emerald-500",
+    desc: "Hoppas det smakar! Tack för att du handlar hos oss.",
+  },
+  COMPLETED: {
+    label: "Levererad!",
+    icon: Check,
+    colorClass: "bg-emerald-500/10 border-emerald-500/20 shadow-emerald-500/5",
+    textClass: "text-emerald-500",
+    desc: "Hoppas det smakar! Tack för att du handlar hos oss.",
+  },
   CANCELLED: {
     label: "Avbokad",
     icon: AlertCircle,
@@ -116,13 +130,33 @@ const OrderStatusPage = () => {
     socket.on("connect", () => { socket.emit("join:order", orderId); fetchOrder(); });
     socket.on("order:status", (data: any) => {
       if (data.orderId === orderId) {
-        setOrder((prev: any) => prev ? { ...prev, status: data.status, estimatedTime: data.estimatedTime ?? prev.estimatedTime } : prev);
+        setOrder((prev: any) => prev ? {
+          ...prev,
+          status: data.status,
+          estimatedTime: data.estimatedTime ?? prev.estimatedTime,
+          deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
+        } : prev);
       }
     });
 
     const interval = setInterval(fetchOrder, 15000);
     return () => { clearInterval(interval); socket.disconnect(); };
   }, [orderId, fetchOrder]);
+
+  // Auto-transition from DELIVERING to DELIVERED after 12 minutes
+  useEffect(() => {
+    if (!order?.deliveringAt || order.status !== "DELIVERING") return;
+    const deliveringTime = new Date(order.deliveringAt).getTime();
+    const msRemaining = (deliveringTime + 12 * 60 * 1000) - Date.now();
+    if (msRemaining <= 0) {
+      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setOrder((prev: any) => prev ? { ...prev, status: "DELIVERED" } : prev);
+    }, msRemaining);
+    return () => clearTimeout(timer);
+  }, [order?.deliveringAt, order?.status]);
 
   // ETA Countdown
   useEffect(() => {
@@ -181,12 +215,14 @@ const OrderStatusPage = () => {
     );
   }
 
-  const currentStatus = order.status === "DELIVERED" ? (order.type === "DELIVERY" ? "DELIVERING" : "READY") : order.status;
+  const isCompleted = order.status === "DELIVERED" || order.status === "COMPLETED";
+  const currentStatus = order.status;
   const statusInfo = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.PENDING;
   const StatusIcon = statusInfo.icon;
   const isRejected = currentStatus === "REJECTED" || currentStatus === "CANCELLED" || currentStatus === "DELIVERY_FAILED";
   const steps = order.type === "DELIVERY" ? DELIVERY_STEPS : PICKUP_STEPS;
-  const currentIdx = steps.indexOf(currentStatus);
+  // If completed, show all steps as done (currentIdx = last step)
+  const currentIdx = isCompleted ? steps.length - 1 : steps.indexOf(currentStatus);
 
   return (
     <div className="min-h-screen bg-bg-primary bg-dot-pattern pt-24 pb-32 px-6">

@@ -68,7 +68,12 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
       if (payload.orderId === id) {
         setOrder((current) =>
           current
-            ? { ...current, status: payload.status, estimatedTime: payload.estimatedTime ?? current.estimatedTime }
+            ? {
+                ...current,
+                status: payload.status,
+                estimatedTime: payload.estimatedTime ?? current.estimatedTime,
+                deliveringAt: payload.deliveringAt ?? (current as any).deliveringAt,
+              }
             : current
         );
       }
@@ -83,6 +88,22 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
       clearInterval(pollInterval);
     };
   }, [fetchOrder, id]);
+
+  // Auto-transition from DELIVERING to DELIVERED after 12 minutes
+  useEffect(() => {
+    const deliveringAt = (order as any)?.deliveringAt;
+    if (!deliveringAt || order?.status !== "DELIVERING") return;
+    const deliveringTime = new Date(deliveringAt).getTime();
+    const msRemaining = (deliveringTime + 12 * 60 * 1000) - Date.now();
+    if (msRemaining <= 0) {
+      setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
+    }, msRemaining);
+    return () => clearTimeout(timer);
+  }, [(order as any)?.deliveringAt, order?.status]);
 
   const setActiveOrderId = useAppStore((s) => s.setActiveOrder);
   useEffect(() => {

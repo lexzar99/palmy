@@ -193,17 +193,17 @@ export default function CartPage() {
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
   const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
 
-  // Sync delivery fees from global overrides — BUT only if no zone check has run yet
-  // Once the zone check provides authoritative fees, those take priority
+  // Sync delivery fees from global overrides (set by home page zone check or previous cart session)
+  // These are always zone-based fees, so they're safe to use as the starting point
   useEffect(() => {
-    if (currentRestaurantId && ovr && orderType === "DELIVERY" && !addressZoneStatus) {
+    if (currentRestaurantId && ovr && orderType === "DELIVERY") {
       setRestaurantSettings(prev => ({
         ...prev,
         deliveryFee: ovr.deliveryFee,
         minOrderAmount: ovr.minOrderAmount
       }));
     }
-  }, [currentRestaurantId, ovr, orderType, addressZoneStatus]);
+  }, [currentRestaurantId, ovr, orderType]);
 
   // Reset delivery check when switching to DELIVERY and we have a saved address
   useEffect(() => {
@@ -260,18 +260,15 @@ export default function CartPage() {
         setRestaurantSettings((prev) => ({ ...prev, ...nonFeeSettings }));
       }
       
-      // Restaurant-specific settings take priority, but only set if NO zone check has run yet
+      // Restaurant-specific settings: only update isOpen. NEVER overwrite delivery fees here
+      // because zone-based fees should always come from /api/delivery/check, not the restaurant default.
+      // The restaurant default fee is a fallback that only applies when no zone is configured,
+      // and in that case the zone check endpoint already returns the restaurant default.
       if (restaurantRes.data) {
-        setRestaurantSettings((prev) => {
-          // If zone check already ran (addressZoneStatus is 'ok'), don't overwrite fee/min
-          const zoneAlreadyChecked = addressZoneStatus === 'ok';
-          return {
-            ...prev,
-            deliveryFee: zoneAlreadyChecked ? prev.deliveryFee : (restaurantRes.data.deliveryFee ?? prev.deliveryFee),
-            minOrderAmount: zoneAlreadyChecked ? prev.minOrderAmount : (restaurantRes.data.minOrderAmount ?? prev.minOrderAmount),
-            isOpen: restaurantRes.data.isOpen ?? prev.isOpen
-          };
-        });
+        setRestaurantSettings((prev) => ({
+          ...prev,
+          isOpen: restaurantRes.data.isOpen ?? prev.isOpen,
+        }));
       }
 
       setDeals(dealsRes.data || []);
@@ -376,8 +373,8 @@ export default function CartPage() {
         if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
-            // Small delay to let fetchContext finish first so it doesn't overwrite our zone fee
-            setTimeout(() => checkDeliverySpecific(lat, lng), 300);
+            // Run zone check immediately — fetchContext no longer overwrites fee/min
+            checkDeliverySpecific(lat, lng);
           } catch (err) {
             console.warn("Failed to parse stored coords:", err);
           }
@@ -416,7 +413,21 @@ export default function CartPage() {
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
     try {
-      const token = localStorage.getItem("platform_user_token");
+      // Refresh Supabase token before submitting to ensure userId is linked
+      let token = localStorage.getItem("platform_user_token");
+      if (token) {
+        try {
+          const { createSupabaseBrowserClient } = await import("@/lib/supabase/client");
+          const supabase = createSupabaseBrowserClient();
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.access_token) {
+            token = data.session.access_token;
+            localStorage.setItem("platform_user_token", token);
+          }
+        } catch {
+          // Fall back to existing token
+        }
+      }
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const orderData = {
         type: orderType,

@@ -362,22 +362,33 @@ router.patch('/orders/:id/status', async (req, res) => {
       return;
     }
 
+    // When marking as DELIVERING: store as DELIVERED in DB immediately,
+    // but tell the customer it's "DELIVERING" with a timestamp so the
+    // customer sees "PÅ VÄG" for 10-15 minutes then auto-transitions to "LEVERERAD"
+    const isDeliveringTransition = status === 'DELIVERING';
+    const dbStatus = isDeliveringTransition ? 'DELIVERED' : status;
+    const customerStatus = status; // Always send the requested status to the customer
+
     const order = await prisma.order.update({
       where: { id: req.params.id },
       data: {
-        status,
+        status: dbStatus,
         estimatedTime: estimatedTime || undefined,
+        ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
       },
     });
 
     // Notifiera kunden via Socket.IO
+    // For DELIVERING transition, send DELIVERING status to customer (they'll see "PÅ VÄG")
+    // The client will auto-switch to DELIVERED after 10-15 min based on deliveringAt
     getIO().to(`order:${order.id}`).emit('order:status', {
       orderId: order.id,
-      status: order.status,
+      status: customerStatus,
       estimatedTime: order.estimatedTime,
+      deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
 
-    // Notifiera admin-rummet
+    // Notifiera admin-rummet — admin always sees the real DB status
     getIO().to('admin-room').emit('order:updated', {
       orderId: order.id,
       orderNumber: order.orderNumber,

@@ -462,8 +462,26 @@ export default function CartScreen({
         })),
       };
 
+      // Refresh Supabase token before submitting to ensure userId is linked
+      let freshToken = token;
+      if (token) {
+        try {
+          const { supabase } = await import("../lib/supabase");
+          const { data } = await supabase.auth.getSession();
+          if (data.session?.access_token) {
+            freshToken = data.session.access_token;
+            // Update stored token if it changed (e.g. after auto-refresh)
+            if (freshToken !== token) {
+              useAppStore.getState().setToken(freshToken);
+            }
+          }
+        } catch {
+          // Fall back to existing token
+        }
+      }
+
       const response = await api.post("/api/orders", payload, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: freshToken ? { Authorization: `Bearer ${freshToken}` } : {},
       });
 
       const successId = response.data?.orderId || response.data?.id;

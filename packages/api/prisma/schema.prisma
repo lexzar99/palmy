@@ -114,6 +114,7 @@ model Order {
   review                String?     // Customer review text
   reviewedAt            DateTime?   // When the review was submitted
   allergens             String      @default("[]") // Customer allergens captured at order time
+  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   restaurantId          String?
