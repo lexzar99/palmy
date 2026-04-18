@@ -26,7 +26,7 @@
   --skeleton-highlight: #F5F5F5;
 }
 
-/* Dark mode opt-in (om vi vill ha det i framtiden) */
+/* Dark mode opt-in */
 [data-theme='dark'] {
   --bg-primary:   #09090b;
   --bg-secondary: #18181b;
