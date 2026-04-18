@@ -411,7 +411,12 @@ export default function RestaurantScreen({
                     }}
                   >
                     {!!product.imageUrl && (
-                      <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.discountedProductImage} />
+                      <Image 
+                        source={{ uri: getImageUrl(product.imageUrl) }} 
+                        style={styles.discountedProductImage}
+                        onError={(e) => console.log("Image error:", e.nativeEvent.error)}
+                        onLoad={(e) => console.log("Image loaded:", product.name)}
+                      />
                     )}
                     <View style={styles.discountedProductInfo}>
                       <Text numberOfLines={1} style={styles.discountedProductTitle}>{product.name}</Text>
@@ -508,7 +513,11 @@ export default function RestaurantScreen({
                           setSelectedProduct(product);
                         }}
                       >
-                        {!!product.imageUrl && <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.restaurantMenuProductImage} />}
+                        {!!product.imageUrl && <Image 
+                        source={{ uri: getImageUrl(product.imageUrl) }} 
+                        style={styles.restaurantMenuProductImage}
+                        onError={(e) => console.log("Image error:", product.name, e.nativeEvent.error)}
+                      />}
 
                         <View style={styles.restaurantMenuProductBody}>
                           <View style={styles.restaurantMenuProductTopRow}>
