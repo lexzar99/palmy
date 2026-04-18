@@ -28,6 +28,7 @@ import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import FreeDeliverySection from "@/components/FreeDeliverySection";
+import { formatQuickAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 
 interface Restaurant {
@@ -118,8 +119,13 @@ export default function HomePage() {
     if (typeof window !== "undefined") {
       setIsLoggedIn(!!localStorage.getItem("platform_user_token"));
       const stored = localStorage.getItem("platform_address");
-      if (stored) setAddress(stored);
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
+      if (stored) {
+        setAddress(stored);
+        if (storedType !== "PICKUP") {
+          rememberQuickAddress({ street: stored });
+        }
+      }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 
       const err = localStorage.getItem("platform_address_error");
@@ -130,9 +136,10 @@ export default function HomePage() {
 
       // Restore zone filtering from saved coords
       const storedCoords = localStorage.getItem("platform_coords");
-      if (storedCoords && stored) {
+      if (storedCoords && stored && storedType !== "PICKUP") {
         try {
           const coords = JSON.parse(storedCoords);
+          rememberQuickAddress({ street: stored, latitude: coords.lat, longitude: coords.lng });
           validateZone(coords.lat, coords.lng);
         } catch (err) {
           console.warn("Failed to parse stored coords:", err);
@@ -238,6 +245,7 @@ export default function HomePage() {
 
     if (coords) {
       localStorage.setItem("platform_coords", JSON.stringify(coords));
+      rememberQuickAddress({ street: addr, latitude: coords.lat, longitude: coords.lng });
       if (type === "DELIVERY") {
         await validateZone(coords.lat, coords.lng);
       } else {
@@ -425,10 +433,12 @@ export default function HomePage() {
           <div className="mb-3">
             <AddressPullDown
               currentAddress={address}
+              zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
               onOpenFull={() => setShowAddressModal(true)}
               onSelect={(a) => {
-                const full = [a.street, a.zip, a.city].filter(Boolean).join(", ");
+                const full = formatQuickAddress(a);
                 saveAddress(full);
+                rememberQuickAddress(a);
                 if (a.latitude != null && a.longitude != null) {
                   localStorage.setItem("platform_coords", JSON.stringify({ lat: a.latitude, lng: a.longitude }));
                   if (orderType === "DELIVERY") validateZone(a.latitude, a.longitude);
@@ -492,6 +502,9 @@ export default function HomePage() {
                   Kampanjer &amp; partners
                 </p>
               </div>
+              <Link href="/deals" className="text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-colors">
+                Alla deals
+              </Link>
             </div>
             <div
               ref={promoRailRef}
@@ -574,8 +587,8 @@ export default function HomePage() {
                   key={r.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                  whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  transition={{ delay: i * 0.1, type: "spring", stiffness: 300, damping: 25 }}
+                  whileTap={{ opacity: 0.7, scale: 0.99 }}
                   className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
                 >
                   <Link
@@ -713,8 +726,8 @@ export default function HomePage() {
                   key={r.id}
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  whileTap={{ opacity: 0.7, scale: 0.99 }} transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  transition={{ delay: i * 0.05, type: "spring", stiffness: 300, damping: 25 }}
+                  whileTap={{ opacity: 0.7, scale: 0.99 }}
                   className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
                 >
                   <Link

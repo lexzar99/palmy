@@ -37,6 +37,14 @@ import { Elements } from "@stripe/react-stripe-js";
 import StripeCheckout from "@/components/StripeCheckout";
 import DealSpotlight from "@/components/DealSpotlight";
 import ProductModal from "@/components/ProductModal";
+import {
+  type QuickAddress,
+  findQuickAddressByText,
+  formatQuickAddress,
+  readQuickAddresses,
+  rememberQuickAddress,
+  writeQuickAddresses,
+} from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal } from "@/lib/deals";
 
 const stripePromise = loadStripe(
@@ -88,11 +96,13 @@ export default function CartPage() {
     customerPhone: "",
     deliveryStreet: "",
     deliveryZip: "",
+    deliveryCity: "",
     deliveryInstructions: "",
     note: "",
   });
 
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
   const [promoCodeInput, setPromoCodeInput] = useState("");
   const [addressInput, setAddressInput] = useState("");
@@ -128,6 +138,14 @@ export default function CartPage() {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPredictions(val), 350);
   };
+
+  const loadQuickAddresses = useCallback(() => {
+    setQuickAddresses(readQuickAddresses());
+  }, []);
+
+  useEffect(() => {
+    loadQuickAddresses();
+  }, [loadQuickAddresses]);
 
   const checkDeliverySpecific = async (lat: number, lng: number) => {
     if (!currentRestaurantId) return;
@@ -220,6 +238,13 @@ export default function CartPage() {
         const coords = { lat: data.location.lat, lng: data.location.lng };
         localStorage.setItem("platform_coords", JSON.stringify(coords));
         localStorage.setItem("platform_address", pred.description);
+        setQuickAddresses(
+          rememberQuickAddress({
+            street: pred.description,
+            latitude: coords.lat,
+            longitude: coords.lng,
+          }),
+        );
         sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID) 
           ? crypto.randomUUID() 
           : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
@@ -231,6 +256,29 @@ export default function CartPage() {
       setAddressLoading(false);
     }
   };
+
+  const handleQuickAddressSelect = useCallback((address: QuickAddress) => {
+    const full = formatQuickAddress(address);
+    setQuickAddresses(rememberQuickAddress(address));
+    setAddressInput(full);
+    setFormData((prev) => ({
+      ...prev,
+      deliveryStreet: address.street || full,
+      deliveryZip: address.zip || "",
+      deliveryCity: address.city || "",
+    }));
+    localStorage.setItem("platform_address", full);
+
+    if (address.latitude != null && address.longitude != null) {
+      localStorage.setItem(
+        "platform_coords",
+        JSON.stringify({ lat: address.latitude, lng: address.longitude }),
+      );
+      void checkDeliverySpecific(address.latitude, address.longitude);
+    } else {
+      setAddressZoneStatus(null);
+    }
+  }, [checkDeliverySpecific]);
 
   useEffect(() => {
     // Keep internal string in sync with storage loading
@@ -340,6 +388,21 @@ export default function CartPage() {
           try {
             const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers });
             setSavedAddresses(addrRes.data || []);
+            if (readQuickAddresses().length === 0) {
+              const bootstrap = (addrRes.data || [])
+                .slice(0, 3)
+                .map((address: any, index: number) => ({
+                  label: address.label,
+                  street: address.street,
+                  city: address.city,
+                  zip: address.zip,
+                  isDefault: address.isDefault ?? index === 0,
+                }));
+              if (bootstrap.length > 0) {
+                writeQuickAddresses(bootstrap);
+                setQuickAddresses(bootstrap);
+              }
+            }
             const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
             if (defaultAddr && !userRes.data.address) {
               setFormData(prev => ({ 
@@ -406,6 +469,7 @@ export default function CartPage() {
 
     if (storedAddress) {
       setAddressInput(storedAddress);
+      const cachedQuickAddress = findQuickAddressByText(storedAddress);
       
       const parts = storedAddress.split(',').map((p: string) => p.trim());
       const street = parts[0] || "";
@@ -427,11 +491,19 @@ export default function CartPage() {
         if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
+            setQuickAddresses(rememberQuickAddress({ street: storedAddress, latitude: lat, longitude: lng }));
             // Run zone check immediately — fetchContext no longer overwrites fee/min
             checkDeliverySpecific(lat, lng);
           } catch (err) {
             console.warn("Failed to parse stored coords:", err);
           }
+        } else if (cachedQuickAddress?.latitude != null && cachedQuickAddress?.longitude != null) {
+          localStorage.setItem(
+            "platform_coords",
+            JSON.stringify({ lat: cachedQuickAddress.latitude, lng: cachedQuickAddress.longitude }),
+          );
+          setQuickAddresses(rememberQuickAddress(cachedQuickAddress));
+          checkDeliverySpecific(cachedQuickAddress.latitude, cachedQuickAddress.longitude);
         } else {
           // If address exists but no coords, try to geocode
           setAddressLoading(true);
@@ -448,6 +520,13 @@ export default function CartPage() {
             .then(data => {
               if (data.location) {
                 localStorage.setItem("platform_coords", JSON.stringify(data.location));
+                setQuickAddresses(
+                  rememberQuickAddress({
+                    street: storedAddress,
+                    latitude: data.location.lat,
+                    longitude: data.location.lng,
+                  }),
+                );
                 setFormData(prev => ({
                   ...prev,
                   deliveryStreet: street || prev.deliveryStreet,
@@ -797,41 +876,29 @@ export default function CartPage() {
 
                        {orderType === 'DELIVERY' && (
                           <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                             { (savedAddresses.length > 0 || user?.address) && (
-                               <div className="space-y-2">
-                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Snabbval</label>
-                                 <div className="flex gap-2 flex-wrap">
-                                   {user?.address && !savedAddresses.find(a => a.street === user.address) && (
+                             {quickAddresses.length > 0 && (
+                                <div className="space-y-2">
+                                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">3 sparade adresser</label>
+                                  <div className="flex gap-2 flex-wrap">
+                                    {quickAddresses.map(addr => (
                                       <button
+                                        key={`${addr.street}-${addr.zip || ''}-${addr.city || ''}`}
                                         type="button"
-                                        onClick={() => setFormData(prev => ({ ...prev, deliveryStreet: user.address, deliveryZip: user.zip || "" }))}
+                                        onClick={() => handleQuickAddressSelect(addr)}
                                         className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                          formData.deliveryStreet === user.address
+                                          formatQuickAddress(addr) === addressInput
                                             ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
                                             : 'bg-white/3 border-white/5 text-zinc-500 hover:text-white hover:border-white/10'
                                         }`}
                                       >
-                                        <Home size={12} /> Hemadress
+                                        {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
+                                        {addr.label || 'Adress'}
+                                        {addr.isDefault && <span className="text-[8px] text-gold-500">• Standard</span>}
                                       </button>
-                                   )}
-                                   {savedAddresses.map(addr => (
-                                     <button
-                                       key={addr.id}
-                                       type="button"
-                                       onClick={() => setFormData(prev => ({ ...prev, deliveryStreet: addr.street, deliveryZip: addr.zip }))}
-                                       className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
-                                         formData.deliveryStreet === addr.street && formData.deliveryZip === addr.zip
-                                           ? 'bg-gold-500/10 border-gold-500/30 text-gold-500'
-                                           : 'bg-white/3 border-white/5 text-zinc-500 hover:text-white hover:border-white/10'
-                                       }`}
-                                     >
-                                       {addr.label === 'Hem' ? <Home size={12} /> : addr.label === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
-                                       {addr.label}
-                                     </button>
-                                   ))}
-                                 </div>
-                               </div>
-                             )}
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                              <div className="space-y-2 relative z-50">
                                 <label className="text-[9px] font-black uppercase tracking-widest text-zinc-700 ml-3">Leveransadress</label>
                                 <div className="relative">

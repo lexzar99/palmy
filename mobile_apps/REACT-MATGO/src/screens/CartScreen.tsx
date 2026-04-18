@@ -11,6 +11,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
+import {
+  type QuickAddress,
+  findQuickAddressByText,
+  formatQuickAddress,
+  readQuickAddresses,
+  rememberQuickAddress,
+  writeQuickAddresses,
+} from "../lib/quickAddresses";
 import { palette, styles } from "../constants/theme";
 
 
@@ -108,6 +116,7 @@ export default function CartScreen({
 
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
   const [promoCode, setPromoCode] = useState("");
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any | null>(null);
   const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null);
@@ -124,6 +133,14 @@ export default function CartScreen({
     note: "",
   });
   const [autocompleteValue, setAutocompleteValue] = useState("");
+
+  const loadQuickAddresses = useCallback(async () => {
+    setQuickAddresses(await readQuickAddresses());
+  }, []);
+
+  useEffect(() => {
+    void loadQuickAddresses();
+  }, [loadQuickAddresses]);
 
   // Auto-fill address when store is hydrated or address changes
   useEffect(() => {
@@ -146,9 +163,27 @@ export default function CartScreen({
       deliveryCity: city || prev.deliveryCity,
     }));
 
+    if (coords && storeAddress) {
+      void rememberQuickAddress({
+        street: storeAddress,
+        city,
+        zip,
+        latitude: coords.lat,
+        longitude: coords.lng,
+      }).then(setQuickAddresses);
+      return;
+    }
+
     if (!coords && storeAddress) {
       (async () => {
         try {
+          const cached = await findQuickAddressByText(storeAddress);
+          if (cached?.latitude != null && cached?.longitude != null) {
+            setAddress(storeAddress, { lat: cached.latitude, lng: cached.longitude });
+            setQuickAddresses(await rememberQuickAddress(cached));
+            return;
+          }
+
           const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
           const res = await fetch(
             `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(storeAddress)}&filter=countrycode:se&limit=1&apiKey=${GEOAPIFY_KEY}`
@@ -158,6 +193,15 @@ export default function CartScreen({
           if (feature) {
             const [lng, lat] = feature.geometry.coordinates;
             setAddress(storeAddress, { lat, lng });
+            setQuickAddresses(
+              await rememberQuickAddress({
+                street: storeAddress,
+                city,
+                zip,
+                latitude: lat,
+                longitude: lng,
+              }),
+            );
           }
         } catch {}
       })();
@@ -242,7 +286,24 @@ export default function CartScreen({
           const addressRes = await api
             .get("/api/profile/addresses", { headers: { Authorization: `Bearer ${token}` } })
             .catch(() => ({ data: [] }));
-          if (active) setSavedAddresses(addressRes.data || []);
+          if (active) {
+            setSavedAddresses(addressRes.data || []);
+            if ((await readQuickAddresses()).length === 0) {
+              const bootstrap = (addressRes.data || [])
+                .slice(0, 3)
+                .map((address: any, index: number) => ({
+                  label: address.label,
+                  street: address.street,
+                  city: address.city,
+                  zip: address.zip,
+                  isDefault: address.isDefault ?? index === 0,
+                }));
+              if (bootstrap.length > 0) {
+                await writeQuickAddresses(bootstrap);
+                setQuickAddresses(bootstrap);
+              }
+            }
+          }
         }
       } finally {
         if (active) setPageLoading(false);
@@ -378,6 +439,16 @@ export default function CartScreen({
 
         if (!currentCoords && formData.deliveryStreet) {
           try {
+            const cached = await findQuickAddressByText(autocompleteValue || formData.deliveryStreet);
+            if (cached?.latitude != null && cached?.longitude != null) {
+              currentCoords = { lat: cached.latitude, lng: cached.longitude };
+              setAddress(formatQuickAddress(cached), currentCoords);
+            }
+          } catch {}
+        }
+
+        if (!currentCoords && formData.deliveryStreet) {
+          try {
             const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
             const gRes = await fetch(
               `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(formData.deliveryStreet)}&filter=countrycode:se&limit=1&apiKey=${GEOAPIFY_KEY}`
@@ -388,6 +459,15 @@ export default function CartScreen({
               const [lng, lat] = feature.geometry.coordinates;
               currentCoords = { lat, lng };
               setAddress(formData.deliveryStreet, currentCoords);
+              setQuickAddresses(
+                await rememberQuickAddress({
+                  street: formData.deliveryStreet,
+                  city: formData.deliveryCity,
+                  zip: formData.deliveryZip,
+                  latitude: lat,
+                  longitude: lng,
+                }),
+              );
             }
           } catch {}
         }
@@ -650,43 +730,28 @@ export default function CartScreen({
             <View style={styles.formCard}>
               <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Leveransadress</Text>
 
-              {(savedAddresses.length > 0 || profile?.address) && (
+              {quickAddresses.length > 0 && (
                 <View style={{ marginBottom: 16 }}>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                    {profile?.address && (
+                    {quickAddresses.map((addr) => (
                       <Pressable
-                        onPress={() =>
+                        key={`${addr.street}-${addr.zip || ""}-${addr.city || ""}`}
+                        onPress={async () => {
+                          const full = formatQuickAddress(addr);
+                          const next = await rememberQuickAddress(addr);
+                          setQuickAddresses(next);
+                          setAutocompleteValue(full);
                           setFormData((v) => ({
                             ...v,
-                            deliveryStreet: (profile as any).address || "",
-                            deliveryZip: (profile as any).zip || "",
-                          }))
-                        }
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 6,
-                          paddingHorizontal: 16,
-                          paddingVertical: 10,
-                          borderRadius: 14,
-                          backgroundColor: formData.deliveryStreet === profile.address ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
-                          borderWidth: 1,
-                          borderColor: formData.deliveryStreet === profile.address ? palette.gold : "rgba(255,255,255,0.08)",
-                        }}
-                      >
-                        <Ionicons name="home-outline" size={14} color={formData.deliveryStreet === profile.address ? palette.gold : palette.muted} />
-                        <Text style={{ color: formData.deliveryStreet === profile.address ? palette.gold : palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                          Hemadress
-                        </Text>
-                      </Pressable>
-                    )}
-                    {savedAddresses.map((addr) => (
-                      <Pressable
-                        key={addr.id}
-                        onPress={() => {
-                          setFormData((v) => ({ ...v, deliveryStreet: addr.street, deliveryZip: addr.zip }));
+                            deliveryStreet: addr.street,
+                            deliveryZip: addr.zip || "",
+                            deliveryCity: addr.city || "",
+                          }));
                           if (addr.latitude && addr.longitude) {
-                            setAddress(addr.street, { lat: addr.latitude, lng: addr.longitude });
+                            setAddress(full, { lat: addr.latitude, lng: addr.longitude });
+                            setZoneCheckStatus("checking");
+                          } else {
+                            setZoneCheckStatus(null);
                           }
                         }}
                         style={{
@@ -696,19 +761,20 @@ export default function CartScreen({
                           paddingHorizontal: 16,
                           paddingVertical: 10,
                           borderRadius: 14,
-                          backgroundColor: formData.deliveryStreet === addr.street ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
+                          backgroundColor: autocompleteValue === formatQuickAddress(addr) ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
                           borderWidth: 1,
-                          borderColor: formData.deliveryStreet === addr.street ? palette.gold : "rgba(255,255,255,0.08)",
+                          borderColor: autocompleteValue === formatQuickAddress(addr) ? palette.gold : "rgba(255,255,255,0.08)",
                         }}
                       >
                         <Ionicons
-                          name={addr.label === "Jobb" ? "briefcase-outline" : "map-outline"}
+                          name={addr.label === "Hem" ? "home-outline" : addr.label === "Jobb" ? "briefcase-outline" : "map-outline"}
                           size={14}
-                          color={formData.deliveryStreet === addr.street ? palette.gold : palette.muted}
+                          color={autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.muted}
                         />
-                        <Text style={{ color: formData.deliveryStreet === addr.street ? palette.gold : palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                          {addr.label}
+                        <Text style={{ color: autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
+                          {addr.label || "Adress"}
                         </Text>
+                        {addr.isDefault && <Text style={{ color: palette.gold, fontSize: 8, fontWeight: "900" }}>• STANDARD</Text>}
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -731,6 +797,16 @@ export default function CartScreen({
                       deliveryZip: parts?.zip || "",
                       deliveryCity: parts?.city || "",
                     }));
+                    if (selectedCoords?.lat != null && selectedCoords?.lng != null) {
+                      void rememberQuickAddress({
+                        label: undefined,
+                        street: parts?.street || addr,
+                        city: parts?.city || "",
+                        zip: parts?.zip || "",
+                        latitude: selectedCoords.lat,
+                        longitude: selectedCoords.lng,
+                      }).then(setQuickAddresses);
+                    }
                     setZoneCheckStatus("checking");
                   }}
                   placeholder="Sök din leveransadress..."

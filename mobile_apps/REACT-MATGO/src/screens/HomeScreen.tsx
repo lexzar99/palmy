@@ -30,6 +30,7 @@ import {
 } from "../types";
 import { useAppStore } from "../store/useAppStore";
 import { api, getImageUrl } from "../lib/api";
+import { rememberQuickAddress } from "../lib/quickAddresses";
 import { palette, styles } from "../constants/theme";
 
 
@@ -701,9 +702,16 @@ export default function HomeScreen({
         initialValue={address}
         initialOrderType={orderType as any}
         onClose={() => setAddressModalOpen(false)}
-        onSelect={(addressText: string, selectedOrderType: any, coords: any) => {
+        onSelect={async (addressText: string, selectedOrderType: any, coords: any) => {
           setOrderType(selectedOrderType);
           setAddress(addressText, coords || undefined);
+          if (coords) {
+            await rememberQuickAddress({
+              street: addressText,
+              latitude: coords.lat,
+              longitude: coords.lng,
+            });
+          }
         }}
       />
 

@@ -54,7 +54,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
     <div className="relative shrink-0" style={{ width: 260, height: 150 }}>
       {/* ── Front ── */}
       <div
-        className="absolute inset-0 rounded-[1.75rem] p-[18px] border flex flex-col cursor-pointer transition-all duration-300"
+        className="absolute inset-0 rounded-[1.5rem] p-[14px] border flex flex-col cursor-pointer transition-all duration-300 overflow-hidden"
         style={{
           borderColor: tone.border,
           backgroundColor: "#211C19",
@@ -68,36 +68,36 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-[9px] flex items-center justify-center" style={{ backgroundColor: tone.soft }}>
+            <div className="w-6 h-6 rounded-[8px] flex items-center justify-center" style={{ backgroundColor: tone.soft }}>
               {deal.tone === "purple"
-                ? <Tag size={13} style={{ color: tone.accent }} />
-                : <Sparkles size={13} style={{ color: tone.accent }} />}
+                ? <Tag size={11} style={{ color: tone.accent }} />
+                : <Sparkles size={11} style={{ color: tone.accent }} />}
             </div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: tone.accent }}>
+            <span className="text-[7px] font-black uppercase tracking-[0.15em]" style={{ color: tone.accent }}>
               {deal.badgeLabel}
             </span>
           </div>
-          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,248,234,0.05)" }}>
-            <ArrowRight size={13} style={{ color: "#B8AA95" }} />
+          <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: "rgba(255,248,234,0.05)" }}>
+            <ArrowRight size={11} style={{ color: "#B8AA95" }} />
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex flex-col justify-center mt-3">
-          <p className="text-[18px] font-black italic uppercase leading-tight line-clamp-2" style={{ color: "#FFF8EA" }}>{deal.title}</p>
-          <p className="text-[10px] font-bold uppercase mt-2 line-clamp-2 leading-snug" style={{ color: "#B8AA95" }}>{deal.subtitle}</p>
+        <div className="flex-1 flex flex-col justify-center mt-2 min-h-0">
+          <p className="text-[14px] font-black italic uppercase leading-[1.05] line-clamp-2" style={{ color: "#FFF8EA" }}>{deal.title}</p>
+          <p className="text-[8px] font-bold uppercase mt-1 line-clamp-2 leading-snug" style={{ color: "#B8AA95" }}>{deal.subtitle}</p>
         </div>
 
         {/* Footer */}
         <div className="flex items-end justify-between mt-auto">
-          <span className="text-[18px] font-black uppercase" style={{ color: tone.accent }}>{deal.rewardLabel}</span>
-          <span className="text-[8px] font-black uppercase tracking-wider" style={{ color: "#8D7C67" }}>Tryck för info</span>
+          <span className="text-[13px] font-black uppercase leading-none max-w-[60%] line-clamp-1" style={{ color: tone.accent }}>{deal.rewardLabel}</span>
+          <span className="text-[7px] font-black uppercase tracking-wider shrink-0" style={{ color: "#8D7C67" }}>Tryck</span>
         </div>
       </div>
 
       {/* ── Back ── */}
       <div
-        className="absolute inset-0 rounded-[1.75rem] p-[18px] border flex flex-col"
+        className="absolute inset-0 rounded-[1.5rem] p-[14px] border flex flex-col overflow-hidden"
         style={{
           borderColor: tone.border,
           backgroundColor: "#171513",
@@ -110,24 +110,24 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: tone.accent }}>Mer info</span>
-          <button onClick={() => setFlipped(false)} className="w-7 h-7 rounded-full flex items-center justify-center transition-colors" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
-            <X size={13} />
+          <span className="text-[7px] font-black uppercase tracking-[0.15em]" style={{ color: tone.accent }}>Mer info</span>
+          <button onClick={() => setFlipped(false)} className="w-6 h-6 rounded-full flex items-center justify-center transition-colors" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
+            <X size={11} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex flex-col justify-center gap-2 mt-3">
+        <div className="flex-1 flex flex-col justify-center gap-1.5 mt-2 min-h-0">
           {deal.description && (
-            <p className="text-[11px] font-bold leading-snug line-clamp-3" style={{ color: "#D7CBB8" }}>{deal.description}</p>
+            <p className="text-[9px] font-bold leading-snug line-clamp-2" style={{ color: "#D7CBB8" }}>{deal.description}</p>
           )}
 
           {/* Code pill */}
           {deal.code && (
             <button onClick={copy}
-              className="self-start flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all hover:border-white/20"
+              className="self-start flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest transition-all hover:border-white/20"
               style={{ borderColor: "rgba(255,248,234,0.08)", backgroundColor: "rgba(255,248,234,0.05)" }}>
-              {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} style={{ color: "#B8AA95" }} />}
+              {copied ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} style={{ color: "#B8AA95" }} />}
               <span style={{ color: "#FFF8EA" }}>KOD: {deal.code}</span>
             </button>
           )}
@@ -135,12 +135,12 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5">
             {deal.minOrderText && (
-              <span className="px-2 py-1 rounded-full text-[8px] font-black uppercase" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
+              <span className="px-2 py-1 rounded-full text-[7px] font-black uppercase" style={{ backgroundColor: "rgba(255,248,234,0.05)", color: "#B8AA95" }}>
                 {deal.minOrderText}
               </span>
             )}
-            {(deal.tags || []).slice(0, 2).map(tag => (
-              <span key={tag} className="px-2 py-1 rounded-full text-[8px] font-black uppercase"
+            {(deal.tags || []).slice(0, 1).map(tag => (
+              <span key={tag} className="px-2 py-1 rounded-full text-[7px] font-black uppercase line-clamp-1"
                 style={{ backgroundColor: tone.soft, color: tone.accent }}>
                 {tag}
               </span>
@@ -148,7 +148,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
           </div>
 
           {deal.validUntil && (
-            <p className="text-[8px] font-black uppercase tracking-widest" style={{ color: "#8D7C67" }}>
+            <p className="text-[7px] font-black uppercase tracking-widest line-clamp-1" style={{ color: "#8D7C67" }}>
               Gäller t.o.m {new Date(deal.validUntil).toLocaleDateString("sv-SE")}
             </p>
           )}
@@ -162,7 +162,7 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
           </div>
         ) : (
           <button onClick={handleUse}
-            className="mt-auto pt-3 w-full py-3 rounded-[14px] text-[10px] font-black uppercase tracking-widest text-[#09090b] transition-all hover:opacity-90"
+            className="mt-auto pt-2 w-full py-2.5 rounded-[12px] text-[9px] font-black uppercase tracking-widest text-[#09090b] transition-all hover:opacity-90"
             style={{ backgroundColor: tone.accent }}>
             Utnyttja nu
           </button>

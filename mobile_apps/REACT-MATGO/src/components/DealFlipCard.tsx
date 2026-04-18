@@ -150,7 +150,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
           </View>
 
           <View style={[styles.bodyBlock, { gap: 10 }]}> 
-            {!!deal.description && <Text style={styles.description}>{deal.description}</Text>}
+            {!!deal.description && <Text numberOfLines={2} style={styles.description}>{deal.description}</Text>}
 
             {deal.variant === "personal" && deal.code ? (
               <>
@@ -171,7 +171,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
                   <Text style={styles.tagText}>{deal.minOrderText}</Text>
                 </View>
               )}
-              {(deal.tags || []).slice(0, 3).map((tag) => (
+              {(deal.tags || []).slice(0, 1).map((tag) => (
                 <View key={tag} style={[styles.tag, { backgroundColor: tone.tagBg }]}> 
                   <Text style={[styles.tagText, { color: tone.accent }]}>{tag}</Text>
                 </View>
@@ -179,7 +179,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
             </View>
 
             {!!deal.validUntil && (
-              <Text style={styles.validUntil}>GÄLLER T.O.M {new Date(deal.validUntil).toLocaleDateString("sv-SE")}</Text>
+              <Text numberOfLines={1} style={styles.validUntil}>GÄLLER T.O.M {new Date(deal.validUntil).toLocaleDateString("sv-SE")}</Text>
             )}
           </View>
 
@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    borderRadius: 28,
-    padding: 18,
+    borderRadius: 22,
+    padding: 14,
     borderWidth: 1,
   },
   front: {
@@ -264,62 +264,62 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: "900",
-    letterSpacing: 2,
+    letterSpacing: 1.2,
   },
   bodyBlock: {
     flex: 1,
     justifyContent: "center",
-    marginTop: 12,
+    marginTop: 8,
   },
   title: {
     color: "#FFF8EA",
-    fontSize: 19,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 16,
     fontWeight: "900",
     fontStyle: "italic",
     textTransform: "uppercase",
   },
   subtitle: {
     color: "#B8AA95",
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 8,
+    lineHeight: 11,
     fontWeight: "800",
-    marginTop: 8,
+    marginTop: 4,
     textTransform: "uppercase",
   },
   rewardLabel: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "900",
     textTransform: "uppercase",
   },
   hint: {
     color: "#8D7C67",
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: "900",
     letterSpacing: 1,
   },
   description: {
     color: "#D7CBB8",
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 9,
+    lineHeight: 12,
     fontWeight: "700",
   },
   codePill: {
     alignSelf: "flex-start",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
     backgroundColor: "rgba(255,248,234,0.05)",
     borderWidth: 1,
     borderColor: "rgba(255,248,234,0.07)",
   },
   codeText: {
     color: "#FFF8EA",
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: "900",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   autoAppliedText: {
     color: "#8D7C67",
@@ -327,9 +327,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   autoApplyContainer: {
-    marginTop: 14,
-    borderRadius: 18,
-    paddingVertical: 14,
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(34,197,94,0.15)",
@@ -338,44 +338,44 @@ const styles = StyleSheet.create({
   },
   autoApplyText: {
     color: "#22c55e",
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: "900",
-    letterSpacing: 1.5,
+    letterSpacing: 1,
   },
   tagWrap: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
   },
   tag: {
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     backgroundColor: "rgba(255,255,255,0.05)",
   },
   tagText: {
     color: "#B8AA95",
-    fontSize: 9,
+    fontSize: 7,
     fontWeight: "900",
     textTransform: "uppercase",
   },
   validUntil: {
     color: "#8D7C67",
-    fontSize: 10,
+    fontSize: 7,
     fontWeight: "900",
     letterSpacing: 1,
   },
   useButton: {
-    marginTop: 14,
-    borderRadius: 18,
-    paddingVertical: 14,
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   useButtonText: {
     color: "#09090b",
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: "900",
-    letterSpacing: 2,
+    letterSpacing: 1.2,
   },
 });

@@ -2,61 +2,59 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence, PanInfo } from "framer-motion";
-import { MapPin, ChevronDown, Plus, Trash2, Home, Briefcase, Star } from "lucide-react";
-import axios from "axios";
-import { API_URL } from "@/lib/api";
-
-export interface QuickAddress {
-  id?: string;          // SavedAddress.id om sparad på konto
-  label?: string;       // "Hem", "Jobb", "Annat"
-  street: string;
-  city?: string;
-  zip?: string;
-  latitude?: number;
-  longitude?: number;
-  isDefault?: boolean;
-}
+import { MapPin, ChevronDown, Plus, Trash2, Home, Briefcase, Star, Pencil, Circle } from "lucide-react";
+import {
+  type QuickAddress,
+  ensureQuickAddress,
+  formatQuickAddress,
+  readQuickAddresses,
+  removeQuickAddress,
+  setDefaultQuickAddress,
+} from "@/lib/quickAddresses";
 
 /**
  * AddressPullDown – Kompakt adressväljare i toppen av appen.
  *
  * En knapp högst upp visar aktuell adress. När man drar ner / klickar öppnas en
  * sheet med upp till 3 snabbadresser samt en knapp för att lägga till ny.
- * För inloggade användare hämtas adresser från `/api/profile/addresses`.
- * För gäster lagras lokalt i localStorage under nyckeln `platform_quick_addresses`.
+ * Adresserna ligger lokalt (max 3) och fylls på när användaren väljer adress.
+ * Det minskar externa geocode-anrop eftersom checkout kan återanvända sparade coords.
  */
 interface Props {
   currentAddress: string;
   onSelect: (addr: QuickAddress) => void;
   onOpenFull: () => void;
+  zoneStatus?: "ok" | "error" | null;
 }
 
-const LOCAL_KEY = "platform_quick_addresses";
 const MAX_ADDRESSES = 3;
 
-export default function AddressPullDown({ currentAddress, onSelect, onOpenFull }: Props) {
+export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, zoneStatus }: Props) {
   const [open, setOpen] = useState(false);
   const [addresses, setAddresses] = useState<QuickAddress[]>([]);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("platform_user_token") : null;
-    if (token) {
-      axios
-        .get(`${API_URL}/api/profile/addresses`, { headers: { Authorization: `Bearer ${token}` } })
-        .then((r) => setAddresses((r.data || []).slice(0, MAX_ADDRESSES)))
-        .catch(() => {
-          try {
-            const raw = localStorage.getItem(LOCAL_KEY);
-            if (raw) setAddresses(JSON.parse(raw).slice(0, MAX_ADDRESSES));
-          } catch {}
+    const load = async () => {
+      if (currentAddress && typeof window !== "undefined") {
+        const rawCoords = localStorage.getItem("platform_coords");
+        let coords: { lat: number; lng: number } | null = null;
+        try {
+          coords = rawCoords ? JSON.parse(rawCoords) : null;
+        } catch {
+          coords = null;
+        }
+        ensureQuickAddress({
+          street: currentAddress,
+          latitude: coords?.lat,
+          longitude: coords?.lng,
         });
-    } else {
-      try {
-        const raw = localStorage.getItem(LOCAL_KEY);
-        if (raw) setAddresses(JSON.parse(raw).slice(0, MAX_ADDRESSES));
-      } catch {}
-    }
-  }, [open]);
+      }
+
+      setAddresses(readQuickAddresses().slice(0, MAX_ADDRESSES));
+    };
+
+    void load();
+  }, [open, currentAddress]);
 
   const handleDrag = (_: unknown, info: PanInfo) => {
     if (info.offset.y > 30 && !open) setOpen(true);
@@ -86,6 +84,8 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull }
         <span className="text-[11px] font-bold truncate flex-1" style={{ color: currentAddress ? "#FFF8EA" : "#B8AA95" }}>
           {currentAddress || "Välj adress"}
         </span>
+        {zoneStatus === "ok" && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />}
+        {zoneStatus === "error" && <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.6)]" />}
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
           <ChevronDown size={14} className="text-zinc-500" />
         </motion.div>
@@ -117,13 +117,22 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull }
                 <p className="text-[10px] text-zinc-500 px-3 py-2">Inga sparade adresser än.</p>
               )}
               {addresses.map((a, i) => (
-                <button
+                <div
                   key={a.id || i}
                   onClick={() => {
                     onSelect(a);
                     setOpen(false);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onSelect(a);
+                      setOpen(false);
+                    }
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left cursor-pointer"
                 >
                   <div className="w-7 h-7 rounded-lg bg-gold-500/10 text-gold-500 flex items-center justify-center">
                     {pickIcon(a.label)}
@@ -132,12 +141,53 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull }
                     <div className="text-[11px] font-black uppercase tracking-wider text-white truncate">
                       {a.label || "Adress"}
                     </div>
-                    <div className="text-[10px] text-zinc-500 truncate">{a.street}{a.city ? `, ${a.city}` : ""}</div>
+                    <div className="text-[10px] text-zinc-500 truncate">{formatQuickAddress(a)}</div>
                   </div>
-                  {a.isDefault && (
-                    <span className="text-[8px] font-black uppercase tracking-widest text-gold-500">Standard</span>
-                  )}
-                </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {a.isDefault && (
+                      <span className="text-[8px] font-black uppercase tracking-widest text-gold-500">Standard</span>
+                    )}
+                    {!a.isDefault && (
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setAddresses(setDefaultQuickAddress(a).slice(0, MAX_ADDRESSES));
+                        }}
+                        className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-500 hover:text-gold-500"
+                        aria-label="Gör till standard"
+                      >
+                        <Circle size={12} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setOpen(false);
+                        onOpenFull();
+                      }}
+                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-500 hover:text-white"
+                      aria-label="Ändra adress"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setAddresses(removeQuickAddress(a).slice(0, MAX_ADDRESSES));
+                      }}
+                      className="w-7 h-7 rounded-lg bg-white/5 hover:bg-rose-500/10 flex items-center justify-center text-zinc-500 hover:text-rose-400"
+                      aria-label="Ta bort adress"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                </div>
               ))}
               <button
                 onClick={() => {

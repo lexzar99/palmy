@@ -1,23 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, Pressable, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../lib/api';
 import { palette } from '../constants/theme';
 import { useAppStore } from '../store/useAppStore';
+import {
+  type QuickAddress,
+  ensureQuickAddress,
+  formatQuickAddress,
+  readQuickAddresses,
+  removeQuickAddress,
+  rememberQuickAddress,
+  setDefaultQuickAddress,
+} from '../lib/quickAddresses';
 import ScalePressable from './ScalePressable';
 
 const MAX_ADDRESSES = 3;
-
-export interface QuickAddress {
-  id?: string;
-  label?: string;
-  street: string;
-  city?: string;
-  zip?: string;
-  latitude?: number;
-  longitude?: number;
-  isDefault?: boolean;
-}
 
 interface Props {
   onOpenFull: () => void;
@@ -31,18 +28,28 @@ interface Props {
  */
 export default function AddressPullDown({ onOpenFull, zoneStatus }: Props) {
   const address = useAppStore((s) => s.address);
+  const coords = useAppStore((s) => s.coords);
+  const orderType = useAppStore((s) => s.orderType);
   const setAddress = useAppStore((s) => s.setAddress);
-  const token = useAppStore((s) => s.token);
 
   const [open, setOpen] = useState(false);
   const [addresses, setAddresses] = useState<QuickAddress[]>([]);
 
   useEffect(() => {
-    if (!open || !token) return;
-    api.get('/api/profile/addresses', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => setAddresses((r.data || []).slice(0, MAX_ADDRESSES)))
-      .catch(() => setAddresses([]));
-  }, [open, token]);
+    const load = async () => {
+      if (address && orderType === "DELIVERY") {
+        await ensureQuickAddress({
+          street: address,
+          latitude: coords?.lat,
+          longitude: coords?.lng,
+        });
+      }
+      const next = await readQuickAddresses();
+      setAddresses(next.slice(0, MAX_ADDRESSES));
+    };
+
+    void load();
+  }, [open, address, coords?.lat, coords?.lng, orderType]);
 
   const iconFor = (label?: string) => {
     const l = (label || '').toLowerCase();
@@ -94,8 +101,10 @@ export default function AddressPullDown({ onOpenFull, zoneStatus }: Props) {
               {addresses.map((a, i) => (
                 <Pressable
                   key={a.id || String(i)}
-                  onPress={() => {
-                    const full = [a.street, a.zip, a.city].filter(Boolean).join(', ');
+                  onPress={async () => {
+                    const full = formatQuickAddress(a);
+                    await rememberQuickAddress(a);
+                    setAddresses(await readQuickAddresses());
                     setAddress(full, a.latitude != null && a.longitude != null ? { lat: a.latitude, lng: a.longitude } : null);
                     setOpen(false);
                   }}
@@ -106,11 +115,48 @@ export default function AddressPullDown({ onOpenFull, zoneStatus }: Props) {
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: palette.text, fontSize: 12, fontWeight: '900', letterSpacing: 1 }}>{(a.label || 'ADRESS').toUpperCase()}</Text>
-                    <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 11 }}>{a.street}{a.city ? `, ${a.city}` : ''}</Text>
+                    <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 11 }}>{formatQuickAddress(a)}</Text>
                   </View>
-                  {a.isDefault && (
-                    <Text style={{ color: palette.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 }}>STANDARD</Text>
-                  )}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {a.isDefault && (
+                      <Text style={{ color: palette.gold, fontSize: 8, fontWeight: '900', letterSpacing: 1 }}>STANDARD</Text>
+                    )}
+                    {!a.isDefault && (
+                      <Pressable
+                        hitSlop={8}
+                        onPress={async (event) => {
+                          event.stopPropagation();
+                          await setDefaultQuickAddress(a);
+                          setAddresses(await readQuickAddresses());
+                        }}
+                        style={{ padding: 4 }}
+                      >
+                        <Ionicons name="ellipse-outline" size={14} color={palette.gold} />
+                      </Pressable>
+                    )}
+                    <Pressable
+                      hitSlop={8}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        setOpen(false);
+                        onOpenFull();
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="create-outline" size={14} color={palette.text} />
+                    </Pressable>
+                    <Pressable
+                      hitSlop={8}
+                      onPress={async (event) => {
+                        event.stopPropagation();
+                        await removeQuickAddress(a);
+                        setAddresses(await readQuickAddresses());
+                      }}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={14} color={palette.danger} />
+                    </Pressable>
+                  </View>
                 </Pressable>
               ))}
               <Pressable
