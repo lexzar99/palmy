@@ -131,37 +131,11 @@ const AdminSettingsPage = () => {
         </button>
       </div>
 
-      {/* Delivery settings */}
+      {/* Estimated times */}
       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Leverans & Tider</h2>
+        <h2 className="text-xl font-black uppercase tracking-widest mb-4 text-[var(--text-primary)]/60">Uppskattade Tider</h2>
+        <p className="text-[10px] font-bold text-[var(--text-primary)]/30 mb-8 uppercase tracking-widest">Leveransavgifter och minimumbelopp hanteras via Städer & Zoner</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Leveransavgift (kr)</label>
-            <input
-              type="number"
-              value={settings.deliveryFee}
-              onChange={(e) => setSettings({ ...settings, deliveryFee: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Minsta order (kr)</label>
-            <input
-              type="number"
-              value={settings.minOrderAmount}
-              onChange={(e) => setSettings({ ...settings, minOrderAmount: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
-            />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Leveransradie (km)</label>
-            <input
-              type="number"
-              value={settings.deliveryRadius}
-              onChange={(e) => setSettings({ ...settings, deliveryRadius: parseFloat(e.target.value) || 0 })}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl p-4 focus:ring-2 focus:ring-gold-500/50 outline-none text-lg font-bold"
-            />
-          </div>
           <div>
             <label className="block text-[10px] font-black uppercase text-[var(--text-primary)]/20 mb-3">Avhämtningstid (min)</label>
             <div className="flex items-center gap-3">
@@ -218,8 +192,8 @@ const AdminSettingsPage = () => {
       </div>
 
       <div className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-3xl p-8">
-        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Butiksammanfattning</h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-8 text-[var(--text-primary)]/60">Sammanfattning</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
             <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Status</div>
             <div className={`text-lg font-black uppercase ${settings.isOpen ? "text-green-400" : "text-red-400"}`}>
@@ -227,16 +201,12 @@ const AdminSettingsPage = () => {
             </div>
           </div>
           <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransavgift</div>
-            <div className="text-lg font-black text-gold-500">{settings.deliveryFee} kr</div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Avhämtningstid</div>
+            <div className="text-lg font-black text-gold-500">{settings.estimatedPickupTime} min</div>
           </div>
           <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Minimiorder</div>
-            <div className="text-lg font-black text-gold-500">{settings.minOrderAmount} kr</div>
-          </div>
-          <div className="rounded-2xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] p-5">
-            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveransradie</div>
-            <div className="text-lg font-black text-gold-500">{settings.deliveryRadius} km</div>
+            <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--text-primary)]/20 mb-2">Leveranstid</div>
+            <div className="text-lg font-black text-gold-500">{settings.estimatedDeliveryTime} min</div>
           </div>
         </div>
       </div>

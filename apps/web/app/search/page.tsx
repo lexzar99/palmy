@@ -76,14 +76,14 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen text-zinc-100" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "#171513", color: "#FFF8EA" }}>
       <div className="mx-auto max-w-2xl px-4 pt-8 pb-32">
         <header className="mb-8">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-600 mb-2">Sök i plattformen</p>
-          <h1 className="text-3xl font-black uppercase tracking-tighter mb-6">Upptäck <span className="text-gold-600">mat</span></h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Sök i plattformen</p>
+          <h1 className="text-3xl font-black uppercase tracking-tighter mb-6" style={{ color: "#FFF8EA" }}>Upptäck <span className="text-gold-500">mat</span></h1>
           
           <div className="relative group">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-zinc-400/30 group-focus-within:text-gold-600 transition-colors">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none group-focus-within:text-gold-500 transition-colors" style={{ color: "rgba(184,170,149,0.3)" }}>
               <SearchIcon size={20} />
             </div>
             <input
@@ -91,7 +91,8 @@ export default function SearchPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Sök restaurang eller matkategori..."
-              className="w-full bg-zinc-900 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-lg font-bold placeholder:text-zinc-400/20 focus:outline-none focus:border-gold-500 transition-all shadow-xl shadow-xl text-zinc-100"
+              className="w-full rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-gold-500 transition-all shadow-xl"
+              style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)", color: "#FFF8EA" }}
             />
           </div>
         </header>
@@ -100,22 +101,23 @@ export default function SearchPage() {
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-28 bg-zinc-900 animate-pulse rounded-2xl border border-white/5" />
+                <div key={i} className="h-28 animate-pulse rounded-2xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }} />
               ))}
             </div>
           ) : query.trim() ? (
             <div className="space-y-4">
-               <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400/40 mb-2">Hittade {filtered.length} resultat</p>
+               <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: "rgba(184,170,149,0.4)" }}>Hittade {filtered.length} resultat</p>
                {filtered.length > 0 ? (
                  filtered.map(r => { const inZone = deliverableIds === null || deliverableIds.has(r.id); return (
                     <Link
                       key={r.id}
                       href={`/restaurants/${r.slug}`}
-                      className={`group flex overflow-hidden rounded-2xl bg-zinc-900 border transition-all p-3 shadow-xl ${
-                        inZone ? "border-white/5 hover:border-gold-500/20" : "border-white/5 opacity-50"
+                      className={`group flex overflow-hidden rounded-2xl transition-all p-3 shadow-xl ${
+                        inZone ? "hover:border-gold-500/20" : "opacity-50"
                       }`}
+                      style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
                     >
-                     <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden bg-zinc-800/50">
+                     <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(33,28,25,0.5)" }}>
                        {r.heroImageUrl || r.imageUrl ? (
                          <img
                            src={
@@ -128,11 +130,11 @@ export default function SearchPage() {
                        ) : <div className="h-full w-full flex items-center justify-center text-3xl opacity-20"><Utensils /></div>}
                      </div>
                      <div className="flex-1 px-4 py-1">
-                       <h3 className="font-black uppercase tracking-tighter group-hover:text-gold-600 transition-colors text-zinc-100">{r.name}</h3>
-                       <p className="text-[10px] text-zinc-400/60 mb-2 font-bold uppercase">{r.cuisine}</p>
-                       <div className="flex items-center gap-3 text-[9px] text-zinc-400/40 font-black uppercase mt-auto">
+                       <h3 className="font-black uppercase tracking-tighter group-hover:text-gold-500 transition-colors" style={{ color: "#FFF8EA" }}>{r.name}</h3>
+                       <p className="text-[10px] mb-2 font-bold uppercase" style={{ color: "rgba(184,170,149,0.6)" }}>{r.cuisine}</p>
+                       <div className="flex items-center gap-3 text-[9px] font-black uppercase mt-auto" style={{ color: "rgba(184,170,149,0.4)" }}>
                          <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes || 30} min</span>
-                         <span className="flex items-center gap-1 text-gold-600"><Star size={10} className="fill-gold-600 translate-y-[-0.5px]" />{(r.rating || 4.6).toFixed(1)}</span>
+                         <span className="flex items-center gap-1 text-gold-500"><Star size={10} className="fill-gold-500 translate-y-[-0.5px]" />{(r.rating || 4.6).toFixed(1)}</span>
                        </div>
                        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                          <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider flex items-center gap-1 ${
@@ -150,25 +152,25 @@ export default function SearchPage() {
                          )}
                        </div>
                      </div>
-                     <div className="flex items-center text-light-500 group-hover:text-gold-600 pr-2 transition-colors">
+                     <div className="flex items-center pr-2 transition-colors group-hover:text-gold-500" style={{ color: "#D7CBB8" }}>
                        <ChevronRight size={20} />
                      </div>
                     </Link>
                   ); })
                 ) : (
-                 <div className="py-12 text-center text-zinc-400/20">
+                 <div className="py-12 text-center" style={{ color: "rgba(184,170,149,0.3)" }}>
                    <p className="text-3xl mb-2">🛸</p>
-                   <p className="text-sm font-black uppercase tracking-widest">Inga matchningar för "{query}"</p>
+                   <p className="text-sm font-black uppercase tracking-widest">Inga matchningar för &ldquo;{query}&rdquo;</p>
                  </div>
                )}
             </div>
           ) : (
-            <div className="py-12 text-center text-zinc-400/20">
-              <div className="inline-flex p-4 rounded-full bg-zinc-900 border border-white/5 mb-4 shadow-xl">
-                <SearchIcon size={24} className="text-gold-600/40" />
+            <div className="py-12 text-center" style={{ color: "rgba(184,170,149,0.3)" }}>
+              <div className="inline-flex p-4 rounded-full mb-4 shadow-xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+                <SearchIcon size={24} className="text-gold-500/40" />
               </div>
               <p className="text-sm font-black uppercase tracking-widest">Börja söka efter din nästa måltid</p>
-              <p className="text-[10px] text-zinc-400/30 mt-2 font-bold uppercase tracking-tight">Kebab, Sushi, Pasta eller din favoritrestaurang</p>
+              <p className="text-[10px] mt-2 font-bold uppercase tracking-tight" style={{ color: "rgba(184,170,149,0.3)" }}>Kebab, Sushi, Pasta eller din favoritrestaurang</p>
             </div>
           )}
         </section>

@@ -199,7 +199,7 @@ const OrderStatusPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center">
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "#171513" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -207,9 +207,9 @@ const OrderStatusPage = () => {
 
   if (!order) {
     return (
-       <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center p-6 text-center">
+       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "#171513" }}>
           <AlertCircle size={48} className="text-rose-500 mb-6" />
-          <h1 className="text-4xl font-black uppercase text-white italic">Order ej hittad</h1>
+          <h1 className="text-4xl font-black uppercase italic" style={{ color: "#FFF8EA" }}>Order ej hittad</h1>
           <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">Till startsidan</Link>
        </div>
     );
@@ -225,7 +225,7 @@ const OrderStatusPage = () => {
   const currentIdx = isCompleted ? steps.length - 1 : steps.indexOf(currentStatus);
 
   return (
-    <div className="min-h-screen bg-bg-primary bg-dot-pattern pt-24 pb-32 px-6">
+    <div className="min-h-screen bg-dot-pattern pt-24 pb-32 px-6" style={{ backgroundColor: "#171513" }}>
       <div className="max-w-4xl mx-auto">
         
         {/* Dynamic Header */}
@@ -234,8 +234,8 @@ const OrderStatusPage = () => {
               <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
                  <Zap size={12} className="animate-pulse" /> Live Tracking
               </div>
-              <h1 className="text-4xl md:text-6xl font-black text-white uppercase italic tracking-tighter leading-none mb-2">Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
-              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.4em]">Din beställning behandlas i realtid</p>
+               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "#FFF8EA" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
+               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "#B8AA95" }}>Din beställning behandlas i realtid</p>
            </div>
            
            {order.estimatedTime && !isRejected && (
@@ -298,10 +298,10 @@ const OrderStatusPage = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
            {/* Detailed Receipt */}
-           <div className="lg:col-span-7 glass-panel p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden">
-              <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] bg-white/3 rounded-full blur-[100px]" />
+            <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+               <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
               <div className="flex items-center justify-between mb-12 relative z-10">
-                 <h2 className="text-2xl font-black uppercase italic tracking-tight text-white leading-none">Beställningsdetaljer</h2>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-none" style={{ color: "#FFF8EA" }}>Beställningsdetaljer</h2>
                  <ShoppingBag size={24} className="text-gold-500/30" />
               </div>
               
@@ -339,9 +339,9 @@ const OrderStatusPage = () => {
 
            {/* Info sidebar */}
            <div className="lg:col-span-5 space-y-6">
-              <div className="glass-panel p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group">
+               <div className="p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
                  <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                 <h2 className="text-xl font-black uppercase italic tracking-tight text-white mb-10 flex items-center justify-between">
+                  <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "#FFF8EA" }}>
                     Hantering
                     {order.type === "DELIVERY" ? <Truck size={22} className="text-gold-500" /> : <Store size={22} className="text-gold-500" />}
                  </h2>
@@ -400,7 +400,7 @@ const OrderStatusPage = () => {
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
-                <div className="glass-panel p-10 rounded-[3rem] border-gold-500/10 shadow-2xl text-center">
+                 <div className="p-10 rounded-[3rem] shadow-2xl text-center" style={{ backgroundColor: "#211C19", border: "1px solid rgba(231,178,75,0.1)" }}>
                    <div className="flex items-center justify-center gap-1 mb-4">
                      {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-800'} />)}
                    </div>
@@ -408,7 +408,7 @@ const OrderStatusPage = () => {
                    <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Din feedback hjälper oss att bli bättre.</p>
                 </div>
               ) : (
-                <div className="glass-panel p-10 rounded-[3rem] border-emerald-500/5 shadow-2xl text-center group active:scale-95 transition-all cursor-default">
+                 <div className="p-10 rounded-[3rem] shadow-2xl text-center group active:scale-95 transition-all cursor-default" style={{ backgroundColor: "#211C19", border: "1px solid rgba(52,211,153,0.05)" }}>
                    <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-500 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
                       <ShieldCheck size={32} />
                    </div>
@@ -423,7 +423,7 @@ const OrderStatusPage = () => {
         <AnimatePresence>
           {showReview && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm">
-              <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm glass-panel p-10 rounded-[3rem] shadow-2xl border border-white/10 space-y-8">
+               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.1)" }}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black uppercase italic text-white">Betygsätt</h2>
                   <button onClick={() => setShowReview(false)} className="p-2 text-zinc-600 hover:text-white transition-colors"><X size={20} /></button>
@@ -441,7 +441,8 @@ const OrderStatusPage = () => {
                   onChange={e => setReviewText(e.target.value)}
                   placeholder="Berätta mer om din upplevelse (valfritt)..."
                   rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40 resize-none"
+                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-[#B8AA95]"
+                   style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)", color: "#FFF8EA" }}
                 />
                 <button
                   onClick={submitReview}

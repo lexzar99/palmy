@@ -119,22 +119,58 @@ export default function CartPage() {
     setCheckingDelivery(true);
     setAddressZoneStatus("checking");
     try {
-      const res = await axios.get(`${API_URL}/api/delivery/check`, {
-        params: { lat, lng, restaurantId: currentRestaurantId },
-      });
+      // Use the same zone validation endpoint as the React app
+      // This checks ALL city zones and returns per-restaurant zone fees
+      const res = await axios.post(`${API_URL}/api/cities/validate-location`, { lat, lng });
 
-      if (!res.data.available) {
+      if (!res.data?.covered || !Array.isArray(res.data.cities)) {
         setDeliveryCheck({ available: false });
         setAddressZoneStatus("error");
         return;
       }
 
-      // Fresh check always takes priority over previous overrides from home screen
-      const fee = res.data.deliveryFee ?? 0;
-      const min = res.data.minOrder ?? 0;
+      // Find the current restaurant in the zone results
+      let foundRestaurant: any = null;
+      for (const city of res.data.cities) {
+        if (Array.isArray(city.restaurants)) {
+          const match = city.restaurants.find((r: any) => r.id === currentRestaurantId);
+          if (match) {
+            foundRestaurant = match;
+            break;
+          }
+        }
+      }
+
+      if (!foundRestaurant) {
+        setDeliveryCheck({ available: false });
+        setAddressZoneStatus("error");
+        return;
+      }
+
+      // Zone fees are in öre from validate-location, convert to kr
+      const fee = (foundRestaurant.matchedZone?.deliveryFee ?? 0) / 100;
+      const min = (foundRestaurant.matchedZone?.minOrder ?? 0) / 100;
 
       // Update global store so future syncs or page loads use this new address's fee
       useCartStore.getState().updateDeliveryOverride(currentRestaurantId, fee, min);
+
+      // Also update overrides for ALL restaurants in the result (like React app does)
+      const overrides: Record<string, { deliveryFee: number; minOrderAmount: number }> = {};
+      for (const city of res.data.cities) {
+        if (Array.isArray(city.restaurants)) {
+          for (const r of city.restaurants) {
+            if (r.matchedZone) {
+              overrides[r.id] = {
+                deliveryFee: (r.matchedZone.deliveryFee || 0) / 100,
+                minOrderAmount: (r.matchedZone.minOrder || 0) / 100,
+              };
+            }
+          }
+        }
+      }
+      if (Object.keys(overrides).length > 0) {
+        useCartStore.getState().setDeliveryOverrides(overrides);
+      }
 
       const finalData = { available: true, deliveryFee: fee, minOrder: min };
       setDeliveryCheck(finalData);
