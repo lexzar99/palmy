@@ -238,9 +238,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     );
   }
 
+  const restaurantDisplayTitle = restaurant?.name || "Laddar...";
+  const titleParts = restaurantDisplayTitle.split(" ");
+  const firstWord = titleParts[0];
+  const restOfTitle = titleParts.slice(1).join(" ");
+
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
-  return (
   return (
     <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* Dynamic Cover Image with Parallax-ish feel */}
@@ -250,7 +254,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         ) : (
            <div className="w-full h-full bg-gradient-to-b" style={{ backgroundImage: "linear-gradient(to bottom, var(--bg-deep), var(--bg-primary))" }} />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[rgba(252,252,249,1)] via-[rgba(252,252,249,0.4)] to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t" style={{ background: "linear-gradient(to top, var(--bg-primary), rgba(252,252,249,0.4), transparent)" }} />
         
         {/* Glass Back Button */}
         <Link
@@ -267,12 +271,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
               <div className="flex items-center gap-4 mb-3">
                <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] italic" style={{ color: "var(--text-primary)" }}>
-                    {restaurant.name.split(" ")[0]}{" "}
-                    <span className="text-gold-gradient">{restaurant.name.split(" ").slice(1).join(" ")}</span>
+                    {firstWord}{" "}
+                    <span className="text-gold-gradient">{restOfTitle}</span>
                  </h1>
-                 <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-rose-500/30 bg-rose-500/10 text-rose-400"}`}>
-                    <div className={`w-1 h-1 rounded-full ${restaurant.isOpen ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
-                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant.isOpen ? "Öppen" : "Stängd"}</span>
+                 <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant?.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-rose-500/30 bg-rose-500/10 text-rose-600"}`}>
+                    <div className={`w-1 h-1 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
+                    <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant?.isOpen ? "Öppen" : "Stängd"}</span>
                  </div>
               </div>
         <div className="flex items-center gap-5 flex-wrap">
@@ -310,13 +314,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               className="mb-6 p-6 rounded-[2rem] bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center gap-4"
             >
               <div className="w-12 h-12 rounded-full bg-rose-500/20 flex items-center justify-center shrink-0">
-                <AlertTriangle size={22} className="text-rose-400" />
+                <AlertTriangle size={22} className="text-rose-600" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-black uppercase tracking-widest text-rose-400 mb-1">
+                <p className="text-[12px] font-black uppercase tracking-widest text-rose-600 mb-1">
                   Levererar inte till din adress
                 </p>
-                <p className="text-[11px] font-bold text-rose-400/70 leading-relaxed">
+                <p className="text-[11px] font-bold text-rose-600/70 leading-relaxed">
                   {address
                     ? `Den här restaurangen levererar tyvärr inte till "${address}".`
                     : "Den här restaurangen levererar tyvärr inte till din adress."}{" "}
@@ -332,7 +336,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 </button>
                 <Link
                   href="/"
-                  className="px-4 py-2.5 bg-rose-500/20 border border-rose-500/30 text-rose-300 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all"
+                  className="px-4 py-2.5 bg-rose-500/20 border border-rose-500/30 text-rose-700 rounded-xl text-[9px] font-black uppercase tracking-widest hover:bg-rose-500/30 transition-all"
                 >
                   Tillbaka
                 </Link>
@@ -396,7 +400,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                               window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                            }
                         }}
-                        className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-600 hover:text-zinc-300 hover:bg-white/5"}`}
+                        className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50"}`}
                      >
                         {cat.name}
                      </motion.button>
@@ -459,10 +463,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         <div className="space-y-24">
            {filteredCategories.length === 0 ? (
              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-20 flex flex-col items-center justify-center text-center">
-               <div className="w-20 h-20 bg-zinc-900 border border-white/10 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-2xl">
-                 <ShoppingBag size={32} className="text-zinc-600" />
+               <div className="w-20 h-20 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-sm" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                 <ShoppingBag size={32} className="text-gold-500/50" />
                </div>
-               <h3 className="text-2xl font-black uppercase text-white tracking-widest italic mb-2">Ingen meny ännu</h3>
+               <h3 className="text-2xl font-black uppercase tracking-widest italic mb-2" style={{ color: "var(--text-primary)" }}>Ingen meny ännu</h3>
                <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs max-w-sm">
                  Vi har inte lagt till några rätter ännu. Kom tillbaka senare eller kontakta oss!
                </p>
@@ -506,20 +510,20 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                            whileTap={{ scale: 0.99 }} className={`group rounded-[2.5rem] p-5 flex items-center gap-6 transition-all ${!restaurant?.isOpen ? "opacity-50 grayscale cursor-not-allowed" : (restaurant?.isOpen && zoneAvailable === false) ? "opacity-40 grayscale-[60%] cursor-not-allowed pointer-events-none" : "cursor-pointer"}`}
                            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
                        >
-                          {p.imageUrl && (
-                             <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "#171513" }}>
-                                <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
-                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                             </div>
-                          )}
+                           {p.imageUrl && (
+                              <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "var(--bg-deep)" }}>
+                                 <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+                                 <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                           )}
                           <div className="flex-1 min-w-0 py-2">
 <div className="flex items-start justify-between gap-4 mb-2">
                                  <h3 className="text-base font-black group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none" style={{ color: "var(--text-primary)" }}>{p.name}</h3>
-                                 {p.discountActive ? (
-                                   <div className="flex flex-col items-end">
-                                     <span className="text-[9px] font-black text-zinc-600 line-through">{p.price} KR</span>
-                                     <span className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.discountPrice || Math.round(p.price - p.price * (p.discountPercent || 0) / 100)} KR</span>
-                                   </div>
+                                  {p.discountActive ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="text-[9px] font-black text-zinc-400 line-through">{p.price} KR</span>
+                                      <span className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.discountPrice || Math.round(p.price - p.price * (p.discountPercent || 0) / 100)} KR</span>
+                                    </div>
                                  ) : (
                                    <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
                                  )}
@@ -553,46 +557,46 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
+       <AnimatePresence>
         {showInfoModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-obsidian/95 backdrop-blur-md p-6" onClick={() => setShowInfoModal(false)}>
-            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative" onClick={e => e.stopPropagation()}>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/40 backdrop-blur-md p-6" onClick={() => setShowInfoModal(false)}>
+            <motion.div initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-sm glass-panel p-10 rounded-[3.5rem] relative shadow-2xl" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                <div className="w-16 h-16 bg-gold-500/10 rounded-[2rem] flex items-center justify-center mb-8 border border-gold-500/20 text-gold-500">
                   <Info size={32} />
                </div>
-               <h2 className="text-3xl font-black uppercase italic text-white mb-8">Restaurang Info</h2>
+               <h2 className="text-3xl font-black uppercase italic mb-8" style={{ color: "var(--text-primary)" }}>Restaurang Info</h2>
                
                <div className="space-y-8">
-                  {restaurant.description && (
+                  {restaurant?.description && (
                     <div className="flex items-start gap-4">
                        <div className="min-w-0">
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Beskrivning</div>
-                          <p className="text-xs font-bold text-white/60 leading-relaxed uppercase tracking-wider italic">{restaurant.description}</p>
+                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beskrivning</div>
+                          <p className="text-xs font-bold leading-relaxed uppercase tracking-wider italic" style={{ color: "var(--text-secondary)" }}>{restaurant.description}</p>
                        </div>
                     </div>
                   )}
-                  {restaurant.address && (
+                  {restaurant?.address && (
                     <div className="flex items-start gap-4">
-                      <MapPin className="text-zinc-700 mt-1" size={18} />
+                      <MapPin className="text-zinc-300 mt-1" size={18} />
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Hitta Hit</div>
-                        <div className="text-sm font-black text-white italic uppercase">{restaurant.address}</div>
-                        <div className="text-sm font-black text-white italic uppercase opacity-40">{restaurant.zip} {restaurant.city}</div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Hitta Hit</div>
+                        <div className="text-sm font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{restaurant.address}</div>
+                        <div className="text-sm font-black italic uppercase opacity-40" style={{ color: "var(--text-secondary)" }}>{restaurant.zip} {restaurant.city}</div>
                       </div>
                     </div>
                   )}
-                  {restaurant.phone && (
+                  {restaurant?.phone && (
                     <div className="flex items-start gap-4">
-                      <Phone className="text-zinc-700 mt-1" size={18} />
+                      <Phone className="text-zinc-300 mt-1" size={18} />
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-600 mb-1">Ring Oss</div>
-                        <a href={`tel:${restaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-400 transition-colors">{restaurant.phone}</a>
+                        <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Ring Oss</div>
+                        <a href={`tel:${restaurant.phone}`} className="text-lg font-black text-gold-500 hover:text-gold-600 transition-colors uppercase italic">{restaurant.phone}</a>
                       </div>
                     </div>
                   )}
                </div>
 
-               <button onClick={() => setShowInfoModal(false)} className="absolute top-10 right-10 text-zinc-700 hover:text-white transition-colors">
+               <button onClick={() => setShowInfoModal(false)} className="absolute top-10 right-10 text-zinc-400 hover:text-zinc-600 transition-colors">
                   <X size={24} />
                </button>
             </motion.div>

@@ -177,7 +177,7 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-950/88 backdrop-blur-md px-4 pb-6 sm:pb-0"
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-900/10 backdrop-blur-md px-4 pb-6 sm:pb-0"
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
@@ -193,7 +193,7 @@ export default function AddressModal({
                    {orderType === "DELIVERY" ? "Din leveransadress" : "Välj stad"}
                 </h2>
               </div>
-              <button onClick={onClose} className="p-2 rounded-full transition-colors hover:bg-zinc-100" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
+               <button onClick={onClose} className="p-2 rounded-full transition-all hover:bg-zinc-100" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}>
                 <X size={17} />
               </button>
             </div>
@@ -202,10 +202,10 @@ export default function AddressModal({
             <div className="flex gap-2 mb-5 p-1 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
               {(["DELIVERY", "PICKUP"] as const).map(type => (
                 <button key={type} onClick={() => { setOrderType(type); setError(null); setPredictions([]); }}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
-                    orderType === type ? "bg-white text-black shadow-sm" : ""
+                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
+                    orderType === type ? "bg-gold-500 text-zinc-950 shadow-sm" : ""
                   }`}
-                  style={{ color: orderType === type ? "#000" : "var(--text-secondary)" }}
+                  style={{ color: orderType === type ? undefined : "var(--text-secondary)" }}
                 >
                   {type === "DELIVERY" ? <Truck size={13} /> : <Store size={13} />}
                   {type === "DELIVERY" ? "Leverans" : "Avhämtning"}
@@ -219,12 +219,12 @@ export default function AddressModal({
                 <div
                   className="flex items-center gap-3 rounded-xl border px-4 py-3.5 transition-all"
                   style={{
-                    backgroundColor: "#2A241F",
+                    backgroundColor: "var(--bg-deep)",
                     borderColor: error
                       ? "rgba(239,68,68,0.38)"
                       : selectedCoords
                         ? "rgba(16,185,129,0.32)"
-                        : "rgba(255,248,234,0.08)",
+                        : "var(--border-muted)",
                   }}
                 >
                   {selectedCoords
@@ -242,7 +242,7 @@ export default function AddressModal({
                   {loading && <Loader2 size={15} className="animate-spin text-gold-500 shrink-0" />}
                   {!loading && input && (
                     <button onClick={() => { setInput(""); setPredictions([]); setSelectedCoords(null); }}>
-                      <X size={13} style={{ color: "#B8AA95" }} />
+                      <X size={13} style={{ color: "var(--text-secondary)" }} />
                     </button>
                   )}
                 </div>
@@ -281,14 +281,14 @@ export default function AddressModal({
             {orderType === "PICKUP" && (
               <div className="mb-4">
                 {citiesLoading ? (
-                  <div className="flex items-center justify-center gap-3 py-8 rounded-xl border" style={{ backgroundColor: "#2A241F", borderColor: "rgba(255,248,234,0.08)" }}>
+                  <div className="flex items-center justify-center gap-3 py-8 rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <Loader2 size={16} className="animate-spin text-gold-500" />
-                    <span className="text-sm font-bold text-zinc-400">Hämtar städer…</span>
+                    <span className="text-sm font-bold" style={{ color: "var(--text-secondary)" }}>Hämtar städer…</span>
                   </div>
                 ) : cities.length === 0 ? (
-                  <div className="py-8 text-center rounded-xl border" style={{ backgroundColor: "#2A241F", borderColor: "rgba(255,248,234,0.08)" }}>
-                    <Building2 size={24} className="text-zinc-600 mx-auto mb-2" />
-                    <p className="text-sm font-bold text-zinc-500">Inga städer med avhämtning</p>
+                  <div className="py-8 text-center rounded-xl border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                    <Building2 size={24} className="text-zinc-300 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-zinc-400">Inga städer med avhämtning</p>
                   </div>
                 ) : (
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -349,8 +349,8 @@ export default function AddressModal({
             </p>
 
             <button onClick={handleSubmit}
-              className="w-full flex items-center justify-between px-6 py-4 font-black rounded-2xl transition-all shadow-lg shadow-gold-500/20 group"
-              style={{ backgroundColor: "#EAB545", color: "#000" }}>
+              className="w-full flex items-center justify-between px-6 py-4 font-black rounded-2xl transition-all shadow-lg shadow-gold-500/20 group hover:bg-gold-400"
+              style={{ backgroundColor: "var(--gold-500)", color: "var(--bg-primary)" }}>
               <span className="uppercase tracking-widest text-sm">
                 {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
               </span>

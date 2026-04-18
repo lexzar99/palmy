@@ -80,7 +80,7 @@ const Navbar = () => {
     </nav>
   );
   return (
-    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200] bg-white' : 'z-[100] bg-white/95 backdrop-blur-md'}`} style={{ borderColor: "var(--border-muted)" }}>
+    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: isOpen ? "var(--bg-primary)" : "rgba(252,252,249,0.95)", borderColor: "var(--border-muted)" }}>
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-12 h-12 flex-shrink-0">
@@ -99,7 +99,7 @@ const Navbar = () => {
           <Link href="/menu" className="hover:text-gold-500 transition-colors">Meny</Link>
           <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
-          <Link href="/history" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina Beställningar</Link>
+          <Link href="/profile?tab=orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina Beställningar</Link>
           <div className={`rounded-full px-3 py-1 text-[10px] font-black tracking-[0.25em] ${statusClass}`}>
             {statusLabel}
           </div>
@@ -108,14 +108,16 @@ const Navbar = () => {
         <div className="flex items-center gap-4 relative z-[100]">
           <button 
             onClick={toggleTheme}
-            className="p-2 bg-zinc-100 rounded-full hover:bg-zinc-200 transition-colors"
+            className="p-2 transition-colors rounded-full"
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
           >
             {theme === 'dark' ? <Sun size={20} className="text-gold-500" /> : <Moon size={20} className="text-gold-600" />}
           </button>
 
           <Link 
             href="/cart" 
-            className="relative p-2 bg-zinc-100 rounded-full hover:bg-zinc-200 transition-colors group"
+            className="relative p-2 transition-colors group rounded-full"
+            style={{ backgroundColor: "var(--bg-deep)" }}
           >
             <ShoppingCart size={20} className="text-gold-600 group-hover:scale-110 transition-transform" />
             {itemCount > 0 && (
@@ -131,7 +133,8 @@ const Navbar = () => {
           <button 
             type="button" 
             onClick={() => setIsOpen(!isOpen)} 
-            className="md:hidden p-3 -mr-2 bg-zinc-100 rounded-xl hover:bg-zinc-200 active:scale-95 transition-all select-none touch-manipulation" style={{ color: "var(--text-primary)" }}
+            className="md:hidden p-3 -mr-2 rounded-xl active:scale-95 transition-all select-none touch-manipulation" 
+            style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
             aria-label="Toggle Menu"
           >
             {isOpen ? <X size={26} /> : <Menu size={26} />}
@@ -141,75 +144,47 @@ const Navbar = () => {
 
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[190] md:hidden bg-white flex flex-col pt-24 pb-12 px-6 overflow-y-auto"
-            style={{ backgroundColor: "var(--bg-primary)" }}
-          >
-
-            {/* Close button for full screen menu */}
-            <div className="flex justify-between items-center mb-10">
-              <Link href="/" onClick={() => setIsOpen(false)} className="flex items-center gap-3">
-                <img src="/logo.png" alt="MatGo Logo" className="w-10 h-10" />
-                <span className="text-xl font-black tracking-tighter text-white">MATGO</span>
-              </Link>
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="p-3 text-white bg-white/10 rounded-xl active:scale-90 transition-all border border-white/10"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-5">
-              {[
-                { name: "Hem", href: "/" },
-                { name: "Meny", href: "/menu" },
-                { name: "Om oss", href: "/about" },
-                { name: "Kontakt", href: "/contact" },
-              ].map((link, i) => (
-                <motion.div
-                  key={link.href}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                >
-                  <Link 
-                    href={link.href} 
-                    onClick={() => setIsOpen(false)} 
-                    className="text-4xl font-black uppercase tracking-tight hover:text-gold-500 active:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, x: "100%" }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: "100%" }}
+              className="fixed inset-0 z-[190] md:hidden flex flex-col pt-32 pb-12 px-8 overflow-y-auto"
+              style={{ backgroundColor: "var(--bg-primary)" }}
+            >
+              <div className="flex flex-col gap-8">
+                {[
+                  { name: "Hem", href: "/" },
+                  { name: "Meny", href: "/menu" },
+                  { name: "Om oss", href: "/about" },
+                  { name: "Kontakt", href: "/contact" },
+                  { name: "Mina Beställningar", href: "/history" },
+                ].map((link, i) => (
+                  <motion.div
+                    key={link.href}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.05 }}
                   >
-                    {link.name}
-                  </Link>
-                </motion.div>
-              ))}
-              
-              <div className="h-px bg-white/10 my-4" />
-              
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                <Link 
-                  href="/history" 
-                  onClick={() => setIsOpen(false)} 
-                  className="text-xl font-black uppercase tracking-tight text-gold-500/80"
-                >
-                  Mina Beställningar
-                </Link>
-              </motion.div>
-            </div>
-
-            <div className="mt-auto">
-              <div className={`rounded-2xl px-6 py-5 text-[10px] font-black uppercase tracking-[0.35em] flex items-center justify-center text-center ${statusClass}`}>
-                {restaurantOpen === null ? "Laddar status..." : restaurantOpen ? "✓ Öppet för beställning" : "✕ Restaurangen är stängd"}
+                    <Link 
+                      href={link.href} 
+                      onClick={() => setIsOpen(false)} 
+                      className={`text-4xl font-black uppercase tracking-tighter italic ${link.name === 'Beställningar' ? 'text-gold-500/80 text-2xl mt-4' : ''}`}
+                      style={{ color: link.name === 'Mina Beställningar' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
+                    >
+                      {link.name}
+                    </Link>
+                  </motion.div>
+                ))}
               </div>
-            </div>
-          </motion.div>
-        )}
+
+              <div className="mt-auto pt-10">
+                <div className={`rounded-2xl px-6 py-5 text-[10px] font-black uppercase tracking-[0.35em] flex items-center justify-center text-center ${statusClass}`}>
+                  {restaurantOpen === null ? "Laddar status..." : restaurantOpen ? "✓ Öppet för beställning" : "✕ Restaurangen är stängd"}
+                </div>
+              </div>
+            </motion.div>
+          )}
       </AnimatePresence>
 
 

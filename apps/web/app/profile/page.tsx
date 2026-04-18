@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -46,11 +46,12 @@ function CountryPicker({
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl py-4 px-4 text-white font-bold whitespace-nowrap h-full"
+        className="flex items-center gap-2 rounded-2xl py-4 px-4 font-bold whitespace-nowrap h-full"
+        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
       >
         <span className="text-lg">{selected.flag}</span>
         <span className="text-sm">{selected.code}</span>
-        <ChevronRight size={14} className={`text-zinc-500 transition-transform ${open ? "rotate-90" : ""}`} />
+        <ChevronRight size={14} className={`text-zinc-400 transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
       <AnimatePresence>
         {open && (
@@ -65,12 +66,13 @@ function CountryPicker({
                 key={c.code}
                 type="button"
                 onClick={() => { onChange(c.code); setOpen(false); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-white/5 transition-colors text-left ${value === c.code ? "text-gold-500 font-black" : "text-white"}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-zinc-100 transition-colors text-left ${value === c.code ? "text-gold-500 font-black" : ""}`}
+                style={{ color: value === c.code ? undefined : "var(--text-primary)" }}
               >
                 <span className="text-base">{c.flag}</span>
                 <div>
                   <div className="font-bold text-xs">{c.country}</div>
-                  <div className="text-zinc-600 text-[10px]">{c.code}</div>
+                  <div className="text-zinc-400 text-[10px]">{c.code}</div>
                 </div>
                 {value === c.code && <Check size={14} className="ml-auto text-gold-500" />}
               </button>
@@ -116,7 +118,8 @@ function SocialButton({
     <button
       onClick={handleClick}
       disabled={loading}
-      className="flex items-center justify-center gap-2.5 py-4 bg-white/5 border border-white/10 rounded-2xl text-[11px] font-black uppercase text-zinc-300 hover:text-white hover:bg-white/10 transition-all active:scale-95 disabled:opacity-50"
+      className="flex items-center justify-center gap-2.5 py-4 rounded-2xl text-[11px] font-black uppercase transition-all active:scale-95 disabled:opacity-50"
+      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}
     >
       {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
       {loading ? "Laddar..." : label}
@@ -135,6 +138,14 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [hasVisited, setHasVisited] = useState(false);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && ["overview", "orders", "settings", "deals", "addresses"].includes(tab)) {
+      setActiveTab(tab as any);
+    }
+  }, [searchParams]);
 
   // Saved addresses state
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
@@ -377,7 +388,7 @@ export default function ProfilePage() {
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -391,14 +402,14 @@ export default function ProfilePage() {
 
           {/* Header */}
           <div className="text-center space-y-3">
-            <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-gold-500 mx-auto" style={{ backgroundColor: "rgba(231,178,75,0.1)", border: "1px solid rgba(231,178,75,0.2)" }}>
+            <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-gold-500 mx-auto bg-gold-500/10 border border-gold-500/20">
               <Lock size={36} />
             </div>
             <h1 className="text-4xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? "Välkommen" : "Skapa"}{" "}
               <span className="text-gold-500">{hasVisited ? "Tillbaka" : "Konto"}</span>
             </h1>
-            <p className="text-zinc-500 text-[11px] font-bold uppercase tracking-widest">
+            <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-widest">
               {hasVisited ? "Logga in med telefon eller social" : "Gå med — gratis och tar 30 sek"}
             </p>
           </div>
@@ -415,7 +426,8 @@ export default function ProfilePage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="000 000"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-zinc-800 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  className="w-full rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
               </div>
               {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
@@ -426,7 +438,7 @@ export default function ProfilePage() {
               >
                 {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Verifiera"}
               </button>
-              <button type="button" onClick={() => setShowOtp(false)} className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors">
+              <button type="button" onClick={() => setShowOtp(false)} className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-600 transition-colors">
                 Ändra telefonnummer
               </button>
             </form>
@@ -443,7 +455,8 @@ export default function ProfilePage() {
                     value={loginPhone}
                     onChange={(e) => setLoginPhone(e.target.value)}
                     placeholder="070 000 00 00"
-                    className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                    className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                   />
                 </div>
               </div>
@@ -555,7 +568,7 @@ export default function ProfilePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-gold-500 to-amber-600 rounded-[1.5rem] flex items-center justify-center text-zinc-950 font-black text-xl shadow-lg">
+            <div className="w-14 h-14 bg-gold-gradient rounded-[1.5rem] flex items-center justify-center text-zinc-950 font-black text-xl shadow-lg">
               {user.image ? (
                 <img src={user.image} alt="" className="w-full h-full rounded-[1.5rem] object-cover" />
               ) : (
@@ -565,19 +578,19 @@ export default function ProfilePage() {
             <div>
               <h1 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
               {user.isVerified ? (
-                <div className="flex items-center gap-1.5 mt-1 text-emerald-400">
+                <div className="flex items-center gap-1.5 mt-1 text-emerald-600">
                   <ShieldCheck size={14} />
                   <span className="text-[10px] font-black uppercase tracking-widest">Verifierad</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-1.5 mt-1 text-red-500">
+                <div className="flex items-center gap-1.5 mt-1 text-rose-500">
                   <Lock size={14} />
                   <span className="text-[10px] font-black uppercase tracking-widest">Ej verifierad</span>
                 </div>
               )}
             </div>
           </div>
-          <button onClick={handleLogout} className="p-3 bg-white/5 hover:bg-red-500/10 text-zinc-500 hover:text-red-500 rounded-2xl transition-all">
+          <button onClick={handleLogout} className="p-3 bg-zinc-100 hover:bg-rose-50 text-zinc-400 hover:text-rose-500 rounded-2xl transition-all">
             <LogOut size={20} />
           </button>
         </div>
@@ -586,13 +599,13 @@ export default function ProfilePage() {
         {!user.phone && (
           <button
             onClick={() => setShowAddPhone(true)}
-            className="w-full bg-amber-500/10 border border-amber-500/20 p-5 rounded-[2rem] flex items-center justify-between text-left hover:bg-amber-500/15 transition-all"
+            className="w-full bg-amber-500/5 border border-amber-500/20 p-5 rounded-[2rem] flex items-center justify-between text-left hover:bg-amber-500/10 transition-all"
           >
             <div>
-              <p className="text-[10px] font-black uppercase text-amber-400 tracking-widest">Rekommenderat</p>
-              <p className="text-white font-bold text-sm mt-0.5">Lägg till telefonnummer</p>
+              <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Rekommenderat</p>
+              <p className="font-bold text-sm mt-0.5" style={{ color: "var(--text-primary)" }}>Lägg till telefonnummer</p>
             </div>
-            <ChevronRight size={18} className="text-amber-400" />
+            <ChevronRight size={18} className="text-amber-500" />
           </button>
         )}
 
@@ -623,7 +636,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-5 bg-white/5 border border-white/5 p-1.5 rounded-[2rem]">
+        <div className="grid grid-cols-5 p-1.5 rounded-[2rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
           {[
             { id: "overview", icon: User, label: "Hem" },
             { id: "deals", icon: Sparkles, label: "Deals" },
@@ -634,7 +647,7 @@ export default function ProfilePage() {
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id as any); setIsEditing(false); }}
-              className={`flex flex-col items-center gap-1.5 py-4 rounded-3xl transition-all ${activeTab === tab.id ? "bg-white/10 text-gold-500" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`flex flex-col items-center gap-1.5 py-4 rounded-3xl transition-all ${activeTab === tab.id ? "bg-gold-500/10 text-gold-600" : "text-zinc-400 hover:text-zinc-600"}`}
             >
               <tab.icon size={18} />
               <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
@@ -647,38 +660,38 @@ export default function ProfilePage() {
           {activeTab === "deals" && (
             <motion.div key="deals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
                {deals.length === 0 ? (
-                 <div className="py-20 text-center bg-white/2 rounded-[2.5rem] border border-dashed border-white/5">
-                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4 text-white/10"><Tag size={32} /></div>
-                    <p className="font-black uppercase tracking-widest text-zinc-600">Inga erbjudanden tillgängliga</p>
-                    <p className="text-[10px] uppercase font-bold text-zinc-800 mt-2">Dina framtida belöningar dyker upp här</p>
+                 <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
+                    <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-300"><Tag size={32} /></div>
+                    <p className="font-black uppercase tracking-widest text-zinc-400">Inga erbjudanden tillgängliga</p>
+                    <p className="text-[10px] uppercase font-bold text-zinc-300 mt-2">Dina framtida belöningar dyker upp här</p>
                  </div>
                ) : (
                  deals.map((deal: any) => (
-                   <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/20 shadow-2xl relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/10 blur-2xl group-hover:bg-gold-500/20 transition-all" />
+                   <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 blur-2xl group-hover:bg-gold-500/10 transition-all" />
                       <div className="flex items-start justify-between mb-6">
                          <div className="flex-1 pr-4">
-                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-500 mb-1">{deal.campaign.title}</div>
-                            <h3 className="text-2xl font-black italic tracking-tighter uppercase text-white leading-tight">
+                            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">{deal.campaign.title}</div>
+                            <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
                                 {deal.campaign.discountType === "PERCENTAGE" ? `${deal.campaign.discountValue}% RABATT` : `${deal.campaign.discountValue} KR RABATT`}
                             </h3>
                          </div>
-                         <div className="w-12 h-12 bg-gold-500 text-dark-500 rounded-2xl flex items-center justify-center shadow-xl shrink-0"><Ticket size={24} /></div>
+                         <div className="w-12 h-12 bg-gold-500 text-zinc-950 rounded-2xl flex items-center justify-center shadow-xl shrink-0"><Ticket size={24} /></div>
                       </div>
                       
-                      <div className="p-4 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between mb-6">
-                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-white/40">KOD: <span className="text-white select-all">{deal.code}</span></div>
+                      <div className="p-4 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between mb-6">
+                         <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">KOD: <span className="text-zinc-950 select-all">{deal.code}</span></div>
                          <button 
                             onClick={() => { navigator.clipboard.writeText(deal.code); }} 
-                            className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-white transition-colors"
+                            className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
                           >
                             Kopiera
                           </button>
                       </div>
 
-                      <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest">
-                         <div className="text-zinc-600">Min. order: {deal.campaign.minOrder} kr</div>
-                         <div className="text-zinc-600">Giltig till: {deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
+                      <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                         <div>Min. order: {deal.campaign.minOrder} kr</div>
+                         <div>Giltig till: {deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
                       </div>
                    </div>
                  ))
@@ -689,15 +702,15 @@ export default function ProfilePage() {
           {/* Overview */}
           {activeTab === "overview" && (
             <motion.div key="ov" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-              <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-5">
+              <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="flex items-center gap-4">
-                  <Phone size={16} className="text-zinc-600 shrink-0" />
+                  <Phone size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Telefon</p>
-                    <p className="font-bold text-white text-sm">{user.phone || "Ej angivet"}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">Telefon</p>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.phone || "Ej angivet"}</p>
                   </div>
                   {user.isVerified ? (
-                    <span className="text-[8px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
+                    <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-full uppercase font-black flex items-center gap-1">
                       <Lock size={8} /> Låst
                     </span>
                   ) : (
@@ -707,28 +720,28 @@ export default function ProfilePage() {
                         setAddPhoneCountry(user.phone?.startsWith("+") ? user.phone.slice(0, 3) : "+46");
                         setShowAddPhone(true);
                       }}
-                      className="text-[8px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-3 py-1.5 rounded-full uppercase font-black hover:bg-amber-500/20 transition-all flex items-center gap-1"
+                      className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-3 py-1.5 rounded-full uppercase font-black hover:bg-amber-100 transition-all flex items-center gap-1"
                     >
                       <Edit2 size={8} /> Ändra
                     </button>
                   )}
                 </div>
                 <div className="flex items-center gap-4">
-                  <Mail size={16} className="text-zinc-600 shrink-0" />
+                  <Mail size={16} className="text-zinc-400 shrink-0" />
                   <div className="flex-1">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600">E-post</p>
-                    <p className="font-bold text-white text-sm">{user.email || "Ej angivet"}</p>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">E-post</p>
+                    <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>{user.email || "Ej angivet"}</p>
                   </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/5 border border-white/5 rounded-[2rem] p-6">
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-1">Beställningar</p>
-                  <p className="text-3xl font-black text-white">{orders.length}</p>
+                <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">Beställningar</p>
+                  <p className="text-3xl font-black" style={{ color: "var(--text-primary)" }}>{orders.length}</p>
                 </div>
-                <div className={`border rounded-[2rem] p-6 ${user.isVerified ? "bg-emerald-500/10 border-emerald-500/20" : "bg-white/5 border-white/5"}`}>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-1">Status</p>
-                  <p className={`text-sm font-black uppercase ${user.isVerified ? "text-emerald-400" : "text-red-400"}`}>
+                <div className="rounded-[2rem] p-6 shadow-sm" style={{ backgroundColor: user.isVerified ? "var(--bg-secondary)" : "var(--bg-secondary)", border: user.isVerified ? "1px solid rgba(5,150,105,0.1)" : "1px solid var(--border-muted)" }}>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400 mb-1">Status</p>
+                  <p className={`text-sm font-black uppercase ${user.isVerified ? "text-emerald-600" : "text-rose-500"}`}>
                     {user.isVerified ? "✓ Verifierad" : "Ej veri."}
                   </p>
                 </div>
@@ -803,19 +816,19 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-2">Konto-hantering</div>
-                <div className="bg-white/5 border border-white/5 rounded-[2.5rem]">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">Konto-hantering</div>
+                <div className="rounded-[2.5rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                   <button 
                     onClick={() => setDeleteAccountModalOpen(true)}
-                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-red-500/5 transition-all rounded-[2.5rem]"
+                    className="w-full text-left p-6 flex items-center justify-between group hover:bg-rose-50 transition-all rounded-[2.5rem]"
                   >
                     <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center">
                         <Trash2 size={18} />
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-red-500">Radera konto</p>
-                        <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-widest">Rensa all personlig data</p>
+                        <p className="font-bold text-sm text-rose-500">Radera konto</p>
+                        <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">Rensa all personlig data</p>
                       </div>
                     </div>
                   </button>
@@ -857,16 +870,16 @@ export default function ProfilePage() {
                         setReorderingId(order.id);
                         try {
                           const res = await axios.get(`${API_URL}/api/profile/orders/${order.id}/reorder`, {
-                            headers: { Authorization: `Bearer ${token}` }
+                             headers: { Authorization: `Bearer ${token}` }
                           });
                           const data = res.data;
                           const cartStore = useCartStore.getState();
                           cartStore.clearCart();
                           for (const item of data.items) {
-                            cartStore.addItem(item);
+                             cartStore.addItem(item);
                           }
                           if (data.unavailableItems?.length) {
-                            alert(`${data.unavailableItems.length} produkt(er) finns inte längre: ${data.unavailableItems.join(', ')}`);
+                             alert(`${data.unavailableItems.length} produkt(er) finns inte längre: ${data.unavailableItems.join(', ')}`);
                           }
                           router.push('/cart');
                         } catch (err: any) {
@@ -876,7 +889,7 @@ export default function ProfilePage() {
                         }
                       }}
                       disabled={reorderingId === order.id}
-                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-gold-500 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
+                      className="flex items-center gap-2 px-5 py-3 bg-gold-500/10 border border-gold-500/20 rounded-xl text-[9px] font-black uppercase tracking-widest text-gold-600 hover:bg-gold-500/20 active:scale-95 transition-all disabled:opacity-50"
                     >
                       {reorderingId === order.id ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
                       Beställ igen
@@ -900,18 +913,18 @@ export default function ProfilePage() {
               ) : (
                 <div className="space-y-3">
                   {savedAddresses.map(addr => (
-                    <div key={addr.id} className="bg-white/5 border border-white/5 rounded-[2rem] p-6 flex items-center justify-between group">
+                    <div key={addr.id} className="rounded-[2rem] p-6 flex items-center justify-between group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-500 border border-gold-500/20' : 'bg-white/5 text-zinc-600'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm ${addr.isDefault ? 'bg-gold-500/10 text-gold-600 border border-gold-500/20' : 'bg-zinc-50 text-zinc-400'}`}>
                           {addr.label === 'Hem' ? <Home size={18} /> : addr.label === 'Jobb' ? <Briefcase size={18} /> : <MapPin size={18} />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <p className="font-black uppercase italic text-sm text-white">{addr.label}</p>
-                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-gold-500/10 text-gold-500 border border-gold-500/20 px-2 py-0.5 rounded-md">Standard</span>}
+                            <p className="font-black uppercase italic text-sm" style={{ color: "var(--text-primary)" }}>{addr.label}</p>
+                            {addr.isDefault && <span className="text-[7px] font-black uppercase bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded-md">Standard</span>}
                           </div>
-                          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
-                          {addr.note && <p className="text-[9px] text-zinc-700 mt-1">{addr.note}</p>}
+                          <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-0.5">{addr.street}, {addr.zip} {addr.city}</p>
+                          {addr.note && <p className="text-[9px] text-zinc-400 mt-1 opacity-70">{addr.note}</p>}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -947,26 +960,26 @@ export default function ProfilePage() {
               )}
 
               {/* Add New Address */}
-              <div className="bg-white/5 border border-white/5 rounded-[2.5rem] p-8 space-y-5">
-                <h3 className="text-sm font-black uppercase italic text-white flex items-center gap-3">
-                  <Plus size={16} className="text-gold-500" /> Lägg till adress
+              <div className="rounded-[2.5rem] p-8 space-y-5 shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                <h3 className="text-sm font-black uppercase italic flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
+                  <Plus size={16} className="text-gold-600" /> Lägg till adress
                 </h3>
                 <div className="flex gap-2">
                   {['Hem', 'Jobb', 'Annat'].map(l => (
                     <button key={l} type="button" onClick={() => setNewAddrLabel(l)} className={`flex items-center gap-2 px-4 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${
-                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-500' : 'bg-white/3 border-white/5 text-zinc-600'
+                      newAddrLabel === l ? 'bg-gold-500/10 border-gold-500/30 text-gold-600' : 'bg-zinc-50 border-zinc-100 text-zinc-400'
                     }`}>
                       {l === 'Hem' ? <Home size={12} /> : l === 'Jobb' ? <Briefcase size={12} /> : <MapPin size={12} />}
                       {l}
                     </button>
                   ))}
                 </div>
-                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder="Gatuadress" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                <input value={newAddrStreet} onChange={e => setNewAddrStreet(e.target.value)} placeholder="Gatuadress" className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <div className="grid grid-cols-2 gap-3">
-                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder="Stad" className="bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
-                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder="Postnummer" className="bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                  <input value={newAddrCity} onChange={e => setNewAddrCity(e.target.value)} placeholder="Stad" className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
+                  <input value={newAddrZip} onChange={e => setNewAddrZip(e.target.value)} placeholder="Postnummer" className="rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
-                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder="Portkod, våning (valfritt)" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white text-sm font-bold placeholder:text-zinc-700 outline-none focus:ring-2 focus:ring-gold-500/40" />
+                <input value={newAddrNote} onChange={e => setNewAddrNote(e.target.value)} placeholder="Portkod, våning (valfritt)" className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 <button
                   onClick={async () => {
                     if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
@@ -998,26 +1011,27 @@ export default function ProfilePage() {
               onSubmit={handleUpdateProfile}
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white/5 border border-white/5 p-8 rounded-[2.5rem] space-y-6"
+              className="p-8 rounded-[2.5rem] space-y-6 shadow-sm"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
             >
               <div className="flex items-center gap-3 mb-2">
-                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-500 hover:text-white rounded-xl">
+                <button type="button" onClick={() => setIsEditing(false)} className="p-2 text-zinc-400 hover:text-zinc-600 rounded-xl">
                   <ArrowLeft size={18} />
                 </button>
-                <h3 className="text-lg font-black uppercase italic">Ändra uppgifter</h3>
+                <h3 className="text-lg font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Ändra uppgifter</h3>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Namn</label>
-                  <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Namn</label>
+                  <input value={editName} onChange={e => setEditName(e.target.value)} className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">E-post</label>
-                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="din@email.se" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-white font-bold outline-none focus:ring-2 focus:ring-gold-500/40" />
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">E-post</label>
+                  <input type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="din@email.se" className="w-full rounded-2xl py-4 px-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/40" style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Telefon (ej ändringsbart)</label>
-                  <input disabled value={user.phone || "Ej angivet"} className="w-full bg-zinc-900/60 border border-white/5 rounded-2xl py-4 px-6 text-zinc-600 font-bold cursor-not-allowed" />
+                  <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Telefon (ej ändringsbart)</label>
+                  <input disabled value={user.phone || "Ej angivet"} className="w-full rounded-2xl py-4 px-6 font-bold cursor-not-allowed opacity-50" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }} />
                 </div>
               </div>
               <button
@@ -1040,25 +1054,26 @@ export default function ProfilePage() {
           initial={{ opacity: 0 }} 
           animate={{ opacity: 1 }} 
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(23,21,19,0.9)" }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(252,252,249,0.9)" }}
         >
           <motion.div 
             initial={{ scale: 0.9, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.9, y: 20 }}
-            className="w-full max-w-sm bg-zinc-900 border border-white/5 rounded-[2.5rem] p-8 space-y-8 shadow-2xl"
+            className="w-full max-w-sm rounded-[2.5rem] p-8 space-y-8 shadow-2xl"
+            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
           >
             <div className="text-center space-y-3">
-              <div className="w-16 h-16 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto">
+              <div className="w-16 h-16 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center text-gold-600 mx-auto">
                 <ShieldCheck size={32} />
               </div>
-              <h2 className="text-2xl font-black uppercase italic text-white">Verifiera kod</h2>
-              <p className="text-zinc-500 text-xs">Vi har skickat en kod till {otpPhone}</p>
+              <h2 className="text-2xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Verifiera kod</h2>
+              <p className="text-zinc-400 text-xs">Vi har skickat en kod till {otpPhone}</p>
             </div>
 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Engångskod</label>
+                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Engångskod</label>
                 <input
                   required
                   type="text"
@@ -1066,7 +1081,8 @@ export default function ProfilePage() {
                   value={otpCode}
                   onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="000 000"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] text-white placeholder:text-zinc-800 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  className="w-full rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] placeholder:text-zinc-100 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                  style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
               </div>
               

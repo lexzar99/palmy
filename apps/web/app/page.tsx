@@ -170,18 +170,25 @@ export default function HomePage() {
         ? axios.get(`${API_URL}/api/profile/deals`, { headers: { Authorization: `Bearer ${userToken}` } }).catch(() => ({ data: [] }))
         : Promise.resolve({ data: [] }),
     ]).then(([resRest, resCities, resDeals, resSponsors, resPersonal]) => {
-      setRestaurants(resRest.data);
-      setCities(resCities.data);
-      setDeals(resDeals.data.filter((d: any) => d.isActive && d.showOnSite));
-      setSponsors(resSponsors.data || []);
-      setPersonalDeals(resPersonal.data || []);
+      const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
+      const citiesData = Array.isArray(resCities.data) ? resCities.data : [];
+      const dealsData = Array.isArray(resDeals.data) ? resDeals.data : [];
+      const sponsorsData = Array.isArray(resSponsors.data) ? resSponsors.data : [];
+      const personalDealsData = Array.isArray(resPersonal.data) ? resPersonal.data : [];
+
+      setRestaurants(restaurantsData);
+      setCities(citiesData);
+      setDeals(dealsData.filter((d: any) => d.isActive && d.showOnSite));
+      setSponsors(sponsorsData);
+      setPersonalDeals(personalDealsData);
 
       const initialAddress = localStorage.getItem("platform_address") || "";
-      if (initialAddress) {
-        const match = resCities.data.find((c: City) => c.name.toLowerCase() === initialAddress.toLowerCase());
+      if (initialAddress && citiesData.length > 0) {
+        const match = citiesData.find((c: City) => c.name?.toLowerCase() === initialAddress.toLowerCase());
         if (match) setSelectedCity(match);
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.error("API Error on Home:", err);
       setApiError(true);
     })
     .finally(() => setLoading(false));

@@ -142,10 +142,24 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-950/20 backdrop-blur-md p-0 sm:p-6" onClick={onClose}>
-      <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", bounce: 0, duration: 0.4 }} className="w-full max-w-2xl bg-white sm:rounded-2xl rounded-t-3xl border border-zinc-200 overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-zinc-900/10 backdrop-blur-md p-0 sm:p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+        className="w-full max-w-2xl sm:rounded-2xl rounded-t-3xl border overflow-hidden shadow-2xl relative flex flex-col max-h-[95vh]"
+        onClick={(e) => e.stopPropagation()}
+        style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+      >
         
-        <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all z-20">
+        <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
            <X size={20} />
         </button>
 
@@ -174,41 +188,42 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
                  const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
                  return (
                  <div key={group.id} className="relative">
-                    <div className="flex items-center justify-between mb-8">
-                       <div>
-                          <h3 className="text-xl font-black text-white uppercase italic tracking-tight">{group.name}</h3>
-                          <div className="flex items-center gap-2 mt-1">
-                             <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-700">{group.required ? "Måste väljas" : "Valfritt"}</span>
-                             {group.maxSelections > 1 && (
-                                <div className="px-3 py-1 bg-white/5 rounded-lg border border-white/5">
-                                  <span className="text-[9px] font-black text-gold-500 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-700 not-italic">AV</span> {group.maxSelections}</span>
-                                </div>
-                             )}
-                          </div>
-                       </div>
-                    </div>
+                     <div className="flex items-center justify-between mb-8">
+                        <div>
+                           <h3 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{group.name}</h3>
+                           <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500">{group.required ? "Måste väljas" : "Valfritt"}</span>
+                              {group.maxSelections > 1 && (
+                                 <div className="px-3 py-1 rounded-lg" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                                   <span className="text-[9px] font-black text-gold-600 italic uppercase tracking-tighter">{selectionCount} <span className="text-zinc-400 not-italic">AV</span> {group.maxSelections}</span>
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                        {group.extras.map((extra: any) => {
                           const isSelected = selectedExtras.some((e) => e.extraId === extra.id);
                           return (
-                             <button
-                                key={extra.id}
-                                onClick={() => handleToggleExtra(group, extra)}
-                                className={`flex items-center justify-between p-5 rounded-[1.8rem] border-2 transition-all transition-all duration-300 ${
-                                   isSelected 
-                                      ? "bg-gold-500/5 border-gold-500/60 shadow-[0_10px_20px_rgba(231,178,75,0.1)]" 
-                                      : "bg-zinc-950 border-white/5 hover:border-white/10"
-                                }`}
-                             >
-                                <div className="flex items-center gap-4">
-                                   <div className={`w-6 h-6 rounded-3xl border-2 flex items-center justify-center transition-all ${isSelected ? "bg-gold-500 border-gold-500" : "border-white/5"}`}>
-                                      {isSelected && <Check size={14} className="text-zinc-950" strokeWidth={4} />}
-                                   </div>
-                                   <span className={`text-[11px] font-black uppercase tracking-widest ${isSelected ? "text-gold-500" : "text-zinc-400"}`}>{extra.name}</span>
-                                </div>
-                                {extra.priceAddon > 0 && <span className="text-[9px] font-black text-zinc-700">+{extra.priceAddon} kr</span>}
-                             </button>
+                              <button
+                                 key={extra.id}
+                                 onClick={() => handleToggleExtra(group, extra)}
+                                 className={`flex items-center justify-between p-5 rounded-[1.8rem] border-2 transition-all duration-300 ${
+                                    isSelected 
+                                       ? "bg-gold-500/5 border-gold-500/60 shadow-[0_10px_20px_rgba(231,178,75,0.1)]" 
+                                       : "bg-white border-zinc-100 hover:border-zinc-200"
+                                 }`}
+                                 style={{ backgroundColor: isSelected ? undefined : "var(--bg-primary)", borderColor: isSelected ? undefined : "var(--border-muted)" }}
+                              >
+                                 <div className="flex items-center gap-4">
+                                    <div className={`w-6 h-6 rounded-3xl border-2 flex items-center justify-center transition-all ${isSelected ? "bg-gold-500 border-gold-500" : "border-zinc-200"}`}>
+                                       {isSelected && <Check size={14} className="text-zinc-950" strokeWidth={4} />}
+                                    </div>
+                                    <span className={`text-[11px] font-black uppercase tracking-widest ${isSelected ? "text-gold-500" : "text-zinc-500"}`}>{extra.name}</span>
+                                 </div>
+                                 {extra.priceAddon > 0 && <span className="text-[9px] font-black text-zinc-400">+{extra.priceAddon} kr</span>}
+                              </button>
                           );
                        })}
                     </div>
@@ -219,13 +234,14 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
            {/* Notes */}
            <div className="space-y-4">
-              <h3 className="text-sm font-black text-white uppercase italic tracking-tight">Önskemål</h3>
-              <div className="glass-panel rounded-[1.8rem] p-1">
+              <h3 className="text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>Önskemål</h3>
+              <div className="rounded-[1.8rem] p-1 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                  <textarea 
                     value={note}
                     onChange={e => setNote(e.target.value)}
                     placeholder="Allergier? Särskilda krav? Skriv dem här..."
-                    className="w-full bg-transparent border-none rounded-[1.5rem] p-5 text-sm font-bold text-white focus:ring-0 focus:outline-none min-h-[100px] placeholder:text-zinc-800"
+                    className="w-full bg-transparent border-none rounded-[1.5rem] p-5 text-sm font-bold focus:ring-0 focus:outline-none min-h-[100px] placeholder:text-zinc-400 shadow-inner"
+                    style={{ color: "var(--text-primary)" }}
                  />
               </div>
            </div>

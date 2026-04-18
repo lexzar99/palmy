@@ -27,9 +27,9 @@ const DealSpotlight = ({ deals, subtotal, productIds, floating = false }: DealSp
   const evaluation = evaluateDeal(spotlight, subtotal, productIds);
 
   const body = (
-    <div className={`relative overflow-hidden rounded-[2rem] border ${floating ? "border-white/5 bg-white/95 shadow-xl backdrop-blur-md" : "border-white/5 bg-zinc-900"} p-6`}>
+    <div className={`relative overflow-hidden rounded-[2rem] border ${floating ? "bg-white/95" : "bg-[var(--bg-secondary)]"} p-6`} style={{ borderColor: 'var(--border-muted)' }}>
       {floating && (
-        <button onClick={() => setDismissed(true)} className="absolute right-4 top-4 text-zinc-400/30 hover:text-zinc-100 transition-colors">
+        <button onClick={() => setDismissed(true)} className="absolute right-4 top-4 text-zinc-400/30 hover:text-zinc-600 transition-colors">
           <X size={16} />
         </button>
       )}
@@ -40,20 +40,20 @@ const DealSpotlight = ({ deals, subtotal, productIds, floating = false }: DealSp
             <Sparkles size={12} />
             {spotlight.badgeText || "Deal just nu"}
           </div>
-          <h3 className="text-xl font-black tracking-tight text-zinc-100">{spotlight.title}</h3>
-          <p className="mt-2 text-sm leading-relaxed text-zinc-400">{spotlight.description || formatDealReward(spotlight)}</p>
+          <h3 className="text-xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>{spotlight.title}</h3>
+          <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{spotlight.description || formatDealReward(spotlight)}</p>
         </div>
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-500 text-white shadow-xl">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-500 text-zinc-950 shadow-xl">
           <Gift size={20} />
         </div>
       </div>
 
       <div className="mb-4 flex items-center justify-between gap-4 text-sm">
-        <div className="text-zinc-400">{evaluation.progress.message}</div>
+        <div style={{ color: 'var(--text-secondary)' }}>{evaluation.progress.message}</div>
         <div className="font-bold text-gold-600">{formatDealReward(spotlight)}</div>
       </div>
 
-      <div className="h-3 w-full overflow-hidden rounded-full border border-white/5 bg-zinc-800/50">
+      <div className="h-3 w-full overflow-hidden rounded-full border border-white/5 bg-zinc-100">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${evaluation.progress.percentage}%` }}
@@ -64,7 +64,7 @@ const DealSpotlight = ({ deals, subtotal, productIds, floating = false }: DealSp
       {spotlight.comboProductNames.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
           {spotlight.comboProductNames.map((name) => (
-            <span key={name} className="rounded-full bg-zinc-800/50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+            <span key={name} className="rounded-full bg-zinc-100 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">
               {name}
             </span>
           ))}
@@ -72,7 +72,7 @@ const DealSpotlight = ({ deals, subtotal, productIds, floating = false }: DealSp
       )}
 
       {spotlight.validUntil && (
-        <div className="mt-4 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400/40">
+        <div className="mt-4 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400">
           Gäller till {new Date(spotlight.validUntil).toLocaleDateString("sv-SE")}
         </div>
       )}

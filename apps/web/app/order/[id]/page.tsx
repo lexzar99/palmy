@@ -88,8 +88,8 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; colorClass: stri
   CANCELLED: {
     label: "Avbokad",
     icon: AlertCircle,
-    colorClass: "bg-zinc-800/20 border-white/5",
-    textClass: "text-zinc-600",
+    colorClass: "bg-zinc-50 border-zinc-100",
+    textClass: "text-zinc-400",
     desc: "Denna beställning har avbokats.",
   },
 };
@@ -199,7 +199,7 @@ const OrderStatusPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -207,9 +207,9 @@ const OrderStatusPage = () => {
 
   if (!order) {
     return (
-       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "#171513" }}>
+       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
           <AlertCircle size={48} className="text-rose-500 mb-6" />
-          <h1 className="text-4xl font-black uppercase italic" style={{ color: "#FFF8EA" }}>Order ej hittad</h1>
+          <h1 className="text-4xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Order ej hittad</h1>
           <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">Till startsidan</Link>
        </div>
     );
@@ -225,17 +225,17 @@ const OrderStatusPage = () => {
   const currentIdx = isCompleted ? steps.length - 1 : steps.indexOf(currentStatus);
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-24 pb-32 px-6" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen bg-dot-pattern pt-24 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-4xl mx-auto">
         
         {/* Dynamic Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16 px-4">
            <div>
-              <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
+              <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-600 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
                  <Zap size={12} className="animate-pulse" /> Live Tracking
               </div>
-               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "#FFF8EA" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
-               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "#B8AA95" }}>Din beställning behandlas i realtid</p>
+               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "var(--text-primary)" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
+               <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>Din beställning behandlas i realtid</p>
            </div>
            
            {order.estimatedTime && !isRejected && (
@@ -245,10 +245,10 @@ const OrderStatusPage = () => {
                     <Clock size={28} />
                  </div>
                  <div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-1">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
                       {etaLeft !== null && etaLeft <= 0 ? 'Bör vara klart!' : 'Klar om ungefär'}
                     </div>
-                    <div className="text-2xl font-black text-white italic">
+                    <div className="text-2xl font-black italic" style={{ color: "var(--text-primary)" }}>
                       {etaLeft !== null ? (etaLeft <= 0 ? 'Snart!' : `~${etaLeft} MIN`) : `${order.estimatedTime} MIN`}
                     </div>
                  </div>
@@ -257,8 +257,8 @@ const OrderStatusPage = () => {
         </div>
 
         {/* Live Status Banner */}
-        <motion.div key={currentStatus} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`p-10 rounded-[3rem] border transition-all shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10 text-center md:text-left ${statusInfo.colorClass}`}>
-           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-bg-primary/40 border-white/5`}>
+        <motion.div key={currentStatus} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={`p-10 rounded-[3rem] border transition-all shadow-2xl mb-12 flex flex-col md:flex-row items-center gap-10 text-center md:text-left ${statusInfo.colorClass}`} style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+           <div className={`w-20 h-20 rounded-[2.5rem] flex items-center justify-center shrink-0 border-[1px] shadow-inner ${statusInfo.textClass} bg-[rgba(252,252,249,0.4)] border-zinc-100`}>
               <StatusIcon size={40} className={currentStatus === 'PENDING' ? 'animate-pulse' : ''} />
            </div>
            <div className="flex-1">
@@ -280,28 +280,28 @@ const OrderStatusPage = () => {
                     const info = STATUS_CONFIG[step];
                     return (
                        <div key={step} className="flex flex-col items-center gap-4 relative z-10">
-                          <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-bg-primary border-white/5 text-zinc-900"}`}>
+                          <div className={`w-8 h-8 rounded-full border-2 transition-all duration-700 flex items-center justify-center ${isDone ? "bg-gold-500 border-gold-500 shadow-lg shadow-gold-500/20" : "bg-zinc-50 border-zinc-100 text-zinc-300"}`}>
                              {isDone ? <Check size={14} className="text-zinc-950" strokeWidth={4} /> : <div className="w-1.5 h-1.5 rounded-full bg-current" />}
                           </div>
-                          <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-500" : isDone ? "text-white/40" : "text-zinc-900"}`}>{info.label.split(" ")[0]}</span>
+                          <span className={`text-[8px] font-black uppercase tracking-widest whitespace-nowrap ${isActive ? "text-gold-600" : isDone ? "text-zinc-400" : "text-zinc-300"}`}>{info.label.split(" ")[0]}</span>
                        </div>
                     );
                  })}
                  
                  {/* Progress line background */}
-                 <div className="absolute left-6 right-6 h-px bg-white/5 z-0 mt-[-24px]" />
+                 <div className="absolute left-6 right-6 h-px bg-zinc-100 z-0 mt-[-24px]" />
                  {/* Active progress line */}
-                 <motion.div initial={{ width: 0 }} animate={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }} transition={{ duration: 1, ease: "circOut" }} className="absolute left-6 h-1 bg-gold-500/40 z-0 mt-[-24px] rounded-full shadow-[0_0_15px_rgba(231,178,75,0.4)]" style={{ width: `calc(${ (currentIdx / (steps.length - 1)) * 100 }% - 12px)` }} />
+                 <motion.div initial={{ width: 0 }} animate={{ width: `${(currentIdx / (steps.length - 1)) * 100}%` }} transition={{ duration: 1, ease: "circOut" }} className="absolute left-6 h-1 bg-gold-400 z-0 mt-[-24px] rounded-full shadow-[0_0_15px_rgba(231,178,75,0.2)]" style={{ width: `calc(${ (currentIdx / (steps.length - 1)) * 100 }% - 12px)` }} />
               </div>
            </div>
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
            {/* Detailed Receipt */}
-            <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+            <div className="lg:col-span-7 p-10 rounded-[3.5rem] shadow-2xl relative overflow-hidden" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                <div className="absolute top-[-100px] left-[-100px] w-[300px] h-[300px] rounded-full blur-[100px]" style={{ backgroundColor: "rgba(231,178,75,0.03)" }} />
               <div className="flex items-center justify-between mb-12 relative z-10">
-                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-none" style={{ color: "#FFF8EA" }}>Beställningsdetaljer</h2>
+                  <h2 className="text-2xl font-black uppercase italic tracking-tight leading-none" style={{ color: "var(--text-primary)" }}>Beställningsdetaljer</h2>
                  <ShoppingBag size={24} className="text-gold-500/30" />
               </div>
               
@@ -311,7 +311,7 @@ const OrderStatusPage = () => {
                        <div className="flex-1">
                           <div className="flex items-center gap-4 mb-1">
                              <span className="text-xs font-black text-gold-500 bg-gold-500/5 px-2 py-0.5 rounded-md border border-gold-500/10">{item.quantity}x</span>
-                             <h3 className="font-black text-white uppercase italic text-sm tracking-tight">{item.productName}</h3>
+                             <h3 className="font-black uppercase italic text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>{item.productName}</h3>
                           </div>
                           {item.selectedExtras && Array.isArray(item.selectedExtras) && item.selectedExtras.length > 0 && (
                              <div className="flex flex-col gap-1 mt-2 pl-12 group-hover:pl-14 transition-all">
@@ -327,62 +327,62 @@ const OrderStatusPage = () => {
                  ))}
               </div>
 
-              <div className="border-t border-white/5 pt-10 space-y-4 relative z-10">
+              <div className="border-t border-zinc-100 pt-10 space-y-4 relative z-10">
                  <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Delsumma</span><span>{(order.total - order.deliveryFee).toFixed(0)} KR</span></div>
                  {order.deliveryFee > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-zinc-700"><span>Leveransavgift</span><span className="text-gold-500">+{order.deliveryFee.toFixed(0)} KR</span></div>}
-                 <div className="flex justify-between items-end mt-10 pt-4 border-t border-white/5">
-                    <span className="text-2xl font-black text-white italic uppercase tracking-tighter leading-none">SUMMA</span>
-                    <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
-                 </div>
+                  <div className="flex justify-between items-end mt-10 pt-4 border-t border-zinc-100">
+                     <span className="text-2xl font-black italic uppercase tracking-tighter leading-none" style={{ color: "var(--text-primary)" }}>SUMMA</span>
+                     <span className="text-4xl font-black italic tracking-tighter text-gold-500">{order.total.toFixed(0)} <span className="text-[10px] opacity-40 not-italic uppercase tracking-widest">SEK</span></span>
+                  </div>
               </div>
            </div>
 
            {/* Info sidebar */}
            <div className="lg:col-span-5 space-y-6">
-               <div className="p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
-                 <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "#FFF8EA" }}>
+               <div className="p-10 rounded-[3rem] shadow-2xl relative overflow-hidden group border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <div className="absolute inset-0 bg-gradient-to-br from-gold-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <h2 className="text-xl font-black uppercase italic tracking-tight mb-10 flex items-center justify-between" style={{ color: "var(--text-primary)" }}>
                     Hantering
                     {order.type === "DELIVERY" ? <Truck size={22} className="text-gold-500" /> : <Store size={22} className="text-gold-500" />}
-                 </h2>
+                  </h2>
                  
                  <div className="space-y-8">
                     <div className="flex items-start gap-5">
                        <Phone className="text-gold-500/30 mt-1" size={20} />
-                       <div>
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Ditt Nummer</div>
-                          <div className="text-base font-black text-white tracking-widest italic">{order.customerPhone}</div>
-                       </div>
+                        <div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Ditt Nummer</div>
+                           <div className="text-base font-black tracking-widest italic" style={{ color: "var(--text-primary)" }}>{order.customerPhone}</div>
+                        </div>
                     </div>
                     
                     <div className="flex items-start gap-5">
                        <Store className="text-gold-500/30 mt-1" size={20} />
-                       <div>
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Restaurang</div>
-                          <div className="text-base font-black text-white italic uppercase">{order.restaurantName}</div>
-                          {order.restaurantPhone && <div className="text-[10px] font-black text-gold-500/60 mt-1">{order.restaurantPhone}</div>}
-                       </div>
+                        <div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Restaurang</div>
+                           <div className="text-base font-black italic uppercase" style={{ color: "var(--text-primary)" }}>{order.restaurantName}</div>
+                           {order.restaurantPhone && <div className="text-[10px] font-black text-gold-500/60 mt-1">{order.restaurantPhone}</div>}
+                        </div>
                     </div>
 
                     {order.type === 'DELIVERY' ? (
                        order.deliveryStreet && (
                           <div className="flex items-start gap-5">
                              <MapPin className="text-sky-500/30 mt-1" size={20} />
-                             <div>
-                                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Leveransadress</div>
-                                <div className="text-sm font-black text-white uppercase italic leading-tight">{order.deliveryStreet}</div>
-                                <div className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
-                             </div>
+                              <div>
+                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Leveransadress</div>
+                                 <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.deliveryStreet}</div>
+                                 <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantCity || "LUND"}</div>
+                              </div>
                           </div>
                        )
                     ) : (
                        order.restaurantAddress && (
                           <div className="flex items-start gap-5">
                              <MapPin className="text-emerald-500/30 mt-1" size={20} />
-                             <div>
-                                <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-800 mb-1">Hämta Hos</div>
-                                <div className="text-sm font-black text-white uppercase italic leading-tight">{order.restaurantAddress}</div>
-                                <div className="text-[11px] font-black text-zinc-700 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
+                              <div>
+                                 <div className="text-[9px] font-black uppercase tracking-[0.3em] text-emerald-600 mb-1">Hämta Hos</div>
+                                 <div className="text-sm font-black uppercase italic leading-tight" style={{ color: "var(--text-primary)" }}>{order.restaurantAddress}</div>
+                                 <div className="text-[11px] font-black text-zinc-400 uppercase tracking-widest mt-1">{order.restaurantZip} {order.restaurantCity}</div>
                               </div>
                           </div>
                        )
@@ -390,30 +390,30 @@ const OrderStatusPage = () => {
 
                     <div className="flex items-start gap-5">
                        <Calendar className="text-zinc-800 mt-1" size={20} />
-                       <div>
-                          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-800 mb-1">Beställningstjänst</div>
-                          <div className="text-[11px] font-black text-white uppercase tracking-widest">{new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })} idag</div>
-                       </div>
+                        <div>
+                           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-400 mb-1">Beställningstjänst</div>
+                           <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>{new Date(order.createdAt).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })} idag</div>
+                        </div>
                     </div>
                  </div>
               </div>
 
               {/* Review Card or Thank You */}
               {order.rating || reviewDone ? (
-                 <div className="p-10 rounded-[3rem] shadow-2xl text-center" style={{ backgroundColor: "#211C19", border: "1px solid rgba(231,178,75,0.1)" }}>
-                   <div className="flex items-center justify-center gap-1 mb-4">
-                     {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-800'} />)}
-                   </div>
-                   <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic mb-2">Tack för din recension!</h3>
-                   <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Din feedback hjälper oss att bli bättre.</p>
-                </div>
+                  <div className="p-10 rounded-[3rem] shadow-2xl text-center border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                    <div className="flex items-center justify-center gap-1 mb-4">
+                      {[1,2,3,4,5].map(s => <Star key={s} size={24} className={s <= (order.rating || reviewRating) ? 'text-gold-500 fill-gold-500' : 'text-zinc-100'} />)}
+                    </div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>Tack för din recension!</h3>
+                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Din feedback hjälper oss att bli bättre.</p>
+                 </div>
               ) : (
-                 <div className="p-10 rounded-[3rem] shadow-2xl text-center group active:scale-95 transition-all cursor-default" style={{ backgroundColor: "#211C19", border: "1px solid rgba(52,211,153,0.05)" }}>
-                   <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-500 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
+                 <div className="p-10 rounded-[3rem] shadow-2xl text-center group active:scale-95 transition-all cursor-default" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+                   <div className="w-16 h-16 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center mx-auto mb-6 text-emerald-600 shadow-xl shadow-emerald-500/5 group-hover:scale-110 transition-transform">
                       <ShieldCheck size={32} />
                    </div>
-                   <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white italic mb-2">Tack för förtroendet</h3>
-                   <p className="text-zinc-600 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
+                   <h3 className="text-sm font-black uppercase tracking-[0.2em] italic mb-2" style={{ color: "var(--text-primary)" }}>Tack för förtroendet</h3>
+                   <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
                 </div>
               )}
            </div>
@@ -422,11 +422,11 @@ const OrderStatusPage = () => {
         {/* Review Modal */}
         <AnimatePresence>
           {showReview && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-6 bg-black/70 backdrop-blur-sm">
-               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.1)" }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(252,252,249,0.8)" }}>
+               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black uppercase italic text-white">Betygsätt</h2>
-                  <button onClick={() => setShowReview(false)} className="p-2 text-zinc-600 hover:text-white transition-colors"><X size={20} /></button>
+                  <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Betygsätt</h2>
+                  <button onClick={() => setShowReview(false)} className="p-2 text-zinc-400 hover:text-zinc-600 transition-colors"><X size={20} /></button>
                 </div>
                 <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Hur var din upplevelse med {order.restaurantName}?</p>
                 <div className="flex items-center justify-center gap-3">
@@ -441,8 +441,8 @@ const OrderStatusPage = () => {
                   onChange={e => setReviewText(e.target.value)}
                   placeholder="Berätta mer om din upplevelse (valfritt)..."
                   rows={3}
-                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-[#B8AA95]"
-                   style={{ backgroundColor: "#2A241F", border: "1px solid rgba(255,248,234,0.08)", color: "#FFF8EA" }}
+                   className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-600"
+                   style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
                 <button
                   onClick={submitReview}

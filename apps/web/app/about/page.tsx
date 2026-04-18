@@ -7,20 +7,19 @@ export const metadata: Metadata = {
 
 export default function OmOssPage() {
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="pt-32 pb-24 px-6 max-w-5xl mx-auto">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/20 text-gold-500 text-xs font-bold uppercase tracking-wider mb-8 border border-gold-500/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold uppercase tracking-wider mb-8 border border-gold-500/20">
             Sedan 2019
           </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "#FFF8EA" }}>
+          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "var(--text-primary)" }}>
             Om <span className="text-gold-500">MatGo</span>
           </h1>
-
-          <div className="space-y-6 text-lg leading-relaxed" style={{ color: "#B8AA95" }}>
+          <div className="space-y-6 text-lg leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             <p>
               MatGo Lund är en modern restaurang i hjärtat av Lund. Sedan 2019 har vi byggt upp ett brett utbud av
-              pizza, rullar, tallrikar och kvällsmat med <span style={{ color: "#FFF8EA" }} className="font-medium">snabb service</span>
+              pizza, rullar, tallrikar och kvällsmat med <span style={{ color: "var(--text-primary)" }} className="font-medium">snabb service</span>
               och ett tydligt fokus på smak.
             </p>
             <p>
@@ -39,27 +38,27 @@ export default function OmOssPage() {
               { number: "100+", label: "Rätter på menyn" },
               { number: "4.8/5", label: "Genomsnittligt betyg" },
             ].map((stat) => (
-              <div key={stat.label} className="p-8 rounded-3xl text-center" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+              <div key={stat.label} className="p-8 rounded-3xl text-center shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                 <div className="text-4xl font-black text-gold-500 mb-2">{stat.number}</div>
-                <div className="text-xs uppercase font-black tracking-widest" style={{ color: "rgba(184,170,149,0.4)" }}>{stat.label}</div>
+                <div className="text-xs uppercase font-black tracking-widest text-zinc-400">{stat.label}</div>
               </div>
             ))}
           </div>
 
-          <div className="mt-20 p-10 rounded-[2rem]" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6" style={{ color: "#FFF8EA" }}>Hitta oss</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ color: "#B8AA95" }}>
+          <div className="mt-20 p-10 rounded-[2rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <h2 className="text-2xl font-black uppercase tracking-tight mb-6" style={{ color: "var(--text-primary)" }}>Hitta oss</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ color: "var(--text-secondary)" }}>
               <div>
-                <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(184,170,149,0.4)" }}>Adress</div>
-                <div className="font-bold" style={{ color: "#FFF8EA" }}>Kiliansgatan 14</div>
+                <div className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400">Adress</div>
+                <div className="font-bold" style={{ color: "var(--text-primary)" }}>Kiliansgatan 14</div>
                 <div>223 50 Lund</div>
               </div>
               <div>
-                <div className="text-[10px] uppercase font-black tracking-widest mb-2" style={{ color: "rgba(184,170,149,0.4)" }}>Öppettider</div>
+                <div className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400">Öppettider</div>
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span>Mån-Tis</span><span className="font-bold" style={{ color: "#FFF8EA" }}>11:00 – 22:00</span></div>
-                  <div className="flex justify-between"><span>Ons-Lör</span><span className="font-bold" style={{ color: "#FFF8EA" }}>11:00 – 02:00</span></div>
-                  <div className="flex justify-between"><span>Söndag</span><span className="font-bold" style={{ color: "#FFF8EA" }}>11:00 – 22:00</span></div>
+                  <div className="flex justify-between"><span>Mån-Tis</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 22:00</span></div>
+                  <div className="flex justify-between"><span>Ons-Lör</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 02:00</span></div>
+                  <div className="flex justify-between"><span>Söndag</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 22:00</span></div>
                 </div>
               </div>
             </div>

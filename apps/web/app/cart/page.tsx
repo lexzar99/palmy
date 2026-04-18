@@ -733,11 +733,11 @@ export default function CartPage() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
-        <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "rgba(23,21,19,0.4)", border: "1px solid rgba(255,255,255,0.05)" }}>
-          <ShoppingBag size={48} className="text-zinc-800" />
+        <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+          <ShoppingBag size={48} className="text-gold-500/30" />
         </div>
         <h1 className="text-4xl font-black uppercase italic tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>Din kasse är <span className="text-gold-500">tom</span></h1>
-        <p className="text-zinc-600 text-xs font-bold uppercase tracking-[0.3em] mb-12">Det ser lite tomt ut här. Lägg till något gott!</p>
+        <p className="text-zinc-500 text-xs font-bold uppercase tracking-[0.3em] mb-12">Det ser lite tomt ut här. Lägg till något gott!</p>
         <Link href="/" className="px-12 py-6 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-gold-500/10 active:scale-95 transition-all">Gå till menyn</Link>
       </div>
     );
@@ -749,9 +749,9 @@ export default function CartPage() {
         <div className="flex items-end justify-between mb-12 px-4">
            <div>
               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-3" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
-              <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
+              <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
            </div>
-           <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors flex items-center gap-2 mb-2 group">
+           <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600 transition-colors flex items-center gap-2 mb-2 group">
               Lägg till mer <Plus size={14} className="group-hover:rotate-90 transition-transform" />
            </Link>
         </div>
@@ -763,10 +763,10 @@ export default function CartPage() {
               <UserIcon size={20} className="text-gold-500" />
             </div>
             <div className="flex-1 text-center sm:text-left">
-              <p className="text-[12px] font-black uppercase tracking-widest text-gold-400 mb-0.5">
+              <p className="text-[12px] font-black uppercase tracking-widest text-gold-600 mb-0.5">
                 Lojalitetsprogram
               </p>
-              <p className="text-[11px] font-bold text-zinc-400 leading-relaxed">
+              <p className="text-[11px] font-bold text-zinc-500 leading-relaxed">
                 Logga in för att spara adresser, se orderhistorik och ta del av personliga erbjudanden.
                 Du kan även betala som gäst.
               </p>
@@ -780,7 +780,8 @@ export default function CartPage() {
               </Link>
               <Link
                 href="/register"
-                className="px-5 py-3 border border-white/10 bg-white/3 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] hover:bg-white/5 active:scale-95 transition-all"
+                className="px-5 py-3 border rounded-2xl font-black uppercase tracking-widest text-[9px] hover:bg-zinc-50 active:scale-95 transition-all"
+                style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
               >
                 Skapa konto
               </Link>
