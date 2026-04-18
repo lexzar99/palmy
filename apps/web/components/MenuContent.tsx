@@ -13,6 +13,7 @@ import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AddressModal from "@/components/AddressModal";
+import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
 import { useCartStore } from "@/store/cartStore";
 
 interface MenuContentProps {
@@ -337,6 +338,11 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Previously ordered bar (inloggade kunder) */}
+        {restaurant?.id && (
+          <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
+        )}
 
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-3 gap-3 mb-16">

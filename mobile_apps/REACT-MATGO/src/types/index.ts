@@ -233,6 +233,7 @@ export interface AppStoreState {
   addItem: (item: Omit<CartItem, "cartItemId">) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
+  updateItem: (cartItemId: string, patch: Partial<CartItem>) => void;
   clearCart: () => void;
   setAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;
   setDeliveryAddress: (address: string, coords?: { lat: number; lng: number } | null) => void;

@@ -11,20 +11,30 @@ interface ProductModalProps {
   restaurantId: string;
   restaurantSlug?: string;
   onClose: () => void;
+  /** If set, modal edits an existing cart item instead of adding a new one. */
+  editCartItemId?: string;
+  initialQuantity?: number;
+  initialExtras?: any[];
+  initialNote?: string;
 }
 
-const ProductModal = ({ product, restaurantId, restaurantSlug, onClose }: ProductModalProps) => {
+const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
+  const updateItem = useCartStore((state) => state.updateItem);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
 
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(initialNote ?? "");
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
+    if (initialExtras && initialExtras.length > 0) {
+      setSelectedExtras(initialExtras);
+      return;
+    }
     const defaults: any[] = [];
     product.extraGroups?.forEach((group: any) => {
       group.extras.forEach((extra: any) => {
@@ -40,6 +50,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose }: Produc
       });
     });
     setSelectedExtras(defaults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
   const handleToggleExtra = (group: any, extra: any) => {
@@ -105,16 +116,28 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose }: Produc
   };
 
   const performAddToCart = () => {
-    addItem({
-      productId: product.id,
-      restaurantId,
-      restaurantSlug,
-      name: product.name,
-      price: product.price,
-      quantity,
-      extras: selectedExtras,
-      note: note.trim() || undefined,
-    });
+    if (editCartItemId) {
+      updateItem(editCartItemId, {
+        productId: product.id,
+        restaurantId,
+        name: product.name,
+        price: product.price,
+        quantity,
+        extras: selectedExtras,
+        note: note.trim() || undefined,
+      });
+    } else {
+      addItem({
+        productId: product.id,
+        restaurantId,
+        restaurantSlug,
+        name: product.name,
+        price: product.price,
+        quantity,
+        extras: selectedExtras,
+        note: note.trim() || undefined,
+      });
+    }
     onClose();
   };
 
@@ -223,7 +246,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose }: Produc
            <button onClick={handleAddToCart} className="w-full py-6 px-10 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group">
               <div className="flex items-center gap-3">
                  <ShoppingBag size={20} />
-                 <span>Lägg i kasse</span>
+                 <span>{editCartItemId ? "Spara ändringar" : "Lägg i kasse"}</span>
               </div>
               <div className="flex items-center gap-2 text-xl italic leading-none">
                  {totalPrice} KR

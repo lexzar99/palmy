@@ -36,6 +36,7 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import StripeCheckout from "@/components/StripeCheckout";
 import DealSpotlight from "@/components/DealSpotlight";
+import ProductModal from "@/components/ProductModal";
 import { PublicDeal, pickBestDeal } from "@/lib/deals";
 
 const stripePromise = loadStripe(
@@ -43,8 +44,22 @@ const stripePromise = loadStripe(
 );
 
 export default function CartPage() {
-  const { items, removeItem, updateQuantity, getTotal, clearCart } = useCartStore();
+  const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
   const router = useRouter();
+  const [editingCartItem, setEditingCartItem] = useState<any>(null);
+
+  /**
+   * Öppnar befintlig ProductModal för redigering av en cart-rad. Hämtar produkten
+   * med extras-grupper från API:et så användaren kan ändra val direkt från kassan.
+   */
+  const handleEditCartItem = useCallback(async (item: any) => {
+    try {
+      const res = await axios.get(`${API_URL}/api/menu/products/${item.productId}`);
+      setEditingCartItem({ product: res.data, item });
+    } catch {
+      /* noop */
+    }
+  }, []);
 
   const [user, setUser] = useState<any>(null);
   const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
@@ -698,12 +713,16 @@ export default function CartPage() {
             <div className="space-y-4">
               {items.map((item) => (
                 <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
-                   <div className="flex items-center gap-6">
+                   <button
+                     type="button"
+                     onClick={() => handleEditCartItem(item)}
+                     className="flex items-center gap-6 text-left flex-1 min-w-0"
+                   >
                       <div className="w-14 h-14 border rounded-3xl flex items-center justify-center text-gold-500 font-black italic text-lg shadow-inner" style={{ backgroundColor: "#171513", borderColor: "rgba(255,248,234,0.06)" }}>
                          {item.quantity}x
                       </div>
-                      <div>
-                         <h3 className="text-lg font-black text-white uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase">{item.name}</h3>
+                      <div className="min-w-0">
+                         <h3 className="text-lg font-black text-white uppercase italic tracking-tight mb-1 group-hover:text-gold-500 transition-colors uppercase truncate">{item.name}</h3>
                          {item.extras.length > 0 && (
                            <div className="flex flex-wrap gap-2">
                               {item.extras.map(e => (
@@ -711,8 +730,9 @@ export default function CartPage() {
                               ))}
                            </div>
                          )}
+                         <span className="text-[8px] font-black uppercase tracking-[0.2em] text-gold-500/70 mt-2 inline-block">Tryck för att redigera</span>
                       </div>
-                   </div>
+                   </button>
                    <div className="flex items-center justify-between sm:justify-end gap-10">
                       <div className="flex items-center gap-6 px-4 py-3 rounded-2xl" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
                          <button onClick={() => { if (item.quantity === 1) { removeItem(item.cartItemId); } else { updateQuantity(item.cartItemId, -1); } }} className="text-zinc-500 hover:text-white transition-colors active:scale-75"><Minus size={18} /></button>
@@ -994,6 +1014,22 @@ export default function CartPage() {
                </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Cart item edit */}
+      <AnimatePresence>
+        {editingCartItem && (
+          <ProductModal
+            product={editingCartItem.product}
+            restaurantId={cartRestaurantId || editingCartItem.item.restaurantId}
+            restaurantSlug={cartRestaurantSlug || undefined}
+            editCartItemId={editingCartItem.item.cartItemId}
+            initialQuantity={editingCartItem.item.quantity}
+            initialExtras={editingCartItem.item.extras}
+            initialNote={editingCartItem.item.note}
+            onClose={() => setEditingCartItem(null)}
+          />
         )}
       </AnimatePresence>
     </div>

@@ -62,6 +62,12 @@ const UnifiedMenuPage = () => {
     imageUrl: "",
     isActive: true,
     extraGroupIds: [] as string[],
+    // Discount
+    discountActive: false,
+    discountPercent: "" as number | "",
+    discountPrice: "" as number | "",
+    discountImageUrl: "",
+    discountLabel: "",
   });
 
   const [categoryForm, setCategoryForm] = useState({
@@ -150,6 +156,11 @@ const UnifiedMenuPage = () => {
         imageUrl: product.imageUrl || "",
         isActive: product.isActive,
         extraGroupIds: product.extraGroups?.map((eg: any) => eg.id) || [],
+        discountActive: !!product.discountActive,
+        discountPercent: product.discountPercent ?? "",
+        discountPrice: product.discountPrice ?? "",
+        discountImageUrl: product.discountImageUrl || "",
+        discountLabel: product.discountLabel || "",
       });
     } else {
       setEditingId(null);
@@ -161,6 +172,11 @@ const UnifiedMenuPage = () => {
         imageUrl: "",
         isActive: true,
         extraGroupIds: [],
+        discountActive: false,
+        discountPercent: "",
+        discountPrice: "",
+        discountImageUrl: "",
+        discountLabel: "",
       });
     }
     setIsProductModalOpen(true);
@@ -170,12 +186,25 @@ const UnifiedMenuPage = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload: any = {
+        ...productForm,
+        discountPercent:
+          productForm.discountActive && productForm.discountPercent !== ""
+            ? Number(productForm.discountPercent)
+            : null,
+        discountPrice:
+          productForm.discountActive && productForm.discountPrice !== ""
+            ? Number(productForm.discountPrice)
+            : null,
+        discountImageUrl: productForm.discountImageUrl?.trim() || null,
+        discountLabel: productForm.discountLabel?.trim() || null,
+      };
       if (editingId) {
-        await axios.patch(`${API_URL}/api/admin/products/${editingId}`, productForm, {
+        await axios.patch(`${API_URL}/api/admin/products/${editingId}`, payload, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       } else {
-        await axios.post(`${API_URL}/api/admin/products`, { ...productForm, restaurantId: currentRid }, {
+        await axios.post(`${API_URL}/api/admin/products`, { ...payload, restaurantId: currentRid }, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
       }
@@ -838,6 +867,43 @@ const UnifiedMenuPage = () => {
                     </div>
                   </div>
                   
+                  {/* DISCOUNT / REA */}
+                  <div className="md:col-span-2 pt-8 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <label className="block text-[10px] font-black uppercase tracking-widest text-gold-500">Rabattera artikeln</label>
+                        <p className="text-[var(--text-primary)]/40 text-xs mt-1">Visas på hemskärmen under &quot;Rea &amp; rabatterat&quot; i appen och webben.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setProductForm({ ...productForm, discountActive: !productForm.discountActive })}
+                        className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${productForm.discountActive ? 'bg-gold-500 text-[#0d0d0d] border-gold-500' : 'bg-[var(--border-subtle)] border-[var(--border-subtle)] text-[var(--text-primary)]/60'}`}
+                      >
+                        {productForm.discountActive ? 'På' : 'Av'}
+                      </button>
+                    </div>
+                    {productForm.discountActive && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gold-500/5 border border-gold-500/30 rounded-2xl p-6">
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 mb-3 ml-1">Rabatt (%)</label>
+                          <input type="number" min={1} max={95} value={productForm.discountPercent} onChange={e => setProductForm({ ...productForm, discountPercent: e.target.value === '' ? '' : parseInt(e.target.value), discountPrice: '' })} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/50" placeholder="t.ex. 20" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 mb-3 ml-1">Eller fast pris (kr)</label>
+                          <input type="number" min={1} value={productForm.discountPrice} onChange={e => setProductForm({ ...productForm, discountPrice: e.target.value === '' ? '' : parseFloat(e.target.value), discountPercent: '' })} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/50" placeholder="t.ex. 79" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 mb-3 ml-1">Etikett (valfri)</label>
+                          <input type="text" value={productForm.discountLabel} onChange={e => setProductForm({ ...productForm, discountLabel: e.target.value })} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/50" placeholder="t.ex. Dagens deal" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]/40 mb-3 ml-1">Rabattbild (valfri URL)</label>
+                          <input type="text" value={productForm.discountImageUrl} onChange={e => setProductForm({ ...productForm, discountImageUrl: e.target.value })} className="w-full bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl py-4 px-6 outline-none focus:ring-2 focus:ring-gold-500/50" placeholder="Används istället för produktbilden" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="md:col-span-2 pt-10 border-t border-[var(--border-subtle)]">
                     <button type="submit" disabled={saving} className="w-full py-5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-extrabold rounded-2xl transition-all shadow-xl shadow-gold-500/20 uppercase tracking-[0.2em] flex items-center justify-center gap-3">
                       {saving ? <Loader2 size={24} className="animate-spin" /> : <Check size={24} />} Spara Artikel

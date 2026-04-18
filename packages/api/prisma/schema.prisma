@@ -24,23 +24,30 @@ model Category {
 }
 
 model Product {
-  id           String              @id @default(cuid())
-  name         String
-  slug         String              @unique
-  description  String?
-  price        Int
-  categoryId   String
-  imageUrl     String?
-  isActive     Boolean             @default(true)
-  isVegan      Boolean             @default(false)
-  isVegetarian Boolean             @default(false)
-  isGlutenFree Boolean             @default(false)
-  position     Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  orderItems   OrderItem[]
-  category     Category            @relation(fields: [categoryId], references: [id])
-  extraGroups  ProductExtraGroup[]
+  id                  String              @id @default(cuid())
+  name                String
+  slug                String              @unique
+  description         String?
+  price               Int
+  categoryId          String
+  imageUrl            String?
+  isActive            Boolean             @default(true)
+  isVegan             Boolean             @default(false)
+  isVegetarian        Boolean             @default(false)
+  isGlutenFree        Boolean             @default(false)
+  position            Int                 @default(0)
+  // Discount / sale fields for "Rea & rabatterat" section on home.
+  // discountPercent overrides discountPrice if both are set.
+  discountPercent     Int?                // 1-95 (%)
+  discountPrice       Int?                // in öre - direct sale price
+  discountImageUrl    String?             // Optional alt image shown in discount rail
+  discountLabel       String?             // e.g. "Dagens deal", "-20%"
+  discountActive      Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  orderItems          OrderItem[]
+  category            Category            @relation(fields: [categoryId], references: [id])
+  extraGroups         ProductExtraGroup[]
 }
 
 model ExtraGroup {

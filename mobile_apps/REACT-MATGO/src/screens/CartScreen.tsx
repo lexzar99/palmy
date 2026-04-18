@@ -18,6 +18,7 @@ import { CartItem, DeliveryCheck, City, Profile } from "../types";
 
 
 import AddressAutocomplete from "../components/AddressAutocomplete";
+import ProductModal from "../components/ProductModal";
 import { Header, ScreenWrap, PrimaryButton } from "../components/ui";
 
 function CartEmptyState({ onExplore }: { onExplore: () => void }) {
@@ -57,7 +58,16 @@ export default function CartScreen({
   const items = useAppStore((s) => s.items);
   const removeItem = useAppStore((s) => s.removeItem);
   const updateQuantity = useAppStore((s) => s.updateQuantity);
+  const updateItem = useAppStore((s) => s.updateItem);
   const clearCart = useAppStore((s) => s.clearCart);
+  const [editing, setEditing] = useState<{ product: any; item: CartItem } | null>(null);
+
+  const handleEditCartItem = useCallback(async (item: CartItem) => {
+    try {
+      const res = await api.get(`/api/menu/products/${item.productId}`);
+      setEditing({ product: res.data, item });
+    } catch {}
+  }, []);
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
@@ -521,7 +531,7 @@ export default function CartScreen({
           <View style={styles.cartItemList}>
             {items.map((item) => (
               <View key={item.cartItemId} style={styles.cartItem}>
-                <View style={{ flex: 1 }}>
+                <Pressable onPress={() => handleEditCartItem(item)} style={{ flex: 1 }}>
                   <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>
                     {item.quantity}x {item.name}
                   </Text>
@@ -537,7 +547,8 @@ export default function CartScreen({
                       ))}
                     </View>
                   )}
-                </View>
+                  <Text style={{ color: palette.gold, fontSize: 9, fontWeight: "900", letterSpacing: 2, marginTop: 6, opacity: 0.7 }}>TRYCK FÖR ATT REDIGERA</Text>
+                </Pressable>
                 <View style={[styles.cartActions, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
                   <View style={styles.counter}>
                     <Pressable hitSlop={10} onPress={() => updateQuantity(item.cartItemId, -1)}>
@@ -898,6 +909,27 @@ export default function CartScreen({
             />
           </View>
         </>
+      )}
+
+      {editing && (
+        <ProductModal
+          product={editing.product}
+          address={storeAddress}
+          orderType={orderType}
+          editMode
+          initialQuantity={editing.item.quantity}
+          initialExtras={editing.item.extras}
+          initialNote={editing.item.note}
+          onClose={() => setEditing(null)}
+          onAdd={(payload) => {
+            updateItem(editing.item.cartItemId, {
+              quantity: payload.quantity,
+              note: payload.note,
+              extras: payload.extras,
+            });
+            setEditing(null);
+          }}
+        />
       )}
     </ScrollView>
   );

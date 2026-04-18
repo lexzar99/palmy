@@ -12,6 +12,7 @@ import AddressModal from '../components/AddressModal';
 import RestaurantInfoModal from '../components/RestaurantInfoModal';
 import StarRating from '../components/StarRating';
 import ProductModal from '../components/ProductModal';
+import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
 
 import type { Order, Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
 
@@ -361,6 +362,13 @@ export default function RestaurantScreen({
             </View>
           </View>
         </View>
+
+        {restaurant?.id && (
+          <PreviouslyOrderedBar
+            restaurantId={restaurant.id}
+            onReorderComplete={openCart}
+          />
+        )}
 
         <View style={styles.restaurantQuickStatsRow}>
           <View style={styles.restaurantQuickStatCard}>

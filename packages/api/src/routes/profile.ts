@@ -308,6 +308,41 @@ router.get('/orders/:id/reorder', authenticateUser, async (req: any, res: any) =
   }
 });
 
+// GET /api/profile/previously-ordered/:restaurantId
+// Returnerar den senaste ordern (med items) från just den restaurangen så att en användare
+// kan återbeställa direkt från restaurangsidan.
+router.get('/previously-ordered/:restaurantId', authenticateUser, async (req: any, res: any) => {
+  try {
+    const { restaurantId } = req.params;
+    const lastOrder = await prisma.order.findFirst({
+      where: {
+        userId: req.user.id,
+        restaurantId,
+        status: { in: ['DELIVERED', 'READY', 'COMPLETED', 'PICKED_UP', 'DELIVERING'] },
+      },
+      include: { items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!lastOrder) return res.json({ hasHistory: false });
+    res.json({
+      hasHistory: true,
+      orderId: lastOrder.id,
+      orderNumber: lastOrder.orderNumber,
+      createdAt: lastOrder.createdAt,
+      itemCount: lastOrder.items.reduce((sum: number, it: any) => sum + it.quantity, 0),
+      total: lastOrder.total / 100,
+      items: lastOrder.items.map((it: any) => ({
+        productId: it.productId,
+        name: it.productName,
+        quantity: it.quantity,
+      })),
+    });
+  } catch (error) {
+    console.error('Previously ordered error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta tidigare beställning' });
+  }
+});
+
 // DELETE /api/profile - GDPR: Delete account
 router.delete('/', authenticateUser, async (req: any, res: any) => {
   try {

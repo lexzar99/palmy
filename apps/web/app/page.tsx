@@ -23,8 +23,11 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import AddressModal from "@/components/AddressModal";
+import AddressPullDown from "@/components/AddressPullDown";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
+import DiscountedDishesSection from "@/components/DiscountedDishesSection";
+import FreeDeliverySection from "@/components/FreeDeliverySection";
 import { useCartStore } from "@/store/cartStore";
 
 interface Restaurant {
@@ -414,107 +417,86 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen text-zinc-100 bg-[#171513] pt-10 pb-32">
-      <div className="relative mx-auto max-w-6xl px-6 lg:px-10">
-        {/* Modern Header */}
-        <header className="mb-12 relative overflow-hidden">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-10 mb-12">
-            <motion.div 
-               initial={{ opacity: 0, x: -20 }}
-               animate={{ opacity: 1, x: 0 }}
-               className="flex-1"
-            >
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
-                <Sparkles size={12} />
-                <span>Smaka Framtiden</span>
-              </div>
-              <h1 className="text-5xl lg:text-7xl font-black tracking-tighter leading-[0.9] text-white">
-                VAD VILL DU <br /> <span className="text-gold-gradient italic">ÄTA</span> IDAG?
-              </h1>
-            </motion.div>
-
-            {/* Premium Order Type Toggle */}
-            <div className="relative p-1 glass-panel rounded-[2rem] flex items-center lg:w-[340px] shrink-0 active:scale-[0.98] transition-transform">
-               <div className="absolute inset-y-1 h-auto bg-gold-500 rounded-[1.8rem] transition-all duration-300 ease-out" 
-                  style={{ 
-                    width: 'calc(50% - 4px)', 
-                    left: orderType === 'DELIVERY' ? '4px' : '50%'
-                  }} 
-               />
-               <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
-                  <Truck size={16} /> Leverans
-               </button>
-               <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
-                  <Store size={16} /> Hämtning
-               </button>
-            </div>
+    <div className="min-h-screen text-zinc-100 bg-[#171513] pt-4 pb-32">
+      <div className="relative mx-auto max-w-6xl px-4 lg:px-10">
+        {/* COMPACT HEADER – adresspil i toppen, toggle + sök komprimerad */}
+        <header className="mb-6 relative">
+          {/* Pull-down address selector – sitter längst upp som en pil man drar ner */}
+          <div className="mb-3">
+            <AddressPullDown
+              currentAddress={address}
+              onOpenFull={() => setShowAddressModal(true)}
+              onSelect={(a) => {
+                const full = [a.street, a.zip, a.city].filter(Boolean).join(", ");
+                saveAddress(full);
+                if (a.latitude != null && a.longitude != null) {
+                  localStorage.setItem("platform_coords", JSON.stringify({ lat: a.latitude, lng: a.longitude }));
+                  if (orderType === "DELIVERY") validateZone(a.latitude, a.longitude);
+                }
+              }}
+            />
           </div>
 
-          {/* New Search & Address Bar */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
+          {/* Kompakt greeting + toggle + sök i en tät rad */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="flex flex-col sm:grid sm:grid-cols-[1fr,1.3fr] gap-2 p-2 rounded-[2rem] glass-panel shadow-2xl relative z-20"
+            className="flex items-center justify-between gap-3 mb-3"
           >
-            <div className="relative group">
-              {orderType === "DELIVERY" && !address && (
-                <div className="mb-3 max-w-[320px] rounded-[1.2rem] px-4 py-3 text-left shadow-xl relative" style={{ backgroundColor: "#3D66A8" }}>
-                  <div
-                    className="absolute -bottom-2 left-1/2 -translate-x-1/2"
-                    style={{
-                      width: 0,
-                      height: 0,
-                      borderLeft: "10px solid transparent",
-                      borderRight: "10px solid transparent",
-                      borderTop: "10px solid #3D66A8",
-                    }}
-                  />
-                  <span className="text-[12px] font-bold leading-[1.45] text-[#F7FBFF]">
-                    Nu visas en generell plats. Uppdatera adressen så kan vi visa restauranger nära dig.
-                  </span>
-                </div>
-              )}
-              <motion.div 
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowAddressModal(true)}
-                className="flex items-center gap-2 rounded-[1.5rem] px-4 py-3 border hover:border-gold-500/50 transition-all cursor-pointer"
-                style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
-              >
-                <MapPin className="text-gold-500 shrink-0" size={16} />
-                <span className="w-full text-xs font-bold truncate" style={{ color: address ? "#FFF8EA" : "#B8AA95" }}>
-                  {address || "Ange din adress..."}
-                </span>
-              </motion.div>
+            <div className="min-w-0">
+              <h1 className="text-xl lg:text-2xl font-black tracking-tight leading-none text-white truncate">
+                Vad blir det <span className="text-gold-500 italic">idag?</span>
+              </h1>
+              <p className="text-[9px] font-black uppercase tracking-[0.25em] text-zinc-600 mt-1">
+                Hitta snabbt · beställ enkelt
+              </p>
             </div>
 
-
-            <Link href="/search" className="flex items-center gap-2 rounded-[1.5rem] px-4 py-3 border hover:border-gold-500/50 transition-all group shadow-sm" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
-               <Search size={16} className="transition-colors shrink-0" style={{ color: "#B8AA95" }} />
-               <span className="text-xs font-bold line-clamp-1 flex-1" style={{ color: "#B8AA95" }}>Vilken restaurang eller maträtt?</span>
-               <div className="ml-auto w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
-                  <ArrowRight size={18} />
-               </div>
-            </Link>
+            <div className="relative p-0.5 glass-panel rounded-full flex items-center shrink-0">
+              <div
+                className="absolute inset-y-0.5 h-auto bg-gold-500 rounded-full transition-all duration-300"
+                style={{ width: 'calc(50% - 2px)', left: orderType === 'DELIVERY' ? '2px' : '50%' }}
+              />
+              <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex items-center gap-1.5 px-3 py-2 text-[9px] font-black uppercase tracking-widest ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                <Truck size={12} /> Lever
+              </button>
+              <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex items-center gap-1.5 px-3 py-2 text-[9px] font-black uppercase tracking-widest ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+                <Store size={12} /> Hämta
+              </button>
+            </div>
           </motion.div>
+
+          <Link
+            href="/search"
+            className="flex items-center gap-2 rounded-2xl px-4 py-2.5 border hover:border-gold-500/50 transition-all group shadow-sm"
+            style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+          >
+            <Search size={14} className="shrink-0" style={{ color: "#B8AA95" }} />
+            <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "#B8AA95" }}>
+              Sök restaurang eller maträtt
+            </span>
+            <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
+              <ArrowRight size={14} />
+            </div>
+          </Link>
         </header>
 
         {promoCards.length > 0 && (
-          <section className="mb-16">
-            <div className="flex items-center justify-between mb-6 px-1">
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3 px-1">
               <div>
-                <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                  <Sparkles size={18} className="text-gold-500" /> Aktuellt
+                <h2 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                  <Sparkles size={14} className="text-gold-500" /> Aktuellt
                 </h2>
-                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.3em] mt-1">
-                  Personliga kampanjer, restaurangerbjudanden och sponsrat i en scroll
+                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.25em] mt-0.5">
+                  Kampanjer &amp; partners
                 </p>
               </div>
             </div>
             <div
               ref={promoRailRef}
               onScroll={handlePromoScroll}
-              className="flex gap-4 overflow-x-auto pb-8 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
+              className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
               style={{ scrollSnapType: "x mandatory" }}
             >
               {promoCards.map((item) => (
@@ -529,6 +511,10 @@ export default function HomePage() {
             </div>
           </section>
         )}
+
+        {/* NYA SEKTIONER: rabatterade rätter + fri leverans */}
+        <DiscountedDishesSection />
+        <FreeDeliverySection />
 
         {filteredByDeal && (
           <section className="mb-10">

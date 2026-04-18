@@ -18,6 +18,9 @@ import { ToggleChip, RestaurantCard, EmptyPanel } from "../components/ui";
 import CityModal from "../components/CityModal";
 import RestaurantInfoModal from "../components/RestaurantInfoModal";
 import SponsorTile from "../components/SponsorTile";
+import AddressPullDown from "../components/AddressPullDown";
+import DiscountedDishesRail from "../components/DiscountedDishesRail";
+import FreeDeliveryRail from "../components/FreeDeliveryRail";
 
 import {
   AppRoute,
@@ -48,8 +51,8 @@ type PromoCarouselItem =
   | { id: string; kind: "deal"; deal: DealFlipCardData }
   | { id: string; kind: "sponsor"; sponsor: any };
 
-const PROMO_CARD_WIDTH = 300;
-const PROMO_CARD_GAP = 16;
+const PROMO_CARD_WIDTH = 260;
+const PROMO_CARD_GAP = 12;
 const PROMO_SNAP = PROMO_CARD_WIDTH + PROMO_CARD_GAP;
 
 function formatPersonalDealReward(deal: PersonalDeal) {
@@ -424,227 +427,135 @@ export default function HomeScreen({
   return (
     <>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={{ paddingTop: 20, marginBottom: 10 }}>
-          <Text style={{ 
-            color: palette.text, 
-            fontSize: 40, 
-            lineHeight: 44, 
-            fontWeight: "900", 
-            letterSpacing: -1,
-            fontStyle: "italic",
-            textTransform: "uppercase"
-          }}>
-            {renderGreeting()}
-          </Text>
-          <Text style={{ 
-            color: palette.muted, 
-            fontSize: 13, 
-            fontWeight: "700", 
-            marginTop: 12, 
-            letterSpacing: 0.5,
-            textTransform: "uppercase",
-            opacity: 0.8
-          }}>
-            {subGreeting}
-          </Text>
+        <View style={{ paddingTop: 14, marginBottom: 6 }}>
+          {/* Compact adresspil i toppen */}
+          <AddressPullDown onOpenFull={() => setAddressModalOpen(true)} />
 
-          <View
+          {/* Kompakt greeting + toggle */}
+          <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} style={{ color: palette.text, fontSize: 20, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
+                Vad blir det <Text style={{ color: palette.gold }}>idag?</Text>
+              </Text>
+              <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 4 }}>
+                HITTA SNABBT · BESTÄLL ENKELT
+              </Text>
+            </View>
+
+            <View
+              style={{
+                backgroundColor: palette.panel,
+                borderWidth: 1,
+                borderColor: palette.border,
+                borderRadius: 999,
+                padding: 3,
+                flexDirection: "row",
+                position: "relative",
+                height: 36,
+              }}
+            >
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  top: 3,
+                  bottom: 3,
+                  left: left,
+                  width: "50%",
+                  backgroundColor: palette.gold,
+                  borderRadius: 999,
+                }}
+              />
+              {(
+                [
+                  { key: "DELIVERY", label: "LEVER", icon: "bicycle-outline" },
+                  { key: "PICKUP", label: "HÄMTA", icon: "storefront-outline" },
+                ] as const
+              ).map((item) => {
+                const active = orderType === item.key;
+                return (
+                  <Pressable
+                    key={item.key}
+                    onPress={() => setOrderType(item.key)}
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 12, zIndex: 2 }}
+                  >
+                    <Ionicons name={item.icon} size={12} color={active ? "#000" : palette.muted} />
+                    <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 10, letterSpacing: 1 }}>
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Pickup: city dropdown compact */}
+          {orderType === "PICKUP" && (
+            <View style={{ marginTop: 10 }}>
+              <ScalePressable
+                onPress={() => setCityDropdownOpen(!cityDropdownOpen)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  borderRadius: 14,
+                  backgroundColor: palette.panel,
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderWidth: 1,
+                  borderColor: cityDropdownOpen ? palette.gold : palette.border,
+                }}
+              >
+                <Ionicons name="business-outline" size={14} color={palette.gold} />
+                <Text style={{ flex: 1, color: palette.text, fontSize: 12, fontWeight: "800" }}>
+                  {selectedCity?.name || "Alla städer"}
+                </Text>
+                <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={14} color={palette.muted} />
+              </ScalePressable>
+              {cityDropdownOpen && (
+                <View style={{ marginTop: 8, backgroundColor: palette.panel, borderRadius: 14, padding: 6, borderWidth: 1, borderColor: palette.border }}>
+                  <Pressable
+                    onPress={() => { setAddress("", null); setCityDropdownOpen(false); }}
+                    style={{ padding: 10, borderRadius: 8, backgroundColor: !selectedCity ? "rgba(234,181,69,0.12)" : "transparent" }}
+                  >
+                    <Text style={{ color: !selectedCity ? palette.gold : palette.text, fontWeight: "800", fontSize: 12 }}>Alla städer</Text>
+                  </Pressable>
+                  {cities.map((city) => (
+                    <Pressable
+                      key={city.id}
+                      onPress={() => { setAddress(city.name, null); setCityDropdownOpen(false); }}
+                      style={{ padding: 10, borderRadius: 8, backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.12)" : "transparent" }}
+                    >
+                      <Text style={{ color: selectedCity?.id === city.id ? palette.gold : palette.text, fontWeight: "800", fontSize: 12 }}>{city.name}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Kompakt sökbar */}
+          <ScalePressable
+            onPress={() => openTab("discover")}
             style={{
-              marginTop: 28,
+              marginTop: 10,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              borderRadius: 14,
               backgroundColor: palette.panel,
               borderWidth: 1,
               borderColor: palette.border,
-              borderRadius: 22,
-              padding: 5,
-              flexDirection: "row",
-              position: "relative",
-              height: 60,
+              paddingLeft: 14,
+              paddingRight: 4,
+              paddingVertical: 4,
             }}
           >
-            <Animated.View
-              style={{
-                position: "absolute",
-                top: 5,
-                bottom: 5,
-                left: left,
-                width: "48%",
-                backgroundColor: palette.gold,
-                borderRadius: 18,
-                shadowColor: palette.gold,
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-              }}
-            />
-            {(
-              [
-                { key: "DELIVERY", label: "LEVERANS", icon: "bicycle-outline" },
-                { key: "PICKUP", label: "HÄMTNING", icon: "storefront-outline" },
-              ] as const
-            ).map((item) => {
-              const active = orderType === item.key;
-              return (
-                <Pressable
-                  key={item.key}
-                  onPress={() => setOrderType(item.key)}
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    zIndex: 2,
-                  }}
-                >
-                  <Ionicons name={item.icon} size={18} color={active ? "#000" : palette.muted} />
-                  <Text style={{ 
-                    color: active ? "#000" : palette.muted, 
-                    fontWeight: "900", 
-                    fontSize: 13,
-                    letterSpacing: 0.5
-                  }}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View
-            style={{
-              marginTop: 12,
-              borderRadius: 18,
-              padding: 6,
-              backgroundColor: "rgba(33,28,25,0.9)",
-              borderWidth: 1,
-              borderColor: palette.border,
-            }}
-          >
-            {orderType === "DELIVERY" ? (
-              <View style={{ marginBottom: 10 }}>
-                {!address && (
-                  <View
-                    style={{
-                      alignSelf: "center",
-                      maxWidth: 292,
-                      marginBottom: 10,
-                      paddingHorizontal: 16,
-                      paddingVertical: 12,
-                      borderRadius: 18,
-                      backgroundColor: "#3D66A8",
-                      position: "relative",
-                    }}
-                  >
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: -8,
-                        left: "50%",
-                        marginLeft: -10,
-                        width: 0,
-                        height: 0,
-                        borderLeftWidth: 10,
-                        borderRightWidth: 10,
-                        borderBottomWidth: 10,
-                        borderLeftColor: "transparent",
-                        borderRightColor: "transparent",
-                        borderBottomColor: "#3D66A8",
-                      }}
-                    />
-                    <Text style={{ color: "#F7FBFF", fontSize: 12, lineHeight: 18, fontWeight: "800" }}>
-                      Nu visas en generell plats. Uppdatera adressen så kan vi visa restauranger nara dig.
-                    </Text>
-                  </View>
-                )}
-
-                <ScalePressable
-                  onPress={() => setAddressModalOpen(true)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    borderRadius: 20,
-                    backgroundColor: palette.bg,
-                    paddingHorizontal: 16,
-                    paddingVertical: 14,
-                  }}
-                >
-                  <Ionicons name="location-outline" size={18} color={palette.gold} />
-                  <Text numberOfLines={1} style={{ flex: 1, color: address ? palette.text : palette.muted, fontSize: 14, fontWeight: "800" }}>
-                    {address || "Ange din adress..."}
-                  </Text>
-                </ScalePressable>
-              </View>
-            ) : (
-              <View style={{ marginBottom: 10 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginLeft: 10, marginBottom: 12, marginTop: 4 }}>
-                  <Ionicons name="map-outline" size={14} color={palette.gold} />
-                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>VÄLJ STAD FÖR HÄMTNING</Text>
-                </View>
-
-                <ScalePressable
-                  onPress={() => setCityDropdownOpen(!cityDropdownOpen)}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                    borderRadius: 20,
-                    backgroundColor: palette.bg,
-                    paddingHorizontal: 16,
-                    paddingVertical: 14,
-                    borderWidth: 1,
-                    borderColor: cityDropdownOpen ? palette.gold : "transparent",
-                  }}
-                >
-                  <Ionicons name="business-outline" size={18} color={palette.gold} />
-                  <Text style={{ flex: 1, color: address ? palette.text : palette.muted, fontSize: 14, fontWeight: "800" }}>
-                    {selectedCity?.name || "Alla städer"}
-                  </Text>
-                  <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={18} color={palette.muted} />
-                </ScalePressable>
-
-                {cityDropdownOpen && (
-                  <View style={{ marginTop: 8, backgroundColor: palette.bg, borderRadius: 20, padding: 8, borderWidth: 1, borderColor: palette.border }}>
-                    <Pressable
-                      onPress={() => { setAddress("", null); setCityDropdownOpen(false); }}
-                      style={{ padding: 12, borderRadius: 12, backgroundColor: !selectedCity ? "rgba(234,181,69,0.12)" : "transparent" }}
-                    >
-                      <Text style={{ color: !selectedCity ? palette.gold : palette.text, fontWeight: "800" }}>Alla städer</Text>
-                    </Pressable>
-                    {cities.map((city) => (
-                      <Pressable
-                        key={city.id}
-                        onPress={() => { setAddress(city.name, null); setCityDropdownOpen(false); }}
-                        style={{ padding: 12, borderRadius: 12, backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.12)" : "transparent" }}
-                      >
-                        <Text style={{ color: selectedCity?.id === city.id ? palette.gold : palette.text, fontWeight: "800" }}>{city.name}</Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            <ScalePressable
-              onPress={() => openTab("discover")}
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                borderRadius: 20,
-                backgroundColor: palette.bg,
-                paddingLeft: 16,
-                paddingRight: 6,
-                paddingVertical: 6,
-              }}
-            >
-              <Ionicons name="search-outline" size={18} color={palette.muted} />
-              <Text style={{ flex: 1, color: palette.muted, fontSize: 14, fontWeight: "800" }}>Hitta din favorit...</Text>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
-                <Ionicons name="arrow-forward" size={18} color="#000" />
-              </View>
-            </ScalePressable>
-          </View>
+            <Ionicons name="search-outline" size={14} color={palette.muted} />
+            <Text style={{ flex: 1, color: palette.muted, fontSize: 12, fontWeight: "800" }}>Sök restaurang eller maträtt</Text>
+            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name="arrow-forward" size={14} color="#000" />
+            </View>
+          </ScalePressable>
 
           {zoneError && orderType === "DELIVERY" && (
             <View style={{ backgroundColor: "rgba(220, 38, 38, 0.15)", borderColor: "rgba(220, 38, 38, 0.4)", borderWidth: 1, borderRadius: 14, padding: 12, marginTop: 12, flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -662,11 +573,11 @@ export default function HomeScreen({
         </View>
 
         {promoCards.length > 0 && (
-          <View style={{ marginTop: 24, marginBottom: 12 }}>
-            <View style={{ paddingHorizontal: 18, marginBottom: 16 }}>
-              <Text style={{ color: palette.text, fontSize: 17, fontWeight: "900", letterSpacing: 3 }}>AKTUELLT</Text>
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
-                PERSONLIGA KAMPANJER, RESTAURANGERBJUDANDEN OCH SPONSRAT I EN SCROLL
+          <View style={{ marginTop: 18, marginBottom: 6 }}>
+            <View style={{ paddingHorizontal: 18, marginBottom: 10 }}>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2 }}>AKTUELLT</Text>
+              <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 2, marginTop: 3 }}>
+                KAMPANJER &amp; PARTNERS
               </Text>
             </View>
             <FlatList
@@ -697,7 +608,11 @@ export default function HomeScreen({
           </View>
         )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+        {/* NYA SEKTIONER: discounted + free delivery */}
+        <DiscountedDishesRail openRestaurant={openRestaurant} />
+        <FreeDeliveryRail openRestaurant={openRestaurant} />
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4, marginTop: 14 }}>
           {cuisineFilters.map((filter) => (
             <ToggleChip
               key={filter}

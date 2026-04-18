@@ -108,6 +108,20 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       });
       return nextState;
     }),
+  updateItem: (cartItemId: string, patch: Partial<CartItem>) =>
+    set((state) => {
+      const nextState = {
+        items: state.items.map((item) =>
+          item.cartItemId === cartItemId
+            ? { ...item, ...patch, cartItemId: item.cartItemId }
+            : item
+        ),
+      };
+      queueMicrotask(() => {
+        persistState(get()).catch(() => {});
+      });
+      return nextState;
+    }),
   clearCart: () => {
     set({
       items: [],

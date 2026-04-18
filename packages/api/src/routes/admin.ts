@@ -812,6 +812,12 @@ const ProductSchema = z.object({
   isGlutenFree: z.boolean().optional(),
   position: z.number().optional(),
   extraGroupIds: z.array(z.string()).optional(),
+  // Discount fields
+  discountPercent: z.number().int().min(1).max(95).nullable().optional(),
+  discountPrice: z.number().positive().nullable().optional(),
+  discountImageUrl: z.string().nullable().optional(),
+  discountLabel: z.string().nullable().optional(),
+  discountActive: z.boolean().optional(),
 });
 
 // GET /api/admin/products
@@ -851,6 +857,7 @@ router.get('/products', async (req, res) => {
     res.json(products.map((p) => ({
       ...p,
       price: p.price / 100,
+      discountPrice: p.discountPrice != null ? p.discountPrice / 100 : null,
       extraGroups: p.extraGroups.map((peg) => ({
         id: peg.extraGroup.id,
         name: peg.extraGroup.name,
@@ -903,6 +910,11 @@ router.post('/products', async (req, res) => {
         isVegetarian: data.isVegetarian ?? false,
         isGlutenFree: data.isGlutenFree ?? false,
         position: data.position ?? 0,
+        discountPercent: data.discountPercent ?? null,
+        discountPrice: data.discountPrice != null ? Math.round(data.discountPrice * 100) : null,
+        discountImageUrl: data.discountImageUrl ?? null,
+        discountLabel: data.discountLabel ?? null,
+        discountActive: data.discountActive ?? false,
         ...(data.extraGroupIds && data.extraGroupIds.length > 0 ? {
           extraGroups: {
             create: data.extraGroupIds.map((groupId, i) => ({
@@ -940,9 +952,14 @@ router.patch('/products/:id', async (req, res) => {
       }
     }
 
-    const { extraGroupIds, price, ...rest } = req.body;
+    const { extraGroupIds, price, discountPrice, ...rest } = req.body;
     const updateData: Record<string, unknown> = { ...rest };
     if (price !== undefined) updateData.price = Math.round(price * 100);
+    if (discountPrice !== undefined) {
+      updateData.discountPrice = discountPrice == null || discountPrice === ''
+        ? null
+        : Math.round(Number(discountPrice) * 100);
+    }
 
     const product = await prisma.product.update({
       where: { id: req.params.id },

@@ -15,6 +15,10 @@ export default function ProductModal({
   forceHide,
   onClose,
   onAdd,
+  editMode,
+  initialQuantity,
+  initialExtras,
+  initialNote,
 }: {
   product: MenuProduct | null;
   address: string;
@@ -22,10 +26,14 @@ export default function ProductModal({
   forceHide?: boolean;
   onClose: () => void;
   onAdd: (payload: { quantity: number; note?: string; extras: CartItem["extras"] }) => void;
+  editMode?: boolean;
+  initialQuantity?: number;
+  initialExtras?: CartItem["extras"];
+  initialNote?: string;
 }) {
-  const [quantity, setQuantity] = useState(1);
-  const [note, setNote] = useState("");
-  const [extras, setExtras] = useState<CartItem["extras"]>([]);
+  const [quantity, setQuantity] = useState(initialQuantity ?? 1);
+  const [note, setNote] = useState(initialNote ?? "");
+  const [extras, setExtras] = useState<CartItem["extras"]>(initialExtras ?? []);
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const dislikedIngredients = useAppStore((s) => s.dislikedIngredients || []);
 
@@ -68,6 +76,15 @@ export default function ProductModal({
       return;
     }
 
+    // Edit-läge: behåll initiala värden från cart-raden utan att skriva över med defaults.
+    if (editMode) {
+      setQuantity(initialQuantity ?? 1);
+      setNote(initialNote ?? "");
+      setExtras(initialExtras ?? []);
+      setSelectionError(null);
+      return;
+    }
+
     const defaults: CartItem["extras"] = [];
     product.extraGroups?.forEach((group) => {
       group.extras.forEach((extra) => {
@@ -87,7 +104,7 @@ export default function ProductModal({
     setNote("");
     setExtras(defaults);
     setSelectionError(null);
-  }, [getExtraPrice, product]);
+  }, [getExtraPrice, product, editMode, initialQuantity, initialNote, initialExtras]);
 
   if (!product) return null;
 

@@ -28,6 +28,8 @@ interface CartStore {
   addItem: (item: Omit<CartItem, 'cartItemId'> & { restaurantSlug?: string }) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
+  /** Update an entire cart line (extras, note, price, name, quantity) in-place. */
+  updateItem: (cartItemId: string, patch: Partial<Omit<CartItem, 'cartItemId'>>) => void;
   clearCart: () => void;
   getTotal: () => number;
   setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
@@ -79,6 +81,11 @@ export const useCartStore = create<CartStore>()(
       updateQuantity: (id, amount) => set((state) => ({
         items: state.items.map((i) => 
           i.cartItemId === id ? { ...i, quantity: Math.max(1, i.quantity + amount) } : i
+        ),
+      })),
+      updateItem: (id, patch) => set((state) => ({
+        items: state.items.map((i) =>
+          i.cartItemId === id ? { ...i, ...patch, cartItemId: i.cartItemId } : i
         ),
       })),
       clearCart: () => set({ items: [], restaurantId: null, restaurantSlug: null, lastAddedItemName: null, lastAddedAt: 0 }),
