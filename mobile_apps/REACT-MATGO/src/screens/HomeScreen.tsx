@@ -431,8 +431,8 @@ export default function HomeScreen({
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={{ paddingTop: 14, marginBottom: 6 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: 18, paddingBottom: 120, gap: 16 }}>
+        <View style={{ paddingTop: 14, marginBottom: 6, paddingHorizontal: 20 }}>
           {/* Compact adresspil i toppen */}
           <AddressPullDown
             onOpenFull={() => setAddressModalOpen(true)}
@@ -641,7 +641,7 @@ export default function HomeScreen({
         {/* HETA LISTAN (Alltid överst bland restauranglistorna) */}
         {!!featured.length && (
           <View style={{ marginTop: 18 }}>
-            <View style={[styles.sectionTitleRow, { marginBottom: 14 }]}>
+            <View style={[styles.sectionTitleRow, { marginBottom: 14, paddingHorizontal: 20 }]}>
               <View>
                 <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", fontStyle: "italic" }}>HETA LISTAN</Text>
                 <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 3, marginTop: 6 }}>TOPPVALEN I DIN STAD JUST NU</Text>
@@ -717,14 +717,14 @@ export default function HomeScreen({
 
 
 
-        <View style={styles.sectionTitleRow}>
+        <View style={[styles.sectionTitleRow, { paddingHorizontal: 20 }]}>
           <Text style={{ color: palette.muted, fontSize: 15, fontWeight: "800", letterSpacing: 2 }}>
             {(activeCuisine === "Alla" ? "ALLA RESTAURANGER" : activeCuisine.toUpperCase()) + ` / ${filtered.length} ST`}
           </Text>
         </View>
 
         {/* STICKY QUICK-FILTERS – sortering over lista */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8, paddingHorizontal: 20 }}>
           {([
             { key: "all",   label: "Alla",          icon: "apps-outline" },
             { key: "rated", label: "Betyg 4.0+",     icon: "star-outline" },
@@ -748,54 +748,56 @@ export default function HomeScreen({
           })}
         </ScrollView>
 
-        {loading && (
-          <View style={{ padding: 16, gap: 16 }}>
-            {[1, 2, 3].map((i) => (
-              <View key={i} style={{ width: '100%', height: 200, backgroundColor: palette.skeletonBase, borderRadius: 24, overflow: 'hidden' }}>
-                <View style={{ width: '100%', height: 140, backgroundColor: palette.skeletonHighlight }} />
-                <View style={{ padding: 14, gap: 8 }}>
-                  <View style={{ width: '60%', height: 14, backgroundColor: palette.skeletonBase, borderRadius: 4 }} />
-                  <View style={{ width: '40%', height: 10, backgroundColor: palette.skeletonHighlight, borderRadius: 4 }} />
+        <View style={{ paddingHorizontal: 20, gap: 16 }}>
+          {loading && (
+            <View style={{ gap: 16 }}>
+              {[1, 2, 3].map((i) => (
+                <View key={i} style={{ width: '100%', height: 200, backgroundColor: palette.skeletonBase, borderRadius: 24, overflow: 'hidden' }}>
+                  <View style={{ width: '100%', height: 140, backgroundColor: palette.skeletonHighlight }} />
+                  <View style={{ padding: 14, gap: 8 }}>
+                    <View style={{ width: '60%', height: 14, backgroundColor: palette.skeletonBase, borderRadius: 4 }} />
+                    <View style={{ width: '40%', height: 10, backgroundColor: palette.skeletonHighlight, borderRadius: 4 }} />
+                  </View>
                 </View>
-              </View>
-            ))}
-          </View>
-        )}
-        {!loading && filtered.map((restaurant, index) => {
-          const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
-          const isClosed = restaurant.isOpen === false;
-          const dimmed = isClosed || isOutOfZone;
-          const activeDeal = getDealForRestaurant(restaurant.id);
-          const injectDeal = (index + 1) % 4 === 0 ? homeDeals[Math.floor(index / 4) % homeDeals.length] : null;
-
-          return (
-            <View key={restaurant.id}>
-              <RestaurantCard
-                restaurant={restaurant}
-                isOutOfZone={isOutOfZone}
-                dealText={activeDeal?.rewardLabel}
-                dealTone={activeDeal?.tone}
-                onPress={() => openRestaurant(restaurant.slug)}
-                containerStyle={{ opacity: dimmed ? 0.6 : 1 }}
-                isFavorite={favorites.has(restaurant.id)}
-                onToggleFavorite={() => setFavorites(prev => {
-                  const next = new Set(prev);
-                  if (next.has(restaurant.id)) next.delete(restaurant.id);
-                  else next.add(restaurant.id);
-                  return next;
-                })}
-              />
-              {/* Option 1: Inline Feed Injection */}
-              {injectDeal && (
-                 <View style={{ opacity: 1, paddingHorizontal: 16, marginBottom: 20, alignItems: "center" }}>
-                    <DealFlipCard deal={injectDeal} />
-                 </View>
-              )}
+              ))}
             </View>
-          );
-        })}
+          )}
+          {!loading && filtered.map((restaurant, index) => {
+            const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
+            const isClosed = restaurant.isOpen === false;
+            const dimmed = isClosed || isOutOfZone;
+            const activeDeal = getDealForRestaurant(restaurant.id);
+            const injectDeal = (index + 1) % 4 === 0 ? homeDeals[Math.floor(index / 4) % homeDeals.length] : null;
 
-        {!loading && !filtered.length && <EmptyPanel label="Ingen träff. Här ekar det tomt just nu." />}
+            return (
+              <View key={restaurant.id}>
+                <RestaurantCard
+                  restaurant={restaurant}
+                  isOutOfZone={isOutOfZone}
+                  dealText={activeDeal?.rewardLabel}
+                  dealTone={activeDeal?.tone}
+                  onPress={() => openRestaurant(restaurant.slug)}
+                  containerStyle={{ opacity: dimmed ? 0.6 : 1 }}
+                  isFavorite={favorites.has(restaurant.id)}
+                  onToggleFavorite={() => setFavorites(prev => {
+                    const next = new Set(prev);
+                    if (next.has(restaurant.id)) next.delete(restaurant.id);
+                    else next.add(restaurant.id);
+                    return next;
+                  })}
+                />
+                {/* Option 1: Inline Feed Injection */}
+                {injectDeal && (
+                   <View style={{ opacity: 1, paddingHorizontal: 16, marginBottom: 20, alignItems: "center" }}>
+                      <DealFlipCard deal={injectDeal} />
+                   </View>
+                )}
+              </View>
+            );
+          })}
+
+          {!loading && !filtered.length && <EmptyPanel label="Ingen träff. Här ekar det tomt just nu." />}
+        </View>
       </ScrollView>
 
       <CityModal
