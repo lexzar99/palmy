@@ -66,14 +66,14 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-white/5 border border-white/5 rounded-3xl p-6">
+      <div className="rounded-3xl p-6" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-gold-500 rounded-2xl flex items-center justify-center text-dark-500">
+          <div className="w-10 h-10 bg-gold-500 rounded-2xl flex items-center justify-center text-zinc-950">
             <CreditCard size={20} />
           </div>
           <div>
-            <h3 className="text-sm font-black uppercase tracking-tight text-white italic">Säker Betalning</h3>
-            <p className="text-[10px] text-white/40 uppercase font-bold tracking-widest">Kort, Swish, Apple/Google Pay</p>
+            <h3 className="text-sm font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>Säker Betalning</h3>
+            <p className="text-[10px] uppercase font-bold tracking-widest" style={{ color: "var(--text-secondary)" }}>Kort, Swish, Apple/Google Pay</p>
           </div>
         </div>
 
@@ -98,7 +98,7 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
       <button
         type="submit"
         disabled={!stripe || isProcessing}
-        className="w-full bg-gold-500 text-dark-500 font-black py-5 rounded-3xl uppercase tracking-[0.2em] text-sm hover:bg-gold-400 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_rgba(212,167,74,0.2)]"
+        className="w-full bg-gold-500 text-zinc-950 font-black py-5 rounded-3xl uppercase tracking-[0.2em] text-sm hover:bg-gold-400 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_10px_40px_rgba(212,167,74,0.2)]"
       >
         {isProcessing ? (
           <Loader2 className="animate-spin" size={20} />
@@ -106,8 +106,8 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
           <>Betala {amount} kr nu</>
         )}
       </button>
-      
-      <p className="text-[9px] text-center text-white/20 font-black uppercase tracking-widest leading-relaxed">
+
+      <p className="text-[9px] text-center font-black uppercase tracking-widest leading-relaxed" style={{ color: "var(--text-secondary)", opacity: 0.5 }}>
         Genom att betala accepterar du MatGos köpvillkor.<br/>
         Säker krypterad anslutning via Stripe.
       </p>

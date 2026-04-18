@@ -177,7 +177,8 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-zinc-900/10 backdrop-blur-md px-4 pb-6 sm:pb-0"
+          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center backdrop-blur-md px-4 pb-6 sm:pb-0"
+          style={{ backgroundColor: "rgba(0,0,0,0.1)" }}
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div

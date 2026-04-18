@@ -31,7 +31,7 @@ const ConfirmModal = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-zinc-950/20 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
           />
           <motion.div
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
@@ -42,19 +42,20 @@ const ConfirmModal = ({
           >
             {/* Background design element */}
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-gold-500/10 rounded-full blur-3xl" />
-            
+
             <div className="relative z-10 flex flex-col items-center text-center">
               <div className="w-16 h-16 bg-gold-400/20 rounded-2xl flex items-center justify-center text-gold-600 mb-6 border border-gold-500/20 shadow-xl">
                 <AlertCircle size={32} />
               </div>
-              
-              <h3 className="text-2xl font-black uppercase tracking-tight mb-2 text-zinc-100">{title}</h3>
-              <p className="text-zinc-400 text-sm leading-relaxed mb-8 font-medium">{message}</p>
-              
+
+              <h3 className="text-2xl font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>{title}</h3>
+              <p className="text-sm leading-relaxed mb-8 font-medium" style={{ color: "var(--text-secondary)" }}>{message}</p>
+
               <div className="grid grid-cols-2 gap-3 w-full">
                 <button
                   onClick={onClose}
-                  className="px-6 py-4 rounded-xl border border-white/5 bg-zinc-950 text-zinc-400 text-xs font-black uppercase tracking-widest hover:bg-zinc-800/50 transition-all shadow-xl"
+                  className="px-6 py-4 rounded-xl border text-xs font-black uppercase tracking-widest hover:opacity-80 transition-all"
+                  style={{ borderColor: "var(--border-muted)", backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}
                 >
                   {cancelText}
                 </button>
@@ -63,7 +64,7 @@ const ConfirmModal = ({
                     onConfirm();
                     onClose();
                   }}
-                  className="px-6 py-4 rounded-xl bg-gold-500 text-white text-xs font-black uppercase tracking-widest hover:bg-gold-600 transition-all shadow-lg shadow-gold-500/20"
+                  className="px-6 py-4 rounded-xl bg-gold-500 text-zinc-950 text-xs font-black uppercase tracking-widest hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
                 >
                   {confirmText}
                 </button>
@@ -72,7 +73,8 @@ const ConfirmModal = ({
 
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 p-2 text-zinc-400/20 hover:text-zinc-100 transition-colors"
+              className="absolute top-4 right-4 p-2 transition-colors"
+              style={{ color: "var(--text-secondary)", opacity: 0.5 }}
             >
               <X size={20} />
             </button>

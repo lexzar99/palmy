@@ -78,19 +78,19 @@ export default function AddressPullDown({ currentAddress, onSelect, onOpenFull, 
         onClick={() => setOpen((o) => !o)}
         whileTap={{ scale: 0.98 }}
         className="flex items-center gap-2 px-4 py-2.5 rounded-full border cursor-pointer select-none"
-        style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}
+        style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
       >
         <MapPin size={14} className="text-gold-500 shrink-0" />
-        <span className="text-[11px] font-bold truncate flex-1" style={{ color: currentAddress ? "#FFF8EA" : "#B8AA95" }}>
+        <span className="text-[11px] font-bold truncate flex-1" style={{ color: "var(--text-primary)" }}>
           {currentAddress || "Välj adress"}
         </span>
         {zoneStatus === "ok" && <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.6)]" />}
         {zoneStatus === "error" && <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.6)]" />}
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={14} className="text-zinc-500" />
+          <ChevronDown size={14} style={{ color: "var(--text-secondary)" }} />
         </motion.div>
         {/* Drag handle */}
-        <div className="w-6 h-1 bg-zinc-700 rounded-full" />
+        <div className="w-6 h-1 rounded-full" style={{ backgroundColor: "var(--border-muted)" }} />
       </motion.div>
 
       <AnimatePresence>
