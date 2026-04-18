@@ -857,9 +857,9 @@ function AppContent() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ExpoStatusBar style="light" />
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={["#211C19", "#171513"]} style={styles.appBg}>
+      <ExpoStatusBar style="dark" />
+      <StatusBar barStyle="dark-content" />
+      <LinearGradient colors={[palette.bg, palette.panelMuted]} style={styles.appBg}>
         {route.name === "home" && (
           <HomeScreen
             openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })}
