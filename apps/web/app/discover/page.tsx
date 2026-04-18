@@ -87,29 +87,29 @@ export default function DiscoverPage() {
   const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
 
   return (
-    <div className="min-h-screen text-white pb-32" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* Header & Search */}
-      <div className="pt-16 pb-8 px-6 sticky top-0 z-40" style={{ backgroundColor: "#171513", borderBottom: "1px solid rgba(255,248,234,0.06)" }}>
+      <div className="pt-16 pb-8 px-6 sticky top-0 z-40 backdrop-blur-md" style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}>
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black uppercase italic tracking-tighter">Upptäck <span className="text-gold-500">MatGo</span></h1>
-              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mt-1">Hitta din nästa favoritupplevelse</p>
+              <h1 className="text-3xl font-black uppercase italic tracking-tighter" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">MatGo</span></h1>
+              <p className="text-[10px] font-black uppercase tracking-widest mt-1" style={{ color: "var(--text-secondary)" }}>Hitta din nästa favoritupplevelse</p>
             </div>
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-gold-500" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                <Compass size={24} className="animate-spin-slow" />
             </div>
           </div>
 
           <div className="relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "#B8AA95" }} size={20} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} size={20} />
             <input 
               type="text"
               value={activeSearch}
               onChange={(e) => setActiveSearch(e.target.value)}
               placeholder="Sök restauranger, rätter eller smaker..."
-              className="w-full rounded-3xl py-5 pl-14 pr-6 font-bold text-white outline-none focus:ring-2 focus:ring-gold-500/30 transition-all shadow-2xl"
-              style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+              className="w-full rounded-3xl py-5 pl-14 pr-6 font-bold outline-none focus:ring-2 focus:ring-gold-500/30 transition-all shadow-xl"
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
             />
           </div>
         </div>
@@ -129,13 +129,13 @@ export default function DiscoverPage() {
                 key={cat.name}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSearch(cat.name)}
-                className="flex items-center gap-3 px-6 py-4 rounded-full transition-all shrink-0 group"
-                style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+                className="flex items-center gap-3 px-6 py-4 rounded-full transition-all shrink-0 group shadow-sm"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
               >
                 <div className={`w-6 h-6 ${cat.color} rounded-lg flex items-center justify-center transition-transform group-hover:scale-110`}>
                   <cat.icon size={12} />
                 </div>
-                <p className="font-black text-[9px] uppercase tracking-widest group-hover:text-white transition-colors" style={{ color: "#D7CBB8" }}>{cat.name}</p>
+                <p className="font-black text-[9px] uppercase tracking-widest group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>{cat.name}</p>
               </motion.button>
             ))}
           </div>
@@ -145,7 +145,7 @@ export default function DiscoverPage() {
         {!activeSearch && (
           <section className="space-y-6">
             <div className="flex items-center justify-between px-2">
-              <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-3">
+              <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
                 <Sparkles className="text-gold-500" size={18} /> Populärt Just nu
               </h2>
             </div>
@@ -154,15 +154,15 @@ export default function DiscoverPage() {
                 <Link 
                   key={rest.id}
                   href={`/restaurants/${rest.slug}`}
-                  className="flex items-center gap-4 p-3 rounded-[2rem] transition-all group overflow-hidden relative"
-                  style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+                  className="flex items-center gap-4 p-3 rounded-[2rem] transition-all group overflow-hidden relative shadow-sm"
+                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
                 >
-                  <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
+                  <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                     <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {/* Name — full row, truncates cleanly */}
-                    <h3 className="text-base font-black uppercase italic truncate leading-tight mb-1.5">
+                    <h3 className="text-base font-black uppercase italic truncate leading-tight mb-1.5" style={{ color: "var(--text-primary)" }}>
                       {rest.name}
                     </h3>
                     {/* Info row below — badge + rating + city */}
@@ -181,7 +181,7 @@ export default function DiscoverPage() {
                           <Star size={9} className="fill-gold-500" /> {rest.rating.toFixed(1)}
                         </span>
                       )}
-                      {rest.city && <span className="truncate text-zinc-600">{rest.city}</span>}
+                      {rest.city && <span className="truncate opacity-50">{rest.city}</span>}
                     </div>
                   </div>
                   <ChevronRight size={18} className="text-zinc-600 group-hover:text-gold-500 transition-all shrink-0" />
@@ -195,20 +195,21 @@ export default function DiscoverPage() {
         {activeSearch && (
           <section className="space-y-6">
             <div className="flex items-center justify-between px-2">
-              <h2 className="text-sm font-black uppercase tracking-widest">Sökresultat för "{activeSearch}"</h2>
+              <h2 className="text-sm font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>Sökresultat för "{activeSearch}"</h2>
               <button 
                 onClick={() => setActiveSearch("")}
-                className="text-[10px] font-black uppercase text-zinc-600 hover:text-white"
+                className="text-[10px] font-black uppercase hover:text-gold-500"
+                style={{ color: "var(--text-secondary)" }}
               >
                 Rensa
               </button>
             </div>
             <div className="space-y-4">
               {filteredRestaurants.length === 0 ? (
-                <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "#211C19", borderColor: "rgba(255,248,234,0.08)" }}>
-                  <Utensils size={48} className="mx-auto mb-4 text-zinc-800" />
-                  <p className="font-black uppercase text-zinc-600">Inga restauranger hittade</p>
-                  <p className="text-xs text-zinc-800 mt-2">Prova att söka på något annat</p>
+                <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <Utensils size={48} className="mx-auto mb-4 opacity-10" style={{ color: "var(--text-primary)" }} />
+                  <p className="font-black uppercase" style={{ color: "var(--text-secondary)" }}>Inga restauranger hittade</p>
+                  <p className="text-xs mt-2" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>Prova att söka på något annat</p>
                 </div>
               ) : (
                 filteredRestaurants.map((rest) => {
@@ -217,18 +218,18 @@ export default function DiscoverPage() {
                     <Link 
                       key={rest.id}
                       href={`/restaurants/${rest.slug}`}
-                      className={`flex items-center gap-6 p-4 border rounded-[2.5rem] transition-all group relative overflow-hidden ${
+                      className={`flex items-center gap-6 p-4 border rounded-[2.5rem] transition-all group relative overflow-hidden shadow-sm ${
                         inZone ? "" : "opacity-50"
                       }`}
-                      style={{ backgroundColor: inZone ? "#211C19" : "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
                     >
-                      <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "#171513", border: "1px solid rgba(255,248,234,0.06)" }}>
+                      <div className="w-16 h-16 rounded-[1.2rem] flex items-center justify-center shrink-0 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                         <img src={getImageSrc(rest.imageUrl)} alt="" className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-110 transition-all" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-black uppercase italic text-sm truncate">{rest.name}</h3>
+                        <h3 className="font-black uppercase italic text-sm truncate" style={{ color: "var(--text-primary)" }}>{rest.name}</h3>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <p className="text-[9px] text-zinc-500 font-bold uppercase">{rest.city}</p>
+                          <p className="text-[9px] font-bold uppercase" style={{ color: "var(--text-secondary)" }}>{rest.city}</p>
                           {!inZone && deliverableIds !== null && (
                             <span className="text-[8px] font-black text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
                               Levererar ej till din adress

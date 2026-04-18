@@ -577,7 +577,7 @@ export default function HomeScreen({
         </View>
 
         {/* Categories / Cuisine filters (Flyttad högst upp likt Foodora/UberEats) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16, paddingVertical: 4, marginTop: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingVertical: 4, marginTop: 8 }}>
           {cuisineFilters.map((filter) => {
             const active = activeCuisine === filter.name;
             return (
@@ -625,7 +625,7 @@ export default function HomeScreen({
               disableIntervalMomentum
               bounces={false}
               onMomentumScrollEnd={handlePromoMomentumEnd}
-              contentContainerStyle={{ paddingHorizontal: 16, paddingRight: 32 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingRight: 32 }}
               renderItem={({ item, index }) => (
                 <View style={{ width: PROMO_CARD_WIDTH, marginRight: index === sponsorCards.length - 1 ? 0 : PROMO_CARD_GAP }}>
                   <SponsorTile sponsor={item.sponsor} openRestaurant={openRestaurant} pushRoute={pushRoute} />
@@ -651,7 +651,7 @@ export default function HomeScreen({
               </ScalePressable>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 16 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20 }}>
               {featured.map((restaurant) => {
                 const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
                 const isClosed = restaurant.isOpen === false;
@@ -684,13 +684,13 @@ export default function HomeScreen({
           if (fast.length === 0) return null;
           return (
             <View style={{ marginTop: 14, marginBottom: 14 }}>
-              <View style={[styles.sectionTitleRow, { marginBottom: 10, paddingHorizontal: 16 }]}>
+              <View style={[styles.sectionTitleRow, { marginBottom: 10, paddingHorizontal: 20 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons name="flash" size={14} color="#f59e0b" />
                   <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2, textTransform: 'uppercase' }}>SNABBAST LEVERANS</Text>
                 </View>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}>
                 {fast.map((r) => (
                   <ScalePressable
                     key={r.id}

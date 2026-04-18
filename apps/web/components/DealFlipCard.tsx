@@ -29,6 +29,10 @@ const TONES: Record<DealTone, { accent: string; soft: string; border: string }> 
   purple: { accent: "#A855F7", soft: "rgba(168,85,247,0.12)", border: "rgba(168,85,247,0.25)" },
 };
 
+export default function DealFlipCard({ deal }: { deal: DealCardData }) {
+  const [flipped, setFlipped] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   if (!deal) return null;
   const tone = TONES[deal.tone ?? "gold"];
 

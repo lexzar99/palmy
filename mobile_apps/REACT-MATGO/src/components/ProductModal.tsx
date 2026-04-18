@@ -196,16 +196,16 @@ export default function ProductModal({
             {product.imageUrl ? (
               <View style={styles.productHeroCard}>
                 <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.productHeroImage} />
-                <LinearGradient colors={["transparent", "rgba(11,10,15,0.15)", "rgba(11,10,15,0.96)"]} style={styles.productHeroOverlay} />
+                <LinearGradient colors={["transparent", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.7)"]} style={styles.productHeroOverlay} />
                 <View style={styles.productHeroContent}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <View style={styles.productHeroPriceChip}>
                       <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
                     </View>
                     {matchedIngredients.length > 0 && (
-                      <View style={{ backgroundColor: "rgba(69,10,10,0.8)", borderWidth: 1, borderColor: "#7f1d1d", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Ionicons name="alert-circle" size={14} color="#f87171" />
-                        <Text style={{ color: "#f87171", fontSize: 10, fontWeight: "900" }}>{matchedIngredients[0].toUpperCase()}</Text>
+                      <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                        <Text style={{ color: "#dc2626", fontSize: 10, fontWeight: "900" }}>{matchedIngredients[0].toUpperCase()}</Text>
                       </View>
                     )}
                   </View>
@@ -220,9 +220,9 @@ export default function ProductModal({
                     <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
                   </View>
                   {matchedIngredients.length > 0 && (
-                    <View style={{ backgroundColor: "#450a0a", borderWidth: 1, borderColor: "#7f1d1d", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="alert-circle" size={14} color="#f87171" />
-                      <Text style={{ color: "#f87171", fontSize: 10, fontWeight: "900" }}>INNEHÅLLER {matchedIngredients[0].toUpperCase()}</Text>
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="alert-circle" size={14} color="#dc2626" />
+                      <Text style={{ color: "#dc2626", fontSize: 10, fontWeight: "900" }}>INNEHÅLLER {matchedIngredients[0].toUpperCase()}</Text>
                     </View>
                   )}
                 </View>

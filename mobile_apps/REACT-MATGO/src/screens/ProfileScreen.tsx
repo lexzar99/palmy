@@ -624,7 +624,7 @@ export default function ProfileScreen({
                   <Ionicons
                     name={socialLoading === provider ? "hourglass-outline" : provider === "google" ? "logo-google" : "logo-facebook"}
                     size={20}
-                    color={provider === "facebook" ? "#1877f2" : "#fff"}
+                    color={provider === "facebook" ? "#1877f2" : "#DB4437"}
                   />
                   <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{provider.toUpperCase()}</Text>
                 </Pressable>
@@ -716,7 +716,7 @@ export default function ProfileScreen({
               gap: 4,
               paddingVertical: 12,
               borderRadius: 18,
-              backgroundColor: activeTab === tab.id ? "rgba(255,255,255,0.1)" : "transparent",
+              backgroundColor: activeTab === tab.id ? "rgba(28,28,30,0.06)" : "transparent",
             }}
           >
             <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.id ? palette.gold : palette.muted} />

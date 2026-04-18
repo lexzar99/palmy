@@ -76,11 +76,11 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#171513", color: "#FFF8EA" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="mx-auto max-w-2xl px-4 pt-8 pb-32">
         <header className="mb-8">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Sök i plattformen</p>
-          <h1 className="text-3xl font-black uppercase tracking-tighter mb-6" style={{ color: "#FFF8EA" }}>Upptäck <span className="text-gold-500">mat</span></h1>
+          <h1 className="text-3xl font-black uppercase tracking-tighter mb-6" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">mat</span></h1>
           
           <div className="relative group">
             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none group-focus-within:text-gold-500 transition-colors" style={{ color: "rgba(184,170,149,0.3)" }}>
@@ -92,7 +92,7 @@ export default function SearchPage() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Sök restaurang eller matkategori..."
               className="w-full rounded-2xl py-4 pl-12 pr-4 text-lg font-bold focus:outline-none focus:border-gold-500 transition-all shadow-xl"
-              style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)", color: "#FFF8EA" }}
+              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
             />
           </div>
         </header>
@@ -101,7 +101,7 @@ export default function SearchPage() {
           {loading ? (
             <div className="space-y-4">
               {[1, 2, 3].map(i => (
-                <div key={i} className="h-28 animate-pulse rounded-2xl" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }} />
+                <div key={i} className="h-28 skeleton rounded-2xl" />
               ))}
             </div>
           ) : query.trim() ? (
@@ -115,7 +115,7 @@ export default function SearchPage() {
                       className={`group flex overflow-hidden rounded-2xl transition-all p-3 shadow-xl ${
                         inZone ? "hover:border-gold-500/20" : "opacity-50"
                       }`}
-                      style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}
+                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
                     >
                      <div className="w-24 h-24 shrink-0 relative rounded-xl overflow-hidden" style={{ backgroundColor: "rgba(33,28,25,0.5)" }}>
                        {r.heroImageUrl || r.imageUrl ? (
@@ -130,7 +130,7 @@ export default function SearchPage() {
                        ) : <div className="h-full w-full flex items-center justify-center text-3xl opacity-20"><Utensils /></div>}
                      </div>
                      <div className="flex-1 px-4 py-1">
-                       <h3 className="font-black uppercase tracking-tighter group-hover:text-gold-500 transition-colors" style={{ color: "#FFF8EA" }}>{r.name}</h3>
+                       <h3 className="font-black uppercase tracking-tighter group-hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
                        <p className="text-[10px] mb-2 font-bold uppercase" style={{ color: "rgba(184,170,149,0.6)" }}>{r.cuisine}</p>
                        <div className="flex items-center gap-3 text-[9px] font-black uppercase mt-auto" style={{ color: "rgba(184,170,149,0.4)" }}>
                          <span className="flex items-center gap-1"><Clock size={10} />{r.etaMinutes || 30} min</span>

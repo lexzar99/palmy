@@ -377,7 +377,7 @@ export default function ProfilePage() {
   // ─── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -386,7 +386,7 @@ export default function ProfilePage() {
   // ─── Not logged in ────────────────────────────────────────────────────────
   if (!token || !user) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-32" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-8">
 
           {/* Header */}
@@ -394,7 +394,7 @@ export default function ProfilePage() {
             <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center text-gold-500 mx-auto" style={{ backgroundColor: "rgba(231,178,75,0.1)", border: "1px solid rgba(231,178,75,0.2)" }}>
               <Lock size={36} />
             </div>
-            <h1 className="text-4xl font-black uppercase tracking-tight text-white">
+            <h1 className="text-4xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>
               {hasVisited ? "Välkommen" : "Skapa"}{" "}
               <span className="text-gold-500">{hasVisited ? "Tillbaka" : "Konto"}</span>
             </h1>
@@ -510,7 +510,7 @@ export default function ProfilePage() {
   // ─── Add phone prompt (for OAuth users without phone) ─────────────────────
   if (showAddPhone) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex items-center justify-center px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm space-y-8">
           <div className="text-center space-y-3">
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
@@ -549,7 +549,7 @@ export default function ProfilePage() {
   // ─── Logged in ────────────────────────────────────────────────────────────
   return (
     <>
-    <div className="min-h-screen pt-20 pb-32 px-6" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen pt-20 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-xl mx-auto space-y-8">
 
         {/* Header */}
@@ -563,7 +563,7 @@ export default function ProfilePage() {
               )}
             </div>
             <div>
-              <h1 className="text-xl font-black uppercase italic tracking-tight text-white">{user.name}</h1>
+              <h1 className="text-xl font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>{user.name}</h1>
               {user.isVerified ? (
                 <div className="flex items-center gap-1.5 mt-1 text-emerald-400">
                   <ShieldCheck size={14} />

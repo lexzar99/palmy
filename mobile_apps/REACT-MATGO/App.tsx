@@ -331,7 +331,7 @@ function RestaurantCard({
           shadowOpacity: 0.25,
           shadowRadius: 18,
           elevation: 10,
-          backgroundColor: "#19191d",
+          backgroundColor: palette.panel,
         },
         containerStyle,
       ]}
@@ -345,7 +345,7 @@ function RestaurantCard({
       )}
       <View style={{ flex: 1, paddingTop: 18, paddingHorizontal: 6 }}>
         <Text
-          style={{ color: palette.gold, fontSize: 24, fontWeight: "900", marginBottom: 6 }}
+          style={{ color: palette.text, fontSize: 24, fontWeight: "900", marginBottom: 6 }}
           numberOfLines={1}
         >
           {restaurant.name.toUpperCase()}
@@ -474,10 +474,10 @@ function Badge({
   tone: "success" | "danger" | "gold" | "info";
 }) {
   const map = {
-    success: { bg: "#163520", text: palette.success },
-    danger: { bg: "#33151a", text: palette.danger },
-    gold: { bg: "#32220b", text: palette.gold },
-    info: { bg: "#132d36", text: palette.info },
+    success: { bg: "rgba(52,199,89,0.12)", text: palette.success },
+    danger: { bg: "rgba(255,59,48,0.12)", text: palette.danger },
+    gold: { bg: "rgba(234,181,69,0.12)", text: palette.gold },
+    info: { bg: "rgba(0,122,255,0.12)", text: palette.info },
   };
   return (
     <View style={[styles.badge, { backgroundColor: map[tone].bg }]}>
@@ -560,12 +560,12 @@ function PrimaryButton({
 
 // ─── App-level data helpers ────────────────────────────────────────────────────
 const DISCOVER_CATEGORIES = [
-  { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "#2c1217" },
-  { name: "Burgare", icon: "fast-food-outline" as const, tint: "#f59e0b", bg: "#33200d" },
-  { name: "Sallad", icon: "leaf-outline" as const, tint: "#22c55e", bg: "#123020" },
-  { name: "Sushi", icon: "fish-outline" as const, tint: "#38bdf8", bg: "#132b36" },
-  { name: "Kebab", icon: "restaurant-outline" as const, tint: "#f97316", bg: "#351b12" },
-  { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "#251434" },
+  { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
+  { name: "Burgare", icon: "fast-food-outline" as const, tint: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
+  { name: "Sallad", icon: "leaf-outline" as const, tint: "#22c55e", bg: "rgba(34,197,94,0.1)" },
+  { name: "Sushi", icon: "fish-outline" as const, tint: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
+  { name: "Kebab", icon: "restaurant-outline" as const, tint: "#f97316", bg: "rgba(249,115,22,0.1)" },
+  { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "rgba(168,85,247,0.1)" },
 ];
 
 const PREFERENCE_OPTIONS = ["Lök", "Vitlök", "Nötter", "Fisk", "Skaldjur", "Ägg", "Mjölk", "Gluten"];

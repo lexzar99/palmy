@@ -10,12 +10,12 @@ import ScalePressable from '../components/ScalePressable';
 import StarRating from '../components/StarRating';
 
 const DISCOVER_CATEGORIES = [
-  { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "#2c1217" },
-  { name: "Burgare", icon: "fast-food-outline" as const, tint: "#f59e0b", bg: "#33200d" },
-  { name: "Sallad", icon: "leaf-outline" as const, tint: "#22c55e", bg: "#123020" },
-  { name: "Sushi", icon: "fish-outline" as const, tint: "#38bdf8", bg: "#132b36" },
-  { name: "Kebab", icon: "restaurant-outline" as const, tint: "#f97316", bg: "#351b12" },
-  { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "#251434" },
+  { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
+  { name: "Burgare", icon: "fast-food-outline" as const, tint: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
+  { name: "Sallad", icon: "leaf-outline" as const, tint: "#22c55e", bg: "rgba(34,197,94,0.1)" },
+  { name: "Sushi", icon: "fish-outline" as const, tint: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
+  { name: "Kebab", icon: "restaurant-outline" as const, tint: "#f97316", bg: "rgba(249,115,22,0.1)" },
+  { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "rgba(168,85,247,0.1)" },
 ];
 
 export default function DiscoverScreen({ openRestaurant, goBack, initialFilteredIds, filteredTitle }: { openRestaurant: (slug: string) => void; goBack: () => void; initialFilteredIds?: string[]; filteredTitle?: string }) {
@@ -124,7 +124,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
             gap: 12,
             borderRadius: 30,
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
+            borderColor: palette.border,
             backgroundColor: palette.panel,
             paddingHorizontal: 20,
             paddingVertical: 16,

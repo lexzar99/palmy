@@ -724,7 +724,7 @@ export default function CartPage() {
 
   if (pageLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <Loader2 className="animate-spin text-gold-500" size={40} />
       </div>
     );
@@ -732,11 +732,11 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "#171513" }}>
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
         <div className="w-24 h-24 rounded-[3rem] flex items-center justify-center mb-8" style={{ backgroundColor: "rgba(23,21,19,0.4)", border: "1px solid rgba(255,255,255,0.05)" }}>
           <ShoppingBag size={48} className="text-zinc-800" />
         </div>
-        <h1 className="text-4xl font-black uppercase text-white italic tracking-tight mb-4">Din kasse är <span className="text-gold-500">tom</span></h1>
+        <h1 className="text-4xl font-black uppercase italic tracking-tight mb-4" style={{ color: "var(--text-primary)" }}>Din kasse är <span className="text-gold-500">tom</span></h1>
         <p className="text-zinc-600 text-xs font-bold uppercase tracking-[0.3em] mb-12">Det ser lite tomt ut här. Lägg till något gott!</p>
         <Link href="/" className="px-12 py-6 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[11px] shadow-2xl shadow-gold-500/10 active:scale-95 transition-all">Gå till menyn</Link>
       </div>
@@ -744,11 +744,11 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-24 pb-48 px-6" style={{ backgroundColor: "#171513" }}>
+    <div className="min-h-screen bg-dot-pattern pt-24 pb-48 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-5xl mx-auto">
         <div className="flex items-end justify-between mb-12 px-4">
            <div>
-              <h1 className="text-4xl md:text-6xl font-black text-white uppercase italic tracking-tighter leading-none mb-3">Din <span className="text-gold-gradient">Kasse</span></h1>
+              <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-3" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
               <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
            </div>
            <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-white transition-colors flex items-center gap-2 mb-2 group">
@@ -794,7 +794,7 @@ export default function CartPage() {
             {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
             <div className="space-y-4">
               {items.map((item) => (
-                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group" style={{ backgroundColor: "#211C19", border: "1px solid rgba(255,248,234,0.08)" }}>
+                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
                    <button
                      type="button"
                      onClick={() => handleEditCartItem(item)}
