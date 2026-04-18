@@ -192,7 +192,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
   return (
     <View style={{ flex: 1, backgroundColor: "#07060c" }}>
       <LinearGradient
-        colors={["#110e1c", "#07060c", "#0b0914"]}
+        colors={[palette.panel, palette.bg, palette.panelMuted]}
         locations={[0, 0.6, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -271,9 +271,9 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 paddingHorizontal: 14,
                 paddingVertical: 8,
                 borderRadius: 20,
-                backgroundColor: "rgba(255,255,255,0.05)",
+                backgroundColor: palette.card,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
+                borderColor: palette.border,
               }}
             >
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Hoppa över</Text>
@@ -369,9 +369,9 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
                 {/* Divider */}
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginVertical: 2 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.07)" }} />
-                  <Text style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>ELLER</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.07)" }} />
+                  <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>ELLER</Text>
+                  <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
                 </View>
 
                 {/* Google — secondary */}
@@ -379,12 +379,12 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                   onPress={googlePrompt}
                   disabled={googleLoading}
                   style={{
-                    backgroundColor: "rgba(255,255,255,0.06)",
+                    backgroundColor: palette.panelMuted,
                     borderRadius: 22,
                     paddingVertical: 16,
                     alignItems: "center",
                     borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.1)",
+                    borderColor: palette.border,
                     opacity: googleLoading ? 0.6 : 1,
                   }}
                 >
@@ -399,7 +399,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
                 {/* Guest */}
                 <Pressable onPress={handleSkip} style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: "600" }}>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>
                     Fortsätt utan konto →
                   </Text>
                 </Pressable>
@@ -423,11 +423,11 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                         flexDirection: "row",
                         alignItems: "center",
                         gap: 14,
-                        backgroundColor: "rgba(255,255,255,0.03)",
+                        backgroundColor: palette.card,
                         borderRadius: 18,
                         padding: 14,
                         borderWidth: 1,
-                        borderColor: "rgba(255,255,255,0.05)",
+                        borderColor: palette.border,
                       }}
                     >
                       <View
@@ -461,17 +461,17 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                   style={{
                     flexDirection: "row",
                     gap: 10,
-                    backgroundColor: "rgba(255,255,255,0.04)",
+                    backgroundColor: palette.card,
                     borderRadius: 20,
                     borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.09)",
+                    borderColor: palette.border,
                     padding: 6,
                   }}
                 >
                   <Pressable
                     onPress={() => setCountryPickerOpen(true)}
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.06)",
+                      backgroundColor: palette.panelMuted,
                       borderRadius: 14,
                       paddingHorizontal: 14,
                       paddingVertical: 14,
@@ -495,7 +495,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                       paddingVertical: 14,
                     }}
                     placeholder="70 123 45 67"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    placeholderTextColor={palette.muted}
                     keyboardType="phone-pad"
                     value={phone}
                     onChangeText={(t) => { setPhone(t); setError(""); }}
@@ -585,14 +585,14 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 <TextInput
                   style={[styles.input, { paddingVertical: 18 }]}
                   placeholder="Förnamn & Efternamn"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={palette.muted}
                   value={name}
                   onChangeText={(t) => { setName(t); setError(""); }}
                 />
                 <TextInput
                   style={[styles.input, { paddingVertical: 18 }]}
                   placeholder="Din e-post"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={palette.muted}
                   keyboardType="email-address"
                   autoCapitalize="none"
                   value={email}
@@ -621,7 +621,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 </Pressable>
 
                 <Pressable onPress={() => { setStep("phone"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>← Ändra nummer</Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>← Ändra nummer</Text>
                 </Pressable>
               </>
             )}
@@ -650,12 +650,12 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                           paddingHorizontal: 14,
                           paddingVertical: 10,
                           borderRadius: 14,
-                          backgroundColor: active ? "rgba(231,178,75,0.15)" : "#1a1624",
+                          backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
                           borderWidth: 1,
-                          borderColor: active ? palette.gold : "rgba(255,255,255,0.05)",
+                          borderColor: active ? palette.gold : palette.border,
                         }}
                       >
-                        <Text style={{ color: active ? palette.gold : "#7f798a", fontSize: 13, fontWeight: "800" }}>{pref}</Text>
+                        <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 13, fontWeight: "800" }}>{pref}</Text>
                       </Pressable>
                     );
                   })}
@@ -686,7 +686,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 </Pressable>
 
                 <Pressable onPress={() => { setStep("profile"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10, marginTop: 10 }}>
-                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>← Tillbaka</Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>← Tillbaka</Text>
                 </Pressable>
               </>
             )}
@@ -697,10 +697,10 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                 {/* OTP box */}
                 <View
                   style={{
-                    backgroundColor: "rgba(255,255,255,0.04)",
+                    backgroundColor: palette.panelMuted,
                     borderRadius: 20,
                     borderWidth: 1,
-                    borderColor: "rgba(231,178,75,0.2)",
+                    borderColor: "rgba(234,181,69,0.2)",
                     padding: 6,
                   }}
                 >
@@ -715,7 +715,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                       paddingHorizontal: 14,
                     }}
                     placeholder="——————"
-                    placeholderTextColor="rgba(231,178,75,0.2)"
+                    placeholderTextColor="rgba(234,181,69,0.2)"
                     keyboardType="number-pad"
                     maxLength={6}
                     value={otpCode}
@@ -757,7 +757,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
                   onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }}
                   style={{ alignItems: "center", paddingVertical: 10 }}
                 >
-                  <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>Fick ingen kod? Skicka igen</Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fick ingen kod? Skicka igen</Text>
                 </Pressable>
               </>
             )}

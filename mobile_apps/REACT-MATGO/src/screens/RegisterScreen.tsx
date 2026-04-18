@@ -167,7 +167,7 @@ export default function RegisterScreen({
             <TextInput
               style={[styles.input, { fontSize: 20, fontWeight: "700", paddingVertical: 20 }]}
               placeholder="070 123 45 67"
-              placeholderTextColor="rgba(255,255,255,0.2)"
+              placeholderTextColor={palette.muted}
               keyboardType="phone-pad"
               value={phone}
               onChangeText={(t) => { setPhone(t); setError(""); }}
@@ -180,7 +180,7 @@ export default function RegisterScreen({
             <TextInput
               style={[styles.input, { fontSize: 18, fontWeight: "700", paddingVertical: 20 }]}
               placeholder="Förnamn & Efternamn"
-              placeholderTextColor="rgba(255,255,255,0.2)"
+              placeholderTextColor={palette.muted}
               value={name}
               onChangeText={(t) => { setName(t); setError(""); }}
               autoFocus
@@ -192,7 +192,7 @@ export default function RegisterScreen({
             <TextInput
               style={[styles.input, { fontSize: 18, fontWeight: "700", paddingVertical: 20 }]}
               placeholder="din.epost@exempel.se"
-              placeholderTextColor="rgba(255,255,255,0.2)"
+              placeholderTextColor={palette.muted}
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
@@ -217,12 +217,12 @@ export default function RegisterScreen({
                       paddingHorizontal: 14,
                       paddingVertical: 10,
                       borderRadius: 14,
-                      backgroundColor: active ? "rgba(231,178,75,0.15)" : "#19191d",
+                      backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
                       borderWidth: 1,
-                      borderColor: active ? palette.gold : "rgba(255,255,255,0.05)",
+                      borderColor: active ? palette.gold : palette.border,
                     }}
                   >
-                    <Text style={{ color: active ? palette.gold : "#7f798a", fontSize: 13, fontWeight: "800" }}>{pref}</Text>
+                    <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 13, fontWeight: "800" }}>{pref}</Text>
                   </Pressable>
                 );
               })}
@@ -232,10 +232,10 @@ export default function RegisterScreen({
           {step === "otp" && (
              <View
                style={{
-                 backgroundColor: "rgba(255,255,255,0.04)",
+                 backgroundColor: palette.panelMuted,
                  borderRadius: 20,
                  borderWidth: 1,
-                 borderColor: "rgba(231,178,75,0.2)",
+                 borderColor: palette.border,
                  padding: 6,
                }}
              >
@@ -250,7 +250,7 @@ export default function RegisterScreen({
                    paddingHorizontal: 14,
                  }}
                  placeholder="——————"
-                 placeholderTextColor="rgba(231,178,75,0.2)"
+                 placeholderTextColor="rgba(234,181,69,0.2)"
                  keyboardType="number-pad"
                  maxLength={6}
                  value={otpCode}
@@ -293,7 +293,7 @@ export default function RegisterScreen({
 
           {step === "otp" && (
             <Pressable onPress={triggerOtp} style={{ alignItems: "center", marginTop: 10, paddingVertical: 10 }}>
-              <Text style={{ color: "rgba(255,255,255,0.3)", fontSize: 13, fontWeight: "600" }}>Skicka ny kod</Text>
+              <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Skicka ny kod</Text>
             </Pressable>
           )}
 

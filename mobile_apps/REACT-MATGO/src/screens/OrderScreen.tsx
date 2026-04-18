@@ -177,7 +177,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
       <View style={{ flex: 1, backgroundColor: palette.bg, padding: 20 }}>
         <Pressable
           onPress={() => goBack()}
-          style={{ width: 44, height: 44, backgroundColor: "#19191d", borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}
+          style={{ width: 44, height: 44, backgroundColor: palette.panelMuted, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: 20, borderWidth: 1, borderColor: palette.border }}
         >
           <Ionicons name="arrow-back" size={22} color={palette.text} />
         </Pressable>
@@ -223,7 +223,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
           <Text style={{ fontSize: 38, fontWeight: "900", color: palette.text, fontStyle: "italic", letterSpacing: -1 }}>
             ORDER <Text style={{ color: palette.gold }}>{(order as any).orderNumber || `#${id.slice(0, 8)}`}</Text>
           </Text>
-          <Text style={{ fontSize: 10, fontWeight: "900", color: "#6f667d", letterSpacing: 2, marginTop: 4 }}>
+          <Text style={{ fontSize: 10, fontWeight: "900", color: palette.muted, letterSpacing: 2, marginTop: 4 }}>
             {order.status === "DELIVERED" || order.status === "COMPLETED"
               ? "TACK FÖR DIN BESTÄLLNING"
               : "DIN BESTÄLLNING BEHANDLAS I REALTID"}
@@ -232,12 +232,12 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
 
         {/* ETA Panel */}
         {order.status !== "COMPLETED" && order.status !== "DELIVERED" && !isRejected && (
-          <View style={{ backgroundColor: "#19191d", borderRadius: 32, padding: 24, flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 20, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)" }}>
+          <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 20, borderWidth: 1, borderColor: palette.border, shadowColor: "#1C1C1E", shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
               <Ionicons name="time" size={32} color="#000" />
             </View>
             <View>
-              <Text style={{ color: "#6f667d", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 4 }}>KLAR OM UNGEFÄR</Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 4 }}>KLAR OM UNGEFÄR</Text>
               <Text style={{ color: palette.text, fontSize: 28, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
                 ~{(order as any).estimatedTime} MIN
               </Text>
@@ -247,14 +247,14 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
 
         {/* Status Panel */}
         <View style={{ backgroundColor: `${statusInfo.color}10`, borderRadius: 40, padding: 30, alignItems: "center", marginBottom: 30, borderWidth: 1, borderColor: `${statusInfo.color}30` }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: palette.bg, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: palette.panelMuted, borderWidth: 1, borderColor: palette.border, alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
             <View style={{ position: "absolute" }}>
               <PulseIndicator color={statusInfo.color} size={60} />
             </View>
             <Ionicons name={statusInfo.icon as any} size={36} color={statusInfo.color} />
           </View>
           <Text style={{ color: statusInfo.color, fontSize: 26, fontWeight: "900", fontStyle: "italic", letterSpacing: -1, marginBottom: 8 }}>{statusInfo.label}</Text>
-          <Text style={{ color: "#85808e", fontSize: 12, fontWeight: "700", letterSpacing: 1, textAlign: "center", lineHeight: 20, textTransform: "uppercase" }}>{statusInfo.desc}</Text>
+          <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", letterSpacing: 1, textAlign: "center", lineHeight: 20, textTransform: "uppercase" }}>{statusInfo.desc}</Text>
           {order.status === "PENDING" && (
             <View style={{ marginTop: 20 }}>
               <SpinningLoader color={statusInfo.color} size={24} />
@@ -279,7 +279,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
                           left: "50%",
                           right: "-50%",
                           height: 2,
-                          backgroundColor: isDone && currentIdx > idx ? palette.gold : "rgba(255,255,255,0.05)",
+                          backgroundColor: isDone && currentIdx > idx ? palette.gold : palette.border,
                           zIndex: 0,
                         }}
                       />
@@ -289,9 +289,9 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
                         width: 30,
                         height: 30,
                         borderRadius: 15,
-                        backgroundColor: isDone ? palette.gold : palette.bg,
+                        backgroundColor: isDone ? palette.gold : palette.panelMuted,
                         borderWidth: 2,
-                        borderColor: isDone ? palette.gold : "rgba(255,255,255,0.1)",
+                        borderColor: isDone ? palette.gold : palette.border,
                         alignItems: "center",
                         justifyContent: "center",
                         zIndex: 1,
@@ -300,10 +300,10 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
                       {isDone ? (
                         <Ionicons name="checkmark" size={16} color="#000" />
                       ) : (
-                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.2)" }} />
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: palette.border }} />
                       )}
                     </View>
-                    <Text style={{ fontSize: 8, fontWeight: "900", color: isActive ? palette.gold : isDone ? "rgba(255,255,255,0.6)" : "rgba(255,255,255,0.2)", letterSpacing: 1 }}>
+                    <Text style={{ fontSize: 8, fontWeight: "900", color: isActive ? palette.gold : isDone ? palette.text : palette.muted, letterSpacing: 1 }}>
                       {step.split("_")[0]}
                     </Text>
                   </View>
@@ -314,7 +314,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
         )}
 
         {/* Order details */}
-        <View style={{ backgroundColor: "#151318", borderRadius: 32, padding: 24, marginBottom: 20 }}>
+        <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: palette.border, shadowColor: "#1C1C1E", shadowOpacity: 0.04, shadowRadius: 16, elevation: 2 }}>
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>BESTÄLLNINGSDETALJER</Text>
             <Ionicons name="basket-outline" size={24} color={palette.gold} />
@@ -349,7 +349,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
             </View>
           ))}
 
-          <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)", marginVertical: 20 }} />
+          <View style={{ height: 1, backgroundColor: palette.border, marginVertical: 20 }} />
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
             <Text style={{ color: palette.text, fontSize: 24, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>SUMMA</Text>
             <Text style={{ color: palette.gold, fontSize: 32, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
@@ -360,7 +360,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
 
         {/* Review section */}
         {(order.status === "DELIVERED" || order.status === "COMPLETED") && !(order as any).rating && !reviewSubmitted && (
-          <View style={{ backgroundColor: "#151318", borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(231,178,75,0.3)" }}>
+          <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(234,181,69,0.3)", shadowColor: "#1C1C1E", shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 }}>
             <Text style={{ color: palette.gold, fontSize: 18, fontWeight: "900", fontStyle: "italic", marginBottom: 16 }}>LÄMNA RECENSION</Text>
             <View style={{ flexDirection: "row", justifyContent: "center", gap: 12, marginBottom: 20 }}>
               {[1, 2, 3, 4, 5].map((star) => (
@@ -373,10 +373,10 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
               value={userReview}
               onChangeText={setUserReview}
               placeholder="Skriv en recension (valfritt)..."
-              placeholderTextColor="#6f667d"
+              placeholderTextColor={palette.muted}
               multiline
               numberOfLines={3}
-              style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlignVertical: "top", minHeight: 80, backgroundColor: "#1a1a1f", borderRadius: 16, padding: 16, marginBottom: 20 }}
+              style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlignVertical: "top", minHeight: 80, backgroundColor: palette.panelMuted, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: palette.border }}
             />
             <Pressable
               onPress={submitReview}
@@ -391,7 +391,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
         )}
 
         {(order.status === "DELIVERED" || order.status === "COMPLETED") && ((order as any).rating || reviewSubmitted) && (
-          <View style={{ backgroundColor: "#151318", borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(34,197,94,0.3)" }}>
+          <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, marginBottom: 40, borderWidth: 1, borderColor: "rgba(52,199,89,0.3)", shadowColor: "#1C1C1E", shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 }}>
             <Text style={{ color: palette.success, fontSize: 18, fontWeight: "900", fontStyle: "italic", marginBottom: 12 }}>TACK FÖR DIN RECENSION</Text>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {[1, 2, 3, 4, 5].map((star) => (

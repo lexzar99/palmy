@@ -32,9 +32,9 @@ import { Header, ScreenWrap, PrimaryButton } from "../components/ui";
 function CartEmptyState({ onExplore }: { onExplore: () => void }) {
   return (
     <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40, marginTop: 100 }}>
-      <Ionicons name="cart-outline" size={64} color="#6f667d" style={{ marginBottom: 20 }} />
-      <Text style={{ color: "#fff", fontSize: 20, fontWeight: "900", marginBottom: 8 }}>Din varukorg är tom</Text>
-      <Text style={{ color: "#6f667d", fontSize: 14, textAlign: "center", marginBottom: 30 }}>Upptäck mat från våra grymma restauranger!</Text>
+      <Ionicons name="cart-outline" size={64} color={palette.muted} style={{ marginBottom: 20 }} />
+      <Text style={{ color: palette.text, fontSize: 20, fontWeight: "900", marginBottom: 8 }}>Din varukorg är tom</Text>
+      <Text style={{ color: palette.muted, fontSize: 14, textAlign: "center", marginBottom: 30 }}>Upptäck mat från våra grymma restauranger!</Text>
       <PrimaryButton label="UTFORSKA RESTAURANGER" onPress={onExplore} />
     </View>
   );
@@ -620,7 +620,7 @@ export default function CartScreen({
                       {item.extras.map((e: any) => (
                         <View
                           key={e.extraId}
-                          style={{ backgroundColor: "#19191d", borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: "rgba(255,255,255,0.04)" }}
+                          style={{ backgroundColor: palette.panelMuted, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2, borderWidth: 1, borderColor: palette.border }}
                         >
                           <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "800", textTransform: "uppercase" }}>{e.name}</Text>
                         </View>
@@ -761,9 +761,9 @@ export default function CartScreen({
                           paddingHorizontal: 16,
                           paddingVertical: 10,
                           borderRadius: 14,
-                          backgroundColor: autocompleteValue === formatQuickAddress(addr) ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
+                          backgroundColor: autocompleteValue === formatQuickAddress(addr) ? "rgba(234,181,69,0.12)" : palette.panelMuted,
                           borderWidth: 1,
-                          borderColor: autocompleteValue === formatQuickAddress(addr) ? palette.gold : "rgba(255,255,255,0.08)",
+                          borderColor: autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.border,
                         }}
                       >
                         <Ionicons
@@ -845,7 +845,7 @@ export default function CartScreen({
                 )}
 
                 {!!formData.deliveryStreet && (
-                  <View style={{ marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.03)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }}>
+                  <View style={{ marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: palette.panelMuted, borderWidth: 1, borderColor: palette.border }}>
                     <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Vald adress</Text>
                     <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{formData.deliveryStreet}</Text>
                     <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", marginTop: 2 }}>
@@ -879,9 +879,9 @@ export default function CartScreen({
                         paddingHorizontal: 14,
                         paddingVertical: 14,
                         borderRadius: 16,
-                        backgroundColor: formData.deliveryInstructions === opt.id ? "rgba(231,178,75,0.12)" : "rgba(255,255,255,0.03)",
+                        backgroundColor: formData.deliveryInstructions === opt.id ? "rgba(234,181,69,0.12)" : palette.panelMuted,
                         borderWidth: 1,
-                        borderColor: formData.deliveryInstructions === opt.id ? palette.gold : "rgba(255,255,255,0.08)",
+                        borderColor: formData.deliveryInstructions === opt.id ? palette.gold : palette.border,
                       }}
                     >
                       <Ionicons name={opt.icon as any} size={16} color={formData.deliveryInstructions === opt.id ? palette.gold : palette.muted} />

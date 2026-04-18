@@ -318,7 +318,7 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
               SÖKRESULTAT FÖR "{activeSearch.toUpperCase()}"
             </Text>
             <Pressable onPress={() => setActiveSearch("")}>
-              <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "900" }}>RENSA</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900" }}>RENSA</Text>
             </Pressable>
           </View>
           {filteredRestaurants.length === 0 ? (

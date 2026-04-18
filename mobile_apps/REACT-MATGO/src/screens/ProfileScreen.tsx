@@ -536,9 +536,9 @@ export default function ProfileScreen({
               width: 108,
               height: 108,
               borderRadius: 34,
-              backgroundColor: "#241b11",
+              backgroundColor: "rgba(234,181,69,0.1)",
               borderWidth: 1,
-              borderColor: "#5f4a25",
+              borderColor: "rgba(234,181,69,0.2)",
               alignItems: "center",
               justifyContent: "center",
               alignSelf: "center",
@@ -550,12 +550,12 @@ export default function ProfileScreen({
 
           <Text style={{ color: palette.text, fontSize: 34, fontWeight: "900", textAlign: "center" }}>VÄLKOMMEN</Text>
           <Text style={{ color: palette.gold, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: -2 }}>TILLBAKA</Text>
-          <Text style={{ color: "#6f667d", fontSize: 11, fontWeight: "900", letterSpacing: 2, textAlign: "center", marginTop: 18 }}>
+          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 2, textAlign: "center", marginTop: 18 }}>
             LOGGA IN MED TELEFON ELLER SOCIALT KONTO
           </Text>
 
           <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
-            <Text style={{ color: "#7f798a", fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 12 }}>TELEFONNUMMER</Text>
+            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 12 }}>TELEFONNUMMER</Text>
             <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <Pressable
                 onPress={() => {
@@ -566,9 +566,9 @@ export default function ProfileScreen({
                 style={{
                   width: 100,
                   borderRadius: 18,
-                  backgroundColor: "#19191d",
+                  backgroundColor: palette.card,
                   borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.08)",
+                  borderColor: palette.border,
                   paddingHorizontal: 12,
                   paddingVertical: 18,
                   flexDirection: "row",
@@ -584,7 +584,7 @@ export default function ProfileScreen({
                 <TextInput
                   style={[styles.input, { marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
                   placeholder="070 000 00 00"
-                  placeholderTextColor="#5f5b66"
+                  placeholderTextColor={palette.muted}
                   keyboardType="phone-pad"
                   value={phone}
                   onChangeText={setPhone}
@@ -597,9 +597,9 @@ export default function ProfileScreen({
             <PrimaryButton label={authLoading ? "FORTSATT..." : "FORTSATT"} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }} />
-              <Text style={{ color: "#7f798a", fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>ELLER MED SOCIALT</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.06)" }} />
+              <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>ELLER MED SOCIALT</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
             </View>
 
             <View style={{ flexDirection: "row", gap: 12 }}>
@@ -609,10 +609,10 @@ export default function ProfileScreen({
                   onPress={() => handleSocialLogin(provider)}
                   style={{
                     flex: 1,
-                    backgroundColor: "#19191d",
+                    backgroundColor: palette.card,
                     borderRadius: 24,
                     borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.08)",
+                    borderColor: palette.border,
                     paddingVertical: 18,
                     flexDirection: "row",
                     alignItems: "center",
@@ -633,7 +633,7 @@ export default function ProfileScreen({
           </View>
 
           <Pressable style={{ marginTop: 24 }} onPress={() => openRegister()}>
-            <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "900", textAlign: "center" }}>
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
               INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
             </Text>
           </Pressable>
@@ -677,7 +677,7 @@ export default function ProfileScreen({
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900" }}>{(profile?.name || "KUNDPROFIL").toUpperCase()}</Text>
-            <Text style={{ color: "#7f798a", fontSize: 13, fontWeight: "800", marginTop: 2 }}>{profile?.phone || profile?.email || "GÄST"}</Text>
+            <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "800", marginTop: 2 }}>{profile?.phone || profile?.email || "GÄST"}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
               <Ionicons name={profile?.isVerified ? "shield-checkmark" : "alert-circle-outline"} size={14} color={profile?.isVerified ? palette.success : palette.danger} />
               <Text style={{ color: profile?.isVerified ? palette.success : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
@@ -692,7 +692,7 @@ export default function ProfileScreen({
       </View>
 
       {/* Tab navigation */}
-      <View style={{ flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 24, padding: 6, marginBottom: 6, flexWrap: "wrap" }}>
+      <View style={{ flexDirection: "row", backgroundColor: palette.panelMuted, borderRadius: 24, padding: 6, marginBottom: 6, flexWrap: "wrap", borderWidth: 1, borderColor: palette.border }}>
         {(
           [
             { id: "overview", icon: "person-outline", label: "HEM" },
@@ -719,8 +719,8 @@ export default function ProfileScreen({
               backgroundColor: activeTab === tab.id ? "rgba(255,255,255,0.1)" : "transparent",
             }}
           >
-            <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.id ? palette.gold : "#7f798a"} />
-            <Text style={{ color: activeTab === tab.id ? palette.text : "#7f798a", fontSize: 8, fontWeight: "900" }}>{tab.label}</Text>
+            <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.id ? palette.gold : palette.muted} />
+            <Text style={{ color: activeTab === tab.id ? palette.text : palette.muted, fontSize: 8, fontWeight: "900" }}>{tab.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -737,7 +737,7 @@ export default function ProfileScreen({
               <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <Ionicons name={icon as any} size={16} color={palette.muted} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: "#7f798a", fontSize: 9, fontWeight: "900", letterSpacing: 1.6 }}>{label}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.6 }}>{label}</Text>
                   <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800", marginTop: 2 }}>{value}</Text>
                 </View>
               </View>
@@ -761,12 +761,12 @@ export default function ProfileScreen({
                       paddingHorizontal: 14,
                       paddingVertical: 10,
                       borderRadius: 14,
-                      backgroundColor: active ? "rgba(231,178,75,0.15)" : "#19191d",
+                      backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
                       borderWidth: 1,
-                      borderColor: active ? palette.gold : "rgba(255,255,255,0.05)",
+                      borderColor: active ? palette.gold : palette.border,
                     }}
                   >
-                    <Text style={{ color: active ? palette.gold : "#7f798a", fontSize: 11, fontWeight: "900" }}>{pref.toUpperCase()}</Text>
+                    <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 11, fontWeight: "900" }}>{pref.toUpperCase()}</Text>
                   </Pressable>
                 );
               })}
@@ -780,12 +780,12 @@ export default function ProfileScreen({
         <View style={{ gap: 12 }}>
           {!deals.length ? (
             <View style={[styles.formCard, { borderRadius: 30, padding: 26, alignItems: "center" }]}>
-              <Ionicons name="pricetags-outline" size={34} color="#4b4652" />
+              <Ionicons name="pricetags-outline" size={34} color={palette.muted} />
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>Inga erbjudanden tillgängliga</Text>
             </View>
           ) : (
             deals.map((deal) => (
-              <View key={deal.id || deal.code} style={{ backgroundColor: "rgba(231,178,75,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(231,178,75,0.18)", padding: 22, gap: 16 }}>
+              <View key={deal.id || deal.code} style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 16 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{deal.campaign?.title || "Personligt erbjudande"}</Text>
@@ -797,7 +797,7 @@ export default function ProfileScreen({
                     <Ionicons name="ticket-outline" size={24} color="#000" />
                   </View>
                 </View>
-                <View style={{ backgroundColor: "rgba(0,0,0,0.24)", borderRadius: 18, borderWidth: 1, borderColor: "rgba(255,255,255,0.05)", paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ backgroundColor: palette.panelMuted, borderRadius: 18, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900" }}>KOD: {deal.code}</Text>
                   <Pressable onPress={() => Linking.openURL(`sms:&body=${deal.code}`).catch(() => {})}>
                     <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Dela</Text>
@@ -815,7 +815,7 @@ export default function ProfileScreen({
         <View style={{ gap: 12 }}>
           {!orders.length ? (
             <View style={[styles.formCard, { borderRadius: 30, padding: 26, alignItems: "center" }]}>
-              <Ionicons name="time-outline" size={34} color="#4b4652" />
+              <Ionicons name="time-outline" size={34} color={palette.muted} />
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>Inga ordrar ännu</Text>
             </View>
           ) : (
@@ -833,14 +833,14 @@ export default function ProfileScreen({
                     </View>
                     <View style={{ alignItems: "flex-end" }}>
                       <Text style={{ color: palette.gold, fontSize: 20, fontWeight: "900" }}>{((order as any).total || (order as any).totalAmount || 0).toFixed(0)} kr</Text>
-                      <Text style={{ color: "#7f798a", fontSize: 10, fontWeight: "900", marginTop: 4 }}>{order.status.toUpperCase()}</Text>
+                      <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", marginTop: 4 }}>{order.status.toUpperCase()}</Text>
                     </View>
                   </View>
                 </Pressable>
                 <View style={{ flexDirection: "row", gap: 10 }}>
                   <Pressable
                     onPress={() => handleReorder(order.id)}
-                    style={{ backgroundColor: "rgba(231,178,75,0.1)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(231,178,75,0.18)", paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}
+                    style={{ backgroundColor: "rgba(234,181,69,0.1)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}
                   >
                     <Ionicons name={reorderingId === order.id ? "hourglass-outline" : "refresh-outline"} size={14} color={palette.gold} />
                     <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
@@ -849,7 +849,7 @@ export default function ProfileScreen({
                   </Pressable>
                   <Pressable
                     onPress={() => openOrder(order.id)}
-                    style={{ backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}
+                    style={{ backgroundColor: palette.panelMuted, borderRadius: 14, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}
                   >
                     <Ionicons name="chevron-forward-outline" size={14} color={palette.text} />
                     <Text style={{ color: palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Detaljer</Text>
@@ -909,7 +909,7 @@ export default function ProfileScreen({
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable onPress={() => setIsEditing(true)} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Redigera profil</Text>
-              <Ionicons name="chevron-forward-outline" size={18} color="#7f798a" />
+              <Ionicons name="chevron-forward-outline" size={18} color={palette.muted} />
             </Pressable>
           </View>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
@@ -931,7 +931,7 @@ export default function ProfileScreen({
           </View>
           <TextInput style={styles.input} placeholder="Namn" placeholderTextColor={palette.muted} value={editName} onChangeText={setEditName} />
           <TextInput style={styles.input} placeholder="E-post" placeholderTextColor={palette.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-          <TextInput style={[styles.input, { color: "#7f798a" }]} editable={false} value={profile.phone || "Ej angivet"} />
+          <TextInput style={[styles.input, { color: palette.muted }]} editable={false} value={profile.phone || "Ej angivet"} />
           <PrimaryButton
             label={isSaving ? "SPARAR..." : saveSuccess ? "SPARAT" : "SPARA"}
             onPress={handleUpdateProfile}

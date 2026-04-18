@@ -292,9 +292,9 @@ export default function RestaurantScreen({
             {heroImage ? (
               <Image source={{ uri: getImageUrl(heroImage) }} style={styles.restaurantHeroCoverImage} />
             ) : (
-              <LinearGradient colors={["#201c28", "#0b0a0f"]} style={StyleSheet.absoluteFillObject} />
+              <LinearGradient colors={[palette.panelMuted, palette.bg]} style={StyleSheet.absoluteFillObject} />
             )}
-            <LinearGradient colors={["rgba(11,10,15,0.05)", "rgba(11,10,15,0.42)", palette.bg]} style={styles.restaurantHeroOverlay} />
+            <LinearGradient colors={["rgba(252,252,249,0.0)", "rgba(252,252,249,0.55)", palette.bg]} style={styles.restaurantHeroOverlay} />
 
             <View style={styles.restaurantHeroTopBar}>
               <Pressable style={styles.restaurantHeroBackButton} onPress={goBack}>
@@ -439,18 +439,18 @@ export default function RestaurantScreen({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Pressable 
                 onPress={goBack} 
-                style={{ backgroundColor: "rgba(23,21,19,0.88)", padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center' }}
+                style={{ backgroundColor: palette.panelMuted, padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: palette.border }}
               >
                 <Ionicons name="chevron-back" size={22} color="#EAB545" />
               </Pressable>
               
               <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
-                <Ionicons name="search-outline" size={18} color="#B8AA95" />
+                <Ionicons name="search-outline" size={18} color={palette.muted} />
                 <TextInput
                   value={searchTerm}
                   onChangeText={setSearchTerm}
                   placeholder="Vad ar du sugen pa?"
-                  placeholderTextColor="#B8AA95"
+                  placeholderTextColor={palette.muted}
                   style={styles.restaurantSearchInput}
                 />
               </View>
