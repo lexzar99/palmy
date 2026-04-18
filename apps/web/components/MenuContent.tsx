@@ -399,9 +399,59 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                         {cat.name}
                      </motion.button>
                   ))}
-               </div>
-           </div>
-        </div>
+</div>
+            </div>
+         </div>
+
+        {/* Discounted Products Rail */}
+        {(() => {
+          const discountedProducts = filteredCategories.flatMap(cat => cat.products).filter((p: any) => p.discountActive);
+          if (discountedProducts.length === 0) return null;
+          return (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 px-4">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gold-500">REKOMMENDERAS</span>
+                <div className="h-px bg-gold-500/20 flex-1" />
+              </div>
+              <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+                {discountedProducts.map((p: any) => (
+                  <motion.div
+                    key={p.id}
+                    onClick={() => {
+                      if (!restaurant?.isOpen) return;
+                      if (zoneAvailable === false) {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        return;
+                      }
+                      if (!address.trim() || orderType === "DELIVERY" && !localStorage.getItem("platform_coords")) {
+                        setPendingProduct(p);
+                        setShowAddressModal(true);
+                      } else {
+                        setSelectedProduct(p);
+                      }
+                    }}
+                    whileTap={{ scale: 0.95 }}
+                    className="shrink-0 w-56 rounded-2xl p-4 flex items-center gap-4 transition-all cursor-pointer"
+                    style={{ backgroundColor: "#211C19", border: "1px solid rgba(231,178,75,0.2)" }}
+                  >
+                    {p.imageUrl && (
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
+                        <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-black text-white uppercase italic truncate leading-none mb-1">{p.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-black text-zinc-500 line-through">{p.price} KR</span>
+                        <span className="text-[11px] font-black text-gold-500">{p.discountPrice || p.price - (p.price * (p.discountPercent || 0) / 100)} KR</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Menu Sections Grid */}
         <div className="space-y-24">
@@ -461,10 +511,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                              </div>
                           )}
                           <div className="flex-1 min-w-0 py-2">
-                             <div className="flex items-start justify-between gap-4 mb-2">
-                                <h3 className="text-base font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none">{p.name}</h3>
-                                <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
-                             </div>
+<div className="flex items-start justify-between gap-4 mb-2">
+                                 <h3 className="text-base font-black text-white group-hover:text-gold-500 transition-colors uppercase italic truncate leading-none">{p.name}</h3>
+                                 {p.discountActive ? (
+                                   <div className="flex flex-col items-end">
+                                     <span className="text-[9px] font-black text-zinc-600 line-through">{p.price} KR</span>
+                                     <span className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.discountPrice || Math.round(p.price - p.price * (p.discountPercent || 0) / 100)} KR</span>
+                                   </div>
+                                 ) : (
+                                   <div className="text-[11px] font-black text-gold-500 whitespace-nowrap bg-gold-400/10 px-3 py-1.5 rounded-lg border border-gold-500/20">{p.price} KR</div>
+                                 )}
+                              </div>
                              <p className="text-zinc-600 text-[10px] line-clamp-2 leading-relaxed font-bold uppercase tracking-widest mb-4">{p.description}</p>
                              
                              <div className="flex items-center gap-1.5 opacity-40">
