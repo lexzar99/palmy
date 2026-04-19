@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
-    "@react-native-async-storage/async-storage": "^3.0.2",
+    "@react-native-async-storage/async-storage": "^1.24.0",
     "@stripe/stripe-react-native": "^0.63.0",
     "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.15.0",
