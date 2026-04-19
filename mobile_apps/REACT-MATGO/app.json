@@ -52,6 +52,12 @@
     ],
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "387eb02e-573d-499e-a729-61d56c4278da"
+      }
+    },
+    "owner": "jalleboy0"
   }
 }
