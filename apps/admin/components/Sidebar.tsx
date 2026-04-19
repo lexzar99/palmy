@@ -44,6 +44,7 @@ import {
   Palette,
   HelpCircle,
   ExternalLink,
+  Filter,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -263,6 +264,7 @@ const Sidebar = () => {
         { href: "/discounts", label: "Rabattkoder", icon: Tag, isNew: true },
         { href: "/push", label: "Push Notiser", icon: Megaphone },
         { href: "/cities", label: "Städer & Zoner", icon: MapPin },
+        { href: "/categories", label: "Kategorier", icon: Filter, isNew: true },
         { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
         { href: "/reviews", label: "Recensioner", icon: MessageSquare, isNew: true },
       ],

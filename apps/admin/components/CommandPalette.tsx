@@ -27,6 +27,7 @@ import {
   Printer,
   Shield,
   Command,
+  Filter,
 } from "lucide-react";
 
 interface CommandItem {
@@ -61,6 +62,7 @@ export default function CommandPalette() {
       { id: "deals", label: "Deals & Kampanjer", description: "Rabattkoder, erbjudanden", icon: Tag, action: () => router.push("/deals"), category: "Navigation", keywords: ["rabatt", "kampanj"] },
       { id: "push", label: "Push Notifikationer", description: "Skicka push-meddelanden", icon: Bell, action: () => router.push("/deals/push"), category: "Navigation" },
       { id: "cities", label: "Städer & Zoner", description: "Leveranszoner", icon: MapPin, action: () => router.push("/cities"), category: "Navigation", keywords: ["zon", "stad", "karta"] },
+      { id: "categories", label: "Kategorier", description: "Hemsidekategorier & rails", icon: Filter, action: () => router.push("/categories"), category: "Navigation", keywords: ["heta listan", "rail", "sektion"] },
       { id: "sponsors", label: "Sponsorer", description: "Sponsorhantering", icon: Sparkles, action: () => router.push("/sponsors"), category: "Navigation" },
       { id: "bi", label: "Business Intelligence", description: "Djup dataanalys", icon: BarChart3, action: () => router.push("/bi"), category: "Analytics", keywords: ["analys", "data"] },
       { id: "analytics", label: "Analys", description: "Trafikanalys", icon: Globe, action: () => router.push("/analytics"), category: "Analytics" },

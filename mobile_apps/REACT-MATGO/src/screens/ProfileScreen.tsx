@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Pressable,
@@ -18,6 +17,7 @@ import { api } from "../lib/api";
 import { supabase } from "../lib/supabase";
 import { palette, styles } from "../constants/theme";
 import { ScreenWrap, PrimaryButton } from "../components/ui";
+import { ProfileScreenSkeleton } from "../components/SkeletonLoader";
 
 import type { Order, SavedAddress } from "../types";
 
@@ -519,10 +519,7 @@ export default function ProfileScreen({
   if (pageLoading) {
     return (
       <ScreenWrap>
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 80, gap: 14 }}>
-          <ActivityIndicator size="large" color={palette.gold} />
-          <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" }}>Laddar profil...</Text>
-        </View>
+        <ProfileScreenSkeleton />
       </ScreenWrap>
     );
   }

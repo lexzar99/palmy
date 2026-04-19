@@ -14,10 +14,10 @@ import { Ionicons } from "@expo/vector-icons";
 const { width } = Dimensions.get("window");
 
 const palette = {
-  bg: "#171513",
-  gold: "#EAB545",
-  text: "#FFF8EA",
-  muted: "#B8AA95",
+  bg: "#FFF8EF",
+  gold: "#D9B055",
+  text: "#21160F",
+  muted: "#7C6854",
 };
 
 const TypewriterText = ({ message }: { message: string }) => {
@@ -136,7 +136,7 @@ export default function PremiumLoader({ message }: { message?: string }) {
 
   return (
     <View style={styles.container}>
-      <LinearGradient colors={["#211C19", "#171513"]} style={StyleSheet.absoluteFill} />
+      <LinearGradient colors={["#FFF6E7", "#FFF8EF"]} style={StyleSheet.absoluteFill} />
 
       {/* Background glow */}
       <Animated.View style={[styles.glow, { opacity: glowOpacity }]} />
@@ -218,14 +218,14 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 32,
-    backgroundColor: "rgba(234,181,69,0.12)",
+    backgroundColor: "rgba(217,176,85,0.18)",
     borderWidth: 1.5,
-    borderColor: "rgba(234,181,69,0.3)",
+    borderColor: "rgba(125,97,38,0.14)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 24,
     shadowColor: palette.gold,
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.22,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
   },
@@ -239,12 +239,12 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 1.5,
     fontStyle: "italic",
-    textShadowColor: "rgba(234,181,69,0.35)",
+    textShadowColor: "rgba(217,176,85,0.24)",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 12,
   },
   message: {
-    color: "rgba(255,248,234,0.42)",
+    color: "rgba(125,97,38,0.58)",
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 4,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   loadingBarContainer: {
     width: "100%",
     height: 2,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: "rgba(33,22,15,0.08)",
     borderRadius: 1,
     overflow: "hidden",
     position: "relative",

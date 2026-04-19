@@ -14,17 +14,17 @@ import type { Order } from '../types';
 function getStatusDisplay(status: string) {
   switch (status) {
     case "PENDING":
-      return { label: "GRANSKAS", icon: "time", color: "#f59e0b", bgColor: "rgba(245,158,11,0.12)", baseProgress: 10 };
+      return { label: "GRANSKAS", icon: "time", color: "#B45309", bgColor: "rgba(245,158,11,0.16)", baseProgress: 10 };
     case "ACCEPTED":
     case "PREPARING":
-      return { label: "TILLAGAS", icon: "flame", color: "#f97316", bgColor: "rgba(249,115,22,0.12)", baseProgress: 42 };
+      return { label: "TILLAGAS", icon: "flame", color: "#EA580C", bgColor: "rgba(249,115,22,0.16)", baseProgress: 42 };
     case "READY":
-      return { label: "REDO ATT HÄMTAS", icon: "checkmark-circle", color: "#0ea5e9", bgColor: "rgba(14,165,233,0.12)", baseProgress: 85 };
+      return { label: "REDO ATT HÄMTAS", icon: "checkmark-circle", color: "#0284C7", bgColor: "rgba(14,165,233,0.15)", baseProgress: 85 };
     case "OUT_FOR_DELIVERY":
     case "DELIVERING":
-      return { label: "PÅ VÄG!", icon: "bicycle", color: "#10b981", bgColor: "rgba(16,185,129,0.12)", baseProgress: 72 };
+      return { label: "PÅ VÄG!", icon: "bicycle", color: "#059669", bgColor: "rgba(16,185,129,0.15)", baseProgress: 72 };
     default:
-      return { label: "AKTIV", icon: "flash", color: palette.gold, bgColor: "rgba(231,178,75,0.12)", baseProgress: 5 };
+      return { label: "AKTIV", icon: "flash", color: palette.goldDark, bgColor: "rgba(217,176,85,0.16)", baseProgress: 5 };
   }
 }
 
@@ -215,18 +215,18 @@ export default function LiveOrderBanner({
         right: 14,
         borderRadius: 28,
         overflow: "hidden",
-        backgroundColor: "#08080A",
+        backgroundColor: palette.panel,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
+        borderColor: "rgba(125,97,38,0.14)",
         shadowColor: display.color,
         shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        elevation: 15,
+        shadowOpacity: 0.14,
+        shadowRadius: 18,
+        elevation: 10,
       }}
     >
       <LinearGradient
-        colors={[display.bgColor, "rgba(9,8,12,0.97)"]}
+        colors={[display.bgColor, "rgba(255,248,239,0.98)", "rgba(255,255,255,0.98)"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{ padding: 16 }}
@@ -242,11 +242,11 @@ export default function LiveOrderBanner({
               width: 50,
               height: 50,
               borderRadius: 18,
-              backgroundColor: "rgba(255,255,255,0.05)",
+              backgroundColor: "rgba(255,255,255,0.82)",
               alignItems: "center",
               justifyContent: "center",
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.1)",
+              borderColor: "rgba(125,97,38,0.12)",
             }}
           >
             <Ionicons name={display.icon as any} size={22} color={display.color} />
@@ -260,7 +260,7 @@ export default function LiveOrderBanner({
               <Text style={{ color: display.color, fontSize: 10, fontWeight: "900", letterSpacing: 1.8 }}>
                 {display.label}
               </Text>
-              <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.2)" }} />
+              <View style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: "rgba(33,22,15,0.18)" }} />
               <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700" }}>
                 #{order.orderNumber?.slice(-4) || "..."}
               </Text>
@@ -277,7 +277,7 @@ export default function LiveOrderBanner({
             <View
               style={{
                 height: 5,
-                backgroundColor: "rgba(255,255,255,0.07)",
+                backgroundColor: "rgba(33,22,15,0.08)",
                 borderRadius: 3,
                 marginTop: 10,
                 overflow: "hidden",
@@ -309,15 +309,15 @@ export default function LiveOrderBanner({
                 paddingHorizontal: 12,
                 paddingVertical: 6,
                 borderRadius: 14,
-                backgroundColor: "rgba(255,255,255,0.08)",
+                backgroundColor: "rgba(255,255,255,0.86)",
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.05)",
+                borderColor: "rgba(125,97,38,0.12)",
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 4,
               }}
             >
-              <Ionicons name="time-outline" size={12} color={palette.text} />
+              <Ionicons name="time-outline" size={12} color={palette.goldDark} />
               <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", fontStyle: "italic" }}>
                 {getDynamicETA(order)}
               </Text>
@@ -329,7 +329,7 @@ export default function LiveOrderBanner({
                 width: 28,
                 height: 28,
                 borderRadius: 14,
-                backgroundColor: "rgba(255,255,255,0.05)",
+                backgroundColor: palette.panelMuted,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -347,7 +347,7 @@ export default function LiveOrderBanner({
             marginTop: 14,
             paddingTop: 14,
             borderTopWidth: 1,
-            borderTopColor: "rgba(255,255,255,0.06)",
+            borderTopColor: "rgba(125,97,38,0.12)",
             flexDirection: "row",
             alignItems: "center",
           }}
@@ -358,14 +358,14 @@ export default function LiveOrderBanner({
                 width: 24,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: "rgba(231,178,75,0.15)",
+                backgroundColor: "rgba(217,176,85,0.16)",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
               <Ionicons name={currentTip.icon} size={12} color={palette.gold} />
             </View>
-            <Text style={{ color: "rgba(255,255,255,0.68)", fontSize: 12, fontWeight: "600", flex: 1 }} numberOfLines={1}>
+            <Text style={{ color: palette.text, fontSize: 12, fontWeight: "600", flex: 1 }} numberOfLines={1}>
               {currentTip.text}
             </Text>
             {currentTip.action !== "NONE" && (

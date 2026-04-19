@@ -46,7 +46,19 @@ interface Order {
   paymentMethod: string;
   isRefunded: boolean;
   refundedAt?: string;
+  restaurantId?: string;
+  restaurantName?: string;
 }
+
+type RevenueStats = {
+  totalRevenue: number;
+  totalRefunded: number;
+  totalOrders: number;
+  refundedCount: number;
+  paidRevenue: number;
+  paidOrders: number;
+  netAmount: number;
+};
 
 const isPaidOrder = (status: string) => PAID_STATUSES.includes(status);
 
@@ -152,7 +164,7 @@ export default function OrderStatementsPage() {
 
   const restaurantStats = useMemo(() => {
     if (!selectedData) return null;
-    const stats = { totalRevenue: 0, totalRefunded: 0, totalOrders: 0, refundedCount: 0, paidRevenue: 0, paidOrders: 0 };
+    const stats: RevenueStats = { totalRevenue: 0, totalRefunded: 0, totalOrders: 0, refundedCount: 0, paidRevenue: 0, paidOrders: 0, netAmount: 0 };
     selectedData.orders.forEach((o) => {
       stats.totalOrders++;
       stats.totalRevenue += o.totalAmount;
@@ -298,11 +310,14 @@ export default function OrderStatementsPage() {
       ) : (
         <div className="space-y-2">
           {filteredRestaurants.map((ro) => {
-            const stats = {
+            const stats: RevenueStats = {
               totalRevenue: ro.orders.reduce((s, o) => s + o.totalAmount, 0),
               totalRefunded: ro.orders.filter(o => o.isRefunded).reduce((s, o) => s + o.totalAmount, 0),
               totalOrders: ro.orders.length,
               refundedCount: ro.orders.filter(o => o.isRefunded).length,
+              paidRevenue: ro.orders.filter((o) => isPaidOrder(o.status)).reduce((s, o) => s + o.totalAmount, 0),
+              paidOrders: ro.orders.filter((o) => isPaidOrder(o.status)).length,
+              netAmount: 0,
             };
             stats.netAmount = stats.totalRevenue - stats.totalRefunded;
             const isExpanded = expandedRestaurant === ro.restaurant.id;

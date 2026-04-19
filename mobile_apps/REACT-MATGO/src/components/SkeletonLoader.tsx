@@ -25,7 +25,7 @@ function Bone({ width, height, style }: { width?: number | string; height: numbe
     ).start();
   }, [shimmer]);
 
-  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.25, 0.5] });
+  const opacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0.92] });
 
   return (
     <Animated.View
@@ -34,12 +34,32 @@ function Bone({ width, height, style }: { width?: number | string; height: numbe
           width: width ?? "100%",
           height,
           borderRadius: height / 2,
-          backgroundColor: palette.border,
+          backgroundColor: palette.skeletonBase,
           opacity,
         },
         style,
       ]}
     />
+  );
+}
+
+function SurfaceCard({ children, style }: { children: React.ReactNode; style?: any }) {
+  return (
+    <View
+      style={[
+        {
+          backgroundColor: palette.panel,
+          borderRadius: 28,
+          borderWidth: 1,
+          borderColor: palette.border,
+          padding: 18,
+          gap: 12,
+        },
+        style,
+      ]}
+    >
+      {children}
+    </View>
   );
 }
 
@@ -148,12 +168,176 @@ export function RestaurantScreenSkeleton() {
 /** Generic full-page spinner skeleton */
 export function PageSkeleton() {
   return (
-    <View style={{ flex: 1, padding: 20, gap: 16 }}>
+    <View style={{ flex: 1, gap: 16 }}>
       <Bone height={32} width="50%" />
       <Bone height={16} width="30%" />
       {[1, 2, 3].map((i) => (
         <Bone key={i} height={80} style={{ borderRadius: 20 }} />
       ))}
+    </View>
+  );
+}
+
+export function DiscoverScreenSkeleton() {
+  return (
+    <View style={{ gap: 18 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <View style={{ flex: 1, gap: 8 }}>
+          <Bone width="56%" height={34} style={{ borderRadius: 10 }} />
+          <Bone width="34%" height={12} style={{ borderRadius: 6 }} />
+        </View>
+        <Bone width={58} height={58} style={{ borderRadius: 20 }} />
+      </View>
+
+      <Bone height={58} style={{ borderRadius: 30 }} />
+
+      <View style={{ flexDirection: "row", gap: 14 }}>
+        {[1, 2, 3].map((i) => (
+          <Bone key={i} width={100} height={120} style={{ borderRadius: 24 }} />
+        ))}
+      </View>
+
+      <RestaurantListSkeleton count={3} />
+    </View>
+  );
+}
+
+export function SearchScreenSkeleton() {
+  return (
+    <View style={{ gap: 18 }}>
+      <View style={{ gap: 8 }}>
+        <Bone width="34%" height={28} style={{ borderRadius: 10 }} />
+        <Bone width="48%" height={14} style={{ borderRadius: 6 }} />
+      </View>
+
+      <Bone height={58} style={{ borderRadius: 30 }} />
+
+      <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 14 }}>
+        {[1, 2, 3, 4].map((i) => (
+          <Bone key={i} width="47%" height={136} style={{ borderRadius: 22 }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+export function ProfileScreenSkeleton() {
+  return (
+    <View style={{ gap: 14 }}>
+      <SurfaceCard style={{ borderRadius: 34, gap: 18 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+          <Bone width={58} height={58} style={{ borderRadius: 20 }} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Bone width="54%" height={20} />
+            <Bone width="40%" height={12} />
+            <Bone width="28%" height={10} />
+          </View>
+        </View>
+      </SurfaceCard>
+
+      <SurfaceCard style={{ borderRadius: 24, padding: 6 }}>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Bone key={i} height={52} style={{ flex: 1, borderRadius: 18 }} />
+          ))}
+        </View>
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Bone width="42%" height={18} />
+        <Bone width="100%" height={14} />
+        <Bone width="72%" height={14} />
+        <Bone width="86%" height={14} />
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Bone width="38%" height={18} />
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Bone key={i} width={88} height={34} style={{ borderRadius: 14 }} />
+          ))}
+        </View>
+      </SurfaceCard>
+    </View>
+  );
+}
+
+export function CartScreenSkeleton() {
+  return (
+    <View style={{ gap: 16 }}>
+      {[1, 2].map((i) => (
+        <SurfaceCard key={i} style={{ borderRadius: 22, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <View style={{ flex: 1, gap: 8 }}>
+            <Bone width="62%" height={16} />
+            <Bone width="44%" height={10} />
+          </View>
+          <Bone width={92} height={38} style={{ borderRadius: 999 }} />
+        </SurfaceCard>
+      ))}
+
+      <View style={{ flexDirection: "row", gap: 10 }}>
+        <Bone height={54} style={{ flex: 1, borderRadius: 22 }} />
+        <Bone height={54} style={{ flex: 1, borderRadius: 22 }} />
+      </View>
+
+      <SurfaceCard>
+        <Bone width="34%" height={12} />
+        <Bone height={54} style={{ borderRadius: 18 }} />
+        <Bone height={54} style={{ borderRadius: 18 }} />
+      </SurfaceCard>
+
+      <SurfaceCard>
+        <Bone width="40%" height={12} />
+        <Bone height={58} style={{ borderRadius: 18 }} />
+        <Bone width="70%" height={14} />
+      </SurfaceCard>
+
+      <SurfaceCard style={{ backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4 }}>
+        <Bone width="28%" height={12} />
+        <Bone width="100%" height={14} />
+        <Bone width="100%" height={14} />
+        <Bone height={58} style={{ borderRadius: 22, marginTop: 8 }} />
+      </SurfaceCard>
+    </View>
+  );
+}
+
+export function OrderScreenSkeleton() {
+  return (
+    <View style={{ gap: 20 }}>
+      <View style={{ gap: 10 }}>
+        <Bone width="26%" height={12} />
+        <Bone width="58%" height={36} style={{ borderRadius: 10 }} />
+        <Bone width="42%" height={12} />
+      </View>
+
+      <SurfaceCard style={{ borderRadius: 32, alignItems: "center", paddingVertical: 28 }}>
+        <Bone width={80} height={80} style={{ borderRadius: 40 }} />
+        <Bone width="40%" height={18} />
+        <Bone width="72%" height={12} />
+      </SurfaceCard>
+
+      <View style={{ flexDirection: "row", gap: 12 }}>
+        {[1, 2, 3, 4].map((i) => (
+          <View key={i} style={{ flex: 1, alignItems: "center", gap: 8 }}>
+            <Bone width={30} height={30} style={{ borderRadius: 15 }} />
+            <Bone width="70%" height={8} />
+          </View>
+        ))}
+      </View>
+
+      <SurfaceCard style={{ borderRadius: 32 }}>
+        <Bone width="44%" height={18} />
+        {[1, 2, 3].map((i) => (
+          <View key={i} style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
+            <View style={{ flex: 1, gap: 8 }}>
+              <Bone width="48%" height={14} />
+              <Bone width="76%" height={10} />
+            </View>
+            <Bone width={52} height={12} />
+          </View>
+        ))}
+      </SurfaceCard>
     </View>
   );
 }

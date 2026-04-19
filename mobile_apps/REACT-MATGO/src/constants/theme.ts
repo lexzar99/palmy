@@ -1,24 +1,23 @@
 import { StyleSheet } from 'react-native';
 
-// ── "Silk / Light Luxury" palette ────────────────────────────────────────
-// Ljus, krispig och inbjudande – inspirerad av Uber Eats / Wolt light-mode.
-// Mat ser alltid godare ut mot en vit bakgrund → högre CTR per visning.
+// ── Vibrant light palette ─────────────────────────────────────────────────
+// Varm, ljus och tydlig med starkare kontrast i CTA:er, badges och metadata.
 export const palette = {
-  bg: "#FCFCF9",           // Mjuk off-white – ingen brutal svart
-  panel: "#FFFFFF",        // Rena vita kort / paneler
-  panelMuted: "#F5F5F2",   // Lättare nyans för subtila sektioner
-  card: "#F8F8F5",         // Kortbakgrund
-  border: "rgba(28,28,30,0.07)",   // Minimalistisk ljus kant
-  text: "#1C1C1E",         // Soft Black – WCAG-säker rubrik
-  muted: "#6E6E73",        // Apple-grå för metadata
-  gold: "#EAB545",         // Guld behålls som premium-accent
-  goldDark: "#D99500",
-  orange: "#F07A13",
-  success: "#34C759",      // Grön ENBART för "ÖPPET"-status
-  danger: "#FF3B30",
-  info: "#007AFF",
-  skeletonBase: "#EAEAEA", // Skeleton-loader bas
-  skeletonHighlight: "#F5F5F5", // Skeleton-loader highlight
+  bg: "#FFF8EF",
+  panel: "#FFFFFF",
+  panelMuted: "#FFF0D8",
+  card: "#FFF6E7",
+  border: "rgba(125,97,38,0.12)",
+  text: "#21160F",
+  muted: "#7C6854",
+  gold: "#D9B055",
+  goldDark: "#7D6126",
+  orange: "#FF7A00",
+  success: "#16A34A",
+  danger: "#DC2626",
+  info: "#2563EB",
+  skeletonBase: "#F2E7D5",
+  skeletonHighlight: "#FBF4E8",
 };
 
 export const ui = {
@@ -34,9 +33,9 @@ export const styles = StyleSheet.create({
   },
   // Light mode shadow helper – ersätter mörk border
   cardShadow: {
-    shadowColor: "#1C1C1E",
-    shadowOpacity: 0.04,
-    shadowRadius: 24,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
@@ -70,8 +69,13 @@ export const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "rgba(255,248,234,0.08)",
+    borderColor: palette.border,
     justifyContent: "space-between",
+    shadowColor: palette.gold,
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 4,
   },
   restaurantHeroCoverImage: {
     ...StyleSheet.absoluteFillObject,
@@ -93,12 +97,17 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(28,28,30,0.06)",
+    backgroundColor: "rgba(255,249,240,0.94)",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(28,28,30,0.04)",
+    borderColor: "rgba(125,97,38,0.14)",
     paddingHorizontal: 14,
     paddingVertical: 10,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   restaurantHeroBackText: {
     color: palette.text,
@@ -116,12 +125,17 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    backgroundColor: "rgba(28,28,30,0.06)",
+    backgroundColor: "rgba(255,249,240,0.94)",
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "rgba(28,28,30,0.04)",
+    borderColor: "rgba(125,97,38,0.14)",
     paddingHorizontal: 14,
     paddingVertical: 10,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
   restaurantHeroGhostButtonText: {
     color: palette.text,
@@ -136,8 +150,15 @@ export const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: palette.gold,
     borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.4)",
     paddingHorizontal: 14,
     paddingVertical: 10,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 7 },
+    elevation: 4,
   },
   restaurantHeroPrimaryButtonText: {
     color: "#000",
@@ -223,7 +244,7 @@ export const styles = StyleSheet.create({
     gap: 4,
   },
   restaurantHeroRatingText: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -255,9 +276,14 @@ export const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     gap: 6,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
   restaurantQuickStatLabel: {
-    color: "rgba(184,170,149,0.76)",
+    color: "rgba(125,97,38,0.76)",
     fontSize: 9,
     fontWeight: "900",
     textTransform: "uppercase",
@@ -276,7 +302,7 @@ export const styles = StyleSheet.create({
     backgroundColor: palette.bg,
   },
   restaurantStickyNavCard: {
-    backgroundColor: "rgba(252,252,249,0.96)",
+    backgroundColor: "rgba(255,248,239,0.98)",
     borderRadius: 28,
     borderWidth: 1,
     borderColor: palette.border,
@@ -284,8 +310,10 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   restaurantSearchInputWrap: {
-    backgroundColor: "rgba(28,28,30,0.04)",
+    backgroundColor: palette.card,
     borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(125,97,38,0.1)",
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
@@ -308,12 +336,15 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 13,
     borderRadius: 20,
-    backgroundColor: "transparent",
+    backgroundColor: palette.card,
+    borderWidth: 1,
+    borderColor: "rgba(125,97,38,0.1)",
   },
   restaurantCategoryChipActive: {
     backgroundColor: palette.gold,
+    borderColor: palette.gold,
     shadowColor: palette.gold,
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.22,
     shadowRadius: 10,
     elevation: 6,
   },
@@ -365,6 +396,11 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.04,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
   },
   restaurantMenuProductCardDisabled: {
     opacity: 0.5,
@@ -397,15 +433,15 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
   },
   restaurantMenuPriceBadge: {
-    backgroundColor: "rgba(234,181,69,0.14)",
+    backgroundColor: "rgba(217,176,85,0.18)",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(234,181,69,0.26)",
+    borderColor: "rgba(125,97,38,0.16)",
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   restaurantMenuPriceBadgeText: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 11,
     fontWeight: "900",
   },
@@ -416,12 +452,12 @@ export const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   restaurantMenuDiscountedPriceCurrent: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 11,
     fontWeight: "900",
   },
   restaurantMenuProductDescription: {
-    color: "rgba(184,170,149,0.82)",
+    color: palette.muted,
     fontSize: 11,
     lineHeight: 17,
     fontWeight: "800",
@@ -453,7 +489,7 @@ export const styles = StyleSheet.create({
     gap: 16,
   },
   eyebrow: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
@@ -592,7 +628,7 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   dealTitle: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 16,
     fontWeight: "800",
   },
@@ -711,7 +747,7 @@ export const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: palette.border,
     borderBottomWidth: 0,
     maxHeight: "92%",
     overflow: "hidden",
@@ -721,7 +757,7 @@ export const styles = StyleSheet.create({
     width: 54,
     height: 5,
     borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(125,97,38,0.16)",
     marginTop: 10,
     marginBottom: 4,
   },
@@ -778,15 +814,15 @@ export const styles = StyleSheet.create({
   },
   productHeroPriceChip: {
     alignSelf: "flex-start",
-    backgroundColor: "rgba(231,178,75,0.14)",
+    backgroundColor: "rgba(217,176,85,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(231,178,75,0.22)",
+    borderColor: "rgba(125,97,38,0.16)",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
   },
   productHeroPriceChipText: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 12,
     fontWeight: "800",
   },
@@ -797,7 +833,7 @@ export const styles = StyleSheet.create({
     letterSpacing: -0.6,
   },
   productModalDescription: {
-    color: "rgba(28,28,30,0.74)",
+    color: "rgba(33,22,15,0.72)",
     fontSize: 14,
     lineHeight: 22,
     fontWeight: "600",
@@ -853,25 +889,25 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
   },
   productGroupBadgeRequired: {
-    backgroundColor: "rgba(231,178,75,0.12)",
-    borderColor: "rgba(231,178,75,0.22)",
+    backgroundColor: "rgba(217,176,85,0.16)",
+    borderColor: "rgba(125,97,38,0.16)",
   },
   productGroupBadgeOptional: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderColor: "rgba(255,255,255,0.08)",
+    backgroundColor: palette.card,
+    borderColor: palette.border,
   },
   productGroupBadgeText: {
     fontSize: 11,
     fontWeight: "800",
   },
   productGroupBadgeTextRequired: {
-    color: palette.gold,
+    color: palette.goldDark,
   },
   productGroupBadgeTextOptional: {
     color: palette.muted,
   },
   productGroupCountBadge: {
-    backgroundColor: palette.card,
+    backgroundColor: palette.panelMuted,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -897,8 +933,8 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   productOptionCardActive: {
-    borderColor: "rgba(231,178,75,0.65)",
-    backgroundColor: "rgba(231,178,75,0.08)",
+    borderColor: "rgba(125,97,38,0.24)",
+    backgroundColor: "rgba(217,176,85,0.14)",
   },
   productOptionCardDisabled: {
     opacity: 0.45,
@@ -914,13 +950,13 @@ export const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: "rgba(255,255,255,0.22)",
+    borderColor: "rgba(125,97,38,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   productOptionIndicatorActive: {
     borderColor: palette.gold,
-    backgroundColor: "rgba(231,178,75,0.12)",
+    backgroundColor: "rgba(217,176,85,0.16)",
   },
   productOptionIndicatorInner: {
     width: 10,
@@ -938,7 +974,7 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
   },
   productOptionTitleActive: {
-    color: "#fff5dd",
+    color: palette.text,
   },
   productOptionMeta: {
     color: palette.muted,
@@ -946,7 +982,7 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
   },
   productOptionMetaActive: {
-    color: palette.gold,
+    color: palette.goldDark,
   },
   productNoteCard: {
     backgroundColor: palette.panel,
@@ -985,14 +1021,14 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   productSelectionErrorText: {
-    color: "#fecdd3",
+    color: "#9F1239",
     flex: 1,
     lineHeight: 19,
   },
   productModalFooter: {
     borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
-    backgroundColor: "rgba(18,17,23,0.98)",
+    borderTopColor: palette.border,
+    backgroundColor: "rgba(255,248,239,0.98)",
     paddingHorizontal: 18,
     paddingTop: 16,
     paddingBottom: 26,
@@ -1183,7 +1219,7 @@ export const styles = StyleSheet.create({
     marginTop: 4,
   },
   productPrice: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 14,
     fontWeight: "800",
     marginTop: 8,
@@ -1194,15 +1230,15 @@ export const styles = StyleSheet.create({
     borderRadius: 18,
   },
   alertCard: {
-    backgroundColor: "#291b14",
+    backgroundColor: "rgba(217,176,85,0.14)",
     borderRadius: 22,
     borderWidth: 1,
-    borderColor: "#5d4123",
+    borderColor: "rgba(125,97,38,0.16)",
     padding: 18,
     gap: 10,
   },
   alertTitle: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 18,
     fontWeight: "800",
   },
@@ -1286,7 +1322,7 @@ export const styles = StyleSheet.create({
   },
   extraRowActive: {
     borderColor: palette.gold,
-    backgroundColor: "#30220b",
+    backgroundColor: "rgba(217,176,85,0.14)",
   },
   inlineSummary: {
     flexDirection: "row",
@@ -1331,7 +1367,7 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
   },
   linkText: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontWeight: "700",
     textAlign: "center",
   },
@@ -1356,10 +1392,15 @@ export const styles = StyleSheet.create({
   discountedProductCard: {
     width: 160,
     borderRadius: 16,
-    backgroundColor: "rgba(33,28,25,0.96)",
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "rgba(231,178,75,0.2)",
+    borderColor: "rgba(125,97,38,0.14)",
     overflow: "hidden",
+    shadowColor: palette.gold,
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   discountedProductImage: {
     width: "100%",
@@ -1385,7 +1426,7 @@ export const styles = StyleSheet.create({
     textDecorationLine: "line-through",
   },
   discountedNewPrice: {
-    color: palette.gold,
+    color: palette.goldDark,
     fontSize: 13,
     fontWeight: "900",
   },

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { palette } from "../constants/theme";
 
 export type DealFlipCardData = {
   id: string;
@@ -8,6 +9,7 @@ export type DealFlipCardData = {
   title: string;
   subtitle: string;
   rewardLabel: string;
+  isGlobal?: boolean;
   description?: string;
   code?: string;
   validUntil?: string | null;
@@ -26,16 +28,16 @@ type DealFlipCardProps = {
 
 const tones = {
   gold: {
-    accent: "#EAB545",
-    accentSoft: "rgba(234,181,69,0.12)",
-    border: "rgba(234,181,69,0.22)",
-    tagBg: "rgba(234,181,69,0.12)",
+    accent: palette.gold,
+    accentSoft: "rgba(217,176,85,0.18)",
+    border: "rgba(125,97,38,0.16)",
+    tagBg: "rgba(217,176,85,0.16)",
   },
   orange: {
-    accent: "#F07A13",
-    accentSoft: "rgba(240,122,19,0.12)",
-    border: "rgba(240,122,19,0.24)",
-    tagBg: "rgba(240,122,19,0.12)",
+    accent: palette.orange,
+    accentSoft: "rgba(255,122,0,0.12)",
+    border: "rgba(255,122,0,0.24)",
+    tagBg: "rgba(255,122,0,0.1)",
   },
   purple: {
     accent: "#a855f7",
@@ -113,7 +115,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
               <Text style={[styles.badgeText, { color: tone.accent }]}>{deal.badgeLabel}</Text>
             </View>
             <View style={styles.chevronBubble}>
-              <Ionicons name="chevron-forward" size={15} color="#B8AA95" />
+              <Ionicons name="chevron-forward" size={15} color={palette.goldDark} />
             </View>
           </View>
 
@@ -145,7 +147,7 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
           <View style={styles.rowBetween}>
             <Text style={[styles.badgeText, { color: tone.accent }]}>MER INFO</Text>
             <Pressable hitSlop={10} onPress={toggleFlip}>
-              <Ionicons name="close" size={18} color="#B8AA95" />
+              <Ionicons name="close" size={18} color={palette.muted} />
             </Pressable>
           </View>
 
@@ -221,12 +223,17 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     padding: 14,
     borderWidth: 1,
+    shadowColor: palette.gold,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   front: {
-    backgroundColor: "#211C19",
+    backgroundColor: palette.panel,
   },
   back: {
-    backgroundColor: "#171513",
+    backgroundColor: palette.card,
   },
   pressable: {
     flex: 1,
@@ -259,7 +266,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(255,248,234,0.05)",
+    backgroundColor: palette.panelMuted,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -274,7 +281,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   title: {
-    color: "#FFF8EA",
+    color: palette.text,
     fontSize: 14,
     lineHeight: 16,
     fontWeight: "900",
@@ -282,7 +289,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   subtitle: {
-    color: "#B8AA95",
+    color: palette.muted,
     fontSize: 8,
     lineHeight: 11,
     fontWeight: "800",
@@ -295,13 +302,13 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   hint: {
-    color: "#8D7C67",
+    color: palette.goldDark,
     fontSize: 7,
     fontWeight: "900",
     letterSpacing: 1,
   },
   description: {
-    color: "#D7CBB8",
+    color: palette.muted,
     fontSize: 9,
     lineHeight: 12,
     fontWeight: "700",
@@ -311,18 +318,18 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    backgroundColor: "rgba(255,248,234,0.05)",
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "rgba(255,248,234,0.07)",
+    borderColor: palette.border,
   },
   codeText: {
-    color: "#FFF8EA",
+    color: palette.text,
     fontSize: 8,
     fontWeight: "900",
     letterSpacing: 1,
   },
   autoAppliedText: {
-    color: "#8D7C67",
+    color: palette.muted,
     fontSize: 10,
     fontWeight: "700",
   },
@@ -332,12 +339,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(34,197,94,0.15)",
+    backgroundColor: "rgba(22,163,74,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(34,197,94,0.3)",
+    borderColor: "rgba(22,163,74,0.22)",
   },
   autoApplyText: {
-    color: "#22c55e",
+    color: palette.success,
     fontSize: 8,
     fontWeight: "900",
     letterSpacing: 1,
@@ -351,16 +358,16 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    backgroundColor: palette.panelMuted,
   },
   tagText: {
-    color: "#B8AA95",
+    color: palette.muted,
     fontSize: 7,
     fontWeight: "900",
     textTransform: "uppercase",
   },
   validUntil: {
-    color: "#8D7C67",
+    color: palette.muted,
     fontSize: 7,
     fontWeight: "900",
     letterSpacing: 1,

@@ -6,6 +6,7 @@ import { palette, styles } from '../constants/theme';
 import type { Restaurant } from '../types';
 import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
 import ScalePressable from '../components/ScalePressable';
+import { SearchScreenSkeleton } from '../components/SkeletonLoader';
 
 const DISCOVER_CATEGORIES = [
   { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
@@ -39,6 +40,14 @@ export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug
     const haystack = `${restaurant.name} ${restaurant.cuisine || ""} ${restaurant.description || ""}`.toLowerCase();
     return haystack.includes(query.toLowerCase());
   });
+
+  if (loading) {
+    return (
+      <ScreenWrap>
+        <SearchScreenSkeleton />
+      </ScreenWrap>
+    );
+  }
 
   return (
     <ScreenWrap>

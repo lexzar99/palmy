@@ -69,6 +69,43 @@ export interface PublicDeal {
   applicableRestaurantIds?: string[];
 }
 
+export interface HomeCategoryFilters {
+  searchTerm?: string | null;
+  cuisines?: string[];
+  tags?: string[];
+  featuredClasses?: number[];
+  minRating?: number | null;
+  maxEtaMinutes?: number | null;
+  maxDeliveryFee?: number | null;
+  freeDeliveryOnly?: boolean;
+  dealsOnly?: boolean;
+  openNowOnly?: boolean;
+  sortBy?: "FEATURED" | "RATING" | "ETA" | "NAME";
+  sortDirection?: "ASC" | "DESC";
+}
+
+export interface HomeCategorySchedule {
+  enabled?: boolean;
+  daysOfWeek?: number[];
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+export interface HomeCategorySection {
+  id: string;
+  title: string;
+  slug: string;
+  subtitle?: string | null;
+  description?: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  filterMode: "FILTER" | "MANUAL" | "HYBRID";
+  maxRestaurants: number;
+  manualRestaurantIds: string[];
+  filters: HomeCategoryFilters;
+  schedule: HomeCategorySchedule;
+}
+
 export interface MenuExtra {
   id: string;
   name: string;
@@ -95,6 +132,9 @@ export interface MenuProduct {
   name: string;
   description?: string;
   price: number;
+  discountActive?: boolean;
+  discountPrice?: number;
+  discountPercent?: number;
   imageUrl?: string;
   isVegan?: boolean;
   isVegetarian?: boolean;
@@ -155,6 +195,7 @@ export interface Order {
   orderNumber?: string;
   status: string;
   type: OrderType;
+  orderType?: OrderType;
   customerName?: string;
   customerPhone?: string;
   total?: number;

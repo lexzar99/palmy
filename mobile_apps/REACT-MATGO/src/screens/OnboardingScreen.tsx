@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../store/useAppStore';
@@ -186,8 +186,7 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
     } finally { setLoading(false); }
   };
 
-  // Top padding for Dynamic Island / notch on iOS (59pt covers island + status bar)
-  const iosSafeTop = Platform.OS === "ios" ? 59 : (StatusBar.currentHeight || 0) + 12;
+  const topContentInset = Platform.OS === "ios" ? 16 : (StatusBar.currentHeight || 0) + 16;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#07060c" }}>
@@ -214,20 +213,21 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
         }}
       />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={{
-            flexGrow: 1,
-            paddingHorizontal: 26,
-            paddingTop: iosSafeTop,
-            paddingBottom: 48,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flex: 1 }}
         >
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              paddingHorizontal: 26,
+              paddingTop: topContentInset,
+              paddingBottom: 48,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           {/* Header row */}
           <Animated.View
             style={{
@@ -762,8 +762,9 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
               </>
             )}
           </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </View>
   );
 }

@@ -11,6 +11,7 @@ import menuRoutes from './routes/menu';
 import mapsStatsRoutes from './routes/mapsStats';
 import placesRoutes from './routes/places';
 import sponsorsRoutes from './routes/sponsors';
+import homeCategoriesRoutes from './routes/homeCategories';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
 import authRoutes from './routes/auth';
@@ -32,6 +33,7 @@ import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
 import { getAllowedOrigins } from './lib/config';
+import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -137,6 +139,7 @@ app.use('/api/maps-stats', mapsStatsRoutes);
 app.use('/api/places', placesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
+app.use('/api/home-categories', homeCategoriesRoutes);
 
 // Serve uploaded images
 import path from 'path';
@@ -191,6 +194,8 @@ const PORT = Number(process.env.PORT || 4000);
     console.log('🔐 Super Admin check complete');
     await ensureRestaurantAdmins();
     console.log('🏪 Restaurant admin logins ensured');
+    await ensureDefaultHomeCategorySections();
+    console.log('🏷️ Home category sections ensured');
 
     // Run daily maintenance once on startup
     runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));

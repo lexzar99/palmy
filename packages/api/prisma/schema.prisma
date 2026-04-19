@@ -197,6 +197,23 @@ model Deal {
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }
 
+model HomeCategorySection {
+  id                String   @id @default(cuid())
+  title             String
+  slug              String   @unique
+  subtitle          String?
+  description       String?
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  filterMode        String   @default("FILTER") // FILTER, MANUAL, HYBRID
+  maxRestaurants    Int      @default(8)
+  manualRestaurantIds String @default("[]")
+  filters           String   @default("{}")
+  schedule          String   @default("{}")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model AdminUser {
   id        String   @id @default(cuid())
   email     String   @unique

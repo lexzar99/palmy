@@ -437,7 +437,7 @@ export function PrimaryButton({
       ]}
     >
       <LinearGradient
-        colors={[palette.gold, palette.goldDark]}
+        colors={["#E8C978", palette.gold]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
         style={{

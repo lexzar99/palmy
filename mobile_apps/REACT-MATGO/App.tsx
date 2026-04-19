@@ -856,10 +856,16 @@ function AppContent() {
       : route.name;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={styles.safe}>
       <ExpoStatusBar style="dark" />
       <StatusBar barStyle="dark-content" />
-      <LinearGradient colors={[palette.bg, palette.panelMuted]} style={styles.appBg}>
+      <LinearGradient
+        colors={[palette.panel, palette.bg, palette.panelMuted]}
+        locations={[0, 0.22, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <View style={styles.appBg}>
         {route.name === "home" && (
           <HomeScreen
             openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })}
@@ -941,8 +947,9 @@ function AppContent() {
         {!["restaurant", "order", "register"].includes(route.name) && (
           <BottomTabs active={tabValue} onChange={openRoot} />
         )}
-      </LinearGradient>
-    </SafeAreaView>
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 

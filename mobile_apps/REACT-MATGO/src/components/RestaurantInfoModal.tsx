@@ -38,7 +38,7 @@ export default function RestaurantInfoModal({
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={{ color: palette.text, fontSize: 28, fontWeight: "900" }}>{restaurant.name.toUpperCase()}</Text>
-              <Text style={{ color: "#7f798a", fontSize: 12, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
+              <Text style={{ color: palette.goldDark, fontSize: 12, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
                 RESTAURANG INFORMATION
               </Text>
             </View>
@@ -51,21 +51,21 @@ export default function RestaurantInfoModal({
 
           {!!(restaurant.address || restaurant.city) && (
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ color: palette.gold, fontWeight: "900", marginBottom: 6 }}>Adress</Text>
+              <Text style={{ color: palette.goldDark, fontWeight: "900", marginBottom: 6 }}>Adress</Text>
               <Text style={styles.helperText}>{[restaurant.address, restaurant.zip, restaurant.city].filter(Boolean).join(", ")}</Text>
             </View>
           )}
 
           {!!restaurant.phone && (
             <View style={{ marginBottom: 16 }}>
-              <Text style={{ color: palette.gold, fontWeight: "900", marginBottom: 6 }}>Telefon</Text>
+              <Text style={{ color: palette.goldDark, fontWeight: "900", marginBottom: 6 }}>Telefon</Text>
               <Text style={styles.helperText}>{restaurant.phone}</Text>
             </View>
           )}
 
           {!!getOpeningHoursLines(restaurant).length && (
             <View style={{ marginBottom: 8 }}>
-              <Text style={{ color: palette.gold, fontWeight: "900", marginBottom: 8 }}>Öppettider</Text>
+              <Text style={{ color: palette.goldDark, fontWeight: "900", marginBottom: 8 }}>Öppettider</Text>
               {getOpeningHoursLines(restaurant).map((line) => (
                 <Text key={line} style={[styles.helperText, { marginBottom: 4 }]}>
                   {line}
@@ -75,8 +75,8 @@ export default function RestaurantInfoModal({
           )}
 
           {!!restaurant.rating && (
-            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.05)" }}>
-              <Text style={{ color: palette.gold, fontWeight: "900", marginBottom: 12 }}>RECENSIONER</Text>
+            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.border }}>
+              <Text style={{ color: palette.goldDark, fontWeight: "900", marginBottom: 12 }}>RECENSIONER</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <View style={{ flexDirection: "row", gap: 4 }}>
                   {[1, 2, 3, 4, 5].map((star) => (

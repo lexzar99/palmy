@@ -16,6 +16,7 @@ interface Sponsor {
   id: string;
   name: string;
   imageUrl: string;
+  sortOrder: number;
   isActive: boolean;
   isClickable: boolean;
   infoText?: string;

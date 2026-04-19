@@ -5,7 +5,7 @@
  * DELIVERY mode → Swedish address autocomplete via backend proxy.
  * PICKUP mode   → City dropdown fetched from /api/cities.
  *
- * Design mirrors the web app: dark card, gold accents, rounded corners.
+ * Design mirrors the web app: light card, vibrant accents, rounded corners.
  */
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
@@ -24,6 +24,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { API_URL } from "../lib/api";
+import { palette } from "../constants/theme";
 
 // Session token for Google billing grouping
 const makeToken = () =>
@@ -58,20 +59,21 @@ interface AddressModalProps {
 
 // ── Colours ──────────────────────────────────────────────────────────────────
 const C = {
-  bg:        "#171513",
-  card:      "#211C19",
-  surface:   "#2A241F",
-  border:    "rgba(255,248,234,0.10)",
-  gold:      "#EAB545",
-  goldDim:   "rgba(234,181,69,0.25)",
-  text:      "#FFF8EA",
-  muted:     "#B8AA95",
-  dim:       "#D7CBB8",
-  green:     "#10b981",
-  greenBg:   "#10b98118",
-  red:       "#ef4444",
-  redBg:     "#ef444418",
-  overlay:   "rgba(23,21,19,0.92)",
+  bg:        palette.bg,
+  card:      palette.panel,
+  surface:   palette.card,
+  border:    palette.border,
+  gold:      palette.gold,
+  goldDark:  palette.goldDark,
+  goldDim:   "rgba(217,176,85,0.18)",
+  text:      palette.text,
+  muted:     palette.muted,
+  dim:       "rgba(33,22,15,0.66)",
+  green:     palette.success,
+  greenBg:   "rgba(22,163,74,0.12)",
+  red:       palette.danger,
+  redBg:     "rgba(220,38,38,0.12)",
+  overlay:   "rgba(33,22,15,0.32)",
 };
 
 const { width: SW } = Dimensions.get("window");
@@ -311,7 +313,7 @@ export default function AddressModal({
               {confirmedCoords && !error && (
                 <View style={s.badge}>
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
-                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress ar verifierad.</Text>
+                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress är verifierad.</Text>
                 </View>
               )}
 
@@ -375,7 +377,7 @@ export default function AddressModal({
                         )}
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={[s.cityName, selectedCity?.id === city.id && { color: C.gold }]}>
+                        <Text style={[s.cityName, selectedCity?.id === city.id && { color: C.goldDark }]}>
                           {city.name}
                         </Text>
                         <Text style={s.cityMode}>
@@ -385,7 +387,7 @@ export default function AddressModal({
                       <Ionicons
                         name="storefront-outline"
                         size={16}
-                        color={selectedCity?.id === city.id ? C.gold : C.muted}
+                          color={selectedCity?.id === city.id ? C.goldDark : C.muted}
                       />
                     </Pressable>
                   ))}
@@ -448,11 +450,11 @@ const s = StyleSheet.create({
     borderColor: C.border,
     padding: 22,
     gap: 14,
-    shadowColor: "#000",
+    shadowColor: C.gold,
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.55,
-    shadowRadius: 40,
-    elevation: 30,
+    shadowOpacity: 0.16,
+    shadowRadius: 32,
+    elevation: 12,
     maxHeight: "90%",
   },
 
@@ -460,7 +462,7 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   headerSub: {
     fontSize: 8, fontWeight: "900", letterSpacing: 2.5,
-    color: C.gold, textTransform: "uppercase", marginBottom: 3,
+    color: C.goldDark, textTransform: "uppercase", marginBottom: 3,
   },
   headerTitle: {
     fontSize: 20, fontWeight: "900", letterSpacing: -0.4,
@@ -521,7 +523,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
   },
   predItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  predItemPress: { backgroundColor: "rgba(255,248,234,0.05)" },
+  predItemPress: { backgroundColor: "rgba(217,176,85,0.1)" },
   predIcon: {
     width: 26, height: 26, borderRadius: 7,
     backgroundColor: C.goldDim, alignItems: "center", justifyContent: "center",
@@ -539,8 +541,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 14,
   },
   cityItemBorder: { borderBottomWidth: 1, borderBottomColor: C.border },
-  cityItemSelected: { backgroundColor: "rgba(234,181,69,0.1)" },
-  cityItemPress: { backgroundColor: "rgba(255,248,234,0.05)" },
+  cityItemSelected: { backgroundColor: "rgba(217,176,85,0.14)" },
+  cityItemPress: { backgroundColor: "rgba(217,176,85,0.1)" },
   cityRadio: {
     width: 18, height: 18, borderRadius: 9,
     borderWidth: 2, borderColor: C.muted,

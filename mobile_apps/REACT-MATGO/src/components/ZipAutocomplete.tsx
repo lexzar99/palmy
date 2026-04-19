@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { palette } from "../constants/theme";
 
 const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
 
@@ -81,16 +82,16 @@ export default function ZipAutocomplete({
   return (
     <View style={styles.container}>
       <View style={styles.inputContainer}>
-        <Ionicons name="mail-outline" size={18} color="#b2a8bf" />
+        <Ionicons name="mail-outline" size={18} color={palette.goldDark} />
         <TextInput
           style={styles.input}
           value={value}
           onChangeText={handleChange}
           placeholder="Postnummer"
-          placeholderTextColor="#b2a8bf"
+          placeholderTextColor={palette.muted}
           keyboardType="number-pad"
         />
-        {loading && <ActivityIndicator size="small" color="#FFD700" />}
+        {loading && <ActivityIndicator size="small" color={palette.gold} />}
       </View>
 
       {showSuggestions && suggestions.length > 0 && (
@@ -101,7 +102,7 @@ export default function ZipAutocomplete({
               style={styles.suggestionItem}
               onPress={() => handleSelect(suggestion)}
             >
-              <Ionicons name="mail-outline" size={16} color="#b2a8bf" />
+              <Ionicons name="mail-outline" size={16} color={palette.goldDark} />
               <Text style={styles.suggestionText}>
                 {suggestion.properties.postcode} {suggestion.properties.city}
               </Text>
@@ -121,17 +122,17 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#17151d",
+    backgroundColor: palette.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#322b3e",
+    borderColor: palette.border,
     paddingHorizontal: 16,
     paddingVertical: 14,
     gap: 10,
   },
   input: {
     flex: 1,
-    color: "#f9f7f3",
+    color: palette.text,
     fontSize: 14,
     fontWeight: "700",
     padding: 0,
@@ -142,10 +143,10 @@ const styles = StyleSheet.create({
     top: "100%",
     left: 0,
     right: 0,
-    backgroundColor: "#17151d",
+    backgroundColor: palette.panel,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#322b3e",
+    borderColor: palette.border,
     marginTop: 4,
     overflow: "hidden",
     zIndex: 200,
@@ -157,11 +158,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.05)",
+    borderBottomColor: palette.border,
   },
   suggestionText: {
     flex: 1,
-    color: "#f9f7f3",
+    color: palette.text,
     fontSize: 13,
     fontWeight: "700",
   },

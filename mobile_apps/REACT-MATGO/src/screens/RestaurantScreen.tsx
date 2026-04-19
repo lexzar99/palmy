@@ -13,6 +13,7 @@ import RestaurantInfoModal from '../components/RestaurantInfoModal';
 import StarRating from '../components/StarRating';
 import ProductModal from '../components/ProductModal';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
+import { RestaurantScreenSkeleton } from '../components/SkeletonLoader';
 
 import type { Order, Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
 
@@ -277,6 +278,14 @@ export default function RestaurantScreen({
     [activeCategory, filteredCategories],
   );
 
+  if (loading) {
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.restaurantScreenContent}>
+        <RestaurantScreenSkeleton />
+      </ScrollView>
+    );
+  }
+
   return (
     <>
       <ScrollView
@@ -294,7 +303,7 @@ export default function RestaurantScreen({
             ) : (
               <LinearGradient colors={[palette.panelMuted, palette.bg]} style={StyleSheet.absoluteFillObject} />
             )}
-            <LinearGradient colors={["rgba(252,252,249,0.0)", "rgba(252,252,249,0.55)", palette.bg]} style={styles.restaurantHeroOverlay} />
+            <LinearGradient colors={["rgba(255,248,239,0.14)", "rgba(255,248,239,0.62)", palette.bg]} style={styles.restaurantHeroOverlay} />
 
             <View style={styles.restaurantHeroTopBar}>
               <Pressable style={styles.restaurantHeroBackButton} onPress={goBack}>
@@ -323,7 +332,7 @@ export default function RestaurantScreen({
               <View style={[styles.restaurantHeroStatusPill, restaurant?.isOpen === false ? styles.restaurantHeroStatusPillClosed : styles.restaurantHeroStatusPillOpen]}>
                 <View style={[styles.restaurantHeroStatusDot, restaurant?.isOpen === false ? styles.restaurantHeroStatusDotClosed : styles.restaurantHeroStatusDotOpen]} />
                 <Text style={[styles.restaurantHeroStatusText, restaurant?.isOpen === false ? styles.restaurantHeroStatusTextClosed : styles.restaurantHeroStatusTextOpen]}>
-                  {restaurant?.isOpen === false ? "Stangd" : "Oppen"}
+                  {restaurant?.isOpen === false ? "Stängd" : "Öppen"}
                 </Text>
               </View>
 
@@ -380,7 +389,7 @@ export default function RestaurantScreen({
           </View>
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="time-outline" size={18} color={palette.gold} />
-            <Text style={styles.restaurantQuickStatLabel}>Vantetid</Text>
+            <Text style={styles.restaurantQuickStatLabel}>Väntetid</Text>
             <Text style={styles.restaurantQuickStatValue}>~{Math.round(restaurant?.etaMinutes || 35)} MIN</Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
@@ -439,9 +448,9 @@ export default function RestaurantScreen({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Pressable 
                 onPress={goBack} 
-                style={{ backgroundColor: palette.panelMuted, padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: palette.border }}
+                style={{ backgroundColor: palette.panel, padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', shadowColor: palette.gold, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
               >
-                <Ionicons name="chevron-back" size={22} color="#EAB545" />
+                <Ionicons name="chevron-back" size={22} color={palette.gold} />
               </Pressable>
               
               <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
@@ -449,7 +458,7 @@ export default function RestaurantScreen({
                 <TextInput
                   value={searchTerm}
                   onChangeText={setSearchTerm}
-                  placeholder="Vad ar du sugen pa?"
+                  placeholder="Vad är du sugen på?"
                   placeholderTextColor={palette.muted}
                   style={styles.restaurantSearchInput}
                 />
@@ -550,7 +559,7 @@ export default function RestaurantScreen({
                           </View>
 
                           <Text numberOfLines={2} style={styles.restaurantMenuProductDescription}>
-                            {product.description || "Tryck for att valja tillbehor, sas och onskemal."}
+                            {product.description || "Tryck för att välja tillbehör, sås och önskemål."}
                           </Text>
 
                           <View style={styles.restaurantMenuProductTags}>

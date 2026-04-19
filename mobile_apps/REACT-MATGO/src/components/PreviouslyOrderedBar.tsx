@@ -85,16 +85,21 @@ export default function PreviouslyOrderedBar({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: palette.panel,
+        backgroundColor: palette.panelMuted,
         borderWidth: 1,
-        borderColor: 'rgba(234,181,69,0.3)',
+        borderColor: 'rgba(125,97,38,0.16)',
+        shadowColor: palette.gold,
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 2,
       }}
     >
-      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(234,181,69,0.1)', alignItems: 'center', justifyContent: 'center' }}>
-        <Ionicons name="time-outline" size={16} color={palette.gold} />
+      <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: 'rgba(217,176,85,0.18)', alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name="time-outline" size={16} color={palette.goldDark} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.gold, fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>DU BESTÄLLDE HÄR SENAST</Text>
+        <Text style={{ color: palette.goldDark, fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>DU BESTÄLLDE HÄR SENAST</Text>
         <Text numberOfLines={1} style={{ color: palette.text, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
           {summary.itemCount} rätter · {summary.total} kr{names ? ` · ${names}${extra}` : ''}
         </Text>

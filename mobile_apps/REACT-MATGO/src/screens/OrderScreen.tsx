@@ -12,6 +12,7 @@ import { useAppStore } from "../store/useAppStore";
 import { api, SOCKET_URL } from "../lib/api";
 import { palette } from "../constants/theme";
 import { ScreenWrap, Header, EmptyPanel, PulseIndicator, SpinningLoader } from "../components/ui";
+import { OrderScreenSkeleton } from "../components/SkeletonLoader";
 import type { Order } from "../types";
 
 
@@ -134,23 +135,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     return (
       <ScreenWrap>
         <Header title="Spårar beställning..." subtitle={`Laddar #...`} onBack={goBack} />
-        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
-          <View
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 40,
-              backgroundColor: "rgba(231,178,75,0.1)",
-              borderWidth: 1,
-              borderColor: "rgba(231,178,75,0.2)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <SpinningLoader color={palette.gold} size={32} />
-          </View>
-          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", marginTop: 20, letterSpacing: 2 }}>HÄMTAR ORDERINFO...</Text>
-        </View>
+        <OrderScreenSkeleton />
       </ScreenWrap>
     );
   }

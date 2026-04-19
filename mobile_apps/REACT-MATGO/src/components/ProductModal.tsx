@@ -332,7 +332,7 @@ export default function ProductModal({
             </View>
 
             <Pressable 
-              style={[styles.productAddButton, !address && { backgroundColor: palette.goldDark }]} 
+              style={[styles.productAddButton, !address && { backgroundColor: "#E2C06C" }]}
               onPress={handleAddToCart}
             >
               <View style={styles.productAddButtonContent}>

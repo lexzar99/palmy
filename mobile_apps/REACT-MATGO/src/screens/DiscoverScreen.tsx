@@ -8,6 +8,7 @@ import type { Order, Restaurant } from '../types';
 import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
 import ScalePressable from '../components/ScalePressable';
 import StarRating from '../components/StarRating';
+import { DiscoverScreenSkeleton } from '../components/SkeletonLoader';
 
 const DISCOVER_CATEGORIES = [
   { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
@@ -62,6 +63,14 @@ export default function DiscoverScreen({ openRestaurant, goBack, initialFiltered
   });
 
   const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
+
+  if (loading) {
+    return (
+      <ScreenWrap>
+        <DiscoverScreenSkeleton />
+      </ScreenWrap>
+    );
+  }
 
   return (
     <ScreenWrap>

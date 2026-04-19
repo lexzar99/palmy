@@ -28,6 +28,7 @@ import { CartItem, DeliveryCheck, City, Profile } from "../types";
 import AddressAutocomplete from "../components/AddressAutocomplete";
 import ProductModal from "../components/ProductModal";
 import { Header, ScreenWrap, PrimaryButton } from "../components/ui";
+import { CartScreenSkeleton } from "../components/SkeletonLoader";
 
 function CartEmptyState({ onExplore }: { onExplore: () => void }) {
   return (
@@ -588,6 +589,15 @@ export default function CartScreen({
       setSubmitting(false);
     }
   };
+
+  if (pageLoading) {
+    return (
+      <ScreenWrap>
+        <Header title="Din kasse" subtitle="Förbereder din beställning" />
+        <CartScreenSkeleton />
+      </ScreenWrap>
+    );
+  }
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>

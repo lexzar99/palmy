@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   FlatList,
+  Image,
   Pressable,
   ScrollView,
   Text,
@@ -21,10 +21,13 @@ import SponsorTile from "../components/SponsorTile";
 import AddressPullDown from "../components/AddressPullDown";
 import DiscountedDishesRail from "../components/DiscountedDishesRail";
 import FreeDeliveryRail from "../components/FreeDeliveryRail";
+import { HomeScreenSkeleton } from "../components/SkeletonLoader";
+import { resolveHomeCategoryRestaurants } from "../lib/homeCategories";
 
 import {
   AppRoute,
   City,
+  HomeCategorySection,
   PublicDeal,
   Restaurant,
 } from "../types";
@@ -51,6 +54,8 @@ type PersonalDeal = {
 type PromoCarouselItem =
   | { id: string; kind: "deal"; deal: DealFlipCardData }
   | { id: string; kind: "sponsor"; sponsor: any };
+
+type SponsorCarouselItem = Extract<PromoCarouselItem, { kind: "sponsor" }>;
 
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
@@ -112,6 +117,7 @@ export default function HomeScreen({
   const [cities, setCities] = useState<City[]>([]);
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<PersonalDeal[]>([]);
+  const [homeCategorySections, setHomeCategorySections] = useState<HomeCategorySection[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [cityModalOpen, setCityModalOpen] = useState(false);
@@ -125,7 +131,7 @@ export default function HomeScreen({
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [sponsors, setSponsors] = useState<any[]>([]);
-  const promoListRef = useRef<FlatList<PromoCarouselItem> | null>(null);
+  const promoListRef = useRef<FlatList<SponsorCarouselItem> | null>(null);
   const promoIndexRef = useRef(0);
 
   const address = useAppStore((s) => s.address);
@@ -234,10 +240,11 @@ export default function HomeScreen({
     let active = true;
     (async () => {
       try {
-        const [restaurantsRes, citiesRes, dealsRes, persDealsRes, sponsorsRes] = await Promise.all([
+        const [restaurantsRes, citiesRes, dealsRes, homeCategorySectionsRes, persDealsRes, sponsorsRes] = await Promise.all([
           api.get("/api/restaurants"),
           api.get("/api/cities"),
           api.get("/api/deals"),
+          api.get("/api/home-categories").catch(() => ({ data: [] })),
           token
             ? api.get("/api/profile/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
             : Promise.resolve({ data: [] }),
@@ -247,6 +254,7 @@ export default function HomeScreen({
         setRestaurants(restaurantsRes.data || []);
         setCities(citiesRes.data || []);
         setDeals((dealsRes.data || []).filter((deal: PublicDeal) => deal.isActive !== false && deal.showOnSite !== false));
+        setHomeCategorySections(homeCategorySectionsRes.data || []);
         setPersonalDeals(persDealsRes.data || []);
         setSponsors(sponsorsRes.data || []);
       } catch {
@@ -381,7 +389,24 @@ export default function HomeScreen({
     return allPremium.slice(0, 8);
   }, [filtered]);
 
-  const sponsorCards = useMemo<PromoCarouselItem[]>(() => {
+  const resolvedHomeCategorySections = useMemo(() => {
+    return homeCategorySections
+      .map((section) => ({
+        ...section,
+        restaurants: resolveHomeCategoryRestaurants({
+          section,
+          restaurants,
+          deals,
+          deliveryOverrides,
+          orderType,
+          selectedCityName: selectedCity?.name,
+          zoneRestaurantIds,
+        }),
+      }))
+      .filter((section) => section.restaurants.length > 0);
+  }, [homeCategorySections, restaurants, deals, deliveryOverrides, orderType, selectedCity?.name, zoneRestaurantIds]);
+
+  const sponsorCards = useMemo<SponsorCarouselItem[]>(() => {
     return sponsors.map((sponsor: any) => ({ id: `sponsor-${sponsor.id}`, kind: "sponsor" as const, sponsor }));
   }, [sponsors]);
 
@@ -427,7 +452,47 @@ export default function HomeScreen({
     outputRange: ["1.5%", "49%"],
   });
 
-  // No full-page loader — render UI shell immediately, data fills in
+  const renderRestaurantCategoryRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
+    <View style={{ marginTop: 18 }}>
+      <View style={[styles.sectionTitleRow, { marginBottom: 14, paddingHorizontal: 20 }]}>
+        <View>
+          <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", fontStyle: "italic" }}>{title.toUpperCase()}</Text>
+          {!!subtitle && <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 3, marginTop: 6 }}>{subtitle.toUpperCase()}</Text>}
+        </View>
+        <ScalePressable onPress={() => openTab("discover")}>
+          <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
+        </ScalePressable>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20 }}>
+        {sectionRestaurants.map((restaurant) => {
+          const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
+          const isClosed = restaurant.isOpen === false;
+          const dimmed = isClosed || isOutOfZone;
+          const activeDeal = getDealForRestaurant(restaurant.id);
+          return (
+            <RestaurantCard
+              key={`${title}-${restaurant.id}`}
+              restaurant={restaurant}
+              isOutOfZone={isOutOfZone}
+              dealText={activeDeal?.rewardLabel}
+              dealTone={activeDeal?.tone}
+              onPress={() => openRestaurant(restaurant.slug)}
+              containerStyle={{ width: 300, opacity: dimmed ? 0.6 : 1 }}
+            />
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        <HomeScreenSkeleton />
+      </ScrollView>
+    );
+  }
 
   return (
     <>
@@ -638,40 +703,15 @@ export default function HomeScreen({
         {/* REA & RABATTER (Flyttad upp under Aktuellt enligt önskemål) */}
         <DiscountedDishesRail openRestaurant={openRestaurant} />
 
-        {/* HETA LISTAN (Alltid överst bland restauranglistorna) */}
-        {!!featured.length && (
-          <View style={{ marginTop: 18 }}>
-            <View style={[styles.sectionTitleRow, { marginBottom: 14, paddingHorizontal: 20 }]}>
-              <View>
-                <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", fontStyle: "italic" }}>HETA LISTAN</Text>
-                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 3, marginTop: 6 }}>TOPPVALEN I DIN STAD JUST NU</Text>
-              </View>
-              <ScalePressable onPress={() => openTab("discover")}>
-                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
-              </ScalePressable>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20 }}>
-              {featured.map((restaurant) => {
-                const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(restaurant.id);
-                const isClosed = restaurant.isOpen === false;
-                const dimmed = isClosed || isOutOfZone;
-                const activeDeal = getDealForRestaurant(restaurant.id);
-                return (
-                  <RestaurantCard
-                    key={restaurant.id}
-                    restaurant={restaurant}
-                    isOutOfZone={isOutOfZone}
-                    dealText={activeDeal?.rewardLabel}
-                    dealTone={activeDeal?.tone}
-                    onPress={() => openRestaurant(restaurant.slug)}
-                    containerStyle={{ width: 300, opacity: dimmed ? 0.6 : 1 }}
-                  />
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+        {resolvedHomeCategorySections.length > 0
+          ? resolvedHomeCategorySections.map((section) => (
+              <React.Fragment key={section.id}>
+                {renderRestaurantCategoryRail(section.title, section.subtitle, section.restaurants)}
+              </React.Fragment>
+            ))
+          : featured.length > 0
+            ? renderRestaurantCategoryRail("Heta listan", "Toppvalen i din stad just nu", featured)
+            : null}
 
 
 
@@ -680,7 +720,7 @@ export default function HomeScreen({
 
         {/* SNABB LEVERANS (Liten kategori - fungerar som "avskiljare" nr 2) */}
         {(() => {
-          const fast = filtered.filter(r => r.etaMinutes !== null && r.etaMinutes <= 25).slice(0, 10);
+          const fast = filtered.filter((r) => (r.etaMinutes ?? Number.POSITIVE_INFINITY) <= 25).slice(0, 10);
           if (fast.length === 0) return null;
           return (
             <View style={{ marginTop: 14, marginBottom: 14 }}>
@@ -704,7 +744,7 @@ export default function HomeScreen({
                     </View>
                     <View style={{ padding: 10 }}>
                       <Text numberOfLines={1} style={{ color: palette.text, fontSize: 13, fontWeight: '900' }}>{r.name}</Text>
-                      <Text style={{ color: palette.muted, fontSize: 10, marginTop: 4, fontWeight: '700' }}>{r.etaMinutes} min • {r.rating ? r.rating.toFixed(1) + '★' : 'Ny'}</Text>
+                      <Text style={{ color: palette.muted, fontSize: 10, marginTop: 4, fontWeight: '700' }}>{Math.round(r.etaMinutes ?? 0)} min • {r.rating ? r.rating.toFixed(1) + '★' : 'Ny'}</Text>
                     </View>
                   </ScalePressable>
                 ))}
