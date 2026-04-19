@@ -2,14 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Platform,
+  Modal,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
@@ -137,7 +136,6 @@ export default function CartScreen({
   });
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
 
   const loadQuickAddresses = useCallback(async () => {
@@ -768,9 +766,6 @@ export default function CartScreen({
                   <Pressable onPress={() => setShowTimePicker(true)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
                     <Ionicons name="time-outline" size={16} color={palette.gold} />
                   </Pressable>
-                  <Pressable onPress={() => setShowDatePicker(true)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
-                    <Ionicons name="calendar-outline" size={16} color={palette.gold} />
-                  </Pressable>
                   <Pressable onPress={() => setScheduledFor(null)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,59,48,0.12)", alignItems: "center", justifyContent: "center" }}>
                     <Ionicons name="close-outline" size={16} color={palette.danger} />
                   </Pressable>
@@ -779,82 +774,194 @@ export default function CartScreen({
             </View>
           )}
 
-          {showTimePicker && (
-            <DateTimePicker
-              value={scheduledFor || new Date()}
-              mode="datetime"
-              is24Hour
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={(event, selectedDate) => {
-                if (event.type === "dismissed") {
-                  setShowTimePicker(false);
-                  return;
-                }
-                if (selectedDate) {
-                  const now = new Date();
-                  const min = new Date(now.getTime() + 45 * 60 * 1000);
-                  if (selectedDate < min) {
-                    Alert.alert("För tidig tid", "Tiden måste vara minst 45 minuter fram i tiden.");
+          {/* Schedule Picker Modal */}
+          <Modal
+            visible={showTimePicker}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setShowTimePicker(false)}
+          >
+            <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setShowTimePicker(false)}>
+              <Pressable
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  backgroundColor: palette.bg,
+                  borderTopLeftRadius: 32,
+                  borderTopRightRadius: 32,
+                  padding: 24,
+                  paddingBottom: 40,
+                }}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: palette.muted, alignSelf: "center", marginBottom: 20, opacity: 0.3 }} />
+                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 }}>
+                  Välj leveranstid
+                </Text>
+
+                {/* Quick times */}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 20 }}>
+                  {[
+                    { label: "45 min", offset: 45 },
+                    { label: "1 timme", offset: 60 },
+                    { label: "1.5 timmar", offset: 90 },
+                    { label: "2 timmar", offset: 120 },
+                    { label: "3 timmar", offset: 180 },
+                  ].map((qt) => {
+                    const t = new Date(Date.now() + qt.offset * 60 * 1000);
+                    const isActive =
+                      scheduledFor &&
+                      scheduledFor.getDate() === t.getDate() &&
+                      scheduledFor.getMonth() === t.getMonth() &&
+                      scheduledFor.getHours() === t.getHours() &&
+                      scheduledFor.getMinutes() === t.getMinutes();
+                    return (
+                      <Pressable
+                        key={qt.label}
+                        onPress={() => setScheduledFor(t)}
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 10,
+                          borderRadius: 12,
+                          backgroundColor: isActive ? palette.gold : palette.panel,
+                          borderWidth: 1,
+                          borderColor: isActive ? palette.gold : palette.border,
+                        }}
+                      >
+                        <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                          {qt.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Custom date/time picker */}
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
+                  {/* Date scroll */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Datum</Text>
+                    <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
+                      {Array.from({ length: 8 }, (_, i) => {
+                        const d = new Date();
+                        d.setDate(d.getDate() + i);
+                        const isSelected = scheduledFor && scheduledFor.toDateString() === d.toDateString();
+                        return (
+                          <Pressable
+                            key={i}
+                            onPress={() => {
+                              const combined = scheduledFor || new Date();
+                              combined.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
+                              setScheduledFor(combined);
+                            }}
+                            style={{
+                              paddingVertical: 12,
+                              paddingHorizontal: 8,
+                              borderRadius: 10,
+                              backgroundColor: isSelected ? "rgba(231,178,75,0.15)" : "transparent",
+                              marginBottom: 2,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 12, fontWeight: isSelected ? "900" : "700" }}>
+                              {d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" })}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+
+                  {/* Hour scroll */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Timme</Text>
+                    <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
+                      {Array.from({ length: 24 }, (_, i) => {
+                        const isSelected = scheduledFor && scheduledFor.getHours() === i;
+                        return (
+                          <Pressable
+                            key={i}
+                            onPress={() => {
+                              const combined = scheduledFor || new Date();
+                              combined.setHours(i, combined.getMinutes(), 0, 0);
+                              setScheduledFor(combined);
+                            }}
+                            style={{
+                              paddingVertical: 12,
+                              borderRadius: 10,
+                              backgroundColor: isSelected ? "rgba(231,178,75,0.15)" : "transparent",
+                              marginBottom: 2,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 14, fontWeight: isSelected ? "900" : "700" }}>
+                              {String(i).padStart(2, "0")}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+
+                  {/* Minute scroll */}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Minut</Text>
+                    <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const m = i * 5;
+                        const isSelected = scheduledFor && scheduledFor.getMinutes() === m;
+                        return (
+                          <Pressable
+                            key={m}
+                            onPress={() => {
+                              const combined = scheduledFor || new Date();
+                              combined.setMinutes(m, 0, 0);
+                              setScheduledFor(combined);
+                            }}
+                            style={{
+                              paddingVertical: 12,
+                              borderRadius: 10,
+                              backgroundColor: isSelected ? "rgba(231,178,75,0.15)" : "transparent",
+                              marginBottom: 2,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 14, fontWeight: isSelected ? "900" : "700" }}>
+                              {String(m).padStart(2, "0")}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                </View>
+
+                <Pressable
+                  onPress={() => {
+                    if (scheduledFor) {
+                      const now = new Date();
+                      const min = new Date(now.getTime() + 45 * 60 * 1000);
+                      if (scheduledFor < min) {
+                        Alert.alert("För tidig tid", "Tiden måste vara minst 45 minuter fram i tiden.");
+                        return;
+                      }
+                    }
                     setShowTimePicker(false);
-                    return;
-                  }
-                  setScheduledFor(selectedDate);
-                  if (Platform.OS === "android") setShowTimePicker(false);
-                }
-              }}
-            />
-          )}
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={scheduledFor || new Date()}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              minimumDate={new Date()}
-              maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
-              onChange={(event, selectedDate) => {
-                if (event.type === "dismissed") {
-                  setShowDatePicker(false);
-                  return;
-                }
-                if (selectedDate) {
-                  const now = new Date();
-                  const min = new Date(now.getTime() + 45 * 60 * 1000);
-                  const combined = new Date(scheduledFor || now);
-                  combined.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                  if (combined < min) {
-                    combined.setHours(min.getHours(), min.getMinutes(), 0, 0);
-                  }
-                  setScheduledFor(combined);
-                  if (Platform.OS === "android") setShowDatePicker(false);
-                }
-              }}
-            />
-          )}
-
-
-          {showDatePicker && (
-            <DateTimePicker
-              value={scheduledFor || new Date()}
-              mode="date"
-              display="default"
-              minimumDate={new Date()}
-              maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false);
-                if (selectedDate) {
-                  const now = new Date();
-                  const min = new Date(now.getTime() + 45 * 60 * 1000);
-                  const combined = new Date(scheduledFor || now);
-                  combined.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                  if (combined < min) {
-                    combined.setHours(now.getHours(), now.getMinutes() + 45, 0, 0);
-                  }
-                  setScheduledFor(combined);
-                }
-              }}
-            />
-          )}
+                  }}
+                  style={{
+                    backgroundColor: palette.gold,
+                    borderRadius: 16,
+                    paddingVertical: 16,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>Bekräfta tid</Text>
+                </Pressable>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           {!token && (
             <View style={[styles.formCard, { borderColor: "rgba(231,178,75,0.2)", backgroundColor: "rgba(231,178,75,0.03)" }]}>
