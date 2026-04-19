@@ -101,6 +101,12 @@ export default function CartPage() {
     note: "",
   });
 
+  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [selDate, setSelDate] = useState("");
+  const [selHour, setSelHour] = useState("12");
+  const [selMin, setSelMin] = useState("00");
+
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
@@ -117,6 +123,16 @@ export default function CartPage() {
       ? crypto.randomUUID() 
       : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
   }, []);
+
+  useEffect(() => {
+    if (showSchedulePicker) {
+      const d = scheduledFor || new Date(Date.now() + 45 * 60 * 1000);
+      setSelDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+      setSelHour(String(d.getHours()).padStart(2, '0'));
+      const roundedMin = Math.min(Math.round(d.getMinutes() / 5) * 5, 55);
+      setSelMin(String(roundedMin).padStart(2, '0'));
+    }
+  }, [showSchedulePicker]);
 
   const fetchPredictions = useCallback(async (text: string) => {
     if (text.length < 3) { setPredictions([]); return; }
@@ -577,6 +593,7 @@ export default function CartPage() {
         restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
         lat: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lat : undefined,
         lng: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lng : undefined,
+        scheduledFor: scheduledFor?.toISOString() || undefined,
         items: items.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -854,16 +871,177 @@ export default function CartPage() {
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-10 rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
-                     <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-                        {(['DELIVERY', 'PICKUP'] as const).map(type => (
-                           <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
-                              {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
-                              {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
-                           </button>
-                        ))}
-                     </div>
+                      <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                         {(['DELIVERY', 'PICKUP'] as const).map(type => (
+                            <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                               {type === 'DELIVERY' ? <Truck size={16} /> : <Store size={16} />}
+                               {type === 'DELIVERY' ? 'Leverans' : 'Hämtning'}
+                            </button>
+                         ))}
+                      </div>
 
-                     <div className="space-y-8">
+                      {/* Schedule Toggle */}
+                      <div className="flex gap-3 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+                         <button type="button" onClick={() => setScheduledFor(null)} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${!scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            Snarast
+                         </button>
+                          <button type="button" onClick={() => { const min = new Date(Date.now() + 45 * 60 * 1000); setScheduledFor(min); setShowSchedulePicker(true); }} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[1.2rem] text-[10px] font-black uppercase tracking-widest transition-all ${scheduledFor ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            Schemalägg
+                         </button>
+                      </div>
+
+                       {scheduledFor && (
+                          <div className="rounded-2xl p-5 mb-8 border flex items-center justify-between cursor-pointer hover:border-gold-500/30 transition-all" style={{ backgroundColor: "rgba(231,178,75,0.05)", borderColor: "rgba(231,178,75,0.2)" }} onClick={() => setShowSchedulePicker(true)}>
+                             <div className="flex items-center gap-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gold-500"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                                <div>
+                                   <div className="text-sm font-black" style={{ color: "var(--text-primary)" }}>
+                                      {scheduledFor.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+                                   </div>
+                                   <div className="text-lg font-black text-gold-500">
+                                      {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+                                   </div>
+                                </div>
+                             </div>
+                             <div className="flex gap-2 items-center">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setScheduledFor(null); }} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-all" style={{ backgroundColor: "rgba(255,59,48,0.12)" }}>
+                                   <X size={14} className="text-red-500" />
+                                </button>
+                             </div>
+                          </div>
+                       )}
+
+                       {/* Schedule Picker Modal */}
+                       <AnimatePresence>
+                          {showSchedulePicker && (() => {
+                             const now = new Date();
+                             const minDate = new Date(now.getTime() + 45 * 60 * 1000);
+                             const maxDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                             const days: Date[] = [];
+                             for (let d = new Date(now.getFullYear(), now.getMonth(), now.getDate()); d <= maxDate; d.setDate(d.getDate() + 1)) {
+                                if (d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())) days.push(new Date(d));
+                             }
+                             const quickTimes = [
+                                { label: "45 min", offset: 45 },
+                                { label: "1 timme", offset: 60 },
+                                { label: "1.5 timmar", offset: 90 },
+                                { label: "2 timmar", offset: 120 },
+                                { label: "3 timmar", offset: 180 },
+                             ];
+
+                             const handleConfirm = () => {
+                                const [y, m, day] = selDate.split('-').map(Number);
+                                const combined = new Date(y, m - 1, day, parseInt(selHour), parseInt(selMin));
+                                if (combined < minDate) {
+                                   setError("Tiden måste vara minst 45 minuter fram i tiden.");
+                                   return;
+                                }
+                                setScheduledFor(combined);
+                                setShowSchedulePicker(false);
+                             };
+
+                             const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+                             const minutes = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+
+                             return (
+                                <motion.div
+                                   key="schedule-modal"
+                                   initial={{ opacity: 0 }}
+                                   animate={{ opacity: 1 }}
+                                   exit={{ opacity: 0 }}
+                                   className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center"
+                                   onClick={() => setShowSchedulePicker(false)}
+                                >
+                                   <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                                   <motion.div
+                                      initial={{ y: 100, opacity: 0 }}
+                                      animate={{ y: 0, opacity: 1 }}
+                                      exit={{ y: 100, opacity: 0 }}
+                                      transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                                      className="relative w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl p-6 pb-8 shadow-2xl"
+                                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                                      onClick={(e) => e.stopPropagation()}
+                                   >
+                                      <div className="w-10 h-1 rounded-full mx-auto mb-6 sm:hidden" style={{ backgroundColor: "var(--border-muted)" }} />
+                                      <h3 className="text-lg font-black uppercase tracking-wider text-center mb-6" style={{ color: "var(--text-primary)" }}>
+                                         Välj leveranstid
+                                      </h3>
+
+                                      {/* Quick times */}
+                                      <div className="flex flex-wrap gap-2 mb-6 justify-center">
+                                         {quickTimes.map((qt) => {
+                                            const t = new Date(now.getTime() + qt.offset * 60 * 1000);
+                                            const isActive = selDate === `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` &&
+                                               selHour === String(t.getHours()).padStart(2, '0') &&
+                                               selMin === String(t.getMinutes()).padStart(2, '0');
+                                            return (
+                                               <button key={qt.label} type="button" onClick={() => {
+                                                  setSelDate(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`);
+                                                  setSelHour(String(t.getHours()).padStart(2, '0'));
+                                                  setSelMin(String(t.getMinutes()).padStart(2, '0'));
+                                               }} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 hover:text-gold-500 border border-[var(--border-muted)]'}`}>
+                                                  {qt.label}
+                                               </button>
+                                            );
+                                         })}
+                                      </div>
+
+                                      {/* Date select */}
+                                      <div className="mb-4">
+                                         <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Datum</label>
+                                         <select
+                                            value={selDate}
+                                            onChange={(e) => setSelDate(e.target.value)}
+                                            className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none"
+                                            style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+                                         >
+                                            {days.filter(d => d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())).map((d) => (
+                                               <option key={d.toISOString()} value={`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`}>
+                                                  {d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+                                               </option>
+                                            ))}
+                                         </select>
+                                      </div>
+
+                                      {/* Time select */}
+                                      <div className="flex gap-3 mb-6">
+                                         <div className="flex-1">
+                                            <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Timme</label>
+                                            <select
+                                               value={selHour}
+                                               onChange={(e) => setSelHour(e.target.value)}
+                                               className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none text-center"
+                                               style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+                                            >
+                                               {hours.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                         </div>
+                                         <div className="flex items-end pb-4 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
+                                         <div className="flex-1">
+                                            <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Minut</label>
+                                            <select
+                                               value={selMin}
+                                               onChange={(e) => setSelMin(e.target.value)}
+                                               className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none text-center"
+                                               style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+                                            >
+                                               {minutes.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                         </div>
+                                      </div>
+
+                                      <button type="button" onClick={handleConfirm} className="w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all">
+                                         Bekräfta tid
+                                      </button>
+                                   </motion.div>
+                                </motion.div>
+                             );
+                          })()}
+                       </AnimatePresence>
+
+                       <div className="space-y-8">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Ditt Namn</label>

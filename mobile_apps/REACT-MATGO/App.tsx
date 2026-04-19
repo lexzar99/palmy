@@ -415,12 +415,18 @@ function RestaurantCard({
                 {Math.round(restaurant.etaMinutes || 30)} MIN
               </Text>
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
-              <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>
-                {Math.round(restaurant.deliveryFee || 0)} KR
+            {restaurant.deliveryFee && restaurant.deliveryFee > 0 ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="bicycle-outline" size={14} color={palette.gold} />
+                <Text style={{ color: "#9c96a5", fontSize: 12, fontWeight: "900" }}>
+                  {Math.round(restaurant.deliveryFee)} KR
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ color: "#10b981", fontSize: 12, fontWeight: "900" }}>
+                Fri leverans
               </Text>
-            </View>
+            )}
           </View>
           <Ionicons name="chevron-forward" size={18} color={palette.gold} />
         </View>

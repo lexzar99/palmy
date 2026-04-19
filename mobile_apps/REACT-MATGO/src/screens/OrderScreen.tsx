@@ -219,12 +219,17 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
         {order.status !== "COMPLETED" && order.status !== "DELIVERED" && !isRejected && (
           <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 20, borderWidth: 1, borderColor: palette.border, shadowColor: "#1C1C1E", shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
             <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="time" size={32} color="#000" />
+              <Ionicons name={order.scheduledFor ? "calendar-outline" : "time"} size={32} color="#000" />
             </View>
             <View>
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 4 }}>KLAR OM UNGEFÄR</Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 4 }}>
+                {order.scheduledFor ? "SCHEMALAGD TID" : "KLAR OM UNGEFÄR"}
+              </Text>
               <Text style={{ color: palette.text, fontSize: 28, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
-                ~{(order as any).estimatedTime} MIN
+                {order.scheduledFor
+                  ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+                  : `~${(order as any).estimatedTime} MIN`
+                }
               </Text>
             </View>
           </View>

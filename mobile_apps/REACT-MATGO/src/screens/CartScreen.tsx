@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
@@ -133,6 +135,9 @@ export default function CartScreen({
     deliveryInstructions: "",
     note: "",
   });
+  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
 
   const loadQuickAddresses = useCallback(async () => {
@@ -539,6 +544,7 @@ export default function CartScreen({
         restaurantSlug: currentRestaurantSlug || undefined,
         lat: coords?.lat,
         lng: coords?.lng,
+        scheduledFor: scheduledFor?.toISOString() || undefined,
         items: items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -695,6 +701,160 @@ export default function CartScreen({
               </Pressable>
             ))}
           </View>
+
+          {/* 2b. Scheduled Order Toggle */}
+          <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4, marginTop: 4 }}>
+            <Pressable
+              onPress={() => setScheduledFor(null)}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: !scheduledFor ? palette.gold : palette.panel,
+                borderRadius: 22,
+                paddingVertical: 14,
+                borderWidth: 1,
+                borderColor: !scheduledFor ? palette.gold : palette.border,
+              }}
+            >
+              <Ionicons name="flash-outline" size={18} color={!scheduledFor ? "#000" : palette.muted} />
+              <Text style={{ color: !scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>
+                Snarast
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                const min = new Date(Date.now() + 45 * 60 * 1000);
+                setScheduledFor(min);
+                setShowTimePicker(true);
+              }}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: scheduledFor ? palette.gold : palette.panel,
+                borderRadius: 22,
+                paddingVertical: 14,
+                borderWidth: 1,
+                borderColor: scheduledFor ? palette.gold : palette.border,
+              }}
+            >
+              <Ionicons name="time-outline" size={18} color={scheduledFor ? "#000" : palette.muted} />
+              <Text style={{ color: scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>
+                Schemalägg
+              </Text>
+            </Pressable>
+          </View>
+
+          {scheduledFor && (
+            <View style={[styles.formCard, { borderColor: "rgba(231,178,75,0.2)", backgroundColor: "rgba(231,178,75,0.03)" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                  <Ionicons name="calendar-outline" size={18} color={palette.gold} />
+                  <View>
+                    <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>
+                      {scheduledFor.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+                    </Text>
+                    <Text style={{ color: palette.gold, fontSize: 18, fontWeight: "900", marginTop: 2 }}>
+                      {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <Pressable onPress={() => setShowTimePicker(true)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="time-outline" size={16} color={palette.gold} />
+                  </Pressable>
+                  <Pressable onPress={() => setShowDatePicker(true)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="calendar-outline" size={16} color={palette.gold} />
+                  </Pressable>
+                  <Pressable onPress={() => setScheduledFor(null)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,59,48,0.12)", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="close-outline" size={16} color={palette.danger} />
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {showTimePicker && (
+            <DateTimePicker
+              value={scheduledFor || new Date()}
+              mode="datetime"
+              is24Hour
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(event, selectedDate) => {
+                if (event.type === "dismissed") {
+                  setShowTimePicker(false);
+                  return;
+                }
+                if (selectedDate) {
+                  const now = new Date();
+                  const min = new Date(now.getTime() + 45 * 60 * 1000);
+                  if (selectedDate < min) {
+                    Alert.alert("För tidig tid", "Tiden måste vara minst 45 minuter fram i tiden.");
+                    setShowTimePicker(false);
+                    return;
+                  }
+                  setScheduledFor(selectedDate);
+                  if (Platform.OS === "android") setShowTimePicker(false);
+                }
+              }}
+            />
+          )}
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={scheduledFor || new Date()}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              minimumDate={new Date()}
+              maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
+              onChange={(event, selectedDate) => {
+                if (event.type === "dismissed") {
+                  setShowDatePicker(false);
+                  return;
+                }
+                if (selectedDate) {
+                  const now = new Date();
+                  const min = new Date(now.getTime() + 45 * 60 * 1000);
+                  const combined = new Date(scheduledFor || now);
+                  combined.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                  if (combined < min) {
+                    combined.setHours(min.getHours(), min.getMinutes(), 0, 0);
+                  }
+                  setScheduledFor(combined);
+                  if (Platform.OS === "android") setShowDatePicker(false);
+                }
+              }}
+            />
+          )}
+
+
+          {showDatePicker && (
+            <DateTimePicker
+              value={scheduledFor || new Date()}
+              mode="date"
+              display="default"
+              minimumDate={new Date()}
+              maximumDate={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  const now = new Date();
+                  const min = new Date(now.getTime() + 45 * 60 * 1000);
+                  const combined = new Date(scheduledFor || now);
+                  combined.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                  if (combined < min) {
+                    combined.setHours(now.getHours(), now.getMinutes() + 45, 0, 0);
+                  }
+                  setScheduledFor(combined);
+                }
+              }}
+            />
+          )}
 
           {!token && (
             <View style={[styles.formCard, { borderColor: "rgba(231,178,75,0.2)", backgroundColor: "rgba(231,178,75,0.03)" }]}>

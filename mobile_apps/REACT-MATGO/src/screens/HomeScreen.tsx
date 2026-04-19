@@ -227,9 +227,14 @@ export default function HomeScreen({
     }
   }, [setDeliveryOverrides]);
 
+  const lastValidatedCoords = useRef<{ lat: number; lng: number } | null>(null);
+
   useEffect(() => {
     if (orderType === "DELIVERY" && coords) {
-      validateZone(coords.lat, coords.lng);
+      if (!lastValidatedCoords.current || lastValidatedCoords.current.lat !== coords.lat || lastValidatedCoords.current.lng !== coords.lng) {
+        lastValidatedCoords.current = { lat: coords.lat, lng: coords.lng };
+        validateZone(coords.lat, coords.lng);
+      }
     } else {
       setZoneRestaurantIds(null);
       setZoneError(null);
@@ -401,6 +406,10 @@ export default function HomeScreen({
           orderType,
           selectedCityName: selectedCity?.name,
           zoneRestaurantIds,
+        }).map((r) => {
+          const ovr = deliveryOverrides[r.id];
+          if (!ovr) return r;
+          return { ...r, deliveryFee: ovr.deliveryFee, minOrderAmount: ovr.minOrderAmount };
         }),
       }))
       .filter((section) => section.restaurants.length > 0);
@@ -860,8 +869,13 @@ export default function HomeScreen({
         onClose={() => setAddressModalOpen(false)}
         onSelect={async (addressText: string, selectedOrderType: any, coords: any) => {
           setOrderType(selectedOrderType);
-          setAddress(addressText, coords || undefined);
-          if (coords) {
+          if (coords && selectedOrderType === "DELIVERY") {
+            setAddress(addressText, coords || undefined);
+            await validateZone(coords.lat, coords.lng);
+          } else {
+            setAddress(addressText, coords || undefined);
+          }
+          if (coords && selectedOrderType === "DELIVERY") {
             await rememberQuickAddress({
               street: addressText,
               latitude: coords.lat,

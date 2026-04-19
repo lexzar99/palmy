@@ -196,7 +196,7 @@ export default function ProductModal({
             {product.imageUrl ? (
               <View style={styles.productHeroCard}>
                 <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.productHeroImage} />
-                <LinearGradient colors={["transparent", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.7)"]} style={styles.productHeroOverlay} />
+                <LinearGradient colors={["rgba(24,18,12,0.04)", "rgba(24,18,12,0.18)", "rgba(24,18,12,0.72)"]} style={styles.productHeroOverlay} />
                 <View style={styles.productHeroContent}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <View style={styles.productHeroPriceChip}>
@@ -209,8 +209,15 @@ export default function ProductModal({
                       </View>
                     )}
                   </View>
-                  <Text style={styles.productModalTitle}>{product.name}</Text>
-                  {!!product.description && <Text style={styles.productModalDescription}>{product.description}</Text>}
+                  <LinearGradient
+                    colors={["rgba(24,18,12,0)", "rgba(24,18,12,0.28)", "rgba(24,18,12,0.88)"]}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={styles.productHeroTextGradient}
+                  >
+                    <Text style={styles.productHeroTitle}>{product.name}</Text>
+                    {!!product.description && <Text style={styles.productHeroDescription}>{product.description}</Text>}
+                  </LinearGradient>
                 </View>
               </View>
             ) : (

@@ -205,6 +205,7 @@ export interface Order {
   deliveryZip?: string;
   deliveryCity?: string;
   estimatedTime?: number;
+  scheduledFor?: string;
   createdAt?: string;
   restaurantId?: string;
   // Backend GET /api/orders/:id returns these flat fields (not a nested restaurant object)

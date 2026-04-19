@@ -103,6 +103,9 @@ const CreateOrderSchema = z.object({
   // GPS coords for zone validation
   lat: z.number().nullable().optional(),
   lng: z.number().nullable().optional(),
+
+  // Scheduled order time (ISO string, null = ASAP)
+  scheduledFor: z.string().nullable().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
   path: ['restaurantId'],
@@ -196,6 +199,27 @@ router.post('/', async (req: Request, res: Response) => {
     if (!restaurant) {
       res.status(400).json({ error: 'Ogiltig restaurang' });
       return;
+    }
+
+    // Validate scheduled time if provided
+    if (data.scheduledFor) {
+      const scheduledTime = new Date(data.scheduledFor);
+      const now = new Date();
+      const minTime = new Date(now.getTime() + 15 * 60 * 1000); // At least 15 min from now
+      const maxTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Max 7 days ahead
+
+      if (isNaN(scheduledTime.getTime())) {
+        res.status(400).json({ error: 'Ogiltigt tidformat' });
+        return;
+      }
+      if (scheduledTime < minTime) {
+        res.status(400).json({ error: 'Tid måste vara minst 15 minuter fram i tiden' });
+        return;
+      }
+      if (scheduledTime > maxTime) {
+        res.status(400).json({ error: 'Tid kan vara max 7 dagar fram i tiden' });
+        return;
+      }
     }
 
     const globalSettings = await prisma.restaurantSettings.findUnique({ where: { id: 'settings' } });
@@ -606,6 +630,7 @@ router.post('/', async (req: Request, res: Response) => {
         paymentStatus: 'PAID',
         paymentMethod: 'ONLINE',
         estimatedTime,
+        scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
         userId: authenticatedUserId,
         allergens: authUser?.allergens || '[]',
 

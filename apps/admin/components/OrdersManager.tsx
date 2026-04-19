@@ -290,13 +290,21 @@ const OrderCard = ({
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-[11px] text-[var(--text-secondary)] font-bold">
-              {new Date(order.createdAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}{" "}
-              · {order.items?.length || 0} rätter
+              {order.scheduledFor ? (
+                <span className="text-gold-500">
+                  Schemalagd: {new Date(order.scheduledFor).toLocaleDateString("sv-SE", { day: "numeric", month: "short" })} {new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              ) : (
+                <>
+                  {new Date(order.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  · {order.items?.length || 0} rätter
+                </>
+              )}
             </span>
-            {!["DELIVERED", "CANCELLED", "REJECTED"].includes(order.status) && (
+            {!order.scheduledFor && !["DELIVERED", "CANCELLED", "REJECTED"].includes(order.status) && (
               <TimeElapsed createdAt={order.createdAt} />
             )}
           </div>
