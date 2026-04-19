@@ -31,13 +31,8 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Download latest build
-        run: eas build:download --platform android --latest
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: react-matgo-apk
-          path: mobile_apps/REACT-MATGO/react-matgo-*.apk
+          path: mobile_apps/REACT-MATGO/*.apk
