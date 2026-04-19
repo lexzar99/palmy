@@ -27,12 +27,17 @@ jobs:
         run: npm install -g eas-cli
 
       - name: Build APK on EAS
-        run: eas build --platform android --profile preview --non-interactive --wait
+        id: build
+        run: |
+          OUTPUT=$(eas build --platform android --profile preview --non-interactive --wait --json 2>&1)
+          echo "$OUTPUT"
+          BUILD_ID=$(echo "$OUTPUT" | grep -oP '"id":\s*"\K[^"]+' | head -1)
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Download APK
-        run: eas build:download --platform android
+        run: eas build:download --id ${{ steps.build.outputs.build_id }}
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
