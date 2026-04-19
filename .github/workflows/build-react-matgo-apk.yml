@@ -29,15 +29,38 @@ jobs:
       - name: Build APK on EAS
         id: build
         run: |
-          OUTPUT=$(eas build --platform android --profile preview --non-interactive --wait --json 2>&1)
+          OUTPUT=$(eas build --platform android --profile preview --non-interactive --wait 2>&1)
           echo "$OUTPUT"
-          BUILD_ID=$(echo "$OUTPUT" | grep -oP '"id":\s*"\K[^"]+' | head -1)
+          BUILD_ID=$(echo "$OUTPUT" | grep -oP 'builds/\K[a-f0-9-]+' | head -1)
           echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Build ID: $BUILD_ID"
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Download APK
-        run: eas build:download --id ${{ steps.build.outputs.build_id }}
+      - name: Get build details and download APK
+        run: |
+          BUILD_ID="${{ steps.build.outputs.build_id }}"
+          echo "Downloading build: $BUILD_ID"
+          
+          # Get build details from EAS API
+          BUILD_DETAILS=$(curl -s -H "Authorization: Bearer $EXPO_TOKEN" \
+            "https://expo.dev/api/v2/builds/$BUILD_ID")
+          
+          echo "Build details: $BUILD_DETAILS"
+          
+          # Extract download URL
+          DOWNLOAD_URL=$(echo "$BUILD_DETAILS" | grep -oP '"artifacts":\{"buildUrl":"\K[^"]+')
+          echo "Download URL: $DOWNLOAD_URL"
+          
+          if [ -z "$DOWNLOAD_URL" ]; then
+            echo "Could not find download URL in build details"
+            echo "Full response: $BUILD_DETAILS"
+            exit 1
+          fi
+          
+          # Download the APK
+          curl -L -o react-matgo.apk "$DOWNLOAD_URL"
+          ls -la *.apk
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
