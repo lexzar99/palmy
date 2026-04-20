@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import '../core/log_service.dart';
+import '../core/print_service.dart';
 class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
   List<OrderModel> _orders = [];
@@ -428,7 +429,9 @@ class OrderProvider with ChangeNotifier {
         AudioHelper.playAudio(_selectedAlarm);
         HapticFeedback.vibrate();
         HapticFeedback.heavyImpact();
-        
+
+        unawaited(PrintService.printReceipt(newOrder, respectAutoPrint: true));
+         
         _evaluateAlarms(); 
         notifyListeners();
       } else {

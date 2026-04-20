@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import axios from "axios";
 import { Printer, Save, GripVertical, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useToast } from "@/components/Toast";
+import { API_URL } from "@/lib/api";
+import { getStoredToken } from "@/lib/auth-storage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Align = "left" | "center" | "right";
@@ -37,6 +40,13 @@ const DEFAULT_ELEMENTS: ReceiptElement[] = [
   { key: "orderNumber",    label: "Ordernummer", visible: true, size: 10, weight: "bold", align: "left" },
   { key: "timestamp",      label: "Datum & tid", visible: true, size: 8, weight: "normal", align: "left" },
   { key: "orderType",      label: "Typ (Leverans/Avhämtning)", visible: true, size: 9, weight: "bold", align: "left" },
+  { key: "scheduledFor",   label: "Förbeställd tid", visible: true, size: 9, weight: "bold", align: "left" },
+  { key: "customerName",   label: "Kundnamn", visible: true, size: 9, weight: "bold", align: "left" },
+  { key: "customerPhone",  label: "Kundtelefon", visible: true, size: 8, weight: "normal", align: "left" },
+  { key: "customerAddress",label: "Leveransadress", visible: true, size: 8, weight: "normal", align: "left" },
+  { key: "deliveryInstructions", label: "Leveransinstruktioner", visible: true, size: 8, weight: "bold", align: "left" },
+  { key: "note",           label: "Ordernotering", visible: true, size: 8, weight: "bold", align: "left" },
+  { key: "allergens",      label: "Allergener", visible: true, size: 8, weight: "bold", align: "left" },
   { key: "divider3",       label: "Avdelare (före produkter)", visible: true, size: 8, weight: "normal", align: "center" },
   { key: "items",          label: "Produktrader", visible: true, size: 10, weight: "bold", align: "left" },
   { key: "extras",         label: "Tillbehör", visible: true, size: 8, weight: "normal", align: "left" },
@@ -44,6 +54,7 @@ const DEFAULT_ELEMENTS: ReceiptElement[] = [
   { key: "deliveryFee",    label: "Leveransavgift", visible: true, size: 9, weight: "normal", align: "left" },
   { key: "discount",       label: "Rabatt/Kod", visible: true, size: 9, weight: "normal", align: "left" },
   { key: "total",          label: "Totalt", visible: true, size: 12, weight: "black", align: "left" },
+  { key: "paymentMethod",  label: "Betalmetod", visible: true, size: 8, weight: "normal", align: "left" },
   { key: "divider5",       label: "Avdelare (efter summa)", visible: true, size: 8, weight: "normal", align: "center" },
   { key: "thankYou",       label: "Tack-meddelande", content: "Tack för din beställning!", visible: true, size: 9, weight: "bold", align: "center" },
   { key: "footerMsg",      label: "Sidfot", content: "Välkommen åter!", visible: true, size: 8, weight: "normal", align: "center" },
@@ -54,8 +65,6 @@ const DEFAULTS: ReceiptSettings = {
   platformName: "MatGo",
   elements: DEFAULT_ELEMENTS,
 };
-
-const LS_KEY = "matgo_receipt_v2";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const SIZES: Size[] = [7, 8, 9, 10, 11, 12, 14, 16, 18];
@@ -79,23 +88,37 @@ const isDivider = (key: string) => key.startsWith("divider");
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function ReceiptSettingsPage() {
-  const { success } = useToast();
+  const { success, error: toastError } = useToast();
   const [s, setS] = useState<ReceiptSettings>(DEFAULTS);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [selectedKey, setSelectedKey] = useState<string | null>("restaurantName");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as ReceiptSettings;
-        // Merge: keep any new default elements not yet in stored settings
+    const fetchTemplate = async () => {
+      const token = getStoredToken();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const response = await axios.get(`${API_URL}/api/admin/printing/receipt-template`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const parsed = response.data as ReceiptSettings;
         const stored = new Map(parsed.elements.map((e) => [e.key, e]));
         const merged = DEFAULT_ELEMENTS.map((def) => stored.get(def.key) ?? def);
         setS({ ...DEFAULTS, ...parsed, elements: merged });
+      } catch (err: any) {
+        toastError(err.response?.data?.error || "Kunde inte hämta kvittomallen.");
+      } finally {
+        setLoading(false);
       }
-    } catch { /* ignore */ }
+    };
+
+    void fetchTemplate();
   }, []);
 
   const updateElement = useCallback(<K extends keyof ReceiptElement>(key: string, field: K, value: ReceiptElement[K]) => {
@@ -108,10 +131,16 @@ export default function ReceiptSettingsPage() {
   const selected = s.elements.find((e) => e.key === selectedKey);
 
   const handleSave = async () => {
+    const token = getStoredToken();
+    if (!token) return;
     setSaving(true);
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(s));
+      await axios.put(`${API_URL}/api/admin/printing/receipt-template`, s, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       success("Kvittolayout sparad");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte spara kvittomallen.");
     } finally {
       setSaving(false);
     }
@@ -134,15 +163,26 @@ export default function ReceiptSettingsPage() {
 
   const previewWidth = s.paperWidth === "58mm" ? 200 : s.paperWidth === "A4" ? 380 : 280;
 
+  if (loading) {
+    return (
+      <div className="panel flex min-h-[360px] items-center justify-center rounded-[32px] px-6 py-12">
+        <div className="flex items-center gap-3 text-[var(--text-secondary)]">
+          <Loader2 className="animate-spin text-amber-200" size={18} />
+          <span className="text-sm font-bold">Laddar kvittomallen…</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-24 max-w-6xl">
-      <div className="flex items-center justify-between">
+      <div className="panel flex items-center justify-between rounded-[32px] px-6 py-6">
         <div>
           <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)] flex items-center gap-3">
-            <Printer size={20} className="text-gold-500" /> Kvittolayout
+            <Printer size={20} className="text-gold-500" /> Receipt Studio
           </h1>
           <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
-            Dra för att ändra ordning · Klicka element för att redigera stil
+            Serversynkad kvittomall för restaurangappen och adminpreview
           </p>
         </div>
         <button onClick={handleSave} disabled={saving}
@@ -318,6 +358,27 @@ export default function ReceiptSettingsPage() {
                 if (el.key === "orderType") return (
                   <p key={el.key} className={cls} style={style}>Leverans</p>
                 );
+                if (el.key === "scheduledFor") return (
+                  <p key={el.key} className={cls} style={style}>Förbeställd 2026-04-21 18:45</p>
+                );
+                if (el.key === "customerName") return (
+                  <p key={el.key} className={cls} style={style}>Kund: Sara Karlsson</p>
+                );
+                if (el.key === "customerPhone") return (
+                  <p key={el.key} className={cls} style={style}>Telefon: 070-123 45 67</p>
+                );
+                if (el.key === "customerAddress") return (
+                  <p key={el.key} className={cls} style={style}>Adress: Sankt Lars väg 10, 222 70 Lund</p>
+                );
+                if (el.key === "deliveryInstructions") return (
+                  <p key={el.key} className={cls} style={style}>Instruktion: Ring på porttelefon</p>
+                );
+                if (el.key === "note") return (
+                  <p key={el.key} className={cls} style={style}>Notering: Ingen lök tack</p>
+                );
+                if (el.key === "allergens") return (
+                  <p key={el.key} className={cls} style={style}>Allergener: Gluten</p>
+                );
                 if (el.key === "items") return (
                   <div key={el.key}>
                     <div className="flex justify-between" style={style}>
@@ -350,6 +411,9 @@ export default function ReceiptSettingsPage() {
                     <span className={cls}>TOTALT</span>
                     <span className={cls}>200 kr</span>
                   </div>
+                );
+                if (el.key === "paymentMethod") return (
+                  <p key={el.key} className={cls} style={style}>Betalmetod: Kort online</p>
                 );
                 if (el.key === "thankYou") return (
                   <p key={el.key} className={cls} style={style}>{el.content || "Tack för din beställning!"}</p>

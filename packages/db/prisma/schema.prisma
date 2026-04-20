@@ -279,6 +279,7 @@ model Restaurant {
   orders         Order[]
   groupOrders    GroupOrder[]
   payouts        RestaurantPayout[]
+  printers       RestaurantPrinter[]
 }
 
 model City {
@@ -347,6 +348,37 @@ model RestaurantPayout {
 
   @@unique([restaurantId, periodStart, periodEnd])
   @@index([status, periodStart, periodEnd])
+}
+
+model RestaurantPrinter {
+  id             String     @id @default(cuid())
+  restaurantId   String
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name           String
+  connectionType String     @default("NETWORK")
+  address        String
+  paperWidth     String     @default("80mm")
+  copies         Int        @default(1)
+  autoPrint      Boolean    @default(false)
+  isDefault      Boolean    @default(false)
+  isActive       Boolean    @default(true)
+  receiptMode    String     @default("STANDARD")
+  notes          String?
+  lastSeenAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@index([restaurantId, isDefault])
+  @@index([restaurantId, isActive])
+}
+
+model ReceiptTemplate {
+  id           String   @id @default("global")
+  paperWidth   String   @default("80mm")
+  platformName String   @default("MatGo")
+  elements     String   @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model SavedAddress {

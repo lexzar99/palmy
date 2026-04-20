@@ -10,6 +10,7 @@ class OrderModel {
   final String? customerEmail;
   final double total;
   final double deliveryFee;
+  final double discountAmount;
   final DateTime createdAt;
   final String? deliveryStreet;
   final String? deliveryCity;
@@ -18,6 +19,7 @@ class OrderModel {
   final String? deliveryInstructions;
   final String? note;
   final int? estimatedTime;
+  final DateTime? scheduledFor;
   final String? paymentMethod;
   final String? discountCode;
   final String? allergens;
@@ -33,6 +35,7 @@ class OrderModel {
     this.customerEmail,
     required this.total,
     required this.deliveryFee,
+    this.discountAmount = 0,
     required this.createdAt,
     this.deliveryStreet,
     this.deliveryCity,
@@ -41,6 +44,7 @@ class OrderModel {
     this.deliveryInstructions,
     this.note,
     this.estimatedTime,
+    this.scheduledFor,
     this.paymentMethod,
     this.discountCode,
     this.allergens,
@@ -58,6 +62,7 @@ class OrderModel {
       customerEmail: json['customerEmail'],
       total: (json['total'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (json['deliveryFee'] as num?)?.toDouble() ?? 0.0,
+      discountAmount: (json['discountAmount'] as num?)?.toDouble() ?? 0.0,
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       deliveryStreet: json['deliveryStreet'],
       deliveryCity: json['deliveryCity'],
@@ -66,6 +71,9 @@ class OrderModel {
       deliveryInstructions: json['deliveryInstructions'],
       note: json['note'],
       estimatedTime: json['estimatedTime'],
+      scheduledFor: json['scheduledFor'] != null && json['scheduledFor'].toString().isNotEmpty
+          ? DateTime.tryParse(json['scheduledFor'].toString())
+          : null,
       paymentMethod: json['paymentMethod'],
       discountCode: json['discountCode'],
       allergens: json['allergens'],
@@ -87,6 +95,7 @@ class OrderModel {
       customerEmail: customerEmail,
       total: total,
       deliveryFee: deliveryFee,
+      discountAmount: discountAmount,
       createdAt: createdAt,
       deliveryStreet: deliveryStreet,
       deliveryCity: deliveryCity,
@@ -95,6 +104,7 @@ class OrderModel {
       deliveryInstructions: deliveryInstructions,
       note: note,
       estimatedTime: estimatedTime ?? this.estimatedTime,
+      scheduledFor: scheduledFor,
       paymentMethod: paymentMethod,
       discountCode: discountCode ?? this.discountCode,
       allergens: allergens ?? this.allergens,
@@ -113,6 +123,7 @@ class OrderModel {
       'customerEmail': customerEmail,
       'total': total,
       'deliveryFee': deliveryFee,
+      'discountAmount': discountAmount,
       'createdAt': createdAt.toIso8601String(),
       'deliveryStreet': deliveryStreet,
       'deliveryCity': deliveryCity,
@@ -121,6 +132,7 @@ class OrderModel {
       'deliveryInstructions': deliveryInstructions,
       'note': note,
       'estimatedTime': estimatedTime,
+      'scheduledFor': scheduledFor?.toIso8601String(),
       'paymentMethod': paymentMethod,
       'discountCode': discountCode,
       'allergens': allergens,

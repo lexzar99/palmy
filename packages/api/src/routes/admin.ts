@@ -2163,10 +2163,13 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
 router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
   try {
     const authReq = req as AuthRequest;
-    const order: any = await prisma.order.findUnique({
-      where: { id: req.params.id },
-      include: { items: true, restaurant: true }
-    });
+    const [order, templateRow] = await Promise.all([
+      prisma.order.findUnique({
+        where: { id: req.params.id },
+        include: { items: true, restaurant: true }
+      }),
+      prisma.receiptTemplate.findUnique({ where: { id: 'global' } }),
+    ]);
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
 
     if (!isSuperAdmin(authReq)) {
@@ -2174,6 +2177,13 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
       if (!scopedRestaurantId || order.restaurantId !== scopedRestaurantId) {
         return res.status(403).json({ error: 'Du kan bara hämta kvittodata för din egen restaurang' });
       }
+    }
+
+    let templateElements: any[] = [];
+    try {
+      templateElements = templateRow?.elements ? JSON.parse(templateRow.elements) : [];
+    } catch {
+      templateElements = [];
     }
 
     res.json({
@@ -2207,6 +2217,7 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         zip: order.deliveryZip,
         instructions: order.deliveryInstructions,
         note: order.note,
+        allergens: order.allergens,
       },
       items: order.items.map((item: any) => ({
         name: item.productName,
@@ -2226,6 +2237,11 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         total: order.total / 100,
       },
       footer: 'Tack för din beställning! — MatGo',
+      template: {
+        paperWidth: templateRow?.paperWidth || '80mm',
+        platformName: templateRow?.platformName || 'MatGo',
+        elements: templateElements,
+      },
     });
   } catch (error) {
     console.error('Receipt data error:', error);
