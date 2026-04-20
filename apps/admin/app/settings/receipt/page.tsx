@@ -6,6 +6,7 @@ import { Printer, Save, GripVertical, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useToast } from "@/components/Toast";
 import { API_URL } from "@/lib/api";
 import { getStoredToken } from "@/lib/auth-storage";
+import { useRestaurantStore } from "@/store/restaurantStore";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Align = "left" | "center" | "right";
@@ -27,6 +28,22 @@ interface ReceiptSettings {
   paperWidth: "58mm" | "80mm" | "A4";
   platformName: string;   // "MatGo" shown below restaurant name
   elements: ReceiptElement[];
+}
+
+interface PreviewOrderOption {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  createdAt: string;
+  restaurantName?: string;
+}
+
+interface ReceiptPreviewData {
+  header?: Record<string, unknown>;
+  orderInfo?: Record<string, unknown>;
+  customer?: Record<string, unknown>;
+  items?: Array<Record<string, unknown>>;
+  totals?: Record<string, unknown>;
 }
 
 const DEFAULT_ELEMENTS: ReceiptElement[] = [
@@ -89,11 +106,16 @@ const isDivider = (key: string) => key.startsWith("divider");
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function ReceiptSettingsPage() {
   const { success, error: toastError } = useToast();
+  const { selectedRestaurantId } = useRestaurantStore();
   const [s, setS] = useState<ReceiptSettings>(DEFAULTS);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>("restaurantName");
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [previewOrders, setPreviewOrders] = useState<PreviewOrderOption[]>([]);
+  const [previewOrderId, setPreviewOrderId] = useState<string>("");
+  const [previewData, setPreviewData] = useState<ReceiptPreviewData | null>(null);
 
   useEffect(() => {
     const fetchTemplate = async () => {
@@ -104,22 +126,65 @@ export default function ReceiptSettingsPage() {
       }
 
       try {
-        const response = await axios.get(`${API_URL}/api/admin/printing/receipt-template`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const parsed = response.data as ReceiptSettings;
+        const [templateResponse, ordersResponse] = await Promise.all([
+          axios.get(`${API_URL}/api/admin/printing/receipt-template`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+          axios.get(`${API_URL}/api/admin/orders?limit=20${selectedRestaurantId ? `&restaurantId=${selectedRestaurantId}` : ""}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }),
+        ]);
+
+        const parsed = templateResponse.data as ReceiptSettings;
         const stored = new Map(parsed.elements.map((e) => [e.key, e]));
         const merged = DEFAULT_ELEMENTS.map((def) => stored.get(def.key) ?? def);
         setS({ ...DEFAULTS, ...parsed, elements: merged });
-      } catch (err: any) {
-        toastError(err.response?.data?.error || "Kunde inte hämta kvittomallen.");
+
+        const recentOrders = ((ordersResponse.data?.orders || []) as Array<Record<string, unknown>>).map((order) => ({
+          id: String(order.id || ""),
+          orderNumber: String(order.orderNumber || ""),
+          customerName: String(order.customerName || "Kund"),
+          createdAt: String(order.createdAt || ""),
+          restaurantName: order.restaurantName ? String(order.restaurantName) : undefined,
+        }));
+        setPreviewOrders(recentOrders);
+        if (recentOrders[0]?.id) {
+          setPreviewOrderId((current) => current || recentOrders[0].id);
+        }
+      } catch (err: unknown) {
+        const message = axios.isAxiosError(err) ? err.response?.data?.error : null;
+        toastError(message || "Kunde inte hämta kvittomallen.");
       } finally {
         setLoading(false);
       }
     };
 
     void fetchTemplate();
-  }, []);
+  }, [selectedRestaurantId, toastError]);
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      const token = getStoredToken();
+      if (!token || !previewOrderId) {
+        setPreviewData(null);
+        return;
+      }
+
+      setPreviewLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/api/admin/orders/${previewOrderId}/receipt-data`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setPreviewData(response.data);
+      } catch {
+        setPreviewData(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    void fetchPreview();
+  }, [previewOrderId]);
 
   const updateElement = useCallback(<K extends keyof ReceiptElement>(key: string, field: K, value: ReceiptElement[K]) => {
     setS((prev) => ({
@@ -139,8 +204,9 @@ export default function ReceiptSettingsPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       success("Kvittolayout sparad");
-    } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte spara kvittomallen.");
+    } catch (err: unknown) {
+      const message = axios.isAxiosError(err) ? err.response?.data?.error : null;
+      toastError(message || "Kunde inte spara kvittomallen.");
     } finally {
       setSaving(false);
     }
@@ -162,6 +228,11 @@ export default function ReceiptSettingsPage() {
   const onDragEnd = () => setDragIndex(null);
 
   const previewWidth = s.paperWidth === "58mm" ? 200 : s.paperWidth === "A4" ? 380 : 280;
+  const previewHeader = (previewData?.header || {}) as Record<string, unknown>;
+  const previewOrderInfo = (previewData?.orderInfo || {}) as Record<string, unknown>;
+  const previewCustomer = (previewData?.customer || {}) as Record<string, unknown>;
+  const previewItems = (previewData?.items || []) as Array<Record<string, unknown>>;
+  const previewTotals = (previewData?.totals || {}) as Record<string, unknown>;
 
   if (loading) {
     return (
@@ -323,7 +394,32 @@ export default function ReceiptSettingsPage() {
 
         {/* Live preview */}
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-3">Förhandsgranskning</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Förhandsgranskning</p>
+            {previewOrders.length > 0 ? (
+              <select
+                value={previewOrderId}
+                onChange={(e) => setPreviewOrderId(e.target.value)}
+                className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-[10px] font-black uppercase text-[var(--text-primary)] outline-none focus:border-gold-500/30 max-w-[220px]"
+              >
+                {previewOrders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    #{order.orderNumber} {order.customerName}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
+          {previewOrderId && previewOrders.length > 0 ? (
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] opacity-70">
+              {previewOrders.find((order) => order.id === previewOrderId)?.restaurantName || "Vald order"}
+              {previewLoading ? " · Synkar..." : " · Live orderdata"}
+            </p>
+          ) : (
+            <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-secondary)] opacity-50">
+              Ingen order vald, fallback-preview visas
+            </p>
+          )}
           <div className="bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-2xl p-4 flex justify-center overflow-x-auto">
             <div className="bg-white text-black font-mono p-4 rounded-xl shadow-xl overflow-hidden" style={{ width: previewWidth, minHeight: 400 }}>
               {s.elements.filter((e) => e.visible).map((el) => {
@@ -335,86 +431,105 @@ export default function ReceiptSettingsPage() {
                 const style = { fontSize: el.size };
 
                 if (el.key === "restaurantName") return (
-                  <p key={el.key} className={cls} style={style}>Palmyra Pizzeria</p>
+                  <p key={el.key} className={cls} style={style}>{String(previewHeader.restaurantName || "Palmyra Pizzeria")}</p>
                 );
                 if (el.key === "platformName") return (
                   <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>{s.platformName}</p>
                 );
                 if (el.key === "address") return (
-                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>Västra Mårtensgatan 10, Lund</p>
+                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>
+                    {String(previewHeader.address || "Västra Mårtensgatan 10")}
+                    {previewHeader.city ? `, ${String(previewHeader.city)}` : ""}
+                  </p>
                 );
                 if (el.key === "phone") return (
-                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>046-120 612</p>
+                  <p key={el.key} className={cls} style={{ ...style, color: "#888" }}>{String(previewHeader.phone || "046-120 612")}</p>
                 );
                 if (el.key === "headerMsg") return el.content
                   ? <p key={el.key} className={cls} style={style}>{el.content}</p>
                   : null;
                 if (el.key === "orderNumber") return (
-                  <p key={el.key} className={cls} style={style}>Order #1042</p>
+                  <p key={el.key} className={cls} style={style}>Order #{String(previewOrderInfo.number || "1042")}</p>
                 );
                 if (el.key === "timestamp") return (
-                  <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>2026-04-10 18:34</p>
+                  <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>
+                    {String(previewOrderInfo.date || "2026-04-10")} {String(previewOrderInfo.time || "18:34")}
+                  </p>
                 );
                 if (el.key === "orderType") return (
-                  <p key={el.key} className={cls} style={style}>Leverans</p>
+                  <p key={el.key} className={cls} style={style}>{String(previewOrderInfo.type || "DELIVERY") === "DELIVERY" ? "Leverans" : "Avhämtning"}</p>
                 );
-                if (el.key === "scheduledFor") return (
-                  <p key={el.key} className={cls} style={style}>Förbeställd 2026-04-21 18:45</p>
-                );
+                if (el.key === "scheduledFor") return previewOrderInfo.isPreorder ? (
+                  <p key={el.key} className={cls} style={style}>Förbeställd {String(previewOrderInfo.scheduledDate || "2026-04-21")} {String(previewOrderInfo.scheduledTime || "18:45")}</p>
+                ) : null;
                 if (el.key === "customerName") return (
-                  <p key={el.key} className={cls} style={style}>Kund: Sara Karlsson</p>
+                  <p key={el.key} className={cls} style={style}>Kund: {String(previewCustomer.name || "Sara Karlsson")}</p>
                 );
                 if (el.key === "customerPhone") return (
-                  <p key={el.key} className={cls} style={style}>Telefon: 070-123 45 67</p>
+                  <p key={el.key} className={cls} style={style}>Telefon: {String(previewCustomer.phone || "070-123 45 67")}</p>
                 );
                 if (el.key === "customerAddress") return (
-                  <p key={el.key} className={cls} style={style}>Adress: Sankt Lars väg 10, 222 70 Lund</p>
+                  <p key={el.key} className={cls} style={style}>
+                    Adress: {String(previewCustomer.street || "Sankt Lars väg 10")}
+                    {(previewCustomer.zip || previewCustomer.city) ? `, ${String(previewCustomer.zip || "")}${previewCustomer.city ? ` ${String(previewCustomer.city)}` : ""}` : ""}
+                  </p>
                 );
-                if (el.key === "deliveryInstructions") return (
-                  <p key={el.key} className={cls} style={style}>Instruktion: Ring på porttelefon</p>
-                );
-                if (el.key === "note") return (
-                  <p key={el.key} className={cls} style={style}>Notering: Ingen lök tack</p>
-                );
-                if (el.key === "allergens") return (
-                  <p key={el.key} className={cls} style={style}>Allergener: Gluten</p>
-                );
+                if (el.key === "deliveryInstructions") return previewCustomer.instructions ? (
+                  <p key={el.key} className={cls} style={style}>Instruktion: {String(previewCustomer.instructions)}</p>
+                ) : null;
+                if (el.key === "note") return previewCustomer.note ? (
+                  <p key={el.key} className={cls} style={style}>Notering: {String(previewCustomer.note)}</p>
+                ) : null;
+                if (el.key === "allergens") return previewCustomer.allergens ? (
+                  <p key={el.key} className={cls} style={style}>Allergener: {String(previewCustomer.allergens)}</p>
+                ) : null;
                 if (el.key === "items") return (
                   <div key={el.key}>
-                    <div className="flex justify-between" style={style}>
-                      <span className={weightClass(el.weight)}>1× Crispy Tallrik</span>
-                      <span className={weightClass(el.weight)}>139 kr</span>
-                    </div>
-                    <div className="flex justify-between" style={style}>
-                      <span className={weightClass(el.weight)}>1× Kebab Rulle</span>
-                      <span className={weightClass(el.weight)}>89 kr</span>
-                    </div>
+                    {(previewItems.length > 0 ? previewItems : [
+                      { qty: 1, name: "Crispy Tallrik", subtotal: 139 },
+                      { qty: 1, name: "Kebab Rulle", subtotal: 89 },
+                    ]).map((item, index) => (
+                      <div key={index} className="flex justify-between" style={style}>
+                        <span className={weightClass(el.weight)}>{String(item.qty || 1)}× {String(item.name || "Produkt")}</span>
+                        <span className={weightClass(el.weight)}>{String(item.subtotal || 0)} kr</span>
+                      </div>
+                    ))}
                   </div>
                 );
-                if (el.key === "extras") return (
-                  <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>  Pommes, Vitlökssås</p>
-                );
-                if (el.key === "deliveryFee") return (
+                if (el.key === "extras") {
+                  const extraText = previewItems
+                    .flatMap((item) => (Array.isArray(item.extras) ? item.extras : []).map((extra: unknown) => {
+                      if (typeof extra === "string") return extra;
+                      if (extra && typeof extra === "object" && "name" in extra) return String((extra as { name?: unknown }).name || "");
+                      return "";
+                    }))
+                    .filter(Boolean)
+                    .join(", ");
+                  return extraText ? (
+                    <p key={el.key} className={cls} style={{ ...style, color: "#aaa" }}>+ {extraText}</p>
+                  ) : null;
+                }
+                if (el.key === "deliveryFee") return Number(previewTotals.deliveryFee || 0) > 0 ? (
                   <div key={el.key} className="flex justify-between" style={style}>
                     <span className={cls}>Leverans</span>
-                    <span className={cls}>39 kr</span>
+                    <span className={cls}>{String(previewTotals.deliveryFee || 0)} kr</span>
                   </div>
-                );
-                if (el.key === "discount") return (
+                ) : null;
+                if (el.key === "discount") return Number(previewTotals.discount || 0) > 0 ? (
                   <div key={el.key} className="flex justify-between" style={{ ...style, color: "#16a34a" }}>
-                    <span>Rabatt (SUMMER10)</span>
-                    <span>-27 kr</span>
+                    <span>Rabatt {previewTotals.discountCode ? `(${String(previewTotals.discountCode)})` : ""}</span>
+                    <span>-{String(previewTotals.discount || 0)} kr</span>
                   </div>
-                );
+                ) : null;
                 if (el.key === "total") return (
                   <div key={el.key} className="flex justify-between" style={style}>
                     <span className={cls}>TOTALT</span>
-                    <span className={cls}>200 kr</span>
+                    <span className={cls}>{String(previewTotals.total || 200)} kr</span>
                   </div>
                 );
-                if (el.key === "paymentMethod") return (
-                  <p key={el.key} className={cls} style={style}>Betalmetod: Kort online</p>
-                );
+                if (el.key === "paymentMethod") return previewOrderInfo.paymentMethod ? (
+                  <p key={el.key} className={cls} style={style}>Betalmetod: {String(previewOrderInfo.paymentMethod)}</p>
+                ) : null;
                 if (el.key === "thankYou") return (
                   <p key={el.key} className={cls} style={style}>{el.content || "Tack för din beställning!"}</p>
                 );

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as socket_io;
 import '../core/api_client.dart';
 import '../core/constants.dart';
 import '../models/order_model.dart';
@@ -14,13 +14,12 @@ class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
   List<OrderModel> _orders = [];
   bool _isLoading = false;
-  IO.Socket? _socket;
+  socket_io.Socket? _socket;
   String? _restaurantId;
   final String _selectedAlarm = 'notification.wav';
   bool _isRestaurantOpen = true;
   bool _isOffline = false;
   Timer? _alarmWatchdog;
-  Timer? _statusWatchdog;
   String openingTime = '11:00';
   String closingTime = '21:00';
   String _lastKnownHours = '';
@@ -207,16 +206,16 @@ class OrderProvider with ChangeNotifier {
       }).toList();
 
       final encoded = jsonEncode(validOrders.map((o) => o.toJson()).toList());
-      await prefs.setString('cached_orders_${_restaurantId}', encoded);
+       await prefs.setString('cached_orders_$_restaurantId', encoded);
     } catch (e) {
-      debugPrint('Cache saving error: \$e');
+      debugPrint('Cache saving error: $e');
     }
   }
 
   Future<void> _loadOrdersFromCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final encoded = prefs.getString('cached_orders_${_restaurantId}');
+      final encoded = prefs.getString('cached_orders_$_restaurantId');
       if (encoded != null) {
         final List data = jsonDecode(encoded);
         _orders = data.map((o) => OrderModel.fromJson(o)).toList();
@@ -224,7 +223,7 @@ class OrderProvider with ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Cache loading error: \$e');
+      debugPrint('Cache loading error: $e');
     }
   }
 
@@ -395,9 +394,9 @@ class OrderProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString(AppConstants.tokenKey) ?? '';
 
-    _socket = IO.io(
+    _socket = socket_io.io(
         AppConstants.socketUrl,
-        IO.OptionBuilder()
+        socket_io.OptionBuilder()
             .setTransports(['websocket', 'polling'])
             .setAuth({'token': token})
             .enableAutoConnect()
@@ -475,7 +474,6 @@ class OrderProvider with ChangeNotifier {
     _alarmWatchdog?.cancel();
     _alarmWatchdog = Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
     
-    _statusWatchdog?.cancel();
     // Removed client side status watchdog, rely on server push.
   }
 

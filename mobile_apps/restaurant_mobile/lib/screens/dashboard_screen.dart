@@ -216,7 +216,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(width: 15), // Smaller initial spacing
-                      ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)).toList(),
+                      ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)),
                     ],
                   ),
                 ),
