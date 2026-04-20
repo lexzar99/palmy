@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { randomBytes } from 'crypto';
+import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
@@ -1354,6 +1356,53 @@ const normalizeDealInputForDb = (body: any) => {
   return next;
 };
 
+const createTemporaryPassword = () => {
+  const raw = randomBytes(9).toString('base64url');
+  return raw.length >= 12 ? raw.slice(0, 12) : `${raw}A1!`;
+};
+
+const staffRoleOptions = ['SUPER_ADMIN', 'STAFF', 'VIEWER', 'ADMIN'] as const;
+
+const resolveRestaurantByAdminLogin = async () => {
+  const restaurants = await prisma.restaurant.findMany({
+    select: { id: true, name: true, slug: true, adminEmail: true },
+  });
+
+  const restaurantByLogin = new Map<string, { id: string; name: string }>();
+  restaurants.forEach((restaurant) => {
+    restaurantByLogin.set(restaurant.slug.toLowerCase(), { id: restaurant.id, name: restaurant.name });
+    if (restaurant.adminEmail) {
+      restaurantByLogin.set(restaurant.adminEmail.toLowerCase(), { id: restaurant.id, name: restaurant.name });
+    }
+  });
+
+  return restaurantByLogin;
+};
+
+const formatStaffMember = async (admin: {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  createdAt: Date;
+}, restaurantByLogin?: Map<string, { id: string; name: string }>) => {
+  const restaurantLookup = restaurantByLogin || await resolveRestaurantByAdminLogin();
+  const restaurant = restaurantLookup.get(admin.email.toLowerCase()) || null;
+
+  return {
+    id: admin.id,
+    name: admin.name,
+    email: admin.email,
+    role: restaurant && admin.role !== 'SUPER_ADMIN' ? 'RESTAURANT_ADMIN' : admin.role,
+    restaurantName: restaurant?.name || null,
+    restaurantId: restaurant?.id || null,
+    lastLogin: null,
+    active: admin.isActive,
+    createdAt: admin.createdAt,
+  };
+};
+
 const formatDiscountCodeForAdmin = (discount: any) => ({
   id: discount.id,
   code: discount.code,
@@ -1534,22 +1583,184 @@ router.delete('/deals/:id', async (req, res) => {
 // =====================
 // SYSTEM HEALTH / MONITORING
 // =====================
+router.get('/staff', authenticate, requireSuperAdmin, async (_req, res) => {
+  try {
+    const [admins, restaurantByLogin] = await Promise.all([
+      prisma.adminUser.findMany({
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          isActive: true,
+          createdAt: true,
+        },
+        orderBy: [{ role: 'asc' }, { createdAt: 'desc' }],
+      }),
+      resolveRestaurantByAdminLogin(),
+    ]);
+
+    const staff = await Promise.all(admins.map((admin) => formatStaffMember(admin, restaurantByLogin)));
+    res.json(staff);
+  } catch (error) {
+    console.error('Staff list error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta teamkonton' });
+  }
+});
+
+router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { name, email, role } = req.body as { name?: string; email?: string; role?: string };
+    const trimmedName = String(name || '').trim();
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const normalizedRole = String(role || 'STAFF').trim().toUpperCase();
+
+    if (!trimmedName || !trimmedEmail) {
+      return res.status(400).json({ error: 'Namn och email krävs' });
+    }
+
+    if (!staffRoleOptions.includes(normalizedRole as typeof staffRoleOptions[number])) {
+      return res.status(400).json({ error: 'Ogiltig roll' });
+    }
+
+    const existing = await prisma.adminUser.findUnique({ where: { email: trimmedEmail } });
+    if (existing) {
+      return res.status(400).json({ error: 'Kontot finns redan' });
+    }
+
+    const temporaryPassword = createTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+
+    const created = await prisma.adminUser.create({
+      data: {
+        name: trimmedName,
+        email: trimmedEmail,
+        role: normalizedRole,
+        password: hashedPassword,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    const formatted = await formatStaffMember(created);
+    res.status(201).json({ ...formatted, temporaryPassword });
+  } catch (error) {
+    console.error('Staff invite error:', error);
+    res.status(500).json({ error: 'Kunde inte skapa teamkonto' });
+  }
+});
+
+router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { active, role, name } = req.body as { active?: boolean; role?: string; name?: string };
+    const existing = await prisma.adminUser.findUnique({
+      where: { id: req.params.id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Kontot hittades inte' });
+    }
+
+    const normalizedRole = role ? String(role).trim().toUpperCase() : undefined;
+    if (normalizedRole && !staffRoleOptions.includes(normalizedRole as typeof staffRoleOptions[number])) {
+      return res.status(400).json({ error: 'Ogiltig roll' });
+    }
+
+    const updated = await prisma.adminUser.update({
+      where: { id: req.params.id },
+      data: {
+        ...(name !== undefined ? { name: String(name).trim() } : {}),
+        ...(active !== undefined ? { isActive: Boolean(active) } : {}),
+        ...(normalizedRole ? { role: normalizedRole } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    const formatted = await formatStaffMember(updated);
+    res.json(formatted);
+  } catch (error) {
+    console.error('Staff update error:', error);
+    res.status(500).json({ error: 'Kunde inte uppdatera teamkontot' });
+  }
+});
+
+router.delete('/staff/:id', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    if (req.admin?.id === req.params.id) {
+      return res.status(400).json({ error: 'Du kan inte radera ditt eget konto' });
+    }
+
+    await prisma.adminUser.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Staff delete error:', error);
+    res.status(500).json({ error: 'Kunde inte radera teamkontot' });
+  }
+});
+
+router.post('/staff/:id/reset-password', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const temporaryPassword = createTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 12);
+
+    await prisma.adminUser.update({
+      where: { id: req.params.id },
+      data: { password: hashedPassword, isActive: true },
+    });
+
+    res.json({ success: true, temporaryPassword });
+  } catch (error) {
+    console.error('Staff password reset error:', error);
+    res.status(500).json({ error: 'Kunde inte återställa lösenordet' });
+  }
+});
+
 router.get('/system/health', async (req, res) => {
   try {
     if (!isSuperAdmin(req as AuthRequest)) {
       return res.status(403).json({ error: 'Behörighet saknas' });
     }
 
-    // 1. DB Ping
     const startDb = Date.now();
     await prisma.$queryRaw`SELECT 1`;
     const dbPing = Date.now() - startDb;
-
-    // 2. Memory Usage
     const memory = process.memoryUsage();
-    
-    // 3. Uptime
     const uptime = process.uptime();
+
+    const [restaurantCount, openRestaurantCount, userCount, pendingOrders, liveOrders, payoutInReview] = await Promise.all([
+      prisma.restaurant.count(),
+      prisma.restaurant.count({ where: { isOpen: true } }),
+      prisma.user.count(),
+      prisma.order.count({ where: { status: 'PENDING' } }),
+      prisma.order.count({ where: { status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'] } } }),
+      prisma.restaurantPayout.count({ where: { status: { in: ['DRAFT', 'APPROVED', 'HOLD'] } } }),
+    ]);
+
+    const cloudinaryConfigured = Boolean(
+      process.env.CLOUDINARY_URL ||
+      (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    );
+
+    const alerts: Array<{ level: 'info' | 'warning'; message: string }> = [];
+    if (dbPing > 350) alerts.push({ level: 'warning', message: `Databasen svarar långsamt (${dbPing} ms).` });
+    if (pendingOrders > 10) alerts.push({ level: 'warning', message: `${pendingOrders} ordrar väntar fortfarande på svar.` });
+    if (!cloudinaryConfigured) alerts.push({ level: 'warning', message: 'Bilduppladdning saknar komplett Cloudinary-konfiguration.' });
+    if (alerts.length === 0) alerts.push({ level: 'info', message: 'Inga driftvarningar just nu.' });
 
     res.json({
       status: "ONLINE",
@@ -1560,8 +1771,21 @@ router.get('/system/health', async (req, res) => {
         heapTotal: memory.heapTotal,
         heapUsed: memory.heapUsed,
       },
+      operations: {
+        restaurantCount,
+        openRestaurantCount,
+        userCount,
+        pendingOrders,
+        liveOrders,
+        payoutInReview,
+      },
+      services: {
+        auth: true,
+        realtime: true,
+        uploads: cloudinaryConfigured,
+      },
       timestamp: new Date(),
-      alerts: [] // MOCK for driftstörningar
+      alerts,
     });
   } catch (error) {
     res.status(500).json({ error: 'System Health Error', details: String(error) });

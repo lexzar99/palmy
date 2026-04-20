@@ -284,33 +284,50 @@ export default function CitiesPage() {
 
   // ── Render ─────────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-10 pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-5">
-          <div className="w-14 h-14 bg-sky-500/10 rounded-[1.6rem] border border-sky-500/20 flex items-center justify-center text-sky-500">
-            <Globe size={28} />
-          </div>
+    <div className="space-y-5 pb-16">
+      <section className="panel rounded-[32px] px-6 py-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-3xl font-black uppercase tracking-tight mb-0.5">Stadshantering & Zoner</h1>
-            <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-[0.4em]">
-              Rita leveranszoner · Sätt avgifter · Koppla restauranger
-            </p>
+            <span className="control-chip">City ops</span>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Städer, zoner och leveranslogik</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">Hantera stadstäckning, kopplade restauranger och leveranszoner på ett ställe istället för spridda specialfall.</p>
           </div>
+          <button onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+            <Plus size={16} /> Ny stad
+          </button>
         </div>
-        <button onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2.5 px-6 py-3.5 bg-sky-500 hover:bg-sky-400 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all shadow-xl shadow-sky-500/20">
-          <Plus size={16} /> Ny Stad
-        </button>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-4">
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Städer</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{cities.length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Totalt i leveransnätet</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Aktiva</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{cities.filter((city) => city.isActive).length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Öppna för kunder</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Kopplade restauranger</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{cities.reduce((sum, city) => sum + city.restaurants.length, 0)}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Placeringar i stadsnätet</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Zoner</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{cities.reduce((sum, city) => sum + parseZones(city.zones).length, 0)}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Ritade områden totalt</p>
+        </article>
       </div>
 
-      {/* Maps usage */}
       <MapsUsageWidget />
 
       <div className="grid grid-cols-1 lg:grid-cols-[340px,1fr] gap-8">
         {/* ── Sidebar: city list ── */}
         <div className="space-y-4">
-          <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2.5rem] p-5 space-y-2.5">
+          <div className="panel rounded-[32px] p-5 space-y-2.5">
             <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/20">Städer</div>
             {loading ? (
               <div className="py-10 flex justify-center"><Loader2 className="animate-spin text-[var(--text-primary)]/30" /></div>
@@ -328,7 +345,7 @@ export default function CitiesPage() {
                   className={`w-full flex items-center justify-between p-5 rounded-3xl border-2 transition-all ${
                     selectedId === city.id
                       ? "bg-sky-500/10 border-sky-500/40"
-                      : "bg-[var(--border-subtle)] border-transparent hover:bg-white/8"
+                      : "bg-[var(--panel-muted)] border-transparent hover:bg-white/8"
                   }`}>
                   <div className="text-left">
                     <div className="text-base font-black uppercase tracking-tight mb-1 flex items-center gap-2">
@@ -352,7 +369,7 @@ export default function CitiesPage() {
           </div>
 
           {/* Info card */}
-          <div className="bg-sky-500/5 border border-sky-500/10 rounded-[2.5rem] p-6 space-y-3">
+          <div className="panel rounded-[32px] p-6 space-y-3">
             <div className="flex items-center gap-2 text-sky-400">
               <Info size={14} />
               <span className="text-[10px] font-black uppercase tracking-widest">Hur fungerar zoner?</span>
@@ -376,7 +393,7 @@ export default function CitiesPage() {
               className="space-y-8">
 
               {/* ── City settings ── */}
-              <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-8 space-y-8">
+              <div className="panel rounded-[32px] p-8 space-y-8">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
                     <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
@@ -438,7 +455,7 @@ export default function CitiesPage() {
               </div>
 
               {/* ── Zone Editor ── */}
-              <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-8 space-y-6">
+              <div className="panel rounded-[32px] p-8 space-y-6">
                 <div>
                   <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                     <MapPin className="text-gold-500" size={26} />
@@ -491,7 +508,7 @@ export default function CitiesPage() {
               <ZoneTestTool />
 
               {/* ── Restaurants ── */}
-              <div className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[3rem] p-8 space-y-8">
+              <div className="panel rounded-[32px] p-8 space-y-8">
                 <div>
                   <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Store className="text-gold-500" size={26} />

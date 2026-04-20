@@ -520,16 +520,17 @@ const UnifiedMenuPage = () => {
   };
 
   return (
-    <div className="space-y-10 pb-24">
-      {/* Header & Tabs */}
-      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8">
-        <div className="space-y-6">
-          <div>
-            <h1 className="text-4xl font-black uppercase tracking-tight mb-2">Menyhantering</h1>
-            <p className="text-[var(--text-primary)]/40 font-medium tracking-wide">Hantera produkter, kategorier och tillbehör på samma ställe.</p>
-          </div>
-          
-          <div className="flex gap-2 p-1.5 bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-2xl w-fit">
+    <div className="space-y-5 pb-16">
+      <div className="panel rounded-[32px] px-6 py-6">
+        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8">
+          <div className="space-y-6">
+            <div>
+              <span className="control-chip">Restaurant menu</span>
+              <h1 className="mt-3 text-4xl font-black tracking-[-0.06em] text-[var(--text-primary)]">Menyhantering</h1>
+              <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">Hantera produkter, kategorier, tillbehör och deals i samma arbetsyta för vald restaurang.</p>
+            </div>
+            
+            <div className="flex gap-2 p-1.5 bg-[var(--panel-muted)] border border-[var(--border-subtle)] rounded-2xl w-fit flex-wrap">
             {(["PRODUCTS", "CATEGORIES", "EXTRAS", "DEALS"] as Tab[]).map((tab) => (
               <button
                 key={tab}
@@ -547,42 +548,42 @@ const UnifiedMenuPage = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            onClick={() => router.push("/menu/import")}
-            className="flex items-center gap-2 px-6 py-3 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-xl font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all shadow-lg shadow-black/20"
-          >
-            <Upload size={16} />
-            Bulk-import
-          </button>
-          <button
-            onClick={handleImportEatsmart}
-            disabled={importing || loading}
-            className="flex items-center gap-2 px-6 py-3 bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-xl font-black uppercase tracking-widest text-xs hover:bg-white/10 transition-all disabled:opacity-50"
-          >
-            {importing ? <Loader2 size={16} className="animate-spin" /> : <Layers size={16} />}
-            Synka Eatsmart
-          </button>
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
-            <input 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={`Sök ${activeTab.toLowerCase()}...`}
-              className="bg-[var(--border-subtle)] border border-[var(--border-strong)] rounded-2xl py-3 pl-12 pr-6 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all text-sm w-64"
-            />
+          <div className="flex items-center gap-4 flex-wrap">
+            <button
+              onClick={() => router.push("/menu/import")}
+              className="control-chip"
+            >
+              <Upload size={13} /> Bulk-import
+            </button>
+            <button
+              onClick={handleImportEatsmart}
+              disabled={importing || loading}
+              className="control-chip disabled:opacity-50"
+            >
+              {importing ? <Loader2 size={13} className="animate-spin" /> : <Layers size={13} />}
+              Synka Eatsmart
+            </button>
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/20 group-focus-within:text-gold-500 transition-colors" size={18} />
+              <input 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder={`Sök ${activeTab.toLowerCase()}...`}
+                className="control-input pl-12 pr-6 text-sm w-64"
+              />
+            </div>
+            <button 
+              onClick={() => {
+                if (activeTab === "PRODUCTS") openProductModal();
+                if (activeTab === "CATEGORIES") openCategoryModal();
+                if (activeTab === "EXTRAS") openExtraModal();
+                if (activeTab === "DEALS") openDealModal();
+              }}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]"
+            >
+              <Plus size={16} /> Lägg till
+            </button>
           </div>
-          <button 
-            onClick={() => {
-              if (activeTab === "PRODUCTS") openProductModal();
-              if (activeTab === "CATEGORIES") openCategoryModal();
-              if (activeTab === "EXTRAS") openExtraModal();
-              if (activeTab === "DEALS") openDealModal();
-            }}
-            className="flex items-center gap-2 px-8 py-3 bg-gold-500 text-[#0d0d0d] rounded-xl font-black uppercase tracking-widest text-xs hover:bg-gold-400 transition-all shadow-lg shadow-gold-500/20"
-          >
-            <Plus size={18} /> Lägg till
-          </button>
         </div>
       </div>
 
@@ -591,19 +592,19 @@ const UnifiedMenuPage = () => {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+            <div className="metric-card panel-muted">
               <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-2">Kategorier</div>
               <div className="text-3xl font-black text-gold-500">{categories.length}</div>
             </div>
-            <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+            <div className="metric-card panel-muted">
               <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-2">Produkter</div>
               <div className="text-3xl font-black text-gold-500">{products.length}</div>
             </div>
-            <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+            <div className="metric-card panel-muted">
               <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-2">Tillbehörsgrupper</div>
               <div className="text-3xl font-black text-gold-500">{extraGroups.length}</div>
             </div>
-            <div className="rounded-3xl border border-[var(--border-strong)] bg-[var(--border-subtle)] p-6">
+            <div className="metric-card panel-muted">
               <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--text-primary)]/20 mb-2">Aktiva deals</div>
               <div className="text-3xl font-black text-gold-500">{deals.filter((deal) => deal.isActive).length}</div>
             </div>
@@ -613,7 +614,7 @@ const UnifiedMenuPage = () => {
           {activeTab === "PRODUCTS" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} key="prod" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredProducts.map(p => (
-                <div key={p.id} className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl p-6 group hover:border-gold-500/30 transition-all relative overflow-hidden flex flex-col h-full">
+                <div key={p.id} className="panel-muted rounded-[28px] p-6 group hover:border-gold-500/30 transition-all relative overflow-hidden flex flex-col h-full">
                   <div className="flex gap-4 mb-6">
                     <div className="w-20 h-20 bg-[var(--border-subtle)] rounded-2xl overflow-hidden flex-shrink-0 border border-[var(--border-subtle)]">
                       {p.imageUrl ? <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center opacity-10"><ImageIcon /></div>}
@@ -645,7 +646,7 @@ const UnifiedMenuPage = () => {
           {activeTab === "CATEGORIES" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} key="cat" className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredCategories.map(cat => (
-                <div key={cat.id} className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2rem] overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col h-full">
+                <div key={cat.id} className="panel-muted rounded-[28px] overflow-hidden group hover:border-gold-500/30 transition-all flex flex-col h-full">
                   <div className="h-32 bg-[var(--bg-primary)] relative overflow-hidden">
                     {cat.imageUrl ? <img src={cat.imageUrl} className="w-full h-full object-cover opacity-60" /> : <div className="w-full h-full flex items-center justify-center opacity-5"><ImageIcon size={40} /></div>}
                     <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg-primary)] via-[var(--bg-primary)]/20 to-transparent" />
@@ -671,7 +672,7 @@ const UnifiedMenuPage = () => {
           {activeTab === "EXTRAS" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} key="extra" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredExtras.map(group => (
-                <div key={group.id} className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-3xl p-8 group hover:border-gold-500/30 transition-all flex flex-col h-full">
+                <div key={group.id} className="panel-muted rounded-[28px] p-8 group hover:border-gold-500/30 transition-all flex flex-col h-full">
                   <div className="flex justify-between items-start mb-6">
                     <div>
                       <h3 className="text-xl font-bold uppercase tracking-wider mb-2">{group.name}</h3>
@@ -701,7 +702,7 @@ const UnifiedMenuPage = () => {
           {activeTab === "DEALS" && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} key="deals" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {filteredDeals.map((deal) => (
-                <div key={deal.id} className="bg-[var(--border-subtle)] border border-[var(--border-subtle)] rounded-[2rem] p-8 hover:border-gold-500/30 transition-all flex flex-col h-full">
+                <div key={deal.id} className="panel-muted rounded-[28px] p-8 hover:border-gold-500/30 transition-all flex flex-col h-full">
                   <div className="flex items-start justify-between gap-4 mb-6">
                     <div>
                       <div className="flex flex-wrap items-center gap-2 mb-3">

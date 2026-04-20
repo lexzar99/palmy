@@ -9,7 +9,6 @@ import {
   Bell,
   Building2,
   ChevronDown,
-  Command,
   CreditCard,
   Crown,
   Filter,
@@ -38,7 +37,6 @@ import { API_URL, SOCKET_URL } from "@/lib/api";
 import { getStoredAdmin, getStoredToken, clearStoredAdminSession } from "@/lib/auth-storage";
 import { useRestaurantStore } from "@/store/restaurantStore";
 import { useTheme } from "@/components/ThemeProvider";
-import { CommandPaletteTrigger } from "@/components/CommandPalette";
 
 type NavItem = {
   href: string;
@@ -255,8 +253,6 @@ const SidebarContent = ({
               {togglingOpen ? "Sparar..." : currentRestaurantOpen ? "Stäng restaurangen" : "Öppna restaurangen"}
             </button>
           )}
-
-          <CommandPaletteTrigger />
         </div>
       </div>
 

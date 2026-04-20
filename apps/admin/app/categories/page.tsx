@@ -335,28 +335,52 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="space-y-8 pb-24">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Kategorier</h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-1">
-            Dynamiska hemsidesrails för webb & React-appen
-          </p>
+    <div className="space-y-5 pb-16">
+      <section className="panel rounded-[32px] px-6 py-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <span className="control-chip">Home rails</span>
+            <h2 className="mt-3 text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Kategorier och startsidessektioner</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">Bygg rails för webb och React Native med samma filterlogik, samma manuella urval och samma schema.</p>
+          </div>
+          <button
+            onClick={() => {
+              setForm(emptyForm());
+              setEditId(null);
+              setRestaurantSearch("");
+              setFormOpen(true);
+            }}
+            className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]"
+          >
+            <Plus size={15} /> Ny kategori
+          </button>
         </div>
-        <button
-          onClick={() => {
-            setForm(emptyForm());
-            setEditId(null);
-            setRestaurantSearch("");
-            setFormOpen(true);
-          }}
-          className="flex items-center gap-2 px-5 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-gold-500/20 transition-all"
-        >
-          <Plus size={15} /> Ny kategori
-        </button>
+      </section>
+
+      <div className="grid gap-4 xl:grid-cols-4">
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Totalt</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{categories.length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Alla rails i systemet</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Aktiva</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{categories.filter((section) => section.isActive).length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Visas publikt just nu</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Schemalagda</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{categories.filter((section) => section.schedule.enabled).length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Har tidsstyrning</p>
+        </article>
+        <article className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">Manuella val</p>
+          <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{categories.filter((section) => section.filterMode !== "FILTER").length}</p>
+          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">Behöver kuratering</p>
+        </article>
       </div>
 
-      <div className="p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 flex items-start gap-3">
+      <div className="panel rounded-[32px] px-6 py-6 flex items-start gap-3">
         <Settings2 size={15} className="text-sky-400 shrink-0 mt-0.5" />
         <div className="text-[10px] font-bold text-sky-400/80 leading-relaxed space-y-1">
           <p><strong>FILTER:</strong> väljer restauranger automatiskt baserat på regler som kök, ETA, betyg och deals.</p>
@@ -372,7 +396,7 @@ export default function CategoriesPage() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="bg-[var(--border-subtle)] border border-gold-500/20 rounded-[2.5rem] p-8 space-y-8"
+            className="panel rounded-[32px] p-8 space-y-8"
           >
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -730,8 +754,8 @@ export default function CategoriesPage() {
               <motion.div
                 key={section.id}
                 layout
-                className={`bg-[var(--border-subtle)] border rounded-[2.5rem] p-6 transition-all ${
-                  section.isActive ? "border-[var(--border-subtle)]" : "border-rose-500/10 opacity-60"
+                className={`panel-muted rounded-[28px] p-6 transition-all ${
+                  section.isActive ? "" : "opacity-60"
                 }`}
               >
                 <div className="flex items-center gap-5 flex-wrap">

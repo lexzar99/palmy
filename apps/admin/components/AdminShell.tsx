@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Clock3, LockKeyhole, ShieldCheck } from "lucide-react";
 import Sidebar from "@/components/Sidebar";
 import AdminRealtimeBridge from "@/components/AdminRealtimeBridge";
-import CommandPalette from "@/components/CommandPalette";
+import CommandPalette, { CommandPaletteTrigger } from "@/components/CommandPalette";
 import { ToastProvider } from "@/components/Toast";
 import { API_URL } from "@/lib/api";
 import { clearStoredAdminSession, getStoredToken } from "@/lib/auth-storage";
@@ -182,37 +182,40 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <Sidebar />
 
         <div className="relative lg:pl-[320px]">
-          <div className="sticky top-[61px] z-20 border-b border-[var(--border-subtle)] bg-[rgba(8,12,24,0.72)] backdrop-blur-xl lg:top-0">
-            <div className="mx-auto flex max-w-[1680px] flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-[0.36em] text-[var(--text-muted)]">
-                    {pageMeta.eyebrow}
-                  </p>
-                  <h1 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-[40px]">
-                    {pageMeta.title}
-                  </h1>
-                  <p className="max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-                    {pageMeta.description}
-                  </p>
+          <div className="sticky top-[61px] z-20 border-b border-[var(--border-subtle)] bg-[rgba(8,12,24,0.78)] backdrop-blur-xl lg:top-0">
+            <div className="mx-auto flex max-w-[1680px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="control-chip">{pageMeta.eyebrow}</span>
+                    <span className="control-chip">
+                      <ShieldCheck size={13} /> Safe session
+                    </span>
+                    <span className="control-chip">
+                      <Clock3 size={13} /> Live sync
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-col gap-1 lg:flex-row lg:items-end lg:gap-3">
+                    <h1 className="truncate text-[28px] font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-[34px]">
+                      {pageMeta.title}
+                    </h1>
+                    <p className="max-w-3xl text-sm leading-6 text-[var(--text-secondary)] lg:pb-1">
+                      {pageMeta.description}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="control-chip">
-                    <ShieldCheck size={13} /> Safe session
-                  </span>
-                  <span className="control-chip">
+                <div className="flex shrink-0 items-center gap-2">
+                  <CommandPaletteTrigger />
+                  <span className="control-chip hidden xl:inline-flex">
                     <LockKeyhole size={13} /> Role gated
-                  </span>
-                  <span className="control-chip">
-                    <Clock3 size={13} /> Live sync active
                   </span>
                 </div>
               </div>
             </div>
           </div>
 
-          <main className="mx-auto max-w-[1680px] px-4 pb-10 pt-32 sm:px-6 lg:px-8 lg:pb-14 lg:pt-8">
+          <main className="mx-auto max-w-[1680px] px-4 pb-10 pt-28 sm:px-6 lg:px-8 lg:pb-14 lg:pt-6">
             {children}
           </main>
         </div>
