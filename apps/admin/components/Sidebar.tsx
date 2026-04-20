@@ -154,8 +154,8 @@ const SidebarContent = ({
   const selectedRestaurant = restaurants.find((restaurant) => restaurant.id === selectedRestaurantId) || null;
 
   return (
-    <div className="flex h-full flex-col gap-5 px-4 py-4 text-[var(--text-primary)]">
-      <div className="panel relative overflow-hidden rounded-[28px] px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 text-[var(--text-primary)]">
+      <div className="panel relative shrink-0 overflow-hidden rounded-[28px] px-4 py-4">
         <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-[radial-gradient(circle,_rgba(245,191,91,0.3),_transparent_70%)] blur-2xl" />
         <div className="relative flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -166,10 +166,10 @@ const SidebarContent = ({
               <p className="text-[10px] font-black uppercase tracking-[0.34em] text-[var(--text-muted)]">
                 MatGo Control
               </p>
-              <h2 className="mt-1 text-[18px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
+              <h2 className="mt-1 text-[17px] font-black tracking-[-0.03em] text-[var(--text-primary)] sm:text-[18px]">
                 Command Layer
               </h2>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)] sm:text-sm">
                 Ny informationsarkitektur med live drift, payout-fokus och renare navigation.
               </p>
             </div>
@@ -183,20 +183,20 @@ const SidebarContent = ({
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
         </div>
-        <div className="mt-4 flex items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           <span className="control-chip">Super admin only</span>
           <span className="control-chip">Scope-aware</span>
           <span className="control-chip">Realtime guarded</span>
         </div>
       </div>
 
-      <div className="panel rounded-[28px] px-4 py-4">
+      <div className="panel shrink-0 rounded-[28px] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">
               Aktiv scope
             </p>
-            <h3 className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+            <h3 className="mt-1 break-words text-sm font-bold text-[var(--text-primary)]">
               {selectedRestaurantName || "Alla restauranger"}
             </h3>
           </div>
@@ -230,7 +230,7 @@ const SidebarContent = ({
             </div>
           </label>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-3 py-3">
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">
                 Nya ordrar
@@ -268,7 +268,7 @@ const SidebarContent = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel)] px-3 py-3">
+      <div className="min-h-[240px] flex-1 overflow-y-auto overflow-x-hidden rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel)] px-3 py-3">
         <div className="space-y-5">
           {SECTIONS(pendingCount).map((section) => (
             <div key={section.label}>
@@ -302,7 +302,7 @@ const SidebarContent = ({
         </div>
       </div>
 
-      <div className="panel rounded-[28px] px-4 py-4">
+      <div className="panel shrink-0 rounded-[28px] px-4 py-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">
@@ -480,7 +480,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:w-[320px] lg:border-r lg:border-[var(--border-subtle)] lg:bg-[rgba(7,10,20,0.8)] lg:backdrop-blur-xl">
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:w-[320px] lg:overflow-hidden lg:border-r lg:border-[var(--border-subtle)] lg:bg-[rgba(7,10,20,0.8)] lg:backdrop-blur-xl">
         <SidebarContent
           pathname={pathname}
           pendingCount={pendingCount}
@@ -497,7 +497,7 @@ export default function Sidebar() {
 
       {mobileOpen ? (
         <div className="fixed inset-0 z-30 bg-[rgba(3,6,13,0.72)] backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)}>
-          <div className="absolute inset-y-0 left-0 w-[88vw] max-w-[340px] border-r border-[var(--border-subtle)] bg-[rgba(6,10,20,0.98)]" onClick={(event) => event.stopPropagation()}>
+          <div className="absolute inset-y-0 left-0 h-full w-[88vw] max-w-[340px] overflow-hidden border-r border-[var(--border-subtle)] bg-[rgba(6,10,20,0.98)]" onClick={(event) => event.stopPropagation()}>
             <SidebarContent
               pathname={pathname}
               pendingCount={pendingCount}
