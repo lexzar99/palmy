@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "REACT MATGO",
-    "slug": "react-matgo",
+    "name": "MatGo",
+    "slug": "matgo",
     "scheme": "matgo",
     "version": "1.0.0",
     "orientation": "portrait",
