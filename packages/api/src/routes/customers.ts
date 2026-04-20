@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
 
@@ -60,10 +61,10 @@ router.get('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 // PATCH /api/customers/:id - Update customer (Super Admin)
 router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { name, phone, email, address, city, zip, isActive, isVerified } = req.body;
+    const { name, phone, email, address, city, zip, isActive, isVerified, internalInfo } = req.body;
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: { name, phone, email, address, city, zip, isActive, isVerified }
+      data: { name, phone, email, address, city, zip, isActive, isVerified, internalInfo }
     });
     res.json(user);
   } catch (error) {
@@ -152,6 +153,66 @@ router.patch('/:id/deals/:dealId', authenticate, requireSuperAdmin, async (req, 
     res.json(deal);
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte uppdatera erbjudandet' });
+  }
+});
+
+router.post('/:id/deals', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { title, code, discountType, discountValue, maxUsages, validUntil } = req.body;
+
+    if (!title || !code || discountValue === undefined || discountValue === null) {
+      return res.status(400).json({ error: 'Titel, kod och rabattvärde krävs' });
+    }
+
+    const customer = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, phone: true },
+    });
+
+    if (!customer || !customer.phone) {
+      return res.status(404).json({ error: 'Kunden hittades inte eller saknar telefonnummer' });
+    }
+
+    const normalizedCode = String(code).trim().toUpperCase();
+    const normalizedType = discountType === 'FIXED' ? 'FIXED' : 'PERCENTAGE';
+    const normalizedValue = normalizedType === 'FIXED'
+      ? normalizeMoneyToOre(Number(discountValue || 0))
+      : Math.round(Number(discountValue || 0));
+
+    const deal = await prisma.$transaction(async (tx) => {
+      const campaign = await tx.campaign.create({
+        data: {
+          title: String(title).trim(),
+          description: 'Personligt kunddeal från adminpanelen',
+          discountType: normalizedType,
+          discountValue: normalizedValue,
+          maxUsagesPerCustomer: Math.max(1, Number(maxUsages || 1)),
+          validUntil: validUntil ? new Date(validUntil) : null,
+        },
+      });
+
+      return tx.customerDeal.create({
+        data: {
+          campaignId: campaign.id,
+          userId: customer.id,
+          phone: customer.phone,
+          code: normalizedCode,
+          maxUsages: Math.max(1, Number(maxUsages || 1)),
+        },
+        include: {
+          campaign: true,
+          user: { select: { name: true, phone: true } },
+        },
+      });
+    });
+
+    res.status(201).json(deal);
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return res.status(400).json({ error: 'Denna kod används redan' });
+    }
+
+    res.status(500).json({ error: 'Kunde inte skapa personlig deal' });
   }
 });
 

@@ -140,9 +140,15 @@ export default function LogPage() {
 
   // Real-time new orders via socket
   useEffect(() => {
+    const token = localStorage.getItem("matgo_token") || "";
     const socket = socketIO(SOCKET_URL, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      auth: { token },
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join:admin", { token });
     });
 
     socket.on("order:new", (order: any) => {

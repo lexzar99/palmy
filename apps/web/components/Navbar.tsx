@@ -18,6 +18,15 @@ const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [restaurantOpen, setRestaurantOpen] = useState<boolean | null>(null);
 
+  const partnerPortalUrl = mounted
+    ? (() => {
+        if (process.env.NEXT_PUBLIC_ADMIN_APP_URL) return process.env.NEXT_PUBLIC_ADMIN_APP_URL;
+        const { protocol, hostname, origin } = window.location;
+        const isLocal = hostname.includes("localhost") || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+        return isLocal ? `${protocol}//${hostname}:3001/login` : `${origin}/admin`;
+      })()
+    : "/admin";
+
   useEffect(() => {
     setMounted(true);
 
@@ -99,6 +108,7 @@ const Navbar = () => {
           <Link href="/menu" className="hover:text-gold-500 transition-colors">Meny</Link>
           <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
+          <Link href={partnerPortalUrl} target="_blank" rel="noreferrer" className="hover:text-gold-500 transition-colors">Partnerportal</Link>
           <Link href="/profile?tab=orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina Beställningar</Link>
           <div className={`rounded-full px-3 py-1 text-[10px] font-black tracking-[0.25em] ${statusClass}`}>
             {statusLabel}
@@ -158,6 +168,7 @@ const Navbar = () => {
                   { name: "Meny", href: "/menu" },
                   { name: "Om oss", href: "/about" },
                   { name: "Kontakt", href: "/contact" },
+                  { name: "Partnerportal", href: partnerPortalUrl },
                   { name: "Mina Beställningar", href: "/history" },
                 ].map((link, i) => (
                   <motion.div
@@ -166,11 +177,13 @@ const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                    <Link 
-                      href={link.href} 
-                      onClick={() => setIsOpen(false)} 
-                      className={`text-4xl font-black uppercase tracking-tighter italic ${link.name === 'Beställningar' ? 'text-gold-500/80 text-2xl mt-4' : ''}`}
-                      style={{ color: link.name === 'Mina Beställningar' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
+                     <Link 
+                       href={link.href} 
+                       target={link.name === 'Partnerportal' ? '_blank' : undefined}
+                       rel={link.name === 'Partnerportal' ? 'noreferrer' : undefined}
+                       onClick={() => setIsOpen(false)} 
+                       className={`text-4xl font-black uppercase tracking-tighter italic ${link.name === 'Beställningar' ? 'text-gold-500/80 text-2xl mt-4' : ''}`}
+                       style={{ color: link.name === 'Mina Beställningar' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
                     >
                       {link.name}
                     </Link>

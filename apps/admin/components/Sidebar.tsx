@@ -1,790 +1,518 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @next/next/no-img-element */
-/* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  ShoppingCart,
-  Utensils,
-  Settings,
-  LogOut,
-  ToggleLeft,
-  ToggleRight,
-  Menu,
-  X,
-  Store,
-  Globe,
-  BarChart3,
-  MapPin,
-  Users,
-  Zap,
-  Sun,
-  Moon,
-  LayoutDashboard,
-  Bell,
-  Tag,
-  ActivitySquare,
-  History,
-  ChevronDown,
-  ChevronRight,
-  Printer,
-  Calculator,
-  Server,
-  Sparkles,
-  Truck,
-  Command,
-  Shield,
-  FileText,
-  Key,
-  Clock,
-  MessageSquare,
-  Megaphone,
-  Palette,
-  HelpCircle,
-  ExternalLink,
-  Filter,
-} from "lucide-react";
-import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { usePathname, useRouter } from "next/navigation";
 import axios from "axios";
 import { io as socketIO } from "socket.io-client";
+import {
+  Bell,
+  Building2,
+  ChevronDown,
+  Command,
+  CreditCard,
+  Crown,
+  Filter,
+  Globe,
+  LayoutDashboard,
+  LogOut,
+  MapPin,
+  Menu,
+  MessageSquare,
+  Moon,
+  ScanSearch,
+  Settings2,
+  Shield,
+  Sparkles,
+  Store,
+  Sun,
+  Tag,
+  TrendingUp,
+  Truck,
+  Users,
+  Utensils,
+  Wallet,
+  X,
+} from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { getStoredAdmin, getStoredToken, clearStoredAdminSession } from "@/lib/auth-storage";
 import { useRestaurantStore } from "@/store/restaurantStore";
-import { useTheme } from "./ThemeProvider";
+import { useTheme } from "@/components/ThemeProvider";
+import { CommandPaletteTrigger } from "@/components/CommandPalette";
 
-interface NavGroup {
-  label: string;
-  icon?: React.ElementType;
-  collapsible?: boolean;
-  defaultOpen?: boolean;
-  links: NavLink[];
-}
-
-interface NavLink {
+type NavItem = {
   href: string;
   label: string;
   icon: React.ElementType;
+  matches: string[];
   badge?: number;
-  isNew?: boolean;
-}
+};
 
-interface NotificationItem {
+type RestaurantOption = {
   id: string;
-  title: string;
-  message: string;
-  time: Date;
-  read: boolean;
-  type: "order" | "info" | "warning";
-}
+  name: string;
+  city?: string | null;
+  isOpen?: boolean;
+};
 
-const Sidebar = () => {
-  const pathname = usePathname();
+const SECTIONS = (pendingCount: number) => [
+  {
+    label: "Control",
+    items: [
+      {
+        href: "/dashboard",
+        label: "Control Tower",
+        icon: LayoutDashboard,
+        matches: ["/dashboard", "/overview", "/"],
+      },
+      {
+        href: "/orders",
+        label: "Order Flow",
+        icon: Bell,
+        matches: ["/orders", "/history"],
+        badge: pendingCount || undefined,
+      },
+      {
+        href: "/restaurant-ops",
+        label: "Restauranghub",
+        icon: Building2,
+        matches: ["/restaurant-ops"],
+      },
+      {
+        href: "/finance",
+        label: "Finance HQ",
+        icon: Wallet,
+        matches: ["/finance", "/billing"],
+      },
+      {
+        href: "/performance",
+        label: "Performance",
+        icon: TrendingUp,
+        matches: ["/performance", "/analytics", "/bi", "/stats"],
+      },
+    ] satisfies NavItem[],
+  },
+  {
+    label: "Growth",
+    items: [
+      { href: "/customers", label: "Kunder", icon: Users, matches: ["/customers"] },
+      { href: "/deals", label: "Deals", icon: Tag, matches: ["/deals", "/campaigns"] },
+      { href: "/discounts", label: "Rabattkoder", icon: Sparkles, matches: ["/discounts"] },
+      { href: "/push", label: "Push Center", icon: Truck, matches: ["/push"] },
+      { href: "/reviews", label: "Reviews", icon: MessageSquare, matches: ["/reviews"] },
+      { href: "/sponsors", label: "Sponsors", icon: Crown, matches: ["/sponsors"] },
+    ] satisfies NavItem[],
+  },
+  {
+    label: "Catalog",
+    items: [
+      { href: "/restaurants", label: "Restauranger", icon: Store, matches: ["/restaurants"] },
+      { href: "/menu", label: "Meny", icon: Utensils, matches: ["/menu"] },
+      { href: "/categories", label: "Kategorier", icon: Filter, matches: ["/categories"] },
+      { href: "/cities", label: "Städer & zoner", icon: MapPin, matches: ["/cities"] },
+    ] satisfies NavItem[],
+  },
+  {
+    label: "Platform",
+    items: [
+      { href: "/settings/receipt", label: "Receipt Studio", icon: CreditCard, matches: ["/settings/receipt", "/receipt"] },
+      { href: "/settings/printing", label: "Print Devices", icon: ScanSearch, matches: ["/settings/printing"] },
+      { href: "/staff", label: "Team & roller", icon: Shield, matches: ["/staff"] },
+      { href: "/system", label: "Systemhälsa", icon: Settings2, matches: ["/system"] },
+      { href: "/log", label: "Aktivitetslogg", icon: Globe, matches: ["/log"] },
+    ] satisfies NavItem[],
+  },
+];
+
+const isActiveLink = (pathname: string, item: NavItem) =>
+  item.matches.some((match) => pathname === match || pathname.startsWith(`${match}/`));
+
+const SidebarContent = ({
+  pathname,
+  pendingCount,
+  restaurants,
+  selectedRestaurantId,
+  selectedRestaurantName,
+  onSelectRestaurant,
+  onToggleOpen,
+  currentRestaurantOpen,
+  togglingOpen,
+  onLogout,
+}: {
+  pathname: string;
+  pendingCount: number;
+  restaurants: RestaurantOption[];
+  selectedRestaurantId: string | null;
+  selectedRestaurantName: string | null;
+  onSelectRestaurant: (id: string | null, name: string | null) => void;
+  onToggleOpen: () => void;
+  currentRestaurantOpen: boolean | null;
+  togglingOpen: boolean;
+  onLogout: () => void;
+}) => {
   const { theme, toggleTheme } = useTheme();
-  const [isOpen, setIsOpen] = useState(true);
-  const [toggling, setToggling] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  const notifRef = useRef<HTMLDivElement>(null);
+  const selectedRestaurant = restaurants.find((restaurant) => restaurant.id === selectedRestaurantId) || null;
 
+  return (
+    <div className="flex h-full flex-col gap-5 px-4 py-4 text-[var(--text-primary)]">
+      <div className="panel relative overflow-hidden rounded-[28px] px-4 py-4">
+        <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-[radial-gradient(circle,_rgba(245,191,91,0.3),_transparent_70%)] blur-2xl" />
+        <div className="relative flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-gradient text-[18px] font-black text-[#091018] shadow-[0_20px_60px_rgba(245,191,91,0.2)]">
+              M
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.34em] text-[var(--text-muted)]">
+                MatGo Control
+              </p>
+              <h2 className="mt-1 text-[18px] font-black tracking-[-0.03em] text-[var(--text-primary)]">
+                Command Layer
+              </h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Ny informationsarkitektur med live drift, payout-fokus och renare navigation.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="control-icon-button shrink-0"
+            aria-label="Byt tema"
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          <span className="control-chip">Super admin only</span>
+          <span className="control-chip">Scope-aware</span>
+          <span className="control-chip">Realtime guarded</span>
+        </div>
+      </div>
+
+      <div className="panel rounded-[28px] px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">
+              Aktiv scope
+            </p>
+            <h3 className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+              {selectedRestaurantName || "Alla restauranger"}
+            </h3>
+          </div>
+          <div className={`status-dot ${currentRestaurantOpen ? "online" : "offline"}`} />
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+            <span>Filtrera panelen till en restaurang</span>
+            <div className="relative">
+              <select
+                value={selectedRestaurantId || ""}
+                onChange={(event) => {
+                  const nextId = event.target.value || null;
+                  const nextRestaurant = restaurants.find((restaurant) => restaurant.id === nextId) || null;
+                  onSelectRestaurant(nextId, nextRestaurant?.name || null);
+                }}
+                className="control-input appearance-none pr-10"
+              >
+                <option value="">Alla restauranger</option>
+                {restaurants.map((restaurant) => (
+                  <option key={restaurant.id} value={restaurant.id}>
+                    {restaurant.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+              />
+            </div>
+          </label>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-3 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">
+                Nya ordrar
+              </p>
+              <p className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">
+                {pendingCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-3 py-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">
+                Status nu
+              </p>
+              <p className={`mt-2 text-sm font-black uppercase tracking-[0.18em] ${currentRestaurantOpen ? "text-emerald-300" : "text-rose-300"}`}>
+                {currentRestaurantOpen ? "Öppet" : "Stängt"}
+              </p>
+            </div>
+          </div>
+
+          {selectedRestaurant && (
+            <button
+              type="button"
+              onClick={onToggleOpen}
+              disabled={togglingOpen}
+              className={`inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-[11px] font-black uppercase tracking-[0.24em] transition ${
+                currentRestaurantOpen
+                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200"
+                  : "border-rose-400/20 bg-rose-400/10 text-rose-200"
+              } ${togglingOpen ? "opacity-60" : "hover:translate-y-[-1px]"}`}
+            >
+              {togglingOpen ? "Sparar..." : currentRestaurantOpen ? "Stäng restaurangen" : "Öppna restaurangen"}
+            </button>
+          )}
+
+          <CommandPaletteTrigger />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel)] px-3 py-3">
+        <div className="space-y-5">
+          {SECTIONS(pendingCount).map((section) => (
+            <div key={section.label}>
+              <p className="px-2 text-[10px] font-black uppercase tracking-[0.32em] text-[var(--text-muted)]">
+                {section.label}
+              </p>
+              <div className="mt-2 grid gap-1.5">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = isActiveLink(pathname, item);
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`nav-link ${active ? "nav-link-active" : "nav-link-idle"}`}
+                    >
+                      <div className={`nav-link-icon ${active ? "nav-link-icon-active" : "nav-link-icon-idle"}`}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold tracking-[-0.02em]">{item.label}</p>
+                      </div>
+                      {item.badge ? <span className="nav-link-badge">{item.badge > 99 ? "99+" : item.badge}</span> : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel rounded-[28px] px-4 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">
+              Session
+            </p>
+            <p className="mt-1 text-sm font-bold text-[var(--text-primary)]">
+              {getStoredAdmin()?.email || "Super admin"}
+            </p>
+          </div>
+          <button type="button" onClick={onLogout} className="control-icon-button" aria-label="Logga ut">
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default function Sidebar() {
+  const pathname = usePathname();
+  const router = useRouter();
   const { selectedRestaurantId, selectedRestaurantName, setRestaurant } = useRestaurantStore();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [restaurants, setRestaurants] = useState<RestaurantOption[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [currentRestaurantOpen, setCurrentRestaurantOpen] = useState<boolean | null>(null);
+  const [togglingOpen, setTogglingOpen] = useState(false);
 
-  const getToken = () =>
-    typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
+  const token = getStoredToken();
 
-  // Close notification panel on outside click
+  const fetchRestaurants = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/restaurants`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      setRestaurants(response.data || []);
+    } catch {
+      setRestaurants([]);
+    }
+  };
+
+  const fetchPendingCount = async () => {
+    if (!token) return;
+
+    try {
+      const response = await axios.get(`${API_URL}/api/admin/orders`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: {
+          limit: 100,
+          ...(selectedRestaurantId ? { restaurantId: selectedRestaurantId } : {}),
+        },
+      });
+
+      const pending = (response.data.orders || []).filter((order: { status: string }) => order.status === "PENDING");
+      setPendingCount(pending.length);
+    } catch {
+      setPendingCount(0);
+    }
+  };
+
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
-        setShowNotifications(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    void fetchRestaurants();
   }, []);
 
   useEffect(() => {
-    setIsMounted(true);
+    const selectedRestaurant = restaurants.find((restaurant) => restaurant.id === selectedRestaurantId) || null;
+    setCurrentRestaurantOpen(selectedRestaurant?.isOpen ?? null);
+  }, [restaurants, selectedRestaurantId]);
 
-    // Load restaurants
-    axios
-      .get(`${API_URL}/api/restaurants`, {
-        headers: { Authorization: `Bearer ${getToken()}` },
-      })
-      .then((res) => setRestaurants(res.data))
-      .catch(() => {});
+  useEffect(() => {
+    void fetchPendingCount();
+  }, [selectedRestaurantId]);
 
-    // Load current open status
-    if (selectedRestaurantId) {
-      axios
-        .get(`${API_URL}/api/restaurants/${selectedRestaurantId}`)
-        .then((res) =>
-          setIsOpen(res.data.manualIsOpen ?? res.data.isOpen ?? true)
-        )
-        .catch(() => {});
-    }
+  useEffect(() => {
+    if (!token) return;
 
-    // Socket for real-time updates
     const socket = socketIO(SOCKET_URL, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      auth: { token },
     });
 
-    socket.on("settings:updated", (data: any) => {
-      if (data.restaurantId === selectedRestaurantId)
-        setIsOpen(data.manualIsOpen ?? data.isOpen ?? true);
+    socket.on("connect", () => {
+      socket.emit("join:admin", {
+        token,
+        ...(selectedRestaurantId ? { restaurantId: selectedRestaurantId } : {}),
+      });
     });
 
-    socket.on("order:new", (order: any) => {
-      setPendingCount((prev) => prev + 1);
-      const notif: NotificationItem = {
-        id: order.id || Math.random().toString(36).slice(2),
-        title: "Ny beställning",
-        message: `${order.customerName} — ${Math.round((order.total || 0) / 100)} kr`,
-        time: new Date(),
-        read: false,
-        type: "order",
-      };
-      setNotifications((prev) => [notif, ...prev.slice(0, 19)]);
+    socket.on("order:new", (order: { restaurantId?: string }) => {
+      if (!selectedRestaurantId || order.restaurantId === selectedRestaurantId) {
+        setPendingCount((value) => value + 1);
+      }
+    });
+
+    socket.on("order:updated", () => {
+      void fetchPendingCount();
+    });
+
+    socket.on("settings:updated", (payload: { restaurantId?: string; isOpen?: boolean }) => {
+      if (!payload.restaurantId || !selectedRestaurantId || payload.restaurantId !== selectedRestaurantId) {
+        return;
+      }
+      if (typeof payload.isOpen === "boolean") {
+        setCurrentRestaurantOpen(payload.isOpen);
+      }
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [selectedRestaurantId]);
+  }, [selectedRestaurantId, token]);
 
-  // Fetch pending count on mount
   useEffect(() => {
-    if (!isMounted) return;
-    const fetchPending = async () => {
-      try {
-        const restaurantParam = selectedRestaurantId
-          ? `&restaurantId=${selectedRestaurantId}`
-          : "";
-        const res = await axios.get(
-          `${API_URL}/api/admin/orders?limit=50${restaurantParam}`,
-          { headers: { Authorization: `Bearer ${getToken()}` } }
-        );
-        const pending = (res.data.orders || []).filter(
-          (o: any) => o.status === "PENDING"
-        );
-        setPendingCount(pending.length);
-      } catch {
-        // ignore
-      }
-    };
-    fetchPending();
-  }, [isMounted, selectedRestaurantId]);
+    setMobileOpen(false);
+  }, [pathname]);
 
-  const toggleOpen = async () => {
-    if (!selectedRestaurantId) return;
-    setToggling(true);
+  const handleToggleRestaurant = async () => {
+    if (!selectedRestaurantId || !token) return;
+
+    setTogglingOpen(true);
     try {
-      const newVal = !isOpen;
+      const nextValue = !currentRestaurantOpen;
       await axios.patch(
         `${API_URL}/api/restaurants/${selectedRestaurantId}`,
-        { isOpen: newVal },
-        { headers: { Authorization: `Bearer ${getToken()}` } }
+        { isOpen: nextValue },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-      setIsOpen(newVal);
+
+      setCurrentRestaurantOpen(nextValue);
+      setRestaurants((previous) =>
+        previous.map((restaurant) =>
+          restaurant.id === selectedRestaurantId ? { ...restaurant, isOpen: nextValue } : restaurant
+        )
+      );
     } catch {
-      // silent
+      // Silent here, the page-level forms still surface errors where needed.
     } finally {
-      setToggling(false);
+      setTogglingOpen(false);
     }
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  const markAllRead = () =>
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-
-  const toggleGroup = (label: string) => {
-    setCollapsedGroups((prev) => ({
-      ...prev,
-      [label]: !prev[label],
-    }));
+  const handleLogout = () => {
+    clearStoredAdminSession();
+    setRestaurant(null, null);
+    router.replace("/login");
   };
 
-  const navGroups: NavGroup[] = [
-    {
-      label: "Live Monitor",
-      icon: Zap,
-      collapsible: true,
-      defaultOpen: true,
-      links: [
-        {
-          href: "/overview",
-          label: "Dashboard",
-          icon: LayoutDashboard,
-        },
-        {
-          href: "/orders",
-          label: "Alla Ordrar",
-          icon: ShoppingCart,
-        },
-        {
-          href: "/orders/new",
-          label: "Nya Ordrar",
-          icon: Bell,
-          badge: pendingCount || undefined,
-        },
-        {
-          href: "/orders/preparing",
-          label: "Tillagas",
-          icon: Utensils,
-        },
-        {
-          href: "/orders/ready",
-          label: "Klara / På väg",
-          icon: Truck,
-        },
-        {
-          href: "/history",
-          label: "Orderhistorik",
-          icon: History,
-        },
-      ],
-    },
-    {
-      label: "Plattform",
-      icon: Globe,
-      collapsible: true,
-      defaultOpen: true,
-      links: [
-        { href: "/restaurants", label: "Restauranger", icon: Store },
-        { href: "/customers", label: "Kunder & Support", icon: Users },
-        { href: "/deals", label: "Deals & Kampanjer", icon: Tag },
-        { href: "/discounts", label: "Rabattkoder", icon: Tag, isNew: true },
-        { href: "/push", label: "Push Notiser", icon: Megaphone },
-        { href: "/cities", label: "Städer & Zoner", icon: MapPin },
-        { href: "/categories", label: "Kategorier", icon: Filter, isNew: true },
-        { href: "/sponsors", label: "Sponsorer", icon: Sparkles },
-        { href: "/reviews", label: "Recensioner", icon: MessageSquare, isNew: true },
-      ],
-    },
-    {
-      label: "Analytics & Finans",
-      icon: BarChart3,
-      collapsible: true,
-      defaultOpen: false,
-      links: [
-        { href: "/bi", label: "Business Intel.", icon: BarChart3 },
-        { href: "/analytics", label: "Trafikanalys", icon: Globe },
-        { href: "/billing", label: "Fakturering & Prov.", icon: Calculator },
-        { href: "/stats", label: "Statistik", icon: BarChart3 },
-      ],
-    },
-    {
-      label: "System & Config",
-      icon: Server,
-      collapsible: true,
-      defaultOpen: false,
-      links: [
-        { href: "/menu", label: "Menyer", icon: Utensils },
-        { href: "/settings", label: "Inställningar", icon: Settings },
-        { href: "/settings/receipt", label: "Kvittolayout", icon: Printer },
-        { href: "/staff", label: "Personal & Roller", icon: Shield, isNew: true },
-        { href: "/system", label: "Systemhälsa", icon: Server },
-        { href: "/log", label: "Aktivitetslogg", icon: ActivitySquare },
-      ],
-    },
-  ];
-
-  // Determine which group should be open based on active route
-  useEffect(() => {
-    if (!isMounted) return;
-    const initial: Record<string, boolean> = {};
-    navGroups.forEach((group) => {
-      const isGroupActive = group.links.some(
-        (link) =>
-          pathname === link.href ||
-          (link.href !== "/overview" &&
-            link.href !== "/" &&
-            link.href !== "/orders" &&
-            pathname.startsWith(link.href + "/"))
-      );
-      if (isGroupActive) {
-        initial[group.label] = false; // false = not collapsed = open
-      } else {
-        initial[group.label] = !(group.defaultOpen ?? true);
-      }
-    });
-    setCollapsedGroups(initial);
-  }, [isMounted]);
-
-  if (!isMounted) return null;
-
-  const NavItem = ({ link }: { link: NavLink }) => {
-    const Icon = link.icon;
-    const isActive =
-      pathname === link.href ||
-      (link.href !== "/overview" &&
-        link.href !== "/" &&
-        link.href !== "/orders" &&
-        pathname.startsWith(link.href + "/"));
-    return (
-      <Link
-        href={link.href}
-        onClick={() => setIsMobileMenuOpen(false)}
-        className={`relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-[10px] font-bold uppercase tracking-wide ${
-          isActive
-            ? "bg-gold-500/10 text-gold-500"
-            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03]"
-        }`}
-      >
-        {isActive && <div className="sidebar-active-indicator" />}
-        <Icon
-          size={15}
-          className={isActive ? "text-gold-500" : "text-[var(--text-secondary)]"}
-        />
-        <span className="flex-1 truncate">{link.label}</span>
-        {link.isNew && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 uppercase">
-            Ny
-          </span>
-        )}
-        {link.badge && link.badge > 0 ? (
-          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30 animate-pulse">
-            {link.badge > 99 ? "99+" : link.badge}
-          </span>
-        ) : null}
-      </Link>
-    );
-  };
-
-  const sidebarContent = (
-    <div className="flex flex-col h-full border-r border-[var(--border-subtle)]" style={{ background: "var(--bg-primary)" }}>
-      {/* Header */}
-      <div className="p-4 pb-0">
-        {/* Logo row */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gold-gradient flex items-center justify-center shadow-lg glow-gold-sm">
-              <span className="text-[#0d0d0d] font-black text-base italic">M</span>
-            </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.4em] text-[var(--text-secondary)] opacity-50">
-                Super Admin
-              </div>
-              <div className="font-black text-[var(--text-primary)] text-sm uppercase tracking-tight leading-none">
-                MatGo <span className="text-gold-gradient">Control</span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1">
-            {/* Notification Bell */}
-            <div ref={notifRef} className="relative">
-              <button
-                onClick={() => {
-                  setShowNotifications((v) => !v);
-                  if (!showNotifications) markAllRead();
-                }}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition-all relative"
-              >
-                <Bell size={15} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center shadow-lg shadow-rose-500/30">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </button>
-
-              <AnimatePresence>
-                {showNotifications && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                    className="absolute top-10 left-0 w-80 rounded-2xl border border-[var(--border-subtle)] shadow-2xl shadow-black/50 z-50 overflow-hidden"
-                    style={{ background: "var(--bg-secondary)" }}
-                  >
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]">
-                        Notiser
-                      </span>
-                      <button
-                        onClick={markAllRead}
-                        className="text-[10px] font-bold uppercase text-gold-500 hover:text-gold-400"
-                      >
-                        Markera alla lästa
-                      </button>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {notifications.length === 0 ? (
-                        <div className="py-10 text-center text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest">
-                          Inga notiser
-                        </div>
-                      ) : (
-                        notifications.map((n) => (
-                          <div
-                            key={n.id}
-                            className={`flex items-start gap-3 px-5 py-4 border-b border-[var(--border-subtle)] last:border-0 ${
-                              !n.read ? "bg-gold-500/5" : ""
-                            }`}
-                          >
-                            <div
-                              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                                n.type === "order"
-                                  ? "bg-emerald-500/10 text-emerald-500"
-                                  : "bg-gold-500/10 text-gold-500"
-                              }`}
-                            >
-                              {n.type === "order" ? (
-                                <ShoppingCart size={14} />
-                              ) : (
-                                <Bell size={14} />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[11px] font-black text-[var(--text-primary)] uppercase tracking-wide">
-                                {n.title}
-                              </p>
-                              <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 truncate">
-                                {n.message}
-                              </p>
-                              <p className="text-[10px] text-[var(--text-secondary)] opacity-40 mt-1 font-bold uppercase">
-                                {n.time.toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </p>
-                            </div>
-                            {!n.read && (
-                              <div className="w-2 h-2 rounded-full bg-gold-500 shrink-0 mt-2" />
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.04] transition-all"
-            >
-              {theme === "dark" ? <Moon size={15} /> : <Sun size={15} />}
-            </button>
-
-            {/* Mobile close */}
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] hover:bg-white/[0.04]"
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Command Palette Trigger */}
-        <button
-          onClick={() =>
-            window.dispatchEvent(
-              new KeyboardEvent("keydown", { key: "k", metaKey: true })
-            )
-          }
-          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gold-500/15 transition-all mb-3"
-        >
-          <Command size={13} className="opacity-40" />
-          <span className="flex-1 text-left text-[10px] font-bold uppercase tracking-wider opacity-40">
-            Sök kommandon…
-          </span>
-          <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-[var(--border-subtle)] text-[10px] font-black text-[var(--text-secondary)] uppercase">
-            ⌘K
-          </kbd>
-        </button>
-
-        {/* Restaurant Selector */}
-        <div className="mb-3 space-y-2">
-          <div className="relative">
-            <select
-              value={selectedRestaurantId || ""}
-              onChange={(e) => {
-                if (e.target.value === "") {
-                  setRestaurant(null, null);
-                } else {
-                  const r = restaurants.find((res) => res.id === e.target.value);
-                  setRestaurant(r?.id || null, r?.name || null);
-                }
-              }}
-              className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2.5 text-[10px] font-black text-[var(--text-primary)] appearance-none cursor-pointer focus:outline-none focus:border-gold-500/30 transition-all uppercase tracking-wider"
-            >
-              <option value="">Alla restauranger</option>
-              {restaurants.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-secondary)]"
-            />
-          </div>
-
-          {/* Open/Closed toggle */}
-          {selectedRestaurantId && (
-            <button
-              onClick={toggleOpen}
-              disabled={toggling}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-all text-[10px] font-black uppercase tracking-wider ${
-                isOpen
-                  ? "bg-emerald-500/8 border-emerald-500/15 text-emerald-400"
-                  : "bg-rose-500/8 border-rose-500/15 text-rose-400"
-              } ${toggling ? "opacity-50" : "active:scale-[0.98]"}`}
-            >
-              {isOpen ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-              <span className="flex-1 text-left">
-                {isOpen ? "Restaurangen är öppen" : "Restaurangen är stängd"}
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="px-4 mb-2">
-        <div className="grid grid-cols-3 gap-1.5">
-          <Link
-            href="/orders/new"
-            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
-          >
-            <Bell size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-              Nya
-            </span>
-            {pendingCount > 0 && (
-              <span className="min-w-[14px] h-[14px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">
-                {pendingCount > 9 ? "9+" : pendingCount}
-              </span>
-            )}
-          </Link>
-          <Link
-            href="/restaurants"
-            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
-          >
-            <Store size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-              Restauranger
-            </span>
-          </Link>
-          <Link
-            href="/customers"
-            className="flex flex-col items-center gap-1.5 p-2.5 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/15 transition-all group"
-          >
-            <Users size={14} className="text-[var(--text-secondary)] group-hover:text-gold-500 transition-colors" />
-            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]">
-              Kunder
-            </span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto no-scrollbar px-3 py-2 space-y-1">
-        {navGroups.map((group) => {
-          const isCollapsed = collapsedGroups[group.label] ?? false;
-          const GroupIcon = group.icon;
-          const hasActiveLink = group.links.some(
-            (link) =>
-              pathname === link.href ||
-              (link.href !== "/overview" &&
-                link.href !== "/" &&
-                link.href !== "/orders" &&
-                pathname.startsWith(link.href + "/"))
-          );
-
-          return (
-            <div key={group.label} className="mb-1">
-              {group.collapsible ? (
-                <button
-                  onClick={() => toggleGroup(group.label)}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors rounded-lg hover:bg-white/[0.02]"
-                >
-                  {GroupIcon && (
-                    <GroupIcon
-                      size={11}
-                      className={hasActiveLink ? "text-gold-500/60" : "opacity-40"}
-                    />
-                  )}
-                  <span className={`flex-1 text-left ${hasActiveLink ? "text-gold-500/60" : "opacity-40"}`}>
-                    {group.label}
-                  </span>
-                  <ChevronRight
-                    size={10}
-                    className={`opacity-30 transition-transform duration-200 ${
-                      !isCollapsed ? "rotate-90" : ""
-                    }`}
-                  />
-                </button>
-              ) : (
-                <div className="px-3 py-2 text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)] opacity-40">
-                  {group.label}
-                </div>
-              )}
-              <AnimatePresence initial={false}>
-                {!isCollapsed && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.2, ease: "easeInOut" }}
-                    className="overflow-hidden"
-                  >
-                    <div className="space-y-0.5 py-0.5">
-                      {group.links.map((link) => (
-                        <NavItem key={link.href} link={link} />
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
-      </nav>
-
-      {/* Footer */}
-      <div className="p-3 border-t border-[var(--border-subtle)] space-y-1">
-        {/* System status indicator */}
-        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-1">
-          <div className="status-dot online" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex-1">
-            System Online
-          </span>
-          <Clock size={10} className="text-[var(--text-secondary)] opacity-40" />
-          <span className="text-[10px] font-bold text-[var(--text-secondary)] opacity-40">
-            {new Date().toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
-          </span>
-        </div>
-
-        {/* Test order button */}
-        {selectedRestaurantId && (
-          <button
-            onClick={async () => {
-              try {
-                const productsRes = await axios.get(
-                  `${API_URL}/api/menu/categories?restaurantId=${selectedRestaurantId}`
-                );
-                const products = productsRes.data.flatMap((c: any) => c.products);
-                if (products.length === 0) return;
-                const randomProduct =
-                  products[Math.floor(Math.random() * products.length)];
-                await axios.post(`${API_URL}/api/orders`, {
-                  restaurantId: selectedRestaurantId,
-                  type: "PICKUP",
-                  customerName: "AUTOTEST",
-                  customerPhone: "0700101010",
-                  discountCode: "test",
-                  stripePaymentIntentId: "TEST_PAYMENT",
-                  items: [
-                    {
-                      productId: randomProduct.id,
-                      quantity: 1,
-                      selectedExtras: [],
-                      note: "Systemtest",
-                    },
-                  ],
-                });
-              } catch {
-                // silent
-              }
-            }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-gold-500 hover:bg-gold-500/5 transition-all text-[10px] font-black uppercase tracking-widest border border-[var(--border-subtle)]"
-          >
-            <Zap size={12} /> Testorder
-          </button>
-        )}
-
-        {/* Help link */}
-        <Link
-          href="/system"
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/[0.03] transition-all text-[10px] font-black uppercase tracking-widest"
-        >
-          <HelpCircle size={12} /> Hjälp & System
-        </Link>
-
-        <button
-          onClick={() => {
-            localStorage.removeItem("matgo_token");
-            localStorage.removeItem("matgo_admin");
-            window.location.href = "/login";
-          }}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-500/40 hover:text-rose-400 hover:bg-rose-500/5 transition-all text-[10px] font-black uppercase tracking-widest"
-        >
-          <LogOut size={12} /> Logga ut
-        </button>
-      </div>
-    </div>
-  );
+  const scopeLabel = useMemo(() => {
+    if (selectedRestaurantName) return selectedRestaurantName;
+    if (selectedRestaurantId) {
+      return restaurants.find((restaurant) => restaurant.id === selectedRestaurantId)?.name || "Vald restaurang";
+    }
+    return "Alla restauranger";
+  }, [restaurants, selectedRestaurantId, selectedRestaurantName]);
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className="lg:hidden fixed top-0 w-full h-14 border-b border-[var(--border-subtle)] z-40 flex items-center justify-between px-5" style={{ background: "var(--bg-primary)" }}>
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gold-gradient flex items-center justify-center glow-gold-sm">
-            <span className="text-[#0d0d0d] font-black text-sm italic">M</span>
+      <div className="lg:hidden fixed inset-x-0 top-0 z-40 border-b border-[var(--border-subtle)] bg-[rgba(8,12,24,0.9)] backdrop-blur-xl">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.32em] text-[var(--text-muted)]">
+              MatGo Control
+            </p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">{scopeLabel}</p>
           </div>
-          <span className="font-black text-[var(--text-primary)] text-sm uppercase tracking-tight">
-            MatGo <span className="text-gold-500">Admin</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {pendingCount > 0 && (
-            <span className="px-2 py-1 rounded-lg bg-rose-500 text-white text-[10px] font-black shadow-lg shadow-rose-500/30 animate-pulse">
-              {pendingCount} ny
-            </span>
-          )}
           <button
-            onClick={() => setIsMobileMenuOpen(true)}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-[var(--text-secondary)] bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+            type="button"
+            onClick={() => setMobileOpen((value) => !value)}
+            className="control-icon-button"
+            aria-label="Öppna navigation"
           >
-            <Menu size={18} />
+            {mobileOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile overlay */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[60]"
-            />
-            <motion.div
-              initial={{ x: "-100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "-100%" }}
-              transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-              className="lg:hidden fixed top-0 left-0 bottom-0 w-[280px] z-[70] shadow-2xl"
-            >
-              {sidebarContent}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:block lg:w-[320px] lg:border-r lg:border-[var(--border-subtle)] lg:bg-[rgba(7,10,20,0.8)] lg:backdrop-blur-xl">
+        <SidebarContent
+          pathname={pathname}
+          pendingCount={pendingCount}
+          restaurants={restaurants}
+          selectedRestaurantId={selectedRestaurantId}
+          selectedRestaurantName={scopeLabel}
+          onSelectRestaurant={setRestaurant}
+          onToggleOpen={handleToggleRestaurant}
+          currentRestaurantOpen={currentRestaurantOpen}
+          togglingOpen={togglingOpen}
+          onLogout={handleLogout}
+        />
+      </aside>
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:block fixed top-0 left-0 bottom-0 w-[260px] z-40">
-        {sidebarContent}
-      </div>
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-30 bg-[rgba(3,6,13,0.72)] backdrop-blur-sm lg:hidden" onClick={() => setMobileOpen(false)}>
+          <div className="absolute inset-y-0 left-0 w-[88vw] max-w-[340px] border-r border-[var(--border-subtle)] bg-[rgba(6,10,20,0.98)]" onClick={(event) => event.stopPropagation()}>
+            <SidebarContent
+              pathname={pathname}
+              pendingCount={pendingCount}
+              restaurants={restaurants}
+              selectedRestaurantId={selectedRestaurantId}
+              selectedRestaurantName={scopeLabel}
+              onSelectRestaurant={setRestaurant}
+              onToggleOpen={handleToggleRestaurant}
+              currentRestaurantOpen={currentRestaurantOpen}
+              togglingOpen={togglingOpen}
+              onLogout={handleLogout}
+            />
+          </div>
+        </div>
+      ) : null}
     </>
   );
-};
-
-export default Sidebar;
+}

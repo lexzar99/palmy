@@ -1,114 +1,168 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
-import { Loader2, Lock, Mail, Eye, EyeOff, User } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { getStoredToken, setStoredAdminSession } from "@/lib/auth-storage";
 
 export default function LoginPage() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("admin");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [showPw, setShowPw] = useState(false);
 
-  // Auto-redirect if already logged in
   useEffect(() => {
-    const token = localStorage.getItem("matgo_token");
-    if (token) router.replace("/orders");
+    if (getStoredToken()) {
+      router.replace("/dashboard");
+    }
   }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLoading(true);
+    setError("");
+
     try {
-      const res = await axios.post(`${API_URL}/api/account/login`, { identifier, password });
-      localStorage.setItem("matgo_token", res.data.token);
-      localStorage.setItem("matgo_admin", JSON.stringify(res.data.admin));
-      if (res.data.admin?.role === "SUPER_ADMIN") {
-        router.replace("/restaurants");
-      } else {
-        router.replace("/orders");
-      }
+      const response = await axios.post(`${API_URL}/api/account/login`, {
+        identifier,
+        password,
+      });
+
+      setStoredAdminSession(response.data.token, response.data.admin);
+      router.replace(response.data.admin?.role === "SUPER_ADMIN" ? "/dashboard" : "/orders");
     } catch (err: any) {
-      setError(err.response?.data?.error || "Inloggning misslyckades");
+      setError(err.response?.data?.error || "Inloggningen misslyckades.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center px-6 font-sans relative overflow-hidden">
-      {/* Background Glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gold-600/5 rounded-full blur-[120px]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-admin-canvas px-6 py-10">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(245,191,91,0.22),_transparent_26%),radial-gradient(circle_at_85%_15%,_rgba(96,165,250,0.08),_transparent_20%)]" />
 
-      <div className="w-full max-w-md relative z-10">
-        <div className="flex flex-col items-center justify-center mb-10">
-          <div className="w-14 h-14 bg-gold-500 rounded-2xl flex items-center justify-center font-black text-[#0d0d0d] text-3xl shadow-2xl shadow-gold-500/20 mb-6">M</div>
-          <div className="text-center">
-            <div className="text-[10px] font-black uppercase tracking-[0.5em] text-gold-500/60 mb-2">Authenticated Access</div>
-            <div className="text-2xl font-black tracking-tighter text-[var(--text-primary)] uppercase italic">MatGo <span className="text-gold-500">Admin</span></div>
+      <div className="relative grid w-full max-w-[1180px] gap-6 xl:grid-cols-[0.92fr_1.08fr]">
+        <section className="panel rounded-[40px] px-8 py-8 sm:px-10 sm:py-10">
+          <div className="flex items-start gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[28px] bg-gold-gradient text-[28px] font-black text-[#091018] shadow-[0_25px_80px_rgba(245,191,91,0.2)]">
+              M
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.38em] text-[var(--text-muted)]">MatGo Control</p>
+              <h1 className="mt-2 text-4xl font-black tracking-[-0.07em] text-[var(--text-primary)] sm:text-5xl">
+                Ny adminpanel.
+              </h1>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                Kontrollera drift, payouts, restaurangstatus och säkerhetsläge i en renare desktop-upplevelse. Samma kärnlogik, mycket tydligare kontroll.
+              </p>
+            </div>
           </div>
-        </div>
 
-        <form
-          onSubmit={handleLogin}
-          className="glass border border-[var(--border-subtle)] shadow-2xl rounded-[3rem] p-10 sm:p-14 space-y-10"
-        >
-          <div className="space-y-8">
-            <div className="group">
-              <label className="block text-[11px] font-black uppercase text-[var(--text-primary)]/20 mb-3 ml-2 tracking-widest group-focus-within:text-gold-500 transition-colors">Credential ID</label>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+            {[
+              "En kontrollvy istället för spridda dashboard/stats-sidor",
+              "Öppettider flyttade till en separat restauranghub",
+              "Hårdad inloggning med rate limits och verifierad socket-scope",
+              "Finance HQ med payout-beredskap och provisionsöverblick",
+            ].map((item) => (
+              <div key={item} className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5 text-sm leading-7 text-[var(--text-secondary)]">
+                {item}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 grid gap-3 rounded-[32px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-6 py-6">
+            <div className="flex items-center gap-3 text-emerald-100">
+              <ShieldCheck size={18} />
+              <span className="text-sm font-black uppercase tracking-[0.22em]">Säker desktop-access</span>
+            </div>
+            <p className="text-sm leading-7 text-[var(--text-secondary)]">
+              Adminsessioner valideras på servern, inloggning är rate-limitad och realtime-rummen accepterar nu bara verifierade tokens med korrekt restaurangscope.
+            </p>
+          </div>
+        </section>
+
+        <section className="panel rounded-[40px] px-8 py-8 sm:px-10 sm:py-10">
+          <div className="space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.38em] text-[var(--text-muted)]">Authenticated Access</p>
+            <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Logga in till kontrolltornet</h2>
+            <p className="max-w-xl text-sm leading-7 text-[var(--text-secondary)]">
+              Superadmin hanterar plattformen här. Restaurangkonton fortsätter använda MatGo Business utan ändrad grundlogik.
+            </p>
+          </div>
+
+          <form onSubmit={handleLogin} className="mt-8 grid gap-5">
+            <label className="grid gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">
+              Credential ID
               <div className="relative">
-                <User size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/10 group-focus-within:text-gold-500 transition-all" />
+                <UserRound size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   required
-                  type="text"
+                  value={identifier}
+                  onChange={(event) => setIdentifier(event.target.value)}
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-6 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
+                  className="control-input pl-12"
+                  placeholder="admin"
                 />
               </div>
-            </div>
-            <div className="group">
-              <label className="block text-[11px] font-black uppercase text-[var(--text-primary)]/20 mb-3 ml-2 tracking-widest group-focus-within:text-gold-500 transition-colors">Access Code</label>
+            </label>
+
+            <label className="grid gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">
+              Access code
               <div className="relative">
-                <Lock size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/10 group-focus-within:text-gold-500 transition-all" />
+                <LockKeyhole size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                 <input
                   required
-                  type={showPw ? "text" : "password"}
+                  type={showPassword ? "text" : "password"}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="control-input pl-12 pr-12"
                   placeholder="••••••••"
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-2xl py-5 pl-14 pr-16 focus:outline-none focus:border-gold-500/40 focus:ring-4 focus:ring-gold-500/5 transition-all text-[var(--text-primary)] font-bold"
                 />
-                <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-5 top-1/2 -translate-y-1/2 text-[var(--text-primary)]/10 hover:text-[var(--text-primary)] transition-colors">
-                  {showPw ? <EyeOff size={22} /> : <Eye size={22} />}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+            </label>
+
+            {error ? (
+              <div className="rounded-[24px] border border-rose-300/18 bg-rose-300/10 px-5 py-4 text-sm leading-6 text-rose-100">
+                {error}
+              </div>
+            ) : null}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-3 rounded-[26px] bg-gold-gradient px-6 py-5 text-sm font-black uppercase tracking-[0.24em] text-[#091018] disabled:opacity-60"
+            >
+              {loading ? "Verifierar" : "Öppna panelen"}
+              <ArrowRight size={16} />
+            </button>
+          </form>
+
+          <div className="mt-8 grid gap-3 rounded-[32px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-6 py-6">
+            <div className="flex items-center gap-3 text-[var(--text-primary)]">
+              <ShieldCheck size={18} className="text-emerald-200" />
+              <span className="text-sm font-black uppercase tracking-[0.22em]">Vad som är säkrat nu</span>
+            </div>
+            <div className="grid gap-2 text-sm leading-7 text-[var(--text-secondary)]">
+              <p>Admin-login är rate-limitad per IP och identifier.</p>
+              <p>Sessioner verifieras utan cache och ogiltiga tokens rensas direkt.</p>
+              <p>Socket-rum kräver numera token + scope-verifiering.</p>
             </div>
           </div>
-
-          {error && (
-            <div className="p-5 bg-rose-500/5 border border-rose-500/10 rounded-2xl text-rose-500 text-xs font-black uppercase tracking-widest text-center animate-shake">
-              ⚠️ {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-6 bg-gold-500 hover:bg-gold-400 disabled:opacity-50 text-[#0d0d0d] font-black rounded-2xl transition-all shadow-2xl shadow-gold-500/10 uppercase tracking-widest flex items-center justify-center gap-4 active:scale-[0.98] text-sm"
-          >
-            {loading ? <Loader2 size={24} className="animate-spin" /> : <Lock size={24} />}
-            {loading ? "Decrypting..." : "Initialize Admin"}
-          </button>
-        </form>
+        </section>
       </div>
     </div>
   );

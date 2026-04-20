@@ -1360,14 +1360,9 @@ const normalizeDealInputForDb = (body: any) => {
 
 router.get('/customer-deals', async (req, res) => {
   try {
-    const { restaurantId } = req.query;
-    const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
-      ? (restaurantId ? (restaurantId as string) : null)
-      : requireRestaurantScope(req as AuthRequest, res);
-    
-    // Om restaurantId är satt kan vi filtrera personal deals baserat på restaurant info,
-    // men för tillfället returnera alla (eller filtrerade).
-    if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
 
     const deals = await prisma.customerDeal.findMany({
       include: {
@@ -1386,6 +1381,10 @@ router.get('/customer-deals', async (req, res) => {
 // PATCH /api/admin/customer-deals/:id — mark as used/unused or update
 router.patch('/customer-deals/:id', authenticate, async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
     const { isUsed, maxUsages } = req.body;
     const updated = await prisma.customerDeal.update({
       where: { id: req.params.id },
@@ -1779,6 +1778,10 @@ router.post('/menu/bulk-import', async (req, res) => {
 
 router.get('/discounts', async (_req, res) => {
   try {
+    if (!isSuperAdmin(_req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     });
@@ -1803,6 +1806,10 @@ router.get('/discounts', async (_req, res) => {
 
 router.post('/discounts', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
     const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
 
     const discountData: any = {
@@ -1835,6 +1842,10 @@ router.post('/discounts', async (req, res) => {
 
 router.patch('/discounts/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
     const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
     const updateData: any = {};
     if (isActive !== undefined) updateData.isActive = isActive;
@@ -1869,6 +1880,10 @@ router.patch('/discounts/:id', async (req, res) => {
 
 router.delete('/discounts/:id', async (req, res) => {
   try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      return res.status(403).json({ error: 'Kräver super admin-behörighet' });
+    }
+
     await prisma.discountCode.delete({
       where: { id: req.params.id },
     });
@@ -1932,11 +1947,19 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
 
 router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
   try {
+    const authReq = req as AuthRequest;
     const order: any = await prisma.order.findUnique({
       where: { id: req.params.id },
       include: { items: true, restaurant: true }
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+
+    if (!isSuperAdmin(authReq)) {
+      const scopedRestaurantId = authReq.admin?.restaurantId;
+      if (!scopedRestaurantId || order.restaurantId !== scopedRestaurantId) {
+        return res.status(403).json({ error: 'Du kan bara hämta kvittodata för din egen restaurang' });
+      }
+    }
 
     res.json({
       header: {
@@ -1953,6 +1976,10 @@ router.get('/orders/:id/receipt-data', async (req: any, res: any) => {
         time: new Date(order.createdAt).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }),
         date: new Date(order.createdAt).toLocaleDateString('sv-SE'),
         estimatedTime: order.estimatedTime,
+        isPreorder: Boolean(order.scheduledFor),
+        scheduledFor: order.scheduledFor,
+        scheduledDate: order.scheduledFor ? new Date(order.scheduledFor).toLocaleDateString('sv-SE') : null,
+        scheduledTime: order.scheduledFor ? new Date(order.scheduledFor).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) : null,
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
       },

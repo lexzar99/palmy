@@ -14,6 +14,7 @@ import sponsorsRoutes from './routes/sponsors';
 import homeCategoriesRoutes from './routes/homeCategories';
 import orderRoutes from './routes/orders';
 import adminRoutes from './routes/admin';
+import controlCenterRoutes from './routes/controlCenter';
 import authRoutes from './routes/auth';
 import paymentRoutes from './routes/payments';
 import discountRoutes from './routes/discount';
@@ -28,12 +29,15 @@ import deliveryRoutes from './routes/delivery';
 import reportRoutes from './routes/reports';
 import uploadRoutes from './routes/upload';
 import notificationRoutes from './routes/notifications';
+import payoutsRoutes from './routes/payouts';
+import reviewsAdminRoutes from './routes/reviewsAdmin';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
 import { getAllowedOrigins } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
+import { resolveAdminSessionFromToken } from './middleware/auth';
 
 const app = express();
 app.set('trust proxy', 1); // Trust Railway's proxy
@@ -114,13 +118,39 @@ const otpLimiter = rateLimit({
   message: { error: 'För många SMS-förfrågningar. Vänta 10 minuter.' },
 });
 
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => `${req.ip}:${String(req.body?.identifier || req.body?.email || '').trim().toLowerCase()}`,
+  message: { error: 'För många admin-inloggningar. Vänta 15 minuter och försök igen.' },
+});
+
+const sessionVerifyLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `${req.ip}:verify`,
+  message: { error: 'För många sessionskontroller. Vänta en stund och försök igen.' },
+});
+
 app.use('/api/account/send-otp', otpLimiter);
 app.use('/api/orders', orderLimiter);
+app.use('/api/account/login', adminLoginLimiter);
+app.use('/api/auth/login', adminLoginLimiter);
+app.use('/api/account/verify', sessionVerifyLimiter);
+app.use('/api/auth/verify', sessionVerifyLimiter);
 
 // Routes
 app.use('/api/menu', menuRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/admin', controlCenterRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin/payouts', payoutsRoutes);
+app.use('/api/admin/reviews', reviewsAdminRoutes);
 app.use('/api/account', authRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -154,16 +184,51 @@ app.get('/health', (_req, res) => {
 getIO().on('connection', (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
   
-  socket.on('join:admin', (payload?: { restaurantId?: string }) => {
-    const restaurantId = payload?.restaurantId;
-    if (restaurantId) {
-      socket.join(`admin-room:${restaurantId}`);
-      console.log(`👮 Admin joined (restaurant ${restaurantId}): ${socket.id}`);
+  socket.on('join:admin', async (payload?: { restaurantId?: string; token?: string }) => {
+    const token = payload?.token || socket.handshake.auth?.token || null;
+
+    if (!token) {
+      socket.emit('admin:join-error', { error: 'Token krävs för admin-room' });
       return;
     }
 
-    socket.join('admin-room'); // Global (super admin)
-    console.log(`👮 Admin joined (global): ${socket.id}`);
+    try {
+      const admin = await resolveAdminSessionFromToken(String(token));
+      if (!admin) {
+        socket.emit('admin:join-error', { error: 'Ogiltig session' });
+        return;
+      }
+
+      socket.data.admin = admin;
+      const requestedRestaurantId = payload?.restaurantId;
+
+      if (admin.role === 'SUPER_ADMIN') {
+        if (requestedRestaurantId) {
+          socket.join(`admin-room:${requestedRestaurantId}`);
+          console.log(`👮 Super Admin joined restaurant room ${requestedRestaurantId}: ${socket.id}`);
+          return;
+        }
+
+        socket.join('admin-room');
+        console.log(`👮 Super Admin joined global room: ${socket.id}`);
+        return;
+      }
+
+      if (!admin.restaurantId) {
+        socket.emit('admin:join-error', { error: 'Kontot saknar restaurangscope' });
+        return;
+      }
+
+      if (requestedRestaurantId && requestedRestaurantId !== admin.restaurantId) {
+        socket.emit('admin:join-error', { error: 'Otillåten restaurangscope' });
+        return;
+      }
+
+      socket.join(`admin-room:${admin.restaurantId}`);
+      console.log(`👮 Restaurant admin joined room ${admin.restaurantId}: ${socket.id}`);
+    } catch {
+      socket.emit('admin:join-error', { error: 'Kunde inte verifiera admin-session' });
+    }
   });
 
   socket.on('join:order', (orderId: string) => {

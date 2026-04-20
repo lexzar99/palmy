@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
@@ -103,9 +102,10 @@ interface Order {
 
 // ─── Time Elapsed Helper ────────────────────────────────────────────────────
 const TimeElapsed = ({ createdAt }: { createdAt: string }) => {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
+    setNow(Date.now());
     const interval = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(interval);
   }, []);
@@ -759,9 +759,13 @@ const OrdersManager = ({ initialFilter = "all", title }: OrdersManagerProps) => 
     const socket = socketIO(SOCKET_URL, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      auth: { token: getToken() },
     });
     socket.on("connect", () =>
-      socket.emit("join:admin", { restaurantId: selectedRestaurantId })
+      socket.emit("join:admin", {
+        token: getToken(),
+        ...(selectedRestaurantId ? { restaurantId: selectedRestaurantId } : {}),
+      })
     );
     socket.on("order:new", (order: any) => {
       const shouldShow = !selectedRestaurantId || order.restaurantId === selectedRestaurantId;

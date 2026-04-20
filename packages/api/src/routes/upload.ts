@@ -7,13 +7,18 @@ import { CloudinaryStorage } from 'multer-storage-cloudinary';
 const router = Router();
 router.use(authenticate);
 
+const hasCloudinaryConfig = Boolean(
+  process.env.CLOUDINARY_URL ||
+    (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+);
+
 // Configure Cloudinary
 // It will automatically pick up the CLOUDINARY_URL environment variable if set.
 // Otherwise, we can pass the keys directly.
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'YOUR_CLOUD_NAME',
-  api_key: process.env.CLOUDINARY_API_KEY || '981979172514842',
-  api_secret: process.env.CLOUDINARY_API_SECRET || 'YOUR_API_SECRET'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 const storage = new CloudinaryStorage({
@@ -31,10 +36,23 @@ const storage = new CloudinaryStorage({
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // increased to 5MB for high res heroes
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      cb(new Error('Endast bilder tillåts'));
+      return;
+    }
+    cb(null, true);
+  },
 });
 
 // POST /api/admin/upload - Upload a single image
-router.post('/', upload.single('file'), (req: Request, res: Response) => {
+router.post('/', (req: Request, res: Response, next) => {
+  if (!hasCloudinaryConfig) {
+    res.status(503).json({ error: 'Bilduppladdning är inte konfigurerad på servern' });
+    return;
+  }
+  next();
+}, upload.single('file'), (req: Request, res: Response) => {
   if (!req.file) {
     res.status(400).json({ error: 'Ingen fil uppladdad' });
     return;

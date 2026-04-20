@@ -80,11 +80,40 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> tryAutoLogin() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(AppConstants.tokenKey);
     final adminStr = prefs.getString(AppConstants.adminKey);
-    if (adminStr != null) {
-      _user = jsonDecode(adminStr);
-      logger.log('AUTO-LOGIN: ${_user?['email']}');
+
+    if (token == null || adminStr == null) {
+      return;
+    }
+
+    try {
+      final res = await _api.post('/api/account/verify', {'token': token});
+      final isValid = res.data is Map && res.data['valid'] == true;
+
+      if (!isValid) {
+        await prefs.remove(AppConstants.tokenKey);
+        await prefs.remove(AppConstants.adminKey);
+        logger.log('AUTO-LOGIN: session invalid, cleared cached credentials');
+        _user = null;
+        notifyListeners();
+        return;
+      }
+
+      _user = Map<String, dynamic>.from((res.data['admin'] as Map?) ?? jsonDecode(adminStr));
+      await prefs.setString(AppConstants.adminKey, jsonEncode(_user));
+      logger.log('AUTO-LOGIN VERIFIED: ${_user?['email']}');
       notifyListeners();
+    } on DioException catch (e) {
+      logger.log('AUTO-LOGIN VERIFY ERROR: ${e.response?.statusCode ?? e.message}');
+      if (e.response?.statusCode == 401) {
+        await prefs.remove(AppConstants.tokenKey);
+        await prefs.remove(AppConstants.adminKey);
+        _user = null;
+        notifyListeners();
+      }
+    } catch (e) {
+      logger.log('AUTO-LOGIN EXCEPTION: $e');
     }
   }
 }

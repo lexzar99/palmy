@@ -1,898 +1,676 @@
- 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
-  Tag,
-  Plus,
-  Store,
-  Users,
-  CheckCircle2,
-  XCircle,
-  Trash2,
-  Edit2,
+  Gift,
   Globe,
   Loader2,
+  Plus,
+  RefreshCw,
   Search,
-  Filter,
-  Gift,
+  Sparkles,
+  Store,
   Ticket,
-  ChevronDown,
-  ChevronRight,
-  AlertCircle,
+  Trash2,
+  Users,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { API_URL } from "@/lib/api";
 import { Modal, ConfirmModal } from "@/components/Modal";
 import { useToast } from "@/components/Toast";
+import { API_URL } from "@/lib/api";
+import { getStoredToken } from "@/lib/auth-storage";
 
 type DealCategory = "restaurant" | "customer";
 
+type RestaurantSummary = {
+  id: string;
+  name: string;
+};
+
+type CustomerSummary = {
+  id: string;
+  name: string;
+  phone: string;
+};
+
+type RestaurantDeal = {
+  id: string;
+  title: string;
+  description?: string | null;
+  discountType: string;
+  discountValue: number;
+  minOrder: number;
+  isActive: boolean;
+  isGlobal: boolean;
+  showOnSite: boolean;
+  validUntil?: string | null;
+  maxUsages?: number | null;
+  restaurant?: { id: string; name: string; slug: string } | null;
+  applicableRestaurantIds?: string[];
+};
+
+type CustomerDeal = {
+  id: string;
+  code: string;
+  isUsed: boolean;
+  usageCount: number;
+  maxUsages: number;
+  createdAt: string;
+  user?: { name?: string | null; phone?: string | null } | null;
+  campaign?: { title?: string | null; discountType?: string | null; discountValue?: number | null } | null;
+};
+
+const inputCls = "control-input";
+
+const emptyRestaurantDeal = {
+  title: "",
+  description: "",
+  discountType: "PERCENTAGE",
+  discountValue: 10,
+  minOrder: 0,
+  isGlobal: true,
+  applicableRestaurantIds: [] as string[],
+  isActive: true,
+  showOnSite: true,
+  maxUsages: "",
+  validUntil: "",
+};
+
+const emptyCustomerDeal = {
+  title: "",
+  code: "",
+  discountType: "FIXED",
+  discountValue: 30,
+  maxUsages: 1,
+  validUntil: "",
+};
+
+const formatRestaurantDealValue = (deal: RestaurantDeal) =>
+  deal.discountType === "FIXED" ? `${deal.discountValue} kr` : `${deal.discountValue}%`;
+
 export default function DealsPage() {
   const { success, error: toastError } = useToast();
-
   const [category, setCategory] = useState<DealCategory>("restaurant");
-  const [deals, setDeals] = useState<any[]>([]);
-  const [customerDeals, setCustomerDeals] = useState<any[]>([]);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [restaurantDeals, setRestaurantDeals] = useState<RestaurantDeal[]>([]);
+  const [customerDeals, setCustomerDeals] = useState<CustomerDeal[]>([]);
+  const [restaurants, setRestaurants] = useState<RestaurantSummary[]>([]);
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [dealModalOpen, setDealModalOpen] = useState(false);
+  const [dealForm, setDealForm] = useState(emptyRestaurantDeal);
+  const [editingDealId, setEditingDealId] = useState<string | null>(null);
+  const [customerDealModalOpen, setCustomerDealModalOpen] = useState(false);
+  const [customerDealForm, setCustomerDealForm] = useState(emptyCustomerDeal);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [sendToAllCustomers, setSendToAllCustomers] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string; type: DealCategory } | null>(null);
 
-  // Modals
-  const [createModal, setCreateModal] = useState(false);
-  const [editingDeal, setEditingDeal] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
-  const [customerDealModal, setCustomerDealModal] = useState(false);
+  const token = getStoredToken();
 
-  const token = () => localStorage.getItem("matgo_token");
+  const fetchData = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
 
-  const fetchAll = async () => {
     setLoading(true);
     try {
-      const [dealsRes, restaurantsRes, customersRes, customerDealsRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/api/admin/deals`, {
-          headers: { Authorization: `Bearer ${token()}` },
-        }),
+      const [restaurantDealsRes, customerDealsRes, restaurantsRes, customersRes] = await Promise.all([
+        axios.get(`${API_URL}/api/admin/deals`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/api/admin/customer-deals`, { headers: { Authorization: `Bearer ${token}` } }),
         axios.get(`${API_URL}/api/restaurants`),
-        axios.get(`${API_URL}/api/customers`, {
-          headers: { Authorization: `Bearer ${token()}` },
-        }),
-        axios.get(`${API_URL}/api/admin/customer-deals`, {
-          headers: { Authorization: `Bearer ${token()}` },
-        }),
+        axios.get(`${API_URL}/api/customers`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
-      if (dealsRes.status === "fulfilled") setDeals(dealsRes.value.data);
-      if (restaurantsRes.status === "fulfilled") setRestaurants(restaurantsRes.value.data);
-      if (customersRes.status === "fulfilled") setCustomers(customersRes.value.data);
-      if (customerDealsRes.status === "fulfilled") setCustomerDeals(customerDealsRes.value.data);
-    } catch {
-      toastError("Kunde inte ladda data");
+      setRestaurantDeals(restaurantDealsRes.data || []);
+      setCustomerDeals(customerDealsRes.data || []);
+      setRestaurants(restaurantsRes.data || []);
+      setCustomers(customersRes.data || []);
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ladda deals-ytan.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => {
+    void fetchData();
+  }, []);
 
-  const toggleDealStatus = async (id: string, current: boolean) => {
+  const filteredRestaurantDeals = useMemo(() => {
+    return restaurantDeals.filter((deal) => {
+      if (!search.trim()) return true;
+      const query = search.toLowerCase();
+      return (
+        deal.title.toLowerCase().includes(query) ||
+        (deal.description || "").toLowerCase().includes(query) ||
+        (deal.restaurant?.name || "").toLowerCase().includes(query)
+      );
+    });
+  }, [restaurantDeals, search]);
+
+  const filteredCustomerDeals = useMemo(() => {
+    return customerDeals.filter((deal) => {
+      if (!search.trim()) return true;
+      const query = search.toLowerCase();
+      return (
+        (deal.user?.name || "").toLowerCase().includes(query) ||
+        (deal.user?.phone || "").toLowerCase().includes(query) ||
+        (deal.campaign?.title || "").toLowerCase().includes(query) ||
+        deal.code.toLowerCase().includes(query)
+      );
+    });
+  }, [customerDeals, search]);
+
+  const stats = useMemo(() => ({
+    restaurantTotal: restaurantDeals.length,
+    restaurantActive: restaurantDeals.filter((deal) => deal.isActive).length,
+    globalDeals: restaurantDeals.filter((deal) => deal.isGlobal).length,
+    customerTotal: customerDeals.length,
+    customerActive: customerDeals.filter((deal) => !deal.isUsed).length,
+  }), [customerDeals, restaurantDeals]);
+
+  const toggleRestaurantDeal = async (deal: RestaurantDeal) => {
+    if (!token) return;
+
     try {
-      await axios.patch(`${API_URL}/api/admin/deals/${id}`, { isActive: !current }, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setDeals((prev) => prev.map((d) => d.id === id ? { ...d, isActive: !current } : d));
-      success(!current ? "Deal aktiverad" : "Deal pausad");
-    } catch {
-      toastError("Kunde inte uppdatera deal");
+      await axios.patch(
+        `${API_URL}/api/admin/deals/${deal.id}`,
+        { isActive: !deal.isActive },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setRestaurantDeals((previous) => previous.map((item) => (item.id === deal.id ? { ...item, isActive: !item.isActive } : item)));
+      success(!deal.isActive ? "Dealen aktiverades." : "Dealen pausades.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte uppdatera dealen.");
     }
   };
 
-  const deleteDeal = async (id: string) => {
+  const toggleCustomerDeal = async (deal: CustomerDeal) => {
+    if (!token) return;
+
     try {
-      await axios.delete(`${API_URL}/api/admin/deals/${id}`, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setDeals((prev) => prev.filter((d) => d.id !== id));
-      setDeleteConfirm(null);
-      success("Deal raderad");
-    } catch {
-      toastError("Kunde inte radera deal");
+      await axios.patch(
+        `${API_URL}/api/admin/customer-deals/${deal.id}`,
+        { isUsed: !deal.isUsed },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCustomerDeals((previous) => previous.map((item) => (item.id === deal.id ? { ...item, isUsed: !item.isUsed } : item)));
+      success(!deal.isUsed ? "Dealen markerades som förbrukad." : "Dealen återaktiverades.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte uppdatera kunddealen.");
     }
   };
 
-  const saveDeal = async (data: any, isNew: boolean) => {
+  const saveRestaurantDeal = async () => {
+    if (!token) return;
+
+    const payload = {
+      title: dealForm.title,
+      description: dealForm.description || null,
+      discountType: dealForm.discountType,
+      discountValue: Number(dealForm.discountValue),
+      minOrder: Number(dealForm.minOrder || 0),
+      isGlobal: dealForm.isGlobal,
+      applicableRestaurantIds: dealForm.isGlobal ? [] : dealForm.applicableRestaurantIds,
+      restaurantId: !dealForm.isGlobal && dealForm.applicableRestaurantIds.length === 1 ? dealForm.applicableRestaurantIds[0] : null,
+      isActive: dealForm.isActive,
+      showOnSite: dealForm.showOnSite,
+      maxUsages: dealForm.maxUsages ? Number(dealForm.maxUsages) : null,
+      validUntil: dealForm.validUntil || null,
+    };
+
     try {
-      if (isNew) {
-        const res = await axios.post(`${API_URL}/api/admin/deals`, data, {
-          headers: { Authorization: `Bearer ${token()}` },
+      if (editingDealId) {
+        const response = await axios.patch(`${API_URL}/api/admin/deals/${editingDealId}`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        setDeals((prev) => [res.data, ...prev]);
-        success("Deal skapad!");
+        setRestaurantDeals((previous) => previous.map((deal) => (deal.id === editingDealId ? response.data : deal)));
+        success("Dealen uppdaterades.");
       } else {
-        await axios.patch(`${API_URL}/api/admin/deals/${data.id}`, data, {
-          headers: { Authorization: `Bearer ${token()}` },
+        const response = await axios.post(`${API_URL}/api/admin/deals`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        setDeals((prev) => prev.map((d) => d.id === data.id ? { ...d, ...data } : d));
-        success("Deal uppdaterad!");
+        setRestaurantDeals((previous) => [response.data, ...previous]);
+        success("Dealen skapades.");
       }
-      setCreateModal(false);
-      setEditingDeal(null);
-      fetchAll();
-    } catch {
-      toastError("Kunde inte spara deal");
+
+      setDealModalOpen(false);
+      setEditingDealId(null);
+      setDealForm(emptyRestaurantDeal);
+      await fetchData();
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte spara dealen.");
     }
   };
 
-  const createCustomerDeal = async (data: any) => {
-    // data.customerIds is an array of IDs, or ["ALL"] meaning everyone
-    const ids: string[] =
-      data.sendToAll ? customers.map((c: any) => c.id) : data.customerIds;
+  const openEditModal = (deal: RestaurantDeal) => {
+    setEditingDealId(deal.id);
+    setDealForm({
+      title: deal.title,
+      description: deal.description || "",
+      discountType: deal.discountType,
+      discountValue: deal.discountValue,
+      minOrder: deal.minOrder,
+      isGlobal: deal.isGlobal,
+      applicableRestaurantIds: deal.applicableRestaurantIds || (deal.restaurant?.id ? [deal.restaurant.id] : []),
+      isActive: deal.isActive,
+      showOnSite: deal.showOnSite,
+      maxUsages: deal.maxUsages ? String(deal.maxUsages) : "",
+      validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
+    });
+    setDealModalOpen(true);
+  };
 
-    if (!ids || ids.length === 0) {
-      toastError("Välj minst en kund");
+  const createCustomerDeals = async () => {
+    if (!token) return;
+
+    const recipientIds = sendToAllCustomers ? customers.map((customer) => customer.id) : selectedCustomerIds;
+    if (recipientIds.length === 0) {
+      toastError("Välj minst en kund.");
       return;
     }
 
     try {
-      const results = await Promise.allSettled(
-        ids.map((cid) =>
+      await Promise.all(
+        recipientIds.map((id, index) =>
           axios.post(
-            `${API_URL}/api/customers/${cid}/deals`,
+            `${API_URL}/api/customers/${id}/deals`,
             {
-              title: data.title,
-              code: data.sendToAll
-                ? `${data.code}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-                : data.code,
-              discountType: data.discountType,
-              discountValue: Number(data.discountValue),
-              maxUsages: Number(data.maxUsages || 1),
-              validUntil: data.validUntil || null,
+              title: customerDealForm.title,
+              code: sendToAllCustomers ? `${customerDealForm.code}-${String(index + 1).padStart(3, "0")}` : customerDealForm.code,
+              discountType: customerDealForm.discountType,
+              discountValue: Number(customerDealForm.discountValue),
+              maxUsages: Number(customerDealForm.maxUsages),
+              validUntil: customerDealForm.validUntil || null,
             },
-            { headers: { Authorization: `Bearer ${token()}` } }
+            { headers: { Authorization: `Bearer ${token}` } }
           )
         )
       );
-      const failed = results.filter((r) => r.status === "rejected").length;
-      if (failed === 0) {
-        success(`Deal skickad till ${ids.length} kund${ids.length > 1 ? "er" : ""}!`);
-      } else {
-        toastError(`${ids.length - failed} lyckades, ${failed} misslyckades`);
-      }
-      setCustomerDealModal(false);
+
+      setCustomerDealModalOpen(false);
+      setCustomerDealForm(emptyCustomerDeal);
+      setSelectedCustomerIds([]);
+      setSendToAllCustomers(false);
+      success(`Deal skickad till ${recipientIds.length} kund${recipientIds.length > 1 ? "er" : ""}.`);
+      await fetchData();
     } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte skapa deal");
+      toastError(err.response?.data?.error || "Kunde inte skapa personliga deals.");
     }
   };
 
-  // ── Personal deal CRUD ──────────────────────────────────────────────────────
-  const toggleCustomerDeal = async (id: string, current: boolean) => {
+  const handleDelete = async () => {
+    if (!deleteTarget || !token) return;
+
     try {
-      const res = await axios.patch(`${API_URL}/api/admin/customer-deals/${id}`, { isUsed: !current }, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setCustomerDeals(prev => prev.map(d => d.id === id ? { ...d, isUsed: !current } : d));
-      success(!current ? "Deal markerad som förbrukad" : "Deal återaktiverad");
-    } catch { toastError("Kunde inte uppdatera deal"); }
+      if (deleteTarget.type === "restaurant") {
+        await axios.delete(`${API_URL}/api/admin/deals/${deleteTarget.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setRestaurantDeals((previous) => previous.filter((deal) => deal.id !== deleteTarget.id));
+      } else {
+        await axios.delete(`${API_URL}/api/admin/customer-deals/${deleteTarget.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setCustomerDeals((previous) => previous.filter((deal) => deal.id !== deleteTarget.id));
+      }
+
+      success("Dealen togs bort.");
+      setDeleteTarget(null);
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte radera dealen.");
+    }
   };
 
-  const deleteCustomerDeal = async (id: string) => {
-    try {
-      await axios.delete(`${API_URL}/api/admin/customer-deals/${id}`, {
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setCustomerDeals(prev => prev.filter(d => d.id !== id));
-      setDeleteConfirm(null);
-      success("Deal raderad");
-    } catch { toastError("Kunde inte radera deal"); }
-  };
+  const filteredCustomersForModal = useMemo(() => {
+    if (!search.trim()) return customers;
+    const query = search.toLowerCase();
+    return customers.filter((customer) => customer.name.toLowerCase().includes(query) || customer.phone.toLowerCase().includes(query));
+  }, [customers, search]);
 
-  const filteredDeals = deals.filter((d) => {
-    if (search) {
-      const q = search.toLowerCase();
-      return (d.title || "").toLowerCase().includes(q) || (d.description || "").toLowerCase().includes(q);
-    }
-    return true;
-  });
-
-  const filteredCustomerDeals = customerDeals.filter((d) => {
-    if (search) {
-      const q = search.toLowerCase();
-      return (d.campaign?.title || "").toLowerCase().includes(q) || (d.user?.name || "").toLowerCase().includes(q) || (d.phone || "").toLowerCase().includes(q);
-    }
-    return true;
-  });
+  if (loading) {
+    return (
+      <div className="panel flex min-h-[360px] items-center justify-center rounded-[32px] px-6 py-12">
+        <div className="flex items-center gap-3 text-[var(--text-secondary)]">
+          <Loader2 className="animate-spin text-amber-200" size={18} />
+          <span className="text-sm font-bold">Laddar deals-verktygen…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6 pb-24">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black uppercase tracking-tight text-[var(--text-primary)]">
-            Deals & Kampanjer
-          </h1>
-          <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-1">
-            Hantera erbjudanden för restauranger och kunder
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => { setCreateModal(true); setEditingDeal(null); }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all active:scale-95"
-          >
-            <Plus size={14} /> Ny restaurang-deal
-          </button>
-          <button
-            onClick={() => setCustomerDealModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-gold-500/30 text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-black uppercase tracking-widest text-[10px] rounded-xl transition-all"
-          >
-            <Users size={14} /> Personal deal
-          </button>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setCategory("restaurant")}
-          className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
-            category === "restaurant" ? "bg-gold-500 text-zinc-950" : "bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          Restaurang-deals
-        </button>
-        <button
-          onClick={() => setCategory("customer")}
-          className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
-            category === "customer" ? "bg-emerald-500 text-zinc-950" : "bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          }`}
-        >
-          Personliga Deals
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Totalt deals", value: category === "restaurant" ? deals.length : customerDeals.length, color: category === "restaurant" ? "text-gold-500" : "text-emerald-500" },
-          { label: "Aktiva", value: category === "restaurant" ? deals.filter((d) => d.isActive).length : customerDeals.filter((d) => !d.isUsed).length, color: "text-emerald-400" },
-          { label: "Pausade/Förbrukade", value: category === "restaurant" ? deals.filter((d) => !d.isActive).length : customerDeals.filter((d) => d.isUsed).length, color: "text-rose-400" },
-        ].map((s) => (
-          <div key={s.label} className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1">{s.label}</div>
-            <div className={`text-2xl font-black ${s.color}`}>{s.value}</div>
+    <div className="space-y-5 pb-16">
+      <section className="panel rounded-[32px] px-6 py-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-3">
+            <span className="control-chip">Growth engine</span>
+            <div>
+              <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Deals utan kampanj-sprawl</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                Restaurangdeals och personliga kundkoder ligger nu i ett tydligare flöde. Fokus är snabb aktivering, enkel målgrupp och mindre admin-röra.
+              </p>
+            </div>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void fetchData()} className="control-chip">
+              <RefreshCw size={13} /> Synka
+            </button>
+            <button type="button" onClick={() => { setEditingDealId(null); setDealForm(emptyRestaurantDeal); setDealModalOpen(true); }} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+              <Plus size={14} /> Ny restaurangdeal
+            </button>
+            <button type="button" onClick={() => { setCustomerDealModalOpen(true); setCustomerDealForm(emptyCustomerDeal); setSelectedCustomerIds([]); setSendToAllCustomers(false); }} className="control-chip">
+              <Users size={13} /> Kunddeal
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-5">
+        {[
+          { label: "Restaurangdeals", value: stats.restaurantTotal, sub: `${stats.restaurantActive} aktiva nu` },
+          { label: "Globala deals", value: stats.globalDeals, sub: "Syns över flera restauranger" },
+          { label: "Personliga koder", value: stats.customerTotal, sub: `${stats.customerActive} aktiva kundkoder` },
+          { label: "Partnerrestauranger", value: restaurants.length, sub: "Tillgängliga målgrupper" },
+          { label: "Kundbas", value: customers.length, sub: "Möjliga mottagare" },
+        ].map((card) => (
+          <article key={card.label} className="metric-card panel-muted">
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
+            <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</p>
+            <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
+          </article>
         ))}
-      </div>
+      </section>
 
-      {/* Search */}
-      <div className="relative">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Sök deals..."
-          className="w-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] rounded-xl pl-9 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30 transition-all"
-        />
-      </div>
-
-      {/* Deals list */}
-      {loading ? (
-        <div className="py-12 flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-gold-500" size={32} />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
-            Laddar deals...
-          </p>
+      <section className="panel rounded-[32px] px-6 py-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök deal, kod, kund eller restaurang" className="control-input pl-10" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { id: "restaurant", label: "Restaurangdeals" },
+              { id: "customer", label: "Personliga deals" },
+            ] as const).map((item) => (
+              <button key={item.id} type="button" onClick={() => setCategory(item.id)} className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${category === item.id ? "bg-gold-gradient text-[#091018]" : "border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : category === "restaurant" ? filteredDeals.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
-          <Gift size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
-            Inga deals hittades
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredDeals.map((deal) => (
-            <motion.div
-              key={deal.id}
-              layout
-              className="flex items-center gap-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-gold-500/15 transition-all group"
-            >
-              {/* Status dot */}
-              <div className={`w-2 h-2 rounded-full shrink-0 ${deal.isActive ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-[var(--text-secondary)] opacity-30"}`} />
 
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-sm text-[var(--text-primary)] uppercase truncate">
-                    {deal.title}
-                  </span>
-                  {deal.isGlobal && (
-                    <span className="px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-400 text-[10px] font-black uppercase border border-sky-500/20">
-                      Global
-                    </span>
-                  )}
-                  {deal.restaurant && (
-                    <span className="px-1.5 py-0.5 rounded bg-gold-500/10 text-gold-500 text-[10px] font-black uppercase border border-gold-500/20">
-                      {deal.restaurant.name}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
-                    {deal.discountValue}
-                    {deal.discountType === "PERCENTAGE" ? "%" : " kr"} rabatt
-                  </span>
-                  {deal.minOrder > 0 && (
-                    <span className="text-[10px] font-bold text-[var(--text-secondary)]">
-                      · Min {deal.minOrder} kr
-                    </span>
-                  )}
-                </div>
+        <div className="mt-5 grid gap-4 xl:grid-cols-2">
+          {category === "restaurant" ? (
+            filteredRestaurantDeals.length === 0 ? (
+              <div className="xl:col-span-2 rounded-[28px] border border-dashed border-[var(--border-subtle)] px-6 py-16 text-center text-sm leading-7 text-[var(--text-secondary)]">
+                Inga restaurangdeals matchade filtren.
               </div>
+            ) : (
+              filteredRestaurantDeals.map((deal) => (
+                <article key={deal.id} className="rounded-[30px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-2xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{deal.title}</span>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${deal.isActive ? "bg-emerald-300/12 text-emerald-100" : "bg-rose-300/12 text-rose-100"}`}>
+                          {deal.isActive ? "Aktiv" : "Pausad"}
+                        </span>
+                      </div>
+                      <p className="text-sm leading-7 text-[var(--text-secondary)]">{deal.description || "Ingen beskrivning satt ännu."}</p>
+                    </div>
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(245,191,91,0.12)] text-amber-200">
+                      {deal.isGlobal ? <Globe size={18} /> : <Store size={18} />}
+                    </div>
+                  </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => toggleDealStatus(deal.id, deal.isActive)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                    deal.isActive
-                      ? "bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20"
-                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
-                  }`}
-                >
-                  {deal.isActive ? "Pausa" : "Aktivera"}
-                </button>
-                <button
-                  onClick={() => setEditingDeal(deal)}
-                  className="w-8 h-8 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] flex items-center justify-center text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all"
-                >
-                  <Edit2 size={13} />
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm(deal)}
-                  className="w-8 h-8 rounded-xl bg-rose-500/5 border border-rose-500/10 flex items-center justify-center text-rose-400 hover:bg-rose-500/15 transition-all"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Rabatt</p>
+                      <p className="mt-1 text-lg font-black text-[var(--text-primary)]">{formatRestaurantDealValue(deal)}</p>
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">Minsta order {deal.minOrder} kr</p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Scope</p>
+                      <p className="mt-1 text-lg font-black text-[var(--text-primary)]">{deal.isGlobal ? "Global" : deal.restaurant?.name || `${deal.applicableRestaurantIds?.length || 0} restauranger`}</p>
+                      <p className="mt-1 text-xs text-[var(--text-secondary)]">{deal.showOnSite ? "Visas på sajten" : "Intern/hidden"}</p>
+                    </div>
+                  </div>
 
-              {/* Status badge (always visible) */}
-              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
-                deal.isActive
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  : "bg-[var(--border-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-              }`}>
-                {deal.isActive ? "Aktiv" : "Pausad"}
-              </span>
-            </motion.div>
-          ))}
-        </div>
-      ) : filteredCustomerDeals.length === 0 ? (
-        <div className="py-16 text-center rounded-2xl border border-dashed border-[var(--border-subtle)]">
-          <Users size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
-            Inga personliga deals hittades
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredCustomerDeals.map((deal) => (
-            <motion.div
-              key={deal.id}
-              layout
-              className="flex items-center gap-4 p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] hover:border-emerald-500/15 transition-all group"
-            >
-              {/* Status dot */}
-              <div className={`w-2 h-2 rounded-full shrink-0 ${!deal.isUsed ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" : "bg-zinc-600"}`} />
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-black text-sm text-[var(--text-primary)] uppercase truncate">
-                    {deal.campaign?.title || "Okänd Kampanj"}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-black uppercase border border-emerald-500/20">
-                    Kund: {deal.user?.name || deal.phone}
-                  </span>
-                  <span className="px-1.5 py-0.5 rounded bg-zinc-500/10 text-zinc-400 text-[10px] font-black uppercase border border-zinc-500/20">
-                    KOD: {deal.code}
-                  </span>
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => void toggleRestaurantDeal(deal)} className="control-chip">
+                      {deal.isActive ? "Pausa" : "Aktivera"}
+                    </button>
+                    <button type="button" onClick={() => openEditModal(deal)} className="control-chip">
+                      <Gift size={13} /> Redigera
+                    </button>
+                    <button type="button" onClick={() => setDeleteTarget({ id: deal.id, title: deal.title, type: "restaurant" })} className="control-chip text-rose-200">
+                      <Trash2 size={13} /> Radera
+                    </button>
+                  </div>
+                </article>
+              ))
+            )
+          ) : filteredCustomerDeals.length === 0 ? (
+            <div className="xl:col-span-2 rounded-[28px] border border-dashed border-[var(--border-subtle)] px-6 py-16 text-center text-sm leading-7 text-[var(--text-secondary)]">
+              Inga personliga deals matchade filtren.
+            </div>
+          ) : (
+            filteredCustomerDeals.map((deal) => (
+              <article key={deal.id} className="rounded-[30px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-2xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{deal.campaign?.title || "Kunddeal"}</span>
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${deal.isUsed ? "bg-rose-300/12 text-rose-100" : "bg-emerald-300/12 text-emerald-100"}`}>
+                        {deal.isUsed ? "Förbrukad" : "Aktiv"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-[var(--text-secondary)]">
+                      {deal.user?.name || deal.user?.phone || "Okänd kund"} • {deal.code}
+                    </p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(52,211,153,0.12)] text-emerald-200">
+                    <Users size={18} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
-                    {deal.campaign?.discountValue}
-                    {deal.campaign?.discountType === "PERCENTAGE" ? "%" : " kr"} rabatt
-                  </span>
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)]">
-                    · Använt: {deal.usageCount} / {deal.maxUsages}
-                  </span>
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] opacity-50">
-                    · Skapad: {new Date(deal.createdAt).toLocaleDateString("sv-SE")}
-                  </span>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Värde</p>
+                    <p className="mt-1 text-lg font-black text-[var(--text-primary)]">
+                      {deal.campaign?.discountType === "FIXED" ? `${(deal.campaign.discountValue || 0) / 100} kr` : `${deal.campaign?.discountValue || 0}%`}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Användning</p>
+                    <p className="mt-1 text-lg font-black text-[var(--text-primary)]">{deal.usageCount}/{deal.maxUsages}</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => toggleCustomerDeal(deal.id, deal.isUsed)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                    !deal.isUsed
-                      ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20"
-                      : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20"
-                  }`}
-                >
-                  {!deal.isUsed ? "Markera förbrukad" : "Återaktivera"}
-                </button>
-                <button
-                  onClick={() => setDeleteConfirm({ ...deal, _type: "customerDeal" })}
-                  className="w-8 h-8 rounded-xl bg-rose-500/5 border border-rose-500/10 flex items-center justify-center text-rose-400 hover:bg-rose-500/15 transition-all"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </div>
-
-              {/* Status badge */}
-              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border shrink-0 ${
-                !deal.isUsed
-                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                  : "bg-surface-elevated text-zinc-500 border-zinc-800"
-              }`}>
-                {!deal.isUsed ? "Aktiv" : "Förbrukad"}
-              </span>
-            </motion.div>
-          ))}
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={() => void toggleCustomerDeal(deal)} className="control-chip">
+                    {deal.isUsed ? "Återaktivera" : "Markera använd"}
+                  </button>
+                  <button type="button" onClick={() => setDeleteTarget({ id: deal.id, title: deal.campaign?.title || deal.code, type: "customer" })} className="control-chip text-rose-200">
+                    <Trash2 size={13} /> Radera
+                  </button>
+                </div>
+              </article>
+            ))
+          )}
         </div>
-      )}
+      </section>
 
-      {/* Create/Edit Deal Modal */}
-      <Modal
-        open={createModal || !!editingDeal}
-        onClose={() => { setCreateModal(false); setEditingDeal(null); }}
-        title={editingDeal ? `Redigera: ${editingDeal.title}` : "Skapa ny deal"}
-        maxWidth="max-w-2xl"
-      >
-        <DealForm
-          initial={editingDeal}
-          restaurants={restaurants}
-          onSave={(data) => saveDeal({ ...data, ...(editingDeal ? { id: editingDeal.id } : {}) }, !editingDeal)}
-          onCancel={() => { setCreateModal(false); setEditingDeal(null); }}
-        />
+      <Modal open={dealModalOpen} onClose={() => setDealModalOpen(false)} title={editingDealId ? "Redigera restaurangdeal" : "Ny restaurangdeal"} maxWidth="max-w-2xl">
+        <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Titel</span>
+              <input value={dealForm.title} onChange={(event) => setDealForm((previous) => ({ ...previous, title: event.target.value }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Beskrivning</span>
+              <textarea value={dealForm.description} onChange={(event) => setDealForm((previous) => ({ ...previous, description: event.target.value }))} className={`${inputCls} min-h-[100px] resize-none`} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Typ</span>
+              <select value={dealForm.discountType} onChange={(event) => setDealForm((previous) => ({ ...previous, discountType: event.target.value }))} className={inputCls}>
+                <option value="PERCENTAGE">Procent</option>
+                <option value="FIXED">Fast belopp</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Värde</span>
+              <input type="number" value={dealForm.discountValue} onChange={(event) => setDealForm((previous) => ({ ...previous, discountValue: Number(event.target.value) }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Minsta order</span>
+              <input type="number" value={dealForm.minOrder} onChange={(event) => setDealForm((previous) => ({ ...previous, minOrder: Number(event.target.value) }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Max användningar</span>
+              <input type="number" value={dealForm.maxUsages} onChange={(event) => setDealForm((previous) => ({ ...previous, maxUsages: event.target.value }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Giltig till</span>
+              <input type="date" value={dealForm.validUntil} onChange={(event) => setDealForm((previous) => ({ ...previous, validUntil: event.target.value }))} className={inputCls} />
+            </label>
+          </div>
+
+          <div className="grid gap-3 rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
+            <label className="inline-flex items-center gap-3 text-sm font-bold text-[var(--text-primary)]">
+              <input type="checkbox" checked={dealForm.isGlobal} onChange={(event) => setDealForm((previous) => ({ ...previous, isGlobal: event.target.checked, applicableRestaurantIds: event.target.checked ? [] : previous.applicableRestaurantIds }))} />
+              Global deal över alla restauranger
+            </label>
+
+            {!dealForm.isGlobal ? (
+              <div className="grid gap-2 md:grid-cols-2">
+                {restaurants.map((restaurant) => (
+                  <label key={restaurant.id} className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm font-bold text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={dealForm.applicableRestaurantIds.includes(restaurant.id)}
+                      onChange={() =>
+                        setDealForm((previous) => ({
+                          ...previous,
+                          applicableRestaurantIds: previous.applicableRestaurantIds.includes(restaurant.id)
+                            ? previous.applicableRestaurantIds.filter((id) => id !== restaurant.id)
+                            : [...previous.applicableRestaurantIds, restaurant.id],
+                        }))
+                      }
+                    />
+                    {restaurant.name}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="grid gap-2 md:grid-cols-2">
+              <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm font-bold text-[var(--text-secondary)]">
+                <input type="checkbox" checked={dealForm.isActive} onChange={(event) => setDealForm((previous) => ({ ...previous, isActive: event.target.checked }))} />
+                Aktiv direkt
+              </label>
+              <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm font-bold text-[var(--text-secondary)]">
+                <input type="checkbox" checked={dealForm.showOnSite} onChange={(event) => setDealForm((previous) => ({ ...previous, showOnSite: event.target.checked }))} />
+                Visa på webb/app
+              </label>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setDealModalOpen(false)} className="control-chip">Avbryt</button>
+            <button type="button" onClick={() => void saveRestaurantDeal()} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+              <Sparkles size={14} /> {editingDealId ? "Spara ändringar" : "Skapa deal"}
+            </button>
+          </div>
+        </div>
       </Modal>
 
-      {/* Personal deal for customer */}
-      <Modal
-        open={customerDealModal}
-        onClose={() => setCustomerDealModal(false)}
-        title="Skapa personlig deal för kund"
-        maxWidth="max-w-lg"
-      >
-        <CustomerDealForm
-          customers={customers}
-          onSave={createCustomerDeal}
-          onCancel={() => setCustomerDealModal(false)}
-        />
+      <Modal open={customerDealModalOpen} onClose={() => setCustomerDealModalOpen(false)} title="Skapa personliga deals" maxWidth="max-w-2xl">
+        <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Dealnamn</span>
+              <input value={customerDealForm.title} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, title: event.target.value }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Kodprefix</span>
+              <input value={customerDealForm.code} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, code: event.target.value.toUpperCase() }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Typ</span>
+              <select value={customerDealForm.discountType} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, discountType: event.target.value }))} className={inputCls}>
+                <option value="FIXED">Fast belopp</option>
+                <option value="PERCENTAGE">Procent</option>
+              </select>
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Värde</span>
+              <input type="number" value={customerDealForm.discountValue} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, discountValue: Number(event.target.value) }))} className={inputCls} />
+            </label>
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span>Max användningar</span>
+              <input type="number" min={1} value={customerDealForm.maxUsages} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, maxUsages: Number(event.target.value) }))} className={inputCls} />
+            </label>
+          </div>
+
+          <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+            <span>Giltig till</span>
+            <input type="date" value={customerDealForm.validUntil} onChange={(event) => setCustomerDealForm((previous) => ({ ...previous, validUntil: event.target.value }))} className={inputCls} />
+          </label>
+
+          <div className="grid gap-3 rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
+            <label className="inline-flex items-center gap-3 text-sm font-bold text-[var(--text-primary)]">
+              <input type="checkbox" checked={sendToAllCustomers} onChange={(event) => { setSendToAllCustomers(event.target.checked); if (event.target.checked) setSelectedCustomerIds([]); }} />
+              Skicka till alla kunder
+            </label>
+
+            {!sendToAllCustomers ? (
+              <div className="grid gap-2 md:grid-cols-2 max-h-[260px] overflow-y-auto">
+                {filteredCustomersForModal.map((customer) => (
+                  <label key={customer.id} className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm font-bold text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={selectedCustomerIds.includes(customer.id)}
+                      onChange={() =>
+                        setSelectedCustomerIds((previous) =>
+                          previous.includes(customer.id) ? previous.filter((id) => id !== customer.id) : [...previous, customer.id]
+                        )
+                      }
+                    />
+                    <span>{customer.name} • {customer.phone}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4 text-sm text-[var(--text-secondary)]">
+                Alla {customers.length} kunder får en unik kod baserad på prefixet.
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setCustomerDealModalOpen(false)} className="control-chip">Avbryt</button>
+            <button type="button" onClick={() => void createCustomerDeals()} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+              <Users size={14} /> Skicka deals
+            </button>
+          </div>
+        </div>
       </Modal>
 
-      {/* Delete confirm */}
       <ConfirmModal
-        open={!!deleteConfirm}
-        onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => {
-          if (!deleteConfirm) return;
-          if (deleteConfirm._type === "customerDeal") deleteCustomerDeal(deleteConfirm.id);
-          else deleteDeal(deleteConfirm.id);
-        }}
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
         title="Radera deal"
-        message={`Är du säker på att du vill radera "${deleteConfirm?.title || deleteConfirm?.campaign?.title}" permanent?`}
+        message={`Radera "${deleteTarget?.title}" permanent?`}
         confirmLabel="Radera"
         danger
       />
     </div>
   );
 }
-
-// ── Deal Form ────────────────────────────────────────────────────────────────
-function DealForm({
-  initial,
-  restaurants,
-  onSave,
-  onCancel,
-}: {
-  initial?: any;
-  restaurants: any[];
-  onSave: (data: any) => void;
-  onCancel: () => void;
-}) {
-  const [form, setForm] = useState({
-    title: initial?.title || "",
-    description: initial?.description || "",
-    discountType: initial?.discountType || "PERCENTAGE",
-    discountValue: initial?.discountValue || 10,
-    minOrder: initial?.minOrder || 0,
-    isGlobal: initial?.isGlobal ?? true,
-    restaurantId: initial?.restaurantId || "",
-    applicableRestaurantIds: initial?.applicableRestaurantIds || [],
-    isActive: initial?.isActive ?? true,
-    showOnSite: initial?.showOnSite ?? true,
-    sortOrder: initial?.sortOrder || 0,
-    maxUsages: initial?.maxUsages || "",
-    validFrom: initial?.validFrom ? initial.validFrom.slice(0, 10) : "",
-    validUntil: initial?.validUntil ? initial.validUntil.slice(0, 10) : "",
-  });
-
-  const toggleRestaurant = (id: string) => {
-    const ids = form.applicableRestaurantIds as string[];
-    const newIds = ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id];
-    setForm({ ...form, applicableRestaurantIds: newIds, restaurantId: newIds.length === 1 ? newIds[0] : "" });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({
-      ...form,
-      discountValue: Number(form.discountValue),
-      minOrder: Number(form.minOrder),
-      sortOrder: Number(form.sortOrder),
-      maxUsages: form.maxUsages ? Number(form.maxUsages) : null,
-      validFrom: form.validFrom || null,
-      validUntil: form.validUntil || null,
-    });
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="col-span-2">
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Titel</label>
-          <input
-            required
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            placeholder="t.ex. 20% på hela menyn"
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Rabatt-typ</label>
-          <select
-            value={form.discountType}
-            onChange={(e) => setForm({ ...form, discountType: e.target.value })}
-            className={inputCls}
-          >
-            <option value="PERCENTAGE">Procent (%)</option>
-            <option value="FIXED">Fast belopp (kr)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
-            Rabattvärde ({form.discountType === "PERCENTAGE" ? "%" : "kr"})
-          </label>
-          <input
-            required
-            type="number"
-            value={form.discountValue}
-            onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Minsta order (kr)</label>
-          <input
-            type="number"
-            value={form.minOrder}
-            onChange={(e) => setForm({ ...form, minOrder: Number(e.target.value) })}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar (tom = obegränsad)</label>
-          <input
-            type="number"
-            value={form.maxUsages}
-            onChange={(e) => setForm({ ...form, maxUsages: e.target.value })}
-            placeholder="Obegränsad"
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig från</label>
-          <input type="date" value={form.validFrom} onChange={(e) => setForm({ ...form, validFrom: e.target.value })} className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
-          <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className={inputCls} />
-        </div>
-      </div>
-
-      {/* Restaurant scope */}
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">
-          Kopplade restauranger
-        </label>
-        <div className="p-3 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl space-y-2 max-h-48 overflow-y-auto">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={form.isGlobal}
-              onChange={() => setForm({ ...form, isGlobal: !form.isGlobal, applicableRestaurantIds: [] })}
-              className="w-4 h-4 rounded accent-gold-500"
-            />
-            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-primary)]">
-              Global — alla restauranger
-            </span>
-          </label>
-          {!form.isGlobal && restaurants.map((r) => {
-            const ids = form.applicableRestaurantIds as string[];
-            return (
-              <label key={r.id} className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={ids.includes(r.id)}
-                  onChange={() => toggleRestaurant(r.id)}
-                  className="w-4 h-4 rounded accent-gold-500"
-                />
-                <span className="text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
-                  {r.name}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Toggles */}
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
-          onClick={() => setForm({ ...form, isActive: !form.isActive })}
-          className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-            form.isActive
-              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-              : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
-          }`}
-        >
-          {form.isActive ? "Aktiv" : "Inaktiv"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setForm({ ...form, showOnSite: !form.showOnSite })}
-          className={`py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
-            form.showOnSite
-              ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
-              : "border-[var(--border-subtle)] text-[var(--text-secondary)]"
-          }`}
-        >
-          {form.showOnSite ? "Synlig på sidan" : "Dold"}
-        </button>
-      </div>
-
-      <div className="flex gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all"
-        >
-          Avbryt
-        </button>
-        <button
-          type="submit"
-          className="flex-1 py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gold-500/20 transition-all"
-        >
-          {initial ? "Uppdatera" : "Skapa deal"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-// ── Customer Deal Form — supports 1, multiple, or ALL customers ──────────────
-function CustomerDealForm({
-  customers,
-  onSave,
-  onCancel,
-}: {
-  customers: any[];
-  onSave: (data: any) => void;
-  onCancel: () => void;
-}) {
-  const [sendToAll, setSendToAll] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
-  // Segment filters
-  const [maxOrders, setMaxOrders] = useState<number | "">("");  // e.g. 0 = 0 orders (new)
-  const [minOrders, setMinOrders] = useState<number | "">("");
-  const [filterCity, setFilterCity] = useState("");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("active");
-  const [form, setForm] = useState({
-    title: "",
-    code: "",
-    discountType: "PERCENTAGE",
-    discountValue: 10,
-    maxUsages: 1,
-    validUntil: "",
-  });
-
-  const generateCode = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const code = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    setForm({ ...form, code });
-  };
-
-  // Unique cities from customer list
-  const cities = Array.from(new Set(customers.map((c) => c.city || "").filter(Boolean))).sort();
-
-  const filteredCusts = customers.filter((c) => {
-    const orderCount = c._count?.orders ?? 0;
-    if (maxOrders !== "" && orderCount > Number(maxOrders)) return false;
-    if (minOrders !== "" && orderCount < Number(minOrders)) return false;
-    if (filterCity && (c.city || "").toLowerCase() !== filterCity.toLowerCase()) return false;
-    if (filterActive === "active" && !c.isActive) return false;
-    if (filterActive === "inactive" && c.isActive) return false;
-    const q = search.toLowerCase();
-    if (q && !(c.name || "").toLowerCase().includes(q) && !(c.phone || "").includes(q)) return false;
-    return true;
-  });
-
-  const toggle = (id: string) =>
-    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
-
-  const selectAllFiltered = () => setSelectedIds(filteredCusts.map((c) => c.id));
-  const clearSelected = () => setSelectedIds([]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSave({ ...form, sendToAll, customerIds: selectedIds });
-  };
-
-  const recipientCount = sendToAll ? customers.length : selectedIds.length;
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Segment filters */}
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Segmentfilter</label>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Min ordrar</label>
-            <input type="number" placeholder="t.ex. 1" value={minOrders}
-              onChange={(e) => setMinOrders(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Max ordrar</label>
-            <input type="number" placeholder="t.ex. 0 = nya kunder" value={maxOrders}
-              onChange={(e) => setMaxOrders(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30" />
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Stad</label>
-            <select value={filterCity} onChange={(e) => setFilterCity(e.target.value)}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
-              <option value="">Alla städer</option>
-              {cities.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Status</label>
-            <select value={filterActive} onChange={(e) => setFilterActive(e.target.value as any)}
-              className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-3 py-2 text-sm font-bold outline-none focus:border-gold-500/30">
-              <option value="all">Alla</option>
-              <option value="active">Aktiva</option>
-              <option value="inactive">Inaktiva/Blockerade</option>
-            </select>
-          </div>
-        </div>
-        <p className="text-[10px] font-black text-gold-500 mt-1">{filteredCusts.length} kunder matchar filtret</p>
-      </div>
-
-      {/* Who gets it */}
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-2">Mottagare</label>
-        <div className="space-y-2">
-          <label className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all bg-[var(--bg-primary)] border-[var(--border-subtle)] hover:border-gold-500/20">
-            <input type="checkbox" checked={sendToAll} onChange={(e) => { setSendToAll(e.target.checked); setSelectedIds([]); }}
-              className="w-4 h-4 rounded accent-gold-500" />
-            <div>
-              <p className="text-[10px] font-black uppercase text-[var(--text-primary)]">Alla matchande kunder ({filteredCusts.length} st)</p>
-              <p className="text-[10px] font-bold text-[var(--text-secondary)]">Unik kod per kund genereras automatiskt</p>
-            </div>
-          </label>
-
-          {!sendToAll && (
-            <>
-              <div className="flex gap-2">
-                <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Sök namn/telefon..."
-                  className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl pl-3 pr-4 py-2.5 text-[11px] font-bold outline-none focus:border-gold-500/30" />
-                <button type="button" onClick={selectAllFiltered}
-                  className="px-3 py-2 rounded-xl bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[10px] font-black uppercase whitespace-nowrap">
-                  Välj alla
-                </button>
-              </div>
-              <div className="max-h-40 overflow-y-auto space-y-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl p-2">
-                {filteredCusts.length === 0 ? (
-                  <p className="text-[10px] text-[var(--text-secondary)] text-center py-4">Inga kunder matchar filtret</p>
-                ) : filteredCusts.map((c) => (
-                  <label key={c.id} className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${selectedIds.includes(c.id) ? "bg-gold-500/10" : "hover:bg-[var(--bg-secondary)]"}`}>
-                    <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => toggle(c.id)}
-                      className="w-4 h-4 rounded accent-gold-500 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black text-[var(--text-primary)] truncate">{c.name || "Gäst"}</p>
-                      <p className="text-[10px] font-bold text-[var(--text-secondary)]">{c.phone} · {c._count?.orders ?? 0} ordrar {c.city ? `· ${c.city}` : ""}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              {selectedIds.length > 0 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-black text-gold-500">{selectedIds.length} kunder valda</p>
-                  <button type="button" onClick={clearSelected} className="text-[10px] font-black text-[var(--text-secondary)] uppercase">Rensa</button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Deal details */}
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Dealnamn</label>
-        <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="t.ex. Välkomstkampanj" className={inputCls} />
-      </div>
-
-      <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">
-          Baskod {sendToAll ? "(prefix — unik suffix läggs till per kund)" : ""}
-        </label>
-        <div className="flex gap-2">
-          <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-            placeholder="WELCOME25" className={`${inputCls} font-mono tracking-widest`} />
-          <button type="button" onClick={generateCode}
-            className="px-4 py-3 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-subtle)] text-[10px] font-black uppercase text-[var(--text-secondary)] hover:text-gold-500 hover:border-gold-500/20 transition-all whitespace-nowrap">
-            Generera
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Typ</label>
-          <select value={form.discountType} onChange={(e) => setForm({ ...form, discountType: e.target.value })} className={inputCls}>
-            <option value="PERCENTAGE">Procent (%)</option>
-            <option value="FIXED">Fast (kr)</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Värde</label>
-          <input type="number" value={form.discountValue} onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })} className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Max användningar / kund</label>
-          <input type="number" min={1} value={form.maxUsages} onChange={(e) => setForm({ ...form, maxUsages: Number(e.target.value) })} className={inputCls} />
-        </div>
-        <div>
-          <label className="block text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] mb-1.5">Giltig till</label>
-          <input type="date" value={form.validUntil} onChange={(e) => setForm({ ...form, validUntil: e.target.value })} className={inputCls} />
-        </div>
-      </div>
-
-      <div className="flex gap-3 pt-2">
-        <button type="button" onClick={onCancel}
-          className="flex-1 py-3.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] transition-all">
-          Avbryt
-        </button>
-        <button type="submit" disabled={!sendToAll && selectedIds.length === 0}
-          className="flex-1 py-3.5 rounded-xl bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-gold-500/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-          {recipientCount > 0 ? `Skicka till ${recipientCount} kund${recipientCount > 1 ? "er" : ""}` : "Välj mottagare"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-const inputCls =
-  "w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-gold-500/30 transition-all placeholder:text-[var(--text-secondary)] placeholder:opacity-40";

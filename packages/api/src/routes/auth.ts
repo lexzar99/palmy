@@ -5,6 +5,7 @@ import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import supabaseAdmin from '../lib/supabase';
+import { resolveAdminSessionFromToken } from '../middleware/auth';
 
 const router = Router();
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
@@ -243,6 +244,8 @@ router.get('/me', authenticateUser, async (req: any, res: any) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
+
     const { identifier, email, password } = req.body as {
       identifier?: string;
       email?: string;
@@ -250,16 +253,20 @@ router.post('/login', async (req, res) => {
     };
 
     const loginId = (identifier || email || '').trim().toLowerCase();
-    console.log(`[auth] Login attempt for: '${loginId}'`);
 
     if (!loginId || !password) {
       res.status(400).json({ error: 'Användarnamn och lösenord krävs' });
       return;
     }
 
+    if (password.length > 256) {
+      res.status(400).json({ error: 'Ogiltigt lösenordsformat' });
+      return;
+    }
+
     // Try to find if loginId matches a Restaurant.adminEmail
     const maybeRestaurant = await prisma.restaurant.findFirst({
-       where: { adminEmail: loginId }
+       where: { adminEmail: { equals: loginId, mode: 'insensitive' } }
     });
     const effectiveLoginId = maybeRestaurant ? maybeRestaurant.slug.toLowerCase() : loginId;
 
@@ -268,27 +275,12 @@ router.post('/login', async (req, res) => {
     });
 
     if (!admin) {
-      // Also check if there's an inactive account (for debugging)
-      const inactiveAdmin = await prisma.adminUser.findFirst({
-        where: { email: loginId },
-        select: { id: true, isActive: true, role: true },
-      });
-      if (inactiveAdmin) {
-        console.warn(`[auth] Login failed: User '${loginId}' exists but is INACTIVE (id: ${inactiveAdmin.id}).`);
-      } else {
-        // List all known admin usernames for debugging
-        const allAdmins = await prisma.adminUser.findMany({
-          select: { email: true, role: true, isActive: true },
-        });
-        console.warn(`[auth] Login failed: User '${loginId}' NOT FOUND. Known accounts: ${allAdmins.map(a => `${a.email}(${a.role},active=${a.isActive})`).join(', ')}`);
-      }
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      console.warn(`[auth] Login failed: Password mismatch for user '${loginId}' (id: ${admin.id}, role: ${admin.role}).`);
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
@@ -298,11 +290,15 @@ router.post('/login', async (req, res) => {
     let restaurantName: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
       const restaurant = await prisma.restaurant.findFirst({
-        where: { slug: admin.email.toLowerCase() },
+        where: {
+          OR: [
+            { slug: admin.email.toLowerCase() },
+            { adminEmail: { equals: loginId, mode: 'insensitive' } },
+          ],
+        },
         select: { id: true, slug: true, name: true },
       });
       if (!restaurant) {
-        console.warn(`[auth] Login failed: Admin '${loginId}' has no linked restaurant (slug lookup failed).`);
         res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
         return;
       }
@@ -310,8 +306,6 @@ router.post('/login', async (req, res) => {
       restaurantSlug = restaurant.slug;
       restaurantName = restaurant.name;
     }
-
-    console.log(`[auth] ✅ Login success: '${loginId}' (role=${admin.role}, restaurant=${restaurantName || 'SUPER_ADMIN'})`);
 
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug },
@@ -358,33 +352,27 @@ router.get('/check-admin/:slug', async (req, res) => {
 // POST /api/auth/verify - Kontrollera token
 router.post('/verify', async (req, res) => {
   try {
-    const { token } = req.body;
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
-    
-    const admin = await prisma.adminUser.findFirst({
-      where: { id: payload.id, isActive: true },
-      select: { id: true, email: true, name: true, role: true },
-    });
+    res.set('Cache-Control', 'no-store');
+
+    const authHeader = req.headers.authorization;
+    const headerToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.split(' ')[1]
+      : null;
+    const token = req.body?.token || headerToken;
+
+    if (!token) {
+      res.status(401).json({ valid: false });
+      return;
+    }
+
+    const admin = await resolveAdminSessionFromToken(token);
 
     if (!admin) {
       res.status(401).json({ valid: false });
       return;
     }
 
-    let restaurantId: string | null = null;
-    let restaurantSlug: string | null = null;
-    let restaurantName: string | null = null;
-    if (admin.role !== 'SUPER_ADMIN') {
-      const restaurant = await prisma.restaurant.findFirst({
-        where: { slug: admin.email.toLowerCase() },
-        select: { id: true, slug: true, name: true },
-      });
-      restaurantId = restaurant?.id ?? null;
-      restaurantSlug = restaurant?.slug ?? null;
-      restaurantName = restaurant?.name ?? null;
-    }
-
-    res.json({ valid: true, admin: { ...admin, restaurantId, restaurantSlug, restaurantName } });
+    res.json({ valid: true, admin });
   } catch {
     res.json({ valid: false });
   }

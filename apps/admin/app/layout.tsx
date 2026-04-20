@@ -12,14 +12,14 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "MatGo Admin | Kontrollpanel",
+  title: "MatGo Control | Admin",
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0d0d0d",
+  themeColor: "#050913",
 };
 
 export default function RootLayout({

@@ -7,11 +7,99 @@ export interface AuthRequest extends Request {
   admin?: {
     id: string;
     email: string;
+    name?: string;
     role: string;
     restaurantId?: string | null;
     restaurantSlug?: string | null;
+    restaurantName?: string | null;
   };
 }
+
+interface AdminJwtPayload {
+  id: string;
+  email: string;
+  role: string;
+  restaurantId?: string | null;
+  restaurantSlug?: string | null;
+}
+
+type AdminRecord = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+};
+
+const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) => {
+  if (admin.role === 'SUPER_ADMIN') {
+    return {
+      restaurantId: null,
+      restaurantSlug: null,
+      restaurantName: null,
+    };
+  }
+
+  let restaurant = null;
+
+  if (payload.restaurantId) {
+    restaurant = await prisma.restaurant.findUnique({
+      where: { id: payload.restaurantId },
+      select: { id: true, slug: true, name: true },
+    });
+  }
+
+  if (!restaurant && payload.restaurantSlug) {
+    restaurant = await prisma.restaurant.findFirst({
+      where: { slug: payload.restaurantSlug },
+      select: { id: true, slug: true, name: true },
+    });
+  }
+
+  if (!restaurant) {
+    const loginKey = (admin.email || '').toLowerCase();
+    restaurant = await prisma.restaurant.findFirst({
+      where: {
+        OR: [
+          { slug: loginKey },
+          { adminEmail: { equals: loginKey, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, slug: true, name: true },
+    });
+  }
+
+  return {
+    restaurantId: restaurant?.id ?? null,
+    restaurantSlug: restaurant?.slug ?? null,
+    restaurantName: restaurant?.name ?? null,
+  };
+};
+
+export const resolveAdminSessionFromToken = async (token: string) => {
+  const payload = jwt.verify(token, JWT_SECRET) as AdminJwtPayload;
+
+  const admin = await prisma.adminUser.findFirst({
+    where: { id: payload.id, isActive: true },
+    select: { id: true, email: true, name: true, role: true, isActive: true },
+  });
+
+  if (!admin) {
+    return null;
+  }
+
+  const scope = await getRestaurantScope(admin, payload);
+
+  return {
+    id: admin.id,
+    email: admin.email,
+    name: admin.name,
+    role: admin.role,
+    restaurantId: scope.restaurantId,
+    restaurantSlug: scope.restaurantSlug,
+    restaurantName: scope.restaurantName,
+  };
+};
 
 export const authenticate = async (
   req: AuthRequest,
@@ -28,35 +116,14 @@ export const authenticate = async (
   const token = authHeader.split(' ')[1];
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role: string };
-
-    const admin = await prisma.adminUser.findFirst({
-      where: { id: payload.id, isActive: true },
-      select: { id: true, email: true, role: true, isActive: true },
-    });
+    const admin = await resolveAdminSessionFromToken(token);
 
     if (!admin) {
       res.status(401).json({ error: 'Ogiltig token' });
       return;
     }
 
-    let restaurantId: string | null = null;
-    let restaurantSlug: string | null = null;
-    if (admin.role !== 'SUPER_ADMIN') {
-      // We keep the schema simple: restaurant admins are linked by using the restaurant slug
-      // as their "email"/username (e.g. "palmyra", "sushi-nori").
-      const slug = (admin.email || '').toLowerCase();
-      const restaurant = await prisma.restaurant.findFirst({
-        where: { slug },
-        select: { id: true, slug: true },
-      });
-      if (restaurant) {
-        restaurantId = restaurant.id;
-        restaurantSlug = restaurant.slug;
-      }
-    }
-
-    req.admin = { id: admin.id, email: admin.email, role: admin.role, restaurantId, restaurantSlug };
+    req.admin = admin;
     next();
   } catch {
     res.status(401).json({ error: 'Ogiltig eller utgången token' });

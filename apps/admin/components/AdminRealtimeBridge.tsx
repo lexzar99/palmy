@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -101,12 +99,12 @@ export default function AdminRealtimeBridge() {
     window.addEventListener("keydown", prime);
 
     void loadSettings();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void syncPendingOrders();
 
     const socket = socketIO(SOCKET_URL, {
       path: "/socket.io",
       transports: ["websocket", "polling"],
+      auth: { token: localStorage.getItem("matgo_token") || "" },
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 500,
@@ -115,10 +113,11 @@ export default function AdminRealtimeBridge() {
     });
 
     const joinAdminRoom = () => {
+      const token = localStorage.getItem("matgo_token") || "";
       if (!isSuperAdmin && restaurantId) {
-        socket.emit("join:admin", { restaurantId });
+        socket.emit("join:admin", { restaurantId, token });
       } else {
-        socket.emit("join:admin");
+        socket.emit("join:admin", { token });
       }
       void syncPendingOrders();
     };

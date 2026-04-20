@@ -3,7 +3,7 @@ import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import prisma from '../lib/prisma';
 import { slugify } from '../lib/slug';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, AuthRequest, resolveAdminSessionFromToken } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
@@ -35,6 +35,7 @@ const restaurantSchema = z.object({
   city: z.string().optional(),
   zip: z.string().optional(),
   phone: z.string().optional(),
+  adminEmail: z.string().optional(),
   imageUrl: z.string().nullable().optional(),
   heroImageUrl: z.string().nullable().optional(),
   deliveryFee: z.any().optional(),
@@ -266,6 +267,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
       city: payload.city,
       zip: payload.zip,
       phone: payload.phone,
+      adminEmail: payload.adminEmail?.trim().toLowerCase() || undefined,
       imageUrl: payload.imageUrl,
       heroImageUrl: payload.heroImageUrl,
       etaMinutes: payload.etaMinutes !== undefined ? Number(payload.etaMinutes) : undefined,
@@ -367,6 +369,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.city !== undefined) data.city = payload.city;
     if (payload.zip !== undefined) data.zip = payload.zip;
     if (payload.phone !== undefined) data.phone = payload.phone;
+    if (payload.adminEmail !== undefined) data.adminEmail = payload.adminEmail ? payload.adminEmail.trim().toLowerCase() : null;
     
     // Pictures
     if (payload.imageUrl !== undefined) data.imageUrl = payload.imageUrl;
@@ -418,10 +421,26 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       console.log(`[Hours] Updating isOpen for ${existingRestaurant.name} -> ${data.isOpen} based on new schedule`);
     }
 
+    const previousSlug = existingRestaurant.slug;
+
     const restaurant = await prisma.restaurant.update({
       where: { id },
       data,
     });
+
+    if (payload.slug !== undefined && restaurant.slug !== previousSlug) {
+      try {
+        await prisma.adminUser.updateMany({
+          where: { email: previousSlug.toLowerCase(), role: { not: 'SUPER_ADMIN' } },
+          data: {
+            email: restaurant.slug.toLowerCase(),
+            name: `${restaurant.name} Admin`,
+          },
+        });
+      } catch (adminSyncError: any) {
+        console.error(`[restaurants PATCH] Failed to sync admin alias for ${restaurant.name}:`, adminSyncError.message);
+      }
+    }
 
     // Handle admin password update if provided
     if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
@@ -621,7 +640,28 @@ router.get('/:slug', async (req, res) => {
       categories
     };
 
-    return res.json(formatRestaurant(restaurantWithMenu, true));
+    const formatted = formatRestaurant(restaurantWithMenu, true);
+
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    let canViewSensitiveAdminFields = false;
+
+    if (token) {
+      try {
+        const session = await resolveAdminSessionFromToken(token);
+        canViewSensitiveAdminFields = Boolean(
+          session && (session.role === 'SUPER_ADMIN' || session.restaurantId === restaurant.id)
+        );
+      } catch {
+        canViewSensitiveAdminFields = false;
+      }
+    }
+
+    return res.json(
+      canViewSensitiveAdminFields
+        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null }
+        : formatted
+    );
   } catch (error) {
     console.error('Error fetching restaurant', error);
     res.status(500).json({ error: 'Kunde inte hämta restaurang' });

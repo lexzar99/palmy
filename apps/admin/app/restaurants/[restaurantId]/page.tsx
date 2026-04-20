@@ -45,7 +45,6 @@ const PREMIUM_TIERS = [
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "profil", label: "Profil", icon: Building },
   { id: "admin", label: "Admin-konto", icon: Lock },
-  { id: "hours", label: "Öppettider", icon: Clock },
   { id: "settings", label: "Leverans & ETA", icon: Settings },
   { id: "orders", label: "Ordrar", icon: ShoppingCart },
   { id: "report", label: "Rapport / PDF", icon: TrendingUp },
@@ -103,7 +102,9 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     setLoading(true);
     try {
       const [restRes, ordersRes] = await Promise.allSettled([
-        axios.get(`${API_URL}/api/restaurants/${restaurantId}`),
+        axios.get(`${API_URL}/api/restaurants/${restaurantId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
         axios.get(`${API_URL}/api/admin/orders?limit=100&restaurantId=${restaurantId}`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -324,6 +325,10 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
             </button>
           );
         })}
+      </div>
+
+      <div className="rounded-2xl border border-amber-300/18 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">
+        Öppettider har flyttats till den nya <Link href={`/restaurant-ops?restaurantId=${restaurantId}`} className="font-black underline underline-offset-4">Restauranghubben</Link> för att hålla profilsidan renare och snabbare att arbeta i.
       </div>
 
       {/* Tab content */}

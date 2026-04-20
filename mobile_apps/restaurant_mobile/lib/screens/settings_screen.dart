@@ -70,6 +70,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: 'Hitta och anslut skrivare',
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrintSettingsScreen())),
           ),
+          const SizedBox(height: 15),
+          _buildSettingTile(
+            context,
+            icon: Icons.desktop_windows_outlined,
+            title: 'Desktop Control Hub',
+            subtitle: 'Öppettider, payouts och admin-säkerhet styrs nu centralt där',
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppTheme.zinc,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  title: const Text('DESKTOP CONTROL HUB', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 2)),
+                  content: const Text(
+                    'Öppettider har flyttats till en central restauranghub på desktop. Där hanteras också utbetalningar, admin-alias och säkerhetsfunktioner. Fortsätt använda mobilen för orderflödet som vanligt.',
+                    style: TextStyle(color: Colors.white70, height: 1.6),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
           const SizedBox(height: 35),
 
           _buildSectionHeader('UTSEENDE & TEMA'),

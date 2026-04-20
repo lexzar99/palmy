@@ -390,17 +390,21 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-  void initSocket(String restaurantId) {
+  Future<void> initSocket(String restaurantId) async {
     if (_socket != null && _socket!.connected && _restaurantId == restaurantId) {
       return; // Already initialized for this restaurant
     }
     _restaurantId = restaurantId;
     if (_socket != null) _socket!.dispose();
 
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(AppConstants.tokenKey) ?? '';
+
     _socket = IO.io(
         AppConstants.socketUrl,
         IO.OptionBuilder()
             .setTransports(['websocket', 'polling'])
+            .setAuth({'token': token})
             .enableAutoConnect()
             .setReconnectionAttempts(10)
             .setReconnectionDelay(2000)
@@ -408,7 +412,7 @@ class OrderProvider with ChangeNotifier {
 
     _socket!.onConnect((_) {
       _isOffline = false;
-      _socket!.emit('join:admin', {'restaurantId': restaurantId});
+      _socket!.emit('join:admin', {'restaurantId': restaurantId, 'token': token});
       logger.log('SOCKET CONNECTED: $restaurantId');
       notifyListeners();
     });

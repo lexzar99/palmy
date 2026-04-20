@@ -114,6 +114,9 @@ model Order {
   rating                Int?        // 1-5 star rating from customer
   review                String?     // Customer review text
   reviewedAt            DateTime?   // When the review was submitted
+  reviewFlagged         Boolean     @default(false)
+  reviewReply           String?
+  reviewRepliedAt       DateTime?
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
@@ -275,6 +278,7 @@ model Restaurant {
   extraGroups    ExtraGroup[]
   orders         Order[]
   groupOrders    GroupOrder[]
+  payouts        RestaurantPayout[]
 }
 
 model City {
@@ -311,11 +315,38 @@ model User {
   oauthProvider  String?
   oauthId        String?
   image          String?
+  internalInfo   String?
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+}
+
+model RestaurantPayout {
+  id                 String     @id @default(cuid())
+  restaurantId       String
+  restaurant         Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  periodStart        DateTime
+  periodEnd          DateTime
+  grossSales         Int        @default(0)
+  orderCount         Int        @default(0)
+  commissionAmount   Int        @default(0)
+  subscriptionAmount Int        @default(0)
+  adjustmentAmount   Int        @default(0)
+  payoutAmount       Int        @default(0)
+  status             String     @default("DRAFT")
+  notes              String?
+  payoutReference    String?
+  approvedAt         DateTime?
+  approvedBy         String?
+  paidAt             DateTime?
+  paidBy             String?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  @@unique([restaurantId, periodStart, periodEnd])
+  @@index([status, periodStart, periodEnd])
 }
 
 model SavedAddress {
