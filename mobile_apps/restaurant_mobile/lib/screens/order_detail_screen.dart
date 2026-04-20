@@ -2,13 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:animate_do/animate_do.dart';
 import '../models/order_model.dart';
 import '../providers/order_provider.dart';
 import '../core/theme.dart';
 import '../core/print_service.dart';
 import '../core/audio_helper.dart';
-import '../core/log_service.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
@@ -56,8 +54,31 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
     if (order.estimatedTime == null) return false;
     if (['DELIVERING', 'DELIVERED', 'CANCELLED', 'REJECTED'].contains(order.status)) return false;
 
-    final deadline = order.createdAt.add(Duration(minutes: order.estimatedTime! + 20));
+    final baseTime = order.scheduledFor != null && order.scheduledFor!.isAfter(order.createdAt)
+        ? order.scheduledFor!
+        : order.createdAt;
+    final deadline = baseTime.add(Duration(minutes: order.estimatedTime! + 20));
     return DateTime.now().isAfter(deadline);
+  }
+
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+  String _formatScheduledTime(DateTime scheduledFor) {
+    return '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
+  }
+
+  String _formatScheduledDate(DateTime scheduledFor) {
+    return '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
+  }
+
+  Future<void> _acceptScheduledOrder() async {
+    final provider = Provider.of<OrderProvider>(context, listen: false);
+    final ok = await provider.updateStatus(order.id, 'ACCEPTED');
+    if (ok && mounted) {
+      setState(() {
+        order = order.copyWith(status: 'ACCEPTED');
+      });
+    }
   }
 
   void _showAcceptDialog() {
@@ -187,7 +208,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
         elevation: 0,
         backgroundColor: Colors.transparent,
         title: Text('ORDER #${order.orderNumber}',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1, color: Theme.of(context).textTheme.bodyLarge?.color),
+          maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
           Container(
             margin: const EdgeInsets.symmetric(vertical: 10),
@@ -232,12 +254,13 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
                   BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5),
                 ],
               ),
-              child: Column(
-                children: [
-                   _buildReceiptHeader(),
-                   _buildReceiptCustomerInfo(isDark),
-                   
-                   if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty))
+                  child: Column(
+                 children: [
+                    _buildReceiptHeader(),
+                    if (order.scheduledFor != null) _buildScheduledInfoCard(isDark),
+                    _buildReceiptCustomerInfo(isDark),
+                    
+                    if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty))
                      _buildReceiptNotes(isDark),
                    
                    _buildDashedDivider(),
@@ -277,7 +300,15 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('ORDER #${order.orderNumber}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -1)),
+              Text(
+                'ORDER #${order.orderNumber}',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                  height: 1.1,
+                ),
+              ),
               Text(order.createdAt.toString().split('.')[0].substring(0, 16), style: const TextStyle(fontSize: 12, color: Colors.grey)),
             ],
           ),
@@ -332,6 +363,66 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduledInfoCard(bool isDark) {
+    final scheduledFor = order.scheduledFor;
+    if (scheduledFor == null) return const SizedBox.shrink();
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(25, 0, 25, 10),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppTheme.gold.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.gold.withOpacity(0.3), width: 1.5),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppTheme.gold.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.schedule, color: AppTheme.gold),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'FÖRBESTÄLLNING',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 2),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _formatScheduledTime(scheduledFor),
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : AppTheme.charcoal,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatScheduledDate(scheduledFor),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? Colors.white70 : Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -497,10 +588,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
           width: double.infinity, height: 65,
           child: order.status == 'PENDING'
             ? ElevatedButton.icon(
-                onPressed: _showAcceptDialog,
+                onPressed: order.scheduledFor != null ? _acceptScheduledOrder : _showAcceptDialog,
                 icon: const Icon(Icons.check_circle, size: 24),
-                label: const Text('GODKÄNN ORDER',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                label: Text(order.scheduledFor != null ? 'BEKRÄFTA FÖRBESTÄLLNING' : 'GODKÄNN ORDER',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green.shade700,
                   foregroundColor: Colors.white,

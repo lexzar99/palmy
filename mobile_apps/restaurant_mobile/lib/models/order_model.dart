@@ -107,7 +107,7 @@ class OrderModel {
       scheduledFor: scheduledFor,
       paymentMethod: paymentMethod,
       discountCode: discountCode ?? this.discountCode,
-      allergens: allergens ?? this.allergens,
+      allergens: allergens,
       items: items,
     );
   }

@@ -6,7 +6,6 @@ import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../screens/order_detail_screen.dart';
 import '../core/theme.dart';
-import '../core/print_service.dart';
 import '../core/log_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -56,7 +55,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (confirm == true) {
       for (var order in pending) {
-        await provider.updateStatus(order.id, 'PREPARING', estimatedTime: 20);
+        if (order.scheduledFor != null) {
+          await provider.updateStatus(order.id, 'ACCEPTED');
+        } else {
+          await provider.updateStatus(order.id, 'PREPARING', estimatedTime: 20);
+        }
       }
       if (mounted) _loadOrders();
     }
@@ -75,7 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
     final orderProvider = Provider.of<OrderProvider>(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     debugPrint('🖥️ Dashboard Build. Pending Count: ${orderProvider.pendingOrders.length}');
 
     return Scaffold(
@@ -264,20 +266,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ]);
   }
 
+  String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+  String _formatScheduledTime(DateTime scheduledFor) {
+    return '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
+  }
+
+  String _formatScheduledDate(DateTime scheduledFor) {
+    return '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
+  }
+
   Widget _buildOrderCard(OrderModel order, bool isNew) {
     final bool isDelivery = order.type == 'DELIVERY';
     final Color typeColor = isDelivery ? Colors.blue : Colors.green;
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool isScheduled = order.scheduledFor != null;
+    final String? scheduledTime = order.scheduledFor != null ? _formatScheduledTime(order.scheduledFor!) : null;
+    final String? scheduledDate = order.scheduledFor != null ? _formatScheduledDate(order.scheduledFor!) : null;
 
     if (isNew) {
-      // COMPACT INTEGRATED GLASSMORPHIC CARD
-      final Color accentColor = isDelivery ? const Color(0xFF00E676) : const Color(0xFF2979FF);
+      final Color accentColor = isScheduled
+          ? AppTheme.gold
+          : (isDelivery ? const Color(0xFF00E676) : const Color(0xFF2979FF));
+
       return FadeInRight(
         duration: const Duration(milliseconds: 600),
         child: Container(
-          width: 210, height: 190,
+          width: 220,
+          height: 220,
           margin: const EdgeInsets.only(right: 20, bottom: 30),
-          child: _GlowFrame( // We still use _GlowFrame for the animation, but we make it fit perfectly
+          child: _GlowFrame(
             color: accentColor,
             isDark: isDark,
             child: Container(
@@ -300,31 +318,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text(
                               isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: accentColor, letterSpacing: 1),
+                              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
                             ),
-                            Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: accentColor, size: 18),
+                            Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 18),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Text(
                           '#${order.orderNumber}',
                           style: TextStyle(
-                            fontSize: 32, 
-                            fontWeight: FontWeight.w900, 
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
                             color: isDark ? Colors.white : AppTheme.charcoal,
-                            letterSpacing: -1.5,
-                            height: 1
+                            letterSpacing: -1,
+                            height: 1,
                           ),
                         ),
+                        if (isScheduled && scheduledTime != null && scheduledDate != null) ...[
+                          const SizedBox(height: 12),
+                          _buildBadge('FÖRBESTÄLLNING', AppTheme.gold),
+                          const SizedBox(height: 10),
+                          Text(
+                            scheduledTime,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w900,
+                              color: AppTheme.gold,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            scheduledDate,
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white60 : AppTheme.charcoal.withOpacity(0.65),
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ],
                         const Spacer(),
                         Text(
                           order.customerName.toUpperCase(),
                           style: TextStyle(
-                            fontSize: 12, 
-                            fontWeight: FontWeight.w800, 
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
                             color: isDark ? Colors.white.withOpacity(0.6) : AppTheme.charcoal.withOpacity(0.7),
                           ),
-                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 8),
                         Row(
@@ -333,8 +376,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               '${order.total.toInt()} KR',
                               style: TextStyle(
-                                fontSize: 18, 
-                                fontWeight: FontWeight.w900, 
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
                                 color: accentColor,
                               ),
                             ),
@@ -352,7 +395,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
-    // PROCESSING ORDERS (List)
     return FadeInUp(
       duration: const Duration(milliseconds: 400),
       child: Container(
@@ -371,15 +413,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 50, height: 50,
+                  width: 50,
+                  height: 50,
                   decoration: BoxDecoration(
                     color: typeColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(15),
                   ),
                   child: Center(
-                    child: Text(
-                      order.orderNumber,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: typeColor),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        order.orderNumber,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: typeColor),
+                      ),
                     ),
                   ),
                 ),
@@ -392,11 +438,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         order.customerName.toUpperCase(),
                         style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
                       ),
-                      const SizedBox(height: 5),
-                      Text(
-                        isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                        style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
+                          ),
+                          if (isScheduled && scheduledTime != null)
+                            _buildBadge('FÖRBESTÄLLNING $scheduledTime', AppTheme.gold),
+                        ],
                       ),
+                      if (isScheduled && scheduledDate != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          scheduledDate,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

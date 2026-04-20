@@ -23,7 +23,7 @@ import {
 import { palette, styles } from "../constants/theme";
 
 
-import { CartItem, DeliveryCheck, City, Profile } from "../types";
+import { CartItem, DeliveryCheck, City } from "../types";
 
 
 import AddressAutocomplete from "../components/AddressAutocomplete";
@@ -42,7 +42,6 @@ function CartEmptyState({ onExplore }: { onExplore: () => void }) {
   );
 }
 
-type OrderType = "DELIVERY" | "PICKUP";
 type SavedAddress = {
   id: string;
   label: string;
@@ -54,6 +53,67 @@ type SavedAddress = {
   latitude?: number;
   longitude?: number;
 };
+
+const SCHEDULE_MINUTES_AHEAD = 45;
+const SCHEDULE_INTERVAL_MINUTES = 5;
+const QUICK_SCHEDULE_OFFSETS = [45, 60, 90, 120, 180];
+
+function roundDateUpToInterval(date: Date, intervalMinutes = SCHEDULE_INTERVAL_MINUTES) {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  const remainder = rounded.getMinutes() % intervalMinutes;
+  if (remainder !== 0) {
+    rounded.setMinutes(rounded.getMinutes() + (intervalMinutes - remainder));
+  }
+  return rounded;
+}
+
+function getMinimumScheduledTime(reference = new Date()) {
+  return roundDateUpToInterval(new Date(reference.getTime() + SCHEDULE_MINUTES_AHEAD * 60 * 1000));
+}
+
+function getLastScheduledTimeToday(reference = new Date()) {
+  const latest = new Date(reference);
+  latest.setHours(23, 55, 0, 0);
+  return latest;
+}
+
+function clampScheduledTimeToToday(candidate: Date, reference = new Date()) {
+  const rounded = roundDateUpToInterval(candidate);
+  const minTime = getMinimumScheduledTime(reference);
+  const maxTime = getLastScheduledTimeToday(reference);
+
+  if (maxTime.getTime() < minTime.getTime()) return null;
+  if (rounded.getTime() < minTime.getTime()) return minTime;
+  if (rounded.getTime() > maxTime.getTime()) return maxTime;
+  return rounded;
+}
+
+function getQuickScheduledTimes(reference = new Date()) {
+  const latest = getLastScheduledTimeToday(reference).getTime();
+  const seen = new Set<number>();
+
+  return QUICK_SCHEDULE_OFFSETS
+    .map((offset) => ({
+      label:
+        offset === 45
+          ? "45 min"
+          : offset === 60
+            ? "1 timme"
+            : offset === 90
+              ? "1.5 timmar"
+              : offset === 120
+                ? "2 timmar"
+                : "3 timmar",
+      time: roundDateUpToInterval(new Date(reference.getTime() + offset * 60 * 1000)),
+    }))
+    .filter(({ time }) => {
+      const key = time.getTime();
+      if (key > latest || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
 
 export default function CartScreen({
   openHome,
@@ -137,6 +197,67 @@ export default function CartScreen({
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
+
+  const scheduleWindow = useMemo(() => {
+    const minTime = getMinimumScheduledTime();
+    const maxTime = getLastScheduledTimeToday();
+
+    return {
+      minTime,
+      maxTime,
+      available: maxTime.getTime() >= minTime.getTime(),
+    };
+  }, [showTimePicker]);
+
+  const quickScheduleTimes = useMemo(() => getQuickScheduledTimes(), [showTimePicker]);
+
+  const availableHours = useMemo(() => {
+    if (!scheduleWindow.available) return [];
+
+    const hours: number[] = [];
+    for (let hour = scheduleWindow.minTime.getHours(); hour <= scheduleWindow.maxTime.getHours(); hour += 1) {
+      hours.push(hour);
+    }
+    return hours;
+  }, [scheduleWindow]);
+
+  const selectedScheduleHour = scheduledFor?.getHours() ?? scheduleWindow.minTime.getHours();
+
+  const getScheduleValidationMessage = useCallback((value: Date | null) => {
+    if (!value) return null;
+    const minTime = getMinimumScheduledTime();
+    const maxTime = getLastScheduledTimeToday();
+
+    if (maxTime.getTime() < minTime.getTime()) {
+      return "Det finns tyvärr inga fler tider kvar att förbeställa idag.";
+    }
+    if (value.getTime() < minTime.getTime()) {
+      return `Tiden måste vara minst ${SCHEDULE_MINUTES_AHEAD} minuter fram i tiden.`;
+    }
+    if (value.getTime() > maxTime.getTime()) {
+      return "Du kan bara välja tider för idag.";
+    }
+    return null;
+  }, []);
+
+  const handleOpenSchedulePicker = useCallback(() => {
+    const nextValue = clampScheduledTimeToToday(scheduledFor || getMinimumScheduledTime());
+    if (!nextValue) {
+      Alert.alert("Inga tider kvar idag", "Det finns tyvärr inga fler tider kvar att förbeställa idag.");
+      return;
+    }
+
+    setScheduledFor(nextValue);
+    setShowTimePicker(true);
+  }, [scheduledFor]);
+
+  const updateScheduledSelection = useCallback((updater: (current: Date) => Date) => {
+    setScheduledFor((current) => {
+      const base = current ? new Date(current) : getMinimumScheduledTime();
+      const next = clampScheduledTimeToToday(updater(base));
+      return next || current || getMinimumScheduledTime();
+    });
+  }, []);
 
   const loadQuickAddresses = useCallback(async () => {
     setQuickAddresses(await readQuickAddresses());
@@ -427,6 +548,12 @@ export default function CartScreen({
     }
     if (!items.length) {
       Alert.alert("Tom varukorg", "Lägg till produkter först.");
+      return;
+    }
+
+    const scheduleError = getScheduleValidationMessage(scheduledFor);
+    if (scheduleError) {
+      Alert.alert("Schemaläggning", scheduleError);
       return;
     }
 
@@ -724,9 +851,7 @@ export default function CartScreen({
             </Pressable>
             <Pressable
               onPress={() => {
-                const min = new Date(Date.now() + 45 * 60 * 1000);
-                setScheduledFor(min);
-                setShowTimePicker(true);
+                handleOpenSchedulePicker();
               }}
               style={{
                 flex: 1,
@@ -760,10 +885,13 @@ export default function CartScreen({
                     <Text style={{ color: palette.gold, fontSize: 18, fontWeight: "900", marginTop: 2 }}>
                       {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
                     </Text>
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", marginTop: 4, textTransform: "uppercase", letterSpacing: 1.2 }}>
+                      Endast idag
+                    </Text>
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Pressable onPress={() => setShowTimePicker(true)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
+                  <Pressable onPress={handleOpenSchedulePicker} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(231,178,75,0.15)", alignItems: "center", justifyContent: "center" }}>
                     <Ionicons name="time-outline" size={16} color={palette.gold} />
                   </Pressable>
                   <Pressable onPress={() => setScheduledFor(null)} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,59,48,0.12)", alignItems: "center", justifyContent: "center" }}>
@@ -798,19 +926,13 @@ export default function CartScreen({
               >
                 <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: palette.muted, alignSelf: "center", marginBottom: 20, opacity: 0.3 }} />
                 <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 }}>
-                  Välj leveranstid
+                  Välj tid idag
                 </Text>
 
                 {/* Quick times */}
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 20 }}>
-                  {[
-                    { label: "45 min", offset: 45 },
-                    { label: "1 timme", offset: 60 },
-                    { label: "1.5 timmar", offset: 90 },
-                    { label: "2 timmar", offset: 120 },
-                    { label: "3 timmar", offset: 180 },
-                  ].map((qt) => {
-                    const t = new Date(Date.now() + qt.offset * 60 * 1000);
+                  {quickScheduleTimes.map((qt) => {
+                    const t = qt.time;
                     const isActive =
                       scheduledFor &&
                       scheduledFor.getDate() === t.getDate() &&
@@ -819,7 +941,7 @@ export default function CartScreen({
                       scheduledFor.getMinutes() === t.getMinutes();
                     return (
                       <Pressable
-                        key={qt.label}
+                        key={t.toISOString()}
                         onPress={() => setScheduledFor(t)}
                         style={{
                           paddingHorizontal: 16,
@@ -838,55 +960,29 @@ export default function CartScreen({
                   })}
                 </View>
 
-                {/* Custom date/time picker */}
-                <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-                  {/* Date scroll */}
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Datum</Text>
-                    <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
-                      {Array.from({ length: 8 }, (_, i) => {
-                        const d = new Date();
-                        d.setDate(d.getDate() + i);
-                        const isSelected = scheduledFor && scheduledFor.toDateString() === d.toDateString();
-                        return (
-                          <Pressable
-                            key={i}
-                            onPress={() => {
-                              const combined = scheduledFor || new Date();
-                              combined.setFullYear(d.getFullYear(), d.getMonth(), d.getDate());
-                              setScheduledFor(combined);
-                            }}
-                            style={{
-                              paddingVertical: 12,
-                              paddingHorizontal: 8,
-                              borderRadius: 10,
-                              backgroundColor: isSelected ? "rgba(231,178,75,0.15)" : "transparent",
-                              marginBottom: 2,
-                              alignItems: "center",
-                            }}
-                          >
-                            <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 12, fontWeight: isSelected ? "900" : "700" }}>
-                              {d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" })}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
+                {/* Custom time picker */}
+                <View style={{ marginBottom: 14, alignItems: "center" }}>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.3 }}>
+                    Förbeställning gäller endast dagens datum
+                  </Text>
+                </View>
 
+                <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
                   {/* Hour scroll */}
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Timme</Text>
                     <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
-                      {Array.from({ length: 24 }, (_, i) => {
-                        const isSelected = scheduledFor && scheduledFor.getHours() === i;
+                      {availableHours.map((hour) => {
+                        const isSelected = scheduledFor && scheduledFor.getHours() === hour;
                         return (
                           <Pressable
-                            key={i}
+                            key={hour}
                             onPress={() => {
-                              const combined = scheduledFor || new Date();
-                              combined.setHours(i, combined.getMinutes(), 0, 0);
-                              setScheduledFor(combined);
+                              updateScheduledSelection((current) => {
+                                const next = new Date(current);
+                                next.setHours(hour, next.getMinutes(), 0, 0);
+                                return next;
+                              });
                             }}
                             style={{
                               paddingVertical: 12,
@@ -897,7 +993,7 @@ export default function CartScreen({
                             }}
                           >
                             <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 14, fontWeight: isSelected ? "900" : "700" }}>
-                              {String(i).padStart(2, "0")}
+                              {String(hour).padStart(2, "0")}
                             </Text>
                           </Pressable>
                         );
@@ -911,14 +1007,20 @@ export default function CartScreen({
                     <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
                       {Array.from({ length: 12 }, (_, i) => {
                         const m = i * 5;
+                        const isDisabled =
+                          (selectedScheduleHour === scheduleWindow.minTime.getHours() && m < scheduleWindow.minTime.getMinutes()) ||
+                          (selectedScheduleHour === scheduleWindow.maxTime.getHours() && m > scheduleWindow.maxTime.getMinutes());
                         const isSelected = scheduledFor && scheduledFor.getMinutes() === m;
                         return (
                           <Pressable
                             key={m}
+                            disabled={isDisabled}
                             onPress={() => {
-                              const combined = scheduledFor || new Date();
-                              combined.setMinutes(m, 0, 0);
-                              setScheduledFor(combined);
+                              updateScheduledSelection((current) => {
+                                const next = new Date(current);
+                                next.setMinutes(m, 0, 0);
+                                return next;
+                              });
                             }}
                             style={{
                               paddingVertical: 12,
@@ -926,6 +1028,7 @@ export default function CartScreen({
                               backgroundColor: isSelected ? "rgba(231,178,75,0.15)" : "transparent",
                               marginBottom: 2,
                               alignItems: "center",
+                              opacity: isDisabled ? 0.3 : 1,
                             }}
                           >
                             <Text style={{ color: isSelected ? palette.gold : palette.text, fontSize: 14, fontWeight: isSelected ? "900" : "700" }}>
@@ -940,13 +1043,10 @@ export default function CartScreen({
 
                 <Pressable
                   onPress={() => {
-                    if (scheduledFor) {
-                      const now = new Date();
-                      const min = new Date(now.getTime() + 45 * 60 * 1000);
-                      if (scheduledFor < min) {
-                        Alert.alert("För tidig tid", "Tiden måste vara minst 45 minuter fram i tiden.");
-                        return;
-                      }
+                    const scheduleError = getScheduleValidationMessage(scheduledFor);
+                    if (scheduleError) {
+                      Alert.alert("Schemaläggning", scheduleError);
+                      return;
                     }
                     setShowTimePicker(false);
                   }}

@@ -136,7 +136,15 @@ class HistoryScreen extends StatelessWidget {
           leading: Container(
             width: 50, height: 50,
             decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(15)),
-            child: Center(child: Text(order.orderNumber, style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900))),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  order.orderNumber,
+                  style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900),
+                ),
+              ),
+            ),
           ),
           title: Text(order.customerName.toUpperCase(), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14, fontWeight: FontWeight.w900)),
           subtitle: Column(

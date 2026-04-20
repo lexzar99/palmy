@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
-import 'package:audioplayers/audioplayers.dart';
 import '../core/api_client.dart';
 import '../core/constants.dart';
 import '../models/order_model.dart';
@@ -17,7 +16,7 @@ class OrderProvider with ChangeNotifier {
   bool _isLoading = false;
   IO.Socket? _socket;
   String? _restaurantId;
-  String _selectedAlarm = 'notification.wav';
+  final String _selectedAlarm = 'notification.wav';
   bool _isRestaurantOpen = true;
   bool _isOffline = false;
   Timer? _alarmWatchdog;
@@ -25,7 +24,6 @@ class OrderProvider with ChangeNotifier {
   String openingTime = '11:00';
   String closingTime = '21:00';
   String _lastKnownHours = '';
-  bool _manualOverride = false;
 
   List<OrderModel> get orders => _orders;
   bool get isLoading => _isLoading;
@@ -182,7 +180,6 @@ class OrderProvider with ChangeNotifier {
   Future<void> setStatus(bool open) async {
     if (_restaurantId == null) return;
     _isRestaurantOpen = open;
-    _manualOverride = true; // Mark as user-initiated action
     notifyListeners();
 
     try {
@@ -244,11 +241,8 @@ class OrderProvider with ChangeNotifier {
           final Map<String, dynamic> allHours = current['openingHours'] ?? {};
           final hoursString = allHours.toString();
           
-          // If the schedule ITSELF changed in admin, reset our manual override 
-          // to follow the new schedule
           if (_lastKnownHours.isNotEmpty && _lastKnownHours != hoursString) {
             logger.log('ADMIN CHANGED SCHEDULE: Resetting manual override.');
-            _manualOverride = false;
           }
           _lastKnownHours = hoursString;
 

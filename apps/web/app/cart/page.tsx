@@ -988,49 +988,46 @@ export default function CartPage() {
                                          })}
                                       </div>
 
-                                      {/* Date select */}
-                                      <div className="mb-4">
-                                         <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Datum</label>
-                                         <select
-                                            value={selDate}
-                                            onChange={(e) => setSelDate(e.target.value)}
-                                            className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none"
-                                            style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-                                         >
-                                            {days.filter(d => d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())).map((d) => (
-                                               <option key={d.toISOString()} value={`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`}>
-                                                  {d.toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
-                                               </option>
-                                            ))}
-                                         </select>
-                                      </div>
+                                       {/* Date picker */}
+                                       <div className="mb-4">
+                                          <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Datum</label>
+                                          <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                                             {days.filter(d => d >= new Date(now.getFullYear(), now.getMonth(), now.getDate())).map((d) => {
+                                                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                                const isActive = selDate === val;
+                                                return (
+                                                   <button key={val} type="button" onClick={() => setSelDate(val)} className={`shrink-0 px-4 py-3 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${isActive ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
+                                                      {d.toLocaleDateString("sv-SE", { weekday: "short", day: "numeric", month: "short" })}
+                                                   </button>
+                                                );
+                                             })}
+                                          </div>
+                                       </div>
 
-                                      {/* Time select */}
-                                      <div className="flex gap-3 mb-6">
-                                         <div className="flex-1">
-                                            <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Timme</label>
-                                            <select
-                                               value={selHour}
-                                               onChange={(e) => setSelHour(e.target.value)}
-                                               className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none text-center"
-                                               style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-                                            >
-                                               {hours.map(h => <option key={h} value={h}>{h}</option>)}
-                                            </select>
-                                         </div>
-                                         <div className="flex items-end pb-4 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
-                                         <div className="flex-1">
-                                            <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Minut</label>
-                                            <select
-                                               value={selMin}
-                                               onChange={(e) => setSelMin(e.target.value)}
-                                               className="w-full border rounded-2xl p-4 text-sm font-bold outline-none focus:border-gold-500/40 transition-all appearance-none text-center"
-                                               style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
-                                            >
-                                               {minutes.map(m => <option key={m} value={m}>{m}</option>)}
-                                            </select>
-                                         </div>
-                                      </div>
+                                       {/* Time picker */}
+                                       <div className="flex gap-3 mb-6">
+                                          <div className="flex-1">
+                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Timme</label>
+                                             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                                                {hours.map(h => (
+                                                   <button key={h} type="button" onClick={() => setSelHour(h)} className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${selHour === h ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
+                                                      {h}
+                                                   </button>
+                                                ))}
+                                             </div>
+                                          </div>
+                                          <div className="flex items-end pb-3 text-2xl font-black" style={{ color: "var(--text-secondary)" }}>:</div>
+                                          <div className="flex-1">
+                                             <label className="text-[9px] font-black uppercase tracking-widest ml-3 block mb-2" style={{ color: "var(--text-secondary)" }}>Minut</label>
+                                             <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                                                {minutes.map(m => (
+                                                   <button key={m} type="button" onClick={() => setSelMin(m)} className={`shrink-0 w-12 py-3 rounded-xl text-xs font-bold transition-all text-center ${selMin === m ? 'bg-gold-500 text-zinc-950' : 'bg-[var(--bg-deep)] text-zinc-400 border border-[var(--border-muted)]'}`}>
+                                                      {m}
+                                                   </button>
+                                                ))}
+                                             </div>
+                                          </div>
+                                       </div>
 
                                       <button type="button" onClick={handleConfirm} className="w-full rounded-2xl py-4 text-sm font-black uppercase tracking-widest bg-gold-500 text-zinc-950 hover:bg-gold-400 transition-all">
                                          Bekräfta tid

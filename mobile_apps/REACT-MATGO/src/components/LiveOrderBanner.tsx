@@ -16,6 +16,7 @@ function getStatusDisplay(status: string) {
     case "PENDING":
       return { label: "GRANSKAS", icon: "time", color: "#B45309", bgColor: "rgba(245,158,11,0.16)", baseProgress: 10 };
     case "ACCEPTED":
+      return { label: "BEKRÄFTAD", icon: "checkmark-circle", color: palette.goldDark, bgColor: "rgba(217,176,85,0.16)", baseProgress: 28 };
     case "PREPARING":
       return { label: "TILLAGAS", icon: "flame", color: "#EA580C", bgColor: "rgba(249,115,22,0.16)", baseProgress: 42 };
     case "READY":
@@ -29,8 +30,12 @@ function getStatusDisplay(status: string) {
 }
 
 function getDynamicETA(order: Order) {
-  if (order.orderType === "PICKUP") {
+  const currentType = order.orderType || order.type;
+  if (currentType === "PICKUP") {
     if (order.status === "READY") return "Hämta nu! 🙌";
+    if (order.scheduledFor) {
+      return new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+    }
     return "ca 10m";
   }
   if (order.status === "OUT_FOR_DELIVERY" || order.status === "DELIVERING") {
@@ -38,6 +43,9 @@ function getDynamicETA(order: Order) {
     const isRush = hour >= 18 && hour <= 20;
     if (isRush) return "20-30m";
     return "10-15m";
+  }
+  if (order.scheduledFor) {
+    return new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
   }
   return order.estimatedTime ? `${order.estimatedTime}m` : "Snart";
 }

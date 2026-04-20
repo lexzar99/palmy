@@ -15,7 +15,7 @@ import ProductModal from '../components/ProductModal';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
 import { RestaurantScreenSkeleton } from '../components/SkeletonLoader';
 
-import type { Order, Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
+import type { Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
 
 
 
@@ -51,6 +51,7 @@ export default function RestaurantScreen({
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
   const cartItems = useAppStore((s) => s.items);
+  const cartItemCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
   const orderType = useAppStore((s) => s.orderType);
   const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
@@ -577,10 +578,30 @@ export default function RestaurantScreen({
         </View>
       </ScrollView>
 
-      {!!cartItems.length && (
+      {cartItemCount > 0 && (
         <Pressable style={styles.floatingCart} onPress={openCart}>
-          <Ionicons name="bag-handle-outline" size={18} color="#000" />
-          <Text style={styles.floatingCartText}>Open cart</Text>
+          <View style={{ position: "relative" }}>
+            <Ionicons name="bag-handle-outline" size={18} color="#000" />
+            <View
+              style={{
+                position: "absolute",
+                top: -9,
+                right: -10,
+                minWidth: 20,
+                height: 20,
+                borderRadius: 10,
+                backgroundColor: palette.text,
+                paddingHorizontal: 5,
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1.5,
+                borderColor: palette.gold,
+              }}
+            >
+              <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900" }}>{cartItemCount}</Text>
+            </View>
+          </View>
+          <Text style={styles.floatingCartText}>Gå till kassan</Text>
         </Pressable>
       )}
 

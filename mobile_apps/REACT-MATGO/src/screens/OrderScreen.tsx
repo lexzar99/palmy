@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -7,7 +7,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { io, Socket } from "socket.io-client";
+import { io } from "socket.io-client";
 import { useAppStore } from "../store/useAppStore";
 import { api, SOCKET_URL } from "../lib/api";
 import { palette } from "../constants/theme";
@@ -17,11 +17,19 @@ import type { Order } from "../types";
 
 
 
-function getStatusDisplay(status: string, danger: string, gold: string, success: string) {
+function getStatusDisplay(status: string, danger: string, gold: string, success: string, isScheduled: boolean) {
   switch (status) {
     case "PENDING":
       return { label: "GRANSKAS", desc: "Vi har tagit emot din beställning. Väntar på att köket ska bekräfta.", icon: "time-outline", color: "#f59e0b" };
     case "ACCEPTED":
+      return {
+        label: "BEKRÄFTAD",
+        desc: isScheduled
+          ? "Restaurangen har bekräftat din förbeställning till den tid du valde."
+          : "Restaurangen har bekräftat din beställning. Köket drar igång strax.",
+        icon: "checkmark-circle-outline",
+        color: gold,
+      };
     case "PREPARING":
       return { label: "TILLAGAS", desc: "Dina råvaror förvandlas till en fantastisk måltid just nu.", icon: "flame-outline", color: "#f97316" };
     case "READY":
@@ -48,7 +56,6 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -63,7 +70,6 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     fetchOrder();
 
     const socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
-    socketRef.current = socket;
     socket.on("connect", () => socket.emit("join:order", id));
     socket.on("order:status", (payload: any) => {
       if (payload.orderId === id) {
@@ -149,7 +155,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     );
   }
 
-  const statusInfo = getStatusDisplay(order.status, palette.danger, palette.gold, palette.success);
+  const statusInfo = getStatusDisplay(order.status, palette.danger, palette.gold, palette.success, Boolean(order.scheduledFor));
   const isRejected = order.status === "REJECTED" || order.status === "CANCELLED";
   const steps =
     order.type === "DELIVERY"
@@ -231,6 +237,11 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
                   : `~${(order as any).estimatedTime} MIN`
                 }
               </Text>
+              {order.scheduledFor && (
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.1, marginTop: 4 }}>
+                  {new Date(order.scheduledFor).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}
+                </Text>
+              )}
             </View>
           </View>
         )}

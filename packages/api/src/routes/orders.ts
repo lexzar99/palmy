@@ -17,6 +17,15 @@ import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZo
 import supabaseAdmin from '../lib/supabase';
 
 const router = Router();
+const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
+const stockholmDayFormatter = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: STOCKHOLM_TIMEZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+const getStockholmCalendarDay = (date: Date) => stockholmDayFormatter.format(date);
 
 class OrderValidationError extends Error {
   constructor(message: string) {
@@ -205,19 +214,18 @@ router.post('/', async (req: Request, res: Response) => {
     if (data.scheduledFor) {
       const scheduledTime = new Date(data.scheduledFor);
       const now = new Date();
-      const minTime = new Date(now.getTime() + 15 * 60 * 1000); // At least 15 min from now
-      const maxTime = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // Max 7 days ahead
+      const minTime = new Date(now.getTime() + 45 * 60 * 1000); // At least 45 min from now
 
       if (isNaN(scheduledTime.getTime())) {
         res.status(400).json({ error: 'Ogiltigt tidformat' });
         return;
       }
       if (scheduledTime < minTime) {
-        res.status(400).json({ error: 'Tid måste vara minst 15 minuter fram i tiden' });
+        res.status(400).json({ error: 'Tid måste vara minst 45 minuter fram i tiden' });
         return;
       }
-      if (scheduledTime > maxTime) {
-        res.status(400).json({ error: 'Tid kan vara max 7 dagar fram i tiden' });
+      if (getStockholmCalendarDay(scheduledTime) !== getStockholmCalendarDay(now)) {
+        res.status(400).json({ error: 'Du kan bara förbeställa för idag' });
         return;
       }
     }
@@ -256,9 +264,11 @@ router.post('/', async (req: Request, res: Response) => {
         deliveryFee = defaultFee;
       }
     }
-    const estimatedTime = data.type === 'PICKUP'
-      ? (globalSettings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME)
-      : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
+    const estimatedTime = data.scheduledFor
+      ? null
+      : data.type === 'PICKUP'
+        ? (globalSettings?.estimatedPickupTime ?? DEFAULT_ESTIMATED_PICKUP_TIME)
+        : (restaurant?.etaMinutes ?? globalSettings?.estimatedDeliveryTime ?? DEFAULT_ESTIMATED_DELIVERY_TIME);
 
     // Idempotency: if this PaymentIntent already has an order, return that order directly.
     // Skip for TEST_PAYMENT, FREE_PROMO and BYPASS to allow multiple tests by developers.
@@ -667,33 +677,16 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Emit till admin via Socket.IO
     const orderForSocket = {
-      id: order.id,
-      restaurantId: order.restaurantId,
-      restaurantName: order.restaurant?.name || 'Okänd restaurang',
-      orderNumber: order.orderNumber,
-      status: order.status,
-      type: order.type,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      deliveryStreet: order.deliveryStreet,
-      deliveryZip: order.deliveryZip,
-      deliveryCity: order.deliveryCity,
-      note: order.note,
-      appliedDealTitle: order.appliedDealTitle,
+      ...order,
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
-      estimatedTime,
-      createdAt: order.createdAt,
-      paymentMethod: order.paymentMethod,
-      discountCode: order.discountCode,
-      stripePaymentIntentId: order.stripePaymentIntentId,
-      allergens: order.allergens,
+      discountAmount: order.discountAmount / 100,
       items: order.items.map((i: any) => ({
         ...i,
         basePrice: i.basePrice / 100,
         subtotal: i.subtotal / 100,
-        selectedExtras: JSON.parse(i.selectedExtras),
       })),
+      restaurantName: order.restaurant?.name || 'Okänd restaurang',
     };
     // Global room is used by SUPER_ADMIN; per-restaurant room is used by each restaurant panel.
     getIO().to('admin-room').emit('order:new', orderForSocket);
@@ -725,7 +718,7 @@ router.post('/', async (req: Request, res: Response) => {
       orderNumber: order.orderNumber,
       total: order.total / 100,
       appliedDealTitle: order.appliedDealTitle,
-      estimatedTime: order.estimatedTime || estimatedTime,
+      estimatedTime: order.estimatedTime ?? estimatedTime,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -856,6 +849,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       paymentMethod: order.paymentMethod,
       appliedDealTitle: order.appliedDealTitle,
       estimatedTime: order.estimatedTime,
+      scheduledFor: order.scheduledFor,
       createdAt: order.createdAt,
       customerPhone: order.customerPhone,
       allergens: order.allergens,

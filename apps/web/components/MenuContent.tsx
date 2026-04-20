@@ -266,39 +266,39 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-primary)" }}>Tillbaka</span>
         </Link>
 
-        {/* Header Content in Overlap */}
-        <div className="absolute bottom-10 left-0 w-full px-6 lg:px-12 flex flex-col lg:flex-row lg:items-end justify-between gap-8">
+         {/* Header Content in Overlap */}
+         <div className="absolute bottom-10 left-0 w-full px-4 sm:px-6 lg:px-12 flex flex-col lg:flex-row lg:items-end justify-between gap-6 sm:gap-8">
            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} className="flex-1">
-              <div className="flex items-center gap-4 mb-3">
-               <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] italic" style={{ color: "var(--text-primary)" }}>
-                    {firstWord}{" "}
-                    <span className="text-gold-gradient">{restOfTitle}</span>
-                 </h1>
+               <div className="flex items-center gap-2 sm:gap-4 mb-3">
+                <h1 className="text-3xl sm:text-4xl md:text-6xl font-black tracking-tight uppercase leading-[0.8] italic" style={{ color: "var(--text-primary)" }}>
+                     {firstWord}{" "}
+                     <span className="text-gold-gradient">{restOfTitle}</span>
+                  </h1>
                  <div className={`px-4 py-1.5 rounded-full border-[1px] flex items-center gap-2 ${restaurant?.isOpen ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-rose-500/30 bg-rose-500/10 text-rose-600"}`}>
                     <div className={`w-1 h-1 rounded-full ${restaurant?.isOpen ? "bg-emerald-500 animate-pulse" : "bg-rose-500"}`} />
                     <span className="text-[9px] font-black uppercase tracking-[0.2em]">{restaurant?.isOpen ? "Öppen" : "Stängd"}</span>
                  </div>
               </div>
-        <div className="flex items-center gap-5 flex-wrap">
-           <p className="text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || "Restaurang"}</p>
-                 <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[11px]">
-                    <Star size={12} className="fill-gold-500" />
-                    {(restaurant.rating || 4.6).toFixed(1)}
-                    <span className="font-black ml-1" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>({restaurant.ratingCount || 120})</span>
-                 </div>
+         <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
+            <p className="text-[9px] sm:text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || "Restaurang"}</p>
+                  <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[10px] sm:text-[11px]">
+                     <Star size={12} className="fill-gold-500" />
+                     {(restaurant.rating || 4.6).toFixed(1)}
+                     <span className="font-black ml-1" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>({restaurant.ratingCount || 120})</span>
+                  </div>
               </div>
            </motion.div>
 
-<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3">
-               <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 shadow-sm hover:bg-gold-500/5 transition-all" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>
-                  <Info size={16} className="text-gold-500/60" /> Info
-               </motion.button>
-               {restaurant.phone && (
-                  <motion.a whileTap={{ scale: 0.95 }} href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-6 py-4 rounded-3xl text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-3 shadow-xl hover:bg-gold-400 transition-all">
-                     <Phone size={16} /> Kontakt
-                  </motion.a>
-               )}
-            </motion.div>
+<motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                <motion.button whileTap={{ scale: 0.95 }} onClick={() => setShowInfoModal(true)} className="glass-panel px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 sm:gap-3 shadow-sm hover:bg-gold-500/5 transition-all" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>
+                   <Info size={14} className="text-gold-500/60" /> <span className="hidden xs:inline">Info</span>
+                </motion.button>
+                {restaurant.phone && (
+                   <motion.a whileTap={{ scale: 0.95 }} href={`tel:${String(restaurant.phone).replace(/\s+/g, "")}`} className="bg-gold-500 px-3 py-2.5 sm:px-6 sm:py-4 rounded-2xl sm:rounded-3xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-zinc-950 flex items-center gap-1.5 sm:gap-3 shadow-xl hover:bg-gold-400 transition-all">
+                      <Phone size={14} /> Kontakt
+                   </motion.a>
+                )}
+             </motion.div>
         </div>
       </div>
 
@@ -350,8 +350,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <PreviouslyOrderedBar restaurantId={restaurant.id} restaurantSlug={restaurantSlug || restaurant.slug} />
         )}
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-3 gap-3 mb-16">
+         {/* Quick Stats Grid */}
+         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-12 sm:mb-16">
            <div className="rounded-[2rem] p-6 text-center flex flex-col items-center justify-center gap-2 group hover:border-gold-500/20 transition-all" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
               <Bike size={18} className="text-gold-500/40 group-hover:text-gold-500 transition-colors" />
               <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: "var(--text-secondary)" }}>Avgift</div>
@@ -375,19 +375,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-6 z-40 mb-16">
-           <div className="rounded-[2.5rem] p-2 flex items-center gap-3 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-              <div className="relative flex-1 group">
-                 <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
-                 <input 
-                    type="text" 
-                    placeholder="Vad är du sugen på?" 
-                    value={searchTerm} 
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="w-full border-none rounded-[2rem] py-4 pl-14 pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
-                    style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
-                 />
-              </div>
-<div className="flex gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
+            <div className="rounded-[2.5rem] p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+               <div className="relative flex-1 group">
+                  <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
+                  <input 
+                     type="text" 
+                     placeholder="Vad är du sugen på?" 
+                     value={searchTerm} 
+                     onChange={e => setSearchTerm(e.target.value)}
+                     className="w-full border-none rounded-[2rem] py-3 sm:py-4 pl-12 sm:pl-14 pr-4 sm:pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
+                     style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
+                  />
+               </div>
+               <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
                   {categories.map(cat => (
                      <motion.button 
                         key={cat.id} 
@@ -400,12 +400,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                               window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                            }
                         }}
-                        className={`px-6 py-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50"}`}
+                        className={`px-4 sm:px-6 py-3 sm:py-4 rounded-[2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50"}`}
                      >
                         {cat.name}
                      </motion.button>
                   ))}
-</div>
+               </div>
             </div>
          </div>
 
