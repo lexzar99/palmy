@@ -72,6 +72,66 @@ export default function RestaurantsPage() {
     };
   }, [data]);
 
+  const playbooks = useMemo(() => {
+    if (!data) return [] as Array<{
+      title: string;
+      countLabel: string;
+      description: string;
+      href: string;
+      hrefLabel: string;
+      steps: string[];
+      tone: string;
+    }>;
+
+    const missingAlias = data.restaurantSnapshots.filter((restaurant) => !restaurant.adminEmail);
+    const missingHours = data.restaurantSnapshots.filter((restaurant) => !restaurant.hasHours);
+    const payoutRisk = [...data.restaurantSnapshots]
+      .filter((restaurant) => restaurant.payoutEstimate > 0 && (restaurant.reviewScore < 4.2 || restaurant.pendingOrders > 0))
+      .sort((a, b) => b.payoutEstimate - a.payoutEstimate);
+
+    return [
+      {
+        title: "Lägg admin-alias",
+        countLabel: `${missingAlias.length} restauranger saknar alias`,
+        description: "Sätt ett tydligt admin-alias så desktop och restauranginloggning håller samma scope utan manuella genvägar.",
+        href: missingAlias[0] ? `/restaurant-ops?restaurantId=${missingAlias[0].id}` : "/restaurant-ops",
+        hrefLabel: missingAlias[0] ? `Öppna ${missingAlias[0].name}` : "Öppna restauranghubben",
+        steps: [
+          "Öppna restaurangen i Restauranghubben.",
+          "Fyll i admin-alias under driftinställningar.",
+          "Spara och kontrollera att aliaset syns i flottvyn.",
+        ],
+        tone: "border-amber-300/18 bg-amber-300/10",
+      },
+      {
+        title: "Sätt veckoschema",
+        countLabel: `${missingHours.length} restauranger saknar öppettider`,
+        description: "Restauranger utan schema får sämre öppet/stängt-logik, vilket påverkar både orderflöde och supporttryck.",
+        href: missingHours[0] ? `/restaurant-ops?restaurantId=${missingHours[0].id}` : "/restaurant-ops",
+        hrefLabel: missingHours[0] ? `Ställ in ${missingHours[0].name}` : "Öppna schemohubben",
+        steps: [
+          "Öppna veckoschemat i Restauranghubben.",
+          "Fyll i ordinarie tider och extra kvällspass vid behov.",
+          "Spara schemat och bekräfta att statusen ändras till 'Schema satt'.",
+        ],
+        tone: "border-sky-300/18 bg-sky-300/10",
+      },
+      {
+        title: "Följ upp payout-risk",
+        countLabel: `${payoutRisk.length} partners kräver payout-uppföljning`,
+        description: "När payout är hög men kvaliteten svajar bör du granska reviews, köläge och readiness innan utbetalning godkänns.",
+        href: payoutRisk[0] ? "/finance" : "/performance",
+        hrefLabel: payoutRisk[0] ? "Öppna Finance HQ" : "Öppna Performance",
+        steps: [
+          "Öppna Finance HQ och välj partnern med störst exponering.",
+          "Kontrollera reviewscore, väntande ordrar och noteringar innan du godkänner payout.",
+          "Sätt payout på hold eller markera betald när underlaget är verifierat.",
+        ],
+        tone: "border-emerald-300/18 bg-emerald-300/10",
+      },
+    ];
+  }, [data]);
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
 
@@ -283,10 +343,29 @@ export default function RestaurantsPage() {
             <AlertTriangle size={18} />
             <p className="text-sm font-black uppercase tracking-[0.22em]">Vad ska fixas först?</p>
           </div>
-          <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--text-secondary)]">
-            <p>1. Lägg admin-alias på alla restauranger som saknar det.</p>
-            <p>2. Sätt veckoschema i restauranghubben för alla som saknar öppettider.</p>
-            <p>3. Följ upp partners med hög payout men låg kvalitetsscore innan nästa utbetalning.</p>
+          <div className="mt-4 grid gap-4">
+            {playbooks.map((playbook) => (
+              <div key={playbook.title} className={`rounded-[24px] border px-4 py-4 ${playbook.tone}`}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-base font-black tracking-[-0.03em] text-[var(--text-primary)]">{playbook.title}</p>
+                    <p className="mt-1 text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{playbook.countLabel}</p>
+                    <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{playbook.description}</p>
+                  </div>
+                  <Link href={playbook.href} className="control-chip shrink-0">
+                    {playbook.hrefLabel} <ArrowRight size={13} />
+                  </Link>
+                </div>
+                <div className="mt-4 grid gap-2">
+                  {playbook.steps.map((step, index) => (
+                    <div key={step} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
+                      <span className="mr-2 font-black text-[var(--text-primary)]">{index + 1}.</span>
+                      {step}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

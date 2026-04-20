@@ -80,6 +80,54 @@ const STATUS_COLORS: Record<string, string> = {
   DELIVERING: "#38bdf8",
 };
 
+const getAlertPlaybook = (alert: { domain: string; title: string; restaurantId?: string }) => {
+  if (alert.domain === "security") {
+    return {
+      href: alert.restaurantId ? `/restaurant-ops?restaurantId=${alert.restaurantId}` : "/restaurant-ops",
+      label: "Öppna restauranghubben",
+      steps: [
+        "Öppna restaurangens driftinställningar.",
+        "Lägg till eller verifiera admin-alias för korrekt login-scope.",
+        "Spara och kontrollera att aliaset syns i flottvyn.",
+      ],
+    };
+  }
+
+  if (alert.domain === "ops") {
+    return {
+      href: alert.restaurantId ? `/restaurant-ops?restaurantId=${alert.restaurantId}` : "/orders",
+      label: alert.title.toLowerCase().includes("order") ? "Öppna orderflödet" : "Öppna restauranghubben",
+      steps: [
+        "Öppna rätt restaurang eller orderkö.",
+        "Rätta status, schema eller ETA så att driftläget blir tydligt igen.",
+        "Verifiera att signalen försvinner i kontrolltornet efter åtgärd.",
+      ],
+    };
+  }
+
+  if (alert.domain === "finance") {
+    return {
+      href: "/finance",
+      label: "Öppna Finance HQ",
+      steps: [
+        "Öppna payout-detaljen för partnern.",
+        "Kontrollera provision, justeringar och payout-readiness.",
+        "Godkänn, sätt på hold eller markera som betald.",
+      ],
+    };
+  }
+
+  return {
+    href: "/performance",
+    label: "Öppna Performance",
+    steps: [
+      "Öppna kvalitetssidan för att se reviews och trenddata.",
+      "Jämför score, väntande ordrar och senaste feedback.",
+      "Följ upp partnern innan nästa payout eller kampanjstart.",
+    ],
+  };
+};
+
 export default function DashboardPage() {
   const { data, loading, error, refresh } = useControlCenter();
   const { selectedRestaurantName } = useRestaurantStore();
@@ -162,6 +210,7 @@ export default function DashboardPage() {
     fill: ["#f5bf5b", "#60a5fa", "#34d399", "#a78bfa", "#f472b6"][index % 5],
   }));
   const hasPaymentMix = paymentMix.length > 0;
+  const topAlertPlaybook = data.alerts[0] ? getAlertPlaybook(data.alerts[0]) : null;
 
   return (
     <div className="space-y-5 pb-16">
@@ -241,6 +290,19 @@ export default function DashboardPage() {
                 <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-100">{data.alerts[0].domain}</p>
                 <h3 className="mt-2 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">{data.alerts[0].title}</h3>
                 <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{data.alerts[0].description}</p>
+                {topAlertPlaybook ? (
+                  <div className="mt-4 grid gap-2">
+                    {topAlertPlaybook.steps.map((step, index) => (
+                      <div key={step} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
+                        <span className="mr-2 font-black text-[var(--text-primary)]">{index + 1}.</span>
+                        {step}
+                      </div>
+                    ))}
+                    <Link href={topAlertPlaybook.href} className="control-chip w-fit">
+                      {topAlertPlaybook.label} <ArrowRight size={13} />
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="mt-4 rounded-[24px] border border-emerald-300/20 bg-emerald-300/10 px-5 py-5 text-sm leading-6 text-emerald-100">
@@ -403,11 +465,30 @@ export default function DashboardPage() {
                       : "border-sky-300/20 bg-sky-300/10"
                   }`}
                 >
+                  {(() => {
+                    const playbook = getAlertPlaybook(alert);
+
+                    return (
+                      <>
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--text-primary)]">{alert.title}</p>
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{alert.domain}</span>
                   </div>
                   <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{alert.description}</p>
+                        <div className="mt-4 grid gap-2">
+                          {playbook.steps.map((step, index) => (
+                            <div key={step} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.04)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
+                              <span className="mr-2 font-black text-[var(--text-primary)]">{index + 1}.</span>
+                              {step}
+                            </div>
+                          ))}
+                          <Link href={playbook.href} className="control-chip w-fit">
+                            {playbook.label} <ArrowRight size={13} />
+                          </Link>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               ))
             )}

@@ -1354,6 +1354,22 @@ const normalizeDealInputForDb = (body: any) => {
   return next;
 };
 
+const formatDiscountCodeForAdmin = (discount: any) => ({
+  id: discount.id,
+  code: discount.code,
+  description: discount.description || null,
+  discountType: discount.type === 'FIXED' ? 'fixed' : 'percentage',
+  discountValue: discount.type === 'FIXED' ? discount.value / 100 : discount.value,
+  minOrderAmount: (discount.minOrder || 0) / 100,
+  maxUses: discount.maxUsages,
+  usedCount: discount.usageCount,
+  startsAt: discount.validFrom,
+  expiresAt: discount.validUntil,
+  isActive: discount.isActive,
+  createdAt: discount.createdAt,
+  updatedAt: discount.updatedAt,
+});
+
 // =====================
 // DEALS & CUSTOMER DEALS
 // =====================
@@ -1785,20 +1801,7 @@ router.get('/discounts', async (_req, res) => {
     const codes = await prisma.discountCode.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    res.json(codes.map((c: any) => ({
-      id: c.id,
-      code: c.code,
-      discountType: c.type === 'FIXED' ? 'fixed' : 'percentage',
-      discountValue: c.type === 'FIXED' ? c.value / 100 : c.value,
-      minOrderAmount: c.minOrder,
-      maxUses: c.maxUsages,
-      usedCount: c.usageCount,
-      startsAt: c.validFrom,
-      expiresAt: c.validUntil,
-      restaurantId: c.restaurantId,
-      isActive: c.isActive,
-      createdAt: c.createdAt,
-    })));
+    res.json(codes.map(formatDiscountCodeForAdmin));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }
@@ -1827,10 +1830,7 @@ router.post('/discounts', async (req, res) => {
     const discount = await prisma.discountCode.create({
       data: discountData,
     });
-    res.status(201).json({
-      ...discount,
-      value: discount.type === 'FIXED' ? discount.value / 100 : discount.value,
-    });
+    res.status(201).json(formatDiscountCodeForAdmin(discount));
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
       res.status(400).json({ error: 'Rabattkod finns redan' });
@@ -1863,16 +1863,7 @@ router.patch('/discounts/:id', async (req, res) => {
       where: { id: req.params.id },
       data: updateData,
     });
-    res.json({
-      ...updated,
-      discountType: updated.type === 'FIXED' ? 'fixed' : 'percentage',
-      discountValue: updated.type === 'FIXED' ? updated.value / 100 : updated.value,
-      minOrderAmount: updated.minOrder,
-      maxUses: updated.maxUsages,
-      usedCount: updated.usageCount,
-      startsAt: updated.validFrom,
-      expiresAt: updated.validUntil,
-    });
+    res.json(formatDiscountCodeForAdmin(updated));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }

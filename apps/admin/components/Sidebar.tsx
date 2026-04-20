@@ -155,22 +155,19 @@ const SidebarContent = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden px-4 py-4 text-[var(--text-primary)]">
-      <div className="panel relative shrink-0 overflow-hidden rounded-[28px] px-4 py-4">
-        <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-[radial-gradient(circle,_rgba(245,191,91,0.3),_transparent_70%)] blur-2xl" />
-        <div className="relative flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3">
+      <div className="panel relative shrink-0 overflow-hidden rounded-[28px] px-4 py-3">
+        <div className="absolute right-0 top-0 h-20 w-20 rounded-full bg-[radial-gradient(circle,_rgba(245,191,91,0.22),_transparent_70%)] blur-2xl" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gold-gradient text-[18px] font-black text-[#091018] shadow-[0_20px_60px_rgba(245,191,91,0.2)]">
               M
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.34em] text-[var(--text-muted)]">
+            <div className="min-w-0">
+              <p className="truncate text-[10px] font-black uppercase tracking-[0.34em] text-[var(--text-muted)]">
                 MatGo Control
               </p>
-              <h2 className="mt-1 text-[17px] font-black tracking-[-0.03em] text-[var(--text-primary)] sm:text-[18px]">
-                Command Layer
-              </h2>
-              <p className="mt-1 text-[13px] leading-6 text-[var(--text-secondary)] sm:text-sm">
-                Ny informationsarkitektur med live drift, payout-fokus och renare navigation.
+              <p className="mt-1 truncate text-sm font-black tracking-[-0.03em] text-[var(--text-primary)]">
+                Superadmin Navigation
               </p>
             </div>
           </div>
@@ -182,11 +179,6 @@ const SidebarContent = ({
           >
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="control-chip">Super admin only</span>
-          <span className="control-chip">Scope-aware</span>
-          <span className="control-chip">Realtime guarded</span>
         </div>
       </div>
 

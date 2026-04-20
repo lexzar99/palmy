@@ -1,16 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import {
-  Plus, Trash2, Eye, EyeOff, Loader2, Image as ImageIcon,
-  Link as LinkIcon, Type, ToggleLeft, ToggleRight, Info,
-  ArrowUp, ArrowDown, ExternalLink, Save, X,
+  ArrowDown,
+  ArrowUp,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
+  Info,
+  Link as LinkIcon,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Save,
+  Sparkles,
+  Store,
+  ToggleLeft,
+  ToggleRight,
+  Trash2,
+  X,
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/components/Toast";
-import { ConfirmModal } from "@/components/Modal";
 import { API_URL } from "@/lib/api";
+import { getStoredToken } from "@/lib/auth-storage";
+import { ConfirmModal, Modal } from "@/components/Modal";
+import { useToast } from "@/components/Toast";
 
 interface Sponsor {
   id: string;
@@ -22,12 +37,15 @@ interface Sponsor {
   infoText?: string;
   ctaText?: string;
   ctaLink?: string;
-  linkType?: 'EXTERNAL' | 'DEAL' | 'RESTAURANT' | 'NONE';
+  linkType?: "EXTERNAL" | "DEAL" | "RESTAURANT" | "NONE";
   linkTarget?: string;
   showName?: boolean;
 }
 
-const emptyForm = (): Partial<Sponsor> => ({
+type LinkableDeal = { id: string; title: string; restaurant?: { name?: string | null } | null };
+type LinkableRestaurant = { id: string; name: string; slug: string };
+
+const emptyForm = {
   name: "",
   imageUrl: "",
   isActive: true,
@@ -35,426 +53,539 @@ const emptyForm = (): Partial<Sponsor> => ({
   infoText: "",
   ctaText: "Läs mer",
   ctaLink: "",
-  linkType: "EXTERNAL",
+  linkType: "EXTERNAL" as "EXTERNAL" | "DEAL" | "RESTAURANT" | "NONE",
   linkTarget: "",
   showName: true,
-});
+};
 
 export default function SponsorsPage() {
-  const { success, error: toastErr } = useToast();
+  const { success, error: toastError } = useToast();
   const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [deals, setDeals] = useState<LinkableDeal[]>([]);
+  const [restaurants, setRestaurants] = useState<LinkableRestaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(emptyForm());
-  const [editId, setEditId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Sponsor | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [deals, setDeals] = useState<any[]>([]);
-  const [restaurants, setRestaurants] = useState<any[]>([]);
+  const [form, setForm] = useState(emptyForm);
 
-  const token = () => typeof window !== "undefined" ? localStorage.getItem("matgo_token") || "" : "";
-  const headers = () => ({ Authorization: `Bearer ${token()}` });
+  const token = getStoredToken();
 
-  const fetchContext = useCallback(async () => {
-    try {
-      const [sRes, dRes, rRes] = await Promise.all([
-        axios.get(`${API_URL}/api/sponsors/all`, { headers: headers() }),
-        axios.get(`${API_URL}/api/deals`, { headers: headers() }),
-        axios.get(`${API_URL}/api/restaurants`, { headers: headers() }),
-      ]);
-      setSponsors(sRes.data || []);
-      setDeals(dRes.data || []);
-      setRestaurants(rRes.data || []);
-    } catch { toastErr("Kunde inte hämta data"); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { fetchContext(); }, [fetchContext]);
-
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await axios.post(`${API_URL}/api/admin/upload`, formData, {
-        headers: { ...headers(), "Content-Type": "multipart/form-data" }
-      });
-      setForm(p => ({ ...p, imageUrl: res.data.url }));
-      success("Bild uppladdad!");
-    } catch { toastErr("Kunde inte ladda upp bild"); }
-    finally { setUploading(false); }
-  };
-
-  const handleSave = async () => {
-    if (!form.name?.trim() || !form.imageUrl?.trim()) {
-      toastErr("Namn och bild-URL krävs");
+  const fetchContext = async () => {
+    if (!token) {
+      setLoading(false);
       return;
     }
+
+    setLoading(true);
+    try {
+      const [sponsorsResponse, dealsResponse, restaurantsResponse] = await Promise.all([
+        axios.get(`${API_URL}/api/sponsors/all`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/api/admin/deals`, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get(`${API_URL}/api/restaurants`, { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+
+      setSponsors((sponsorsResponse.data || []).sort((a: Sponsor, b: Sponsor) => a.sortOrder - b.sortOrder));
+      setDeals(dealsResponse.data || []);
+      setRestaurants(restaurantsResponse.data || []);
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ladda sponsorpanelen.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void fetchContext();
+  }, []);
+
+  const sortedSponsors = useMemo(() => [...sponsors].sort((a, b) => a.sortOrder - b.sortOrder), [sponsors]);
+
+  const stats = useMemo(() => ({
+    total: sponsors.length,
+    active: sponsors.filter((sponsor) => sponsor.isActive).length,
+    interactive: sponsors.filter((sponsor) => sponsor.isClickable).length,
+    static: sponsors.filter((sponsor) => !sponsor.isClickable).length,
+  }), [sponsors]);
+
+  const openCreateModal = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (sponsor: Sponsor) => {
+    setEditingId(sponsor.id);
+    setForm({
+      name: sponsor.name,
+      imageUrl: sponsor.imageUrl,
+      isActive: sponsor.isActive,
+      isClickable: sponsor.isClickable,
+      infoText: sponsor.infoText || "",
+      ctaText: sponsor.ctaText || "Läs mer",
+      ctaLink: sponsor.ctaLink || "",
+      linkType: sponsor.linkType || "EXTERNAL",
+      linkTarget: sponsor.linkTarget || "",
+      showName: sponsor.showName !== false,
+    });
+    setModalOpen(true);
+  };
+
+  const uploadImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !token) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await axios.post(`${API_URL}/api/admin/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      setForm((previous) => ({ ...previous, imageUrl: response.data.url }));
+      success("Bilden laddades upp.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ladda upp bilden.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const saveSponsor = async () => {
+    if (!token) return;
+    if (!form.name.trim() || !form.imageUrl.trim()) {
+      toastError("Namn och bild krävs.");
+      return;
+    }
+
     setSaving(true);
     try {
-      const data = {
+      const payload = {
         ...form,
-        name: form.name?.trim(),
-        imageUrl: form.imageUrl?.trim(),
+        name: form.name.trim(),
+        imageUrl: form.imageUrl.trim(),
+        infoText: form.isClickable ? form.infoText || undefined : undefined,
+        ctaText: form.isClickable && form.linkType !== "NONE" ? form.ctaText || undefined : undefined,
+        ctaLink: form.linkType === "EXTERNAL" ? form.linkTarget || form.ctaLink || undefined : undefined,
+        linkTarget: form.linkType !== "NONE" ? form.linkTarget || undefined : undefined,
       };
-      if (editId) {
-        const res = await axios.patch(`${API_URL}/api/sponsors/${editId}`, data, { headers: headers() });
-        setSponsors(prev => prev.map(s => s.id === editId ? res.data : s));
-        success("Sponsor uppdaterad!");
+
+      if (editingId) {
+        const response = await axios.patch(`${API_URL}/api/sponsors/${editingId}`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setSponsors((previous) => previous.map((entry) => (entry.id === editingId ? response.data : entry)));
+        success("Sponsorn uppdaterades.");
       } else {
-        const res = await axios.post(`${API_URL}/api/sponsors`, data, { headers: headers() });
-        setSponsors(prev => [...prev, res.data]);
-        success("Sponsor tillagd!");
+        const response = await axios.post(`${API_URL}/api/sponsors`, payload, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setSponsors((previous) => [...previous, response.data]);
+        success("Sponsorn skapades.");
       }
-      setForm(emptyForm());
-      setEditId(null);
-      setShowForm(false);
-    } catch { toastErr("Kunde inte spara sponsor"); }
-    finally { setSaving(false); }
+
+      setModalOpen(false);
+      setEditingId(null);
+      setForm(emptyForm);
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte spara sponsorn.");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const toggleActive = async (s: Sponsor) => {
+  const toggleActive = async (sponsor: Sponsor) => {
+    if (!token) return;
     try {
-      await axios.patch(`${API_URL}/api/sponsors/${s.id}`, { isActive: !s.isActive }, { headers: headers() });
-      setSponsors(prev => prev.map(x => x.id === s.id ? { ...x, isActive: !s.isActive } : x));
-      success(s.isActive ? "Dold" : "Aktiverad");
-    } catch { toastErr("Fel"); }
+      const response = await axios.patch(`${API_URL}/api/sponsors/${sponsor.id}`, { isActive: !sponsor.isActive }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSponsors((previous) => previous.map((entry) => (entry.id === sponsor.id ? response.data : entry)));
+      success(!sponsor.isActive ? "Sponsorn aktiverades." : "Sponsorn doldes.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte uppdatera sponsorn.");
+    }
   };
 
-  const toggleClickable = async (s: Sponsor) => {
+  const toggleClickable = async (sponsor: Sponsor) => {
+    if (!token) return;
     try {
-      await axios.patch(`${API_URL}/api/sponsors/${s.id}`, { isClickable: !s.isClickable }, { headers: headers() });
-      setSponsors(prev => prev.map(x => x.id === s.id ? { ...x, isClickable: !s.isClickable } : x));
-    } catch { toastErr("Fel"); }
+      const response = await axios.patch(`${API_URL}/api/sponsors/${sponsor.id}`, { isClickable: !sponsor.isClickable }, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSponsors((previous) => previous.map((entry) => (entry.id === sponsor.id ? response.data : entry)));
+      success(!sponsor.isClickable ? "Sponsorn är nu interaktiv." : "Sponsorn är nu statisk.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte uppdatera sponsorn.");
+    }
   };
 
-  const move = async (s: Sponsor, dir: "up" | "down") => {
-    const sorted = [...sponsors].sort((a, b) => a.sortOrder - b.sortOrder);
-    const idx = sorted.findIndex(x => x.id === s.id);
-    if ((dir === "up" && idx === 0) || (dir === "down" && idx === sorted.length - 1)) return;
-    const swap = sorted[dir === "up" ? idx - 1 : idx + 1];
+  const moveSponsor = async (sponsor: Sponsor, direction: "up" | "down") => {
+    if (!token) return;
+
+    const currentIndex = sortedSponsors.findIndex((entry) => entry.id === sponsor.id);
+    if (currentIndex === -1) return;
+    if (direction === "up" && currentIndex === 0) return;
+    if (direction === "down" && currentIndex === sortedSponsors.length - 1) return;
+
+    const swapSponsor = sortedSponsors[direction === "up" ? currentIndex - 1 : currentIndex + 1];
+
     try {
       await Promise.all([
-        axios.patch(`${API_URL}/api/sponsors/${s.id}`, { sortOrder: swap.sortOrder }, { headers: headers() }),
-        axios.patch(`${API_URL}/api/sponsors/${swap.id}`, { sortOrder: s.sortOrder }, { headers: headers() }),
+        axios.patch(`${API_URL}/api/sponsors/${sponsor.id}`, { sortOrder: swapSponsor.sortOrder }, { headers: { Authorization: `Bearer ${token}` } }),
+        axios.patch(`${API_URL}/api/sponsors/${swapSponsor.id}`, { sortOrder: sponsor.sortOrder }, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
-      setSponsors(prev => prev.map(x => {
-        if (x.id === s.id) return { ...x, sortOrder: swap.sortOrder };
-        if (x.id === swap.id) return { ...x, sortOrder: s.sortOrder };
-        return x;
-      }));
-    } catch { toastErr("Fel"); }
+
+      setSponsors((previous) =>
+        previous.map((entry) => {
+          if (entry.id === sponsor.id) return { ...entry, sortOrder: swapSponsor.sortOrder };
+          if (entry.id === swapSponsor.id) return { ...entry, sortOrder: sponsor.sortOrder };
+          return entry;
+        })
+      );
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte ändra ordningen.");
+    }
   };
 
-  const handleDelete = async (s: Sponsor) => {
+  const deleteSponsor = async () => {
+    if (!deleteConfirm || !token) return;
     try {
-      await axios.delete(`${API_URL}/api/sponsors/${s.id}`, { headers: headers() });
-      setSponsors(prev => prev.filter(x => x.id !== s.id));
+      await axios.delete(`${API_URL}/api/sponsors/${deleteConfirm.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setSponsors((previous) => previous.filter((entry) => entry.id !== deleteConfirm.id));
       setDeleteConfirm(null);
-      success("Sponsor raderad");
-    } catch { toastErr("Kunde inte radera sponsor"); }
+      success("Sponsorn raderades.");
+    } catch (err: any) {
+      toastError(err.response?.data?.error || "Kunde inte radera sponsorn.");
+    }
   };
 
-  const sorted = [...sponsors].sort((a, b) => a.sortOrder - b.sortOrder);
+  const selectedDealLabel = deals.find((deal) => deal.id === form.linkTarget);
+  const selectedRestaurantLabel = restaurants.find((restaurant) => restaurant.slug === form.linkTarget);
+
+  if (loading) {
+    return (
+      <div className="panel flex min-h-[360px] items-center justify-center rounded-[32px] px-6 py-12">
+        <div className="flex items-center gap-3 text-[var(--text-secondary)]">
+          <Loader2 className="animate-spin text-amber-200" size={18} />
+          <span className="text-sm font-bold">Laddar sponsorsystemet…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 pb-24">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight">Sponsorer</h1>
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-primary)]/30 mt-1">
-            Annonsbilder i horisontell scroll · Webb & React-appen
-          </p>
-        </div>
-        <button onClick={() => { setShowForm(true); setForm(emptyForm()); setEditId(null); }}
-          className="flex items-center gap-2 px-5 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl shadow-xl shadow-gold-500/20 transition-all">
-          <Plus size={15} /> Ny Sponsor
-        </button>
-      </div>
-
-      {/* Info */}
-      <div className="p-5 rounded-2xl border border-sky-500/20 bg-sky-500/5 flex items-start gap-3">
-        <Info size={15} className="text-sky-400 shrink-0 mt-0.5" />
-        <div className="text-[10px] font-bold text-sky-400/80 leading-relaxed space-y-1">
-          <p><strong>Klickbar (interaktiv):</strong> Sponsorn flippar och visar infotext + CTA-knapp. Bra för erbjudanden.</p>
-          <p><strong>Ej klickbar:</strong> Visas som ren annonsild i scrollen utan interaktion.</p>
-          <p>Ordning styrs med pil-knapparna. Sponsors visas direkt under headern på hemsidan.</p>
-        </div>
-      </div>
-
-      {/* Add form */}
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-            className="bg-[var(--border-subtle)] border border-gold-500/20 rounded-[2.5rem] p-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black uppercase tracking-tight">{editId ? 'Redigera Sponsor' : 'Ny Sponsor'}</h2>
-              <button onClick={() => { setShowForm(false); setEditId(null); }} className="p-2 rounded-xl hover:bg-white/10 transition-all text-[var(--text-secondary)]">
-                <X size={16} />
-              </button>
+    <div className="space-y-5 pb-16">
+      <section className="panel rounded-[32px] px-6 py-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="space-y-3">
+            <span className="control-chip">Sponsor control</span>
+            <div>
+              <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Sponsors är kopplade igen</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                Sponsorytan hämtar nu riktiga deals från adminflödet och riktiga restauranger från katalogen. Här styr du exakt vad som syns i webb och React Native.
+              </p>
             </div>
+          </div>
 
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Namn *</label>
-                <input value={form.name || ""} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="t.ex. CocaCola Sverige"
-                  className="w-full bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono uppercase" />
-              </div>
-              <div>
-                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] block mb-1">Bild (URL eller Ladda upp) *</label>
-                <div className="flex gap-2">
-                  <input value={form.imageUrl || ""} onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
-                    placeholder="Klistra in länk eller ladda upp bild..."
-                    className="flex-1 bg-[var(--bg-primary)] border border-[var(--border-subtle)] rounded-xl px-4 py-2.5 text-xs font-bold outline-none focus:border-gold-500/30 transition-all font-mono" />
-                  <label className="shrink-0 flex items-center justify-center gap-2 px-4 h-11 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-xl cursor-pointer transition-all shadow-lg active:scale-95">
-                    {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
-                    <span className="text-[10px] font-black uppercase tracking-widest">Ladda upp</span>
-                    <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading} />
-                  </label>
-                </div>
-              </div>
-
-            {/* Image preview */}
-            {form.imageUrl && (
-              <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
-                <img src={form.imageUrl} alt="preview" className="h-16 w-40 object-cover rounded-xl border border-white/10" onError={e => (e.currentTarget.style.opacity = "0.3")} />
-                <p className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Förhandsvisning</p>
-              </div>
-            )}
-
-            {/* Toggles */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
-                <button onClick={() => setForm(p => ({ ...p, isClickable: !p.isClickable }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
-                    form.isClickable ? "bg-violet-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
-                  }`}>
-                  {form.isClickable ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                  {form.isClickable ? "Interaktiv (flippar)" : "Statisk"}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 p-4 bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)]">
-                <button onClick={() => setForm(p => ({ ...p, showName: !p.showName }))}
-                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all ${
-                    form.showName ? "bg-emerald-500 text-white" : "bg-[var(--border-subtle)] text-[var(--text-secondary)]"
-                  }`}>
-                  {form.showName ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
-                  {form.showName ? "Visa Namn" : "Dölj Namn"}
-                </button>
-              </div>
-            </div>
-
-            {/* Clickable info fields */}
-            {form.isClickable && (
-              <div className="space-y-6 p-6 bg-violet-500/5 border border-violet-500/20 rounded-[2rem]">
-                <div className="grid md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1">Info (Baksida)</label>
-                    <textarea value={form.infoText || ""} onChange={e => setForm(p => ({ ...p, infoText: e.target.value }))}
-                      rows={2} placeholder="Beskrivning..."
-                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 resize-none transition-all italic" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1">Knapptext</label>
-                    <input value={form.ctaText || ""} onChange={e => setForm(p => ({ ...p, ctaText: e.target.value }))}
-                      placeholder="t.ex. Utforska"
-                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-2 text-[10px] font-bold outline-none focus:border-violet-500/40 transition-all" />
-                  </div>
-                </div>
-
-                <div className="grid md:grid-cols-3 gap-5">
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">Länktyp</label>
-                    <select value={form.linkType} onChange={e => setForm(p => ({ ...p, linkType: e.target.value as any, linkTarget: "" }))}
-                      className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                      <option value="EXTERNAL">Extern URL (Ny flik)</option>
-                      <option value="DEAL">Erbjudande (Samma flik)</option>
-                      <option value="RESTAURANT">Restaurang (Samma flik)</option>
-                      <option value="NONE">Ingen knapp (Bara info-text)</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    {form.linkType !== 'NONE' && (
-                      <>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-violet-400 block mb-1.5">
-                          {form.linkType === 'EXTERNAL' ? 'Mål-URL (https://...)' : form.linkType === 'DEAL' ? 'Välj Erbjudande' : 'Välj Restaurang'}
-                        </label>
-                        {form.linkType === 'EXTERNAL' ? (
-                          <input value={form.linkTarget || form.ctaLink || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value, ctaLink: e.target.value }))}
-                            placeholder="https://..."
-                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all font-mono" />
-                        ) : form.linkType === 'DEAL' ? (
-                          <select value={form.linkTarget || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
-                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                            <option value="">Välj ett erbjudande...</option>
-                            {deals.map(d => (
-                              <option key={d.id} value={d.id}>{d.title} ({d.restaurantName || 'Global'})</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <select value={form.linkTarget || ""} onChange={e => setForm(p => ({ ...p, linkTarget: e.target.value }))}
-                            className="w-full bg-[var(--bg-primary)] border border-violet-500/20 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-violet-500/40 transition-all appearance-none cursor-pointer">
-                            <option value="">Välj en restaurang...</option>
-                            {restaurants.map(r => (
-                              <option key={r.id} value={r.slug}>{r.name}</option>
-                            ))}
-                          </select>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => { setShowForm(false); setEditId(null); }}
-                className="px-6 py-3 bg-[var(--border-subtle)] hover:bg-white/10 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all">
-                Avbryt
-              </button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-2 px-8 py-3 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-2xl transition-all shadow-xl shadow-gold-500/20">
-                {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                {editId ? 'Uppdatera sponsor' : 'Spara sponsor'}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* List */}
-      {loading ? (
-        <div className="flex justify-center py-16"><Loader2 size={28} className="animate-spin text-gold-500" /></div>
-      ) : sorted.length === 0 ? (
-        <div className="py-20 text-center border border-dashed border-[var(--border-subtle)] rounded-3xl">
-          <ImageIcon size={32} className="text-[var(--text-secondary)] opacity-20 mx-auto mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] opacity-30">
-            Inga sponsorer ännu — klicka "Ny Sponsor" för att lägga till
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void fetchContext()} className="control-chip">
+              <RefreshCw size={13} /> Synka
+            </button>
+            <button type="button" onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+              <Plus size={14} /> Ny sponsor
+            </button>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {sorted.map((s, idx) => (
-            <motion.div key={s.id} layout
-              className={`bg-[var(--border-subtle)] border rounded-[2.5rem] p-6 transition-all ${
-                s.isActive ? "border-[var(--border-subtle)]" : "border-red-500/10 opacity-60"
-              }`}>
-              <div className="flex items-center gap-5 flex-wrap">
-                {/* Image */}
-                <div className="w-40 h-20 shrink-0 rounded-2xl overflow-hidden border border-white/10 bg-[var(--bg-primary)]">
-                  <img src={s.imageUrl} alt={s.name} className="w-full h-full object-cover" />
-                </div>
+      </section>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-base font-black uppercase tracking-tight">{s.name}</p>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
-                      s.isActive ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"
-                    }`}>{s.isActive ? "Aktiv" : "Dold"}</span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
-                      s.isClickable ? "bg-violet-500/10 text-violet-400 border-violet-500/20" : "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
-                    }`}>{s.isClickable ? "Interaktiv" : "Statisk"}</span>
-                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border uppercase ${
-                      s.showName !== false ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                    }`}>{s.showName !== false ? "Namn synligt" : "Namn dolt (banner)"}</span>
-                  </div>
-                  {s.isClickable && s.infoText && (
-                    <p className="text-[10px] text-[var(--text-secondary)] font-bold truncate max-w-sm">{s.infoText}</p>
-                  )}
-                  {s.isClickable && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[10px] font-black uppercase text-violet-400/60">{s.linkType || 'EXTERNAL'}:</span>
-                      <p className="text-[10px] font-bold text-sky-400 truncate max-w-[200px]">
-                        {s.linkTarget || s.ctaLink || 'Ingen länk'}
-                      </p>
-                    </div>
-                  )}
-                </div>
+      <section className="grid gap-4 xl:grid-cols-4">
+        {[
+          { label: "Totalt", value: stats.total, sub: "Partners i karusellen" },
+          { label: "Aktiva", value: stats.active, sub: "Syns publikt just nu" },
+          { label: "Interaktiva", value: stats.interactive, sub: "Har baksida eller CTA" },
+          { label: "Statisk banner", value: stats.static, sub: "Ren exponering utan klick" },
+        ].map((card) => (
+          <article key={card.label} className="metric-card panel-muted">
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
+            <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</p>
+            <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
+          </article>
+        ))}
+      </section>
 
-                {/* Controls */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {/* Reorder */}
-                  <div className="flex flex-col gap-1">
-                    <button onClick={() => move(s, "up")} disabled={idx === 0}
-                      className="p-1.5 rounded-lg disabled:opacity-20 hover:bg-white/10 transition-all text-[var(--text-secondary)]">
-                      <ArrowUp size={12} />
-                    </button>
-                    <button onClick={() => move(s, "down")} disabled={idx === sorted.length - 1}
-                      className="p-1.5 rounded-lg disabled:opacity-20 hover:bg-white/10 transition-all text-[var(--text-secondary)]">
-                      <ArrowDown size={12} />
-                    </button>
-                  </div>
+      <section className="grid gap-5 2xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="panel rounded-[32px] px-6 py-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Placement</p>
+              <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Karusellordning och beteende</h3>
+            </div>
+            <span className="control-chip">Web + RN</span>
+          </div>
 
-                  {/* Toggle clickable */}
-                  <button onClick={() => toggleClickable(s)}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
-                      s.isClickable
-                        ? "bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-violet-500/20"
-                        : "bg-[var(--bg-primary)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
-                    }`}>
-                    {s.isClickable ? "Gör statisk" : "Gör interaktiv"}
-                  </button>
-
-                  {/* Toggle active */}
-                  <button onClick={() => toggleActive(s)}
-                    className={`p-2 rounded-xl border transition-all ${
-                      s.isActive ? "bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
-                    }`}>
-                    {s.isActive ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-
-                  {/* Edit */}
-                  <button onClick={() => { setForm({ ...s }); setEditId(s.id); setShowForm(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                    className="p-2 rounded-xl bg-sky-500/5 border border-sky-500/10 text-sky-400 hover:bg-sky-500/15 transition-all">
-                    <Save size={14} className="rotate-0" />
-                  </button>
-
-                  {/* Delete */}
-                  <button onClick={() => setDeleteConfirm(s)}
-                    className="p-2 rounded-xl bg-rose-500/5 border border-rose-500/10 text-rose-400 hover:bg-rose-500/15 transition-all">
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+          <div className="mt-5 grid gap-4">
+            {sortedSponsors.length === 0 ? (
+              <div className="rounded-[28px] border border-dashed border-[var(--border-subtle)] px-6 py-16 text-center text-sm leading-7 text-[var(--text-secondary)]">
+                Inga sponsorer är skapade ännu.
               </div>
-
-              {/* Preview flip card */}
-              {s.isClickable && (
-                <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
-                  <button onClick={() => setPreviewId(previewId === s.id ? null : s.id)}
-                    className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 transition-all">
-                    <Info size={10} /> {previewId === s.id ? "Dölj" : "Visa"} baksidesinfo
-                  </button>
-                  {previewId === s.id && (
-                    <div className="mt-3 p-4 bg-[var(--bg-primary)] rounded-2xl border border-violet-500/20 space-y-2">
-                      {s.infoText && <p className="text-xs font-bold text-[var(--text-primary)]">{s.infoText}</p>}
-                      {s.ctaText && (
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl">
-                          {s.ctaText}
+            ) : (
+              sortedSponsors.map((sponsor, index) => (
+                <article key={sponsor.id} className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="flex min-w-0 items-start gap-4">
+                      <div className="h-20 w-32 shrink-0 overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)]">
+                        <img src={sponsor.imageUrl} alt={sponsor.name} className="h-full w-full object-cover" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{sponsor.name}</p>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${sponsor.isActive ? "bg-emerald-300/12 text-emerald-100" : "bg-rose-300/12 text-rose-100"}`}>
+                            {sponsor.isActive ? "Aktiv" : "Dold"}
+                          </span>
+                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${sponsor.isClickable ? "bg-violet-300/12 text-violet-100" : "bg-[rgba(255,255,255,0.08)] text-[var(--text-secondary)]"}`}>
+                            {sponsor.isClickable ? "Interaktiv" : "Statisk"}
+                          </span>
                         </div>
-                      )}
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                          {sponsor.infoText || "Ren annonsyta utan extra infotext."}
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
+                          <span className="control-chip">Position {index + 1}</span>
+                          <span className="control-chip">{sponsor.showName !== false ? "Namn visas" : "Namn dolt"}</span>
+                          {sponsor.linkType && sponsor.linkType !== "NONE" ? <span className="control-chip">{sponsor.linkType}</span> : null}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          ))}
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => moveSponsor(sponsor, "up")} disabled={index === 0} className="control-chip disabled:opacity-40">
+                        <ArrowUp size={13} /> Upp
+                      </button>
+                      <button type="button" onClick={() => moveSponsor(sponsor, "down")} disabled={index === sortedSponsors.length - 1} className="control-chip disabled:opacity-40">
+                        <ArrowDown size={13} /> Ner
+                      </button>
+                      <button type="button" onClick={() => toggleClickable(sponsor)} className="control-chip">
+                        {sponsor.isClickable ? <ToggleRight size={13} /> : <ToggleLeft size={13} />} {sponsor.isClickable ? "Gör statisk" : "Gör interaktiv"}
+                      </button>
+                      <button type="button" onClick={() => toggleActive(sponsor)} className="control-chip">
+                        {sponsor.isActive ? <EyeOff size={13} /> : <Eye size={13} />} {sponsor.isActive ? "Dölj" : "Visa"}
+                      </button>
+                      <button type="button" onClick={() => openEditModal(sponsor)} className="control-chip">
+                        <Save size={13} /> Redigera
+                      </button>
+                      <button type="button" onClick={() => setDeleteConfirm(sponsor)} className="control-chip text-rose-200">
+                        <Trash2 size={13} /> Radera
+                      </button>
+                    </div>
+                  </div>
+
+                  {sponsor.isClickable ? (
+                    <div className="mt-4 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">CTA-koppling</p>
+                          <p className="mt-1 text-sm font-black text-[var(--text-primary)]">{sponsor.ctaText || "Ingen CTA-text"}</p>
+                        </div>
+                        <button type="button" onClick={() => setPreviewId((current) => current === sponsor.id ? null : sponsor.id)} className="control-chip">
+                          {previewId === sponsor.id ? "Dölj preview" : "Visa preview"}
+                        </button>
+                      </div>
+
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                        {sponsor.linkType === "DEAL"
+                          ? `Öppnar deal: ${deals.find((deal) => deal.id === sponsor.linkTarget)?.title || sponsor.linkTarget || "Ej vald"}`
+                          : sponsor.linkType === "RESTAURANT"
+                          ? `Öppnar restaurang: ${restaurants.find((restaurant) => restaurant.slug === sponsor.linkTarget)?.name || sponsor.linkTarget || "Ej vald"}`
+                          : sponsor.linkType === "EXTERNAL"
+                          ? `Extern länk: ${sponsor.ctaLink || sponsor.linkTarget || "Ej vald"}`
+                          : "Ingen länk kopplad"}
+                      </p>
+
+                      {previewId === sponsor.id ? (
+                        <div className="mt-4 rounded-2xl border border-violet-300/16 bg-violet-300/10 px-4 py-4">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-100">Interaktiv preview</p>
+                          <p className="mt-2 text-sm font-black text-[var(--text-primary)]">{sponsor.infoText || "Lägg infotext för att förklara sponsorn när användaren klickar."}</p>
+                          {sponsor.linkType !== "NONE" ? (
+                            <div className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-violet-400/16 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-violet-100">
+                              <ExternalLink size={13} /> {sponsor.ctaText || "Läs mer"}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              ))
+            )}
+          </div>
         </div>
-      )}
+
+        <div className="grid gap-5">
+          <div className="panel rounded-[32px] px-6 py-6">
+            <div className="flex items-center gap-3 text-sky-100">
+              <Info size={18} />
+              <p className="text-sm font-black uppercase tracking-[0.22em]">Hur sponsorflödet fungerar</p>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--text-secondary)]">
+              <p>1. Skapa eller redigera sponsor och ladda upp en ren bannerbild.</p>
+              <p>2. Om sponsorn ska vara klickbar kopplar du den till en deal, restaurang eller extern URL.</p>
+              <p>3. Justera ordningen med upp/ner så den viktigaste placeringen kommer först i både webben och React Native.</p>
+            </div>
+          </div>
+
+          <div className="panel rounded-[32px] px-6 py-6">
+            <div className="flex items-center gap-3 text-amber-100">
+              <Sparkles size={18} />
+              <p className="text-sm font-black uppercase tracking-[0.22em]">Kopplingar som är live</p>
+            </div>
+            <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--text-secondary)]">
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
+                <p className="font-black text-[var(--text-primary)]">Deals</p>
+                <p className="mt-2">Sponsorer läser nu riktiga deal-poster från adminflödet istället för att falla tillbaka på en lös offentlig lista.</p>
+              </div>
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
+                <p className="font-black text-[var(--text-primary)]">Restauranger</p>
+                <p className="mt-2">Restaurangval bygger på den riktiga katalogen, så bannerlänkar kan peka rätt direkt i app och web.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditingId(null); }} title={editingId ? "Redigera sponsor" : "Ny sponsor"} maxWidth="max-w-3xl">
+        <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Namn</span>
+              <input value={form.name} onChange={(event) => setForm((previous) => ({ ...previous, name: event.target.value }))} className="control-input" placeholder="t.ex. Coca Cola Sverige" />
+            </label>
+
+            <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+              <span>Bild-URL</span>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <input value={form.imageUrl} onChange={(event) => setForm((previous) => ({ ...previous, imageUrl: event.target.value }))} className="control-input flex-1" placeholder="https://..." />
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+                  {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImageIcon size={14} />}
+                  Ladda upp
+                  <input type="file" accept="image/*" className="hidden" onChange={uploadImage} disabled={uploading} />
+                </label>
+              </div>
+            </label>
+
+            {form.imageUrl ? (
+              <div className="md:col-span-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
+                <img src={form.imageUrl} alt="Sponsor preview" className="h-28 w-full rounded-2xl object-cover" />
+              </div>
+            ) : null}
+
+            <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4 text-sm font-bold text-[var(--text-primary)]">
+              <input type="checkbox" checked={form.isClickable} onChange={(event) => setForm((previous) => ({ ...previous, isClickable: event.target.checked }))} />
+              Interaktiv sponsor med baksida / CTA
+            </label>
+            <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4 text-sm font-bold text-[var(--text-primary)]">
+              <input type="checkbox" checked={form.showName} onChange={(event) => setForm((previous) => ({ ...previous, showName: event.target.checked }))} />
+              Visa namn på bannern
+            </label>
+          </div>
+
+          {form.isClickable ? (
+            <div className="grid gap-4 rounded-[28px] border border-violet-300/16 bg-violet-300/10 p-5">
+              <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                <span>Infotext</span>
+                <textarea value={form.infoText} onChange={(event) => setForm((previous) => ({ ...previous, infoText: event.target.value }))} className="control-input min-h-[100px] resize-none" />
+              </label>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Knapptext</span>
+                  <input value={form.ctaText} onChange={(event) => setForm((previous) => ({ ...previous, ctaText: event.target.value }))} className="control-input" />
+                </label>
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Länktyp</span>
+                  <select value={form.linkType} onChange={(event) => setForm((previous) => ({ ...previous, linkType: event.target.value as typeof form.linkType, linkTarget: "", ctaLink: "" }))} className="control-input">
+                    <option value="EXTERNAL">Extern URL</option>
+                    <option value="DEAL">Deal</option>
+                    <option value="RESTAURANT">Restaurang</option>
+                    <option value="NONE">Ingen CTA</option>
+                  </select>
+                </label>
+              </div>
+
+              {form.linkType === "EXTERNAL" ? (
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Extern länk</span>
+                  <input value={form.linkTarget} onChange={(event) => setForm((previous) => ({ ...previous, linkTarget: event.target.value, ctaLink: event.target.value }))} className="control-input" placeholder="https://..." />
+                </label>
+              ) : null}
+
+              {form.linkType === "DEAL" ? (
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Välj deal</span>
+                  <select value={form.linkTarget} onChange={(event) => setForm((previous) => ({ ...previous, linkTarget: event.target.value }))} className="control-input">
+                    <option value="">Välj en deal</option>
+                    {deals.map((deal) => (
+                      <option key={deal.id} value={deal.id}>{deal.title}{deal.restaurant?.name ? ` • ${deal.restaurant.name}` : ""}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {form.linkType === "RESTAURANT" ? (
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Välj restaurang</span>
+                  <select value={form.linkTarget} onChange={(event) => setForm((previous) => ({ ...previous, linkTarget: event.target.value }))} className="control-input">
+                    <option value="">Välj en restaurang</option>
+                    {restaurants.map((restaurant) => (
+                      <option key={restaurant.id} value={restaurant.slug}>{restaurant.name}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.04)] px-4 py-4 text-sm leading-6 text-[var(--text-secondary)]">
+                <div className="flex items-center gap-2 text-violet-100">
+                  <LinkIcon size={14} />
+                  <span className="font-black uppercase tracking-[0.18em]">Preview-koppling</span>
+                </div>
+                <p className="mt-2">
+                  {form.linkType === "DEAL"
+                    ? selectedDealLabel ? `Länkar till dealen ${selectedDealLabel.title}.` : "Välj en deal att länka sponsorn till."
+                    : form.linkType === "RESTAURANT"
+                    ? selectedRestaurantLabel ? `Länkar till restaurangen ${selectedRestaurantLabel.name}.` : "Välj en restaurang att länka sponsorn till."
+                    : form.linkType === "EXTERNAL"
+                    ? form.linkTarget ? `Öppnar extern URL: ${form.linkTarget}` : "Lägg till en extern URL."
+                    : "Sponsorn visar bara info utan CTA-knapp."}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+            <button type="button" onClick={() => { setModalOpen(false); setEditingId(null); }} className="control-chip">
+              <X size={13} /> Avbryt
+            </button>
+            <button type="button" onClick={() => void saveSponsor()} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018] disabled:opacity-60">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} {editingId ? "Spara sponsor" : "Skapa sponsor"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmModal
         open={!!deleteConfirm}
         onClose={() => setDeleteConfirm(null)}
-        onConfirm={() => deleteConfirm && handleDelete(deleteConfirm)}
+        onConfirm={deleteSponsor}
         title="Radera sponsor"
-        message={`Är du säker på att du vill radera "${deleteConfirm?.name}"?`}
+        message={`Radera ${deleteConfirm?.name}?`}
         confirmLabel="Radera"
         danger
       />
