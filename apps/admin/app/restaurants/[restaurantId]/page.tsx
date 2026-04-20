@@ -45,6 +45,7 @@ const PREMIUM_TIERS = [
 const TABS: { id: Tab; label: string; icon: any }[] = [
   { id: "profil", label: "Profil", icon: Building },
   { id: "admin", label: "Admin-konto", icon: Lock },
+  { id: "hours", label: "Öppettider", icon: Clock },
   { id: "settings", label: "Leverans & ETA", icon: Settings },
   { id: "orders", label: "Ordrar", icon: ShoppingCart },
   { id: "report", label: "Rapport / PDF", icon: TrendingUp },
@@ -283,6 +284,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
 
   const currentTier = PREMIUM_TIERS.find((t) => t.value === featuredClass) || PREMIUM_TIERS[2];
   const TierIcon = currentTier.icon;
+  const hasSavedHours = Boolean(restaurant?.openingHours && Object.keys(restaurant.openingHours).length > 0);
 
   return (
     <div className="space-y-5 pb-24 max-w-4xl">
@@ -309,6 +311,9 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
           <p className="text-[var(--text-secondary)] text-[10px] font-bold uppercase tracking-widest mt-0.5">
             {restaurant.cuisine || "—"} · {restaurant.city || "—"}
           </p>
+          <p className="text-[var(--text-secondary)] text-sm mt-2 max-w-2xl">
+            All restaurangstyrning ligger nu samlad här igen: profil, admin-konto, öppettider, driftinställningar, orderläge och rapport.
+          </p>
         </div>
       </div>
 
@@ -327,8 +332,27 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
         })}
       </div>
 
-      <div className="rounded-2xl border border-amber-300/18 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">
-        Öppettider har flyttats till den nya <Link href={`/restaurant-ops?restaurantId=${restaurantId}`} className="font-black underline underline-offset-4">Restauranghubben</Link> för att hålla profilsidan renare och snabbare att arbeta i.
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Admin-alias</p>
+          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)] break-all">{adminForm.adminEmail || restaurant.slug}</p>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Restaurangens login-id för Business-appen</p>
+        </div>
+        <div className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Öppettider</p>
+          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">{hasSavedHours ? "Konfigurerade" : "Ej sparade"}</p>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Veckoschema och extra pass hanteras här</p>
+        </div>
+        <div className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Drift</p>
+          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">ETA {deliveryForm.etaMinutes} min</p>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Min order {deliveryForm.minOrderAmount} kr • avgift {deliveryForm.deliveryFee} kr</p>
+        </div>
+        <div className="metric-card panel-muted">
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Orders idag</p>
+          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">{todayOrders.length} st</p>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Rating {(restaurant.rating ?? 4.6).toFixed(1)} • {isOpen ? "öppen" : "stängd"}</p>
+        </div>
       </div>
 
       {/* Tab content */}
@@ -620,6 +644,39 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                 className="inline-flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-sky-500/20">
                 <MapPin size={12} /> Gå till Stadshantering & Zoner →
               </Link>
+            </div>
+
+            <div className="p-5 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-[13px] font-black uppercase tracking-tight text-[var(--text-primary)]">Basvärden för drift</h2>
+                  <p className="text-[10px] text-[var(--text-secondary)] font-bold uppercase tracking-widest mt-0.5">
+                    Visas här för att hela restaurangen ska gå att styra från en sida
+                  </p>
+                </div>
+                <button onClick={saveDelivery} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gold-500 hover:bg-gold-400 text-[#0d0d0d] font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-gold-500/20 transition-all">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara
+                </button>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                <Field label="Leveransavgift (bas)">
+                  <input type="number" min={0} value={deliveryForm.deliveryFee}
+                    onChange={(e) => setDeliveryForm((p) => ({ ...p, deliveryFee: Number(e.target.value) || 0 }))}
+                    className={inputCls} />
+                </Field>
+                <Field label="Minsta order (bas)">
+                  <input type="number" min={0} value={deliveryForm.minOrderAmount}
+                    onChange={(e) => setDeliveryForm((p) => ({ ...p, minOrderAmount: Number(e.target.value) || 0 }))}
+                    className={inputCls} />
+                </Field>
+                <Field label="Standard ETA (min)">
+                  <input type="number" min={1} value={deliveryForm.etaMinutes}
+                    onChange={(e) => setDeliveryForm((p) => ({ ...p, etaMinutes: Number(e.target.value) || 30 }))}
+                    className={inputCls} />
+                </Field>
+              </div>
             </div>
 
             {/* ETA fallback — only this field stays here */}

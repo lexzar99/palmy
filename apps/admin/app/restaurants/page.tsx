@@ -183,8 +183,8 @@ export default function RestaurantsPage() {
             <div>
               <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Restaurangflottan i en tydligare vy</h2>
               <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
-                Här ser du vilka restauranger som saknar admin-alias, öppettider eller driftberedskap. Öppettider styrs nu centralt i restauranghubben,
-                medan profilsidan kan fokusera på onboarding och varumärke.
+                Här ser du vilka restauranger som saknar admin-alias, öppettider eller driftberedskap. Huvudregeln nu är enkel: tryck in på restaurangen så finns hela kontrollsidan där,
+                och använd restauranghubben bara för snabb driftredigering när du vill jobba snabbare.
               </p>
             </div>
           </div>
@@ -318,11 +318,11 @@ export default function RestaurantsPage() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap items-center gap-2">
-                  <Link href={`/restaurant-ops?restaurantId=${restaurant.id}`} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
-                    Hub <ArrowRight size={14} />
+                  <Link href={`/restaurants/${restaurant.id}`} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+                    Öppna restaurang <ArrowRight size={14} />
                   </Link>
-                  <Link href={`/restaurants/${restaurant.id}`} className="control-chip">
-                    Profil
+                  <Link href={`/restaurant-ops?restaurantId=${restaurant.id}`} className="control-chip">
+                    Snabbdrift
                   </Link>
                   <Link href={`/menu/${restaurant.id}`} className="control-chip">
                     Meny
