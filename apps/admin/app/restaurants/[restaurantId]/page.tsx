@@ -77,8 +77,8 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     latitude: "", longitude: "",
   });
 
-  // Admin credentials form
-  const [adminForm, setAdminForm] = useState({ adminPassword: "", adminEmail: "" });
+  // Flutter business app credentials form
+  const [adminForm, setAdminForm] = useState({ adminPassword: "" });
 
   // Opening hours
   const [openingHours, setOpeningHours] = useState<Record<string, DayHours>>(
@@ -146,7 +146,7 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
           }), {})
         );
         
-        setAdminForm({ adminPassword: "", adminEmail: r.adminEmail || "" });
+        setAdminForm({ adminPassword: "" });
       }
 
       if (ordersRes.status === "fulfilled") {
@@ -211,7 +211,6 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
     }
     const ok = await patchRestaurant({ 
       adminPassword: adminForm.adminPassword || undefined,
-      adminEmail: adminForm.adminEmail || undefined,
     });
     if (ok) { 
       success("Admin-uppgifter uppdaterades"); 
@@ -334,9 +333,9 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="metric-card panel-muted">
-          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Admin-alias</p>
-          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)] break-all">{adminForm.adminEmail || restaurant.slug}</p>
-          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Restaurangens login-id för Business-appen</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Business-login</p>
+          <p className="mt-3 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)] break-all">{restaurant.slug}</p>
+          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">Användarnamnet som används i Flutter-appen</p>
         </div>
         <div className="metric-card panel-muted">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">Öppettider</p>
@@ -485,12 +484,12 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
                 <User size={14} className="text-gold-500" /> Admin-inloggning för restaurangen
               </h2>
               <p className="text-[10px] text-[var(--text-secondary)] font-bold leading-relaxed">
-                Restaurangadmins loggar in via <strong className="text-[var(--text-primary)]">MatGo Business-appen</strong> (Flutter).
-                Användarnamnet är restaurangens slug: <code className="text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">{restaurant.slug}</code>
+                Restaurangkontot används bara i <strong className="text-[var(--text-primary)]">MatGo Business-appen</strong> (Flutter).
+                Endast superadmin loggar in i webbadminen. Restaurangens användarnamn är alltid sluggen: <code className="text-gold-500 bg-gold-500/10 px-1.5 py-0.5 rounded">{restaurant.slug}</code>
               </p>
               <div className="p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl">
                 <p className="text-[10px] text-amber-400 font-bold">
-                  Inloggningsuppgifterna gäller endast för restaurang-adminerna — inte super-admin.
+                  Den här fliken styr bara Flutter-kontot för restaurangen. Webbadminen används endast av superadmin.
                 </p>
               </div>
             </div>
@@ -501,14 +500,6 @@ export default function RestaurantHubPage({ params }: { params: Promise<{ restau
               </h2>
               <Field label="Användarnamn (auto)">
                 <input className={`${inputCls} opacity-50`} value={restaurant.slug} readOnly />
-              </Field>
-              <Field label="Inloggnings-epost (frivillig)">
-                <div className="relative">
-                  <User size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
-                  <input className={`${inputCls} pl-9`} value={adminForm.adminEmail}
-                    onChange={(e) => setAdminForm((p) => ({ ...p, adminEmail: e.target.value }))}
-                    placeholder="t.ex. hej@restaurang.se (används som inlogg)" />
-                </div>
               </Field>
               <Field label="Nytt lösenord">
                 <div className="relative">

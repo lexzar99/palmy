@@ -47,7 +47,7 @@ const LAUNCHPAD = [
   {
     href: "/restaurant-ops",
     label: "Restauranghub",
-    description: "Samlad hub för öppettider, ETA, admin-alias och driftstatus.",
+    description: "Samlad hub för öppettider, ETA och snabb driftstatus.",
     icon: Store,
   },
   {
@@ -87,8 +87,8 @@ const getAlertPlaybook = (alert: { domain: string; title: string; restaurantId?:
       label: "Öppna restauranghubben",
       steps: [
         "Öppna restaurangens driftinställningar.",
-        "Lägg till eller verifiera admin-alias för korrekt login-scope.",
-        "Spara och kontrollera att aliaset syns i flottvyn.",
+        "Kontrollera att Business-kontot fungerar via slug och lösenord på restaurangsidan.",
+        "Spara och bekräfta att drift- och logininformationen är uppdaterad.",
       ],
     };
   }
@@ -606,7 +606,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-3 text-sm text-[var(--text-secondary)]">
-                  <span>{restaurant.adminEmail ? restaurant.adminEmail : "Saknar alias"}</span>
+                  <span>{restaurant.slug}</span>
                   <Link href={`/restaurants/${restaurant.id}`} className="inline-flex items-center gap-2 font-black uppercase tracking-[0.18em] text-amber-200">
                     Detalj <ArrowRight size={14} />
                   </Link>

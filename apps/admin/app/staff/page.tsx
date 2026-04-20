@@ -35,7 +35,7 @@ interface StaffMember {
 
 const ROLE_CONFIG: Record<string, { label: string; icon: React.ElementType; tone: string }> = {
   SUPER_ADMIN: { label: "Super Admin", icon: Crown, tone: "bg-amber-300/12 text-amber-100" },
-  RESTAURANT_ADMIN: { label: "Restaurangalias", icon: ChefHat, tone: "bg-emerald-300/12 text-emerald-100" },
+  RESTAURANT_ADMIN: { label: "Restaurangkonto", icon: ChefHat, tone: "bg-emerald-300/12 text-emerald-100" },
   STAFF: { label: "Internal Staff", icon: Users, tone: "bg-sky-300/12 text-sky-100" },
   VIEWER: { label: "Viewer", icon: Eye, tone: "bg-violet-300/12 text-violet-100" },
   ADMIN: { label: "Admin", icon: Shield, tone: "bg-slate-300/12 text-slate-100" },
@@ -192,7 +192,7 @@ export default function StaffPage() {
             <div>
               <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Team och åtkomst i samma register</h2>
               <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
-                Här ser du alla interna adminkonton och restaurangalias. Själva restaurangernas login-alias hanteras fortfarande i restauranghubben, men du kan aktivera, återställa eller städa konton här.
+                Här ser du alla interna adminkonton och restaurangkonton. Själva restaurangernas Flutter-login styrs från restaurangsidan, men du kan aktivera, återställa eller städa konton här.
               </p>
             </div>
           </div>
@@ -213,7 +213,7 @@ export default function StaffPage() {
           { label: "Totalt", value: stats.total, sub: "Alla adminkonton" },
           { label: "Super Admin", value: stats.superAdmins, sub: "Full access till kontrollcentret" },
           { label: "Interna konton", value: stats.internal, sub: "Core team och support" },
-          { label: "Restaurangalias", value: stats.restaurantAliases, sub: "Scopebundna partnerkonton" },
+          { label: "Restaurangkonton", value: stats.restaurantAliases, sub: "Konton för Business-appen" },
         ].map((card) => (
           <article key={card.label} className="metric-card panel-muted">
             <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
@@ -303,7 +303,7 @@ export default function StaffPage() {
             <div className="mt-4 grid gap-3 text-sm leading-7 text-[var(--text-secondary)]">
               <p>1. Skapa interna teamkonton här när fler behöver adminaccess.</p>
               <p>2. Återställ lösenord och kopiera det temporära lösenordet direkt till rätt person.</p>
-              <p>3. Hantera restaurangernas egna login-alias i Restauranghubben när ett partnerkonto saknas.</p>
+              <p>3. Hantera restaurangens Flutter-login från restaurangsidans Admin-konto-flik när lösenord behöver bytas.</p>
             </div>
           </div>
 
@@ -336,7 +336,7 @@ export default function StaffPage() {
 
           <div className="rounded-[24px] border border-amber-300/18 bg-amber-300/10 px-4 py-4 text-sm leading-6 text-[var(--text-secondary)]">
             <p className="font-black text-[var(--text-primary)]">Viktigt</p>
-            <p className="mt-2">Restaurangadmin-alias skapas inte här längre. De styrs i Restauranghubben tillsammans med öppettider och driftinställningar.</p>
+            <p className="mt-2">Restaurangernas Flutter-konton skapas inte här längre. De styrs från respektive restaurangsida tillsammans med övrig driftinfo.</p>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
@@ -374,8 +374,8 @@ function InfoCircle() {
           <p className="mt-2">Superadmin används för full kontroll. Övriga roller finns redo för framtida finare rollstyrning utan att restauranglogiken påverkas.</p>
         </div>
         <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-4 py-4">
-          <p className="font-black text-[var(--text-primary)]">Restaurangalias</p>
-          <p className="mt-2">Konton kopplade till restauranger listas här för översikt, men alias och scope underhålls i Restauranghubben.</p>
+          <p className="font-black text-[var(--text-primary)]">Restaurangkonton</p>
+          <p className="mt-2">Konton kopplade till restauranger listas här för översikt, men lösenord och appinloggning underhålls från restaurangsidan.</p>
         </div>
       </div>
     </>

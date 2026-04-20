@@ -84,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                   title: const Text('DESKTOP CONTROL HUB', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 2)),
                   content: const Text(
-                    'Öppettider har flyttats till en central restauranghub på desktop. Där hanteras också utbetalningar, admin-alias och säkerhetsfunktioner. Fortsätt använda mobilen för orderflödet som vanligt.',
+                    'Öppettider och utbetalningar styrs nu centralt på desktop. Själva restaurangkontot för Business-appen fortsätter fungera som vanligt med restaurangens användarnamn och lösenord.',
                     style: TextStyle(color: Colors.white70, height: 1.6),
                   ),
                   actions: [

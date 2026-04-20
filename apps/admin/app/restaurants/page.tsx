@@ -30,7 +30,6 @@ export default function RestaurantsPage() {
   const { data, loading, error, refresh } = useControlCenter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "closed">("all");
-  const [aliasFilter, setAliasFilter] = useState<"all" | "missing" | "ok">("all");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   const restaurants = useMemo(() => {
@@ -42,8 +41,7 @@ export default function RestaurantsPage() {
         const matchesText =
           restaurant.name.toLowerCase().includes(query) ||
           restaurant.slug.toLowerCase().includes(query) ||
-          (restaurant.city || "").toLowerCase().includes(query) ||
-          (restaurant.adminEmail || "").toLowerCase().includes(query);
+          (restaurant.city || "").toLowerCase().includes(query);
 
         if (!matchesText) return false;
       }
@@ -51,23 +49,20 @@ export default function RestaurantsPage() {
       if (statusFilter === "open" && !restaurant.isOpen) return false;
       if (statusFilter === "closed" && restaurant.isOpen) return false;
 
-      if (aliasFilter === "missing" && restaurant.adminEmail) return false;
-      if (aliasFilter === "ok" && !restaurant.adminEmail) return false;
-
       return true;
     });
-  }, [aliasFilter, data, search, statusFilter]);
+  }, [data, search, statusFilter]);
 
   const stats = useMemo(() => {
     if (!data) {
-      return { total: 0, open: 0, missingAlias: 0, missingHours: 0, payoutExposure: 0 };
+      return { total: 0, open: 0, missingHours: 0, queuePressure: 0, payoutExposure: 0 };
     }
 
     return {
       total: data.restaurantSnapshots.length,
       open: data.restaurantSnapshots.filter((restaurant) => restaurant.isOpen).length,
-      missingAlias: data.restaurantSnapshots.filter((restaurant) => !restaurant.adminEmail).length,
       missingHours: data.restaurantSnapshots.filter((restaurant) => !restaurant.hasHours).length,
+      queuePressure: data.restaurantSnapshots.filter((restaurant) => restaurant.pendingOrders > 0).length,
       payoutExposure: data.restaurantSnapshots.reduce((sum, restaurant) => sum + restaurant.payoutEstimate, 0),
     };
   }, [data]);
@@ -83,7 +78,6 @@ export default function RestaurantsPage() {
       tone: string;
     }>;
 
-    const missingAlias = data.restaurantSnapshots.filter((restaurant) => !restaurant.adminEmail);
     const missingHours = data.restaurantSnapshots.filter((restaurant) => !restaurant.hasHours);
     const payoutRisk = [...data.restaurantSnapshots]
       .filter((restaurant) => restaurant.payoutEstimate > 0 && (restaurant.reviewScore < 4.2 || restaurant.pendingOrders > 0))
@@ -91,15 +85,15 @@ export default function RestaurantsPage() {
 
     return [
       {
-        title: "Lägg admin-alias",
-        countLabel: `${missingAlias.length} restauranger saknar alias`,
-        description: "Sätt ett tydligt admin-alias så desktop och restauranginloggning håller samma scope utan manuella genvägar.",
-        href: missingAlias[0] ? `/restaurant-ops?restaurantId=${missingAlias[0].id}` : "/restaurant-ops",
-        hrefLabel: missingAlias[0] ? `Öppna ${missingAlias[0].name}` : "Öppna restauranghubben",
+        title: "Kontrollera Business-konto",
+        countLabel: `${data.restaurantSnapshots.length} restauranger har Flutter-konto via slug`,
+        description: "Restaurangernas inloggning sker nu bara via Business-appen. Om någon tappat åtkomsten öppnar du restaurangen och sätter nytt lösenord i Admin-konto-fliken.",
+        href: data.restaurantSnapshots[0] ? `/restaurants/${data.restaurantSnapshots[0].id}` : "/restaurants",
+        hrefLabel: data.restaurantSnapshots[0] ? `Öppna ${data.restaurantSnapshots[0].name}` : "Öppna restaurangsidan",
         steps: [
-          "Öppna restaurangen i Restauranghubben.",
-          "Fyll i admin-alias under driftinställningar.",
-          "Spara och kontrollera att aliaset syns i flottvyn.",
+          "Öppna restaurangen på den fulla restaurangsidan.",
+          "Gå till fliken Admin-konto och kontrollera att sluggen ser rätt ut.",
+          "Sätt nytt lösenord där om restaurangen behöver logga in i Flutter-appen igen.",
         ],
         tone: "border-amber-300/18 bg-amber-300/10",
       },
@@ -183,7 +177,7 @@ export default function RestaurantsPage() {
             <div>
               <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Restaurangflottan i en tydligare vy</h2>
               <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
-                Här ser du vilka restauranger som saknar admin-alias, öppettider eller driftberedskap. Huvudregeln nu är enkel: tryck in på restaurangen så finns hela kontrollsidan där,
+                Här ser du vilka restauranger som saknar öppettider eller driftberedskap. Huvudregeln nu är enkel: tryck in på restaurangen så finns hela kontrollsidan där,
                 och använd restauranghubben bara för snabb driftredigering när du vill jobba snabbare.
               </p>
             </div>
@@ -208,7 +202,7 @@ export default function RestaurantsPage() {
         {[
           { label: "Totalt", value: stats.total, sub: "Aktiva partners i systemet" },
           { label: "Öppna nu", value: stats.open, sub: "Schema + manuell status" },
-          { label: "Saknar alias", value: stats.missingAlias, sub: "Risk för osäker loginhantering" },
+          { label: "Orderkö", value: stats.queuePressure, sub: "Har väntande ordrar just nu" },
           { label: "Saknar öppettider", value: stats.missingHours, sub: "Flyttas till restauranghubben" },
           { label: "Payout-exponering", value: currency(stats.payoutExposure), sub: "Preliminär utbetalning denna månad" },
         ].map((card) => (
@@ -227,7 +221,7 @@ export default function RestaurantsPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Sök restaurang, stad, slug eller admin-alias"
+              placeholder="Sök restaurang, stad eller slug"
               className="control-input pl-10"
             />
           </div>
@@ -243,20 +237,6 @@ export default function RestaurantsPage() {
                 type="button"
                 onClick={() => setStatusFilter(item.id)}
                 className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${statusFilter === item.id ? "bg-gold-gradient text-[#091018]" : "border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}
-              >
-                {item.label}
-              </button>
-            ))}
-            {([
-              { id: "all", label: "Alla alias" },
-              { id: "missing", label: "Saknar alias" },
-              { id: "ok", label: "Alias ok" },
-            ] as const).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setAliasFilter(item.id)}
-                className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${aliasFilter === item.id ? "bg-[rgba(56,189,248,0.18)] text-sky-100" : "border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}
               >
                 {item.label}
               </button>
@@ -299,9 +279,9 @@ export default function RestaurantsPage() {
 
                 <div className="mt-4 grid gap-2">
                   <div className="flex items-center justify-between rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm">
-                    <span className="text-[var(--text-secondary)]">Admin-alias</span>
-                    <span className={restaurant.adminEmail ? "font-black text-[var(--text-primary)]" : "font-black text-rose-200"}>
-                      {restaurant.adminEmail || "Saknas"}
+                    <span className="text-[var(--text-secondary)]">Business-login</span>
+                    <span className="font-black text-[var(--text-primary)]">
+                      {restaurant.slug}
                     </span>
                   </div>
                   <div className="flex items-center justify-between rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm">

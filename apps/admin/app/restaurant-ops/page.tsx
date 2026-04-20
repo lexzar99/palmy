@@ -35,7 +35,6 @@ type RestaurantDetail = {
   slug: string;
   city?: string | null;
   description?: string | null;
-  adminEmail?: string | null;
   deliveryFee: number;
   minOrderAmount: number;
   etaMinutes: number;
@@ -77,7 +76,6 @@ export default function RestaurantOpsPage() {
   const [saving, setSaving] = useState(false);
   const [hoursSaving, setHoursSaving] = useState(false);
   const [form, setForm] = useState({
-    adminEmail: "",
     deliveryFee: 0,
     minOrderAmount: 0,
     etaMinutes: 30,
@@ -112,7 +110,6 @@ export default function RestaurantOpsPage() {
         const restaurant = response.data as RestaurantDetail;
         setDetail(restaurant);
         setForm({
-          adminEmail: restaurant.adminEmail || "",
           deliveryFee: restaurant.deliveryFee || 0,
           minOrderAmount: restaurant.minOrderAmount || 0,
           etaMinutes: restaurant.etaMinutes || 30,
@@ -159,7 +156,6 @@ export default function RestaurantOpsPage() {
       await axios.patch(
         `${API_URL}/api/restaurants/${selectedRestaurantId}`,
         {
-          adminEmail: form.adminEmail || null,
           deliveryFee: form.deliveryFee,
           minOrderAmount: form.minOrderAmount,
           etaMinutes: form.etaMinutes,
@@ -252,7 +248,7 @@ export default function RestaurantOpsPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Central restaurangdrift</p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Öppettider är flyttade hit</h3>
+            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Snabbdrift för restauranger</h3>
           </div>
           <button type="button" onClick={() => void refresh()} className="control-chip">
             <RefreshCw size={13} /> Synka
@@ -328,7 +324,7 @@ export default function RestaurantOpsPage() {
                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Vald restaurang</p>
                 <h3 className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{detail.name}</h3>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-                  Här styr du öppettider, ETA, minorder, leveransavgift och admin-alias centralt. Själva restaurangsidan kan nu fokusera på profil och rapport.
+                  Här styr du öppettider, ETA, minorder och leveransavgift snabbt. Själva restaurangsidan innehåller nu hela kontrollytan inklusive Business-appkontot.
                 </p>
               </div>
 
@@ -376,7 +372,7 @@ export default function RestaurantOpsPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Driftinställningar</p>
-                      <p className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">ETA, minorder och admin-alias</p>
+                      <p className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">ETA, minorder och leveransbas</p>
                     </div>
                     <button type="button" onClick={saveCoreSettings} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
                       <Save size={13} /> {saving ? "Sparar" : "Spara"}
@@ -384,10 +380,6 @@ export default function RestaurantOpsPage() {
                   </div>
 
                   <div className="mt-5 grid gap-4">
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Admin-alias för login</span>
-                      <input value={form.adminEmail} onChange={(event) => setForm((previous) => ({ ...previous, adminEmail: event.target.value }))} className="control-input" placeholder="t.ex. palmyra@partner.matgo" />
-                    </label>
                     <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
                       <span>Leveransavgift</span>
                       <input type="number" value={form.deliveryFee} onChange={(event) => setForm((previous) => ({ ...previous, deliveryFee: Number(event.target.value) }))} className="control-input" />
@@ -410,7 +402,7 @@ export default function RestaurantOpsPage() {
                       Focus just nu: <span className="font-black text-[var(--text-primary)]">{activeSnapshot.focus}</span>
                     </div>
                     <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
-                      Login-alias: <span className="font-black text-[var(--text-primary)]">{activeSnapshot.adminEmail || "Saknas"}</span>
+                      Business-login: <span className="font-black text-[var(--text-primary)]">{detail.slug}</span>
                     </div>
                     <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
                       Nästa utbetalning: <span className="font-black text-amber-200">{currency(activeSnapshot.payoutEstimate)}</span>

@@ -19,7 +19,7 @@ const getPageMeta = (pathname: string) => {
     return { eyebrow: "Orders", title: "Order Flow", description: "Köer, live-status och återställning utan överlappande dashboards." };
   }
   if (pathname.startsWith("/restaurant-ops")) {
-    return { eyebrow: "Restaurants", title: "Restauranghub", description: "Öppettider, leveransinställningar, admin-alias och status i en central hub." };
+    return { eyebrow: "Restaurants", title: "Restauranghub", description: "Öppettider, leveransinställningar och status i en snabb driftvy." };
   }
   if (pathname.startsWith("/finance") || pathname.startsWith("/billing")) {
     return { eyebrow: "Finance", title: "Finance HQ", description: "Utbetalningar, provisioner och restaurangernas payout-beredskap." };

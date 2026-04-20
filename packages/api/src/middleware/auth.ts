@@ -59,12 +59,7 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
   if (!restaurant) {
     const loginKey = (admin.email || '').toLowerCase();
     restaurant = await prisma.restaurant.findFirst({
-      where: {
-        OR: [
-          { slug: loginKey },
-          { adminEmail: { equals: loginKey, mode: 'insensitive' } },
-        ],
-      },
+      where: { slug: loginKey },
       select: { id: true, slug: true, name: true },
     });
   }

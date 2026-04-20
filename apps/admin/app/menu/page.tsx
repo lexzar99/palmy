@@ -137,7 +137,7 @@ export default function MenuSelectionHub() {
           <div className="mt-5 grid gap-3">
             {[
               { href: "/categories", title: "Bygg startsidans rails", description: "Hantera kategorier och sektioner för webb och React Native.", icon: LayoutGrid },
-              { href: "/restaurant-ops", title: "Koppla meny till drift", description: "Säkerställ att ETA, öppettider och alias hänger ihop med restaurangen.", icon: Store },
+              { href: "/restaurant-ops", title: "Koppla meny till drift", description: "Säkerställ att ETA, öppettider och leveransinställningar hänger ihop med restaurangen.", icon: Store },
               { href: "/deals", title: "Lägg till kampanjer", description: "Skapa deals som syns direkt i menyn och i sponsor/push-flödena.", icon: Package },
             ].map((item) => {
               const Icon = item.icon;

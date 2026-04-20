@@ -118,7 +118,7 @@ router.get('/control-center', async (req, res) => {
           socketGuard: true,
           uploadGuard: true,
           cloudinaryConfigured: Boolean(process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)),
-          aliasSync: true,
+          aliasSync: false,
           notes: [
             'Adminlogin rate-limitad per IP + identifier',
             'join:admin kräver verifierad token',
@@ -321,8 +321,7 @@ router.get('/control-center', async (req, res) => {
         : restaurant.rating ?? 0;
 
       let focus = 'Stabil';
-      if (!restaurant.adminEmail) focus = 'Saknar inloggningsalias';
-      else if (!hasHours) focus = 'Saknar öppettider';
+      if (!hasHours) focus = 'Saknar öppettider';
       else if (pendingOrders >= 5) focus = 'Ordertryck';
       else if (reviewScore > 0 && reviewScore < 4.1) focus = 'Kvalitetsbevakning';
       else if (!effectiveIsOpen) focus = 'Stängd just nu';
@@ -374,7 +373,7 @@ router.get('/control-center', async (req, res) => {
         commission: snapshot.commissionEstimate,
         subscription: snapshot.subscriptionEstimate,
         payout: snapshot.payoutEstimate,
-        readiness: snapshot.adminEmail && snapshot.hasHours ? 'ready' : 'action',
+        readiness: snapshot.hasHours ? 'ready' : 'action',
       }))
       .sort((a, b) => b.payout - a.payout);
 
@@ -449,17 +448,6 @@ router.get('/control-center', async (req, res) => {
         description: string;
         restaurantId: string;
       }> = [];
-
-      if (!snapshot.adminEmail) {
-        restaurantAlerts.push({
-          id: `${snapshot.id}-admin-email`,
-          severity: 'high',
-          domain: 'security',
-          title: `${snapshot.name} saknar admin-alias`,
-          description: 'Restaurangen saknar separat login-alias för desktop/mobile-fall tillbaka.',
-          restaurantId: snapshot.id,
-        });
-      }
 
       if (!snapshot.hasHours) {
         restaurantAlerts.push({
@@ -567,7 +555,7 @@ router.get('/control-center', async (req, res) => {
         socketGuard: true,
         uploadGuard: true,
         cloudinaryConfigured: Boolean(process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)),
-        aliasSync: true,
+        aliasSync: false,
         notes: [
           'Adminlogin rate-limitad per IP + identifier',
           'join:admin kräver verifierad token och scope-kontroll',

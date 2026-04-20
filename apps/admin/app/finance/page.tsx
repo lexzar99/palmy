@@ -220,7 +220,7 @@ export default function FinancePage() {
           approvedBy: persisted?.approvedBy || null,
           paidAt: persisted?.paidAt || null,
           paidBy: persisted?.paidBy || null,
-          readiness: restaurant.adminEmail && restaurant.hasHours ? "ready" : "action",
+          readiness: restaurant.hasHours ? "ready" : "action",
           focus: restaurant.focus,
           pendingOrders: restaurant.pendingOrders,
         };

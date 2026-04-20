@@ -1365,15 +1365,12 @@ const staffRoleOptions = ['SUPER_ADMIN', 'STAFF', 'VIEWER', 'ADMIN'] as const;
 
 const resolveRestaurantByAdminLogin = async () => {
   const restaurants = await prisma.restaurant.findMany({
-    select: { id: true, name: true, slug: true, adminEmail: true },
+    select: { id: true, name: true, slug: true },
   });
 
   const restaurantByLogin = new Map<string, { id: string; name: string }>();
   restaurants.forEach((restaurant) => {
     restaurantByLogin.set(restaurant.slug.toLowerCase(), { id: restaurant.id, name: restaurant.name });
-    if (restaurant.adminEmail) {
-      restaurantByLogin.set(restaurant.adminEmail.toLowerCase(), { id: restaurant.id, name: restaurant.name });
-    }
   });
 
   return restaurantByLogin;

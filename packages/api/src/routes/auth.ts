@@ -264,11 +264,7 @@ router.post('/login', async (req, res) => {
       return;
     }
 
-    // Try to find if loginId matches a Restaurant.adminEmail
-    const maybeRestaurant = await prisma.restaurant.findFirst({
-       where: { adminEmail: { equals: loginId, mode: 'insensitive' } }
-    });
-    const effectiveLoginId = maybeRestaurant ? maybeRestaurant.slug.toLowerCase() : loginId;
+    const effectiveLoginId = loginId;
 
     const admin = await prisma.adminUser.findFirst({
       where: { email: effectiveLoginId, isActive: true },
@@ -290,12 +286,7 @@ router.post('/login', async (req, res) => {
     let restaurantName: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
       const restaurant = await prisma.restaurant.findFirst({
-        where: {
-          OR: [
-            { slug: admin.email.toLowerCase() },
-            { adminEmail: { equals: loginId, mode: 'insensitive' } },
-          ],
-        },
+        where: { slug: admin.email.toLowerCase() },
         select: { id: true, slug: true, name: true },
       });
       if (!restaurant) {
