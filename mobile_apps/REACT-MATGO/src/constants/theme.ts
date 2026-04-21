@@ -300,6 +300,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 18,
     backgroundColor: palette.bg,
+    zIndex: 10,
+    elevation: 10,
   },
   restaurantStickyNavCard: {
     backgroundColor: "rgba(255,248,239,0.98)",
