@@ -57,7 +57,7 @@ export default function CommandPalette() {
       { id: "orders-preparing", label: "Tillagas", description: "Aktiv kitchen queue", icon: Utensils, action: () => router.push("/orders/preparing"), category: "Navigation" },
       { id: "orders-ready", label: "Klara / på väg", description: "Ready & dispatch", icon: Truck, action: () => router.push("/orders/ready"), category: "Navigation" },
       { id: "history", label: "Orderhistorik", description: "Historik och avslutade ordrar", icon: History, action: () => router.push("/history"), category: "Navigation" },
-      { id: "restaurant-ops", label: "Restauranghub", description: "Öppettider, ETA och snabbdrift", icon: Store, action: () => router.push("/restaurant-ops"), category: "Navigation", keywords: ["hours", "öppettider", "hub"] },
+      { id: "restaurant-ops", label: "Driftkö", description: "Kö för schema, ETA och uppföljning", icon: Store, action: () => router.push("/restaurant-ops"), category: "Navigation", keywords: ["hours", "öppettider", "drift"] },
       { id: "restaurants", label: "Restauranger", description: "Profil och onboarding", icon: Store, action: () => router.push("/restaurants"), category: "Navigation" },
       { id: "performance", label: "Performance", description: "Samlade analyser och BI", icon: BarChart3, action: () => router.push("/performance"), category: "Insights", keywords: ["analys", "bi", "stats"] },
       { id: "finance", label: "Finance HQ", description: "Utbetalningar och provisionsläge", icon: Calculator, action: () => router.push("/finance"), category: "Insights", keywords: ["faktura", "provision", "utbetalning"] },

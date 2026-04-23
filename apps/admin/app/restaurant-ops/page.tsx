@@ -2,228 +2,91 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import axios from "axios";
-import { useSearchParams } from "next/navigation";
-import {
-  Building2,
-  Clock3,
-  Loader2,
-  RefreshCw,
-  Save,
-  Search,
-  ShieldCheck,
-  Store,
-  Truck,
-} from "lucide-react";
-import { API_URL } from "@/lib/api";
-import { getStoredToken } from "@/lib/auth-storage";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, ArrowRight, Loader2, RefreshCw, Search, ShieldCheck, Store } from "lucide-react";
 import { useControlCenter } from "@/lib/use-control-center";
-import { useToast } from "@/components/Toast";
-
-type DayHours = {
-  open: string;
-  close: string;
-  closed: boolean;
-  open2?: string;
-  close2?: string;
-  shift2?: boolean;
-};
-
-type RestaurantDetail = {
-  id: string;
-  name: string;
-  slug: string;
-  city?: string | null;
-  description?: string | null;
-  deliveryFee: number;
-  minOrderAmount: number;
-  etaMinutes: number;
-  manualIsOpen?: boolean;
-  openingHours?: Record<string, DayHours>;
-};
-
-const DAYS = [
-  { key: "monday", label: "Måndag" },
-  { key: "tuesday", label: "Tisdag" },
-  { key: "wednesday", label: "Onsdag" },
-  { key: "thursday", label: "Torsdag" },
-  { key: "friday", label: "Fredag" },
-  { key: "saturday", label: "Lördag" },
-  { key: "sunday", label: "Söndag" },
-] as const;
-
-const DEFAULT_HOURS: DayHours = {
-  open: "11:00",
-  close: "21:00",
-  closed: false,
-  shift2: false,
-  open2: "17:00",
-  close2: "21:00",
-};
 
 const currency = (value: number) => `${Math.round(value).toLocaleString("sv-SE")} kr`;
 
+type Filter = "attention" | "hours" | "queue" | "all";
+
+function getReasons(restaurant: {
+  pendingOrders: number;
+  hasHours: boolean;
+  reviewScore: number;
+  liveOrders: number;
+  isOpen: boolean;
+}) {
+  const reasons: string[] = [];
+
+  if (restaurant.pendingOrders > 0) {
+    reasons.push(`${restaurant.pendingOrders} väntande ordrar`);
+  }
+
+  if (!restaurant.hasHours) {
+    reasons.push("Saknar schema");
+  }
+
+  if (restaurant.reviewScore < 4.2) {
+    reasons.push(`Rating ${restaurant.reviewScore.toFixed(1)}`);
+  }
+
+  if (!restaurant.isOpen && restaurant.liveOrders > 0) {
+    reasons.push("Stängd med liveflöde");
+  }
+
+  return reasons;
+}
+
 export default function RestaurantOpsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialRestaurantId = searchParams.get("restaurantId");
+  const requestedRestaurantId = searchParams.get("restaurantId");
   const { data, loading, error, refresh } = useControlCenter();
-  const { success, error: toastError } = useToast();
   const [search, setSearch] = useState("");
-  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(initialRestaurantId);
-  const [detail, setDetail] = useState<RestaurantDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [hoursSaving, setHoursSaving] = useState(false);
-  const [form, setForm] = useState({
-    deliveryFee: 0,
-    minOrderAmount: 0,
-    etaMinutes: 30,
-  });
-  const [openingHours, setOpeningHours] = useState<Record<string, DayHours>>(
-    DAYS.reduce((acc, day) => ({ ...acc, [day.key]: { ...DEFAULT_HOURS } }), {})
-  );
+  const [filter, setFilter] = useState<Filter>("attention");
 
   useEffect(() => {
-    if (!data?.restaurantSnapshots.length) return;
+    if (!requestedRestaurantId || !data?.restaurantSnapshots.some((restaurant) => restaurant.id === requestedRestaurantId)) {
+      return;
+    }
 
-    const hasRequestedRestaurant = initialRestaurantId
-      ? data.restaurantSnapshots.some((restaurant) => restaurant.id === initialRestaurantId)
-      : false;
-
-    setSelectedRestaurantId((current) => current || (hasRequestedRestaurant ? initialRestaurantId : data.restaurantSnapshots[0].id));
-  }, [data?.restaurantSnapshots, initialRestaurantId]);
-
-  useEffect(() => {
-    const token = getStoredToken();
-    if (!selectedRestaurantId || !token) return;
-
-    const loadRestaurant = async () => {
-      setDetailLoading(true);
-      setDetailError(null);
-
-      try {
-        const response = await axios.get(`${API_URL}/api/restaurants/${selectedRestaurantId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const restaurant = response.data as RestaurantDetail;
-        setDetail(restaurant);
-        setForm({
-          deliveryFee: restaurant.deliveryFee || 0,
-          minOrderAmount: restaurant.minOrderAmount || 0,
-          etaMinutes: restaurant.etaMinutes || 30,
-        });
-        setOpeningHours(
-          DAYS.reduce(
-            (acc, day) => ({
-              ...acc,
-              [day.key]: restaurant.openingHours?.[day.key] ? { ...DEFAULT_HOURS, ...restaurant.openingHours[day.key] } : { ...DEFAULT_HOURS },
-            }),
-            {} as Record<string, DayHours>
-          )
-        );
-      } catch (err: any) {
-        setDetailError(err.response?.data?.error || "Kunde inte ladda restaurangens hub-data.");
-      } finally {
-        setDetailLoading(false);
-      }
-    };
-
-    void loadRestaurant();
-  }, [selectedRestaurantId]);
+    router.replace(`/restaurants/${requestedRestaurantId}`);
+  }, [data?.restaurantSnapshots, requestedRestaurantId, router]);
 
   const restaurants = useMemo(() => {
     if (!data) return [];
 
-    return data.restaurantSnapshots.filter((restaurant) => {
-      if (!search.trim()) return true;
-      const query = search.toLowerCase();
-      return restaurant.name.toLowerCase().includes(query) || (restaurant.city || "").toLowerCase().includes(query);
-    });
-  }, [data, search]);
+    return [...data.restaurantSnapshots]
+      .filter((restaurant) => {
+        if (search.trim()) {
+          const query = search.toLowerCase();
+          const matchesText =
+            restaurant.name.toLowerCase().includes(query) ||
+            restaurant.slug.toLowerCase().includes(query) ||
+            (restaurant.city || "").toLowerCase().includes(query);
 
-  const activeSnapshot = data?.restaurantSnapshots.find((restaurant) => restaurant.id === selectedRestaurantId) || null;
+          if (!matchesText) return false;
+        }
 
-  const saveCoreSettings = async () => {
-    if (!selectedRestaurantId) return;
-
-    const token = getStoredToken();
-    if (!token) return;
-
-    setSaving(true);
-    try {
-      await axios.patch(
-        `${API_URL}/api/restaurants/${selectedRestaurantId}`,
-        {
-          deliveryFee: form.deliveryFee,
-          minOrderAmount: form.minOrderAmount,
-          etaMinutes: form.etaMinutes,
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      await refresh();
-      success("Driftinställningarna sparades.");
-    } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte spara driftinställningarna.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveHours = async () => {
-    if (!selectedRestaurantId) return;
-
-    const token = getStoredToken();
-    if (!token) return;
-
-    setHoursSaving(true);
-    try {
-      await axios.patch(
-        `${API_URL}/api/restaurants/${selectedRestaurantId}`,
-        { openingHours },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      await refresh();
-      success("Öppettiderna uppdaterades.");
-    } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte spara öppettiderna.");
-    } finally {
-      setHoursSaving(false);
-    }
-  };
-
-  const toggleOpen = async () => {
-    if (!selectedRestaurantId || !activeSnapshot) return;
-
-    const token = getStoredToken();
-    if (!token) return;
-
-    setSaving(true);
-    try {
-      await axios.patch(
-        `${API_URL}/api/restaurants/${selectedRestaurantId}`,
-        { isOpen: !activeSnapshot.manualIsOpen },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      await refresh();
-      success(activeSnapshot.manualIsOpen ? "Restaurangen markerades som stängd." : "Restaurangen markerades som öppen.");
-    } catch (err: any) {
-      toastError(err.response?.data?.error || "Kunde inte ändra öppetstatus.");
-    } finally {
-      setSaving(false);
-    }
-  };
+        if (filter === "hours") return !restaurant.hasHours;
+        if (filter === "queue") return restaurant.pendingOrders > 0;
+        if (filter === "attention") return getReasons(restaurant).length > 0;
+        return true;
+      })
+      .sort((left, right) => {
+        const leftScore = left.pendingOrders * 10 + (left.hasHours ? 0 : 6) + (left.reviewScore < 4.2 ? 4 : 0);
+        const rightScore = right.pendingOrders * 10 + (right.hasHours ? 0 : 6) + (right.reviewScore < 4.2 ? 4 : 0);
+        return rightScore - leftScore;
+      });
+  }, [data, filter, search]);
 
   if (loading) {
     return (
-      <div className="panel flex min-h-[360px] items-center justify-center rounded-[32px] px-6 py-12">
+      <div className="panel flex min-h-[320px] items-center justify-center rounded-[28px] px-6 py-12">
         <div className="flex items-center gap-3 text-[var(--text-secondary)]">
           <Loader2 className="animate-spin text-amber-200" size={18} />
-          <span className="text-sm font-bold">Laddar restauranghubben…</span>
+          <span className="text-sm font-semibold">Laddar driftkön...</span>
         </div>
       </div>
     );
@@ -231,10 +94,10 @@ export default function RestaurantOpsPage() {
 
   if (!data || error) {
     return (
-      <div className="panel flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-[32px] px-6 py-12 text-center">
+      <div className="panel flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-[28px] px-6 py-12 text-center">
         <Store size={34} className="text-amber-200" />
-        <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Restauranghubben kunde inte laddas</h2>
-        <p className="max-w-xl text-sm leading-6 text-[var(--text-secondary)]">{error || "Något gick fel när restauranghubben skulle laddas."}</p>
+        <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Kunde inte ladda driftkön</h2>
+        <p className="max-w-xl text-sm leading-6 text-[var(--text-secondary)]">{error || "Något gick fel när driftkön skulle laddas."}</p>
         <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-5 py-3 text-[11px] font-black uppercase tracking-[0.24em] text-[#091018]">
           <RefreshCw size={14} /> Försök igen
         </button>
@@ -242,231 +105,157 @@ export default function RestaurantOpsPage() {
     );
   }
 
+  const stats = {
+    missingHours: data.restaurantSnapshots.filter((restaurant) => !restaurant.hasHours).length,
+    queuePressure: data.restaurantSnapshots.filter((restaurant) => restaurant.pendingOrders > 0).length,
+    closedNow: data.restaurantSnapshots.filter((restaurant) => !restaurant.isOpen).length,
+  };
+
   return (
-    <div className="grid gap-5 pb-16 2xl:grid-cols-[0.82fr_1.18fr]">
-      <section className="panel rounded-[32px] px-6 py-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Central restaurangdrift</p>
-            <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Snabbdrift för restauranger</h3>
+    <div className="space-y-6 pb-16">
+      <section className="panel rounded-[28px] px-6 py-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-3">
+            <span className="control-chip">Ny driftkö</span>
+            <div>
+              <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Ingen inline-editor längst ned.</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                Den här sidan är nu bara en kö. Klicka vidare till en riktig restaurangsida för att jobba klart, eller hoppa till stad och zon om det är leveransreglerna som ska justeras.
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={() => void refresh()} className="control-chip">
-            <RefreshCw size={13} /> Synka
-          </button>
-        </div>
 
-        <div className="relative mt-5">
-          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Sök restaurang eller stad"
-            className="control-input pl-10"
-          />
-        </div>
-
-        <div className="mt-5 grid gap-3">
-          {restaurants.map((restaurant) => (
-            <button
-              key={restaurant.id}
-              type="button"
-              onClick={() => setSelectedRestaurantId(restaurant.id)}
-              className={`rounded-[28px] border px-5 py-5 text-left transition ${
-                selectedRestaurantId === restaurant.id
-                  ? "border-amber-300/22 bg-amber-300/10"
-                  : "border-[var(--border-subtle)] bg-[var(--panel-muted)]"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{restaurant.name}</p>
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{restaurant.city || "Ingen stad"} • {restaurant.featuredLabel}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${restaurant.isOpen ? "bg-emerald-300/12 text-emerald-100" : "bg-rose-300/12 text-rose-100"}`}>
-                  {restaurant.isOpen ? "Öppet" : "Stängt"}
-                </span>
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[var(--text-secondary)]">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Idag</p>
-                  <p className="mt-1 font-black text-[var(--text-primary)]">{currency(restaurant.todayRevenue)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Kö</p>
-                  <p className="mt-1 font-black text-[var(--text-primary)]">{restaurant.pendingOrders} väntande</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="control-chip">Focus: {restaurant.focus}</span>
-                <span className="control-chip">Payout {currency(restaurant.payoutEstimate)}</span>
-                <span className="control-chip">Rating {restaurant.reviewScore.toFixed(1)}</span>
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void refresh()} className="control-chip">
+              <RefreshCw size={13} /> Synka
             </button>
-          ))}
+            <Link href="/restaurants" className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+              Öppna restauranger <ArrowRight size={14} />
+            </Link>
+          </div>
         </div>
       </section>
 
-      <section className="panel rounded-[32px] px-6 py-6">
-        {detailLoading ? (
-          <div className="flex min-h-[420px] items-center justify-center rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)]">
-            <Loader2 className="animate-spin text-amber-200" size={18} />
+      <section className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: "Saknar schema", value: stats.missingHours, sub: "Behöver öppettider" },
+          { label: "Har orderkö", value: stats.queuePressure, sub: "Minst en väntande order" },
+          { label: "Stängda nu", value: stats.closedNow, sub: "Manuell eller schemastyrd status" },
+        ].map((card) => (
+          <article key={card.label} className="metric-card panel-muted">
+            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
+            <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</p>
+            <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="panel rounded-[28px] px-6 py-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sok restaurang, stad eller slug" className="control-input pl-10" />
           </div>
-        ) : detailError || !detail || !activeSnapshot ? (
-          <div className="rounded-[28px] border border-rose-300/18 bg-rose-300/10 px-5 py-5 text-sm leading-6 text-rose-100">
-            {detailError || "Välj en restaurang för att öppna den centrala hubben."}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {([
+              { id: "attention", label: "Behöver uppföljning" },
+              { id: "queue", label: "Har orderkö" },
+              { id: "hours", label: "Saknar schema" },
+              { id: "all", label: "Alla" },
+            ] as const).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setFilter(item.id)}
+                className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${filter === item.id ? "bg-gold-gradient text-[#091018]" : "border border-[var(--border-subtle)] bg-[var(--panel-muted)] text-[var(--text-secondary)]"}`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="space-y-5">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Vald restaurang</p>
-                <h3 className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{detail.name}</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-                  Här styr du öppettider, ETA, minorder och leveransavgift snabbt. Själva restaurangsidan innehåller nu hela kontrollytan inklusive Business-appkontot.
-                </p>
-              </div>
+        </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={toggleOpen}
-                  disabled={saving}
-                  className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${
-                    activeSnapshot.manualIsOpen ? "bg-emerald-300/12 text-emerald-100" : "bg-rose-300/12 text-rose-100"
-                  }`}
-                >
-                  {saving ? "Sparar..." : activeSnapshot.manualIsOpen ? "Markera stängd" : "Markera öppen"}
-                </button>
-                <Link href={`/restaurants/${detail.id}`} className="control-chip">
-                  <Building2 size={13} /> Detaljsida
-                </Link>
-                <Link href={`/menu/${detail.id}`} className="control-chip">
-                  <Truck size={13} /> Meny
-                </Link>
-                <Link href={`/finance`} className="control-chip">
-                  <ShieldCheck size={13} /> Finance HQ
-                </Link>
-              </div>
+        <div className="mt-5 grid gap-4">
+          {restaurants.length === 0 ? (
+            <div className="rounded-[24px] border border-dashed border-[var(--border-subtle)] px-6 py-16 text-center text-sm leading-7 text-[var(--text-secondary)]">
+              Inga restauranger matchade filtren.
             </div>
+          ) : (
+            restaurants.map((restaurant) => {
+              const reasons = getReasons(restaurant);
 
-            <div className="grid gap-4 lg:grid-cols-4">
-              {[
-                { label: "Idag", value: currency(activeSnapshot.todayRevenue), sub: `${activeSnapshot.todayOrders} ordrar` },
-                { label: "Livekö", value: String(activeSnapshot.liveOrders), sub: `${activeSnapshot.pendingOrders} väntande` },
-                { label: "Månad", value: currency(activeSnapshot.monthRevenue), sub: `Payout ${currency(activeSnapshot.payoutEstimate)}` },
-                { label: "Kvalitet", value: activeSnapshot.reviewScore.toFixed(1), sub: `${activeSnapshot.reviewCount} review-grundade signaler` },
-              ].map((metric) => (
-                <div key={metric.label} className="metric-card panel-muted">
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-[var(--text-muted)]">{metric.label}</p>
-                  <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{metric.value}</p>
-                  <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{metric.sub}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid gap-5 xl:grid-cols-[0.84fr_1.16fr]">
-              <div className="space-y-5">
-                <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Driftinställningar</p>
-                      <p className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">ETA, minorder och leveransbas</p>
-                    </div>
-                    <button type="button" onClick={saveCoreSettings} disabled={saving} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
-                      <Save size={13} /> {saving ? "Sparar" : "Spara"}
-                    </button>
-                  </div>
-
-                  <div className="mt-5 grid gap-4">
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Leveransavgift</span>
-                      <input type="number" value={form.deliveryFee} onChange={(event) => setForm((previous) => ({ ...previous, deliveryFee: Number(event.target.value) }))} className="control-input" />
-                    </label>
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Minsta order</span>
-                      <input type="number" value={form.minOrderAmount} onChange={(event) => setForm((previous) => ({ ...previous, minOrderAmount: Number(event.target.value) }))} className="control-input" />
-                    </label>
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Standard-ETA</span>
-                      <input type="number" value={form.etaMinutes} onChange={(event) => setForm((previous) => ({ ...previous, etaMinutes: Number(event.target.value) }))} className="control-input" />
-                    </label>
-                  </div>
-                </div>
-
-                <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Signalspanel</p>
-                  <div className="mt-4 grid gap-2">
-                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
-                      Focus just nu: <span className="font-black text-[var(--text-primary)]">{activeSnapshot.focus}</span>
-                    </div>
-                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
-                      Business-login: <span className="font-black text-[var(--text-primary)]">{detail.slug}</span>
-                    </div>
-                    <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm leading-6 text-[var(--text-secondary)]">
-                      Nästa utbetalning: <span className="font-black text-amber-200">{currency(activeSnapshot.payoutEstimate)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Öppettids-hub</p>
-                    <p className="mt-1 text-xl font-black tracking-[-0.03em] text-[var(--text-primary)]">Veckoschema</p>
-                  </div>
-                  <button type="button" onClick={saveHours} disabled={hoursSaving} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
-                    <Clock3 size={13} /> {hoursSaving ? "Sparar" : "Spara schema"}
-                  </button>
-                </div>
-
-                <div className="mt-5 grid gap-3">
-                  {DAYS.map((day) => {
-                    const current = openingHours[day.key] || DEFAULT_HOURS;
-                    return (
-                      <div key={day.key} className="rounded-[24px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                          <div>
-                            <p className="text-base font-black tracking-[-0.03em] text-[var(--text-primary)]">{day.label}</p>
-                            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                              {current.closed ? "Stängd" : `${current.open} - ${current.close}`}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, closed: !current.closed } }))}
-                            className={`rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] ${current.closed ? "bg-rose-300/12 text-rose-100" : "bg-emerald-300/12 text-emerald-100"}`}
-                          >
-                            {current.closed ? "Stängd" : "Öppen"}
-                          </button>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                          <input type="time" value={current.open} disabled={current.closed} onChange={(event) => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, open: event.target.value } }))} className="control-input" />
-                          <input type="time" value={current.close} disabled={current.closed} onChange={(event) => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, close: event.target.value } }))} className="control-input" />
-                          <input type="time" value={current.open2 || "17:00"} disabled={current.closed || !current.shift2} onChange={(event) => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, open2: event.target.value } }))} className="control-input" />
-                          <input type="time" value={current.close2 || "21:00"} disabled={current.closed || !current.shift2} onChange={(event) => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, close2: event.target.value } }))} className="control-input" />
-                        </div>
-
-                        <label className="mt-4 inline-flex items-center gap-3 text-sm font-bold text-[var(--text-secondary)]">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(current.shift2)}
-                            disabled={current.closed}
-                            onChange={(event) => setOpeningHours((previous) => ({ ...previous, [day.key]: { ...current, shift2: event.target.checked } }))}
-                          />
-                          Extra kvällspass
-                        </label>
+              return (
+                <article key={restaurant.id} className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{restaurant.name}</p>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${restaurant.isOpen ? "bg-emerald-300/12 text-emerald-100" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)]"}`}>
+                        {restaurant.isOpen ? "Öppet" : "Stängt"}
+                        </span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+                      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">{restaurant.city || "Ingen stad"} • {restaurant.slug}</p>
+
+                      <div className="mt-4 grid gap-3 md:grid-cols-4">
+                        <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Kö</p>
+                          <p className="mt-2 text-lg font-black text-[var(--text-primary)]">{restaurant.pendingOrders}</p>
+                        </div>
+                        <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Live</p>
+                          <p className="mt-2 text-lg font-black text-[var(--text-primary)]">{restaurant.liveOrders}</p>
+                        </div>
+                        <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Schema</p>
+                          <p className="mt-2 text-lg font-black text-[var(--text-primary)]">{restaurant.hasHours ? "Klart" : "Saknas"}</p>
+                        </div>
+                        <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Idag</p>
+                          <p className="mt-2 text-lg font-black text-[var(--text-primary)]">{currency(restaurant.todayRevenue)}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {reasons.length > 0 ? (
+                          reasons.map((reason) => (
+                            <span key={reason} className="control-chip">
+                              {reason}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="control-chip">Inga akuta signaler</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <Link href={`/restaurants/${restaurant.id}`} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
+                        Öppna sida <ArrowRight size={14} />
+                      </Link>
+                      <Link href="/cities" className="control-chip">
+                        <ShieldCheck size={13} /> Styr zoner
+                      </Link>
+                      <Link href={`/menu/${restaurant.id}`} className="control-chip">
+                        <Store size={13} /> Meny
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-[28px] border border-amber-300/18 bg-amber-300/10 px-5 py-5">
+        <div className="flex items-start gap-3 text-amber-100">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+          <div className="space-y-2 text-sm leading-6">
+            <p className="font-black uppercase tracking-[0.2em]">Ny regel i admin</p>
+            <p>Avgift och minsta order ska styras i stad- och zonsidan. Restaurangsidorna visar nu bara drift, schema, profil och länkar vidare.</p>
           </div>
-        )}
+        </div>
       </section>
     </div>
   );

@@ -290,7 +290,7 @@ export default function CitiesPage() {
           <div>
             <span className="control-chip">City ops</span>
             <h2 className="mt-3 text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">Städer, zoner och leveranslogik</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">Hantera stadstäckning, kopplade restauranger och leveranszoner på ett ställe istället för spridda specialfall.</p>
+            <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)]">Det här är nu den tydliga källan för avgift och minsta order. Håll reglerna här och undvik dubbla restaurangvärden.</p>
           </div>
           <button onClick={() => setShowAddModal(true)}
             className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]">
@@ -375,7 +375,7 @@ export default function CitiesPage() {
               <span className="text-[10px] font-black uppercase tracking-widest">Hur fungerar zoner?</span>
             </div>
             <p className="text-[10px] text-[var(--text-primary)]/40 leading-relaxed uppercase font-bold">
-              Rita cirklar eller polygoner direkt på kartan. Varje zon har egen avgift och minimiorder. Kunder valideras mot den minsta zon de befinner sig i. Restauranger kan ha egna zoner som ersätter stadens.
+              Rita cirklar eller polygoner direkt på kartan. Varje zon har egen avgift och minimiorder. Kunder valideras mot zonen de hamnar i. Restaurangunika undantag ska bara användas när stadens regler inte räcker.
             </p>
           </div>
         </div>
@@ -512,17 +512,17 @@ export default function CitiesPage() {
                 <div>
                   <h2 className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
                     <Store className="text-gold-500" size={26} />
-                    Kopplade Restauranger
+                    Avancerade restaurangundantag
                   </h2>
                   <p className="text-[var(--text-primary)]/30 text-[10px] font-black uppercase tracking-widest mt-1">
-                    Välj restauranger och konfigurera deras leveranszoner
+                    Koppla restauranger till staden. Egna zoner ska vara undantag, inte standard.
                   </p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-gold-500/5 border border-gold-500/20 flex items-start gap-3">
                   <Info size={14} className="text-gold-500 shrink-0 mt-0.5" />
                   <p className="text-[10px] font-bold text-gold-400 leading-relaxed">
-                    <strong>Standard:</strong> Restaurangen ärver stadens zoner. <strong>Anpassad:</strong> Restaurangen har egna zoner (ersätter stadens). Perfekt när t.ex. en restaurang i Malmö inte levererar till hela staden.
+                    <strong>Standard:</strong> Restaurangen ärver stadens zoner. <strong>Anpassad:</strong> Restaurangen får egna zoner som ersätter stadens. Använd bara detta när du verkligen behöver ett undantag.
                   </p>
                 </div>
 

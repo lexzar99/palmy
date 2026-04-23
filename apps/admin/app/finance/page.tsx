@@ -12,13 +12,15 @@ import {
   YAxis,
 } from "recharts";
 import {
-  ArrowUpRight,
+  AlertTriangle,
+  ArrowRight,
   Loader2,
   RefreshCw,
   Search,
   Settings2,
   Wallet,
 } from "lucide-react";
+import { Modal } from "@/components/Modal";
 import { API_URL } from "@/lib/api";
 import { getStoredToken } from "@/lib/auth-storage";
 import { useControlCenter } from "@/lib/use-control-center";
@@ -99,11 +101,18 @@ const getRange = (period: "month" | "30d" | "7d") => {
   };
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Utkast",
+  APPROVED: "Godkänd",
+  PAID: "Betald",
+  HOLD: "På hold",
+};
+
 export default function FinancePage() {
   const { success, error: toastError } = useToast();
   const { data, loading, error, refresh, selectedRestaurantId } = useControlCenter();
   const [config, setConfig] = useState<FinanceConfig>(DEFAULT_CONFIG);
-  const [showConfig, setShowConfig] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [period, setPeriod] = useState<"month" | "30d" | "7d">("month");
   const [selectedRestaurant, setSelectedRestaurant] = useState<string | null>(null);
@@ -134,33 +143,8 @@ export default function FinancePage() {
 
   useEffect(() => {
     if (!data?.restaurantSnapshots.length) return;
-    setSelectedRestaurant(selectedRestaurantId || data.restaurantSnapshots[0].id);
+    setSelectedRestaurant((current) => current || selectedRestaurantId || data.restaurantSnapshots[0].id);
   }, [data?.restaurantSnapshots, selectedRestaurantId]);
-
-  useEffect(() => {
-    if (!selectedRestaurant) return;
-
-    const token = getStoredToken();
-    if (!token) return;
-
-    const loadDetail = async () => {
-      setDetailLoading(true);
-      setDetailError(null);
-      try {
-        const response = await axios.get(`${API_URL}/api/admin/reports/restaurant/${selectedRestaurant}`, {
-          headers: { Authorization: `Bearer ${token}` },
-          params: range,
-        });
-        setDetail(response.data);
-      } catch (err: any) {
-        setDetailError(err.response?.data?.error || "Kunde inte ladda restaurangrapporten.");
-      } finally {
-        setDetailLoading(false);
-      }
-    };
-
-    void loadDetail();
-  }, [range, selectedRestaurant]);
 
   useEffect(() => {
     const token = getStoredToken();
@@ -212,14 +196,11 @@ export default function FinancePage() {
           basePayout,
           adjustmentAmount,
           payout,
-          payoutId: persisted?.id || null,
           payoutStatus: persisted?.status || "DRAFT",
           payoutNotes: persisted?.notes || "",
           payoutReference: persisted?.payoutReference || "",
           approvedAt: persisted?.approvedAt || null,
-          approvedBy: persisted?.approvedBy || null,
           paidAt: persisted?.paidAt || null,
-          paidBy: persisted?.paidBy || null,
           readiness: restaurant.hasHours ? "ready" : "action",
           focus: restaurant.focus,
           pendingOrders: restaurant.pendingOrders,
@@ -239,15 +220,38 @@ export default function FinancePage() {
       commission: rows.reduce((sum, row) => sum + row.commission, 0),
       subscription: rows.reduce((sum, row) => sum + row.subscription, 0),
       payout: rows.reduce((sum, row) => sum + row.payout, 0),
-      approved: rows.filter((row) => row.payoutStatus === "APPROVED").length,
-      paid: rows.filter((row) => row.payoutStatus === "PAID").length,
-      ready: rows.filter((row) => row.readiness === "ready").length,
+      negative: rows.filter((row) => row.payout < 0).length,
       action: rows.filter((row) => row.readiness === "action").length,
     }),
     [rows]
   );
 
-  const activeRow = rows.find((row) => row.id === selectedRestaurant) || rows[0] || null;
+  const activeRow = rows.find((row) => row.id === selectedRestaurant) || null;
+
+  useEffect(() => {
+    if (!selectedRestaurant) return;
+
+    const token = getStoredToken();
+    if (!token) return;
+
+    const loadDetail = async () => {
+      setDetailLoading(true);
+      setDetailError(null);
+      try {
+        const response = await axios.get(`${API_URL}/api/admin/reports/restaurant/${selectedRestaurant}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: range,
+        });
+        setDetail(response.data);
+      } catch (err: any) {
+        setDetailError(err.response?.data?.error || "Kunde inte ladda restaurangrapporten.");
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+
+    void loadDetail();
+  }, [range, selectedRestaurant]);
 
   useEffect(() => {
     if (!activeRow) return;
@@ -288,7 +292,15 @@ export default function FinancePage() {
         next.push(response.data);
         return next;
       });
-      success(status === "PAID" ? "Utbetalningen markerades som betald." : status === "APPROVED" ? "Utbetalningen godkändes." : status === "HOLD" ? "Utbetalningen sattes på hold." : "Utbetalningsutkastet sparades.");
+      success(
+        status === "PAID"
+          ? "Utbetalningen markerades som betald."
+          : status === "APPROVED"
+            ? "Utbetalningen godkändes."
+            : status === "HOLD"
+              ? "Utbetalningen sattes på hold."
+              : "Utbetalningsutkastet sparades."
+      );
     } catch (err: any) {
       toastError(err.response?.data?.error || "Kunde inte spara utbetalningen.");
     } finally {
@@ -298,10 +310,10 @@ export default function FinancePage() {
 
   if (loading) {
     return (
-      <div className="panel flex min-h-[360px] items-center justify-center rounded-[32px] px-6 py-12">
+      <div className="panel flex min-h-[320px] items-center justify-center rounded-[28px] px-6 py-12">
         <div className="flex items-center gap-3 text-[var(--text-secondary)]">
           <Loader2 className="animate-spin text-amber-200" size={18} />
-          <span className="text-sm font-bold">Laddar Finance HQ…</span>
+          <span className="text-sm font-semibold">Laddar ekonomi...</span>
         </div>
       </div>
     );
@@ -309,10 +321,10 @@ export default function FinancePage() {
 
   if (!data || error) {
     return (
-      <div className="panel flex min-h-[360px] flex-col items-center justify-center gap-4 rounded-[32px] px-6 py-12 text-center">
+      <div className="panel flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-[28px] px-6 py-12 text-center">
         <Wallet size={34} className="text-amber-200" />
-        <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Finance HQ kunde inte laddas</h2>
-        <p className="max-w-xl text-sm leading-6 text-[var(--text-secondary)]">{error || "Något gick fel när finance-panelen skulle laddas."}</p>
+        <h2 className="text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Ekonomisidan kunde inte laddas</h2>
+        <p className="max-w-xl text-sm leading-6 text-[var(--text-secondary)]">{error || "Något gick fel när ekonomisidan skulle laddas."}</p>
         <button type="button" onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-5 py-3 text-[11px] font-black uppercase tracking-[0.24em] text-[#091018]">
           <RefreshCw size={14} /> Försök igen
         </button>
@@ -321,172 +333,70 @@ export default function FinancePage() {
   }
 
   return (
-    <div className="space-y-5 pb-16">
-      <section className="grid gap-4 xl:grid-cols-5">
-          {[
-            { label: "Bruttoförsäljning", value: currency(totals.grossSales), sub: `${rows.length} restauranger i kö` },
-            { label: "Provision", value: currency(totals.commission), sub: "Beräknad plattformsmarginal" },
-            { label: "Abonnemang", value: currency(totals.subscription), sub: "Månatliga tier-avgifter" },
-            { label: "Preliminär payout", value: currency(totals.payout), sub: `${totals.ready} redo • ${totals.action} kräver åtgärd` },
-            { label: "Workflow", value: `${totals.approved}/${totals.paid}`, sub: "Godkända / betalda perioder" },
-          ].map((card) => (
-          <article key={card.label} className="metric-card panel-muted">
-            <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
-            <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</p>
-            <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="grid gap-5 2xl:grid-cols-[1.2fr_0.8fr]">
-        <div className="panel rounded-[32px] px-6 py-6">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Payout queue</p>
-              <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">Utbetalningskö med tydlig readiness</h3>
+    <>
+      <div className="space-y-6 pb-16">
+        <section className="panel rounded-[28px] px-6 py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span className="control-chip">Förenklad ekonomi</span>
+              <div>
+                <h2 className="text-3xl font-black tracking-[-0.06em] text-[var(--text-primary)] sm:text-4xl">En lista och en payout-modal.</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                  Här väljer du restaurang, öppnar payouten i modal och ser exakt varför beloppet ser ut som det gör. Ingen sidopanel med gömd information längre.
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-[240px]">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Sök restaurang eller stad"
-                  className="control-input pl-10"
-                />
-              </div>
-              <button type="button" onClick={() => setShowConfig((value) => !value)} className="control-chip">
-                <Settings2 size={13} /> Avgiftsmodell
+              <button type="button" onClick={() => void refresh()} className="control-chip">
+                <RefreshCw size={13} /> Uppdatera
+              </button>
+              <button type="button" onClick={() => setConfigOpen(true)} className="control-chip">
+                <Settings2 size={13} /> Modell
               </button>
             </div>
           </div>
+        </section>
 
-          {showConfig ? (
-            <div className="mt-5 grid gap-4 rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] p-5 xl:grid-cols-4">
-              {([1, 2, 3, 0] as const).map((tier) => (
-                <div key={tier} className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">
-                    Tier {tier === 0 ? "Dold" : tier}
-                  </p>
-                  <div className="mt-4 grid gap-3">
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Provision %</span>
-                      <input
-                        type="number"
-                        value={config[tier].commissionPct}
-                        onChange={(event) =>
-                          setConfig((previous) => ({
-                            ...previous,
-                            [tier]: { ...previous[tier], commissionPct: Number(event.target.value) },
-                          }))
-                        }
-                        className="control-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                      <span>Månadsavgift</span>
-                      <input
-                        type="number"
-                        value={config[tier].subscriptionFee}
-                        onChange={(event) =>
-                          setConfig((previous) => ({
-                            ...previous,
-                            [tier]: { ...previous[tier], subscriptionFee: Number(event.target.value) },
-                          }))
-                        }
-                        className="control-input"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Brutto", value: currency(totals.grossSales), sub: `${rows.length} restauranger i urvalet` },
+            { label: "Provision", value: currency(totals.commission), sub: "Plattformens del" },
+            { label: "Abonnemang", value: currency(totals.subscription), sub: "Månadsavgifter i modellen" },
+            { label: "Preliminär payout", value: currency(totals.payout), sub: `${totals.negative} negativa • ${totals.action} kräver åtgärd` },
+          ].map((card) => (
+            <article key={card.label} className="metric-card panel-muted">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
+              <p className="mt-3 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{card.value}</p>
+              <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
+            </article>
+          ))}
+        </section>
 
-              <div className="xl:col-span-4 flex flex-wrap items-center justify-end gap-2">
-                <button type="button" onClick={() => setConfig(DEFAULT_CONFIG)} className="inline-flex items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--text-primary)]">
-                  Återställ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => localStorage.setItem(FINANCE_CONFIG_KEY, JSON.stringify(config))}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gold-gradient px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]"
-                >
-                  Spara modell
-                </button>
-              </div>
+        <section className="rounded-[28px] border border-sky-300/18 bg-sky-300/10 px-5 py-5">
+          <div className="flex items-start gap-3 text-sky-100">
+            <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+            <div className="space-y-2 text-sm leading-6">
+              <p className="font-black uppercase tracking-[0.2em]">Så räknas payouten</p>
+              <p>Payout = bruttoförsäljning minus provision minus abonnemang plus eventuell manuell justering. Om ett belopp blir negativt syns det tydligt i listan och i modalen.</p>
             </div>
-          ) : null}
-
-          <div className="mt-5 grid gap-3">
-            {rows.map((row) => (
-              <button
-                key={row.id}
-                type="button"
-                onClick={() => setSelectedRestaurant(row.id)}
-                className={`rounded-[28px] border px-5 py-5 text-left transition ${
-                  activeRow?.id === row.id
-                    ? "border-amber-300/22 bg-amber-300/10"
-                    : "border-[var(--border-subtle)] bg-[var(--panel-muted)]"
-                }`}
-              >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div>
-                    <p className="text-xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{row.name}</p>
-                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{row.featuredLabel} • {row.city || "Ingen stad"}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${row.readiness === "ready" ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>
-                      {row.readiness === "ready" ? "Redo för payout" : "Kräver åtgärd"}
-                    </span>
-                    <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${row.payoutStatus === "PAID" ? "bg-sky-300/12 text-sky-100" : row.payoutStatus === "APPROVED" ? "bg-emerald-300/12 text-emerald-100" : row.payoutStatus === "HOLD" ? "bg-rose-300/12 text-rose-100" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)]"}`}>
-                      {row.payoutStatus}
-                    </span>
-                    <span className="rounded-full bg-[rgba(255,255,255,0.06)] px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                      Focus: {row.focus}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Brutto</p>
-                    <p className="mt-1 font-black text-[var(--text-primary)]">{currency(row.grossSales)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Provision</p>
-                    <p className="mt-1 font-black text-[var(--text-primary)]">{currency(row.commission)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Abonnemang</p>
-                    <p className="mt-1 font-black text-[var(--text-primary)]">{currency(row.subscription)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Utbetalning</p>
-                    <p className="mt-1 font-black text-amber-200">{currency(row.payout)}</p>
-                  </div>
-                </div>
-
-                {row.adjustmentAmount !== 0 ? (
-                  <div className="mt-3 text-xs text-[var(--text-secondary)]">Justering: {currency(row.adjustmentAmount)}</div>
-                ) : null}
-              </button>
-            ))}
           </div>
-        </div>
+        </section>
 
-        <div className="panel rounded-[32px] px-6 py-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-muted)]">Detaljpanel</p>
-              <h3 className="mt-2 text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{activeRow?.name || "Ingen restaurang vald"}</h3>
+        <section className="panel rounded-[28px] px-6 py-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="relative flex-1">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sök restaurang eller stad" className="control-input pl-10" />
             </div>
-            <div className="flex items-center gap-2">
+
+            <div className="flex flex-wrap items-center gap-2">
               {(["month", "30d", "7d"] as const).map((value) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => setPeriod(value)}
-                  className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${period === value ? "bg-gold-gradient text-[#091018]" : "border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}
+                  className={`rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.22em] ${period === value ? "bg-gold-gradient text-[#091018]" : "border border-[var(--border-subtle)] bg-[var(--panel-muted)] text-[var(--text-secondary)]"}`}
                 >
                   {value === "month" ? "Månad" : value}
                 </button>
@@ -494,142 +404,247 @@ export default function FinancePage() {
             </div>
           </div>
 
-          {detailLoading ? (
-            <div className="mt-6 flex min-h-[260px] items-center justify-center rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)]">
-              <Loader2 className="animate-spin text-amber-200" size={18} />
-            </div>
-          ) : detailError || !detail ? (
-            <div className="mt-6 rounded-[28px] border border-rose-300/18 bg-rose-300/10 px-5 py-5 text-sm leading-6 text-rose-100">
-              {detailError || "Välj en restaurang för att se payout-detaljer."}
-            </div>
-          ) : (
-            <div className="mt-6 space-y-5">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Omsättning</p>
-                  <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{currency(detail.summary.totalRevenue)}</p>
-                </div>
-                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Snittorder</p>
-                  <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-[var(--text-primary)]">{currency(detail.summary.avgOrderValue)}</p>
-                </div>
-                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Utbetalningsstatus</p>
-                  <p className="mt-2 text-3xl font-black tracking-[-0.05em] text-amber-200">{activeRow?.payoutStatus || "DRAFT"}</p>
-                </div>
+          <div className="mt-5 grid gap-4">
+            {rows.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-[var(--border-subtle)] px-6 py-16 text-center text-sm leading-7 text-[var(--text-secondary)]">
+                Inga restauranger matchade filtren.
               </div>
-
-              <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Payout workflow</p>
-                    <p className="mt-1 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">Spara, godkänn och betala ut från samma panel</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-secondary)]">
-                    {activeRow?.approvedAt ? <span>Godkänd {new Date(activeRow.approvedAt).toLocaleDateString("sv-SE")}</span> : null}
-                    {activeRow?.paidAt ? <span>• Betald {new Date(activeRow.paidAt).toLocaleDateString("sv-SE")}</span> : null}
-                  </div>
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-3">
-                  <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <span>Basutbetalning</span>
-                    <div className="control-input flex items-center">{currency(activeRow?.basePayout || 0)}</div>
-                  </label>
-                  <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <span>Manuell justering</span>
-                    <input type="number" value={payoutEditor.adjustmentAmount} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, adjustmentAmount: Number(event.target.value) }))} className="control-input" />
-                  </label>
-                  <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <span>Slututbetalning</span>
-                    <div className="control-input flex items-center text-amber-200">{currency((activeRow?.basePayout || 0) + payoutEditor.adjustmentAmount)}</div>
-                  </label>
-                </div>
-
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
-                    <span>Utbetalningsreferens</span>
-                    <input value={payoutEditor.payoutReference} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, payoutReference: event.target.value }))} className="control-input" placeholder="BG/Swish/Stripe ref" />
-                  </label>
-                  <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
-                    <span>Intern payout-notering</span>
-                    <textarea value={payoutEditor.notes} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, notes: event.target.value }))} className="control-input min-h-[120px] resize-none" placeholder="Bankinfo verifierad, avdrag för supportärende, väntar på momsunderlag..." />
-                  </label>
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <button type="button" onClick={() => void savePayout("DRAFT")} disabled={payoutSaving} className="control-chip">
-                    Spara utkast
-                  </button>
-                  <button type="button" onClick={() => void savePayout("APPROVED")} disabled={payoutSaving} className="control-chip text-emerald-100">
-                    Godkänn payout
-                  </button>
-                  <button type="button" onClick={() => void savePayout("PAID")} disabled={payoutSaving} className="control-chip text-sky-100">
-                    Markera betald
-                  </button>
-                  <button type="button" onClick={() => void savePayout("HOLD")} disabled={payoutSaving} className="control-chip text-rose-100">
-                    Sätt på hold
-                  </button>
-                  {payoutError ? <span className="text-xs text-rose-200">{payoutError}</span> : null}
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Daglig utveckling</p>
-                    <p className="mt-1 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">Likviditetskurva</p>
-                  </div>
-                  <button type="button" onClick={() => setPeriod(period)} className="control-chip">
-                    <ArrowUpRight size={13} /> {detail.summary.totalOrders} ordrar
-                  </button>
-                </div>
-
-                <div className="mt-4 h-[220px] w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={detail.dailyData}>
-                      <defs>
-                        <linearGradient id="financeRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#f5bf5b" stopOpacity={0.35} />
-                          <stop offset="95%" stopColor="#f5bf5b" stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
-                      <XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} tickLine={false} axisLine={false} tick={{ fill: "rgba(203,213,225,0.7)", fontSize: 11 }} />
-                      <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgba(203,213,225,0.54)", fontSize: 11 }} />
-                      <Tooltip
-                        contentStyle={{
-                          background: "rgba(7,10,20,0.94)",
-                          border: "1px solid rgba(148,163,184,0.18)",
-                          borderRadius: 20,
-                          color: "#f8fafc",
-                        }}
-                        formatter={(value: number, key) => [key === "revenue" ? currency(value) : value, key === "revenue" ? "Omsättning" : "Ordrar"]}
-                      />
-                      <Area type="monotone" dataKey="revenue" stroke="#f5bf5b" fill="url(#financeRevenue)" strokeWidth={3} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div className="rounded-[28px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Topp-produkter i perioden</p>
-                <div className="mt-4 grid gap-3">
-                  {detail.topProducts.slice(0, 5).map((product) => (
-                    <div key={product.name} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-3">
-                      <div>
-                        <p className="text-base font-black tracking-[-0.03em] text-[var(--text-primary)]">{product.name}</p>
-                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{product.count} sålda</p>
+            ) : (
+              rows.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => setSelectedRestaurant(row.id)}
+                  className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5 text-left transition hover:border-[var(--border-strong)]"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-2xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{row.name}</p>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${row.readiness === "ready" ? "bg-emerald-300/12 text-emerald-100" : "bg-amber-300/12 text-amber-100"}`}>
+                          {row.readiness === "ready" ? "Redo" : "Åtgärd krävs"}
+                        </span>
+                        <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] ${row.payout < 0 ? "bg-rose-300/12 text-rose-100" : "bg-[rgba(255,255,255,0.06)] text-[var(--text-secondary)]"}`}>
+                          {row.payout < 0 ? "Negativ payout" : STATUS_LABELS[row.payoutStatus] || row.payoutStatus}
+                        </span>
                       </div>
-                      <span className="text-sm font-black text-amber-200">{currency(product.revenue)}</span>
+                      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">{row.featuredLabel} • {row.city || "Ingen stad"}</p>
                     </div>
-                  ))}
+
+                    <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-amber-200">
+                      Öppna payout <ArrowRight size={14} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-4">
+                    <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Brutto</p>
+                      <p className="mt-2 font-black text-[var(--text-primary)]">{currency(row.grossSales)}</p>
+                    </div>
+                    <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Provision</p>
+                      <p className="mt-2 font-black text-[var(--text-primary)]">{currency(row.commission)}</p>
+                    </div>
+                    <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Abonnemang</p>
+                      <p className="mt-2 font-black text-[var(--text-primary)]">{currency(row.subscription)}</p>
+                    </div>
+                    <div className="rounded-[18px] border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">Utbetalning</p>
+                      <p className={`mt-2 font-black ${row.payout < 0 ? "text-rose-200" : "text-amber-200"}`}>{currency(row.payout)}</p>
+                    </div>
+                  </div>
+
+                  {row.adjustmentAmount !== 0 ? <p className="mt-3 text-sm text-[var(--text-secondary)]">Manuell justering: {currency(row.adjustmentAmount)}</p> : null}
+                </button>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+
+      <Modal open={configOpen} onClose={() => setConfigOpen(false)} title="Avgiftsmodell" maxWidth="max-w-4xl">
+        <div className="grid gap-4 xl:grid-cols-4">
+          {([1, 2, 3, 0] as const).map((tier) => (
+            <div key={tier} className="rounded-[22px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">Tier {tier === 0 ? "Dold" : tier}</p>
+              <div className="mt-4 grid gap-3">
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Provision %</span>
+                  <input
+                    type="number"
+                    value={config[tier].commissionPct}
+                    onChange={(event) => setConfig((previous) => ({ ...previous, [tier]: { ...previous[tier], commissionPct: Number(event.target.value) } }))}
+                    className="control-input"
+                  />
+                </label>
+                <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                  <span>Månadsavgift</span>
+                  <input
+                    type="number"
+                    value={config[tier].subscriptionFee}
+                    onChange={(event) => setConfig((previous) => ({ ...previous, [tier]: { ...previous[tier], subscriptionFee: Number(event.target.value) } }))}
+                    className="control-input"
+                  />
+                </label>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-[var(--border-subtle)] pt-6 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => setConfig(DEFAULT_CONFIG)} className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[var(--text-secondary)]">
+            Återställ
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem(FINANCE_CONFIG_KEY, JSON.stringify(config));
+              success("Avgiftsmodellen sparades lokalt.");
+              setConfigOpen(false);
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gold-gradient px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-[#091018]"
+          >
+            Spara modell
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={!!activeRow} onClose={() => setSelectedRestaurant(null)} title={activeRow ? `Payout: ${activeRow.name}` : undefined} maxWidth="max-w-6xl">
+        {!activeRow ? null : detailLoading ? (
+          <div className="flex min-h-[260px] items-center justify-center">
+            <Loader2 className="animate-spin text-amber-200" size={18} />
+          </div>
+        ) : detailError || !detail ? (
+          <div className="rounded-[22px] border border-rose-300/18 bg-rose-300/10 px-5 py-5 text-sm leading-6 text-rose-100">
+            {detailError || "Kunde inte ladda payout-detaljerna."}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { label: "Omsättning", value: currency(detail.summary.totalRevenue), sub: `${detail.summary.totalOrders} ordrar` },
+                { label: "Basutbetalning", value: currency(activeRow.basePayout), sub: `Provision ${currency(activeRow.commission)}` },
+                { label: "Justering", value: currency(payoutEditor.adjustmentAmount), sub: `Abonnemang ${currency(activeRow.subscription)}` },
+                { label: "Slutbelopp", value: currency(activeRow.basePayout + payoutEditor.adjustmentAmount), sub: STATUS_LABELS[activeRow.payoutStatus] || activeRow.payoutStatus },
+              ].map((card) => (
+                <article key={card.label} className="metric-card panel-muted">
+                  <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[var(--text-muted)]">{card.label}</p>
+                  <p className={`mt-3 text-3xl font-black tracking-[-0.05em] ${card.label === "Slutbelopp" && activeRow.basePayout + payoutEditor.adjustmentAmount < 0 ? "text-rose-200" : "text-[var(--text-primary)]"}`}>{card.value}</p>
+                  <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{card.sub}</p>
+                </article>
+              ))}
+            </div>
+
+            <div className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-5">
+                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">Förklaring</p>
+                  <div className="mt-4 grid gap-3 text-sm">
+                    {[
+                      { label: "Bruttoförsäljning", value: currency(activeRow.grossSales) },
+                      { label: "Provision", value: `- ${currency(activeRow.commission)}` },
+                      { label: "Abonnemang", value: `- ${currency(activeRow.subscription)}` },
+                      { label: "Manuell justering", value: payoutEditor.adjustmentAmount >= 0 ? `+ ${currency(payoutEditor.adjustmentAmount)}` : `- ${currency(Math.abs(payoutEditor.adjustmentAmount))}` },
+                    ].map((item) => (
+                      <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                        <span className="text-[var(--text-secondary)]">{item.label}</span>
+                        <span className="font-black text-[var(--text-primary)]">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">Period</p>
+                      <p className="mt-1 text-lg font-black tracking-[-0.03em] text-[var(--text-primary)]">Daglig utveckling</p>
+                    </div>
+                    <span className="control-chip">{range.from} till {range.to}</span>
+                  </div>
+
+                  <div className="mt-4 h-[220px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={detail.dailyData}>
+                        <defs>
+                          <linearGradient id="financeRevenue" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f5bf5b" stopOpacity={0.35} />
+                            <stop offset="95%" stopColor="#f5bf5b" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
+                        <XAxis dataKey="date" tickFormatter={(value) => value.slice(5)} tickLine={false} axisLine={false} tick={{ fill: "rgba(203,213,225,0.7)", fontSize: 11 }} />
+                        <YAxis tickLine={false} axisLine={false} tick={{ fill: "rgba(203,213,225,0.54)", fontSize: 11 }} />
+                        <Tooltip
+                          contentStyle={{
+                            background: "rgba(7,10,20,0.94)",
+                            border: "1px solid rgba(148,163,184,0.18)",
+                            borderRadius: 20,
+                            color: "#f8fafc",
+                          }}
+                          formatter={(value: number, key) => [key === "revenue" ? currency(value) : value, key === "revenue" ? "Omsättning" : "Ordrar"]}
+                        />
+                        <Area type="monotone" dataKey="revenue" stroke="#f5bf5b" fill="url(#financeRevenue)" strokeWidth={3} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">Payoutstatus</p>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                      <span>Utbetalningsreferens</span>
+                      <input value={payoutEditor.payoutReference} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, payoutReference: event.target.value }))} className="control-input" placeholder="BG, bankref eller swish" />
+                    </label>
+                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)]">
+                      <span>Manuell justering</span>
+                      <input type="number" value={payoutEditor.adjustmentAmount} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, adjustmentAmount: Number(event.target.value) }))} className="control-input" />
+                    </label>
+                    <label className="grid gap-2 text-[11px] font-bold text-[var(--text-secondary)] md:col-span-2">
+                      <span>Intern notering</span>
+                      <textarea value={payoutEditor.notes} onChange={(event) => setPayoutEditor((previous) => ({ ...previous, notes: event.target.value }))} className="control-input min-h-[140px] resize-none" placeholder="Exempel: bankkonto verifierat, väntar på underlag, avdrag för supportärende..." />
+                    </label>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => void savePayout("DRAFT")} disabled={payoutSaving} className="control-chip">
+                      Spara utkast
+                    </button>
+                    <button type="button" onClick={() => void savePayout("APPROVED")} disabled={payoutSaving} className="control-chip text-emerald-100">
+                      Godkänn
+                    </button>
+                    <button type="button" onClick={() => void savePayout("PAID")} disabled={payoutSaving} className="control-chip text-sky-100">
+                      Markera betald
+                    </button>
+                    <button type="button" onClick={() => void savePayout("HOLD")} disabled={payoutSaving} className="control-chip text-rose-100">
+                      Sätt på hold
+                    </button>
+                  </div>
+                  {payoutError ? <p className="mt-3 text-sm text-rose-200">{payoutError}</p> : null}
+                </div>
+
+                <div className="rounded-[24px] border border-[var(--border-subtle)] bg-[var(--panel-muted)] px-5 py-5">
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--text-muted)]">Topp-produkter</p>
+                  <div className="mt-4 grid gap-3">
+                    {detail.topProducts.slice(0, 5).map((product) => (
+                      <div key={product.name} className="flex items-center justify-between gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] px-4 py-3">
+                        <div>
+                          <p className="text-base font-black tracking-[-0.03em] text-[var(--text-primary)]">{product.name}</p>
+                          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{product.count} sålda</p>
+                        </div>
+                        <span className="text-sm font-black text-amber-200">{currency(product.revenue)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </section>
-    </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }
