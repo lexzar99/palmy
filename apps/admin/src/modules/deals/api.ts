@@ -46,11 +46,28 @@ export interface DiscountCodeRecord {
   updatedAt: string;
 }
 
+export interface PersonalCodeRecord {
+  id: string;
+  code: string;
+  isUsed: boolean;
+  usageCount: number;
+  maxUsages: number;
+  createdAt: string;
+  user?: { name?: string | null; phone?: string | null } | null;
+  campaign?: { title?: string | null; discountType?: string | null; discountValue?: number | null } | null;
+}
+
 export interface DealRestaurantRef {
   id: string;
   name: string;
   slug: string;
   city?: string | null;
+}
+
+export interface DealCustomerRef {
+  id: string;
+  name: string;
+  phone: string;
 }
 
 export interface DealCategoryRef {
@@ -66,17 +83,25 @@ export interface DealProductRef {
   categoryId: string;
   category: { name: string };
   price: number;
+  discountActive?: boolean | null;
+  discountPercent?: number | null;
+  discountPrice?: number | null;
+  discountLabel?: string | null;
 }
 
 export const dealsQueryKey = ["deals", "automatic"] as const;
 export const discountCodesQueryKey = ["deals", "codes"] as const;
+export const personalCodesQueryKey = ["deals", "personal-codes"] as const;
 export const dealRestaurantsQueryKey = ["deals", "restaurants"] as const;
+export const dealCustomersQueryKey = ["deals", "customers"] as const;
 export const dealCategoriesQueryKey = (restaurantId: string | null) => ["deals", "categories", restaurantId] as const;
 export const dealProductsQueryKey = (restaurantId: string | null) => ["deals", "products", restaurantId] as const;
 
 export const getAutomaticDeals = () => apiGet<AutomaticDealRecord[]>("/admin/deals");
 export const getDiscountCodes = () => apiGet<DiscountCodeRecord[]>("/admin/discounts");
+export const getPersonalCodes = () => apiGet<PersonalCodeRecord[]>("/admin/customer-deals");
 export const getDealRestaurants = () => apiGet<DealRestaurantRef[]>("/restaurants");
+export const getDealCustomers = () => apiGet<DealCustomerRef[]>("/customers");
 export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}`);
 export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}`);
 
@@ -87,3 +112,7 @@ export const deleteAutomaticDeal = (dealId: string) => apiDelete<{ success: bool
 export const createDiscountCode = (payload: Record<string, unknown>) => apiPost<DiscountCodeRecord>("/admin/discounts", payload);
 export const updateDiscountCode = (codeId: string, payload: Record<string, unknown>) => apiPatch<DiscountCodeRecord>(`/admin/discounts/${codeId}`, payload);
 export const deleteDiscountCode = (codeId: string) => apiDelete<{ success: boolean }>(`/admin/discounts/${codeId}`);
+
+export const createPersonalCode = (customerId: string, payload: Record<string, unknown>) => apiPost<PersonalCodeRecord>(`/customers/${customerId}/deals`, payload);
+export const updatePersonalCode = (codeId: string, payload: Record<string, unknown>) => apiPatch<PersonalCodeRecord>(`/admin/customer-deals/${codeId}`, payload);
+export const deletePersonalCode = (codeId: string) => apiDelete<{ ok: true }>(`/admin/customer-deals/${codeId}`);

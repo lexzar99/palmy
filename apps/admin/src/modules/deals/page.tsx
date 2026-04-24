@@ -2,27 +2,37 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Users } from "lucide-react";
 import {
   createDiscountCode,
+  createPersonalCode,
   dealsQueryKey,
   dealCategoriesQueryKey,
+  dealCustomersQueryKey,
   dealProductsQueryKey,
   dealRestaurantsQueryKey,
-  discountCodesQueryKey,
   deleteDiscountCode,
+  deletePersonalCode,
+  discountCodesQueryKey,
   getAutomaticDeals,
   getDealCategories,
+  getDealCustomers,
   getDealProducts,
   getDealRestaurants,
   getDiscountCodes,
+  getPersonalCodes,
+  personalCodesQueryKey,
   type AutomaticDealRecord,
+  type DealCustomerRef,
+  type DealProductRef,
   type DiscountCodeRecord,
+  type PersonalCodeRecord,
   updateDiscountCode,
+  updatePersonalCode,
 } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
-import { formatDate, formatNumber } from "@/shared/utils/format";
+import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
 type DealsTab = "restaurant" | "product" | "category" | "codes";
 
@@ -86,6 +96,82 @@ function DiscountCodeModal({ open, codeRecord, onClose }: { open: boolean; codeR
   );
 }
 
+function PersonalCodeModal({ open, customers, onClose }: { open: boolean; customers: DealCustomerRef[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [code, setCode] = useState("");
+  const [discountType, setDiscountType] = useState("FIXED");
+  const [discountValue, setDiscountValue] = useState(30);
+  const [maxUsages, setMaxUsages] = useState(1);
+  const [validUntil, setValidUntil] = useState("");
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [sendToAll, setSendToAll] = useState(false);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    setTitle("");
+    setCode("");
+    setDiscountType("FIXED");
+    setDiscountValue(30);
+    setMaxUsages(1);
+    setValidUntil("");
+    setSelectedCustomerIds([]);
+    setSendToAll(false);
+  }, [open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const recipients = sendToAll ? customers.map((customer) => customer.id) : selectedCustomerIds;
+      await Promise.all(
+        recipients.map((customerId, index) =>
+          createPersonalCode(customerId, {
+            title,
+            code: sendToAll ? `${code}-${String(index + 1).padStart(3, "0")}` : code,
+            discountType,
+            discountValue,
+            maxUsages,
+            validUntil: validUntil || null,
+          }),
+        ),
+      );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: personalCodesQueryKey });
+      onClose();
+    },
+  });
+
+  const toggleCustomer = (customerId: string) => {
+    setSelectedCustomerIds((current) => current.includes(customerId) ? current.filter((id) => id !== customerId) : [...current, customerId]);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title="New personal code" footer={<div className="flex justify-end gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || (!sendToAll && selectedCustomerIds.length === 0) || !title.trim() || !code.trim()}>Create personal code</Button></div>}>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Title"><Input value={title} onChange={(event) => setTitle(event.target.value)} /></Field>
+        <Field label="Code"><Input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} /></Field>
+        <Field label="Discount type"><Select value={discountType} onChange={(event) => setDiscountType(event.target.value)}><option value="FIXED">Fixed</option><option value="PERCENTAGE">Percentage</option></Select></Field>
+        <Field label="Discount value"><Input type="number" value={discountValue} onChange={(event) => setDiscountValue(Number(event.target.value))} /></Field>
+        <Field label="Max usages"><Input type="number" value={maxUsages} onChange={(event) => setMaxUsages(Number(event.target.value))} /></Field>
+        <Field label="Valid until"><Input type="date" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} /></Field>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Recipients</p>
+            <Button variant="secondary" onClick={() => setSendToAll((current) => !current)}><Users size={16} /> {sendToAll ? "Use selection" : "Send to all"}</Button>
+          </div>
+          <div className="mt-3 flex max-h-[280px] flex-wrap gap-2 overflow-auto">
+            {customers.map((customer) => (
+              <button key={customer.id} type="button" disabled={sendToAll} onClick={() => toggleCustomer(customer.id)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${selectedCustomerIds.includes(customer.id) || sendToAll ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{customer.name} • {customer.phone}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 const scopeLabel: Record<string, string> = {
   RESTAURANT: "Restaurant",
   PRODUCT: "Products",
@@ -95,6 +181,7 @@ const scopeLabel: Record<string, string> = {
 };
 
 export function DealsPage() {
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<DealsTab>("restaurant");
   const [query, setQuery] = useState("");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
@@ -102,12 +189,29 @@ export function DealsPage() {
   const [dealModalOpen, setDealModalOpen] = useState(false);
   const [activeCode, setActiveCode] = useState<DiscountCodeRecord | null>(null);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
+  const [personalCodeModalOpen, setPersonalCodeModalOpen] = useState(false);
 
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
   const discountCodes = useQuery({ queryKey: discountCodesQueryKey, queryFn: getDiscountCodes });
+  const personalCodes = useQuery({ queryKey: personalCodesQueryKey, queryFn: getPersonalCodes });
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
+  const customers = useQuery({ queryKey: dealCustomersQueryKey, queryFn: getDealCustomers });
   const categories = useQuery({ queryKey: dealCategoriesQueryKey(selectedRestaurantId), queryFn: () => getDealCategories(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
   const products = useQuery({ queryKey: dealProductsQueryKey(selectedRestaurantId), queryFn: () => getDealProducts(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
+
+  const togglePersonalCodeMutation = useMutation({
+    mutationFn: (codeRecord: PersonalCodeRecord) => updatePersonalCode(codeRecord.id, { isUsed: !codeRecord.isUsed, usageCount: codeRecord.isUsed ? 0 : Math.max(1, codeRecord.usageCount) }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: personalCodesQueryKey });
+    },
+  });
+
+  const deletePersonalCodeMutation = useMutation({
+    mutationFn: (codeId: string) => deletePersonalCode(codeId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: personalCodesQueryKey });
+    },
+  });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -117,51 +221,71 @@ export function DealsPage() {
   }, [restaurants.data, selectedRestaurantId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const dealsForRestaurantContext = useMemo(() => {
+    if (!selectedRestaurantId) return automaticDeals.data || [];
+    return (automaticDeals.data || []).filter((deal) => deal.isGlobal || deal.restaurantId === selectedRestaurantId || deal.applicableRestaurantIds?.includes(selectedRestaurantId));
+  }, [automaticDeals.data, selectedRestaurantId]);
+
   const categoryNameMap = useMemo(() => new Map((categories.data || []).map((category) => [category.id, category.name])), [categories.data]);
   const productNameMap = useMemo(() => new Map((products.data || []).map((product) => [product.id, product.name])), [products.data]);
 
   const filteredAutomaticDeals = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
-    const filteredByTab = (automaticDeals.data || []).filter((deal) => {
+    const filteredByTab = dealsForRestaurantContext.filter((deal) => {
       if (tab === "restaurant") {
         return deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER";
       }
-
       if (tab === "product") {
         return deal.scopeType === "PRODUCT";
       }
-
       if (tab === "category") {
         return deal.scopeType === "CATEGORY";
       }
-
-      return true;
+      return false;
     });
 
-    return filteredByTab.filter((deal) => {
-      const restaurantName = deal.restaurant?.name || "";
-      return !lowerQuery || `${deal.title} ${deal.description || ""} ${restaurantName}`.toLowerCase().includes(lowerQuery);
-    });
-  }, [automaticDeals.data, query, tab]);
+    return filteredByTab.filter((deal) => !lowerQuery || `${deal.title} ${deal.description || ""} ${deal.restaurant?.name || ""}`.toLowerCase().includes(lowerQuery));
+  }, [dealsForRestaurantContext, query, tab]);
+
+  const filteredLegacyProductDiscounts = useMemo(() => {
+    if (tab !== "product") return [] as DealProductRef[];
+    const lowerQuery = query.trim().toLowerCase();
+    const productDealIds = new Set(filteredAutomaticDeals.flatMap((deal) => deal.targetIds || []));
+    return (products.data || [])
+      .filter((product) => product.discountActive && (product.discountPrice != null || product.discountPercent != null))
+      .filter((product) => !productDealIds.has(product.id))
+      .filter((product) => !lowerQuery || `${product.name} ${product.category.name} ${product.discountLabel || ""}`.toLowerCase().includes(lowerQuery));
+  }, [filteredAutomaticDeals, products.data, query, tab]);
 
   const filteredDiscountCodes = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
     return (discountCodes.data || []).filter((code) => !lowerQuery || `${code.code} ${code.description || ""}`.toLowerCase().includes(lowerQuery));
   }, [discountCodes.data, query]);
 
-  if (automaticDeals.isLoading || discountCodes.isLoading || restaurants.isLoading) {
+  const filteredPersonalCodes = useMemo(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    return (personalCodes.data || []).filter((code) => !lowerQuery || `${code.code} ${code.user?.name || ""} ${code.user?.phone || ""} ${code.campaign?.title || ""}`.toLowerCase().includes(lowerQuery));
+  }, [personalCodes.data, query]);
+
+  if (automaticDeals.isLoading || discountCodes.isLoading || personalCodes.isLoading || restaurants.isLoading || customers.isLoading) {
     return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading deals workspace...</Surface>;
   }
 
-  if (automaticDeals.isError || discountCodes.isError || restaurants.isError || !automaticDeals.data || !discountCodes.data || !restaurants.data) {
-    return <ErrorPanel title="Deals module could not be loaded" description="The deal or discount code endpoints are unavailable." action={<Button onClick={() => { void automaticDeals.refetch(); void discountCodes.refetch(); void restaurants.refetch(); }}><RefreshCw size={16} /> Retry</Button>} />;
+  if (automaticDeals.isError || discountCodes.isError || personalCodes.isError || restaurants.isError || customers.isError || !automaticDeals.data || !discountCodes.data || !personalCodes.data || !restaurants.data || !customers.data) {
+    return <ErrorPanel title="Deals module could not be loaded" description="The deal or code endpoints are unavailable." action={<Button onClick={() => { void automaticDeals.refetch(); void discountCodes.refetch(); void personalCodes.refetch(); void restaurants.refetch(); void customers.refetch(); }}><RefreshCw size={16} /> Retry</Button>} />;
   }
 
   const stats = {
     automatic: automaticDeals.data.length,
     activeAutomatic: automaticDeals.data.filter((deal) => deal.isActive).length,
-    codes: discountCodes.data.length,
-    activeCodes: discountCodes.data.filter((code) => code.isActive).length,
+    codes: discountCodes.data.length + personalCodes.data.length,
+    activeCodes: discountCodes.data.filter((code) => code.isActive).length + personalCodes.data.filter((code) => !code.isUsed).length,
+  };
+
+  const activeDealsCount = {
+    restaurant: dealsForRestaurantContext.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER")).length,
+    product: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "PRODUCT").length + filteredLegacyProductDiscounts.length,
+    category: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY").length,
   };
 
   const openCreate = () => {
@@ -173,22 +297,17 @@ export function DealsPage() {
     setDealModalOpen(true);
   };
 
-  const activeDealsCount = {
-    restaurant: automaticDeals.data.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER")).length,
-    product: automaticDeals.data.filter((deal) => deal.isActive && deal.scopeType === "PRODUCT").length,
-    category: automaticDeals.data.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY").length,
-  };
-
   return (
     <div className="page-stack">
       <Surface className="px-6 py-6">
         <SectionHeader
           eyebrow="Deals"
           title="Deals and offers"
-          description="Manage deals and discount codes."
+          description="Keep restaurant deals, product deals, category deals and codes on one page."
           actions={
             <>
-              <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); void discountCodes.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
+              <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); void discountCodes.refetch(); void personalCodes.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
+              {tab === "codes" ? <Button variant="secondary" onClick={() => setPersonalCodeModalOpen(true)}><Users size={16} /> Personal code</Button> : null}
               <Button variant="primary" onClick={openCreate}><Plus size={16} /> New {tab === "codes" ? "code" : "deal"}</Button>
             </>
           }
@@ -198,7 +317,7 @@ export function DealsPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Automatic deals</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.automatic)}</p></Surface>
         <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active automatic</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.activeAutomatic)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Discount codes</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.codes)}</p></Surface>
+        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Codes</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.codes)}</p></Surface>
         <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active codes</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.activeCodes)}</p></Surface>
       </div>
 
@@ -211,7 +330,7 @@ export function DealsPage() {
               </Select>
             </Field>
           ) : <div />}
-          <Field label="Search"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab === "codes" ? "Search discount codes" : "Search deals"} /></Field>
+          <Field label="Search"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab === "codes" ? "Search codes" : "Search deals"} /></Field>
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
@@ -221,9 +340,9 @@ export function DealsPage() {
           <button type="button" onClick={() => setTab("codes")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "codes" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Codes</button>
         </div>
 
-        {tab !== "codes" ? (
+        {tab === "restaurant" || tab === "category" ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
-            {filteredAutomaticDeals.length === 0 ? <EmptyState title="No automatic deals" /> : filteredAutomaticDeals.map((deal) => {
+            {filteredAutomaticDeals.length === 0 ? <EmptyState title={`No ${tab} deals`} /> : filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => categoryNameMap.get(targetId) || productNameMap.get(targetId) || targetId).slice(0, 3);
               return (
                 <button key={deal.id} type="button" onClick={() => { setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
@@ -240,7 +359,7 @@ export function DealsPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {deal.badgeText ? <Badge tone="warning">{deal.badgeText}</Badge> : null}
-                    {deal.targetIds.length > 0 && deal.scopeType !== "RESTAURANT" ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
+                    {deal.targetIds.length > 0 ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
                     {deal.targetIds.length > targetLabels.length ? <Badge tone="neutral">+{deal.targetIds.length - targetLabels.length} more</Badge> : null}
                     {deal.scopeType === "MIN_ORDER" ? <Badge tone="neutral">Min order {deal.minOrder} kr</Badge> : null}
                     {deal.validUntil ? <Badge tone="neutral">Until {formatDate(deal.validUntil)}</Badge> : null}
@@ -251,31 +370,105 @@ export function DealsPage() {
           </div>
         ) : null}
 
-        {tab === "codes" ? (
+        {tab === "product" ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
-            {filteredDiscountCodes.length === 0 ? <EmptyState title="No discount codes" /> : filteredDiscountCodes.map((code) => (
-              <button key={code.id} type="button" onClick={() => { setActiveCode(code); setCodeModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-lg font-black tracking-[-0.02em]">{code.code}</p>
-                      <Badge tone={code.isActive ? "success" : "danger"}>{code.isActive ? "Active" : "Inactive"}</Badge>
+            {filteredAutomaticDeals.length === 0 && filteredLegacyProductDiscounts.length === 0 ? <EmptyState title="No product deals" /> : null}
+            {filteredAutomaticDeals.map((deal) => {
+              const targetLabels = (deal.targetIds || []).map((targetId) => productNameMap.get(targetId) || targetId).slice(0, 3);
+              return (
+                <button key={deal.id} type="button" onClick={() => { setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black tracking-[-0.02em]">{deal.title}</p>
+                        <Badge tone={deal.isActive ? "success" : "danger"}>{deal.isActive ? "Active" : "Inactive"}</Badge>
+                        <Badge tone="info">Product</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.restaurant?.name || "No restaurant"} • {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</p>
                     </div>
-                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.discountType === "fixed" ? `${code.discountValue} kr` : `${code.discountValue}%`} • min order {code.minOrderAmount} kr</p>
-                    {code.description ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.description}</p> : null}
                   </div>
-                  <div className="text-right text-sm text-[var(--text-secondary)]">
-                    <div>{code.usedCount} used</div>
-                    {code.maxUses ? <div>max {code.maxUses}</div> : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>)}
+                    {deal.validUntil ? <Badge tone="neutral">Until {formatDate(deal.validUntil)}</Badge> : null}
+                  </div>
+                </button>
+              );
+            })}
+            {filteredLegacyProductDiscounts.map((product) => {
+              const salePrice = product.discountPrice != null ? product.discountPrice : Math.round(product.price * (1 - Number(product.discountPercent || 0) / 100));
+              return (
+                <div key={`legacy-${product.id}`} className="surface-muted px-5 py-5 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black tracking-[-0.02em]">{product.name}</p>
+                        <Badge tone="warning">Legacy menu discount</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{product.category.name} • {formatCurrency(product.price)} to {formatCurrency(salePrice)}</p>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">This product is still discounted from product settings, which is why it shows here.</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {product.discountLabel ? <Badge tone="neutral">{product.discountLabel}</Badge> : null}
+                    {product.discountPercent ? <Badge tone="neutral">-{product.discountPercent}%</Badge> : null}
                   </div>
                 </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {code.startsAt ? <Badge tone="neutral">Starts {formatDate(code.startsAt)}</Badge> : null}
-                  {code.expiresAt ? <Badge tone="neutral">Ends {formatDate(code.expiresAt)}</Badge> : null}
-                  <Badge tone="info">{code.discountType}</Badge>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {tab === "codes" ? (
+          <div className="mt-6 grid gap-6">
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Discount codes</p>
+                <Badge tone="info">{filteredDiscountCodes.length}</Badge>
+              </div>
+              {filteredDiscountCodes.length === 0 ? <EmptyState title="No discount codes" /> : <div className="grid gap-3 lg:grid-cols-2">{filteredDiscountCodes.map((code) => (
+                <button key={code.id} type="button" onClick={() => { setActiveCode(code); setCodeModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black tracking-[-0.02em]">{code.code}</p>
+                        <Badge tone={code.isActive ? "success" : "danger"}>{code.isActive ? "Active" : "Inactive"}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.discountType === "fixed" ? `${code.discountValue} kr` : `${code.discountValue}%`} • min order {code.minOrderAmount} kr</p>
+                      {code.description ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.description}</p> : null}
+                    </div>
+                    <div className="text-right text-sm text-[var(--text-secondary)]">
+                      <div>{code.usedCount} used</div>
+                      {code.maxUses ? <div>max {code.maxUses}</div> : null}
+                    </div>
+                  </div>
+                </button>
+              ))}</div>}
+            </div>
+
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Personal codes</p>
+                <Badge tone="info">{filteredPersonalCodes.length}</Badge>
+              </div>
+              {filteredPersonalCodes.length === 0 ? <EmptyState title="No personal codes" /> : <div className="grid gap-3 lg:grid-cols-2">{filteredPersonalCodes.map((code) => (
+                <div key={code.id} className="surface-muted px-5 py-5 text-left">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black tracking-[-0.02em]">{code.campaign?.title || code.code}</p>
+                        <Badge tone={code.isUsed ? "danger" : "success"}>{code.isUsed ? "Used" : "Active"}</Badge>
+                      </div>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.user?.name || code.user?.phone || "Unknown customer"} • {code.code}</p>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{code.campaign?.discountType === "FIXED" ? `${((code.campaign?.discountValue || 0) / 100).toFixed(0)} kr` : `${code.campaign?.discountValue || 0}%`} • {code.usageCount}/{code.maxUsages}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => togglePersonalCodeMutation.mutate(code)}>{code.isUsed ? "Restore" : "Mark used"}</Button>
+                    <Button variant="danger" onClick={() => deletePersonalCodeMutation.mutate(code.id)}>Delete</Button>
+                  </div>
                 </div>
-              </button>
-            ))}
+              ))}</div>}
+            </div>
           </div>
         ) : null}
       </Surface>
@@ -291,6 +484,7 @@ export function DealsPage() {
       />
 
       <DiscountCodeModal open={codeModalOpen} codeRecord={activeCode} onClose={() => { setCodeModalOpen(false); setActiveCode(null); }} />
+      <PersonalCodeModal open={personalCodeModalOpen} customers={customers.data} onClose={() => setPersonalCodeModalOpen(false)} />
     </div>
   );
 }
