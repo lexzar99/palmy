@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BellRing,
   CircleDollarSign,
+  ContactRound,
   Gift,
   LayoutDashboard,
   Map,
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/menu", label: "Menu", icon: MenuSquare },
   { href: "/zones", label: "Zones", icon: Map },
   { href: "/finance", label: "Finance", icon: CircleDollarSign },
+  { href: "/customers", label: "Customers", icon: ContactRound },
   { href: "/users", label: "Users", icon: Users },
   { href: "/sponsors", label: "Sponsors", icon: TicketPercent },
   { href: "/deals", label: "Deals", icon: Gift },

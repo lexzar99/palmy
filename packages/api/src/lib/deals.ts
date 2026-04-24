@@ -2,6 +2,7 @@ type DealLike = {
   id: string;
   title: string;
   description: string | null;
+  imageUrl?: string | null;
   badgeText: string | null;
   triggerType: string;
   discountType: string;
@@ -21,6 +22,31 @@ type DealLike = {
   updatedAt: Date;
   restaurantId?: string | null;
   isGlobal?: boolean;
+  applicableRestaurantIds?: string | null;
+};
+
+type ProductPromotionLike = {
+  id: string;
+  price: number;
+  discountActive?: boolean | null;
+  discountPercent?: number | null;
+  discountPrice?: number | null;
+  discountImageUrl?: string | null;
+  discountLabel?: string | null;
+};
+
+export type DealScopeType = 'RESTAURANT' | 'PRODUCT' | 'CATEGORY' | 'COMBO' | 'MIN_ORDER';
+
+export type ResolvedDisplayPromotion = {
+  source: 'DEAL' | 'LEGACY';
+  scope: 'PRODUCT' | 'CATEGORY' | 'RESTAURANT';
+  salePriceOre: number;
+  discountPercent: number | null;
+  discountLabel: string | null;
+  imageUrl: string | null;
+  dealId?: string | null;
+  title?: string | null;
+  sortOrder: number;
 };
 
 export type DealEvaluationContext = {
@@ -41,9 +67,38 @@ export const parseDealProductIds = (raw: string | null | undefined) => {
   }
 };
 
-export const getDealKind = (deal: Pick<DealLike, 'triggerType' | 'discountType'>) => {
+export const parseDealTargetIds = parseDealProductIds;
+
+export const parseApplicableRestaurantIds = (raw: string | null | undefined) => {
+  if (!raw) return [] as string[];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+export const getDealScopeType = (deal: Pick<DealLike, 'triggerType'>): DealScopeType => {
+  if (deal.triggerType === 'PRODUCT') return 'PRODUCT';
+  if (deal.triggerType === 'CATEGORY') return 'CATEGORY';
   if (deal.triggerType === 'COMBO') return 'COMBO';
   if (deal.triggerType === 'MIN_ORDER') return 'MIN_ORDER';
+  return 'RESTAURANT';
+};
+
+export const isBasketDeal = (deal: Pick<DealLike, 'triggerType'>) => {
+  const scope = getDealScopeType(deal);
+  return scope === 'RESTAURANT' || scope === 'COMBO' || scope === 'MIN_ORDER';
+};
+
+export const getDealKind = (deal: Pick<DealLike, 'triggerType' | 'discountType'>) => {
+  if (deal.triggerType === 'PRODUCT') return 'PRODUCT';
+  if (deal.triggerType === 'CATEGORY') return 'CATEGORY';
+  if (deal.triggerType === 'COMBO') return 'COMBO';
+  if (deal.triggerType === 'MIN_ORDER') return 'MIN_ORDER';
+  if (deal.discountType === 'FIXED_PRICE') return 'FIXED_PRICE';
   if (deal.discountType === 'FIXED') return 'FIXED';
   return 'PERCENTAGE';
 };
@@ -125,6 +180,123 @@ export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => 
   };
 };
 
+const createPromotionCandidate = (params: {
+  source: 'DEAL' | 'LEGACY';
+  scope: 'PRODUCT' | 'CATEGORY' | 'RESTAURANT';
+  priceOre: number;
+  discountType: string;
+  discountValue: number;
+  discountLabel?: string | null;
+  imageUrl?: string | null;
+  dealId?: string | null;
+  title?: string | null;
+  sortOrder?: number;
+}) => {
+  const { source, scope, priceOre, discountType, discountValue, discountLabel, imageUrl, dealId, title, sortOrder = 0 } = params;
+  if (priceOre <= 0) return null;
+
+  let salePriceOre = priceOre;
+  if (discountType === 'FIXED_PRICE') {
+    salePriceOre = Math.round(discountValue);
+  } else if (discountType === 'PERCENTAGE') {
+    salePriceOre = Math.round(priceOre * Math.max(0, 100 - Number(discountValue || 0)) / 100);
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(salePriceOre) || salePriceOre <= 0 || salePriceOre >= priceOre) return null;
+
+  const discountPercent = Math.max(1, Math.round((1 - salePriceOre / priceOre) * 100));
+  return {
+    source,
+    scope,
+    salePriceOre,
+    discountPercent,
+    discountLabel: discountLabel || null,
+    imageUrl: imageUrl || null,
+    dealId: dealId || null,
+    title: title || null,
+    sortOrder,
+  } satisfies ResolvedDisplayPromotion;
+};
+
+const scopePriority: Record<ResolvedDisplayPromotion['scope'], number> = {
+  PRODUCT: 3,
+  CATEGORY: 2,
+  RESTAURANT: 1,
+};
+
+export const resolveDisplayPromotionForProduct = (params: {
+  product: ProductPromotionLike;
+  categoryId: string;
+  restaurantId: string | null;
+  deals: DealLike[];
+}) => {
+  const { product, categoryId, deals } = params;
+  const candidates: ResolvedDisplayPromotion[] = [];
+
+  if (product.discountActive && (product.discountPercent != null || product.discountPrice != null)) {
+    const legacyCandidate = createPromotionCandidate({
+      source: 'LEGACY',
+      scope: 'PRODUCT',
+      priceOre: product.price,
+      discountType: product.discountPrice != null ? 'FIXED_PRICE' : 'PERCENTAGE',
+      discountValue: product.discountPrice != null ? product.discountPrice : Number(product.discountPercent || 0),
+      discountLabel: product.discountLabel,
+      imageUrl: product.discountImageUrl,
+      title: product.discountLabel || undefined,
+      sortOrder: -1,
+    });
+
+    if (legacyCandidate) {
+      candidates.push(legacyCandidate);
+    }
+  }
+
+  for (const deal of deals) {
+    if (!isDealAvailableNow(deal)) continue;
+    if (!deal.showOnSite) continue;
+
+    const scope = getDealScopeType(deal);
+    if (scope === 'COMBO' || scope === 'MIN_ORDER') continue;
+
+    const targetIds = parseDealTargetIds(deal.comboProductIds);
+    const matches =
+      scope === 'PRODUCT'
+        ? targetIds.includes(product.id)
+        : scope === 'CATEGORY'
+          ? targetIds.includes(categoryId)
+          : deal.discountType === 'PERCENTAGE' && Number(deal.minOrder || 0) <= 0;
+
+    if (!matches) continue;
+
+    const candidate = createPromotionCandidate({
+      source: 'DEAL',
+      scope,
+      priceOre: product.price,
+      discountType: deal.discountType,
+      discountValue: Number(deal.discountValue || 0),
+      discountLabel: deal.badgeText,
+      imageUrl: deal.imageUrl,
+      dealId: deal.id,
+      title: deal.title,
+      sortOrder: deal.sortOrder,
+    });
+
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates.sort((left, right) => {
+    const byScope = scopePriority[right.scope] - scopePriority[left.scope];
+    if (byScope !== 0) return byScope;
+    const byPrice = left.salePriceOre - right.salePriceOre;
+    if (byPrice !== 0) return byPrice;
+    return left.sortOrder - right.sortOrder;
+  })[0] || null;
+};
+
 export const formatDealForClient = (
   deal: DealLike,
   extra?: {
@@ -142,11 +314,13 @@ export const formatDealForClient = (
   description: deal.description,
   badgeText: deal.badgeText,
   dealType: getDealKind(deal),
+  scopeType: getDealScopeType(deal),
   triggerType: deal.triggerType,
   discountType: deal.discountType,
-  discountValue: deal.discountType === 'FIXED' ? oreToKr(deal.discountValue) : deal.discountValue,
+  discountValue: deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE' ? oreToKr(deal.discountValue) : deal.discountValue,
   minOrder: oreToKr(deal.minOrder),
   comboProductIds: parseDealProductIds(deal.comboProductIds),
+  targetIds: parseDealTargetIds(deal.comboProductIds),
   comboProductNames: extra?.comboProductNames || [],
   isActive: deal.isActive,
   showOnSite: deal.showOnSite,
@@ -160,7 +334,7 @@ export const formatDealForClient = (
   restaurantId: deal.restaurantId || null,
   isGlobal: deal.isGlobal ?? false,
   restaurant: extra?.restaurant || null,
-  applicableRestaurantIds: extra?.applicableRestaurantIds || [],
+  applicableRestaurantIds: extra?.applicableRestaurantIds || parseApplicableRestaurantIds(deal.applicableRestaurantIds),
   createdAt: deal.createdAt,
   updatedAt: deal.updatedAt,
 });

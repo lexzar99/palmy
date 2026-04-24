@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Search, Tags } from "lucide-react";
+import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
+import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
   createCategory,
   createExtraGroup,
@@ -90,9 +92,10 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
   );
 }
 
-function ProductModal({ open, restaurantId, product, categories, extraGroups, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; onClose: () => void }) {
+function ProductModal({ open, restaurantId, product, categories, extraGroups, existingDeals, restaurants, products, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; existingDeals: AutomaticDealRecord[]; restaurants: DealRestaurantRef[]; products: DealProductRef[]; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, extraGroupIds: [] as string[] });
+  const [promotionModalOpen, setPromotionModalOpen] = useState(false);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -161,6 +164,21 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, on
       extraGroupIds: current.extraGroupIds.includes(groupId) ? current.extraGroupIds.filter((item) => item !== groupId) : [...current.extraGroupIds, groupId],
     }));
 
+  const productDeal = useMemo(
+    () => existingDeals.find((deal) => deal.scopeType === "PRODUCT" && deal.targetIds.includes(product?.id || "")) || null,
+    [existingDeals, product?.id],
+  );
+
+  const relatedCategoryDeals = useMemo(
+    () => existingDeals.filter((deal) => deal.scopeType === "CATEGORY" && deal.targetIds.includes(form.categoryId || product?.categoryId || "")),
+    [existingDeals, form.categoryId, product?.categoryId],
+  );
+
+  const restaurantWideDeals = useMemo(
+    () => existingDeals.filter((deal) => deal.scopeType === "RESTAURANT"),
+    [existingDeals],
+  );
+
   return (
     <Modal
       open={open}
@@ -168,7 +186,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, on
       title={product ? "Edit product" : "New product"}
       footer={<div className="flex items-center justify-between gap-3"><div>{product ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
     >
-      <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
         <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
         <Field label="Price"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
         <Field label="Category"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
@@ -176,6 +194,20 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, on
         <Field label="Image URL"><Input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} /></Field>
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
         <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Promotion shortcut</p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">Products no longer own discount logic. Use Deals as the source of truth and open a product-specific deal from here when needed.</p>
+            </div>
+            <Button variant="secondary" onClick={() => setPromotionModalOpen(true)} disabled={!product}>{productDeal ? "Edit product deal" : "Create product deal"}</Button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {product ? (productDeal ? <Badge tone="warning">Direct product deal</Badge> : <Badge tone="neutral">No direct product deal</Badge>) : <Badge tone="neutral">Save the product first</Badge>}
+            {relatedCategoryDeals.length > 0 ? <Badge tone="info">{relatedCategoryDeals.length} category deal(s) apply</Badge> : null}
+            {restaurantWideDeals.length > 0 ? <Badge tone="neutral">{restaurantWideDeals.length} restaurant-wide deal(s)</Badge> : null}
+          </div>
+        </div>
         <div className="md:col-span-2 surface-muted px-4 py-4">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Dietary flags</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -197,6 +229,24 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, on
           </div>
         </div>
       </div>
+
+      <AutomaticDealModal
+        open={promotionModalOpen}
+        onClose={() => setPromotionModalOpen(false)}
+        restaurants={restaurants}
+        categories={categories}
+        products={products}
+        initialDeal={productDeal}
+        prefill={{
+          restaurantId,
+          scopeType: "PRODUCT",
+          targetIds: product ? [product.id] : [],
+          title: product ? `${product.name} promo` : "",
+          badgeText: productDeal?.badgeText || "",
+          discountType: productDeal?.discountType === "PERCENTAGE" ? "PERCENTAGE" : "FIXED_PRICE",
+        }}
+        restaurantLocked
+      />
     </Modal>
   );
 }
@@ -331,6 +381,7 @@ export function MenuPage() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
 
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
+  const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -478,7 +529,7 @@ export function MenuPage() {
       {activeRestaurantId ? (
         <>
           <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} onClose={() => setCategoryModalOpen(false)} />
-          <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} />
+          <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} existingDeals={(automaticDeals.data || []).filter((deal) => deal.restaurantId === activeRestaurantId || deal.applicableRestaurantIds?.includes(activeRestaurantId) || deal.isGlobal)} restaurants={(restaurants.data || []).map((restaurant) => ({ id: restaurant.id, name: restaurant.name, slug: restaurant.slug, city: restaurant.city || null })) as DealRestaurantRef[]} products={products.data || []} />
           <ExtraGroupModal open={groupModalOpen} restaurantId={activeRestaurantId} group={activeGroup} categories={categories.data || []} onClose={() => setGroupModalOpen(false)} />
         </>
       ) : null}

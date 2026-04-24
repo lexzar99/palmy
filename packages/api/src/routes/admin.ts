@@ -7,7 +7,7 @@ import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
-import { formatDealForClient, parseDealProductIds } from '../lib/deals';
+import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 
 const router = Router();
@@ -1262,22 +1262,68 @@ const parseJsonArray = (value: unknown): string[] => {
 
 const formatDealForAdmin = (deal: any) => ({
   ...deal,
+  scopeType: getDealScopeType(deal),
   dealType:
-    deal.triggerType === 'COMBO'
+    deal.triggerType === 'PRODUCT'
+      ? 'PRODUCT'
+      : deal.triggerType === 'CATEGORY'
+        ? 'CATEGORY'
+        : deal.triggerType === 'COMBO'
       ? 'COMBO'
       : deal.triggerType === 'MIN_ORDER'
         ? 'MIN_ORDER'
+        : deal.discountType === 'FIXED_PRICE'
+          ? 'FIXED_PRICE'
         : deal.discountType === 'FIXED'
           ? 'FIXED'
           : 'PERCENTAGE',
   discountValue:
-    deal.discountType === 'FIXED'
+    deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE'
       ? normalizeMoneyToOre(Number(deal.discountValue || 0)) / 100
       : deal.discountValue,
   minOrder: normalizeMoneyToOre(Number(deal.minOrder || 0)) / 100,
   comboProductIds: parseDealProductIds(deal.comboProductIds),
+  targetIds: parseDealTargetIds(deal.comboProductIds),
   applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
 });
+
+const assertDealScopeCompatibility = async (params: {
+  restaurantId: string | null;
+  isActive: boolean;
+  scopeType: ReturnType<typeof getDealScopeType>;
+  excludeDealId?: string;
+}) => {
+  const { restaurantId, isActive, scopeType, excludeDealId } = params;
+  if (!restaurantId || !isActive) return;
+  if (scopeType !== 'RESTAURANT' && scopeType !== 'PRODUCT' && scopeType !== 'CATEGORY') return;
+
+  const existingDeals = await prisma.deal.findMany({
+    where: {
+      restaurantId,
+      isActive: true,
+      ...(excludeDealId ? { id: { not: excludeDealId } } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      triggerType: true,
+    },
+  });
+
+  const hasRestaurantWide = existingDeals.some((deal) => getDealScopeType(deal) === 'RESTAURANT');
+  const hasItemScoped = existingDeals.some((deal) => {
+    const dealScope = getDealScopeType(deal);
+    return dealScope === 'PRODUCT' || dealScope === 'CATEGORY';
+  });
+
+  if (scopeType === 'RESTAURANT' && hasItemScoped) {
+    throw new Error('Du kan inte aktivera en restaurangdeal samtidigt som produkt- eller kategorideals är aktiva för samma restaurang.');
+  }
+
+  if ((scopeType === 'PRODUCT' || scopeType === 'CATEGORY') && hasRestaurantWide) {
+    throw new Error('Du kan inte aktivera produkt- eller kategorideals samtidigt som en aktiv restaurangdeal finns för samma restaurang.');
+  }
+};
 
 const normalizeDealInputForDb = (body: any) => {
   const next: Record<string, unknown> = { ...body };
@@ -1286,13 +1332,28 @@ const normalizeDealInputForDb = (body: any) => {
   delete next.createdAt;
   delete next.updatedAt;
   delete next.dealType;
+  delete next.scopeType;
+  delete next.targetIds;
   delete next.restaurant;
+
+  if (body.scopeType !== undefined) {
+    const scopeType = String(body.scopeType || 'RESTAURANT').toUpperCase();
+    next.triggerType =
+      scopeType === 'PRODUCT' ||
+      scopeType === 'CATEGORY' ||
+      scopeType === 'COMBO' ||
+      scopeType === 'MIN_ORDER'
+        ? scopeType
+        : 'NONE';
+  }
 
   if (body.discountValue !== undefined) {
     const discountType = body.discountType;
     const discountValueRaw = Number(body.discountValue || 0);
     next.discountValue =
-      discountType === 'FIXED' ? normalizeMoneyToOre(discountValueRaw) : Math.round(discountValueRaw);
+      discountType === 'FIXED' || discountType === 'FIXED_PRICE'
+        ? normalizeMoneyToOre(discountValueRaw)
+        : Math.round(discountValueRaw);
   }
 
   if (body.minOrder !== undefined) {
@@ -1300,7 +1361,12 @@ const normalizeDealInputForDb = (body: any) => {
     next.minOrder = normalizeMoneyToOre(minOrderRaw);
   }
 
-  if (body.comboProductIds !== undefined) {
+  if (body.targetIds !== undefined) {
+    next.comboProductIds =
+      typeof body.targetIds === 'string'
+        ? body.targetIds
+        : JSON.stringify(body.targetIds || []);
+  } else if (body.comboProductIds !== undefined) {
     next.comboProductIds =
       typeof body.comboProductIds === 'string'
         ? body.comboProductIds
@@ -1516,6 +1582,12 @@ router.post('/deals', async (req, res) => {
       normalized.restaurantId = scopedRestaurantId;
     }
 
+    await assertDealScopeCompatibility({
+      restaurantId: (normalized.restaurantId as string | null | undefined) || null,
+      isActive: normalized.isActive !== false,
+      scopeType: getDealScopeType({ triggerType: String(normalized.triggerType || 'NONE') }),
+    });
+
     const deal = await prisma.deal.create({
       data: normalized as any,
     });
@@ -1523,7 +1595,7 @@ router.post('/deals', async (req, res) => {
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);
-    res.status(500).json({ error: 'Kunde inte skapa deal' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Kunde inte skapa deal' });
   }
 });
 
@@ -1531,15 +1603,36 @@ router.patch('/deals/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { restaurantId, ...data } = req.body;
+    const existing = await prisma.deal.findUnique({
+      where: { id },
+      select: { id: true, restaurantId: true, isActive: true, triggerType: true },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Dealen hittades inte' });
+    }
     
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
-      const existing = await prisma.deal.findUnique({ where: { id } });
-      if (!existing || existing.restaurantId !== rid) {
+      if (existing.restaurantId !== rid) {
         return res.status(403).json({ error: 'Ej behörig' });
       }
     }
+
+    const nextScopeType = getDealScopeType({ triggerType: String((data.triggerType ?? data.scopeType ?? 'NONE')).toUpperCase() });
+    const effectiveRestaurantId =
+      data.restaurantId !== undefined
+        ? (data.restaurantId ? String(data.restaurantId) : null)
+        : (existing?.restaurantId ?? null);
+    const nextIsActive = data.isActive !== undefined ? Boolean(data.isActive) : existing?.isActive !== false;
+
+    await assertDealScopeCompatibility({
+      restaurantId: effectiveRestaurantId,
+      isActive: nextIsActive,
+      scopeType: nextScopeType,
+      excludeDealId: id,
+    });
 
     const deal = await prisma.deal.update({
       where: { id },
@@ -1547,7 +1640,7 @@ router.patch('/deals/:id', async (req, res) => {
     });
     res.json(formatDealForAdmin(deal));
   } catch (error) {
-    res.status(500).json({ error: 'Serverfel' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Serverfel' });
   }
 });
 

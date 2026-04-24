@@ -16,6 +16,7 @@ const metaByPath = [
   { prefix: "/menu", title: "Menu operations", description: "Categories, products and extras without cross-module coupling." },
   { prefix: "/zones", title: "Zones and delivery", description: "Cities, polygons, fees and restaurant overrides." },
   { prefix: "/finance", title: "Finance control", description: "Payouts, transactions and report-driven adjustments." },
+  { prefix: "/customers", title: "Customer records", description: "Support view for customer profiles, orders and personal offers." },
   { prefix: "/users", title: "Users and roles", description: "Admin access, role changes and credential management." },
   { prefix: "/sponsors", title: "Sponsor placements", description: "Homepage placements and partner campaign management." },
   { prefix: "/deals", title: "Deals and offers", description: "Global deals, restaurant deals and customer-targeted incentives." },

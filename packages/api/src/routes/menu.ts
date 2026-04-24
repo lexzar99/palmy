@@ -1,7 +1,36 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
+import { isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct } from '../lib/deals';
 
 const router = Router();
+
+const dealMatchesRestaurant = (deal: {
+  restaurantId?: string | null;
+  isGlobal?: boolean | null;
+  applicableRestaurantIds?: string | null;
+}, restaurantId: string | null) => {
+  if (!restaurantId) return false;
+  if (deal.isGlobal) return true;
+  if (deal.restaurantId === restaurantId) return true;
+  return parseApplicableRestaurantIds(deal.applicableRestaurantIds).includes(restaurantId);
+};
+
+const toDisplayDiscount = (product: any, categoryId: string, restaurantId: string | null, deals: any[]) => {
+  const promotion = resolveDisplayPromotionForProduct({
+    product,
+    categoryId,
+    restaurantId,
+    deals: deals.filter((deal) => dealMatchesRestaurant(deal, restaurantId) && isDealAvailableNow(deal)),
+  });
+
+  return {
+    discountActive: Boolean(promotion),
+    discountPercent: promotion?.discountPercent ?? null,
+    discountPrice: promotion ? promotion.salePriceOre / 100 : null,
+    discountImageUrl: promotion?.imageUrl ?? null,
+    discountLabel: promotion?.discountLabel ?? null,
+  };
+};
 
 // GET /api/menu/categories - Alla aktiva kategorier med produkter för en specifik restaurang
 router.get('/categories', async (req, res) => {
@@ -55,6 +84,12 @@ router.get('/categories', async (req, res) => {
 
     const primaryRestaurantId = hasRestaurantScope ? (resolvedRestaurantId ?? null) : null;
     let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
+    const activeDeals = primaryRestaurantId
+      ? await prisma.deal.findMany({
+          where: { isActive: true, showOnSite: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+        })
+      : [];
 
     // Fallback logic if no categories found (e.g. invalid restaurantId)
     if (hasRestaurantScope && categories.length === 0) {
@@ -69,6 +104,7 @@ router.get('/categories', async (req, res) => {
       description: cat.description,
       imageUrl: cat.imageUrl,
       products: cat.products.map((prod) => ({
+        ...toDisplayDiscount(prod, cat.id, primaryRestaurantId, activeDeals),
         id: prod.id,
         name: prod.name,
         slug: prod.slug,
@@ -78,11 +114,6 @@ router.get('/categories', async (req, res) => {
         isVegan: prod.isVegan,
         isVegetarian: prod.isVegetarian,
         isGlutenFree: prod.isGlutenFree,
-        discountActive: (prod as any).discountActive ?? false,
-        discountPercent: (prod as any).discountPercent ?? null,
-        discountPrice: (prod as any).discountPrice != null ? (prod as any).discountPrice / 100 : null,
-        discountImageUrl: (prod as any).discountImageUrl ?? null,
-        discountLabel: (prod as any).discountLabel ?? null,
         extraGroups: prod.extraGroups.map((peg) => ({
           id: peg.extraGroup.id,
           name: peg.extraGroup.name,
@@ -174,11 +205,6 @@ router.get('/discounted', async (req, res) => {
     const products: any[] = await prisma.product.findMany({
       where: {
         isActive: true,
-        discountActive: true,
-        OR: [
-          { discountPercent: { not: null } },
-          { discountPrice: { not: null } },
-        ],
         category: {
           isActive: true,
           restaurant: {
@@ -209,33 +235,38 @@ router.get('/discounted', async (req, res) => {
       take: 30,
     });
 
+    const activeDeals = await prisma.deal.findMany({
+      where: { isActive: true, showOnSite: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+
     const formatted = products
       .filter((p) => p.category?.restaurant)
       .map((p) => {
         const priceKr = p.price / 100;
-        const hasCustomPrice = p.discountPrice != null;
-        const discountPriceKr = hasCustomPrice
-          ? p.discountPrice / 100
-          : p.discountPercent
-          ? Math.round(priceKr * (1 - p.discountPercent / 100) * 100) / 100
-          : priceKr;
-        const percent = p.discountPercent ?? (hasCustomPrice && priceKr > 0
-          ? Math.round((1 - discountPriceKr / priceKr) * 100)
-          : null);
+        const displayPromotion = resolveDisplayPromotionForProduct({
+          product: p,
+          categoryId: p.category.id,
+          restaurantId: p.category.restaurant?.id || null,
+          deals: activeDeals.filter((deal) => dealMatchesRestaurant(deal, p.category.restaurant?.id || null)),
+        });
+
+        if (!displayPromotion) return null;
+
         return {
           id: p.id,
           name: p.name,
           description: p.description,
           originalPrice: priceKr,
-          discountPrice: discountPriceKr,
-          discountPercent: percent,
-          discountLabel: p.discountLabel,
-          imageUrl: p.discountImageUrl || p.imageUrl,
+          discountPrice: displayPromotion.salePriceOre / 100,
+          discountPercent: displayPromotion.discountPercent,
+          discountLabel: displayPromotion.discountLabel,
+          imageUrl: displayPromotion.imageUrl || p.imageUrl,
           restaurant: p.category.restaurant,
         };
       });
 
-    res.json(formatted);
+    res.json(formatted.filter(Boolean));
   } catch (error) {
     console.error('Error fetching discounted products:', error);
     res.status(500).json({ error: 'Kunde inte hämta rabatterade produkter' });
