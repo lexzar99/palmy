@@ -86,6 +86,7 @@ export function AutomaticDealModal({
   initialDeal,
   prefill,
   restaurantLocked = false,
+  onSaved,
 }: {
   open: boolean;
   onClose: () => void;
@@ -95,6 +96,7 @@ export function AutomaticDealModal({
   initialDeal?: AutomaticDealRecord | null;
   prefill?: Partial<Draft>;
   restaurantLocked?: boolean;
+  onSaved?: (deal: AutomaticDealRecord) => Promise<void> | void;
 }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft>(defaultDraft);
@@ -153,7 +155,8 @@ export function AutomaticDealModal({
       }
       return createAutomaticDeal(payload);
     },
-    onSuccess: async () => {
+    onSuccess: async (savedDeal) => {
+      await onSaved?.(savedDeal);
       await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
       await queryClient.invalidateQueries({ queryKey: ["menu"] });
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] });

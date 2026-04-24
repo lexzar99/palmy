@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw, Users } from "lucide-react";
 import {
+  clearLegacyProductDiscount,
   createDiscountCode,
   createPersonalCode,
   dealsQueryKey,
@@ -35,6 +37,7 @@ import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHead
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
 type DealsTab = "restaurant" | "product" | "category" | "codes";
+type CodesTab = "discount" | "personal";
 
 function DiscountCodeModal({ open, codeRecord, onClose }: { open: boolean; codeRecord: DiscountCodeRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -182,14 +185,18 @@ const scopeLabel: Record<string, string> = {
 
 export function DealsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [tab, setTab] = useState<DealsTab>("restaurant");
+  const [codesTab, setCodesTab] = useState<CodesTab>("discount");
   const [query, setQuery] = useState("");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
   const [activeDeal, setActiveDeal] = useState<AutomaticDealRecord | null>(null);
   const [dealModalOpen, setDealModalOpen] = useState(false);
+  const [dealPrefill, setDealPrefill] = useState<Record<string, unknown> | undefined>(undefined);
   const [activeCode, setActiveCode] = useState<DiscountCodeRecord | null>(null);
   const [codeModalOpen, setCodeModalOpen] = useState(false);
   const [personalCodeModalOpen, setPersonalCodeModalOpen] = useState(false);
+  const [pendingLegacyMigration, setPendingLegacyMigration] = useState<DealProductRef | null>(null);
 
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
   const discountCodes = useQuery({ queryKey: discountCodesQueryKey, queryFn: getDiscountCodes });
@@ -290,10 +297,36 @@ export function DealsPage() {
 
   const openCreate = () => {
     setActiveDeal(null);
-    if (tab === "codes") {
-      setCodeModalOpen(true);
-      return;
-    }
+    setPendingLegacyMigration(null);
+    setDealPrefill(selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined);
+      if (tab === "codes") {
+        setCodeModalOpen(true);
+        return;
+      }
+      setDealModalOpen(true);
+  };
+
+  const openLegacyProduct = (productId: string) => {
+    if (!selectedRestaurantId) return;
+    router.push(`/menu?restaurantId=${selectedRestaurantId}&productId=${productId}`);
+  };
+
+  const migrateLegacyProduct = (product: DealProductRef) => {
+    if (!selectedRestaurantId) return;
+    setActiveDeal(null);
+    setPendingLegacyMigration(product);
+    setDealPrefill({
+      restaurantId: selectedRestaurantId,
+      scopeType: "PRODUCT",
+      targetIds: [product.id],
+      title: `${product.name} deal`,
+      badgeText: product.discountLabel || "",
+      discountType: product.discountPrice != null ? "FIXED_PRICE" : "PERCENTAGE",
+      discountValue: product.discountPrice ?? product.discountPercent ?? 10,
+      isActive: true,
+      showOnSite: true,
+      popupEnabled: true,
+    });
     setDealModalOpen(true);
   };
 
@@ -345,7 +378,7 @@ export function DealsPage() {
             {filteredAutomaticDeals.length === 0 ? <EmptyState title={`No ${tab} deals`} /> : filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => categoryNameMap.get(targetId) || productNameMap.get(targetId) || targetId).slice(0, 3);
               return (
-                <button key={deal.id} type="button" onClick={() => { setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
+                <button key={deal.id} type="button" onClick={() => { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -376,7 +409,7 @@ export function DealsPage() {
             {filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => productNameMap.get(targetId) || targetId).slice(0, 3);
               return (
-                <button key={deal.id} type="button" onClick={() => { setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
+                <button key={deal.id} type="button" onClick={() => { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -412,6 +445,10 @@ export function DealsPage() {
                     {product.discountLabel ? <Badge tone="neutral">{product.discountLabel}</Badge> : null}
                     {product.discountPercent ? <Badge tone="neutral">-{product.discountPercent}%</Badge> : null}
                   </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => openLegacyProduct(product.id)}>Öppna produkt</Button>
+                    <Button variant="primary" onClick={() => migrateLegacyProduct(product)}>Migrera till deal</Button>
+                  </div>
                 </div>
               );
             })}
@@ -420,7 +457,12 @@ export function DealsPage() {
 
         {tab === "codes" ? (
           <div className="mt-6 grid gap-6">
-            <div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setCodesTab("discount")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${codesTab === "discount" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Rabattkoder</button>
+              <button type="button" onClick={() => setCodesTab("personal")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${codesTab === "personal" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Personliga koder</button>
+            </div>
+
+            {codesTab === "discount" ? <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Discount codes</p>
                 <Badge tone="info">{filteredDiscountCodes.length}</Badge>
@@ -443,9 +485,9 @@ export function DealsPage() {
                   </div>
                 </button>
               ))}</div>}
-            </div>
+            </div> : null}
 
-            <div>
+            {codesTab === "personal" ? <div>
               <div className="mb-3 flex items-center justify-between gap-3">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Personal codes</p>
                 <Badge tone="info">{filteredPersonalCodes.length}</Badge>
@@ -468,19 +510,26 @@ export function DealsPage() {
                   </div>
                 </div>
               ))}</div>}
-            </div>
+            </div> : null}
           </div>
         ) : null}
       </Surface>
 
       <AutomaticDealModal
         open={dealModalOpen}
-        onClose={() => { setDealModalOpen(false); setActiveDeal(null); }}
+        onClose={() => { setDealModalOpen(false); setActiveDeal(null); setDealPrefill(undefined); setPendingLegacyMigration(null); }}
         restaurants={restaurants.data}
         categories={categories.data || []}
         products={products.data || []}
         initialDeal={activeDeal}
-        prefill={activeDeal ? undefined : selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined}
+        prefill={activeDeal ? undefined : dealPrefill || (selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined)}
+        onSaved={async () => {
+          if (!pendingLegacyMigration) return;
+          await clearLegacyProductDiscount(pendingLegacyMigration.id);
+          await queryClient.invalidateQueries({ queryKey: dealProductsQueryKey(selectedRestaurantId) });
+          await queryClient.invalidateQueries({ queryKey: ["menu", "products"] });
+          setPendingLegacyMigration(null);
+        }}
       />
 
       <DiscountCodeModal open={codeModalOpen} codeRecord={activeCode} onClose={() => { setCodeModalOpen(false); setActiveCode(null); }} />

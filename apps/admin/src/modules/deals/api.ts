@@ -102,8 +102,8 @@ export const getDiscountCodes = () => apiGet<DiscountCodeRecord[]>("/admin/disco
 export const getPersonalCodes = () => apiGet<PersonalCodeRecord[]>("/admin/customer-deals");
 export const getDealRestaurants = () => apiGet<DealRestaurantRef[]>("/restaurants");
 export const getDealCustomers = () => apiGet<DealCustomerRef[]>("/customers");
-export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}`);
-export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}`);
+export const getDealCategories = (restaurantId: string) => apiGet<DealCategoryRef[]>(`/admin/categories?restaurantId=${restaurantId}&includeGlobal=auto`);
+export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]>(`/admin/products?restaurantId=${restaurantId}&includeGlobal=1`);
 
 export const createAutomaticDeal = (payload: Record<string, unknown>) => apiPost<AutomaticDealRecord>("/admin/deals", payload);
 export const updateAutomaticDeal = (dealId: string, payload: Record<string, unknown>) => apiPatch<AutomaticDealRecord>(`/admin/deals/${dealId}`, payload);
@@ -116,3 +116,12 @@ export const deleteDiscountCode = (codeId: string) => apiDelete<{ success: boole
 export const createPersonalCode = (customerId: string, payload: Record<string, unknown>) => apiPost<PersonalCodeRecord>(`/customers/${customerId}/deals`, payload);
 export const updatePersonalCode = (codeId: string, payload: Record<string, unknown>) => apiPatch<PersonalCodeRecord>(`/admin/customer-deals/${codeId}`, payload);
 export const deletePersonalCode = (codeId: string) => apiDelete<{ ok: true }>(`/admin/customer-deals/${codeId}`);
+
+export const clearLegacyProductDiscount = (productId: string) =>
+  apiPatch(`/admin/products/${productId}`, {
+    discountActive: false,
+    discountPercent: null,
+    discountPrice: null,
+    discountImageUrl: null,
+    discountLabel: null,
+  });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Search, Tags } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
@@ -370,7 +371,10 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
 }
 
 export function MenuPage() {
+  const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
+  const [pendingRouteRestaurantId, setPendingRouteRestaurantId] = useState<string | null>(null);
+  const [pendingRouteProductId, setPendingRouteProductId] = useState<string | null>(null);
   const [tab, setTab] = useState<MenuTab>("categories");
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState<CategoryRecord | null>(null);
@@ -385,10 +389,24 @@ export function MenuPage() {
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    const restaurantId = searchParams.get("restaurantId");
+    const productId = searchParams.get("productId");
+    if (restaurantId) setPendingRouteRestaurantId(restaurantId);
+    if (productId) setPendingRouteProductId(productId);
+  }, [searchParams]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (pendingRouteRestaurantId) {
+      setActiveRestaurantId(pendingRouteRestaurantId);
+      setPendingRouteRestaurantId(null);
+      return;
+    }
+
     if (!activeRestaurantId && restaurants.data?.length) {
       setActiveRestaurantId(restaurants.data[0].id);
     }
-  }, [activeRestaurantId, restaurants.data]);
+  }, [activeRestaurantId, pendingRouteRestaurantId, restaurants.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
@@ -411,6 +429,18 @@ export function MenuPage() {
     const lowerQuery = query.trim().toLowerCase();
     return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
   }, [groups.data, query]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!pendingRouteProductId || !products.data?.length) return;
+    const product = products.data.find((entry) => entry.id === pendingRouteProductId);
+    if (!product) return;
+    setTab("products");
+    setActiveProduct(product);
+    setProductModalOpen(true);
+    setPendingRouteProductId(null);
+  }, [pendingRouteProductId, products.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (restaurants.isLoading) {
     return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading menu module...</Surface>;
