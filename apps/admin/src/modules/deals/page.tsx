@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Gift, Plus, RefreshCw, TicketPercent } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import {
   createDiscountCode,
   dealsQueryKey,
@@ -17,16 +17,14 @@ import {
   getDealRestaurants,
   getDiscountCodes,
   type AutomaticDealRecord,
-  type DealCategoryRef,
-  type DealProductRef,
   type DiscountCodeRecord,
   updateDiscountCode,
 } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 
-type DealsTab = "automatic" | "codes";
+type DealsTab = "restaurant" | "product" | "category" | "codes";
 
 function DiscountCodeModal({ open, codeRecord, onClose }: { open: boolean; codeRecord: DiscountCodeRecord | null; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -97,7 +95,7 @@ const scopeLabel: Record<string, string> = {
 };
 
 export function DealsPage() {
-  const [tab, setTab] = useState<DealsTab>("automatic");
+  const [tab, setTab] = useState<DealsTab>("restaurant");
   const [query, setQuery] = useState("");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
   const [activeDeal, setActiveDeal] = useState<AutomaticDealRecord | null>(null);
@@ -124,11 +122,27 @@ export function DealsPage() {
 
   const filteredAutomaticDeals = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
-    return (automaticDeals.data || []).filter((deal) => {
+    const filteredByTab = (automaticDeals.data || []).filter((deal) => {
+      if (tab === "restaurant") {
+        return deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER";
+      }
+
+      if (tab === "product") {
+        return deal.scopeType === "PRODUCT";
+      }
+
+      if (tab === "category") {
+        return deal.scopeType === "CATEGORY";
+      }
+
+      return true;
+    });
+
+    return filteredByTab.filter((deal) => {
       const restaurantName = deal.restaurant?.name || "";
       return !lowerQuery || `${deal.title} ${deal.description || ""} ${restaurantName}`.toLowerCase().includes(lowerQuery);
     });
-  }, [automaticDeals.data, query]);
+  }, [automaticDeals.data, query, tab]);
 
   const filteredDiscountCodes = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
@@ -150,17 +164,32 @@ export function DealsPage() {
     activeCodes: discountCodes.data.filter((code) => code.isActive).length,
   };
 
+  const openCreate = () => {
+    setActiveDeal(null);
+    if (tab === "codes") {
+      setCodeModalOpen(true);
+      return;
+    }
+    setDealModalOpen(true);
+  };
+
+  const activeDealsCount = {
+    restaurant: automaticDeals.data.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER")).length,
+    product: automaticDeals.data.filter((deal) => deal.isActive && deal.scopeType === "PRODUCT").length,
+    category: automaticDeals.data.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY").length,
+  };
+
   return (
     <div className="page-stack">
       <Surface className="px-6 py-6">
         <SectionHeader
           eyebrow="Deals"
-          title="Single promotion workspace"
-          description="Restaurant-wide deals, product promos, category promos and discount codes live under one module so admin doesn’t split discount work across multiple sections."
+          title="Deals and offers"
+          description="Manage deals and discount codes."
           actions={
             <>
               <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); void discountCodes.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
-              <Button variant="primary" onClick={() => tab === "automatic" ? setDealModalOpen(true) : setCodeModalOpen(true)}><Plus size={16} /> New {tab === "automatic" ? "deal" : "code"}</Button>
+              <Button variant="primary" onClick={openCreate}><Plus size={16} /> New {tab === "codes" ? "code" : "deal"}</Button>
             </>
           }
         />
@@ -174,17 +203,25 @@ export function DealsPage() {
       </div>
 
       <Surface className="px-6 py-6">
-        <div className="grid gap-4 lg:grid-cols-[260px_1fr_auto] lg:items-end">
-          <Field label="Restaurant context">
-            <Select value={selectedRestaurantId || ""} onChange={(event) => setSelectedRestaurantId(event.target.value)}>
-              {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Search"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search current deal view" /></Field>
-          <Tabs value={tab} onChange={setTab} options={[{ value: "automatic", label: "Automatic" }, { value: "codes", label: "Codes" }]} />
+        <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:items-end">
+          {tab !== "codes" ? (
+            <Field label="Restaurant context">
+              <Select value={selectedRestaurantId || ""} onChange={(event) => setSelectedRestaurantId(event.target.value)}>
+                {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
+              </Select>
+            </Field>
+          ) : <div />}
+          <Field label="Search"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={tab === "codes" ? "Search discount codes" : "Search deals"} /></Field>
         </div>
 
-        {tab === "automatic" ? (
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setTab("restaurant")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "restaurant" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Restaurant {activeDealsCount.restaurant > 0 ? `(${activeDealsCount.restaurant})` : ""}</button>
+          <button type="button" onClick={() => setTab("product")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "product" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Products {activeDealsCount.product > 0 ? `(${activeDealsCount.product})` : ""}</button>
+          <button type="button" onClick={() => setTab("category")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "category" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Categories {activeDealsCount.category > 0 ? `(${activeDealsCount.category})` : ""}</button>
+          <button type="button" onClick={() => setTab("codes")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "codes" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Codes</button>
+        </div>
+
+        {tab !== "codes" ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
             {filteredAutomaticDeals.length === 0 ? <EmptyState title="No automatic deals" /> : filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => categoryNameMap.get(targetId) || productNameMap.get(targetId) || targetId).slice(0, 3);
@@ -203,8 +240,9 @@ export function DealsPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {deal.badgeText ? <Badge tone="warning">{deal.badgeText}</Badge> : null}
-                    {deal.targetIds.length > 0 ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
+                    {deal.targetIds.length > 0 && deal.scopeType !== "RESTAURANT" ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
                     {deal.targetIds.length > targetLabels.length ? <Badge tone="neutral">+{deal.targetIds.length - targetLabels.length} more</Badge> : null}
+                    {deal.scopeType === "MIN_ORDER" ? <Badge tone="neutral">Min order {deal.minOrder} kr</Badge> : null}
                     {deal.validUntil ? <Badge tone="neutral">Until {formatDate(deal.validUntil)}</Badge> : null}
                   </div>
                 </button>
@@ -249,7 +287,7 @@ export function DealsPage() {
         categories={categories.data || []}
         products={products.data || []}
         initialDeal={activeDeal}
-        prefill={activeDeal ? undefined : selectedRestaurantId ? { restaurantId: selectedRestaurantId } : undefined}
+        prefill={activeDeal ? undefined : selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined}
       />
 
       <DiscountCodeModal open={codeModalOpen} codeRecord={activeCode} onClose={() => { setCodeModalOpen(false); setActiveCode(null); }} />
