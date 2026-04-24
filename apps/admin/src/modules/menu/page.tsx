@@ -1,0 +1,487 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2, Plus, Search, Tags } from "lucide-react";
+import {
+  createCategory,
+  createExtraGroup,
+  createProduct,
+  deleteCategory,
+  deleteExtraGroup,
+  deleteProduct,
+  getCategories,
+  getExtraGroups,
+  getMenuRestaurants,
+  getProducts,
+  menuCategoriesQueryKey,
+  menuGroupsQueryKey,
+  menuProductsQueryKey,
+  menuRestaurantsQueryKey,
+  updateCategory,
+  updateExtraGroup,
+  updateProduct,
+  type CategoryRecord,
+  type ExtraGroupRecord,
+  type ProductRecord,
+  type RestaurantRef,
+} from "@/modules/menu/api";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { formatCurrency, formatNumber } from "@/shared/utils/format";
+
+type MenuTab = "categories" | "products" | "extras";
+
+function CategoryModal({ open, restaurantId, category, onClose }: { open: boolean; restaurantId: string; category: CategoryRecord | null; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ name: "", description: "", imageUrl: "", position: 0, isActive: true });
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    setForm(category ? { name: category.name, description: category.description || "", imageUrl: category.imageUrl || "", position: category.position, isActive: category.isActive ?? true } : { name: "", description: "", imageUrl: "", position: 0, isActive: true });
+  }, [category, open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (category) {
+        return updateCategory(category.id, form);
+      }
+      return createCategory({ ...form, restaurantId });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (category) {
+        await deleteCategory(category.id);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={category ? "Edit category" : "New category"}
+      footer={
+        <div className="flex items-center justify-between gap-3">
+          <div>{category ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div>
+          <div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div>
+        </div>
+      }
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+        <Field label="Image URL"><Input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} /></Field>
+        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
+        <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+      </div>
+    </Modal>
+  );
+}
+
+function ProductModal({ open, restaurantId, product, categories, extraGroups, onClose }: { open: boolean; restaurantId: string; product: ProductRecord | null; categories: CategoryRecord[]; extraGroups: ExtraGroupRecord[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({ name: "", description: "", price: 0, categoryId: "", imageUrl: "", isActive: true, isVegan: false, isVegetarian: false, isGlutenFree: false, position: 0, extraGroupIds: [] as string[] });
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    setForm(
+      product
+        ? {
+            name: product.name,
+            description: product.description || "",
+            price: product.price,
+            categoryId: product.categoryId,
+            imageUrl: product.imageUrl || "",
+            isActive: product.isActive ?? true,
+            isVegan: product.isVegan ?? false,
+            isVegetarian: product.isVegetarian ?? false,
+            isGlutenFree: product.isGlutenFree ?? false,
+            position: product.position,
+            extraGroupIds: product.extraGroups.map((group) => group.id),
+          }
+        : {
+            name: "",
+            description: "",
+            price: 0,
+            categoryId: categories[0]?.id || "",
+            imageUrl: "",
+            isActive: true,
+            isVegan: false,
+            isVegetarian: false,
+            isGlutenFree: false,
+            position: 0,
+            extraGroupIds: [],
+          },
+    );
+  }, [categories, open, product]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = { ...form, restaurantId };
+      if (product) {
+        return updateProduct(product.id, payload);
+      }
+      return createProduct(payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (product) {
+        await deleteProduct(product.id);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  const toggleExtraGroup = (groupId: string) =>
+    setForm((current) => ({
+      ...current,
+      extraGroupIds: current.extraGroupIds.includes(groupId) ? current.extraGroupIds.filter((item) => item !== groupId) : [...current.extraGroupIds, groupId],
+    }));
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={product ? "Edit product" : "New product"}
+      footer={<div className="flex items-center justify-between gap-3"><div>{product ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Price"><Input type="number" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: Number(event.target.value) }))} /></Field>
+        <Field label="Category"><Select value={form.categoryId} onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</Select></Field>
+        <Field label="Position"><Input type="number" value={form.position} onChange={(event) => setForm((current) => ({ ...current, position: Number(event.target.value) }))} /></Field>
+        <Field label="Image URL"><Input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} /></Field>
+        <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
+        <div className="md:col-span-2"><Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Dietary flags</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {[
+              ["isVegan", "Vegan"],
+              ["isVegetarian", "Vegetarian"],
+              ["isGlutenFree", "Gluten free"],
+            ].map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setForm((current) => ({ ...current, [key]: !current[key as keyof typeof current] }))} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${form[key as keyof typeof form] ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extra groups</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {extraGroups.map((group) => (
+              <button key={group.id} type="button" onClick={() => toggleExtraGroup(group.id)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${form.extraGroupIds.includes(group.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{group.name}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { open: boolean; restaurantId: string; group: ExtraGroupRecord | null; categories: CategoryRecord[]; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [type, setType] = useState("CHECKBOX");
+  const [required, setRequired] = useState(false);
+  const [minSelections, setMinSelections] = useState(0);
+  const [maxSelections, setMaxSelections] = useState(1);
+  const [extras, setExtras] = useState<Array<{ name: string; priceAddon: number; isDefault: boolean }>>([{ name: "", priceAddon: 0, isDefault: false }]);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!open) return;
+    if (group) {
+      setName(group.name);
+      setType(group.type || "CHECKBOX");
+      setRequired(group.required);
+      setMinSelections(group.minSelections || 0);
+      setMaxSelections(group.maxSelections || 1);
+      setExtras(group.extras.length ? group.extras.map((extra) => ({ name: extra.name, priceAddon: extra.priceAddon, isDefault: extra.isDefault || false })) : [{ name: "", priceAddon: 0, isDefault: false }]);
+      setCategoryIds([]);
+    } else {
+      setName("");
+      setType("CHECKBOX");
+      setRequired(false);
+      setMinSelections(0);
+      setMaxSelections(1);
+      setExtras([{ name: "", priceAddon: 0, isDefault: false }]);
+      setCategoryIds([]);
+    }
+  }, [group, open]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        name,
+        type,
+        required,
+        minSelections,
+        maxSelections,
+        restaurantId,
+        categoryIds,
+        extras: extras.filter((extra) => extra.name.trim()).map((extra) => ({ ...extra, priceAddon: Number(extra.priceAddon || 0) })),
+      };
+      if (group) {
+        return updateExtraGroup(group.id, payload);
+      }
+      return createExtraGroup(payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(restaurantId) });
+      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (group) {
+        await deleteExtraGroup(group.id);
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(restaurantId) });
+      await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(restaurantId) });
+      onClose();
+    },
+  });
+
+  const updateExtra = (index: number, field: "name" | "priceAddon" | "isDefault", value: string | number | boolean) => {
+    setExtras((current) => current.map((extra, currentIndex) => (currentIndex === index ? { ...extra, [field]: value } : extra)));
+  };
+
+  const toggleCategory = (categoryId: string) => setCategoryIds((current) => current.includes(categoryId) ? current.filter((id) => id !== categoryId) : [...current, categoryId]);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={group ? "Edit extra group" : "New extra group"}
+      footer={<div className="flex items-center justify-between gap-3"><div>{group ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
+        <Field label="Type"><Select value={type} onChange={(event) => setType(event.target.value)}><option value="CHECKBOX">Checkbox</option><option value="RADIO">Radio</option></Select></Field>
+        <Field label="Required"><Select value={required ? "yes" : "no"} onChange={(event) => setRequired(event.target.value === "yes")}><option value="no">No</option><option value="yes">Yes</option></Select></Field>
+        <Field label="Min selections"><Input type="number" value={minSelections} onChange={(event) => setMinSelections(Number(event.target.value))} /></Field>
+        <Field label="Max selections"><Input type="number" value={maxSelections} onChange={(event) => setMaxSelections(Number(event.target.value))} /></Field>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Attach to categories</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {categories.map((category) => (
+              <button key={category.id} type="button" onClick={() => toggleCategory(category.id)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${categoryIds.includes(category.id) ? "border-[rgba(94,166,255,0.24)] bg-[rgba(94,166,255,0.1)] text-[#d4e7ff]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{category.name}</button>
+            ))}
+          </div>
+        </div>
+        <div className="md:col-span-2 surface-muted px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Extras</p>
+            <Button variant="secondary" onClick={() => setExtras((current) => [...current, { name: "", priceAddon: 0, isDefault: false }])}>Add row</Button>
+          </div>
+          <div className="mt-4 grid gap-3">
+            {extras.map((extra, index) => (
+              <div key={index} className="grid gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4 md:grid-cols-[1fr_140px_140px_auto]">
+                <Input value={extra.name} onChange={(event) => updateExtra(index, "name", event.target.value)} placeholder="Extra name" />
+                <Input type="number" value={extra.priceAddon} onChange={(event) => updateExtra(index, "priceAddon", Number(event.target.value))} placeholder="0" />
+                <Select value={extra.isDefault ? "yes" : "no"} onChange={(event) => updateExtra(index, "isDefault", event.target.value === "yes")}><option value="no">Optional</option><option value="yes">Default</option></Select>
+                <Button variant="danger" onClick={() => setExtras((current) => current.filter((_, currentIndex) => currentIndex !== index))}>Remove</Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+export function MenuPage() {
+  const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
+  const [tab, setTab] = useState<MenuTab>("categories");
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState<CategoryRecord | null>(null);
+  const [activeProduct, setActiveProduct] = useState<ProductRecord | null>(null);
+  const [activeGroup, setActiveGroup] = useState<ExtraGroupRecord | null>(null);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [productModalOpen, setProductModalOpen] = useState(false);
+  const [groupModalOpen, setGroupModalOpen] = useState(false);
+
+  const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!activeRestaurantId && restaurants.data?.length) {
+      setActiveRestaurantId(restaurants.data[0].id);
+    }
+  }, [activeRestaurantId, restaurants.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const categories = useQuery({ queryKey: menuCategoriesQueryKey(activeRestaurantId), queryFn: () => getCategories(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
+  const products = useQuery({ queryKey: menuProductsQueryKey(activeRestaurantId), queryFn: () => getProducts(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
+  const groups = useQuery({ queryKey: menuGroupsQueryKey(activeRestaurantId), queryFn: () => getExtraGroups(activeRestaurantId!), enabled: Boolean(activeRestaurantId) });
+
+  const selectedRestaurant = restaurants.data?.find((restaurant) => restaurant.id === activeRestaurantId) || null;
+
+  const filteredCategories = useMemo(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    return (categories.data || []).filter((category) => !lowerQuery || `${category.name} ${category.description || ""}`.toLowerCase().includes(lowerQuery));
+  }, [categories.data, query]);
+
+  const filteredProducts = useMemo(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    return (products.data || []).filter((product) => !lowerQuery || `${product.name} ${product.description || ""} ${product.category.name}`.toLowerCase().includes(lowerQuery));
+  }, [products.data, query]);
+
+  const filteredGroups = useMemo(() => {
+    const lowerQuery = query.trim().toLowerCase();
+    return (groups.data || []).filter((group) => !lowerQuery || group.name.toLowerCase().includes(lowerQuery));
+  }, [groups.data, query]);
+
+  if (restaurants.isLoading) {
+    return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading menu module...</Surface>;
+  }
+
+  if (restaurants.isError || !restaurants.data) {
+    return <ErrorPanel title="Menu module could not be loaded" description="The restaurant list for menu operations is unavailable." action={<Button onClick={() => void restaurants.refetch()}>Retry</Button>} />;
+  }
+
+  return (
+    <div className="page-stack">
+      <Surface className="px-6 py-6">
+        <SectionHeader
+          eyebrow="Menu"
+          title="Categories, products and extras"
+          description="All menu changes stay scoped to one restaurant at a time and all data is pulled from the admin APIs."
+          actions={<Badge tone="info">{selectedRestaurant?.name || "Select restaurant"}</Badge>}
+        />
+      </Surface>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Categories" value={formatNumber(categories.data?.length || 0)} />
+        <MetricCard label="Products" value={formatNumber(products.data?.length || 0)} />
+        <MetricCard label="Extra groups" value={formatNumber(groups.data?.length || 0)} />
+        <MetricCard label="Restaurants" value={formatNumber(restaurants.data.length)} />
+      </div>
+
+      <Surface className="px-6 py-6">
+        <div className="grid gap-4 lg:grid-cols-[260px_1fr_auto] lg:items-center">
+          <Field label="Restaurant">
+            <Select value={activeRestaurantId || ""} onChange={(event) => setActiveRestaurantId(event.target.value)}>
+              {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
+            </Select>
+          </Field>
+          <div className="relative">
+            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input className="pl-11" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter current menu view" />
+          </div>
+          <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Categories" }, { value: "products", label: "Products" }, { value: "extras", label: "Extras" }]} />
+        </div>
+
+        {tab === "categories" ? (
+          <div className="mt-6 grid gap-3">
+            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}><Plus size={16} /> New category</Button></div>
+            {filteredCategories.length === 0 ? <EmptyState title="No categories found" /> : filteredCategories.map((category) => (
+              <button key={category.id} type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-lg font-black tracking-[-0.02em]">{category.name}</p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{category.description || "No description"}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={category.isActive === false ? "danger" : "success"}>{category.isActive === false ? "Inactive" : "Active"}</Badge>
+                    <Badge tone="neutral">{category._count?.products || 0} products</Badge>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {tab === "products" ? (
+          <div className="mt-6 grid gap-3">
+            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveProduct(null); setProductModalOpen(true); }}><Plus size={16} /> New product</Button></div>
+            {filteredProducts.length === 0 ? <EmptyState title="No products found" /> : filteredProducts.map((product) => (
+              <button key={product.id} type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-black tracking-[-0.02em]">{product.name}</p>
+                      <Badge tone={product.isActive === false ? "danger" : "success"}>{product.isActive === false ? "Inactive" : "Active"}</Badge>
+                    </div>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{product.category.name} • {product.description || "No description"}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {product.extraGroups.map((group) => <Badge key={group.id} tone="info">{group.name}</Badge>)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-black">{formatCurrency(product.price)}</p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">Position {product.position}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {tab === "extras" ? (
+          <div className="mt-6 grid gap-3">
+            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveGroup(null); setGroupModalOpen(true); }}><Tags size={16} /> New extra group</Button></div>
+            {filteredGroups.length === 0 ? <EmptyState title="No extra groups found" /> : filteredGroups.map((group) => (
+              <button key={group.id} type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-black tracking-[-0.02em]">{group.name}</p>
+                      <Badge tone="neutral">{group.type}</Badge>
+                      {group.required ? <Badge tone="warning">Required</Badge> : null}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {group.extras.map((extra, index) => <Badge key={`${group.id}-${index}`} tone="info">{extra.name} {extra.priceAddon ? `+ ${formatCurrency(extra.priceAddon)}` : ""}</Badge>)}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-[var(--text-secondary)]">
+                    <div>Min {group.minSelections}</div>
+                    <div>Max {group.maxSelections}</div>
+                    <div>{group._count?.productGroups || 0} linked products</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </Surface>
+
+      {activeRestaurantId ? (
+        <>
+          <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} onClose={() => setCategoryModalOpen(false)} />
+          <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} />
+          <ExtraGroupModal open={groupModalOpen} restaurantId={activeRestaurantId} group={activeGroup} categories={categories.data || []} onClose={() => setGroupModalOpen(false)} />
+        </>
+      ) : null}
+    </div>
+  );
+}

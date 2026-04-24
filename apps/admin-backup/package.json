@@ -1,6 +1,6 @@
 {
-  "name": "admin",
-  "version": "1.0.0",
+  "name": "admin-backup",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3001",
@@ -9,17 +9,23 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.90.3",
+    "@supabase/auth-helpers-react": "^0.15.0",
     "axios": "^1.14.0",
+    "canvas-confetti": "^1.9.4",
+    "framer-motion": "^12.38.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.7.0",
     "next": "16.2.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
     "socket.io-client": "^4.8.3",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
