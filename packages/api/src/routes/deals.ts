@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { formatDealForClient, isDealAvailableNow, parseDealProductIds } from '../lib/deals';
+import { formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds } from '../lib/deals';
 
 const router = Router();
 
@@ -64,7 +64,7 @@ router.get('/', async (req, res) => {
 
     res.json(
       deals
-        .filter((deal) => isDealAvailableNow(deal))
+        .filter((deal) => isDealAvailableNow(deal) && isBasketDeal(deal))
         .map((deal) =>
           formatDealForClient(deal, {
             comboProductNames: parseDealProductIds(deal.comboProductIds).map((productId) => productNameMap.get(productId) || 'Valfri vara'),
