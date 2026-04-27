@@ -1,31 +1,37 @@
 import React from "react";
-import { Alert, Platform } from "react-native";
+import { Platform } from "react-native";
+import { StripeProvider, usePaymentSheet } from "@stripe/stripe-react-native";
 
-export function AppStripeProvider({ children }: { children: React.ReactNode; publishableKey: string; urlScheme: string }) {
-  return <>{children}</>;
+export function AppStripeProvider({ children, publishableKey, urlScheme }: { children: React.ReactNode; publishableKey: string; urlScheme: string }) {
+  if (Platform.OS === "web") {
+    return <>{children}</>;
+  }
+
+  return (
+    <StripeProvider 
+      publishableKey={publishableKey} 
+      urlScheme={urlScheme}
+      merchantIdentifier="merchant.com.matgo.app" // Krävs för Apple Pay i Sverige
+    >
+      <>{children}</>
+    </StripeProvider>
+  );
 }
 
 export function useAppPaymentSheet() {
-  return {
-    initPaymentSheet: async (_options?: any) => {
-      // If we are on web, we simulate initiation
-      if (Platform.OS === 'web') {
+  if (Platform.OS === "web") {
+    return {
+      initPaymentSheet: async (_options?: any) => {
         console.log("💳 [Stripe Mock] initPaymentSheet called on web", _options);
         return { error: null };
-      }
-      return {
-        error: { message: "Stripe PaymentSheet requires a native build. For testing, use the 'testa' promo code to bypass Stripe." },
-      };
-    },
-    presentPaymentSheet: async (_options?: any) => {
-      // If we are on web, we simulate success
-      if (Platform.OS === 'web') {
+      },
+      presentPaymentSheet: async (_options?: any) => {
         console.log("💳 [Stripe Mock] presentPaymentSheet called on web (Simulating Success)");
         return { error: null };
-      }
-      return {
-        error: { message: "Stripe PaymentSheet requires a native build. For testing, use the 'testa' promo code to bypass Stripe." },
-      };
-    },
-  };
+      },
+    };
+  }
+
+  const stripe = usePaymentSheet();
+  return stripe;
 }

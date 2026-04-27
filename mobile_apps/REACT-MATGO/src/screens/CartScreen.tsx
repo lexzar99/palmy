@@ -8,10 +8,13 @@ import {
   Text,
   TextInput,
   View,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { AddressCollectionMode, CollectionMode } from "@stripe/stripe-react-native";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
+import { useAppPaymentSheet } from "../lib/stripeProvider";
 import {
   type QuickAddress,
   findQuickAddressByText,
@@ -20,6 +23,7 @@ import {
   rememberQuickAddress,
   writeQuickAddresses,
 } from "../lib/quickAddresses";
+import ScalePressable from "../components/ScalePressable";
 import { palette, styles } from "../constants/theme";
 
 
@@ -162,6 +166,8 @@ export default function CartScreen({
     estimatedDeliveryTime: 35,
   });
 
+  const { initPaymentSheet, presentPaymentSheet } = useAppPaymentSheet();
+
   // Sync delivery fees from global overrides
   useEffect(() => {
     if (currentRestaurantId && deliveryOverrides[currentRestaurantId] && orderType === "DELIVERY") {
@@ -197,6 +203,7 @@ export default function CartScreen({
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
+  const [tipAmount, setTipAmount] = useState<number>(0);
 
   const scheduleWindow = useMemo(() => {
     const minTime = getMinimumScheduledTime();
@@ -356,7 +363,7 @@ export default function CartScreen({
       ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? restaurantSettings.deliveryFee)
       : 0;
   const isTestCode = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
-  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee - personalDiscount);
+  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee - personalDiscount + tipAmount);
 
   // Initial data fetch
   useEffect(() => {
@@ -650,8 +657,70 @@ export default function CartScreen({
         return;
       }
 
+      // ===== 1. STRIPE BETALNINGSFLÖDE (NATIVE) =====
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+      let finalPaymentIntentId = "FREE_PROMO";
+      
+      if (!isTestFlow && Platform.OS !== "web") {
+        const intentRes = await api.post("/api/payments/create-intent", { amount: total });
+        const { clientSecret, paymentIntentId } = intentRes.data;
 
+        const initInfo = await initPaymentSheet({
+          merchantDisplayName: 'MatGo AB',
+          paymentIntentClientSecret: clientSecret,
+          // applePay: { merchantCountryCode: 'SE' }, // Kräver ny DEV Build
+          returnURL: 'matgo://stripe-redirect',
+          appearance: {
+            colors: {
+              primary: palette.gold,
+              background: palette.bg,
+              componentBackground: palette.panel,
+              componentBorder: "#E8DFD1",
+              primaryText: palette.text,
+              secondaryText: palette.muted,
+              componentText: palette.text,
+              placeholderText: "#A3998D",
+              icon: palette.text,
+            },
+            shapes: {
+              borderRadius: 20,
+            }
+          },
+          defaultBillingDetails: {
+            name: formData.customerName,
+            phone: formData.customerPhone,
+            email: profile?.email || undefined,
+            address: { country: 'SE' },
+          },
+          billingDetailsCollectionConfiguration: {
+            address: AddressCollectionMode.NEVER,
+            name: CollectionMode.NEVER,
+            email: CollectionMode.NEVER,
+            phone: CollectionMode.NEVER,
+            attachDefaultsToPaymentMethod: true,
+          }
+        });
+
+        if (initInfo.error) {
+          throw new Error(initInfo.error.message || "Stripe kunde inte starta, stäng appen och öppna igen.");
+        }
+
+        const presentInfo = await presentPaymentSheet();
+
+        if (presentInfo.error) {
+          if (presentInfo.error.code !== 'Canceled') {
+            throw new Error(presentInfo.error.message || "Betalningen misslyckades.");
+          }
+          setSubmitting(false); // Användaren klickade avbryt
+          return;
+        }
+
+        finalPaymentIntentId = paymentIntentId;
+      } else if (!isTestFlow && Platform.OS === "web") {
+         finalPaymentIntentId = "BYPASS_WEB_" + Math.random().toString();
+      }
+
+      // ===== 2. SKAPA ORDER PÅ BACKEND =====
       const payload = {
         type: orderType,
         customerName: formData.customerName,
@@ -660,9 +729,10 @@ export default function CartScreen({
         deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
         deliveryCity: orderType === "DELIVERY" ? formData.deliveryCity : undefined,
         deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
-        deliveryNote: formData.note || undefined,
-        note: formData.note || undefined,
-        stripePaymentIntentId: isTestFlow ? "FREE_PROMO" : "BYPASS",
+        deliveryNote: tipAmount > 0 ? `(Dricks gett: ${tipAmount} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
+        note: tipAmount > 0 ? `(Dricks gett: ${tipAmount} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
+        tip: tipAmount > 0 ? tipAmount : undefined,
+        stripePaymentIntentId: finalPaymentIntentId,
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: undefined,
         restaurantId: currentRestaurantId || undefined,
@@ -1317,7 +1387,46 @@ export default function CartScreen({
             </View>
           </View>
 
-          {/* 6. Summary */}
+          {/* 6. Tipping Section */}
+          {orderType === "DELIVERY" && (
+            <View style={[styles.formCard, { paddingVertical: 20 }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                <Ionicons name="heart" size={20} color={palette.gold} />
+                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5 }}>
+                  Dricks till föraren
+                </Text>
+              </View>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginBottom: 16 }}>
+                100% av dricksen går direkt till budet.
+              </Text>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {[0, 10, 20, 50].map((amt) => {
+                  const isActive = tipAmount === amt;
+                  return (
+                    <ScalePressable
+                      key={amt}
+                      onPress={() => setTipAmount(amt)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: isActive ? palette.gold : palette.panelMuted,
+                        borderWidth: 1,
+                        borderColor: isActive ? palette.gold : palette.border,
+                        borderRadius: 14,
+                        paddingVertical: 12,
+                        alignItems: "center"
+                      }}
+                    >
+                      <Text style={{ color: isActive ? "#000" : palette.text, fontWeight: "900", fontSize: 12 }}>
+                        {amt === 0 ? "Inget" : `+${amt} kr`}
+                      </Text>
+                    </ScalePressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* 7. Summary */}
           <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4 }]}>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -1327,7 +1436,13 @@ export default function CartScreen({
               {orderType === "DELIVERY" && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Leveransavgift</Text>
-                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
+                  <Text style={{ color: palette.text, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
+                </View>
+              )}
+              {tipAmount > 0 && orderType === "DELIVERY" && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ color: palette.gold, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Dricks</Text>
+                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{tipAmount} KR</Text>
                 </View>
               )}
               {personalDiscount > 0 && (

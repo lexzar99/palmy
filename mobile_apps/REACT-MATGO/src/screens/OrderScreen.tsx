@@ -56,6 +56,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [minutesLeft, setMinutesLeft] = useState<number | null>(null);
 
   const fetchOrder = useCallback(async () => {
     try {
@@ -112,6 +113,40 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     return () => clearTimeout(timer);
   }, [(order as any)?.deliveringAt, order?.status]);
 
+  // LIVE NEDRÄKNING FÖR "MINUTER KVAR"
+  useEffect(() => {
+    const calcTime = () => {
+      if (!order) return;
+      if (order.status === "DELIVERED" || order.status === "COMPLETED") return;
+
+      if (order.status === "DELIVERING" && (order as any).deliveringAt) {
+        // Om den är på väg, räkna ner 12 minuter från när den markerades "DELIVERING"
+        const deliveringTime = new Date((order as any).deliveringAt).getTime();
+        const msLeft = (deliveringTime + 12 * 60 * 1000) - Date.now();
+        setMinutesLeft(Math.max(0, Math.ceil(msLeft / 60000)));
+      } else if (order.estimatedTime) {
+        // Annars, räkna ner estimatedTime från när ordern skapades
+        if (!order.createdAt) {
+          setMinutesLeft(null);
+          return;
+        }
+        const placedAt = new Date(order.createdAt).getTime();
+        const msLeft = (placedAt + order.estimatedTime * 60000) - Date.now();
+        if (msLeft <= 0) {
+          setMinutesLeft(-1); // Flagga för "Försenad"
+        } else {
+          setMinutesLeft(Math.ceil(msLeft / 60000));
+        }
+      } else {
+        setMinutesLeft(null);
+      }
+    };
+    
+    calcTime(); // Kör direkt
+    const interval = setInterval(calcTime, 10000); // Uppdatera var tionde sekund (så den slår över snyggt)
+    return () => clearInterval(interval);
+  }, [order?.createdAt, order?.estimatedTime, order?.status, (order as any)?.deliveringAt]);
+
   const setActiveOrderId = useAppStore((s) => s.setActiveOrder);
   useEffect(() => {
     if (order?.status === "DELIVERED" || order?.status === "COMPLETED") {
@@ -159,7 +194,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
   const isRejected = order.status === "REJECTED" || order.status === "CANCELLED";
   const steps =
     order.type === "DELIVERY"
-      ? ["PENDING", "ACCEPTED", "PREPARING", "OUT_FOR_DELIVERY"]
+      ? ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING"]
       : ["PENDING", "ACCEPTED", "PREPARING", "READY"];
   const currentIdx = steps.indexOf(order.status);
 
@@ -224,19 +259,28 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
         {/* ETA Panel */}
         {order.status !== "COMPLETED" && order.status !== "DELIVERED" && !isRejected && (
           <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, flexDirection: "row", alignItems: "center", gap: 20, marginBottom: 20, borderWidth: 1, borderColor: palette.border, shadowColor: "#1C1C1E", shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }}>
-            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name={order.scheduledFor ? "calendar-outline" : "time"} size={32} color="#000" />
+            <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: minutesLeft === -1 ? palette.danger : palette.gold, alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name={order.scheduledFor ? "calendar-outline" : minutesLeft === -1 ? "alert-circle" : "time"} size={32} color={minutesLeft === -1 ? "#FFF" : "#000"} />
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 4 }}>
-                {order.scheduledFor ? "SCHEMALAGD TID" : "KLAR OM UNGEFÄR"}
+                {order.scheduledFor ? "SCHEMALAGD TID" : order.status === "DELIVERING" ? "FRAMME OM UNGEFÄR" : minutesLeft === -1 ? "NÅGOT FÖRSENAD" : "KLAR OM UNGEFÄR"}
               </Text>
-              <Text style={{ color: palette.text, fontSize: 28, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
+              <Text style={{ color: minutesLeft === -1 ? palette.danger : palette.text, fontSize: 28, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
                 {order.scheduledFor
                   ? new Date(order.scheduledFor).toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
-                  : `~${(order as any).estimatedTime} MIN`
+                  : minutesLeft === -1
+                    ? "+15 MIN"
+                    : minutesLeft !== null 
+                      ? `~${minutesLeft} MIN` 
+                      : "UPPSKATTAR..."
                 }
               </Text>
+              {minutesLeft === -1 && !order.scheduledFor && (
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", marginTop: 4, lineHeight: 16 }}>
+                  Restaurangen har fullt upp och vi gör vårt bästa. Tolerera en liten försening.
+                </Text>
+              )}
               {order.scheduledFor && (
                 <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.1, marginTop: 4 }}>
                   {new Date(order.scheduledFor).toLocaleDateString("sv-SE", { weekday: "long", day: "numeric", month: "long" })}

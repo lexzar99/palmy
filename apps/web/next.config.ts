@@ -7,7 +7,6 @@ const apiTarget =
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['192.168.0.3'],
-  typescript: { ignoreBuildErrors: true },
   async rewrites() {
     return {
       fallback: [
