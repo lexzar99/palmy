@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { createContext, useContext, useEffect, useState } from "react";
+import { clearLegacyPlatformUserToken } from "@/lib/platformSessionClient";
 
 type Theme = "dark" | "light";
 
@@ -24,6 +25,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
+    clearLegacyPlatformUserToken();
     const storedTheme = localStorage.getItem("matgo-theme") as Theme;
     if (storedTheme) {
       setTheme(storedTheme);

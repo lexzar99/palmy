@@ -183,10 +183,7 @@ const OrderStatusPage = () => {
     if (!reviewRating || !orderId) return;
     setReviewSubmitting(true);
     try {
-      const token = localStorage.getItem('platform_user_token');
-      await axios.post(`${API_URL}/api/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText }, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
+      await axios.post(`/api/platform/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText });
       setReviewDone(true);
       setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);

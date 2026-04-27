@@ -3,6 +3,11 @@ import GoogleProvider from "next-auth/providers/google";
 import FacebookProvider from "next-auth/providers/facebook";
 import axios from "axios";
 
+type ProviderCredentials = {
+  clientId: string;
+  clientSecret: string;
+};
+
 declare module "next-auth" {
   interface Session extends DefaultSession {
     platformToken?: string;
@@ -16,41 +21,95 @@ declare module "next-auth/jwt" {
     platformUser?: { id: string; name: string; phone?: string; email?: string };
   }
 }
-const API_URL = process.env.API_URL || "https://palmy-production-2021.up.railway.app";
 
-// NextAuth uses NEXTAUTH_URL from environment variables in production.
-// If it's missing, we set a smart fallback to prevent redirect_uri_mismatch errors.
-if (!process.env.NEXTAUTH_URL) {
-  if (process.env.NODE_ENV === "production") {
-    process.env.NEXTAUTH_URL = "https://web-production-67f45.up.railway.app";
-  } else {
-    process.env.NEXTAUTH_URL = "http://localhost:3000";
+function getRequiredServerEnv(name: string) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`Missing required server environment variable: ${name}`);
+  }
+
+  return value;
+}
+
+function normalizeOptionalCredential(value: string | undefined) {
+  const trimmed = value?.trim();
+
+  if (!trimmed || trimmed === "PLACEHOLDER" || trimmed.startsWith("YOUR_")) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function getProviderCredentials(
+  providerName: string,
+  clientIdEnvName: string,
+  clientSecretEnvName: string
+): ProviderCredentials | null {
+  const clientId = normalizeOptionalCredential(process.env[clientIdEnvName]);
+  const clientSecret = normalizeOptionalCredential(process.env[clientSecretEnvName]);
+
+  if (!clientId && !clientSecret) {
+    return null;
+  }
+
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      `Incomplete ${providerName} OAuth configuration. Set both ${clientIdEnvName} and ${clientSecretEnvName}.`
+    );
+  }
+
+  return { clientId, clientSecret };
+}
+
+const API_URL = getRequiredServerEnv("API_URL");
+const NEXTAUTH_SECRET = getRequiredServerEnv("NEXTAUTH_SECRET");
+const googleCredentials = getProviderCredentials("Google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
+const facebookCredentials = getProviderCredentials("Facebook", "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET");
+
+function isSafeMobileAuthUrl(url: string, baseUrl: string) {
+  if (url.startsWith("/mobile-auth")) return true;
+
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === new URL(baseUrl).origin && parsed.pathname === "/mobile-auth";
+  } catch {
+    return false;
   }
 }
 
 const handler = NextAuth({
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "PLACEHOLDER",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "PLACEHOLDER",
-      authorization: {
-        params: {
-          prompt: "consent select_account",
-        },
-      },
-    }),
-    FacebookProvider({
-      clientId: process.env.FACEBOOK_CLIENT_ID || "PLACEHOLDER",
-      clientSecret: process.env.FACEBOOK_CLIENT_SECRET || "PLACEHOLDER",
-    }),
+    ...(googleCredentials
+      ? [
+          GoogleProvider({
+            clientId: googleCredentials.clientId,
+            clientSecret: googleCredentials.clientSecret,
+            authorization: {
+              params: {
+                prompt: "consent select_account",
+              },
+            },
+          }),
+        ]
+      : []),
+    ...(facebookCredentials
+      ? [
+          FacebookProvider({
+            clientId: facebookCredentials.clientId,
+            clientSecret: facebookCredentials.clientSecret,
+          }),
+        ]
+      : []),
   ],
-  secret: process.env.NEXTAUTH_SECRET || "palmy-secret-123",
+  secret: NEXTAUTH_SECRET,
   debug: process.env.NODE_ENV === "development",
   callbacks: {
     async jwt({ token, account, user }) {
       if (account && user?.email) {
         try {
-          const res = await axios.post(`${API_URL}/api/account/oauth-token`, {
+          const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
             email: user.email,
             name: user.name,
             provider: account.provider,
@@ -66,7 +125,9 @@ const handler = NextAuth({
       return token;
     },
     async redirect({ url, baseUrl }) {
-      if (url.includes("/mobile-auth")) return url;
+      if (isSafeMobileAuthUrl(url, baseUrl)) {
+        return url.startsWith("/") ? `${baseUrl}${url}` : url;
+      }
       // Relative URLs: prepend the base
       if (url.startsWith("/")) return `${baseUrl}${url}`;
       try {

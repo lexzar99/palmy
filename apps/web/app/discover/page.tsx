@@ -31,14 +31,11 @@ export default function DiscoverPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState<string | null>(null);
   // Zone awareness: IDs that can deliver to the saved address (null = no address yet)
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem("platform_user_token");
-    setToken(savedToken);
-    fetchData(savedToken);
+    fetchData();
 
     // Load zone data for the saved delivery address
     try {
@@ -64,11 +61,11 @@ export default function DiscoverPage() {
     }
   }, []);
 
-  const fetchData = async (authToken: string | null) => {
+  const fetchData = async () => {
     try {
       const [restRes, ordersRes] = await Promise.all([
         axios.get(`${API_URL}/api/restaurants`),
-        authToken ? axios.get(`${API_URL}/api/profile/orders`, { headers: { Authorization: `Bearer ${authToken}` } }) : Promise.resolve({ data: [] })
+        axios.get(`/api/platform/profile/orders`).catch(() => ({ data: [] }))
       ]);
       setRestaurants(restRes.data || []);
       setRecentOrders(ordersRes.data?.slice(0, 3) || []);

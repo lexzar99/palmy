@@ -36,12 +36,9 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
   const clearCart = useCartStore((s) => s.clearCart);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("platform_user_token") : null;
-    if (!token || !restaurantId) return;
+    if (!restaurantId) return;
     axios
-      .get(`${API_URL}/api/profile/previously-ordered/${restaurantId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      .get(`/api/platform/profile/previously-ordered/${restaurantId}`)
       .then((r) => setSummary(r.data))
       .catch(() => setSummary(null));
   }, [restaurantId]);
@@ -50,13 +47,9 @@ export default function PreviouslyOrderedBar({ restaurantId, restaurantSlug }: P
 
   const handleReorder = async () => {
     if (!summary.orderId) return;
-    const token = localStorage.getItem("platform_user_token");
-    if (!token) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${API_URL}/api/profile/orders/${summary.orderId}/reorder`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await axios.get(`/api/platform/profile/orders/${summary.orderId}/reorder`);
       clearCart();
       (res.data.items || []).forEach((it: any) => {
         addItem({

@@ -29,6 +29,7 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import FreeDeliverySection from "@/components/FreeDeliverySection";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
+import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 
@@ -124,7 +125,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setIsLoggedIn(!!localStorage.getItem("platform_user_token"));
+      void getPlatformSessionStatus().then(setIsLoggedIn);
       const stored = localStorage.getItem("platform_address");
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
       if (stored) {
@@ -163,16 +164,13 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
-    const userToken = typeof window !== "undefined" ? localStorage.getItem("platform_user_token") : null;
     Promise.all([
       axios.get(`${API_URL}/api/restaurants`),
       axios.get(`${API_URL}/api/cities`),
       axios.get(`${API_URL}/api/deals`),
       axios.get(`${API_URL}/api/sponsors`).catch(() => ({ data: [] })),
       axios.get(`${API_URL}/api/home-categories`).catch(() => ({ data: [] })),
-      userToken
-        ? axios.get(`${API_URL}/api/profile/deals`, { headers: { Authorization: `Bearer ${userToken}` } }).catch(() => ({ data: [] }))
-        : Promise.resolve({ data: [] }),
+      axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
     ]).then(([resRest, resCities, resDeals, resSponsors, resHomeCategories, resPersonal]) => {
       const restaurantsData = Array.isArray(resRest.data) ? resRest.data : [];
       const citiesData = Array.isArray(resCities.data) ? resCities.data : [];

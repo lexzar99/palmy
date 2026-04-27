@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSafeNativeAuthRedirect } from "@/lib/nativeAuthRedirect";
 
 /**
  * Supabase Auth callback — handles OAuth and magic-link redirects.
@@ -15,16 +16,21 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get("next") ?? "/profile";
   // native_redirect is set by the mobile app to receive the token
   const nativeRedirect = searchParams.get("native_redirect");
+  const safeNativeRedirect = getSafeNativeAuthRedirect(nativeRedirect);
 
   if (code) {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.session) {
-      if (nativeRedirect) {
-        // Return the access token to the native app via deep link
-        const separator = nativeRedirect.includes("?") ? "&" : "?";
-        const appUrl = `${nativeRedirect}${separator}access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}`;
+      if (nativeRedirect && !safeNativeRedirect) {
+        return NextResponse.redirect(`${origin}/profile?error=invalid_native_redirect`);
+      }
+
+      if (safeNativeRedirect) {
+        // Only hand tokens to deep links we explicitly allow.
+        const separator = safeNativeRedirect.includes("?") ? "&" : "?";
+        const appUrl = `${safeNativeRedirect}${separator}access_token=${data.session.access_token}&refresh_token=${data.session.refresh_token}`;
         return NextResponse.redirect(appUrl);
       }
       // Regular web redirect

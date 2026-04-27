@@ -358,14 +358,11 @@ export default function CartPage() {
 
   const fetchContext = useCallback(async () => {
     try {
-      const token = localStorage.getItem("platform_user_token");
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      
       const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
         axios.get(`${API_URL}/api/deals`, { params: currentRestaurantId ? { restaurantId: currentRestaurantId } : {} }).catch(() => ({ data: [] })),
-        token ? axios.get(`${API_URL}/api/profile`, { headers }).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
-        token ? axios.get(`${API_URL}/api/profile/deals`, { headers }).catch(() => ({ data: [] })) : Promise.resolve({ data: [] }),
+        axios.get(`/api/platform/profile`).catch(() => ({ data: null })),
+        axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
         currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
       ]);
 
@@ -400,36 +397,34 @@ export default function CartPage() {
           deliveryZip: prev.deliveryZip || userRes.data.zip || "",
         }));
         // Load saved addresses
-        if (token) {
-          try {
-            const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers });
-            setSavedAddresses(addrRes.data || []);
-            if (readQuickAddresses().length === 0) {
-              const bootstrap = (addrRes.data || [])
-                .slice(0, 3)
-                .map((address: any, index: number) => ({
-                  label: address.label,
-                  street: address.street,
-                  city: address.city,
-                  zip: address.zip,
-                  isDefault: address.isDefault ?? index === 0,
-                }));
-              if (bootstrap.length > 0) {
-                writeQuickAddresses(bootstrap);
-                setQuickAddresses(bootstrap);
-              }
-            }
-            const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
-            if (defaultAddr && !userRes.data.address) {
-              setFormData(prev => ({ 
-                ...prev, 
-                deliveryStreet: prev.deliveryStreet || defaultAddr.street, 
-                deliveryZip: prev.deliveryZip || defaultAddr.zip 
+        try {
+          const addrRes = await axios.get(`/api/platform/profile/addresses`);
+          setSavedAddresses(addrRes.data || []);
+          if (readQuickAddresses().length === 0) {
+            const bootstrap = (addrRes.data || [])
+              .slice(0, 3)
+              .map((address: any, index: number) => ({
+                label: address.label,
+                street: address.street,
+                city: address.city,
+                zip: address.zip,
+                isDefault: address.isDefault ?? index === 0,
               }));
+            if (bootstrap.length > 0) {
+              writeQuickAddresses(bootstrap);
+              setQuickAddresses(bootstrap);
             }
-          } catch (err) {
-            console.warn("Failed to load default address:", err);
           }
+          const defaultAddr = (addrRes.data || []).find((a: any) => a.isDefault);
+          if (defaultAddr && !userRes.data.address) {
+            setFormData(prev => ({ 
+              ...prev, 
+              deliveryStreet: prev.deliveryStreet || defaultAddr.street, 
+              deliveryZip: prev.deliveryZip || defaultAddr.zip 
+            }));
+          }
+        } catch (err) {
+          console.warn("Failed to load default address:", err);
         }
       }
 
@@ -562,22 +557,6 @@ export default function CartPage() {
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
     try {
-      // Refresh Supabase token before submitting to ensure userId is linked
-      let token = localStorage.getItem("platform_user_token");
-      if (token) {
-        try {
-          const { createSupabaseBrowserClient } = await import("@/lib/supabase/client");
-          const supabase = createSupabaseBrowserClient();
-          const { data } = await supabase.auth.getSession();
-          if (data.session?.access_token) {
-            token = data.session.access_token;
-            localStorage.setItem("platform_user_token", token);
-          }
-        } catch {
-          // Fall back to existing token
-        }
-      }
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const orderData = {
         type: orderType,
         customerName: formData.customerName,
@@ -607,7 +586,7 @@ export default function CartPage() {
           note: i.note,
         })),
       };
-      const res = await axios.post(`${API_URL}/api/orders`, orderData, { headers });
+      const res = await axios.post(`/api/platform/orders`, orderData);
       clearCart();
       router.push(`/order/${res.data.orderId}`);
     } catch (err: any) {

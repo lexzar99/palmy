@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { persistPlatformSession } from "@/lib/platformSessionClient";
 
 const RegisterPage = () => {
   const router = useRouter();
@@ -24,7 +25,7 @@ const RegisterPage = () => {
     setError("");
     try {
       const res = await axios.post(`${API_URL}/api/account/register-user`, { name, phone, password, email });
-      localStorage.setItem("platform_user_token", res.data.token);
+      await persistPlatformSession(res.data.token);
       setSuccess(true);
       setTimeout(() => router.push("/profile"), 2000);
     } catch (err: any) {

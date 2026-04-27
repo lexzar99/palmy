@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, Suspense } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { getProviders, signIn, useSession } from "next-auth/react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { getSafeNativeAuthRedirect, getSafeNativeAuthRedirectOrDefault } from "@/lib/nativeAuthRedirect";
 
 type SocialProvider = "google" | "facebook";
+
+const SOCIAL_PROVIDERS: Array<{ id: SocialProvider; label: string }> = [
+  { id: "google", label: "Fortsätt med Google" },
+  { id: "facebook", label: "Fortsätt med Facebook" },
+];
+
+function isSocialProvider(value: string): value is SocialProvider {
+  return value === "google" || value === "facebook";
+}
 
 const buildCallbackUrl = (redirect: string) => {
   if (typeof window === "undefined") return "/mobile-auth";
@@ -16,18 +26,55 @@ function MobileAuthContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const hasStartedRef = useRef(false);
+  const [availableProviders, setAvailableProviders] = useState<SocialProvider[]>([]);
+  const [providersLoaded, setProvidersLoaded] = useState(false);
 
-  const redirectTarget = searchParams.get("redirect") || "matgo://auth";
+  const rawRedirectTarget = searchParams.get("redirect");
+  const redirectTarget = useMemo(
+    () => getSafeNativeAuthRedirectOrDefault(rawRedirectTarget),
+    [rawRedirectTarget]
+  );
+  const hasInvalidRedirect = useMemo(
+    () => Boolean(rawRedirectTarget) && !getSafeNativeAuthRedirect(rawRedirectTarget),
+    [rawRedirectTarget]
+  );
+  const requestedProvider = searchParams.get("provider");
   const provider = useMemo<SocialProvider | null>(() => {
-    const val = searchParams.get("provider");
-    return val === "google" || val === "facebook" ? (val as SocialProvider) : null;
-  }, [searchParams]);
+    if (!requestedProvider || !isSocialProvider(requestedProvider)) {
+      return null;
+    }
 
-  const isMissingToken = status === "authenticated" && !(session as any)?.platformToken;
+    return availableProviders.includes(requestedProvider) ? requestedProvider : null;
+  }, [availableProviders, requestedProvider]);
+  const hasUnavailableRequestedProvider = Boolean(requestedProvider) && !provider;
+
+  const platformToken = session?.platformToken;
+  const isMissingToken = status === "authenticated" && !platformToken;
 
   useEffect(() => {
-    if (status === "authenticated" && (session as any)?.platformToken) {
-      const token = encodeURIComponent((session as any).platformToken as string);
+    let isMounted = true;
+
+    void getProviders()
+      .then((providers) => {
+        if (!isMounted) return;
+
+        const configuredProviders = Object.keys(providers ?? {}).filter(isSocialProvider);
+        setAvailableProviders(configuredProviders);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setProvidersLoaded(true);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (status === "authenticated" && platformToken) {
+      const token = encodeURIComponent(platformToken);
       const separator = redirectTarget.includes("?") ? "&" : "?";
       const finalUrl = `${redirectTarget}${separator}token=${token}`;
       
@@ -46,7 +93,7 @@ function MobileAuthContent() {
       hasStartedRef.current = true;
       void signIn(provider, { callbackUrl: buildCallbackUrl(redirectTarget) });
     }
-  }, [provider, redirectTarget, session, status]);
+  }, [platformToken, provider, redirectTarget, status]);
 
   const startProviderLogin = (nextProvider: SocialProvider) => {
     void signIn(nextProvider, { callbackUrl: buildCallbackUrl(redirectTarget) });
@@ -67,33 +114,45 @@ function MobileAuthContent() {
               : (status === "loading" || provider ? "Loggar in och skickar dig tillbaka till appen..." : "Välj samma konto som du vill använda i appen")
             }
           </p>
+          {hasInvalidRedirect && (
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
+              Ogiltig redirect ignorerades. Standardflod for appen anvands.
+            </p>
+          )}
+          {hasUnavailableRequestedProvider && providersLoaded && (
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
+              Den valda sociala inloggningen ar inte tillganglig i denna miljo.
+            </p>
+          )}
         </div>
 
         <div className="space-y-4">
-          {!provider && (
+          {!provider && availableProviders.length > 0 && (
             <div className="grid grid-cols-1 gap-3">
-              <button
-                type="button"
-                onClick={() => startProviderLogin("google")}
-                className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
-              >
-                Fortsätt med Google
-              </button>
-              <button
-                type="button"
-                onClick={() => startProviderLogin("facebook")}
-                className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
-              >
-                Fortsätt med Facebook
-              </button>
+              {SOCIAL_PROVIDERS.filter(({ id }) => availableProviders.includes(id)).map(({ id, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => startProviderLogin(id)}
+                  className="w-full py-4 px-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[11px] hover:bg-white/10 transition-all"
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+          )}
+
+          {!provider && providersLoaded && availableProviders.length === 0 && (
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+              Social inloggning ar inte konfigurerad i denna miljo.
+            </p>
           )}
 
           {status === "authenticated" && (
             <div className="pt-4 border-t border-white/5 space-y-4">
               <button
                 onClick={() => {
-                  const token = (session as any)?.platformToken;
+                  const token = platformToken;
                   if (!token) {
                     alert("Inloggning lyckades men vi kunde inte hämta din profil från servern. Kontrollera din internetanslutning eller prova igen senare.");
                     return;

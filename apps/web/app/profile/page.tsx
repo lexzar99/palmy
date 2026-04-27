@@ -13,6 +13,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import {
+  clearPlatformSession,
+  getPlatformSessionStatus,
+  persistPlatformSession,
+} from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 
@@ -130,7 +135,7 @@ function SocialButton({
 // ─── Main component ─────────────────────────────────────────────────────────
 function ProfileContent() {
   const router = useRouter();
-  const [token, setToken] = useState<string | null>(null);
+  const [hasPlatformSession, setHasPlatformSession] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
@@ -189,13 +194,14 @@ function ProfileContent() {
   const [deleteAddressModalOpen, setDeleteAddressModalOpen] = useState(false);
   const [addressToDelete, setAddressToDelete] = useState<any>(null);
 
-  const fetchData = useCallback(async (authToken: string) => {
+  const fetchData = useCallback(async () => {
     try {
       const [profileRes, ordersRes, dealsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/profile`, { headers: { Authorization: `Bearer ${authToken}` } }),
-        axios.get(`${API_URL}/api/profile/orders`, { headers: { Authorization: `Bearer ${authToken}` } }),
-        axios.get(`${API_URL}/api/profile/deals`, { headers: { Authorization: `Bearer ${authToken}` } }),
+        axios.get(`/api/platform/profile`),
+        axios.get(`/api/platform/profile/orders`),
+        axios.get(`/api/platform/profile/deals`),
       ]);
+      setHasPlatformSession(true);
       setUser(profileRes.data);
       setEditName(profileRes.data.name || "");
       setEditEmail(profileRes.data.email || "");
@@ -203,13 +209,11 @@ function ProfileContent() {
       setDeals(dealsRes.data || []);
 
       // Fetch saved addresses
-      if (authToken) {
-        try {
-          const addrRes = await axios.get(`${API_URL}/api/profile/addresses`, { headers: { Authorization: `Bearer ${authToken}` } });
-          setSavedAddresses(addrRes.data || []);
-        } catch (err) {
-          console.warn("Failed to load addresses:", err);
-        }
+      try {
+        const addrRes = await axios.get(`/api/platform/profile/addresses`);
+        setSavedAddresses(addrRes.data || []);
+      } catch (err) {
+        console.warn("Failed to load addresses:", err);
       }
       
       // If user has no phone and we are not in the middle of verifying one, prompt them
@@ -219,8 +223,8 @@ function ProfileContent() {
         setShowAddPhone(false);
         setShowOtp(false);
       }
-    } catch (err: any) {
-      handleLogout();
+    } catch {
+      void handleLogout();
     } finally {
       setLoading(false);
     }
@@ -228,35 +232,36 @@ function ProfileContent() {
 
   // ─── OAuth Session Exchange ──────────────────────────────────────────────
   const { data: session, status } = useSession();
- 
+  const platformToken = session?.platformToken;
+  
   useEffect(() => {
-    if (status === "authenticated" && (session as any)?.platformToken && !isLoggingOut) {
-      const pToken = (session as any).platformToken as string;
-      const pUser = (session as any).platformUser as any;
-      
-      // Only sync from session if we don't have a token OR if the session user is different
-      // and we haven't already verified our phone (to prevent stale session overwriting our new verified token)
+    if (status === "authenticated" && platformToken && !isLoggingOut) {
+      // Avoid overwriting a freshly verified local session with stale OAuth data.
       const isVerifiedLocally = user?.isVerified === true;
-      if (token !== pToken && !isVerifiedLocally) {
-        localStorage.setItem("platform_user_token", pToken);
-        setToken(pToken);
-        // Don't setUser(pUser) as it might be stale.
-        fetchData(pToken);
+      if (!hasPlatformSession && !isVerifiedLocally) {
+        void (async () => {
+          try {
+            await persistPlatformSession(platformToken);
+            setHasPlatformSession(true);
+            await fetchData();
+          } catch {
+            setLoading(false);
+          }
+        })();
       }
     }
-  }, [status, session, token, user, fetchData, isLoggingOut]);
+  }, [status, platformToken, user, fetchData, isLoggingOut, hasPlatformSession]);
 
   // ─── Supabase Auth session ───────────────────────────────────────────────
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
 
-    // Check for an existing Supabase session on mount
-    supabase.auth.getSession().then(({ data: { session: sbSession } }) => {
-      if (sbSession?.access_token) {
-        const sbToken = sbSession.access_token;
-        localStorage.setItem("platform_user_token", sbToken);
-        setToken(sbToken);
-        fetchData(sbToken);
+    void getPlatformSessionStatus().then((authenticated) => {
+      if (authenticated) {
+        setHasPlatformSession(true);
+        void fetchData();
+      } else {
+        setLoading(false);
       }
     });
 
@@ -264,10 +269,8 @@ function ProfileContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, sbSession) => {
         if (sbSession?.access_token) {
-          const sbToken = sbSession.access_token;
-          localStorage.setItem("platform_user_token", sbToken);
-          setToken(sbToken);
-          fetchData(sbToken);
+          setHasPlatformSession(true);
+          void fetchData();
         }
       }
     );
@@ -279,16 +282,7 @@ function ProfileContent() {
     const visited = localStorage.getItem("platform_has_visited");
     if (visited) setHasVisited(true);
     else localStorage.setItem("platform_has_visited", "true");
-
-    // Also check legacy custom token in localStorage (backward compat)
-    const savedToken = localStorage.getItem("platform_user_token");
-    if (savedToken && !token) {
-      setToken(savedToken);
-      fetchData(savedToken);
-    } else if (!savedToken) {
-      setLoading(false);
-    }
-  }, [fetchData]);  // eslint-disable-line
+  }, []);
 
   const handleSendOtp = async (e: React.FormEvent, customPhone?: string) => {
     if (e) e.preventDefault();
@@ -314,18 +308,16 @@ function ProfileContent() {
     setIsVerifying(true);
     setLoginError("");
     try {
-      const res = await axios.post(`${API_URL}/api/account/verify-otp`, {
+      const res = await axios.post(`/api/platform/account/verify-otp`, {
         phone: otpPhone,
         code: otpCode,
-      }, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
       const { token: newToken, user: newUser } = res.data;
-      localStorage.setItem("platform_user_token", newToken);
-      setToken(newToken);
+      await persistPlatformSession(newToken);
+      setHasPlatformSession(true);
       setUser(newUser);
-      fetchData(newToken);
+      fetchData();
       setShowOtp(false);
     } catch (err: any) {
       setLoginError(err.response?.data?.error || "Felaktig kod");
@@ -353,9 +345,7 @@ function ProfileContent() {
     e.preventDefault();
     setIsSaving(true);
     try {
-      await axios.patch(`${API_URL}/api/profile`, { name: editName, email: editEmail }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.patch(`/api/platform/profile`, { name: editName, email: editEmail });
       setUser((prev: any) => ({ ...prev, name: editName, email: editEmail }));
       setSaveSuccess(true);
       setTimeout(() => { setSaveSuccess(false); setIsEditing(false); }, 1500);
@@ -369,8 +359,8 @@ function ProfileContent() {
   const handleLogout = async () => {
     setIsLoggingOut(true);
     try {
-      localStorage.removeItem("platform_user_token");
-      setToken(null);
+      await clearPlatformSession();
+      setHasPlatformSession(false);
       setUser(null);
       setOrders([]);
       setDeals([]);
@@ -395,7 +385,7 @@ function ProfileContent() {
   }
 
   // ─── Not logged in ────────────────────────────────────────────────────────
-  if (!token || !user) {
+  if (!hasPlatformSession || !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-6 pt-20 pb-32" style={{ backgroundColor: "var(--bg-primary)" }}>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm space-y-8">
@@ -869,12 +859,10 @@ function ProfileContent() {
                       onClick={async () => {
                         setReorderingId(order.id);
                         try {
-                          const res = await axios.get(`${API_URL}/api/profile/orders/${order.id}/reorder`, {
-                             headers: { Authorization: `Bearer ${token}` }
-                          });
-                          const data = res.data;
-                          const cartStore = useCartStore.getState();
-                          cartStore.clearCart();
+                          const res = await axios.get(`/api/platform/profile/orders/${order.id}/reorder`);
+                           const data = res.data;
+                           const cartStore = useCartStore.getState();
+                           cartStore.clearCart();
                           for (const item of data.items) {
                              cartStore.addItem(item);
                           }
@@ -932,8 +920,8 @@ function ProfileContent() {
                           <button
                             onClick={async () => {
                               try {
-                                await axios.patch(`${API_URL}/api/profile/addresses/${addr.id}`, { isDefault: true }, { headers: { Authorization: `Bearer ${token}` } });
-                                fetchData(token!);
+                                await axios.patch(`/api/platform/profile/addresses/${addr.id}`, { isDefault: true });
+                                fetchData();
                               } catch (err) {
                                 console.warn("Failed to set default address:", err);
                               }
@@ -985,11 +973,11 @@ function ProfileContent() {
                     if (!newAddrStreet || !newAddrCity || !newAddrZip) return;
                     setAddrSaving(true);
                     try {
-                      await axios.post(`${API_URL}/api/profile/addresses`, {
+                      await axios.post(`/api/platform/profile/addresses`, {
                         label: newAddrLabel, street: newAddrStreet, city: newAddrCity, zip: newAddrZip, note: newAddrNote || undefined, isDefault: savedAddresses.length === 0,
-                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      });
                       setNewAddrStreet(''); setNewAddrCity(''); setNewAddrZip(''); setNewAddrNote('');
-                      fetchData(token!);
+                      fetchData();
                     } catch (err: any) {
                       alert(err.response?.data?.error || 'Kunde inte spara');
                     } finally { setAddrSaving(false); }
@@ -1115,9 +1103,7 @@ function ProfileContent() {
       onClose={() => setDeleteAccountModalOpen(false)}
       onConfirm={async () => {
         try {
-          await axios.delete(`${API_URL}/api/profile`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          await axios.delete(`/api/platform/profile`);
           alert("Ditt konto har raderats. Hoppas vi ses igen!");
           handleLogout();
         } catch (err: any) {
@@ -1140,7 +1126,7 @@ function ProfileContent() {
       onConfirm={async () => {
         if (!addressToDelete) return;
         try {
-          await axios.delete(`${API_URL}/api/profile/addresses/${addressToDelete.id}`, { headers: { Authorization: `Bearer ${token}` } });
+          await axios.delete(`/api/platform/profile/addresses/${addressToDelete.id}`);
           setSavedAddresses(prev => prev.filter(a => a.id !== addressToDelete.id));
         } catch (err: any) {
           alert(err.response?.data?.error || "Kunde inte radera adressen");
