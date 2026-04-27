@@ -131,9 +131,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       const params: any = {};
       if (restaurantId) params.restaurantId = restaurantId;
       if (restaurantSlug) params.slug = restaurantSlug;
+      const menuParams = { ...params, v: "20260428" };
 
       const [menuRes, restaurantRes, dealsRes] = await Promise.all([
-        axios.get(`${API_URL}/api/menu/categories`, { params }),
+        axios.get(`${API_URL}/api/menu/categories`, { params: menuParams }),
         restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
         axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
       ]);

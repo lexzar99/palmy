@@ -82,7 +82,7 @@ export default function RestaurantScreen({
     (async () => {
       try {
         const [menuRes, restaurantRes, dealsRes, citiesRes] = await Promise.all([
-          api.get("/api/menu/categories", { params: { slug } }),
+          api.get("/api/menu/categories", { params: { slug, v: "20260428" } }),
           api.get(`/api/restaurants/${slug}`),
           api.get("/api/deals").catch(() => ({ data: [] })),
           api.get("/api/cities").catch(() => ({ data: [] })),

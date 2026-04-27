@@ -11,6 +11,7 @@ interface DiscountedDish {
   description?: string;
   originalPrice: number;
   discountPrice: number;
+  discountScope?: 'PRODUCT' | 'CATEGORY' | 'RESTAURANT' | null;
   discountPercent?: number | null;
   discountLabel?: string | null;
   imageUrl?: string | null;
@@ -26,8 +27,11 @@ export default function DiscountedDishesRail({ openRestaurant }: { openRestauran
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    api.get('/api/menu/discounted')
-      .then((r) => setDishes(r.data || []))
+    api.get('/api/menu/discounted', { params: { scope: 'PRODUCT', v: '20260428' } })
+      .then((r) => {
+        const nextDishes = Array.isArray(r.data) ? r.data : [];
+        setDishes(nextDishes.filter((dish: DiscountedDish) => dish.discountScope === 'PRODUCT'));
+      })
       .catch(() => setDishes([]))
       .finally(() => setLoaded(true));
   }, []);

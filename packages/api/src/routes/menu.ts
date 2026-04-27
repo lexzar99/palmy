@@ -36,6 +36,7 @@ const toDisplayDiscount = (product: any, categoryId: string, restaurantId: strin
 // GET /api/menu/categories - Alla aktiva kategorier med produkter för en specifik restaurang
 router.get('/categories', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const { restaurantId, slug } = req.query;
     const hasRestaurantScope = Boolean(restaurantId || slug);
 
@@ -201,6 +202,7 @@ router.get('/products/:id', async (req, res) => {
 // Används av "Rea & rabatterat"-sektionen på hemskärmen i web + RN appen.
 router.get('/discounted', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const { cityId } = req.query;
 
     const activeDeals = await prisma.deal.findMany({

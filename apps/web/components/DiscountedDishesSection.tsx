@@ -13,6 +13,7 @@ interface DiscountedDish {
   description?: string;
   originalPrice: number;
   discountPrice: number;
+  discountScope?: "PRODUCT" | "CATEGORY" | "RESTAURANT" | null;
   discountPercent?: number | null;
   discountLabel?: string | null;
   imageUrl?: string | null;
@@ -39,9 +40,11 @@ export default function DiscountedDishesSection() {
   useEffect(() => {
     let cancelled = false;
     axios
-      .get(`${API_URL}/api/menu/discounted`)
+      .get(`${API_URL}/api/menu/discounted`, { params: { scope: "PRODUCT", v: "20260428" } })
       .then((r) => {
-        if (!cancelled) setDishes(r.data || []);
+        if (cancelled) return;
+        const nextDishes = Array.isArray(r.data) ? r.data : [];
+        setDishes(nextDishes.filter((dish: DiscountedDish) => dish.discountScope === "PRODUCT"));
       })
       .catch(() => {
         if (!cancelled) setDishes([]);
