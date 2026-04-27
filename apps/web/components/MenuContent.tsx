@@ -411,7 +411,9 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Discounted Products Rail */}
         {(() => {
-          const discountedProducts = filteredCategories.flatMap(cat => cat.products).filter((p: any) => p.discountActive);
+          const discountedProducts = filteredCategories
+            .flatMap(cat => cat.products)
+            .filter((p: any) => p.discountActive && p.discountScope === "PRODUCT");
           if (discountedProducts.length === 0) return null;
           return (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 px-4">

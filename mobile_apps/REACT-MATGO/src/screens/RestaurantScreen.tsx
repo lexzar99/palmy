@@ -402,7 +402,7 @@ export default function RestaurantScreen({
 
         {(() => {
           const allProducts = categories.flatMap((c) => c.products);
-          const discounted = allProducts.filter((p) => p.discountActive);
+          const discounted = allProducts.filter((p) => p.discountActive && p.discountScope === "PRODUCT");
           if (discounted.length === 0) return null;
           return (
             <View style={styles.discountedRail}>

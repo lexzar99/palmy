@@ -133,6 +133,7 @@ export interface MenuProduct {
   description?: string;
   price: number;
   discountActive?: boolean;
+  discountScope?: "PRODUCT" | "CATEGORY" | "RESTAURANT" | null;
   discountPrice?: number;
   discountPercent?: number;
   imageUrl?: string;

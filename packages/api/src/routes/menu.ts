@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { isDealAvailableNow, parseApplicableRestaurantIds, resolveDisplayPromotionForProduct } from '../lib/deals';
+import { getDealScopeType, isDealAvailableNow, parseApplicableRestaurantIds, parseDealTargetIds, resolveDisplayPromotionForProduct } from '../lib/deals';
 
 const router = Router();
 
@@ -25,6 +25,7 @@ const toDisplayDiscount = (product: any, categoryId: string, restaurantId: strin
 
   return {
     discountActive: Boolean(promotion),
+    discountScope: promotion?.scope ?? null,
     discountPercent: promotion?.discountPercent ?? null,
     discountPrice: promotion ? promotion.salePriceOre / 100 : null,
     discountImageUrl: promotion?.imageUrl ?? null,
@@ -196,15 +197,36 @@ router.get('/products/:id', async (req, res) => {
   }
 });
 
-// GET /api/menu/discounted - Alla produkter som är rabatterade (över alla restauranger)
+// GET /api/menu/discounted - Produktspecifika rabatter över alla restauranger.
 // Används av "Rea & rabatterat"-sektionen på hemskärmen i web + RN appen.
 router.get('/discounted', async (req, res) => {
   try {
     const { cityId } = req.query;
 
+    const activeDeals = await prisma.deal.findMany({
+      where: { isActive: true, showOnSite: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    const productDealProductIds = Array.from(
+      new Set(
+        activeDeals
+          .filter((deal) => isDealAvailableNow(deal) && getDealScopeType(deal) === 'PRODUCT')
+          .flatMap((deal) => parseDealTargetIds(deal.comboProductIds)),
+      ),
+    );
+
     const products: any[] = await prisma.product.findMany({
       where: {
         isActive: true,
+        ...(productDealProductIds.length > 0
+          ? {
+              OR: [
+                { discountActive: true },
+                { id: { in: productDealProductIds } },
+              ],
+            }
+          : { discountActive: true }),
         category: {
           isActive: true,
           restaurant: {
@@ -232,12 +254,7 @@ router.get('/discounted', async (req, res) => {
         },
       },
       orderBy: [{ updatedAt: 'desc' }],
-      take: 30,
-    });
-
-    const activeDeals = await prisma.deal.findMany({
-      where: { isActive: true, showOnSite: true },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
     });
 
     const formatted = products
@@ -251,7 +268,8 @@ router.get('/discounted', async (req, res) => {
           deals: activeDeals.filter((deal) => dealMatchesRestaurant(deal, p.category.restaurant?.id || null)),
         });
 
-        if (!displayPromotion) return null;
+        // "Rea & rabatter" should only contain individually discounted products.
+        if (!displayPromotion || displayPromotion.scope !== 'PRODUCT') return null;
 
         return {
           id: p.id,
@@ -259,6 +277,7 @@ router.get('/discounted', async (req, res) => {
           description: p.description,
           originalPrice: priceKr,
           discountPrice: displayPromotion.salePriceOre / 100,
+          discountScope: displayPromotion.scope,
           discountPercent: displayPromotion.discountPercent,
           discountLabel: displayPromotion.discountLabel,
           imageUrl: displayPromotion.imageUrl || p.imageUrl,
@@ -266,7 +285,7 @@ router.get('/discounted', async (req, res) => {
         };
       });
 
-    res.json(formatted.filter(Boolean));
+    res.json(formatted.filter(Boolean).slice(0, 30));
   } catch (error) {
     console.error('Error fetching discounted products:', error);
     res.status(500).json({ error: 'Kunde inte hämta rabatterade produkter' });
