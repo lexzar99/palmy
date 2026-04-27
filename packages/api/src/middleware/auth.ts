@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../lib/prisma';
+import { buildRestaurantAdminLoginLookup } from '../lib/adminLogin';
 import { JWT_SECRET } from '../lib/config';
 
 export interface AuthRequest extends Request {
@@ -58,10 +59,15 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
 
   if (!restaurant) {
     const loginKey = (admin.email || '').toLowerCase();
-    restaurant = await prisma.restaurant.findFirst({
-      where: { slug: loginKey },
-      select: { id: true, slug: true, name: true },
+    const restaurants = await prisma.restaurant.findMany({
+      select: { id: true, slug: true, name: true, adminEmail: true },
     });
+    const lookup = buildRestaurantAdminLoginLookup(restaurants);
+    const matched = lookup.get(loginKey) || null;
+
+    restaurant = matched
+      ? { id: matched.id, slug: matched.slug, name: matched.name }
+      : null;
   }
 
   return {

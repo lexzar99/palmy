@@ -2,7 +2,15 @@ import prisma from './prisma';
 import { isRestaurantOpen } from './openingHours';
 import { getIO } from './socket';
 
+let statusCheckInFlight = false;
+
 export async function checkAllRestaurantsStatus() {
+  if (statusCheckInFlight) {
+    return;
+  }
+
+  statusCheckInFlight = true;
+
   // console.log('[Watchdog] Checking all restaurants status...');
   try {
     const restaurants = await prisma.restaurant.findMany({
@@ -14,13 +22,10 @@ export async function checkAllRestaurantsStatus() {
         slug: true
       }
     });
-    const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Stockholm" }));
-    
+
     for (const r of restaurants) {
       const shouldBeOpen = isRestaurantOpen(r.openingHours);
       const currentStatus = r.isOpen;
-      
-      console.log(`[Watchdog] ${r.name}: shouldBeOpen=${shouldBeOpen}, currentStatus=${currentStatus}`);
 
       if (shouldBeOpen !== currentStatus) {
         console.log(`[Watchdog] !!! STATUS MISMATCH for ${r.name}: Changing ${currentStatus} -> ${shouldBeOpen}`);
@@ -58,5 +63,7 @@ export async function checkAllRestaurantsStatus() {
     }
   } catch (error) {
     console.error('[Watchdog] Error checking restaurant status:', error);
+  } finally {
+    statusCheckInFlight = false;
   }
 }

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
+import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
 import supabaseAdmin from '../lib/supabase';
 import { resolveAdminSessionFromToken } from '../middleware/auth';
 
@@ -12,6 +13,68 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
+
+async function resolveAdminByIdentifier(loginId: string) {
+  const directAdmin = await prisma.adminUser.findFirst({
+    where: { email: loginId, isActive: true },
+  });
+
+  if (directAdmin) {
+    return directAdmin;
+  }
+
+  const normalizedLoginId = normalizeAdminLoginAlias(loginId);
+  if (!normalizedLoginId) {
+    return null;
+  }
+
+  const restaurants = await prisma.restaurant.findMany({
+    select: { slug: true, name: true, adminEmail: true },
+  });
+
+  const matchedRestaurant = restaurants.find((restaurant) => {
+    const normalizedSlug = normalizeAdminLoginAlias(restaurant.slug || '');
+    const normalizedName = normalizeAdminLoginAlias(restaurant.name || '');
+    const normalizedAdminEmail = normalizeAdminLoginAlias(
+      restaurant.adminEmail || ''
+    );
+
+    if (
+      normalizedLoginId === normalizedSlug ||
+      normalizedLoginId === normalizedName ||
+      normalizedLoginId === normalizedAdminEmail
+    ) {
+      return true;
+    }
+
+    if (normalizedName.length > 0) {
+      return normalizedLoginId === `${normalizedName} admin`;
+    }
+
+    return false;
+  });
+
+  if (!matchedRestaurant) {
+    return null;
+  }
+
+  const primaryLogin = getRestaurantAdminLogin(matchedRestaurant);
+  const primaryAdmin = await prisma.adminUser.findFirst({
+    where: { email: primaryLogin, isActive: true },
+  });
+
+  if (primaryAdmin) {
+    return primaryAdmin;
+  }
+
+  if (matchedRestaurant.slug.toLowerCase() === primaryLogin) {
+    return null;
+  }
+
+  return prisma.adminUser.findFirst({
+    where: { email: matchedRestaurant.slug.toLowerCase(), isActive: true },
+  });
+}
 
 /**
  * Unified auth middleware — verifies Supabase JWTs (primary) with a
@@ -266,9 +329,7 @@ router.post('/login', async (req, res) => {
 
     const effectiveLoginId = loginId;
 
-    const admin = await prisma.adminUser.findFirst({
-      where: { email: effectiveLoginId, isActive: true },
-    });
+    const admin = await resolveAdminByIdentifier(effectiveLoginId);
 
     if (!admin) {
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
@@ -286,8 +347,13 @@ router.post('/login', async (req, res) => {
     let restaurantName: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
       const restaurant = await prisma.restaurant.findFirst({
-        where: { slug: admin.email.toLowerCase() },
-        select: { id: true, slug: true, name: true },
+        where: {
+          OR: [
+            { slug: admin.email.toLowerCase() },
+            { adminEmail: admin.email.toLowerCase() },
+          ],
+        },
+        select: { id: true, slug: true, name: true, adminEmail: true },
       });
       if (!restaurant) {
         res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
@@ -319,15 +385,20 @@ router.get('/check-admin/:slug', async (req, res) => {
   try {
     const { slug } = req.params;
     const email = slug.toLowerCase();
-    
-    const admin = await prisma.adminUser.findUnique({
-      where: { email },
-      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, updatedAt: true },
-    });
-    
+
     const restaurant = await prisma.restaurant.findFirst({
       where: { slug: email },
-      select: { id: true, slug: true, name: true },
+      select: { id: true, slug: true, name: true, adminEmail: true },
+    });
+
+    const adminLogin = restaurant ? getRestaurantAdminLogin(restaurant) : email;
+    const admin = await prisma.adminUser.findFirst({
+      where: {
+        email: {
+          in: restaurant && adminLogin !== email ? [adminLogin, email] : [adminLogin],
+        },
+      },
+      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, updatedAt: true },
     });
 
     res.json({

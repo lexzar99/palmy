@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { getRestaurantAdminLogin } from './adminLogin';
 import prisma from './prisma';
 import { SUPER_ADMIN_EMAIL } from './config';
 
@@ -46,12 +47,31 @@ export async function ensureDefaultSuperAdmin(): Promise<void> {
 // via the admin panel with an explicit password.
 export async function ensureRestaurantAdmins(): Promise<void> {
   const restaurants = await prisma.restaurant.findMany({
-    select: { id: true, slug: true, name: true },
+    select: { id: true, slug: true, name: true, adminEmail: true },
   });
 
   for (const r of restaurants) {
-    const email = r.slug.toLowerCase();
+    const email = getRestaurantAdminLogin(r);
+    const legacySlugLogin = r.slug.toLowerCase();
     const existing = await prisma.adminUser.findUnique({ where: { email } });
+    const legacyExisting =
+      email !== legacySlugLogin
+        ? await prisma.adminUser.findUnique({ where: { email: legacySlugLogin } })
+        : null;
+
+    if (!existing && legacyExisting && legacyExisting.role !== 'SUPER_ADMIN') {
+      await prisma.adminUser.update({
+        where: { email: legacySlugLogin },
+        data: {
+          email,
+          role: 'ADMIN',
+          isActive: true,
+          name: legacyExisting.name || `${r.name} Admin`,
+        },
+      });
+      console.log(`🔄 Synced restaurant admin login ${legacySlugLogin} → ${email}`);
+      continue;
+    }
 
     if (existing) {
       // Ensure role is always ADMIN (never STAFF or anything else) for restaurant accounts
