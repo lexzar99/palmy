@@ -3,17 +3,23 @@ import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { sendToAllUsers } from '../lib/notifications';
 import { authenticate, isSuperAdmin } from '../middleware/auth';
+import { authenticateUser } from './auth';
 
 const router = Router();
 
 /**
  * POST /api/notifications/register
- * Registrerar en push-token för den inloggade användaren
+ * Registrerar en push-token för den inloggade *kund*-användaren.
+ *
+ * Tidigare användes admin-middleware `authenticate` här, vilket gjorde att
+ * varje registrering från React Native-appen tystade tillbaka 401 — token
+ * sparades aldrig och pushar gick förlorade. Använd `authenticateUser` som
+ * accepterar Supabase-JWT (och legacy custom-JWT) för slutkunder.
  */
-router.post('/register', authenticate, async (req: any, res) => {
+router.post('/register', authenticateUser, async (req: any, res) => {
   try {
     const { token } = z.object({ token: z.string() }).parse(req.body);
-    
+
     if (!token.startsWith('ExponentPushToken[')) {
       return res.status(400).json({ error: 'Ogiltig Expo push token' });
     }

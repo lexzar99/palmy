@@ -16,6 +16,12 @@ export async function sendPushNotification(tokens: string[], title: string, body
     data: data || {},
     priority: 'high',
     channelId: 'default',
+    // Wake the iOS app briefly when the push arrives so JS can run a short
+    // task — used to keep the Live Activity / Dynamic Island in sync without
+    // depending on the user opening the app. Combined with normal alert
+    // fields this gives both: visible banner + ~30s background JS execution.
+    _contentAvailable: true,
+    mutableContent: true,
   }));
 
   try {
