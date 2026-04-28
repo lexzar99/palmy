@@ -37,6 +37,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 
 import { supabase } from "./src/lib/supabase";
+import { validateEnv } from "./src/lib/env";
 import {
   API_URL,
   SOCKET_URL,
@@ -599,6 +600,16 @@ function AppContent() {
   const setToken = useAppStore((s) => s.setToken);
 
   usePushNotifications(token);
+
+  useEffect(() => {
+    const missingKeys = validateEnv();
+    if (missingKeys.length) {
+      Alert.alert(
+        "Konfigurationsfel",
+        `Appen saknar nödvändiga miljövariabler:\n\n${missingKeys.join("\n")}\n\nKontakta support.`
+      );
+    }
+  }, []);
 
   useEffect(() => {
     hydrate().catch(() => {});

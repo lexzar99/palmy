@@ -27,8 +27,8 @@ For every fix, run on a real device or simulator before marking done — type ch
 - [x] **Delete dead `PaymentButton` in `App.tsx:215–281`.** Deleted — never rendered, real flow is in `CartScreen.handleCheckoutPress`.
 - [x] **Fix `RegisterScreen.tsx:31` initial phone corruption.** Changed `/^\+\d{2}0?/` to `/^\+\d{1,4}0?/` so 1–4 digit country codes (e.g. Finland +358) are all stripped correctly.
 - [x] **Fix `RegisterScreen.tsx:53` regex bug.** Changed `/\\D/g` (literal backslash-D, did nothing) to `/\D/g` so non-digits are actually stripped before sending to Supabase.
-- [ ] **Defer env validation in `src/lib/env.ts`.** `getRequiredExpoPublicEnv` throws at module import for 5 keys, crashing the bundle before React mounts. Move validation to runtime accessors so the app can boot and show a recoverable error UI.
-- [ ] **Audit guest-checkout auth.** `CartScreen.tsx:779–781` sends `headers: freshToken ? {...} : {}`. Verify backend `/api/orders` accepts anonymous orders with phone+name; if not, hide the "checkout" CTA when `!token`.
+- [x] **Defer env validation in `src/lib/env.ts`.** `getRequiredExpoPublicEnv` now logs+returns "" instead of throwing at import time. Added `validateEnv()` called in `AppContent` first useEffect — shows an Alert listing missing keys after React mounts.
+- [x] **Audit guest-checkout auth.** Backend `orders.ts:199` explicitly handles missing/invalid token as guest — intentional. No change needed.
 - [ ] **Persist `favorites` in `HomeScreen.tsx:154`.** Currently `useState<Set<string>>` — wiped on every `CommonActions.reset`. Move into Zustand with AsyncStorage persistence; ideally sync to backend.
 - [ ] **Replace `CommonActions.reset` tab switching in `App.tsx:799–804`.** Resetting on every tab tap unmounts screens and kills scroll position / in-progress searches. Migrate to `@react-navigation/bottom-tabs` or use `navigate`.
 - [ ] **Don't wipe delivery overrides on transient errors.** `HomeScreen.tsx:218–253` `validateZone` calls `setDeliveryOverrides({})` in `catch` — clears valid fees on a network blip. Only clear on a successful "uncovered" response.
