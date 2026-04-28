@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Animated, Alert } from 'react-native';
+import { View, Text, Pressable, Animated, Alert, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../store/useAppStore';
 import { api, SOCKET_URL } from '../lib/api';
 import * as Notifications from 'expo-notifications';
-import { updateOrderActivity, endOrderActivity } from '../lib/liveActivities';
+import { updateOrderActivity, endOrderActivity, mapServerStatusToActivity } from '../lib/liveActivities';
 import { io } from 'socket.io-client';
 import { palette } from '../constants/theme';
 import type { Order } from '../types';
@@ -53,7 +53,6 @@ function getDynamicETA(order: Order) {
 // ─── Rotating tip carousel ─────────────────────────────────────────────────────
 const TIPS = [
   { text: "Tipsa en vän och få 50 kr! 🎁", action: "DEAL", icon: "gift-outline" as const },
-  { text: "Lägg in allergener i din profil 👤", action: "PROFILE", icon: "person-outline" as const },
   { text: "Bra mat är alltid värd att vänta på 👨‍🍳", action: "NONE", icon: "restaurant-outline" as const },
   { text: "Snart framme! Dukning rekommenderas 🍽️", action: "NONE", icon: "wine-outline" as const },
   { text: "Spana in våra aktuella deals 💸", action: "DEAL", icon: "pricetag-outline" as const },
@@ -88,42 +87,54 @@ export default function LiveOrderBanner({
         const data: Order = res.data;
         setOrder(data);
 
-        if (lastStatus.current && lastStatus.current !== data.status) {
+        const orderType = (data.orderType || (data as any).type) as
+          | "DELIVERY"
+          | "PICKUP"
+          | undefined;
+
+        if (lastStatus.current !== data.status) {
           const display = getStatusDisplay(data.status);
+          const mapped = mapServerStatusToActivity(data.status, orderType);
 
-          // Push notification on status change
-          Notifications.scheduleNotificationAsync({
-            content: {
-              title: "Statusuppdatering 🍔",
-              body: `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
-              data: { orderId: id },
-            },
-            trigger: null,
-          });
-
-          if (data.status === "OUT_FOR_DELIVERY" || data.status === "DELIVERING") {
-            updateOrderActivity(id, "on_the_way", { etaMinutes: data.estimatedTime });
-          } else if (data.status === "ACCEPTED" || data.status === "PREPARING") {
-            updateOrderActivity(id, "preparing", { etaMinutes: data.estimatedTime });
+          // Only fire notification when this is a *change*, not the first fetch
+          if (lastStatus.current) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: "Statusuppdatering 🍔",
+                body: `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
+                data: { orderId: id },
+              },
+              trigger: null,
+            });
           }
 
-          // Animate progress to new base
-          Animated.spring(progressAnim, {
-            toValue: display.baseProgress,
-            friction: 8,
-            tension: 30,
-            useNativeDriver: false,
-          }).start();
-        } else if (!lastStatus.current) {
-          // First fetch — set initial progress
-          const display = getStatusDisplay(data.status);
-          progressAnim.setValue(display.baseProgress);
+          // Always sync the LiveActivity to the current server status, including
+          // the very first fetch — covers the case where status moved past
+          // "accepted" while the app was in the background.
+          if (mapped && !mapped.ends) {
+            updateOrderActivity(id, mapped.status, { etaMinutes: data.estimatedTime });
+          }
+
+          // Animate progress to new base (but only after first fetch initialised it)
+          if (lastStatus.current) {
+            Animated.spring(progressAnim, {
+              toValue: display.baseProgress,
+              friction: 8,
+              tension: 30,
+              useNativeDriver: false,
+            }).start();
+          } else {
+            progressAnim.setValue(display.baseProgress);
+          }
         }
 
         lastStatus.current = data.status;
 
-        const finished = ["DELIVERED", "COMPLETED", "REJECTED", "CANCELLED"].includes(data.status);
-        if (finished) {
+        const mappedFinal = mapServerStatusToActivity(data.status, orderType);
+        if (mappedFinal?.ends) {
+          // Push the final state once before ending so the user sees "Levererad"
+          // / "Avbruten" briefly in the Dynamic Island before it dismisses.
+          updateOrderActivity(id, mappedFinal.status, { etaMinutes: data.estimatedTime });
           endOrderActivity(id);
           setActiveOrder(null);
         }
@@ -142,9 +153,17 @@ export default function LiveOrderBanner({
     // Polling fallback every 15s
     const pollInterval = setInterval(fetchOrder, 15000);
 
+    // Re-fetch the moment the app returns to foreground so the LiveActivity in
+    // the Dynamic Island catches up immediately instead of waiting for the next
+    // 15s poll tick.
+    const appStateSub = AppState.addEventListener("change", (next) => {
+      if (next === "active") fetchOrder();
+    });
+
     return () => {
       socket.disconnect();
       clearInterval(pollInterval);
+      appStateSub.remove();
     };
   }, [id, setActiveOrder, progressAnim]);
 
@@ -205,9 +224,7 @@ export default function LiveOrderBanner({
   const currentTip = TIPS[tipIndex];
 
   const handleTipPress = () => {
-    if (currentTip.action === "PROFILE") {
-      Alert.alert("Profil", "Uppdatera dina allergener och preferenser i profilfliken.");
-    } else if (currentTip.action === "DEAL") {
+    if (currentTip.action === "DEAL") {
       Alert.alert("Deals 🎉", "Bjud in vänner och tjäna 50 kr per värvning!");
     } else {
       openOrder(id);

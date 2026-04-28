@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image,
+  Platform,
   Pressable,
   Text,
   TextInput,
@@ -9,23 +10,36 @@ import {
   Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as AppleAuthentication from "expo-apple-authentication";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useAppStore } from "../store/useAppStore";
 import { useGoogleAuth } from "../hooks/useGoogleAuth";
+import { useAppleAuth } from "../hooks/useAppleAuth";
 import { api } from "../lib/api";
+import { APP_AUTH_CALLBACK_URL, isAuthRedirectUrl, parseAuthRedirect } from "../lib/authRedirect";
+import { getScreenCache, setScreenCache } from "../lib/screenCache";
 import { supabase } from "../lib/supabase";
 import { palette, styles } from "../constants/theme";
 import { ScreenWrap, PrimaryButton } from "../components/ui";
 import { ProfileScreenSkeleton } from "../components/SkeletonLoader";
 
-import type { Order, SavedAddress } from "../types";
+import type { Order, Profile, SavedAddress } from "../types";
+import {
+  type QuickAddress,
+  formatQuickAddress,
+  readQuickAddresses,
+  removeQuickAddress,
+  setDefaultQuickAddress,
+} from "../lib/quickAddresses";
+import AddressModal from "../components/AddressModal";
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../hooks/useLanguage';
+import { useArabic } from '../hooks/useArabic';
 
 
 
-const APP_AUTH_DEEP_LINK = "matgo://auth/callback";
-const SUPABASE_REDIRECT_URL = "matgo://auth/callback";
-const WEB_URL = "https://matgo.se";
+const SUPABASE_REDIRECT_URL = APP_AUTH_CALLBACK_URL;
 
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sweden" },
@@ -36,20 +50,6 @@ const COUNTRY_CODES = [
   { code: "+1", flag: "🇺🇸", name: "USA" },
 ];
 
-const PREFERENCE_OPTIONS = [
-  "Gluten",
-  "Laktos",
-  "Nötter",
-  "Ägg",
-  "Fisk",
-  "Skaldjur",
-  "Soja",
-  "Selleri",
-  "Senap",
-  "Sesam",
-  "Vetemjöl",
-  "Mjölk",
-];
 
 type PersonalDeal = {
   id?: string;
@@ -60,6 +60,16 @@ type PersonalDeal = {
     discountValue?: number;
     minOrder?: number;
   } | null;
+};
+
+type ProfileScreenCache = {
+  profile: Profile | null;
+  orders: Order[];
+  deals: PersonalDeal[];
+  savedAddresses: SavedAddress[];
+  editName: string;
+  editEmail: string;
+  showAddPhone: boolean;
 };
 
 export default function ProfileScreen({
@@ -76,52 +86,69 @@ export default function ProfileScreen({
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
   const clearSession = useAppStore((s) => s.clearSession);
+  const { t } = useTranslation();
+  const { currentLanguage, changeLanguage } = useLanguage();
+  const { ls } = useArabic();
+  const [langPickerOpen, setLangPickerOpen] = useState(false);
   const addItem = useAppStore((s) => s.addItem);
   const clearCart = useAppStore((s) => s.clearCart);
-  const dislikedIngredients = useAppStore((s) => s.dislikedIngredients);
-  const setDislikedIngredients = useAppStore((s) => s.setDislikedIngredients);
+  const deliveryAddress = useAppStore((s) => s.deliveryAddress);
+  const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
+  const cacheKey = token || "__guest__";
+  const cachedData = token ? getScreenCache<ProfileScreenCache>("profile", cacheKey) : null;
+  const initialProfileFetchShouldShowLoader = useRef(!cachedData).current;
 
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [deals, setDeals] = useState<PersonalDeal[]>([]);
-  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [orders, setOrders] = useState<Order[]>(() => cachedData?.orders || []);
+  const [deals, setDeals] = useState<PersonalDeal[]>(() => cachedData?.deals || []);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => cachedData?.savedAddresses || []);
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState("+46");
   const [otpCode, setOtpCode] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
   const [showOtp, setShowOtp] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(() => (token ? !cachedData : false));
   const [authLoading, setAuthLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [socialLoading, setSocialLoading] = useState<"google" | "facebook" | null>(null);
-  const [showAddPhone, setShowAddPhone] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<"google" | "facebook" | "apple" | null>(null);
+  const [showAddPhone, setShowAddPhone] = useState(() => cachedData?.showAddPhone || false);
   const [addPhoneCountry, setAddPhoneCountry] = useState("+46");
   const [addPhoneNum, setAddPhoneNum] = useState("");
   const [addPhoneLoading, setAddPhoneLoading] = useState(false);
   const [addPhoneError, setAddPhoneError] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editEmail, setEditEmail] = useState("");
+  const [editName, setEditName] = useState(() => cachedData?.editName || profile?.name || "");
+  const [editEmail, setEditEmail] = useState(() => cachedData?.editEmail || profile?.email || "");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [newAddrLabel, setNewAddrLabel] = useState("Hem");
-  const [newAddrStreet, setNewAddrStreet] = useState("");
-  const [newAddrCity, setNewAddrCity] = useState("");
-  const [newAddrZip, setNewAddrZip] = useState("");
-  const [newAddrNote, setNewAddrNote] = useState("");
-  const [addrSaving, setAddrSaving] = useState(false);
+  const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
+  const [addrModalOpen, setAddrModalOpen] = useState(false);
+  const setStoreAddress = useAppStore((s) => s.setAddress);
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
-  // Native Google OAuth
+  // Native Google + Apple OAuth
   const { prompt: googlePrompt, tokenResult: googleResult, error: googleError } = useGoogleAuth();
+  const { prompt: applePrompt, tokenResult: appleResult, error: appleError } = useAppleAuth();
+
+  // Google/Apple sign-in completed: if the OAuth user has no verified phone
+  // yet, gate them — DO NOT setToken/setProfile until they finish phone+OTP
+  // via the dedicated AddPhone flow on this screen. This is a backstop; the
+  // backend also rejects OAuth-only users on protected endpoints.
+  const handleSocialAuthResult = useCallback((result: { token: string; user: any }) => {
+    setSocialLoading(null);
+    if (result.user?.needsPhone) {
+      setToken(result.token);
+      setProfile(result.user);
+      setShowAddPhone(true);
+      return;
+    }
+    setToken(result.token);
+    setProfile(result.user);
+    fetchProfileData(result.token);
+  }, [setToken, setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (googleResult) {
-      setToken(googleResult.token);
-      setProfile(googleResult.user);
-      setSocialLoading(null);
-      fetchProfileData(googleResult.token);
-    }
+    if (googleResult) handleSocialAuthResult(googleResult);
   }, [googleResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -130,6 +157,17 @@ export default function ProfileScreen({
       if (googleError !== "__cancelled__") setLoginError(googleError);
     }
   }, [googleError]);
+
+  useEffect(() => {
+    if (appleResult) handleSocialAuthResult(appleResult);
+  }, [appleResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (appleError) {
+      setSocialLoading(null);
+      if (appleError !== "__cancelled__") setLoginError(appleError);
+    }
+  }, [appleError]);
 
   const getAuthHeaders = useCallback(
     (authToken: string) => ({ Authorization: `Bearer ${authToken}` }),
@@ -144,19 +182,9 @@ export default function ProfileScreen({
     [normalizePhone]
   );
 
-  const parseQueryParams = useCallback((url: string) => {
-    const query = url.split("?")[1] || "";
-    return query.split("&").reduce<Record<string, string>>((acc, part) => {
-      if (!part) return acc;
-      const [key, value = ""] = part.split("=");
-      acc[decodeURIComponent(key)] = decodeURIComponent(value);
-      return acc;
-    }, {});
-  }, []);
-
   const fetchProfileData = useCallback(
-    async (authToken: string) => {
-      setPageLoading(true);
+    async (authToken: string, { showLoader = true }: { showLoader?: boolean } = {}) => {
+      if (showLoader) setPageLoading(true);
       try {
         const headers = getAuthHeaders(authToken);
         const [profileRes, ordersRes, dealsRes, addressRes] = await Promise.all([
@@ -170,10 +198,30 @@ export default function ProfileScreen({
         setProfile(nextProfile);
         setOrders((ordersRes.data || []) as Order[]);
         setDeals((dealsRes.data || []) as PersonalDeal[]);
-        setSavedAddresses((addressRes.data || []) as SavedAddress[]);
+        const addresses = (addressRes.data || []) as SavedAddress[];
+        setSavedAddresses(addresses);
+
+        // Sync default saved address into the delivery address slot so HomeScreen shows it
+        const defaultAddr = addresses.find((a) => a.isDefault);
+        if (defaultAddr && !deliveryAddress) {
+          const fullStreet = [defaultAddr.street, defaultAddr.zip, defaultAddr.city].filter(Boolean).join(", ");
+          const coords = defaultAddr.latitude && defaultAddr.longitude
+            ? { lat: defaultAddr.latitude, lng: defaultAddr.longitude }
+            : null;
+          setDeliveryAddress(fullStreet, coords);
+        }
         setEditName(nextProfile?.name || "");
         setEditEmail(nextProfile?.email || "");
         setShowAddPhone(!nextProfile?.phone);
+        setScreenCache<ProfileScreenCache>("profile", authToken, {
+          profile: nextProfile,
+          orders: (ordersRes.data || []) as Order[],
+          deals: (dealsRes.data || []) as PersonalDeal[],
+          savedAddresses: (addressRes.data || []) as SavedAddress[],
+          editName: nextProfile?.name || "",
+          editEmail: nextProfile?.email || "",
+          showAddPhone: !nextProfile?.phone,
+        });
       } catch {
         clearSession();
         setOrders([]);
@@ -183,7 +231,7 @@ export default function ProfileScreen({
         setPageLoading(false);
       }
     },
-    [clearSession, getAuthHeaders, setProfile]
+    [clearSession, getAuthHeaders, setProfile, setDeliveryAddress, deliveryAddress]
   );
 
   useEffect(() => {
@@ -196,23 +244,43 @@ export default function ProfileScreen({
       setShowAddPhone(false);
       return;
     }
-    fetchProfileData(token).catch(() => clearSession());
+    fetchProfileData(token, { showLoader: initialProfileFetchShouldShowLoader }).catch(() => clearSession());
   }, [clearSession, fetchProfileData, setProfile, token]);
 
   const handleIncomingAuthUrl = useCallback(
     async (url: string | null) => {
-      if (!url || !url.startsWith(APP_AUTH_DEEP_LINK)) return;
-      const params = parseQueryParams(url);
-      if (params.error) {
-        Alert.alert("Inloggning misslyckades", params.error);
+      if (!url || !isAuthRedirectUrl(url)) return;
+      const { error, token, accessToken, refreshToken } = parseAuthRedirect(url);
+      if (error) {
+        Alert.alert("Inloggning misslyckades", error);
         return;
       }
-      if (!params.token) return;
+
+      if (accessToken && refreshToken) {
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (sessionError) {
+          setLoginError(sessionError.message || "Kunde inte slutföra inloggningen.");
+          return;
+        }
+
+        const nextToken = data.session?.access_token;
+        if (!nextToken) return;
+        setPageLoading(true);
+        setLoginError("");
+        setToken(nextToken);
+        return;
+      }
+
+      const nextToken = token ?? accessToken;
+      if (!nextToken) return;
       setPageLoading(true);
       setLoginError("");
-      setToken(params.token);
+      setToken(nextToken);
     },
-    [parseQueryParams, setToken]
+    [setToken]
   );
 
   useEffect(() => {
@@ -225,14 +293,25 @@ export default function ProfileScreen({
     return () => subscription.remove();
   }, [handleIncomingAuthUrl]);
 
+  useEffect(() => {
+    if (activeTab === "addresses") {
+      readQuickAddresses().then(setQuickAddresses);
+    }
+  }, [activeTab]);
+
   const sendOtpToPhone = useCallback(async (phoneNumber: string) => {
     setAuthLoading(true);
     setLoginError("");
     setAddPhoneError("");
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: phoneNumber,
-      });
+      // If the current user is a Google/Apple session that is missing a phone,
+      // *attach* the phone to the existing Supabase user instead of starting a
+      // fresh phone sign-in (which would mint a separate account). Twilio still
+      // delivers the OTP — the difference is the verification type used below.
+      const isLinking = !!token && !!(profile as any)?.needsPhone;
+      const { error } = isLinking
+        ? await supabase.auth.updateUser({ phone: phoneNumber })
+        : await supabase.auth.signInWithOtp({ phone: phoneNumber });
       if (error) throw error;
       setOtpPhone(phoneNumber);
       setShowOtp(true);
@@ -244,7 +323,7 @@ export default function ProfileScreen({
       setAuthLoading(false);
       setAddPhoneLoading(false);
     }
-  }, []);
+  }, [token, profile]);
 
   const handleSendOtp = useCallback(async () => {
     if (!phone.trim()) {
@@ -291,14 +370,33 @@ export default function ProfileScreen({
     setAuthLoading(true);
     setLoginError("");
     try {
+      const isLinking = !!token && !!(profile as any)?.needsPhone;
       const { data, error } = await supabase.auth.verifyOtp({
         phone: otpPhone,
         token: otpCode,
-        type: 'sms',
+        type: isLinking ? 'phone_change' : 'sms',
       });
-      
+
       if (error) throw error;
-      
+
+      // For phone_change linking, Supabase doesn't always return a fresh
+      // session in `data` — pull the current one and re-fetch the profile so
+      // the `needsPhone` gate clears.
+      if (isLinking) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const tok = session?.access_token ?? token;
+        setToken(tok);
+        try {
+          const profileRes = await api.get('/api/profile', { headers: { Authorization: `Bearer ${tok}` } });
+          setProfile(profileRes.data);
+        } catch {}
+        setShowOtp(false);
+        setOtpCode("");
+        setAddPhoneNum("");
+        setPageLoading(true);
+        return;
+      }
+
       if (data.session) {
         setToken(data.session.access_token);
         const nextProfile = {
@@ -321,13 +419,15 @@ export default function ProfileScreen({
     } finally {
       setAuthLoading(false);
     }
-  }, [otpCode, otpPhone, setProfile, setToken]);
+  }, [otpCode, otpPhone, profile, setProfile, setToken, token]);
 
   const handleSocialLogin = useCallback(
-    async (provider: "google" | "facebook") => {
+    async (provider: "google" | "facebook" | "apple") => {
       setSocialLoading(provider);
       if (provider === "google") {
         await googlePrompt();
+      } else if (provider === "apple") {
+        await applePrompt();
       } else {
         try {
           const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
@@ -337,16 +437,36 @@ export default function ProfileScreen({
           if (oauthErr || !data.url) throw oauthErr ?? new Error("No OAuth URL");
           const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
           if (result.type === "success" && result.url) {
-            const code = new URL(result.url).searchParams.get("code");
-            if (code) {
-              const { data: sd } = await supabase.auth.exchangeCodeForSession(code);
-              const accessToken = sd.session?.access_token;
-              if (accessToken) {
-                const profileRes = await api.get("/api/profile", { headers: { Authorization: `Bearer ${accessToken}` } });
-                setToken(accessToken);
-                setProfile(profileRes.data);
-                fetchProfileData(accessToken);
-              }
+            const {
+              code,
+              accessToken,
+              refreshToken,
+              error: authError,
+            } = parseAuthRedirect(result.url);
+            if (authError) throw new Error(authError);
+
+            let sessionAccessToken: string | undefined;
+
+            if (accessToken && refreshToken) {
+              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+              });
+              if (sessionError) throw sessionError;
+              sessionAccessToken = sessionData.session?.access_token;
+            } else if (code) {
+              const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+              if (sessionError) throw sessionError;
+              sessionAccessToken = sessionData.session?.access_token;
+            }
+
+            if (sessionAccessToken) {
+              const profileRes = await api.get("/api/profile", {
+                headers: { Authorization: `Bearer ${sessionAccessToken}` },
+              });
+              setToken(sessionAccessToken);
+              setProfile(profileRes.data);
+              fetchProfileData(sessionAccessToken);
             }
           }
         } catch {
@@ -356,7 +476,7 @@ export default function ProfileScreen({
         }
       }
     },
-    [googlePrompt, fetchProfileData, setToken, setProfile]
+    [googlePrompt, applePrompt, fetchProfileData, setToken, setProfile]
   );
 
   const handleLogout = useCallback(async () => {
@@ -394,69 +514,6 @@ export default function ProfileScreen({
       setIsSaving(false);
     }
   }, [editEmail, editName, getAuthHeaders, profile, setProfile, token]);
-
-  const refreshAddresses = useCallback(async () => {
-    if (!token) return;
-    await fetchProfileData(token);
-  }, [fetchProfileData, token]);
-
-  const handleSaveAddress = useCallback(async () => {
-    if (!token) return;
-    if (!newAddrStreet.trim() || !newAddrCity.trim() || !newAddrZip.trim()) {
-      Alert.alert("Adress saknas", "Fyll i gata, stad och postnummer.");
-      return;
-    }
-    setAddrSaving(true);
-    try {
-      await api.post(
-        "/api/profile/addresses",
-        {
-          label: newAddrLabel,
-          street: newAddrStreet.trim(),
-          city: newAddrCity.trim(),
-          zip: newAddrZip.trim(),
-          note: newAddrNote.trim() || undefined,
-          isDefault: savedAddresses.length === 0,
-        },
-        { headers: getAuthHeaders(token) }
-      );
-      setNewAddrStreet("");
-      setNewAddrCity("");
-      setNewAddrZip("");
-      setNewAddrNote("");
-      await refreshAddresses();
-    } catch (error: any) {
-      Alert.alert("Kunde inte spara", error?.response?.data?.error || "Försök igen om en stund.");
-    } finally {
-      setAddrSaving(false);
-    }
-  }, [addrSaving, getAuthHeaders, newAddrCity, newAddrLabel, newAddrNote, newAddrStreet, newAddrZip, refreshAddresses, savedAddresses.length, token]);
-
-  const setAddressAsDefault = useCallback(
-    async (addressId: string) => {
-      if (!token) return;
-      try {
-        await api.patch(`/api/profile/addresses/${addressId}`, { isDefault: true }, { headers: getAuthHeaders(token) });
-        await refreshAddresses();
-      } catch {
-        Alert.alert("Kunde inte uppdatera", "Adressen kunde inte göras till standard.");
-      }
-    },
-    [getAuthHeaders, refreshAddresses, token]
-  );
-
-  const deleteSavedAddress = useCallback(
-    async (addressId: string) => {
-      if (!token) return;
-      try {
-        await api.delete(`/api/profile/addresses/${addressId}`, { headers: getAuthHeaders(token) });
-        setSavedAddresses((current) => current.filter((item) => item.id !== addressId));
-      } catch {
-        Alert.alert("Kunde inte radera", "Adressen kunde inte tas bort.");
-      }
-    },
-    [getAuthHeaders, token]
-  );
 
   const handleReorder = useCallback(
     async (orderId: string) => {
@@ -528,6 +585,15 @@ export default function ProfileScreen({
     return (
       <ScreenWrap>
         <View style={{ paddingTop: 18, paddingBottom: 18 }}>
+          {/* Language button */}
+          <Pressable
+            onPress={() => setLangPickerOpen(true)}
+            style={{ alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, backgroundColor: palette.panelMuted, borderWidth: 1, borderColor: palette.border, marginBottom: 16 }}
+          >
+            <Ionicons name="globe-outline" size={14} color={palette.muted} />
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{t(`language.languages.${currentLanguage}`)}</Text>
+          </Pressable>
+
           <View
             style={{
               width: 108,
@@ -547,12 +613,12 @@ export default function ProfileScreen({
 
           <Text style={{ color: palette.text, fontSize: 34, fontWeight: "900", textAlign: "center" }}>VÄLKOMMEN</Text>
           <Text style={{ color: palette.gold, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: -2 }}>TILLBAKA</Text>
-          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 2, textAlign: "center", marginTop: 18 }}>
-            LOGGA IN MED TELEFON ELLER SOCIALT KONTO
+          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: ls(2), textAlign: "center", marginTop: 18 }}>
+            {t('profile.guest.description').toUpperCase()}
           </Text>
 
           <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
-            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2, marginBottom: 12 }}>TELEFONNUMMER</Text>
+            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 12 }}>{t('profile.overview.phone').toUpperCase()}</Text>
             <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
               <Pressable
                 onPress={() => {
@@ -591,13 +657,23 @@ export default function ProfileScreen({
 
             {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
 
-            <PrimaryButton label={authLoading ? "FORTSATT..." : "FORTSATT"} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
+            <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
               <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 2 }}>ELLER MED SOCIALT</Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>{t('common.or')}</Text>
               <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
             </View>
+
+            {Platform.OS === "ios" && (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={24}
+                style={{ width: "100%", height: 54, marginBottom: 12, opacity: socialLoading && socialLoading !== "apple" ? 0.6 : 1 }}
+                onPress={() => handleSocialLogin("apple")}
+              />
+            )}
 
             <View style={{ flexDirection: "row", gap: 12 }}>
               {(["google", "facebook"] as const).map((provider) => (
@@ -639,8 +715,8 @@ export default function ProfileScreen({
         <Modal visible={showOtp} transparent animationType="slide" onRequestClose={() => setShowOtp(false)}>
           <View style={styles.modalBackdrop}>
             <View style={[styles.modalCard, { borderRadius: 30 }]}>
-              <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>Verifiera kod</Text>
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Kod skickad till {otpPhone}</Text>
+              <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>{t('profile.otp.title')}</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('profile.otp.sent', { phone: otpPhone })}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="123 456"
@@ -650,9 +726,31 @@ export default function ProfileScreen({
                 keyboardType="number-pad"
               />
               {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginBottom: 10, textAlign: "center" }}>{loginError}</Text>}
-              <PrimaryButton label={authLoading ? "VERIFIERAR..." : "BEKRÄFTA KOD"} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
+              <PrimaryButton label={authLoading ? t('common.loading') : t('profile.otp.confirmBtn')} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
               <Pressable style={{ marginTop: 10 }} onPress={() => setShowOtp(false)}>
-                <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>Avbryt</Text>
+                <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('profile.otp.cancelBtn')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+
+        <Modal visible={langPickerOpen} transparent animationType="slide" onRequestClose={() => setLangPickerOpen(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={[styles.modalCard, { borderRadius: 30, gap: 14 }]}>
+              <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center" }}>{t('language.title')}</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", textAlign: "center" }}>{t('language.subtitle')}</Text>
+              {(['en', 'sv', 'ar'] as const).map((lang) => (
+                <Pressable
+                  key={lang}
+                  onPress={async () => { await changeLanguage(lang); setLangPickerOpen(false); }}
+                  style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 16, backgroundColor: currentLanguage === lang ? "rgba(234,181,69,0.1)" : palette.panelMuted, borderWidth: 1, borderColor: currentLanguage === lang ? palette.gold : palette.border }}
+                >
+                  <Text style={{ color: currentLanguage === lang ? palette.gold : palette.text, fontSize: 15, fontWeight: "900" }}>{t(`language.languages.${lang}`)}</Text>
+                  {currentLanguage === lang && <Ionicons name="checkmark-circle" size={20} color={palette.gold} />}
+                </Pressable>
+              ))}
+              <Pressable style={{ marginTop: 4 }} onPress={() => setLangPickerOpen(false)}>
+                <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('common.cancel')}</Text>
               </Pressable>
             </View>
           </View>
@@ -678,7 +776,7 @@ export default function ProfileScreen({
             <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
               <Ionicons name={profile?.isVerified ? "shield-checkmark" : "alert-circle-outline"} size={14} color={profile?.isVerified ? palette.success : palette.danger} />
               <Text style={{ color: profile?.isVerified ? palette.success : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                {profile?.isVerified ? "Verifierad" : "Ej verifierad"}
+                {profile?.isVerified ? t('profile.verified') : t('profile.notVerified')}
               </Text>
             </View>
           </View>
@@ -692,11 +790,11 @@ export default function ProfileScreen({
       <View style={{ flexDirection: "row", backgroundColor: palette.panelMuted, borderRadius: 24, padding: 6, marginBottom: 6, flexWrap: "wrap", borderWidth: 1, borderColor: palette.border }}>
         {(
           [
-            { id: "overview", icon: "person-outline", label: "HEM" },
-            { id: "deals", icon: "sparkles-outline", label: "DEALS" },
-            { id: "orders", icon: "time-outline", label: "ORDER" },
-            { id: "addresses", icon: "location-outline", label: "ADRESS" },
-            { id: "settings", icon: "settings-outline", label: "INST" },
+            { id: "overview", icon: "person-outline", label: t('profile.tabs.overview').toUpperCase() },
+            { id: "deals", icon: "sparkles-outline", label: t('profile.tabs.deals').toUpperCase() },
+            { id: "orders", icon: "time-outline", label: t('profile.tabs.orders').toUpperCase() },
+            { id: "addresses", icon: "location-outline", label: t('profile.tabs.addresses').toUpperCase() },
+            { id: "settings", icon: "settings-outline", label: t('profile.tabs.settings').toUpperCase() },
           ] as const
         ).map((tab) => (
           <Pressable
@@ -717,7 +815,7 @@ export default function ProfileScreen({
             }}
           >
             <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.id ? palette.gold : palette.muted} />
-            <Text style={{ color: activeTab === tab.id ? palette.text : palette.muted, fontSize: 8, fontWeight: "900" }}>{tab.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} style={{ color: activeTab === tab.id ? palette.text : palette.muted, fontSize: 8, fontWeight: "900" }}>{tab.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -727,47 +825,19 @@ export default function ProfileScreen({
         <>
           <View style={[styles.formCard, { borderRadius: 30, padding: 22, gap: 18 }]}>
             {[
-              { icon: "call-outline", label: "TELEFON", value: profile.phone || "Ej angivet" },
-              { icon: "mail-outline", label: "E-POST", value: profile.email || "Ej angivet" },
-              { icon: "home-outline", label: "STANDARDADRESS", value: savedAddresses.find((a) => a.isDefault)?.street || (profile as any).address || "Ingen sparad adress" },
-            ].map(({ icon, label, value }) => (
-              <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              { icon: "call-outline", label: t('profile.overview.phone').toUpperCase(), value: profile.phone || "Ej angivet", onPress: undefined },
+              { icon: "mail-outline", label: "E-POST", value: profile.email || "Ej angivet", onPress: undefined },
+              { icon: "home-outline", label: t('profile.overview.address').toUpperCase(), value: deliveryAddress || savedAddresses.find((a) => a.isDefault)?.street || "Ej angivet", onPress: () => setActiveTab("addresses") },
+            ].map(({ icon, label, value, onPress }) => (
+              <Pressable key={label} onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <Ionicons name={icon as any} size={16} color={palette.muted} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.6 }}>{label}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(1.6) }}>{label}</Text>
                   <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800", marginTop: 2 }}>{value}</Text>
                 </View>
-              </View>
+                {onPress && <Ionicons name="chevron-forward-outline" size={14} color={palette.muted} />}
+              </Pressable>
             ))}
-          </View>
-
-          {/* Preference options */}
-          <View style={[styles.formCard, { borderRadius: 34, padding: 22, marginBottom: 20 }]}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", fontStyle: "italic", marginBottom: 12 }}>MINA PREFERENSER</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {PREFERENCE_OPTIONS.map((pref) => {
-                const active = dislikedIngredients.includes(pref);
-                return (
-                  <Pressable
-                    key={pref}
-                    onPress={() => {
-                      const next = active ? dislikedIngredients.filter((i) => i !== pref) : [...dislikedIngredients, pref];
-                      setDislikedIngredients(next);
-                    }}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
-                      borderWidth: 1,
-                      borderColor: active ? palette.gold : palette.border,
-                    }}
-                  >
-                    <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 11, fontWeight: "900" }}>{pref.toUpperCase()}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
           </View>
         </>
       )}
@@ -778,14 +848,14 @@ export default function ProfileScreen({
           {!deals.length ? (
             <View style={[styles.formCard, { borderRadius: 30, padding: 26, alignItems: "center" }]}>
               <Ionicons name="pricetags-outline" size={34} color={palette.muted} />
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>Inga erbjudanden tillgängliga</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>{t('profile.deals.empty')}</Text>
             </View>
           ) : (
             deals.map((deal) => (
               <View key={deal.id || deal.code} style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 16 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{deal.campaign?.title || "Personligt erbjudande"}</Text>
+                    <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{deal.campaign?.title || t('profile.deals.personalDefault')}</Text>
                     <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900", fontStyle: "italic", marginTop: 6 }}>
                       {deal.campaign?.discountType === "PERCENTAGE" ? `${deal.campaign?.discountValue || 0}% RABATT` : `${deal.campaign?.discountValue || 0} KR RABATT`}
                     </Text>
@@ -813,7 +883,7 @@ export default function ProfileScreen({
           {!orders.length ? (
             <View style={[styles.formCard, { borderRadius: 30, padding: 26, alignItems: "center" }]}>
               <Ionicons name="time-outline" size={34} color={palette.muted} />
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>Inga ordrar ännu</Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>{t('profile.orders.empty')}</Text>
             </View>
           ) : (
             orders.map((order) => (
@@ -841,7 +911,7 @@ export default function ProfileScreen({
                   >
                     <Ionicons name={reorderingId === order.id ? "hourglass-outline" : "refresh-outline"} size={14} color={palette.gold} />
                     <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>
-                      {reorderingId === order.id ? "Laddar" : "Beställ igen"}
+                      {reorderingId === order.id ? t('common.loading') : t('profile.orders.reorder')}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -849,7 +919,7 @@ export default function ProfileScreen({
                     style={{ backgroundColor: palette.panelMuted, borderRadius: 14, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 8 }}
                   >
                     <Ionicons name="chevron-forward-outline" size={14} color={palette.text} />
-                    <Text style={{ color: palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Detaljer</Text>
+                    <Text style={{ color: palette.text, fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{t('profile.orders.details')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -860,43 +930,79 @@ export default function ProfileScreen({
 
       {/* Addresses tab */}
       {activeTab === "addresses" && (
-        <View style={{ gap: 14 }}>
-          {savedAddresses.map((addr) => (
-            <View key={addr.id} style={[styles.formCard, { borderRadius: 26, padding: 18, flexDirection: "row", gap: 12, alignItems: "center" }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>{addr.label}</Text>
-                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", marginTop: 4 }}>{addr.street}, {addr.zip} {addr.city}</Text>
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2.5), paddingHorizontal: 4 }}>
+            {t('profile.addresses.label', { count: quickAddresses.length })}
+          </Text>
+          {quickAddresses.length === 0 && (
+            <View style={[styles.formCard, { borderRadius: 26, padding: 24, alignItems: "center", gap: 10 }]}>
+              <Ionicons name="location-outline" size={28} color={palette.muted} />
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('profile.addresses.empty')}</Text>
+            </View>
+          )}
+          {quickAddresses.map((addr, i) => (
+            <View key={addr.id || String(i)} style={[styles.formCard, { borderRadius: 26, padding: 16, flexDirection: "row", gap: 12, alignItems: "center" }]}>
+              <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: addr.isDefault ? "rgba(234,181,69,0.15)" : palette.panelMuted, alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="location" size={16} color={addr.isDefault ? palette.gold : palette.muted} />
               </View>
-              <View style={{ gap: 8 }}>
+              <View style={{ flex: 1 }}>
+                {addr.isDefault && (
+                  <Text style={{ color: palette.gold, fontSize: 8, fontWeight: "900", letterSpacing: ls(1.5), marginBottom: 2 }}>{t('profile.addresses.default')}</Text>
+                )}
+                <Text numberOfLines={1} style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{formatQuickAddress(addr)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 4 }}>
                 {!addr.isDefault && (
-                  <Pressable onPress={() => setAddressAsDefault(addr.id)} style={{ padding: 8 }}>
-                    <Ionicons name="checkmark-outline" size={16} color={palette.gold} />
+                  <Pressable
+                    hitSlop={8}
+                    onPress={async () => {
+                      const next = await setDefaultQuickAddress(addr);
+                      setQuickAddresses(next);
+                    }}
+                    style={{ padding: 8, borderRadius: 10, backgroundColor: "rgba(234,181,69,0.1)" }}
+                  >
+                    <Ionicons name="star-outline" size={15} color={palette.gold} />
                   </Pressable>
                 )}
                 <Pressable
+                  hitSlop={8}
                   onPress={() => {
-                    Alert.alert("Radera adress?", "Den här adressen tas bort från ditt konto.", [
+                    Alert.alert("Radera adress?", formatQuickAddress(addr), [
                       { text: "Avbryt", style: "cancel" },
-                      { text: "Radera", style: "destructive", onPress: () => { void deleteSavedAddress(addr.id); } },
+                      { text: "Radera", style: "destructive", onPress: async () => {
+                        const next = await removeQuickAddress(addr);
+                        setQuickAddresses(next);
+                      }},
                     ]);
                   }}
-                  style={{ padding: 8 }}
+                  style={{ padding: 8, borderRadius: 10, backgroundColor: "rgba(220,38,38,0.08)" }}
                 >
-                  <Ionicons name="trash-outline" size={16} color={palette.danger} />
+                  <Ionicons name="trash-outline" size={15} color={palette.danger} />
                 </Pressable>
               </View>
             </View>
           ))}
-          <View style={[styles.formCard, { borderRadius: 30, padding: 20, gap: 12 }]}>
-            <Text style={{ color: palette.text, fontSize: 15, fontWeight: "900", fontStyle: "italic" }}>LÄGG TILL ADRESS</Text>
-            <TextInput style={styles.input} placeholder="Gatuadress" placeholderTextColor={palette.muted} value={newAddrStreet} onChangeText={setNewAddrStreet} />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="Stad" placeholderTextColor={palette.muted} value={newAddrCity} onChangeText={setNewAddrCity} />
-              <TextInput style={[styles.input, { flex: 1, marginBottom: 0 }]} placeholder="Postnummer" placeholderTextColor={palette.muted} value={newAddrZip} onChangeText={setNewAddrZip} />
-            </View>
-            <TextInput style={[styles.input, { marginBottom: 0 }]} placeholder="Portkod, våning (valfritt)" placeholderTextColor={palette.muted} value={newAddrNote} onChangeText={setNewAddrNote} />
-            <PrimaryButton label={addrSaving ? "SPARAR..." : "SPARA ADRESS"} onPress={handleSaveAddress} disabled={addrSaving} icon="add-outline" style={{ marginTop: 4 }} />
-          </View>
+          {quickAddresses.length < 3 && (
+            <Pressable
+              onPress={() => setAddrModalOpen(true)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 10, padding: 16, borderRadius: 24, borderWidth: 1, borderStyle: "dashed", borderColor: "rgba(234,181,69,0.4)" }}
+            >
+              <Ionicons name="add-circle-outline" size={20} color={palette.gold} />
+              <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900", letterSpacing: ls(2) }}>{t('profile.addresses.add')}</Text>
+            </Pressable>
+          )}
+          <AddressModal
+            visible={addrModalOpen}
+            initialOrderType="DELIVERY"
+            onClose={() => setAddrModalOpen(false)}
+            onSelect={async (addressText, _, coords) => {
+              const { rememberQuickAddress } = await import("../lib/quickAddresses");
+              await rememberQuickAddress({ street: addressText, latitude: coords?.lat, longitude: coords?.lng });
+              const next = await readQuickAddresses();
+              setQuickAddresses(next);
+              setStoreAddress(addressText, coords ?? null);
+            }}
+          />
         </View>
       )}
 
@@ -905,13 +1011,22 @@ export default function ProfileScreen({
         <View style={{ gap: 14 }}>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable onPress={() => setIsEditing(true)} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Redigera profil</Text>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.editProfile')}</Text>
               <Ionicons name="chevron-forward-outline" size={18} color={palette.muted} />
             </Pressable>
           </View>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
+            <Pressable onPress={() => setLangPickerOpen(true)} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.language')}</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t(`language.languages.${currentLanguage}`)}</Text>
+                <Ionicons name="chevron-forward-outline" size={18} color={palette.muted} />
+              </View>
+            </Pressable>
+          </View>
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable onPress={handleDeleteAccount} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>Radera konto</Text>
+              <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.deleteAccount')}</Text>
               <Ionicons name="trash-outline" size={18} color={palette.danger} />
             </Pressable>
           </View>
@@ -924,13 +1039,13 @@ export default function ProfileScreen({
             <Pressable onPress={() => setIsEditing(false)}>
               <Ionicons name="arrow-back-outline" size={18} color={palette.text} />
             </Pressable>
-            <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic" }}>ÄNDRA UPPGIFTER</Text>
+            <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic" }}>{t('profile.edit.title')}</Text>
           </View>
-          <TextInput style={styles.input} placeholder="Namn" placeholderTextColor={palette.muted} value={editName} onChangeText={setEditName} />
-          <TextInput style={styles.input} placeholder="E-post" placeholderTextColor={palette.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
+          <TextInput style={styles.input} placeholder={t('profile.edit.namePlaceholder')} placeholderTextColor={palette.muted} value={editName} onChangeText={setEditName} />
+          <TextInput style={styles.input} placeholder={t('profile.edit.emailPlaceholder')} placeholderTextColor={palette.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
           <TextInput style={[styles.input, { color: palette.muted }]} editable={false} value={profile.phone || "Ej angivet"} />
           <PrimaryButton
-            label={isSaving ? "SPARAR..." : saveSuccess ? "SPARAT" : "SPARA"}
+            label={isSaving ? t('common.saving') : saveSuccess ? t('common.saved') : t('common.save')}
             onPress={handleUpdateProfile}
             disabled={isSaving}
             icon={saveSuccess ? "checkmark-outline" : "save-outline"}
@@ -939,12 +1054,43 @@ export default function ProfileScreen({
         </View>
       )}
 
+      {/* Language Picker Modal */}
+      <Modal visible={langPickerOpen} transparent animationType="slide" onRequestClose={() => setLangPickerOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { borderRadius: 30, gap: 14 }]}>
+            <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center" }}>{t('language.title')}</Text>
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", textAlign: "center" }}>{t('language.subtitle')}</Text>
+            {(['en', 'sv', 'ar'] as const).map((lang) => (
+              <Pressable
+                key={lang}
+                onPress={async () => { await changeLanguage(lang); setLangPickerOpen(false); }}
+                style={{
+                  flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                  padding: 16, borderRadius: 16,
+                  backgroundColor: currentLanguage === lang ? "rgba(234,181,69,0.1)" : palette.panelMuted,
+                  borderWidth: 1,
+                  borderColor: currentLanguage === lang ? palette.gold : palette.border,
+                }}
+              >
+                <Text style={{ color: currentLanguage === lang ? palette.gold : palette.text, fontSize: 15, fontWeight: "900" }}>
+                  {t(`language.languages.${lang}`)}
+                </Text>
+                {currentLanguage === lang && <Ionicons name="checkmark-circle" size={20} color={palette.gold} />}
+              </Pressable>
+            ))}
+            <Pressable style={{ marginTop: 4 }} onPress={() => setLangPickerOpen(false)}>
+              <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('common.cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       {/* OTP modal */}
       <Modal visible={showOtp} transparent animationType="slide" onRequestClose={() => setShowOtp(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalCard, { borderRadius: 30 }]}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>Verifiera kod</Text>
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Kod skickad till {otpPhone}</Text>
+            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>{t('profile.otp.title')}</Text>
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('profile.otp.sent', { phone: otpPhone })}</Text>
             <TextInput
               style={styles.input}
               placeholder="000 000"
@@ -954,9 +1100,9 @@ export default function ProfileScreen({
               keyboardType="number-pad"
             />
             {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginBottom: 10, textAlign: "center" }}>{loginError}</Text>}
-            <PrimaryButton label={authLoading ? "VERIFIERAR..." : "BEKRÄFTA KOD"} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
+            <PrimaryButton label={authLoading ? t('common.loading') : t('profile.otp.confirmBtn')} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
             <Pressable style={{ marginTop: 10 }} onPress={() => setShowOtp(false)}>
-              <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>Avbryt</Text>
+              <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('profile.otp.cancelBtn')}</Text>
             </Pressable>
           </View>
         </View>

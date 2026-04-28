@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "MatGo",
-    "slug": "matgo",
-    "scheme": "matgo",
+    "name": "FoodGo",
+    "slug": "foodgo",
+    "scheme": "foodgo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,14 +15,19 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.matgo.reactnative",
+      "bundleIdentifier": "com.foodgoJalle.app",
       "infoPlist": {
         "NSSupportsLiveActivities": true,
-        "NSSupportsLiveActivitiesFrequentUpdates": true
-      }
+        "NSSupportsLiveActivitiesFrequentUpdates": true,
+        "UIBackgroundModes": [
+          "remote-notification",
+          "fetch"
+        ]
+      },
+      "appleTeamId": "3KDGPYZXHH"
     },
     "android": {
-      "package": "com.matgo.reactnative",
+      "package": "com.foodgo.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0a0f"
@@ -35,7 +40,7 @@
           "autoVerify": true,
           "data": [
             {
-              "scheme": "matgo",
+              "scheme": "foodgo",
               "host": "auth"
             }
           ],
@@ -47,7 +52,23 @@
       ]
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-apple-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0b0a0f",
+          "sounds": []
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.foodgoJalle.app",
+          "enableGooglePay": true
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png"

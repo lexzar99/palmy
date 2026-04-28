@@ -201,6 +201,17 @@ router.post('/', async (req: Request, res: Response) => {
       }
     }
 
+    // Hard gate: a Google/Apple-signed user without a verified phone cannot
+    // place orders. Forces the phone-linking flow client-side and prevents
+    // anyone from spinning up disposable OAuth accounts to abuse promos.
+    if (authUser?.oauthProvider && (!authUser?.phone || !authUser?.isVerified)) {
+      res.status(403).json({
+        error: 'Telefonverifiering krävs innan du kan beställa',
+        needsPhone: true,
+      });
+      return;
+    }
+
     // Resolve restaurant (must be explicit to avoid routing orders to the wrong restaurant)
     const restaurant = await prisma.restaurant.findFirst({
       where: data.restaurantId
@@ -873,6 +884,32 @@ router.get('/:id', async (req: Request, res: Response) => {
       })),
     });
   } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/orders/:id/live-activity-token
+// Stores the iOS Live Activity push token for an order so the backend can
+// later push status updates straight to the Dynamic Island (works even when
+// the app is killed). Token is hex-encoded and per-activity.
+router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body ?? {};
+    if (typeof token !== 'string' || token.length < 32 || token.length > 256 || !/^[a-f0-9]+$/i.test(token)) {
+      res.status(400).json({ error: 'Ogiltig token' });
+      return;
+    }
+    const updated = await prisma.order.updateMany({
+      where: { id: req.params.id },
+      data: { liveActivityToken: token },
+    });
+    if (updated.count === 0) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[live-activity-token] failed:', e);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

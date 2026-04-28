@@ -118,6 +118,7 @@ model Order {
   reviewReply           String?
   reviewRepliedAt       DateTime?
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
+  liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   restaurantId          String?

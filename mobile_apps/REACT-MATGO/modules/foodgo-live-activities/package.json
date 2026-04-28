@@ -1,0 +1,7 @@
+{
+  "name": "foodgo-live-activities",
+  "version": "1.0.0",
+  "description": "Local Expo module for FoodGo Dynamic Island Live Activities",
+  "main": "index.js",
+  "private": true
+}

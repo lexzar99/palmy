@@ -11,10 +11,13 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true }
+      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
     });
     if (!user) return res.status(404).json({ error: 'Hittades inte' });
-    res.json(user);
+    // OAuth-only users must complete phone linking before they can use the
+    // app. Surface the flag so the client can route them to the gate UI.
+    const needsPhone = !!user.oauthProvider && (!user.phone || !user.isVerified);
+    res.json({ ...user, needsPhone });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }

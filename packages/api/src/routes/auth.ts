@@ -93,6 +93,18 @@ async function resolveAdminByIdentifier(loginId: string) {
  * Unified auth middleware — verifies Supabase JWTs (primary) with a
  * fallback to the legacy custom JWT for a smooth transition period.
  */
+// Routes that an OAuth-only user (Google/Apple but no phone yet) must still
+// be allowed to hit so they can complete the phone-linking flow. Anything
+// outside this list is blocked by `requireVerifiedPhone` until they link.
+const PHONE_LINKING_ALLOWED_PATHS = new Set<string>([
+  '/api/profile',
+  '/api/auth/me',
+  '/api/auth/lookup-phone',
+  '/api/auth/send-otp',
+  '/api/auth/verify-otp',
+  '/api/auth/link-phone',
+]);
+
 export const authenticateUser = async (req: any, res: any, next: any) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -174,6 +186,37 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   } catch {
     return res.status(401).json({ error: 'Session utgången' });
   }
+};
+
+/**
+ * Hard gate: OAuth users (Google/Apple) MUST have a verified phone before
+ * they can access protected endpoints. Without this, anyone could create an
+ * unlimited number of accounts via Google/Apple and abuse the system.
+ *
+ * Allowed-listed paths let the user still hit the phone-linking flow itself.
+ */
+export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
+  if (!req.user?.id) return next();
+  const reqPath = req.baseUrl + req.path;
+  if (PHONE_LINKING_ALLOWED_PATHS.has(reqPath) || PHONE_LINKING_ALLOWED_PATHS.has(req.originalUrl.split('?')[0])) {
+    return next();
+  }
+  try {
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { phone: true, oauthProvider: true, isVerified: true },
+    });
+    const needsPhone = !!user?.oauthProvider && (!user?.phone || !user.isVerified);
+    if (needsPhone) {
+      return res.status(403).json({
+        error: 'Telefonverifiering krävs',
+        needsPhone: true,
+      });
+    }
+  } catch {
+    // If the lookup fails, fail open (the route's own auth will still apply).
+  }
+  next();
 };
 
 // POST /api/auth/send-otp

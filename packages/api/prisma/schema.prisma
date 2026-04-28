@@ -127,6 +127,7 @@ model Order {
   allergens             String      @default("[]") // Customer allergens captured at order time
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
   scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
+  liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
   restaurantId          String?
