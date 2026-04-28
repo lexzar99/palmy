@@ -9,7 +9,7 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { pushOrderStatusUpdate, sendApnsAlert } from '../lib/liveActivityPush';
+import { pushOrderStatusUpdate, sendApnsAlert, ApnsError } from '../lib/liveActivityPush';
 
 const router = Router();
 router.use(authenticate);
@@ -417,7 +417,17 @@ router.patch('/orders/:id/status', async (req, res) => {
         orderType: existing.type,
         etaMinutes: order.estimatedTime ?? null,
         etaEndsAt,
-      }).catch((e) => console.warn('[admin] Live Activity push failed:', e?.message));
+      }).catch(async (e) => {
+        console.warn('[admin] Live Activity push failed:', e?.message);
+        // iOS rotated / invalidated this activity token. Clearing it lets
+        // the client re-register a fresh one the next time it observes
+        // pushTokenUpdates (or starts a new activity).
+        if (e instanceof ApnsError && e.invalidToken) {
+          await (prisma as any).order
+            .update({ where: { id: order.id }, data: { liveActivityToken: null } })
+            .catch(() => null);
+        }
+      });
     }
 
     // Fetcha kundens Push Token via userId eller telefonnummer.
@@ -473,7 +483,17 @@ router.patch('/orders/:id/status', async (req, res) => {
             collapseId: `order-${order.id}`,
             threadId: `order-${order.id}`,
             data: { orderId: order.id, status },
-          }).catch((e) => console.warn('[admin] APNs alert failed:', e?.message));
+          }).catch(async (e) => {
+            console.warn('[admin] APNs alert failed:', e?.message);
+            // Token rotated / app uninstalled / wrong environment — wipe so
+            // we don't keep banging on a dead token. Client re-registers
+            // automatically next time the user opens the app.
+            if (e instanceof ApnsError && e.invalidToken && existing.userId) {
+              await (prisma as any).user
+                .update({ where: { id: existing.userId }, data: { apnsDeviceToken: null } })
+                .catch(() => null);
+            }
+          });
         } else if (userToNotify.pushToken) {
           console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);
           await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });

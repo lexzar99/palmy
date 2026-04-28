@@ -96,9 +96,19 @@ export async function pushLiveActivityUpdate(opts: {
     timestamp: now,
     event,
     'content-state': opts.state,
-    'stale-date': now + (opts.staleAfterSeconds ?? 60 * 60),
+    // Default 8h stale window — covers the entire delivery flow in real
+    // life and avoids iOS dimming the activity after one hour. Earlier
+    // value (1h) caused the LA to look "stale" / stop refreshing visually
+    // for users who left the app open during a slow restaurant night.
+    'stale-date': now + (opts.staleAfterSeconds ?? 8 * 60 * 60),
   };
-  if (opts.alertTitle || opts.alertBody) {
+  // NOTE: do NOT include the `alert` field on routine LA updates — APNs
+  // would deliver a banner + ding alongside the silent state update, which
+  // is exactly the duplicate-notification bug the user reported. The
+  // separate `sendApnsAlert` path (with apns-collapse-id) handles user-
+  // visible notifications. We still allow it on `event: 'end'` so the
+  // final state can deliver as a regular alert if a body was set.
+  if (event === 'end' && (opts.alertTitle || opts.alertBody)) {
     apsBody.alert = {
       title: opts.alertTitle ?? 'FoodGo',
       body: opts.alertBody ?? '',
@@ -117,6 +127,28 @@ export async function pushLiveActivityUpdate(opts: {
     payload: body,
     priority: '10',
   });
+}
+
+/**
+ * Raised by `sendApns` when APNs explicitly rejects the device/activity
+ * token (token rotated, app uninstalled, wrong environment, etc). Callers
+ * catch this to clear the stale token from the DB so future pushes don't
+ * keep silently failing.
+ */
+export class ApnsError extends Error {
+  public readonly status: number;
+  public readonly reason: string;
+  public readonly invalidToken: boolean;
+  constructor(status: number, reason: string) {
+    super(`APNs ${status}: ${reason}`);
+    this.status = status;
+    this.reason = reason;
+    this.invalidToken =
+      reason === 'BadDeviceToken' ||
+      reason === 'Unregistered' ||
+      reason === 'DeviceTokenNotForTopic' ||
+      reason === 'ExpiredToken';
+  }
 }
 
 function sendApns(opts: {
@@ -175,7 +207,12 @@ function sendApns(opts: {
       } else {
         const errBody = Buffer.concat(bodyChunks).toString('utf8');
         console.warn(`[liveActivityPush] APNs ${status}: ${errBody}`);
-        reject(new Error(`APNs status ${status}: ${errBody}`));
+        let reason = 'Unknown';
+        try {
+          const parsed = JSON.parse(errBody);
+          if (parsed?.reason) reason = String(parsed.reason);
+        } catch {}
+        reject(new ApnsError(status, reason));
       }
     });
     req.on('error', (err) => {

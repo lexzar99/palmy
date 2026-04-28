@@ -100,20 +100,21 @@ public class LiveActivitiesModule: Module {
                 orderType: orderType,
                 etaEndsAt: etaEndsAt
             )
-            // High relevanceScore on each update so iOS shows the activity prominently when status changes
-            let content = ActivityContent(state: newState, staleDate: nil, relevanceScore: 100)
-            let alert = AlertConfiguration(
-                title: LocalizedStringResource("FoodGo"),
-                body: LocalizedStringResource(stringLiteral: statusText),
-                sound: .default
-            )
+            // Silent state update — DO NOT pass an AlertConfiguration here.
+            // Every alertConfiguration triggers a system "ding" sound, which
+            // made the app appear to receive a new notification each time the
+            // user navigated and the global LA sync re-fetched the order. Use
+            // a stale-date 6h out so iOS keeps the activity prominent without
+            // throttling subsequent push-to-update writes.
+            let staleDate = Date().addingTimeInterval(6 * 60 * 60)
+            let content = ActivityContent(state: newState, staleDate: staleDate, relevanceScore: 100)
 
             if let activity = self.activities[orderId] as? Activity<OrderActivityAttributes> {
-                await activity.update(content, alertConfiguration: alert)
+                await activity.update(content)
             } else {
                 for activity in Activity<OrderActivityAttributes>.activities
                 where activity.attributes.orderId == orderId {
-                    await activity.update(content, alertConfiguration: alert)
+                    await activity.update(content)
                     self.activities[orderId] = activity
                     break
                 }

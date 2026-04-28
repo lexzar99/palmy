@@ -1019,7 +1019,7 @@ function AppContent() {
             </Stack.Navigator>
           </NavigationContainer>
 
-          {activeOrderId && currentRouteName !== "order" && (
+          {activeOrderId && (
             <LiveOrderBanner
               id={activeOrderId}
               openOrder={(id) => pushRoute({ name: "order", id } as any)}

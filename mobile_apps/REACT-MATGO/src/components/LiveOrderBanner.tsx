@@ -4,8 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../store/useAppStore';
 import { api, SOCKET_URL } from '../lib/api';
-import * as Notifications from 'expo-notifications';
-import { updateOrderActivity, endOrderActivity, mapServerStatusToActivity } from '../lib/liveActivities';
+import { mapServerStatusToActivity } from '../lib/liveActivities';
 import { io } from 'socket.io-client';
 import { palette } from '../constants/theme';
 import type { Order } from '../types';
@@ -79,7 +78,12 @@ export default function LiveOrderBanner({
   // Progress bar — animated separately from status
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  // ── Fetch + socket ────────────────────────────────────────────────────────────
+  // ── Fetch order data for the visual banner only ────────────────────────────
+  // The LiveActivity / push side is now handled globally in
+  // `useOrderActivitySync` mounted at App level — this component is purely
+  // presentational and just needs the latest order to render the right
+  // status text + progress. Doing both was triggering duplicate
+  // updateOrderActivity calls + a notification "ding" on every navigation.
   useEffect(() => {
     const fetchOrder = async () => {
       try {
@@ -87,35 +91,8 @@ export default function LiveOrderBanner({
         const data: Order = res.data;
         setOrder(data);
 
-        const orderType = (data.orderType || (data as any).type) as
-          | "DELIVERY"
-          | "PICKUP"
-          | undefined;
-
         if (lastStatus.current !== data.status) {
           const display = getStatusDisplay(data.status);
-          const mapped = mapServerStatusToActivity(data.status, orderType);
-
-          // Only fire notification when this is a *change*, not the first fetch
-          if (lastStatus.current) {
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: "Statusuppdatering 🍔",
-                body: `Din beställning hos ${data.restaurantName || "restaurangen"} är nu: ${display.label}`,
-                data: { orderId: id },
-              },
-              trigger: null,
-            });
-          }
-
-          // Always sync the LiveActivity to the current server status, including
-          // the very first fetch — covers the case where status moved past
-          // "accepted" while the app was in the background.
-          if (mapped && !mapped.ends) {
-            updateOrderActivity(id, mapped.status, { etaMinutes: data.estimatedTime });
-          }
-
-          // Animate progress to new base (but only after first fetch initialised it)
           if (lastStatus.current) {
             Animated.spring(progressAnim, {
               toValue: display.baseProgress,
@@ -127,15 +104,16 @@ export default function LiveOrderBanner({
             progressAnim.setValue(display.baseProgress);
           }
         }
-
         lastStatus.current = data.status;
 
+        const orderType = (data.orderType || (data as any).type) as
+          | "DELIVERY"
+          | "PICKUP"
+          | undefined;
         const mappedFinal = mapServerStatusToActivity(data.status, orderType);
         if (mappedFinal?.ends) {
-          // Push the final state once before ending so the user sees "Levererad"
-          // / "Avbruten" briefly in the Dynamic Island before it dismisses.
-          updateOrderActivity(id, mappedFinal.status, { etaMinutes: data.estimatedTime });
-          endOrderActivity(id);
+          // Just clear the active-order pointer in the store; the global sync
+          // handles the actual endOrderActivity call.
           setActiveOrder(null);
         }
       } catch {}
@@ -143,19 +121,13 @@ export default function LiveOrderBanner({
 
     fetchOrder();
 
-    // Socket for real-time updates
     const socket = io(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socket.emit("join:order", id);
     socket.on("order:status", (payload: any) => {
       if (payload.orderId === id) fetchOrder();
     });
 
-    // Polling fallback every 15s
     const pollInterval = setInterval(fetchOrder, 15000);
-
-    // Re-fetch the moment the app returns to foreground so the LiveActivity in
-    // the Dynamic Island catches up immediately instead of waiting for the next
-    // 15s poll tick.
     const appStateSub = AppState.addEventListener("change", (next) => {
       if (next === "active") fetchOrder();
     });
