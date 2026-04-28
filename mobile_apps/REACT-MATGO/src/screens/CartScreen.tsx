@@ -12,10 +12,12 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AddressCollectionMode, CollectionMode } from "@stripe/stripe-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
+import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
   type QuickAddress,
   findQuickAddressByText,
@@ -129,6 +131,9 @@ export default function CartScreen({
   openProfile: () => void;
   openOrder: (id: string) => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const screenTopPadding = getScreenTopPadding(insets.top);
+  const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
 
   const items = useAppStore((s) => s.items);
   const removeItem = useAppStore((s) => s.removeItem);
@@ -783,8 +788,29 @@ export default function CartScreen({
         Alert.alert("Serverfel", "Inget order-ID returnerades: " + JSON.stringify(response.data));
       }
     } catch (error: any) {
-      const msg = error?.response?.data?.error || error?.message || "Okänt fel";
-      Alert.alert("Kunde inte skicka order", typeof msg === "string" ? msg : JSON.stringify(msg));
+      // If Stripe already charged the card but order creation failed, attempt a refund immediately.
+      const paymentWasTaken =
+        finalPaymentIntentId &&
+        finalPaymentIntentId !== "FREE_PROMO" &&
+        !finalPaymentIntentId.startsWith("BYPASS_WEB_");
+
+      if (paymentWasTaken) {
+        try {
+          await api.post("/api/payments/refund", { paymentIntentId: finalPaymentIntentId });
+          Alert.alert(
+            "Betalning återbetald",
+            "Din betalning registrerades men ordern kunde inte skapas. Beloppet har återbetalats automatiskt — det kan ta 1–3 bankdagar. Försök igen."
+          );
+        } catch {
+          Alert.alert(
+            "Kontakta support",
+            `Din betalning registrerades men ordern misslyckades och återbetalningen kunde inte genomföras automatiskt. Spara den här koden och kontakta oss: ${finalPaymentIntentId}`
+          );
+        }
+      } else {
+        const msg = error?.response?.data?.error || error?.message || "Okänt fel";
+        Alert.alert("Kunde inte skicka order", typeof msg === "string" ? msg : JSON.stringify(msg));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -800,7 +826,16 @@ export default function CartScreen({
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[
+        styles.scrollContent,
+        {
+          paddingTop: screenTopPadding,
+          paddingBottom: screenBottomPadding,
+        },
+      ]}
+    >
       <Header
         title="Din kasse"
         subtitle={items.length === 1 ? "1 produkt" : `${items.length} produkter`}
