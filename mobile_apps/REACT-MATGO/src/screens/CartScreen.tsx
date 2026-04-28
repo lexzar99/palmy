@@ -15,6 +15,7 @@ import { AddressCollectionMode, CollectionMode } from "@stripe/stripe-react-nati
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
+import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
 import {
   type QuickAddress,
   findQuickAddressByText,
@@ -316,9 +317,8 @@ export default function CartScreen({
             return;
           }
 
-          const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
           const res = await fetch(
-            `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(storeAddress)}&filter=countrycode:se&limit=1&apiKey=${GEOAPIFY_KEY}`
+            `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(storeAddress)}&filter=countrycode:se&limit=1&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
           );
           const data = await res.json();
           const feature = data.features?.[0];
@@ -587,9 +587,8 @@ export default function CartScreen({
 
         if (!currentCoords && formData.deliveryStreet) {
           try {
-            const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
             const gRes = await fetch(
-              `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(formData.deliveryStreet)}&filter=countrycode:se&limit=1&apiKey=${GEOAPIFY_KEY}`
+              `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(formData.deliveryStreet)}&filter=countrycode:se&limit=1&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
             );
             const gData = await gRes.json();
             const feature = gData.features?.[0];

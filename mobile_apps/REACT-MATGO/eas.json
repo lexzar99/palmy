@@ -4,15 +4,29 @@
   },
   "build": {
     "preview": {
+      "environment": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "ios": {
+        "distribution": "internal"
       },
       "distribution": "internal"
     },
     "production": {
+      "environment": "production",
+      "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "ios": {
+        "distribution": "store"
       }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {}
     }
   }
 }

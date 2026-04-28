@@ -1,12 +1,16 @@
 import axios from "axios";
 import type { PublicDeal } from "../types";
+import {
+  EXPO_PUBLIC_API_URL,
+  EXPO_PUBLIC_SOCKET_URL,
+  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+  EXPO_PUBLIC_WEB_URL,
+} from "./env";
 
-export const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://palmy-production-2021.up.railway.app";
-export const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || API_URL;
-export const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL || "https://web-production-67f45.up.railway.app";
-export const STRIPE_PUBLISHABLE_KEY =
-  process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-  "pk_live_51I3pwDKdGKs9NoqFOB3IsKFwX9sKQQlU7U9Wpqf6FSPQhcH6tAXGFg671LIkJcldt2nw3XTubrNthBRtfXE7kV2D00KI4qzbJ9";
+export const API_URL = EXPO_PUBLIC_API_URL;
+export const SOCKET_URL = EXPO_PUBLIC_SOCKET_URL || API_URL;
+export const WEB_URL = EXPO_PUBLIC_WEB_URL;
+export const STRIPE_PUBLISHABLE_KEY = EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
 export const api = axios.create({
   baseURL: API_URL,

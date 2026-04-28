@@ -2,8 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { palette } from "../constants/theme";
-
-const GEOAPIFY_KEY = "1ec4188b70ae4a56a1061b9b861f5464";
+import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
 
 interface ZipAutocompleteProps {
   value: string;
@@ -47,7 +46,7 @@ export default function ZipAutocomplete({
     setLoading(true);
     try {
       const response = await fetch(
-        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&limit=5&apiKey=${GEOAPIFY_KEY}`
+        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&limit=5&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
       );
       const data = await response.json();
       // Filter to only show suggestions with postcode
