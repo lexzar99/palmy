@@ -761,9 +761,11 @@ export const styles = StyleSheet.create({
     width: 54,
     height: 5,
     borderRadius: 999,
-    backgroundColor: "rgba(125,97,38,0.16)",
+    backgroundColor: "rgba(125,97,38,0.22)",
     marginTop: 10,
     marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
   },
   productModalCloseButton: {
     position: "absolute",

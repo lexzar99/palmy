@@ -44,8 +44,16 @@ export default function RestaurantScreen({
   const heroTopInset = getRestaurantHeroTopInset(insets.top);
   const stickyHeaderTopInset = Math.max(insets.top - 8, 18);
   const cachedData = getScreenCache<RestaurantScreenCache>('restaurant', slug);
-  const [isHeaderStuck, setIsHeaderStuck] = useState(false);
-  const stickyHeaderLayoutY = useRef(0);
+  const scrollYAnim = useRef(new Animated.Value(0)).current;
+  const [stickyY, setStickyY] = useState(0);
+  const headerPaddingTop = useMemo(
+    () => scrollYAnim.interpolate({
+      inputRange: [Math.max(0, stickyY - stickyHeaderTopInset), Math.max(1, stickyY)],
+      outputRange: [6, stickyHeaderTopInset],
+      extrapolate: 'clamp',
+    }),
+    [scrollYAnim, stickyY, stickyHeaderTopInset],
+  );
 
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(() => cachedData?.restaurant || null);
@@ -290,10 +298,6 @@ export default function RestaurantScreen({
 
   const handleMenuScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const sy = event.nativeEvent.contentOffset.y;
-      const stuck = sy >= stickyHeaderLayoutY.current;
-      setIsHeaderStuck((prev) => (prev !== stuck ? stuck : prev));
-
       if (isScrollingRef.current) return;
       
       if (!filteredCategories.length) return;
@@ -331,10 +335,13 @@ export default function RestaurantScreen({
 
   return (
     <>
-      <ScrollView
+      <Animated.ScrollView
         ref={menuScrollRef}
         stickyHeaderIndices={[3]}
-        onScroll={handleMenuScroll}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollYAnim } } }],
+          { useNativeDriver: false, listener: handleMenuScroll }
+        )}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.restaurantScreenContent}
@@ -442,11 +449,10 @@ export default function RestaurantScreen({
           </View>
         </View>
 
-        <View
+        <Animated.View
           pointerEvents="box-none"
           style={{ zIndex: 20, elevation: 20 }}
-          id="category-sticky"
-          onLayout={(e) => { stickyHeaderLayoutY.current = e.nativeEvent.layout.y; }}
+          onLayout={(e) => setStickyY(e.nativeEvent.layout.y)}
         >
           <LinearGradient
             pointerEvents="none"
@@ -454,7 +460,7 @@ export default function RestaurantScreen({
             locations={[0, 0.38, 0.76, 1]}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={[styles.restaurantStickyNavWrap, { paddingTop: isHeaderStuck ? stickyHeaderTopInset : 6 }]}>
+          <Animated.View style={[styles.restaurantStickyNavWrap, { paddingTop: headerPaddingTop }]}>
             <View style={styles.restaurantStickyNavCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Pressable 
@@ -499,8 +505,8 @@ export default function RestaurantScreen({
                 ))}
               </ScrollView>
             </View>
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
 
         <View style={styles.restaurantMenuSectionsWrap}>
           {discountedProducts.length > 0 && (
@@ -632,7 +638,7 @@ export default function RestaurantScreen({
               </View>
             ))}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {cartItemCount > 0 && (
         <Pressable style={styles.floatingCart} onPress={openCart}>

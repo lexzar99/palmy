@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, Image, Modal, KeyboardAvoidingView } from 'react-native';
+import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, PanResponder, StyleSheet, Image, Modal, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +50,30 @@ export default function ProductModal({
     () => [...(product?.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
     [product],
   );
+
+  const translateY = useRef(new Animated.Value(0)).current;
+  const scrimOpacity = translateY.interpolate({ inputRange: [0, 300], outputRange: [1, 0], extrapolate: 'clamp' });
+
+  // Reset position whenever modal opens
+  useEffect(() => {
+    if (product) translateY.setValue(0);
+  }, [product, translateY]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_, g) => {
+        if (g.dy > 0) translateY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 120 || g.vy > 0.8) {
+          Animated.timing(translateY, { toValue: 600, duration: 220, useNativeDriver: true }).start(onClose);
+        } else {
+          Animated.spring(translateY, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+        }
+      },
+    })
+  ).current;
 
   const getExtraPrice = useCallback((extra: MenuExtra) => extra.priceAddon ?? extra.price ?? 0, []);
 
@@ -205,9 +229,11 @@ export default function ProductModal({
         style={{ flex: 1 }}
       >
         <View style={[styles.modalBackdrop, styles.productModalBackdrop]}>
-          <Pressable style={styles.productModalScrim} onPress={onClose} />
-          <View style={styles.productModalSheet}>
-            <View style={styles.productModalHandle} />
+          <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: scrimOpacity }]}>
+            <Pressable style={styles.productModalScrim} onPress={onClose} />
+          </Animated.View>
+          <Animated.View style={[styles.productModalSheet, { transform: [{ translateY }] }]}>
+            <View style={styles.productModalHandle} {...panResponder.panHandlers} />
             <Pressable style={styles.productModalCloseButton} onPress={onClose}>
               <Ionicons name="close" size={20} color={palette.text} />
             </Pressable>
@@ -400,7 +426,7 @@ export default function ProductModal({
                 <Text style={styles.productAddButtonPrice}>{totalPrice} kr</Text>
               </Pressable>
             </View>
-          </View>
+          </Animated.View>
         </View>
       </KeyboardAvoidingView>
     </Modal>
