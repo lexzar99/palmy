@@ -327,7 +327,7 @@ export default function RestaurantScreen({
     <>
       <ScrollView
         ref={menuScrollRef}
-        stickyHeaderIndices={[discountedProducts.length > 0 ? 4 : 3]}
+        stickyHeaderIndices={[3]}
         onScroll={handleMenuScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
@@ -436,48 +436,6 @@ export default function RestaurantScreen({
           </View>
         </View>
 
-        {(() => {
-          if (discountedProducts.length === 0) return null;
-          return (
-            <View style={styles.discountedRail}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discountedRailContent}>
-                {discountedProducts.map((product) => (
-                  <ScalePressable
-                    key={product.id}
-                    style={styles.discountedProductCard}
-                    onPress={() => {
-                      if (restaurant?.isOpen === false) return;
-                      if (zoneAvailable === false && orderType === "DELIVERY") {
-                        setAddressModalOpen(true);
-                        return;
-                      }
-                      setSelectedProduct(product);
-                    }}
-                  >
-                    {!!product.imageUrl && (
-                      <Image 
-                        source={{ uri: getImageUrl(product.imageUrl) }} 
-                        style={styles.discountedProductImage}
-                        onError={(e) => console.log("Image error:", e.nativeEvent.error)}
-                        onLoad={(e) => console.log("Image loaded:", product.name)}
-                      />
-                    )}
-                    <View style={styles.discountedProductInfo}>
-                      <Text numberOfLines={1} style={styles.discountedProductTitle}>{product.name}</Text>
-                      <View style={styles.discountedPriceRow}>
-                        <Text style={styles.discountedOriginalPrice}>{product.price} KR</Text>
-                        <Text style={styles.discountedNewPrice}>
-                          {product.discountPrice || Math.round(product.price - (product.price * (product.discountPercent || 0) / 100))} KR
-                        </Text>
-                      </View>
-                    </View>
-                  </ScalePressable>
-                ))}
-              </ScrollView>
-            </View>
-          );
-        })()}
-
         <View pointerEvents="box-none" style={{ zIndex: 20, elevation: 20 }} id="category-sticky">
           <LinearGradient
             pointerEvents="none"
@@ -534,6 +492,51 @@ export default function RestaurantScreen({
         </View>
 
         <View style={styles.restaurantMenuSectionsWrap}>
+          {discountedProducts.length > 0 && (
+            <View style={styles.discountedRail}>
+              <View style={styles.discountedRailHeaderRow}>
+                <Text style={styles.discountedRailHeaderText}>ERBJUDANDEN</Text>
+                <View style={styles.discountedRailHeaderLine} />
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discountedRailContent}>
+                {discountedProducts.map((product) => {
+                  const salePrice = product.discountPrice || Math.round(product.price - (product.price * (product.discountPercent || 0) / 100));
+                  const pctOff = product.discountPercent || Math.round((1 - salePrice / product.price) * 100);
+                  const disabled = restaurant?.isOpen === false || (zoneAvailable === false && orderType === "DELIVERY");
+                  return (
+                    <ScalePressable
+                      key={product.id}
+                      style={[styles.discountedProductCard, disabled && { opacity: 0.5 }]}
+                      onPress={() => {
+                        if (restaurant?.isOpen === false) return;
+                        if (zoneAvailable === false && orderType === "DELIVERY") { setAddressModalOpen(true); return; }
+                        setSelectedProduct(product);
+                      }}
+                    >
+                      {!!product.imageUrl ? (
+                        <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.discountedProductImage} />
+                      ) : (
+                        <View style={[styles.discountedProductImage, { backgroundColor: palette.panelMuted }]} />
+                      )}
+                      {pctOff > 0 && (
+                        <View style={styles.discountedBadge}>
+                          <Text style={styles.discountedBadgeText}>-{pctOff}%</Text>
+                        </View>
+                      )}
+                      <View style={styles.discountedProductInfo}>
+                        <Text numberOfLines={1} style={styles.discountedProductTitle}>{product.name}</Text>
+                        <View style={styles.discountedPriceRow}>
+                          <Text style={styles.discountedOriginalPrice}>{product.price} KR</Text>
+                          <Text style={styles.discountedNewPrice}>{salePrice} KR</Text>
+                        </View>
+                      </View>
+                    </ScalePressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
           {loading && (
             <View style={{ alignItems: "center", paddingVertical: 48, gap: 12 }}>
               <ActivityIndicator size="large" color={palette.gold} />
