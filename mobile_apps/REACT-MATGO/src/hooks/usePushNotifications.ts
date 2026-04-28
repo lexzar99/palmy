@@ -10,6 +10,7 @@ export function usePushNotifications(
   onNotificationTap?: (data: Record<string, any>) => void,
 ) {
   const [expoPushToken, setExpoPushToken] = useState<string>('');
+  const [apnsDeviceToken, setApnsDeviceToken] = useState<string>('');
   const [notification, setNotification] = useState<Notifications.Notification | null>(null);
   const [initialNotificationData, setInitialNotificationData] = useState<Record<string, any> | null>(null);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
@@ -45,6 +46,19 @@ export function usePushNotifications(
         } catch (e) {
           console.warn('Misslyckades att hämta Push Token:', e);
         }
+        // iOS APNs device token (hex). Used by the backend to send pushes
+        // direct via APNs HTTP/2 with apns-collapse-id, so each order's
+        // status updates roll into a single replaceable notification.
+        if (Platform.OS === 'ios') {
+          try {
+            const dev = await Notifications.getDevicePushTokenAsync();
+            if (dev?.type === 'ios' && typeof dev.data === 'string') {
+              setApnsDeviceToken(dev.data);
+            }
+          } catch (e) {
+            console.warn('Misslyckades att hämta APNs device token:', e);
+          }
+        }
       }
       return token;
     }
@@ -63,6 +77,14 @@ export function usePushNotifications(
           const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
           const newToken = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
           setExpoPushToken(newToken);
+          if (Platform.OS === 'ios') {
+            try {
+              const dev = await Notifications.getDevicePushTokenAsync();
+              if (dev?.type === 'ios' && typeof dev.data === 'string') {
+                setApnsDeviceToken(dev.data);
+              }
+            } catch {}
+          }
           return true;
         } catch (e) {
           return false;
@@ -136,6 +158,19 @@ export function usePushNotifications(
       ).catch((err) => console.warn('Kunde inte skicka push token till servern:', err));
     }
   }, [sessionToken, expoPushToken]);
+
+  // Registrera även den råa APNs-tokenen så backenden kan skicka direkt via
+  // APNs (med apns-collapse-id) istället för Expo, vilket låter iOS *ersätta*
+  // status-notisen istället för att stapla en ny per steg.
+  useEffect(() => {
+    if (sessionToken && apnsDeviceToken) {
+      api.post(
+        '/api/notifications/register-device',
+        { token: apnsDeviceToken },
+        { headers: { Authorization: `Bearer ${sessionToken}` } }
+      ).catch((err) => console.warn('Kunde inte skicka APNs-token:', err));
+    }
+  }, [sessionToken, apnsDeviceToken]);
 
   const requestPermission = async () => {
     if (requestPermissionRef.current) {

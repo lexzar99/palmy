@@ -36,6 +36,29 @@ router.post('/register', authenticateUser, async (req: any, res) => {
 });
 
 /**
+ * POST /api/notifications/register-device
+ * Stores the raw iOS APNs device token (hex) so the backend can hit APNs
+ * directly with `apns-collapse-id` (Expo Push doesn't expose that header,
+ * which is why every status change otherwise stacks a fresh notification
+ * instead of replacing the previous one).
+ */
+router.post('/register-device', authenticateUser, async (req: any, res) => {
+  try {
+    const { token } = z.object({ token: z.string() }).parse(req.body);
+    if (!/^[a-f0-9]{32,256}$/i.test(token)) {
+      return res.status(400).json({ error: 'Ogiltig APNs-token' });
+    }
+    await (prisma as any).user.update({
+      where: { id: req.user.id },
+      data: { apnsDeviceToken: token.toLowerCase() }
+    });
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ error: 'Kunde inte registrera APNs-token' });
+  }
+});
+
+/**
  * POST /api/notifications/admin/send-all
  * Skickar push till alla användare (Endast Super Admin)
  */

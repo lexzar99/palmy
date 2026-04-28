@@ -123,6 +123,7 @@ function sendApns(opts: {
   pushType: 'liveactivity' | 'alert';
   payload: string;
   priority: '10' | '5';
+  collapseId?: string;
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     let client: http2.ClientHttp2Session | null = null;
@@ -141,7 +142,7 @@ function sendApns(opts: {
       reject(err);
     });
 
-    const req = client.request({
+    const headers: Record<string, string> = {
       ':method': 'POST',
       ':path': `/3/device/${opts.token}`,
       'authorization': `bearer ${getJwt()}`,
@@ -150,7 +151,14 @@ function sendApns(opts: {
       'apns-priority': opts.priority,
       'apns-expiration': '0',
       'content-type': 'application/json',
-    });
+    };
+    if (opts.collapseId) {
+      // iOS replaces any existing on-device notification with the same
+      // collapse-id with this one, so the order status reads as a single
+      // updating notification instead of stacking a new banner per step.
+      headers['apns-collapse-id'] = opts.collapseId.slice(0, 64);
+    }
+    const req = client.request(headers);
 
     let status = 0;
     let bodyChunks: Buffer[] = [];
@@ -212,6 +220,48 @@ export function mapServerStatusToActivity(
     case 'DELIVERY_FAILED': return { activityStatus: 'cancelled',     ends: true };
     default:               return null;
   }
+}
+
+/**
+ * Send a regular alert notification via APNs HTTP/2 directly.
+ *
+ * Unlike Expo Push (which doesn't expose `apns-collapse-id`), this uses the
+ * device's raw APNs push token (hex) and tells iOS to *replace* any existing
+ * notification with the same `collapseId` rather than append a new one.
+ *
+ * Use this for order status updates so the user sees one rolling banner
+ * ("Mottagen" → "Tillagas" → "På väg"…) instead of a fresh notification
+ * per step.
+ */
+export async function sendApnsAlert(opts: {
+  token: string;            // raw hex APNs device token (NOT ExponentPushToken)
+  title: string;
+  body: string;
+  collapseId?: string;      // e.g. `order-${orderId}` to replace prior pushes
+  data?: Record<string, unknown>;
+  threadId?: string;        // groups alerts in Notification Center
+  sound?: string;
+}): Promise<void> {
+  if (!isConfigured()) return;
+
+  const aps: Record<string, unknown> = {
+    alert: { title: opts.title, body: opts.body },
+    sound: opts.sound ?? 'default',
+    'mutable-content': 1,
+    'content-available': 1, // wakes JS for ~30s so the LiveActivity also stays in sync
+  };
+  if (opts.threadId) aps['thread-id'] = opts.threadId;
+
+  const payload = JSON.stringify({ aps, ...(opts.data ?? {}) });
+
+  await sendApns({
+    token: opts.token,
+    topic: APNS_BUNDLE_ID!, // alert pushes use the bare bundle id
+    pushType: 'alert',
+    payload,
+    priority: '10',
+    collapseId: opts.collapseId,
+  });
 }
 
 /**

@@ -331,6 +331,7 @@ model User {
   savedAddresses SavedAddress[]
   allergens      String         @default("[]")
   pushToken      String?
+  apnsDeviceToken String?       // Raw iOS APNs device token (hex) for direct push with apns-collapse-id support
   internalInfo   String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt

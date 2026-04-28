@@ -9,6 +9,7 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
+import { pushOrderStatusUpdate, sendApnsAlert } from '../lib/liveActivityPush';
 
 const router = Router();
 router.use(authenticate);
@@ -351,7 +352,7 @@ router.patch('/orders/:id/status', async (req, res) => {
 
     const existing = await prisma.order.findUnique({
       where: { id: req.params.id },
-      select: { id: true, restaurantId: true },
+      select: { id: true, restaurantId: true, userId: true, customerPhone: true, type: true, liveActivityToken: true },
     });
 
     if (!existing) {
@@ -389,6 +390,113 @@ router.patch('/orders/:id/status', async (req, res) => {
       estimatedTime: order.estimatedTime,
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
+
+    // Push the new state directly into the customer's iOS Live Activity (if
+    // they have one). Fire-and-forget: APNs failures shouldn't block the admin
+    // response. Uses customerStatus so DELIVERING shows "På väg" even though
+    // the DB row is DELIVERED.
+    if (existing.liveActivityToken) {
+      pushOrderStatusUpdate({
+        token: existing.liveActivityToken,
+        serverStatus: customerStatus,
+        orderType: existing.type,
+        etaMinutes: order.estimatedTime ?? null,
+      }).catch((e) => console.warn('[admin] Live Activity push failed:', e?.message));
+    }
+
+    // Fetcha kundens Push Token via userId eller telefonnummer.
+    // Vi hämtar BÅDE Expo-token (för fallback / Android) och iOS APNs-token
+    // (för direct send med apns-collapse-id så notisen ersätts steg för steg).
+    const userToNotify = await (prisma as any).user.findFirst({
+      where: {
+        OR: [
+          ...(existing.userId ? [{ id: existing.userId }] : []),
+          { phone: existing.customerPhone }
+        ],
+      },
+      select: { pushToken: true, apnsDeviceToken: true }
+    });
+
+    if (userToNotify && (userToNotify.pushToken || userToNotify.apnsDeviceToken)) {
+      const isDelivery = existing.type === "DELIVERY";
+      const { sendPushNotification } = require('../lib/notifications');
+
+      // Skip the "Delivered" notification — review prompt comes instead after a delay
+      if (status !== 'DELIVERED') {
+        let title = "Order uppdaterad";
+        let body = "Din order har fått en ny status.";
+
+        if (status === 'ACCEPTED') {
+          title = "✅ Order mottagen!";
+          body = estimatedTime ? `Restaurangen har accepterat din order. Beräknad tid ca ${estimatedTime} min.` : "Restaurangen har accepterat din order och börjat förbereda den.";
+        } else if (status === 'PREPARING') {
+          title = "🍳 Maten tillagas";
+          body = estimatedTime ? `Din mat tillagas just nu. Klar om ca ${estimatedTime} min.` : "Din mat tillagas just nu av restaurangen.";
+        } else if (status === 'READY') {
+          if (isDelivery) {
+            title = "🥡 Redo för utkörning!";
+            body = "Din mat är färdiglagad och väntar på att plockas upp av budet inför leverans.";
+          } else {
+            title = "🛍️ Maten är redo!";
+            body = "Din order är färdiglagad och kan hämtas i restaurangen!";
+          }
+        } else if (status === 'DELIVERING') {
+          title = "🚗 Maten är på väg!";
+          body = "Föraren är på väg - förväntas framme om ca 10-15 minuter.";
+        }
+
+        // Föredra direkt APNs när vi har enhetens token: då kan vi sätta
+        // apns-collapse-id="order-<id>" så iOS *ersätter* den föregående
+        // notisen istället för att lägga ihop en ny per statusstep.
+        if (userToNotify.apnsDeviceToken) {
+          await sendApnsAlert({
+            token: userToNotify.apnsDeviceToken,
+            title,
+            body,
+            collapseId: `order-${order.id}`,
+            threadId: `order-${order.id}`,
+            data: { orderId: order.id, status },
+          }).catch((e) => console.warn('[admin] APNs alert failed:', e?.message));
+        } else if (userToNotify.pushToken) {
+          await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });
+        }
+      }
+
+      // --- AUTOMATISK RECENSIONSNOTIS (ersätter "Levererad"-notisen) ---
+      const sendReviewPrompt = async (title: string, body: string) => {
+        if (userToNotify.apnsDeviceToken) {
+          await sendApnsAlert({
+            token: userToNotify.apnsDeviceToken,
+            title,
+            body,
+            collapseId: `order-${order.id}`,
+            threadId: `order-${order.id}`,
+            data: { orderId: order.id, status: 'REVIEW_PROMPT' },
+          });
+        } else if (userToNotify.pushToken) {
+          await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status: 'REVIEW_PROMPT' });
+        }
+      };
+
+      if (status === 'DELIVERED' && !isDelivery) {
+        // Avhämtning: vänta 20 min så kunden hinner komma hem och äta
+        setTimeout(() => {
+          sendReviewPrompt(
+            "⭐ Vad tyckte du om maten?",
+            "Hoppas det smakade! Klicka här för att lämna en snabb recension."
+          ).catch((e) => console.error('Delayed review push failed', e));
+        }, 20 * 60 * 1000);
+      } else if (status === 'DELIVERING' && isDelivery) {
+        // Utkörning: admin klickar 'På väg', appen visar DELIVERING i 12 min, sedan DELIVERED.
+        // Skickar recensionsnotis efter 25 min så kunden hunnit ta emot och äta maten.
+        setTimeout(() => {
+          sendReviewPrompt(
+            "⭐ Vad tyckte du om maten?",
+            "Din beställning bör vara framme! Hur var leveransen och maten? Lämna ett omdöme."
+          ).catch((e) => console.error('Delayed review push failed', e));
+        }, 25 * 60 * 1000);
+      }
+    }
 
     // Notifiera admin-rummet — admin always sees the real DB status
     getIO().to('admin-room').emit('order:updated', {

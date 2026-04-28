@@ -318,6 +318,8 @@ model User {
   oauthId        String?
   image          String?
   internalInfo   String?
+  pushToken      String?
+  apnsDeviceToken String?
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]
