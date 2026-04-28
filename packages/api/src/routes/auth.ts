@@ -14,6 +14,19 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   : null;
 const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
 
+// Always store/compare phone in E.164 format (+46...). Handles legacy records without +.
+function normalizePhone(phone: string): string {
+  const t = phone.trim();
+  if (t.startsWith('+')) return t;
+  return `+${t.replace(/\D/g, '')}`;
+}
+
+// Returns all variants of a phone to search across legacy and normalized formats.
+function phoneVariants(phone: string): string[] {
+  const n = normalizePhone(phone);
+  return [n, n.slice(1)]; // e.g. ["+46728357970", "46728357970"]
+}
+
 async function resolveAdminByIdentifier(loginId: string) {
   const directAdmin = await prisma.adminUser.findFirst({
     where: { email: loginId, isActive: true },
@@ -92,14 +105,45 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
     try {
       const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
       if (!error && user) {
-        // Ensure a corresponding row exists in the local User table
-        const dbUser = await (prisma as any).user.upsert({
+        const normalizedPhone = user.phone ? normalizePhone(user.phone) : null;
+
+        // Check if a local user already exists with this phone under a different ID.
+        // This happens when the same person used an older auth path that stored the phone
+        // without the + prefix, or registered via a different provider first.
+        let existingByPhone: any = null;
+        if (normalizedPhone) {
+          existingByPhone = await (prisma as any).user.findFirst({
+            where: {
+              id: { not: user.id },
+              phone: { in: phoneVariants(normalizedPhone) },
+            },
+          }).catch(() => null);
+        }
+
+        if (existingByPhone) {
+          // Merge: keep the richer existing record, normalise phone and mark verified.
+          await (prisma as any).user.update({
+            where: { id: existingByPhone.id },
+            data: {
+              phone: normalizedPhone,
+              isVerified: true,
+              email: user.email || existingByPhone.email || undefined,
+              name: user.user_metadata?.name || user.user_metadata?.full_name || existingByPhone.name || undefined,
+              image: user.user_metadata?.avatar_url || user.user_metadata?.picture || existingByPhone.image || undefined,
+            },
+          }).catch(() => null);
+          req.user = { id: existingByPhone.id, email: existingByPhone.email, phone: normalizedPhone, role: 'USER' };
+          return next();
+        }
+
+        // Normal path — upsert by Supabase UUID.
+        await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
             email: user.email || undefined,
             name: user.user_metadata?.name || user.user_metadata?.full_name || undefined,
             image: user.user_metadata?.avatar_url || user.user_metadata?.picture || undefined,
-            phone: user.phone || undefined,
+            phone: normalizedPhone || undefined,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
           },
           create: {
@@ -107,14 +151,14 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             email: user.email ?? null,
             name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? 'Användare',
             image: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-            phone: user.phone ?? null,
+            phone: normalizedPhone ?? null,
             oauthProvider: user.app_metadata?.provider ?? null,
             oauthId: user.id,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
           },
         }).catch(() => null);
 
-        req.user = { id: user.id, email: user.email, phone: user.phone, role: 'USER' };
+        req.user = { id: user.id, email: user.email, phone: normalizedPhone, role: 'USER' };
         return next();
       }
     } catch {
@@ -172,8 +216,8 @@ router.post('/lookup-phone', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
 
-    const user = await (prisma as any).user.findUnique({
-      where: { phone },
+    const user = await (prisma as any).user.findFirst({
+      where: { phone: { in: phoneVariants(phone) } },
       select: { id: true, phone: true, email: true, isVerified: true, oauthProvider: true, password: true },
     });
 

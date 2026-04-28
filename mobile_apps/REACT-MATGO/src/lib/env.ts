@@ -1,37 +1,20 @@
-function getRequiredExpoPublicEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    // Log but do NOT throw — throwing at module import time crashes the bundle
-    // before React mounts, producing a white screen with no recovery UI.
-    // Validation is deferred to validateEnv() called after React has mounted.
-    console.error(`[env] Missing required env var: ${name}`);
-    return "";
-  }
-  return value;
-}
+// EXPO_PUBLIC_* vars must be accessed with static keys so Babel inlines them at bundle time.
+// Dynamic access like process.env[name] is NOT replaced and returns undefined in Release builds.
 
-function getOptionalExpoPublicEnv(name: string) {
-  const value = process.env[name]?.trim();
-  return value || null;
-}
+export const EXPO_PUBLIC_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim() ?? "";
+export const EXPO_PUBLIC_SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL?.trim() ?? null;
+export const EXPO_PUBLIC_WEB_URL = process.env.EXPO_PUBLIC_WEB_URL?.trim() ?? null;
+export const EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+export const EXPO_PUBLIC_GEOAPIFY_KEY = process.env.EXPO_PUBLIC_GEOAPIFY_KEY?.trim() ?? "";
+export const EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
+export const EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
 
-export const EXPO_PUBLIC_API_URL = getRequiredExpoPublicEnv("EXPO_PUBLIC_API_URL");
-export const EXPO_PUBLIC_SOCKET_URL = getOptionalExpoPublicEnv("EXPO_PUBLIC_SOCKET_URL");
-export const EXPO_PUBLIC_WEB_URL = getOptionalExpoPublicEnv("EXPO_PUBLIC_WEB_URL");
-export const EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY = getRequiredExpoPublicEnv("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-export const EXPO_PUBLIC_GEOAPIFY_KEY = getRequiredExpoPublicEnv("EXPO_PUBLIC_GEOAPIFY_KEY");
-export const EXPO_PUBLIC_SUPABASE_URL = getRequiredExpoPublicEnv("EXPO_PUBLIC_SUPABASE_URL");
-export const EXPO_PUBLIC_SUPABASE_ANON_KEY = getRequiredExpoPublicEnv("EXPO_PUBLIC_SUPABASE_ANON_KEY");
-
-const REQUIRED_KEYS = [
-  "EXPO_PUBLIC_API_URL",
-  "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY",
-  "EXPO_PUBLIC_GEOAPIFY_KEY",
-  "EXPO_PUBLIC_SUPABASE_URL",
-  "EXPO_PUBLIC_SUPABASE_ANON_KEY",
-] as const;
-
-/** Call this once after React mounts to surface missing config to the user. */
 export function validateEnv(): string[] {
-  return REQUIRED_KEYS.filter((k) => !process.env[k]?.trim());
+  const missing: string[] = [];
+  if (!EXPO_PUBLIC_API_URL) missing.push("EXPO_PUBLIC_API_URL");
+  if (!EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) missing.push("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY");
+  if (!EXPO_PUBLIC_GEOAPIFY_KEY) missing.push("EXPO_PUBLIC_GEOAPIFY_KEY");
+  if (!EXPO_PUBLIC_SUPABASE_URL) missing.push("EXPO_PUBLIC_SUPABASE_URL");
+  if (!EXPO_PUBLIC_SUPABASE_ANON_KEY) missing.push("EXPO_PUBLIC_SUPABASE_ANON_KEY");
+  return missing;
 }

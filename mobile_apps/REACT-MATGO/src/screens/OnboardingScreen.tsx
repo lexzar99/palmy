@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView, SafeAreaView } from 'react-native';
+import {
+  View, Text, TextInput, Pressable, Platform, ScrollView,
+  Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../hooks/useLanguage';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { palette, styles } from '../constants/theme';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
-import ScalePressable from '../components/ScalePressable';
-import { PrimaryButton } from '../components/ui';
+import { useAppleAuth } from '../hooks/useAppleAuth';
 
-// ─── OnboardingScreen ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sweden" },
   { code: "+45", flag: "🇩🇰", name: "Denmark" },
@@ -20,23 +25,153 @@ const COUNTRY_CODES = [
   { code: "+1", flag: "🇺🇸", name: "USA" },
 ];
 
-const PREFERENCE_OPTIONS = [
-  "Gluten", "Laktos", "Nötter", "Ägg", "Fisk", "Skaldjur", 
-  "Soja", "Selleri", "Senap", "Sesam", "Vetemjöl", "Mjölk"
-];
+type MainStep = "notifications" | "auth" | "location";
+type AuthStep = "landing" | "phone" | "profile" | "otp";
 
-export default function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
+// ─── Full-page permission screen ───────────────────────────────────────────────
+function PermissionPage({
+  icon,
+  title,
+  highlight,
+  subtitle,
+  features,
+  ctaLabel,
+  ctaLoading,
+  onCta,
+  onSkip,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  highlight: string;
+  subtitle: string;
+  features: { icon: keyof typeof Ionicons.glyphMap; title: string; sub: string }[];
+  ctaLabel: string;
+  ctaLoading: boolean;
+  onCta: () => void;
+  onSkip: () => void;
+}) {
+  const { t } = useTranslation();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(32)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 26, paddingBottom: 48 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Big icon */}
+        <View style={{ alignItems: 'center', marginTop: 32, marginBottom: 32 }}>
+          <View style={{
+            width: 100, height: 100, borderRadius: 30,
+            backgroundColor: 'rgba(231,178,75,0.12)',
+            borderWidth: 1.5, borderColor: 'rgba(231,178,75,0.3)',
+            alignItems: 'center', justifyContent: 'center',
+            shadowColor: palette.gold, shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 8 },
+          }}>
+            <Ionicons name={icon} size={46} color={palette.gold} />
+          </View>
+        </View>
+
+        <Text style={{ color: palette.text, fontSize: 34, fontWeight: '900', lineHeight: 38, letterSpacing: -0.5, marginBottom: 12 }}>
+          {title}{'\n'}<Text style={{ color: palette.gold }}>{highlight}</Text>
+        </Text>
+        <Text style={{ color: palette.muted, fontSize: 14, fontWeight: '500', lineHeight: 22, marginBottom: 32 }}>
+          {subtitle}
+        </Text>
+
+        {/* Features */}
+        <View style={{ gap: 12, marginBottom: 40 }}>
+          {features.map((f) => (
+            <View
+              key={f.icon}
+              style={{
+                flexDirection: 'row', alignItems: 'center', gap: 14,
+                backgroundColor: palette.card, borderRadius: 18, padding: 14,
+                borderWidth: 1, borderColor: palette.border,
+              }}
+            >
+              <View style={{
+                width: 44, height: 44, borderRadius: 14,
+                backgroundColor: 'rgba(231,178,75,0.08)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.16)',
+                alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Ionicons name={f.icon} size={19} color={palette.gold} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.text, fontSize: 14, fontWeight: '800' }}>{f.title}</Text>
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: '500', marginTop: 2 }}>{f.sub}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* CTA */}
+        <Pressable
+          onPress={onCta}
+          disabled={ctaLoading}
+          style={{
+            backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18,
+            alignItems: 'center', opacity: ctaLoading ? 0.7 : 1,
+            shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
+            marginBottom: 16,
+          }}
+        >
+          {ctaLoading
+            ? <ActivityIndicator color="#000" />
+            : (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name={icon} size={18} color="#000" />
+                <Text style={{ color: '#000', fontWeight: '900', fontSize: 15 }}>{ctaLabel}</Text>
+              </View>
+            )
+          }
+        </Pressable>
+
+        <Pressable onPress={onSkip} style={{ alignItems: 'center', paddingVertical: 10 }}>
+          <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '600' }}>{t('onboarding.hoppaOver')}</Text>
+        </Pressable>
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
+// ─── OnboardingScreen ──────────────────────────────────────────────────────────
+export default function OnboardingScreen({
+  onComplete,
+  requestPushPermission,
+  skipPermissions = false,
+}: {
+  onComplete: () => void;
+  requestPushPermission?: () => Promise<boolean>;
+  skipPermissions?: boolean;
+}) {
   const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
-  const setDislikedIngredients = useAppStore((s) => s.setDislikedIngredients);
+  const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
+  const { t } = useTranslation();
+  const { currentLanguage, changeLanguage } = useLanguage();
+  const [langPickerOpen, setLangPickerOpen] = useState(false);
 
-  const [step, setStep] = useState<"landing" | "phone" | "profile" | "allergens" | "otp">("landing");
+  // Deferred auth — we commit token/profile to the store only AFTER location permission,
+  // so that App.tsx's `!token` guard doesn't unmount this screen before we show location.
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [pendingProfile, setPendingProfile] = useState<any>(null);
+
+  const [mainStep, setMainStep] = useState<MainStep>(skipPermissions ? "auth" : "notifications");
+  const [step, setStep] = useState<AuthStep>("landing");
   const [countryCode, setCountryCode] = useState("+46");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [allergens, setAllergens] = useState<string[]>([]);
   const [otpCode, setOtpCode] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,55 +179,128 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
   const [isGoogleLinking, setIsGoogleLinking] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
 
-  // Entrance animation
+  const mainStepAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(28)).current;
+  const stepAnim = useRef(new Animated.Value(1)).current;
 
   const { prompt: googlePrompt, loading: googleLoading, tokenResult: googleResult, error: googleError } = useGoogleAuth();
+  const { prompt: applePrompt, tokenResult: appleResult, error: appleError } = useAppleAuth();
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: Platform.OS !== "web" }),
-      Animated.spring(slideAnim, { toValue: 0, tension: 60, friction: 10, useNativeDriver: Platform.OS !== "web" }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 450, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  // Re-animate on step change
-  const stepAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     stepAnim.setValue(0);
-    Animated.spring(stepAnim, { toValue: 1, tension: 60, friction: 10, useNativeDriver: Platform.OS !== "web" }).start();
+    Animated.timing(stepAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
   }, [step]);
 
-  // Handle Google OAuth result
+  const transitionToMain = (next: MainStep) => {
+    Animated.timing(mainStepAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => {
+      setMainStep(next);
+      mainStepAnim.setValue(0);
+      Animated.timing(mainStepAnim, { toValue: 1, duration: 320, useNativeDriver: true }).start();
+    });
+  };
+
+  const goToAuth = () => transitionToMain("auth");
+
+  // Commit the pending auth to the global store and finish onboarding.
+  const finishWithAuth = (tok: string, prof: any) => {
+    setToken(tok);
+    setProfile(prof);
+    setOnboardingComplete(true);
+    onComplete();
+  };
+
+  // After auth succeeds: store pending creds locally, then show location gate (or finish if skipping).
+  const afterAuth = (tok: string, prof: any) => {
+    if (skipPermissions) {
+      finishWithAuth(tok, prof);
+    } else {
+      setPendingToken(tok);
+      setPendingProfile(prof);
+      transitionToMain("location");
+    }
+  };
+
+  // ── Notification step ──────────────────────────────────────────────────────
+  const handleAllowNotifications = async () => {
+    setNotifLoading(true);
+    try { await requestPushPermission?.(); } catch {}
+    setNotifLoading(false);
+    goToAuth();
+  };
+
+  // ── Location step ──────────────────────────────────────────────────────────
+  const handleAllowLocation = async () => {
+    setLocationLoading(true);
+    try {
+      const Location = await import('expo-location');
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        const [place] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+        const street = [place?.street, place?.streetNumber].filter(Boolean).join(' ');
+        const city = place?.city || place?.subregion || '';
+        const fullAddress = [street, city].filter(Boolean).join(', ');
+        setDeliveryAddress(fullAddress || city, coords);
+      }
+    } catch {}
+    setLocationLoading(false);
+    if (pendingToken && pendingProfile) {
+      finishWithAuth(pendingToken, pendingProfile);
+    } else {
+      setOnboardingComplete(true);
+      onComplete();
+    }
+  };
+
+  // ── Google / Apple auth handlers ───────────────────────────────────────────
   useEffect(() => {
     if (googleResult) {
-      setToken(googleResult.token);
-      setProfile(googleResult.user);
-      
-      // Mandatory phone link check
       if (googleResult.user.needsPhone) {
+        // Store creds as pending; go collect the phone (linking flow)
+        setPendingToken(googleResult.token);
+        setPendingProfile(googleResult.user);
         setIsGoogleLinking(true);
         setStep("phone");
       } else {
-        setOnboardingComplete(true);
-        onComplete();
+        afterAuth(googleResult.token, googleResult.user);
       }
     }
   }, [googleResult]);
 
   useEffect(() => {
-    if (googleError && googleError !== "__cancelled__") {
-      setError(googleError);
-    }
+    if (googleError && googleError !== "__cancelled__") setError(googleError);
   }, [googleError]);
 
-  const handleSkip = () => {
-    setOnboardingComplete(true);
-    onComplete();
-  };
+  useEffect(() => {
+    if (appleResult) {
+      if (appleResult.user.needsPhone) {
+        setPendingToken(appleResult.token);
+        setPendingProfile(appleResult.user);
+        setIsGoogleLinking(true);
+        setStep("phone");
+      } else {
+        afterAuth(appleResult.token, appleResult.user);
+      }
+    }
+  }, [appleResult]);
 
+  useEffect(() => {
+    if (appleError && appleError !== "__cancelled__") setError(appleError);
+  }, [appleError]);
+
+  // ── Phone / OTP auth handlers ──────────────────────────────────────────────
   const buildPhone = (cc: string, raw: string) => `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
   const handleCheckPhone = async () => {
@@ -100,21 +308,13 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
     const full = buildPhone(countryCode, phone);
     setLoading(true); setError("");
     try {
-      // 1. Check if phone exists and is part of a previous registration
       const { data: lookup } = await api.post("/api/auth/lookup-phone", { phone: full });
-      
-      // Keep track of the full phone number for subsequent steps
       const phoneExists = !!lookup.exists;
       setOtpPhone(full);
-
-      // We only prompt for profile info if it's a completely NEW phone number
-      // However, if the user logged in via Google (isGoogleLinking), we consider it an existing flow where we just need to verify the phone.
       if (!isGoogleLinking && !phoneExists) {
-        // New phone user: must fill profile first before sending OTP
         setIsNewUser(true);
         setStep("profile");
       } else {
-        // Existing phone user OR Google linking flow: go straight to OTP
         setIsNewUser(false);
         await triggerOtp(full);
       }
@@ -125,8 +325,14 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const triggerOtp = async (full: string) => {
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: full });
-      if (error) throw error;
+      if (isGoogleLinking) {
+        // Link phone to the existing Apple/Google Supabase session (does NOT create a new user)
+        const { error } = await supabase.auth.updateUser({ phone: full });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signInWithOtp({ phone: full });
+        if (error) throw error;
+      }
       setOtpPhone(full);
       setStep("otp");
     } catch (e: any) {
@@ -137,12 +343,6 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
   const handleProfileSubmit = async () => {
     if (!name.trim()) { setError("Ange ditt namn"); return; }
     if (!email.trim() || !email.includes("@")) { setError("Ange en giltig e-post"); return; }
-    
-    // Once profile is filled, prompt for allergens
-    setStep("allergens");
-  };
-
-  const handleAllergensSubmit = async () => {
     setLoading(true);
     await triggerOtp(otpPhone);
     setLoading(false);
@@ -152,34 +352,35 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
     if (!otpCode.trim()) { setError("Ange koden från SMS:et"); return; }
     setLoading(true); setError("");
     try {
-      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
-        phone: otpPhone,
-        token: otpCode,
-        type: 'sms',
-      });
-      
-      if (verifyErr) throw verifyErr;
-      
-      if (data.session) {
-        // If it was a new user, we might want to update the profile metadata immediately
-        if (isNewUser) {
-          await supabase.auth.updateUser({
-            data: { name: name.trim(), full_name: name.trim() }
-          });
-        }
-
-        const token = data.session.access_token;
-        setToken(token);
-        
-        // Fetch full profile from API to ensure sync
-        const profileRes = await api.get("/api/auth/me", {
-           headers: { Authorization: `Bearer ${token}` }
+      if (isGoogleLinking) {
+        // Verify phone_change — links phone to the existing Apple/Google user, no new account created
+        const { error: verifyErr } = await supabase.auth.verifyOtp({
+          phone: otpPhone,
+          token: otpCode,
+          type: 'phone_change',
         });
-
-        setProfile(profileRes.data);
-        setDislikedIngredients(allergens);
-        setOnboardingComplete(true);
-        onComplete();
+        if (verifyErr) throw verifyErr;
+        // Get the refreshed session (still the Apple/Google user, now with phone attached)
+        const { data: { session } } = await supabase.auth.getSession();
+        const tok = session?.access_token ?? pendingToken!;
+        const profileRes = await api.get("/api/auth/me", { headers: { Authorization: `Bearer ${tok}` } });
+        afterAuth(tok, profileRes.data);
+      } else {
+        // Normal phone sign-in / registration
+        const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+          phone: otpPhone,
+          token: otpCode,
+          type: 'sms',
+        });
+        if (verifyErr) throw verifyErr;
+        if (data.session) {
+          if (isNewUser) {
+            await supabase.auth.updateUser({ data: { name: name.trim(), full_name: name.trim() } });
+          }
+          const tok = data.session.access_token;
+          const profileRes = await api.get("/api/auth/me", { headers: { Authorization: `Bearer ${tok}` } });
+          afterAuth(tok, profileRes.data);
+        }
       }
     } catch (e: any) {
       setError(e.message || "Felaktig kod");
@@ -188,6 +389,114 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
 
   const topContentInset = Platform.OS === "ios" ? 16 : (StatusBar.currentHeight || 0) + 16;
 
+  // ── Notifications gate page ────────────────────────────────────────────────
+  if (mainStep === "notifications") {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#07060c" }}>
+        <LinearGradient
+          colors={[palette.panel, palette.bg, palette.panelMuted]}
+          locations={[0, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+          {/* Brand bar */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 26, paddingTop: topContentInset, marginBottom: 4 }}>
+            <View style={{
+              width: 38, height: 38, borderRadius: 12,
+              backgroundColor: 'rgba(231,178,75,0.12)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.28)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons name="restaurant" size={18} color={palette.gold} />
+            </View>
+            <Text style={{ color: palette.gold, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, fontStyle: 'italic', marginLeft: 10 }}>
+              FoodGo
+            </Text>
+            {/* Step dots */}
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
+              {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                <View key={s} style={{
+                  width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
+                  backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                }} />
+              ))}
+            </View>
+          </View>
+
+          <PermissionPage
+            icon="notifications-outline"
+            title={t('onboarding.notifications.title')}
+            highlight={t('onboarding.notifications.highlight')}
+            subtitle={t('onboarding.notifications.subtitle')}
+            features={[
+              { icon: "checkmark-circle-outline", title: t('onboarding.notifications.features.confirmation.title'), sub: t('onboarding.notifications.features.confirmation.sub') },
+              { icon: "bicycle-outline", title: t('onboarding.notifications.features.delivery.title'), sub: t('onboarding.notifications.features.delivery.sub') },
+              { icon: "gift-outline", title: t('onboarding.notifications.features.offers.title'), sub: t('onboarding.notifications.features.offers.sub') },
+            ]}
+            ctaLabel={t('onboarding.notifications.cta')}
+            ctaLoading={notifLoading}
+            onCta={handleAllowNotifications}
+            onSkip={goToAuth}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Location gate page ─────────────────────────────────────────────────────
+  if (mainStep === "location") {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#07060c" }}>
+        <LinearGradient
+          colors={[palette.panel, palette.bg, palette.panelMuted]}
+          locations={[0, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 26, paddingTop: topContentInset, marginBottom: 4 }}>
+            <View style={{
+              width: 38, height: 38, borderRadius: 12,
+              backgroundColor: 'rgba(231,178,75,0.12)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.28)',
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Ionicons name="restaurant" size={18} color={palette.gold} />
+            </View>
+            <Text style={{ color: palette.gold, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, fontStyle: 'italic', marginLeft: 10 }}>
+              FoodGo
+            </Text>
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
+              {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                <View key={s} style={{
+                  width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
+                  backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                }} />
+              ))}
+            </View>
+          </View>
+
+          <PermissionPage
+            icon="location-outline"
+            title={t('onboarding.location.title')}
+            highlight={t('onboarding.location.highlight')}
+            subtitle={t('onboarding.location.subtitle')}
+            features={[
+              { icon: "restaurant-outline", title: t('onboarding.location.features.local.title'), sub: t('onboarding.location.features.local.sub') },
+              { icon: "time-outline", title: t('onboarding.location.features.eta.title'), sub: t('onboarding.location.features.eta.sub') },
+              { icon: "home-outline", title: t('onboarding.location.features.address.title'), sub: t('onboarding.location.features.address.sub') },
+            ]}
+            ctaLabel={t('onboarding.location.cta')}
+            ctaLoading={locationLoading}
+            onCta={handleAllowLocation}
+            onSkip={() => {
+              if (pendingToken && pendingProfile) finishWithAuth(pendingToken, pendingProfile);
+              else { setOnboardingComplete(true); onComplete(); }
+            }}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
+  // ── Auth flow ──────────────────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: "#07060c" }}>
       <LinearGradient
@@ -195,576 +504,414 @@ export default function OnboardingScreen({ onComplete }: { onComplete: () => voi
         locations={[0, 0.6, 1]}
         style={StyleSheet.absoluteFill}
       />
-
-      {/* Decorative gold glow in upper area */}
-      <View
-        style={{
-          position: "absolute",
-          top: -80,
-          left: "15%",
-          right: "15%",
-          height: 260,
-          borderRadius: 130,
-          backgroundColor: "rgba(231,178,75,0.055)",
-          shadowColor: palette.gold,
-          shadowOpacity: 0.3,
-          shadowRadius: 60,
-          shadowOffset: { width: 0, height: 20 },
-        }}
-      />
+      <View style={{
+        position: "absolute", top: -80, left: "15%", right: "15%", height: 260, borderRadius: 130,
+        backgroundColor: "rgba(231,178,75,0.055)",
+        shadowColor: palette.gold, shadowOpacity: 0.3, shadowRadius: 60, shadowOffset: { width: 0, height: 20 },
+      }} />
 
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingHorizontal: 26,
-              paddingTop: topContentInset,
-              paddingBottom: 48,
-            }}
+            contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 26, paddingTop: topContentInset, paddingBottom: 48 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          {/* Header row */}
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: 36,
-            }}
-          >
-            {/* Brand mark */}
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <View
-                style={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 14,
-                  backgroundColor: "rgba(231,178,75,0.12)",
-                  borderWidth: 1,
-                  borderColor: "rgba(231,178,75,0.28)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  shadowColor: palette.gold,
-                  shadowOpacity: 0.35,
-                  shadowRadius: 10,
-                  shadowOffset: { width: 0, height: 4 },
-                }}
-              >
-                <Ionicons name="restaurant" size={20} color={palette.gold} />
+            {/* Header row */}
+            <Animated.View style={{
+              opacity: fadeAnim, transform: [{ translateY: slideAnim }],
+              flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 36,
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <View style={{
+                  width: 42, height: 42, borderRadius: 14,
+                  backgroundColor: "rgba(231,178,75,0.12)", borderWidth: 1, borderColor: "rgba(231,178,75,0.28)",
+                  alignItems: "center", justifyContent: "center",
+                  shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
+                }}>
+                  <Ionicons name="restaurant" size={20} color={palette.gold} />
+                </View>
+                <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", letterSpacing: -0.5, fontStyle: "italic" }}>
+                  FoodGo
+                </Text>
               </View>
-              <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", letterSpacing: -0.5, fontStyle: "italic" }}>
-                MatGo
-              </Text>
-            </View>
 
-            {/* Skip button */}
-            <Pressable
-              onPress={handleSkip}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: palette.card,
-                borderWidth: 1,
-                borderColor: palette.border,
-              }}
-            >
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>Hoppa över</Text>
-            </Pressable>
-          </Animated.View>
+              {/* Step dots — only when past landing */}
+              {step !== "landing" && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 8 }}>
+                  {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                    <View key={s} style={{
+                      width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
+                      backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                    }} />
+                  ))}
+                </View>
+              )}
 
-          {/* Hero section */}
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-              marginBottom: 36,
-            }}
-          >
-            {step === "landing" && (
-              <>
-                <Text style={{ color: palette.text, fontSize: 36, fontWeight: "900", lineHeight: 40, letterSpacing: -0.5 }}>
-                  Välkommen{"\n"}<Text style={{ color: palette.gold }}>till MatGo</Text>
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 14, fontWeight: "500", marginTop: 10, lineHeight: 21 }}>
-                  Snabb matleverans till din dörr. Skapa ett konto eller logga in för att komma igång.
-                </Text>
-              </>
-            )}
-            {step === "phone" && (
-              <>
-                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                  Ditt telefon{"\n"}nummer
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                  Vi skickar ett engångslösenord via SMS för att verifiera din identitet.
-                </Text>
-              </>
-            )}
-            {step === "profile" && (
-              <>
-                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                  Din profil
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                  Det verkar vara ditt första besök! Berätta lite mer om dig själv.
-                </Text>
-              </>
-            )}
-            {step === "otp" && (
-              <>
-                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                  Ange{"\n"}SMS-koden
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                  Koden skickades till{" "}
-                  <Text style={{ color: palette.text, fontWeight: "700" }}>{otpPhone}</Text>
-                </Text>
-              </>
-            )}
-          </Animated.View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Pressable
+                  onPress={() => setLangPickerOpen(true)}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 20, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border }}
+                >
+                  <Ionicons name="globe-outline" size={13} color={palette.muted} />
+                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{currentLanguage.toUpperCase()}</Text>
+                </Pressable>
+                {step === "landing" && (
+                  <Pressable
+                    onPress={() => {
+                      if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
+                      else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
+                    }}
+                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border }}
+                  >
+                    <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('onboarding.skipBtn')}</Text>
+                  </Pressable>
+                )}
+              </View>
+            </Animated.View>
 
-          {/* Step content */}
-          <Animated.View
-            style={{
+            {/* Hero section — only shown for non-landing steps */}
+            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], marginBottom: step !== "landing" ? 36 : 0 }}>
+              {step === "phone" && (
+                <>
+                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                    {t('onboarding.auth.phone.title')}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                    {t('onboarding.auth.phone.subtitle')}
+                  </Text>
+                </>
+              )}
+              {step === "profile" && (
+                <>
+                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                    {t('onboarding.auth.profile.title')}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                    {t('onboarding.auth.profile.subtitle')}
+                  </Text>
+                </>
+              )}
+              {step === "otp" && (
+                <>
+                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                    {t('onboarding.auth.otp.title')}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                    {t('onboarding.auth.otp.sentTo')}{" "}
+                    <Text style={{ color: palette.text, fontWeight: "700" }}>{otpPhone}</Text>
+                    {isGoogleLinking && (
+                      <Text style={{ color: palette.muted }}>{"\n"}Koden kopplar numret till ditt konto.</Text>
+                    )}
+                  </Text>
+                </>
+              )}
+            </Animated.View>
+
+            {/* Step content */}
+            <Animated.View style={{
               opacity: stepAnim,
               transform: [{ translateY: stepAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
               gap: 14,
-            }}
-          >
-            {/* ── LANDING ── */}
-            {step === "landing" && (
-              <>
-                {/* Phone CTA — primary */}
-                <Pressable
-                  onPress={() => { 
-                    setError(""); 
-                    setIsGoogleLinking(false); 
-                    setIsNewUser(false);
-                    setStep("phone"); 
-                  }}
-                  style={{
-                    backgroundColor: palette.gold,
-                    borderRadius: 22,
-                    paddingVertical: 18,
-                    alignItems: "center",
-                    shadowColor: palette.gold,
-                    shadowOpacity: 0.4,
-                    shadowRadius: 20,
-                    shadowOffset: { width: 0, height: 8 },
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <Ionicons name="phone-portrait-outline" size={20} color="#000" />
-                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15, letterSpacing: 0.2 }}>Logga in med telefonnummer</Text>
-                  </View>
-                </Pressable>
+            }}>
 
-                {/* Divider */}
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginVertical: 2 }}>
-                  <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1 }}>ELLER</Text>
-                  <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                </View>
-
-                {/* Google — secondary */}
-                <Pressable
-                  onPress={googlePrompt}
-                  disabled={googleLoading}
-                  style={{
-                    backgroundColor: palette.panelMuted,
-                    borderRadius: 22,
-                    paddingVertical: 16,
-                    alignItems: "center",
-                    borderWidth: 1,
-                    borderColor: palette.border,
-                    opacity: googleLoading ? 0.6 : 1,
-                  }}
-                >
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    {googleLoading
-                      ? <ActivityIndicator size="small" color={palette.text} />
-                      : <Text style={{ fontSize: 17, fontWeight: "700" }}>G</Text>
-                    }
-                    <Text style={{ color: palette.text, fontWeight: "700", fontSize: 14 }}>Fortsätt med Google</Text>
-                  </View>
-                </Pressable>
-
-                {/* Guest */}
-                <Pressable onPress={handleSkip} style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>
-                    Fortsätt utan konto →
-                  </Text>
-                </Pressable>
-
-                {!!error && (
-                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                  </View>
-                )}
-
-                {/* Value props */}
-                <View style={{ marginTop: 28, gap: 14 }}>
-                  {[
-                    { icon: "flash-outline", title: "Snabb leverans", sub: "Leverans på under 45 minuter" },
-                    { icon: "gift-outline", title: "Personliga deals", sub: "Exklusiva erbjudanden till ditt konto" },
-                    { icon: "location-outline", title: "Spara adresser", sub: "Beställ snabbare nästa gång" },
-                  ].map((item) => (
-                    <View
-                      key={item.icon}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 14,
-                        backgroundColor: palette.card,
-                        borderRadius: 18,
-                        padding: 14,
-                        borderWidth: 1,
-                        borderColor: palette.border,
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 44,
-                          height: 44,
-                          borderRadius: 14,
-                          backgroundColor: "rgba(231,178,75,0.08)",
-                          borderWidth: 1,
-                          borderColor: "rgba(231,178,75,0.16)",
-                          alignItems: "center",
-                          justifyContent: "center",
-                        }}
-                      >
-                        <Ionicons name={item.icon as any} size={19} color={palette.gold} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{item.title}</Text>
-                        <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "500", marginTop: 2 }}>{item.sub}</Text>
-                      </View>
+              {/* ── LANDING ── */}
+              {step === "landing" && (
+                <>
+                  {/* Visual hero */}
+                  <View style={{ alignItems: "center", marginBottom: 32, marginTop: 8 }}>
+                    <View style={{
+                      width: 120, height: 120, borderRadius: 36,
+                      backgroundColor: "rgba(231,178,75,0.09)",
+                      borderWidth: 1.5, borderColor: "rgba(231,178,75,0.22)",
+                      alignItems: "center", justifyContent: "center",
+                      shadowColor: palette.gold, shadowOpacity: 0.5, shadowRadius: 50, shadowOffset: { width: 0, height: 14 },
+                    }}>
+                      <Ionicons name="restaurant" size={54} color={palette.gold} />
                     </View>
-                  ))}
-                </View>
-              </>
-            )}
+                  </View>
 
-            {/* ── PHONE ── */}
-            {step === "phone" && (
-              <>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 10,
-                    backgroundColor: palette.card,
-                    borderRadius: 20,
-                    borderWidth: 1,
-                    borderColor: palette.border,
-                    padding: 6,
-                  }}
-                >
+                  <Text style={{
+                    color: palette.text, fontSize: 44, fontWeight: "900",
+                    lineHeight: 48, letterSpacing: -1.5, marginBottom: 12, textAlign: "center",
+                  }}>
+                    {"Beställ mat.\n"}<Text style={{ color: palette.gold }}>{"Direkt."}</Text>
+                  </Text>
+                  <Text style={{
+                    color: palette.muted, fontSize: 14, fontWeight: "500",
+                    lineHeight: 22, marginBottom: 36, textAlign: "center",
+                  }}>
+                    Restauranger nära dig — levererat snabbt.
+                  </Text>
+
+                  {/* Apple first (iOS compliance: must be at least as prominent as other social logins) */}
+                  {Platform.OS === "ios" && (
+                    <AppleAuthentication.AppleAuthenticationButton
+                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                      cornerRadius={22}
+                      style={{ width: "100%", height: 56, marginBottom: 10 }}
+                      onPress={applePrompt}
+                    />
+                  )}
+
+                  {/* Google */}
                   <Pressable
-                    onPress={() => setCountryPickerOpen(true)}
+                    onPress={googlePrompt}
+                    disabled={googleLoading}
                     style={{
-                      backgroundColor: palette.panelMuted,
-                      borderRadius: 14,
-                      paddingHorizontal: 14,
-                      paddingVertical: 14,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
+                      backgroundColor: "#fff", borderRadius: 22, paddingVertical: 17,
+                      alignItems: "center", marginBottom: 16, opacity: googleLoading ? 0.6 : 1,
                     }}
                   >
-                    <Text style={{ color: palette.text, fontSize: 15, fontWeight: "800" }}>
-                      {COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🇸🇪"} {countryCode}
-                    </Text>
-                    <Ionicons name="chevron-down" size={13} color={palette.muted} />
-                  </Pressable>
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      color: palette.text,
-                      fontSize: 17,
-                      fontWeight: "700",
-                      paddingHorizontal: 10,
-                      paddingVertical: 14,
-                    }}
-                    placeholder="70 123 45 67"
-                    placeholderTextColor={palette.muted}
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={(t) => { setPhone(t); setError(""); }}
-                    returnKeyType="done"
-                    autoFocus
-                  />
-                </View>
-
-                {/* Country picker modal */}
-                <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
-                  <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)" }} onPress={() => setCountryPickerOpen(false)}>
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        backgroundColor: "#1a1624",
-                        borderTopLeftRadius: 32,
-                        borderTopRightRadius: 32,
-                        padding: 28,
-                        paddingBottom: 48,
-                        gap: 6,
-                      }}
-                    >
-                      {/* Drag handle */}
-                      <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16 }} />
-                      <Text style={{ color: palette.text, fontWeight: "900", fontSize: 15, marginBottom: 12, textAlign: "center" }}>Välj landsnummer</Text>
-                      {COUNTRY_CODES.map(cc => (
-                        <Pressable
-                          key={cc.code}
-                          onPress={() => { setCountryCode(cc.code); setCountryPickerOpen(false); }}
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 14,
-                            paddingVertical: 14,
-                            paddingHorizontal: 16,
-                            borderRadius: 18,
-                            backgroundColor: countryCode === cc.code ? "rgba(231,178,75,0.1)" : "transparent",
-                            borderWidth: countryCode === cc.code ? 1 : 0,
-                            borderColor: "rgba(231,178,75,0.2)",
-                          }}
-                        >
-                          <Text style={{ fontSize: 26 }}>{cc.flag}</Text>
-                          <Text style={{ color: palette.text, fontWeight: "700", flex: 1, fontSize: 15 }}>{cc.name}</Text>
-                          <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 14 }}>{cc.code}</Text>
-                        </Pressable>
-                      ))}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      {googleLoading
+                        ? <ActivityIndicator size="small" color="#000" />
+                        : <Text style={{ fontSize: 17, fontWeight: "900", color: "#4285F4" }}>G</Text>}
+                      <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>Fortsätt med Google</Text>
                     </View>
                   </Pressable>
-                </Modal>
 
-                {!!error && (
-                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                  {/* Divider */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }}>ELLER</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
                   </View>
-                )}
 
-                <Pressable
-                  onPress={handleCheckPhone}
-                  disabled={loading || !phone.trim()}
-                  style={{
-                    backgroundColor: palette.gold,
-                    borderRadius: 22,
-                    paddingVertical: 18,
-                    alignItems: "center",
-                    opacity: loading || !phone.trim() ? 0.55 : 1,
-                    marginTop: 4,
-                    shadowColor: palette.gold,
-                    shadowOpacity: 0.35,
-                    shadowRadius: 16,
-                    shadowOffset: { width: 0, height: 6 },
-                  }}
-                >
-                  {loading
-                    ? <ActivityIndicator color="#000" />
-                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{isGoogleLinking ? "Verifiera mitt nummer →" : "Fortsätt →"}</Text>
-                  }
-                </Pressable>
-              </>
-            )}
-
-            {/* ── PROFILE ── */}
-            {step === "profile" && (
-              <>
-                <TextInput
-                  style={[styles.input, { paddingVertical: 18 }]}
-                  placeholder="Förnamn & Efternamn"
-                  placeholderTextColor={palette.muted}
-                  value={name}
-                  onChangeText={(t) => { setName(t); setError(""); }}
-                />
-                <TextInput
-                  style={[styles.input, { paddingVertical: 18 }]}
-                  placeholder="Din e-post"
-                  placeholderTextColor={palette.muted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={(t) => { setEmail(t); setError(""); }}
-                />
-
-                {!!error && (
-                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                  </View>
-                )}
-
-                <Pressable
-                  onPress={handleProfileSubmit}
-                  disabled={!name.trim() || !email.trim()}
-                  style={{
-                    backgroundColor: palette.gold,
-                    borderRadius: 22,
-                    paddingVertical: 18,
-                    alignItems: "center",
-                    opacity: !name.trim() || !email.trim() ? 0.55 : 1,
-                    marginTop: 4,
-                  }}
-                >
-                  <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Nästa →</Text>
-                </Pressable>
-
-                <Pressable onPress={() => { setStep("phone"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>← Ändra nummer</Text>
-                </Pressable>
-              </>
-            )}
-
-            {/* ── ALLERGENS ── */}
-            {step === "allergens" && (
-              <>
-                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                  Matallergier?
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                  Välj om du har några allergier så kan vi dölja fel mat från din meny.
-                </Text>
-                
-                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 24, marginBottom: 16 }}>
-                  {PREFERENCE_OPTIONS.map((pref) => {
-                    const active = allergens.includes(pref);
-                    return (
-                      <Pressable
-                        key={pref}
-                        onPress={() => {
-                          if (active) setAllergens(allergens.filter(a => a !== pref));
-                          else setAllergens([...allergens, pref]);
-                        }}
-                        style={{
-                          paddingHorizontal: 14,
-                          paddingVertical: 10,
-                          borderRadius: 14,
-                          backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
-                          borderWidth: 1,
-                          borderColor: active ? palette.gold : palette.border,
-                        }}
-                      >
-                        <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 13, fontWeight: "800" }}>{pref}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                {!!error && (
-                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                  </View>
-                )}
-
-                <Pressable
-                  onPress={handleAllergensSubmit}
-                  disabled={loading}
-                  style={{
-                    backgroundColor: palette.gold,
-                    borderRadius: 22,
-                    paddingVertical: 18,
-                    alignItems: "center",
-                    opacity: loading ? 0.55 : 1,
-                    marginTop: 4,
-                  }}
-                >
-                  {loading
-                    ? <ActivityIndicator color="#000" />
-                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Se koden →</Text>
-                  }
-                </Pressable>
-
-                <Pressable onPress={() => { setStep("profile"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10, marginTop: 10 }}>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>← Tillbaka</Text>
-                </Pressable>
-              </>
-            )}
-
-            {/* ── OTP ── */}
-            {step === "otp" && (
-              <>
-                {/* OTP box */}
-                <View
-                  style={{
-                    backgroundColor: palette.panelMuted,
-                    borderRadius: 20,
-                    borderWidth: 1,
-                    borderColor: "rgba(234,181,69,0.2)",
-                    padding: 6,
-                  }}
-                >
-                  <TextInput
+                  {/* Phone — primary gold CTA */}
+                  <Pressable
+                    onPress={() => { setError(""); setIsGoogleLinking(false); setIsNewUser(false); setStep("phone"); }}
                     style={{
-                      color: palette.gold,
-                      fontSize: 32,
-                      fontWeight: "900",
-                      textAlign: "center",
-                      letterSpacing: 14,
-                      paddingVertical: 20,
-                      paddingHorizontal: 14,
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 17,
+                      alignItems: "center", marginBottom: 6,
+                      shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
                     }}
-                    placeholder="——————"
-                    placeholderTextColor="rgba(234,181,69,0.2)"
-                    keyboardType="number-pad"
-                    maxLength={6}
-                    value={otpCode}
-                    onChangeText={(t) => { setOtpCode(t); setError(""); }}
-                    returnKeyType="done"
-                    onSubmitEditing={handleVerifyOtp}
-                    autoFocus
-                  />
-                </View>
+                  >
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                      <Ionicons name="phone-portrait-outline" size={18} color="#000" />
+                      <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Logga in med telefonnummer</Text>
+                    </View>
+                  </Pressable>
 
-                {!!error && (
-                  <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                    <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", marginTop: 6 }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+
+                  {/* Guest link */}
+                  <Pressable
+                    onPress={() => {
+                      if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
+                      else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
+                    }}
+                    style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}
+                  >
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fortsätt som gäst</Text>
+                  </Pressable>
+                </>
+              )}
+
+              {/* ── PHONE ── */}
+              {step === "phone" && (
+                <>
+                  <View style={{
+                    flexDirection: "row", gap: 10, backgroundColor: palette.card,
+                    borderRadius: 20, borderWidth: 1, borderColor: palette.border, padding: 6,
+                  }}>
+                    <Pressable
+                      onPress={() => setCountryPickerOpen(true)}
+                      style={{
+                        backgroundColor: palette.panelMuted, borderRadius: 14,
+                        paddingHorizontal: 14, paddingVertical: 14,
+                        flexDirection: "row", alignItems: "center", gap: 6,
+                      }}
+                    >
+                      <Text style={{ color: palette.text, fontSize: 15, fontWeight: "800" }}>
+                        {COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🇸🇪"} {countryCode}
+                      </Text>
+                      <Ionicons name="chevron-down" size={13} color={palette.muted} />
+                    </Pressable>
+                    <TextInput
+                      style={{ flex: 1, color: palette.text, fontSize: 17, fontWeight: "700", paddingHorizontal: 10, paddingVertical: 14 }}
+                      placeholder={t('onboarding.phone.placeholder')}
+                      placeholderTextColor={palette.muted}
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={(t) => { setPhone(t); setError(""); }}
+                      returnKeyType="done"
+                      autoFocus
+                    />
                   </View>
-                )}
 
-                <Pressable
-                  onPress={handleVerifyOtp}
-                  disabled={loading || otpCode.length < 4}
-                  style={{
-                    backgroundColor: palette.gold,
-                    borderRadius: 22,
-                    paddingVertical: 18,
-                    alignItems: "center",
-                    opacity: loading || otpCode.length < 4 ? 0.55 : 1,
-                    shadowColor: palette.gold,
-                    shadowOpacity: 0.35,
-                    shadowRadius: 16,
-                    shadowOffset: { width: 0, height: 6 },
-                  }}
-                >
-                  {loading
-                    ? <ActivityIndicator color="#000" />
-                    : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Verifiera och logga in →</Text>
-                  }
-                </Pressable>
+                  <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
+                    <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)" }} onPress={() => setCountryPickerOpen(false)}>
+                      <View style={{
+                        position: "absolute", bottom: 0, left: 0, right: 0,
+                        backgroundColor: "#1a1624", borderTopLeftRadius: 32, borderTopRightRadius: 32,
+                        padding: 28, paddingBottom: 48, gap: 6,
+                      }}>
+                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16 }} />
+                        <Text style={{ color: palette.text, fontWeight: "900", fontSize: 15, marginBottom: 12, textAlign: "center" }}>{t('onboarding.phone.countryTitle')}</Text>
+                        {COUNTRY_CODES.map(cc => (
+                          <Pressable
+                            key={cc.code}
+                            onPress={() => { setCountryCode(cc.code); setCountryPickerOpen(false); }}
+                            style={{
+                              flexDirection: "row", alignItems: "center", gap: 14,
+                              paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18,
+                              backgroundColor: countryCode === cc.code ? "rgba(231,178,75,0.1)" : "transparent",
+                              borderWidth: countryCode === cc.code ? 1 : 0,
+                              borderColor: "rgba(231,178,75,0.2)",
+                            }}
+                          >
+                            <Text style={{ fontSize: 26 }}>{cc.flag}</Text>
+                            <Text style={{ color: palette.text, fontWeight: "700", flex: 1, fontSize: 15 }}>{cc.name}</Text>
+                            <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 14 }}>{cc.code}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </Pressable>
+                  </Modal>
 
-                <Pressable
-                  onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }}
-                  style={{ alignItems: "center", paddingVertical: 10 }}
-                >
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fick ingen kod? Skicka igen</Text>
-                </Pressable>
-              </>
-            )}
-          </Animated.View>
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+
+                  <Pressable
+                    onPress={handleCheckPhone}
+                    disabled={loading || !phone.trim()}
+                    style={{
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+                      opacity: loading || !phone.trim() ? 0.55 : 1, marginTop: 4,
+                      shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+                    }}
+                  >
+                    {loading
+                      ? <ActivityIndicator color="#000" />
+                      : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{isGoogleLinking ? t('onboarding.phone.verifyBtn') : t('onboarding.phone.continueBtn')}</Text>
+                    }
+                  </Pressable>
+                </>
+              )}
+
+              {/* ── PROFILE ── */}
+              {step === "profile" && (
+                <>
+                  <TextInput
+                    style={[styles.input, { paddingVertical: 18 }]}
+                    placeholder={t('onboarding.profile.namePlaceholder')}
+                    placeholderTextColor={palette.muted}
+                    value={name}
+                    onChangeText={(t) => { setName(t); setError(""); }}
+                  />
+                  <TextInput
+                    style={[styles.input, { paddingVertical: 18 }]}
+                    placeholder={t('onboarding.profile.emailPlaceholder')}
+                    placeholderTextColor={palette.muted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={(t) => { setEmail(t); setError(""); }}
+                  />
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    onPress={handleProfileSubmit}
+                    disabled={!name.trim() || !email.trim()}
+                    style={{
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+                      opacity: !name.trim() || !email.trim() ? 0.55 : 1, marginTop: 4,
+                    }}
+                  >
+                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.profile.nextBtn')}</Text>
+                  </Pressable>
+                  <Pressable onPress={() => { setStep("phone"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.profile.backPhone')}</Text>
+                  </Pressable>
+                </>
+              )}
+
+              {/* ── OTP ── */}
+              {step === "otp" && (
+                <>
+                  <View style={{
+                    backgroundColor: palette.panelMuted, borderRadius: 20, borderWidth: 1,
+                    borderColor: "rgba(234,181,69,0.2)", padding: 6,
+                  }}>
+                    <TextInput
+                      style={{
+                        color: palette.gold, fontSize: 32, fontWeight: "900",
+                        textAlign: "center", letterSpacing: 14,
+                        paddingVertical: 20, paddingHorizontal: 14,
+                      }}
+                      placeholder="——————"
+                      placeholderTextColor="rgba(234,181,69,0.2)"
+                      keyboardType="number-pad"
+                      maxLength={6}
+                      value={otpCode}
+                      onChangeText={(t) => { setOtpCode(t); setError(""); }}
+                      returnKeyType="done"
+                      onSubmitEditing={handleVerifyOtp}
+                      autoFocus
+                    />
+                  </View>
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    onPress={handleVerifyOtp}
+                    disabled={loading || otpCode.length < 4}
+                    style={{
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+                      opacity: loading || otpCode.length < 4 ? 0.55 : 1,
+                      shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+                    }}
+                  >
+                    {loading ? <ActivityIndicator color="#000" /> : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.otp.verifyBtn')}</Text>}
+                  </Pressable>
+                  <Pressable
+                    onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }}
+                    style={{ alignItems: "center", paddingVertical: 10 }}
+                  >
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.otp.resend')}</Text>
+                  </Pressable>
+                </>
+              )}
+            </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+
+      <Modal visible={langPickerOpen} transparent animationType="slide" onRequestClose={() => setLangPickerOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { borderRadius: 30, gap: 14 }]}>
+            <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center" }}>{t('language.title')}</Text>
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", textAlign: "center" }}>{t('language.subtitle')}</Text>
+            {(['en', 'sv', 'ar'] as const).map((lang) => (
+              <Pressable
+                key={lang}
+                onPress={async () => { await changeLanguage(lang); setLangPickerOpen(false); }}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, borderRadius: 16, backgroundColor: currentLanguage === lang ? "rgba(234,181,69,0.1)" : palette.panelMuted, borderWidth: 1, borderColor: currentLanguage === lang ? palette.gold : palette.border }}
+              >
+                <Text style={{ color: currentLanguage === lang ? palette.gold : palette.text, fontSize: 15, fontWeight: "900" }}>{t(`language.languages.${lang}`)}</Text>
+                {currentLanguage === lang && <Ionicons name="checkmark-circle" size={20} color={palette.gold} />}
+              </Pressable>
+            ))}
+            <Pressable style={{ marginTop: 4 }} onPress={() => setLangPickerOpen(false)}>
+              <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('common.cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
