@@ -63,6 +63,33 @@ router.post('/create-intent', async (req, res) => {
   }
 });
 
+// POST /api/payments/refund
+// Refundar en PaymentIntent — anropas automatiskt av appen om orderSkapandet misslyckas efter betalning
+router.post('/refund', async (req, res) => {
+  const { paymentIntentId } = req.body;
+
+  if (!paymentIntentId || typeof paymentIntentId !== 'string') {
+    res.status(400).json({ error: 'paymentIntentId saknas' });
+    return;
+  }
+
+  try {
+    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+
+    // Mark the order as refunded if one exists with this intent
+    await prisma.order.updateMany({
+      where: { stripePaymentIntentId: paymentIntentId },
+      data: { paymentStatus: 'REFUNDED' },
+    });
+
+    console.log(`💸 Refund created: ${refund.id} for intent ${paymentIntentId}`);
+    res.json({ success: true, refundId: refund.id });
+  } catch (error: any) {
+    console.error('Stripe refund error:', error);
+    res.status(500).json({ error: error?.message || 'Återbetalning misslyckades' });
+  }
+});
+
 // POST /api/payments/webhook - Stripe webhook
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;
