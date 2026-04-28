@@ -125,7 +125,8 @@ model Order {
   reviewReply           String?
   reviewRepliedAt       DateTime?
   allergens             String      @default("[]") // Customer allergens captured at order time
-  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
+  preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
+  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
   scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
   liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())

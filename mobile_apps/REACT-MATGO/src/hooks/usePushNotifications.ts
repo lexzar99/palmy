@@ -164,11 +164,16 @@ export function usePushNotifications(
   // status-notisen istället för att stapla en ny per steg.
   useEffect(() => {
     if (sessionToken && apnsDeviceToken) {
+      console.log('[push] Registering APNs device token (len=' + apnsDeviceToken.length + ')');
       api.post(
         '/api/notifications/register-device',
         { token: apnsDeviceToken },
         { headers: { Authorization: `Bearer ${sessionToken}` } }
-      ).catch((err) => console.warn('Kunde inte skicka APNs-token:', err));
+      )
+        .then(() => console.log('[push] APNs device token registered'))
+        .catch((err) => {
+          console.warn('[push] APNs token registration failed:', err?.response?.status, err?.response?.data || err?.message);
+        });
     }
   }, [sessionToken, apnsDeviceToken]);
 

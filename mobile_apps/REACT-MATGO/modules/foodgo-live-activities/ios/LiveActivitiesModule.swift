@@ -48,6 +48,8 @@ public class LiveActivitiesModule: Module {
             let progressStep   = params["progressStep"] as? Int ?? 0
             let etaMinutes     = params["etaMinutes"] as? Int
             let driverName     = params["driverName"] as? String
+            let orderType      = params["orderType"] as? String
+            let etaEndsAt      = params["etaEndsAt"] as? Double
 
             let attrs = OrderActivityAttributes(
                 orderId: orderId,
@@ -59,7 +61,9 @@ public class LiveActivitiesModule: Module {
                 statusText: statusText,
                 progressStep: progressStep,
                 etaMinutes: etaMinutes,
-                driverName: driverName
+                driverName: driverName,
+                orderType: orderType,
+                etaEndsAt: etaEndsAt
             )
 
             // High relevanceScore on creation makes iOS show the activity expanded briefly.
@@ -84,13 +88,17 @@ public class LiveActivitiesModule: Module {
             let progressStep = params["progressStep"] as? Int ?? 0
             let etaMinutes   = params["etaMinutes"] as? Int
             let driverName   = params["driverName"] as? String
+            let orderType    = params["orderType"] as? String
+            let etaEndsAt    = params["etaEndsAt"] as? Double
 
             let newState = OrderActivityAttributes.OrderState(
                 status: status,
                 statusText: statusText,
                 progressStep: progressStep,
                 etaMinutes: etaMinutes,
-                driverName: driverName
+                driverName: driverName,
+                orderType: orderType,
+                etaEndsAt: etaEndsAt
             )
             // High relevanceScore on each update so iOS shows the activity prominently when status changes
             let content = ActivityContent(state: newState, staleDate: nil, relevanceScore: 100)

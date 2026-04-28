@@ -117,6 +117,7 @@ model Order {
   reviewFlagged         Boolean     @default(false)
   reviewReply           String?
   reviewRepliedAt       DateTime?
+  preparingAt           DateTime?
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
   liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())

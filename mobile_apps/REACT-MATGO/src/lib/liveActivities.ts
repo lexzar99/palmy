@@ -63,14 +63,17 @@ interface StatusMeta {
   progressStep: number;
 }
 
+// Step semantics:
+//   DELIVERY (4 steps): 0=Mottagen, 1=Tillagas, 2=På väg, 3=Levererad
+//   PICKUP   (3 steps): 0=Mottagen, 1=Tillagas, 2=Redo att hämtas
 const STATUS_META: Record<string, StatusMeta> = {
   accepted:        { statusText: "Restaurangen har accepterat din order", progressStep: 0 },
-  preparing:       { statusText: "Din mat förbereds just nu",             progressStep: 1 },
+  preparing:       { statusText: "Din mat tillagas just nu",              progressStep: 1 },
   ready_delivery:  { statusText: "Maten är redo — väntar på bud",         progressStep: 1 },
-  ready_pickup:    { statusText: "Din mat är klar att hämtas! 🛍️",        progressStep: 4 },
+  ready_pickup:    { statusText: "Din mat är klar att hämtas! 🛍️",        progressStep: 2 },
   on_the_way:      { statusText: "Din order är på väg!",                  progressStep: 2 },
-  arrived:         { statusText: "Föraren är framme!",                    progressStep: 3 },
-  delivered:       { statusText: "Levererad — smaklig måltid! 🎉",        progressStep: 4 },
+  arrived:         { statusText: "Föraren är framme!",                    progressStep: 2 },
+  delivered:       { statusText: "Levererad — smaklig måltid! 🎉",        progressStep: 3 },
   cancelled:       { statusText: "Ordern avbruten",                       progressStep: 0 },
 };
 
@@ -125,6 +128,7 @@ export async function startOrderActivity(params: {
   restaurantName: string;
   orderTotal: number;   // in kr
   etaMinutes?: number;
+  orderType?: "DELIVERY" | "PICKUP";
 }): Promise<string | null> {
   if (!supported) return null;
   try {
@@ -137,6 +141,8 @@ export async function startOrderActivity(params: {
       statusText:     m.statusText,
       progressStep:   m.progressStep,
       etaMinutes:     params.etaMinutes ?? null,
+      orderType:      params.orderType ?? "DELIVERY",
+      etaEndsAt:      null,
     });
     return id;
   } catch (e) {
@@ -152,7 +158,12 @@ export async function startOrderActivity(params: {
 export async function updateOrderActivity(
   orderId: string,
   status: OrderStatus,
-  options?: { etaMinutes?: number; driverName?: string }
+  options?: {
+    etaMinutes?: number;
+    driverName?: string;
+    orderType?: "DELIVERY" | "PICKUP";
+    etaEndsAt?: number | null; // Unix epoch *seconds*
+  }
 ): Promise<void> {
   if (!supported) return;
   try {
@@ -163,6 +174,8 @@ export async function updateOrderActivity(
       progressStep: m.progressStep,
       etaMinutes:   options?.etaMinutes ?? null,
       driverName:   options?.driverName ?? null,
+      orderType:    options?.orderType ?? null,
+      etaEndsAt:    options?.etaEndsAt ?? null,
     });
   } catch (e) {
     console.warn("[LiveActivities] updateOrderActivity failed:", e);

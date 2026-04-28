@@ -850,6 +850,16 @@ router.get('/:id', async (req: Request, res: Response) => {
       }
     }
 
+    // Absolute timestamp when the active LiveActivity step's countdown should
+    // hit zero. Computed from anchor timestamps + the originally agreed-on
+    // duration so it stays stable across re-fetches and reboots.
+    let etaEndsAt: string | null = null;
+    if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
+      etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
+    } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
+      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000).toISOString();
+    }
+
     res.json({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -867,7 +877,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       customerPhone: order.customerPhone,
       allergens: order.allergens,
       deliveryStreet: order.deliveryStreet,
+      preparingAt: order.preparingAt,
       deliveringAt: order.deliveringAt,
+      etaEndsAt,
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
       restaurantAddress: order.restaurant?.address || '',
       restaurantZip: order.restaurant?.zip || '',

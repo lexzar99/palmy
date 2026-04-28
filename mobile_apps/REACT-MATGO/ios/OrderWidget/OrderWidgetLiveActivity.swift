@@ -2,140 +2,214 @@
 //  OrderWidgetLiveActivity.swift
 //  OrderWidget
 //
+//  Step-based Live Activity:
+//    DELIVERY (4 steps): Mottagen → Tillagas (timer) → På väg (timer) → Levererad
+//    PICKUP   (3 steps): Mottagen → Tillagas (timer) → Redo att hämtas
+//
 
 import ActivityKit
 import SwiftUI
 import WidgetKit
 
-// ── FoodGo colours ────────────────────────────────────────────────────────────
+// ── FoodGo palette ────────────────────────────────────────────────────────────
 private extension Color {
-    static let fgBg    = Color(red: 0.04, green: 0.04, blue: 0.06)
-    static let fgGold  = Color(red: 0.91, green: 0.70, blue: 0.29)
-    static let fgMuted = Color(red: 0.62, green: 0.59, blue: 0.55)
-    static let fgText  = Color(red: 0.96, green: 0.95, blue: 0.93)
-    static let fgPanel = Color(red: 0.11, green: 0.10, blue: 0.14)
+    static let fgBg     = Color(red: 0.05, green: 0.04, blue: 0.07)
+    static let fgPanel  = Color(red: 0.10, green: 0.09, blue: 0.13)
+    static let fgGold   = Color(red: 0.91, green: 0.70, blue: 0.29)
+    static let fgMuted  = Color(red: 0.62, green: 0.59, blue: 0.55)
+    static let fgText   = Color(red: 0.97, green: 0.96, blue: 0.94)
+    static let fgGreen  = Color(red: 0.20, green: 0.85, blue: 0.45)
+    static let fgOrange = Color(red: 1.00, green: 0.50, blue: 0.10)
+    static let fgMint   = Color(red: 0.10, green: 0.95, blue: 0.55)
+    static let fgBlue   = Color(red: 0.25, green: 0.65, blue: 1.00)
 }
 
-private let stepLabels = ["Mottagen", "Tillagas", "På väg", "Framme", "Klar"]
-private let stepIcons: [String] = [
-    "checkmark.circle", "flame", "bicycle", "mappin.circle", "bag.badge.checkmark"
-]
+// ── Step model ────────────────────────────────────────────────────────────────
+private struct StepDef {
+    let label: String
+    let icon: String
+    let color: Color
+    /// Whether this step shows a live countdown when active.
+    let showsTimer: Bool
+}
 
-// Per-step accent colors: accepted→gold, preparing→orange, on-way→green, arrived→blue, done→mint
-private let stepColors: [Color] = [
-    Color(red: 0.91, green: 0.70, blue: 0.29), // Mottagen  – gold
-    Color(red: 1.00, green: 0.50, blue: 0.10), // Tillagas  – orange
-    Color(red: 0.20, green: 0.85, blue: 0.45), // På väg    – green
-    Color(red: 0.25, green: 0.65, blue: 1.00), // Framme    – blue
-    Color(red: 0.10, green: 0.95, blue: 0.55), // Klar      – mint
-]
+private func steps(for orderType: String?) -> [StepDef] {
+    let isPickup = orderType == "PICKUP"
+    if isPickup {
+        return [
+            StepDef(label: "Mottagen",  icon: "checkmark.circle.fill", color: .fgGold,   showsTimer: false),
+            StepDef(label: "Tillagas",  icon: "flame.fill",            color: .fgOrange, showsTimer: true),
+            StepDef(label: "Redo",      icon: "bag.badge.checkmark",   color: .fgMint,   showsTimer: false),
+        ]
+    }
+    return [
+        StepDef(label: "Mottagen",  icon: "checkmark.circle.fill", color: .fgGold,   showsTimer: false),
+        StepDef(label: "Tillagas",  icon: "flame.fill",            color: .fgOrange, showsTimer: true),
+        StepDef(label: "På väg",    icon: "bicycle",               color: .fgGreen,  showsTimer: true),
+        StepDef(label: "Levererad", icon: "checkmark.seal.fill",   color: .fgMint,   showsTimer: false),
+    ]
+}
 
-// ── Expanded lock-screen / banner ─────────────────────────────────────────────
+private func clampStep(_ step: Int, count: Int) -> Int {
+    return max(0, min(step, count - 1))
+}
+
+// ── Countdown helpers ─────────────────────────────────────────────────────────
+private struct CountdownText: View {
+    let endsAt: Double
+    let accent: Color
+
+    var body: some View {
+        let date = Date(timeIntervalSince1970: endsAt)
+        // SwiftUI auto-updates this label every second on its own — no need
+        // for the JS layer to push a new state every tick.
+        if date > Date() {
+            Text(timerInterval: Date()...date, countsDown: true)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(accent)
+                .monospacedDigit()
+        } else {
+            Text("0:00")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.fgMuted)
+                .monospacedDigit()
+        }
+    }
+}
+
+// ── Lock-screen / banner view ─────────────────────────────────────────────────
 struct OrderExpandedView: View {
     let context: ActivityViewContext<OrderActivityAttributes>
 
     var body: some View {
-        let state  = context.state
-        let step   = min(max(state.progressStep, 0), 4)
-        let accent = stepColors[step]
+        let state = context.state
+        let stepDefs = steps(for: state.orderType)
+        let stepIdx = clampStep(state.progressStep, count: stepDefs.count)
+        let active = stepDefs[stepIdx]
 
-        VStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header
             HStack {
                 Image(systemName: "fork.knife")
-                    .foregroundStyle(accent)
+                    .foregroundStyle(active.color)
                 Text("FoodGo")
                     .font(.system(size: 16, weight: .black))
                     .italic()
-                    .foregroundStyle(accent)
+                    .foregroundStyle(active.color)
                 Spacer()
                 Text(context.attributes.orderTotal)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.fgText)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.fgMuted)
             }
 
+            // Restaurant + status text
             VStack(alignment: .leading, spacing: 3) {
                 Text(context.attributes.restaurantName)
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Color.fgText)
-                Text(state.statusText)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.fgMuted)
+                HStack(spacing: 6) {
+                    Image(systemName: active.icon)
+                        .font(.system(size: 11))
+                        .foregroundStyle(active.color)
+                    Text(state.statusText)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.fgMuted)
+                        .lineLimit(1)
+                    Spacer()
+                    if active.showsTimer, let endsAt = state.etaEndsAt {
+                        CountdownText(endsAt: endsAt, accent: active.color)
+                    }
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Progress row
-            HStack(spacing: 0) {
-                ForEach(0..<5) { i in
-                    VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(i <= step ? stepColors[i] : Color.fgPanel)
-                                .frame(width: 26, height: 26)
-                            Image(systemName: stepIcons[i])
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(i <= step ? Color.fgBg : Color.fgMuted)
-                        }
-                        Text(stepLabels[i])
-                            .font(.system(size: 8, weight: i == step ? .bold : .regular))
-                            .foregroundStyle(i == step ? stepColors[i] : Color.fgMuted)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                    }
-                    if i < 4 {
-                        Rectangle()
-                            .fill(i < step ? stepColors[i] : Color.fgPanel)
-                            .frame(height: 2)
-                            .frame(maxWidth: .infinity)
-                            .padding(.bottom, 18)
-                    }
-                }
-            }
-
-            if let eta = state.etaMinutes, step < 4 {
-                HStack {
-                    Image(systemName: "clock")
-                        .foregroundStyle(Color.fgMuted)
-                        .font(.system(size: 11))
-                    Text("Beräknad tid: ~\(eta) min")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Color.fgMuted)
-                    Spacer()
-                }
-            }
+            StepRow(stepDefs: stepDefs, current: stepIdx)
         }
         .padding(16)
         .background(Color.fgBg)
     }
 }
 
-// ── Widget ────────────────────────────────────────────────────────────────────
+// ── Progress steps row ────────────────────────────────────────────────────────
+private struct StepRow: View {
+    let stepDefs: [StepDef]
+    let current: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<stepDefs.count, id: \.self) { i in
+                let def = stepDefs[i]
+                let isDone = i < current
+                let isActive = i == current
+                let circleFill: Color = isDone || isActive ? def.color : Color.fgPanel
+                let iconColor: Color = isDone || isActive ? Color.fgBg : Color.fgMuted
+
+                VStack(spacing: 4) {
+                    ZStack {
+                        Circle()
+                            .fill(circleFill)
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(isActive ? def.color.opacity(0.6) : Color.clear, lineWidth: 2)
+                                    .scaleEffect(isActive ? 1.15 : 1.0)
+                            )
+                        Image(systemName: def.icon)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(iconColor)
+                    }
+                    Text(def.label)
+                        .font(.system(size: 9, weight: isActive ? .bold : .regular))
+                        .foregroundStyle(isActive ? def.color : Color.fgMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .frame(maxWidth: .infinity)
+
+                if i < stepDefs.count - 1 {
+                    Rectangle()
+                        .fill(i < current ? stepDefs[i].color : Color.fgPanel)
+                        .frame(height: 2)
+                        .padding(.bottom, 18)
+                }
+            }
+        }
+    }
+}
+
+// ── Widget configuration ──────────────────────────────────────────────────────
 struct OrderWidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: OrderActivityAttributes.self) { context in
             OrderExpandedView(context: context)
                 .activityBackgroundTint(Color.fgBg)
+                .activitySystemActionForegroundColor(Color.fgGold)
 
         } dynamicIsland: { context in
-            let step   = min(max(context.state.progressStep, 0), 4)
-            let accent = stepColors[step]
+            let stepDefs = steps(for: context.state.orderType)
+            let stepIdx = clampStep(context.state.progressStep, count: stepDefs.count)
+            let active = stepDefs[stepIdx]
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         Image(systemName: "fork.knife")
-                            .foregroundStyle(accent)
+                            .foregroundStyle(active.color)
                         Text("FoodGo")
                             .font(.system(size: 14, weight: .black))
                             .italic()
-                            .foregroundStyle(accent)
+                            .foregroundStyle(active.color)
                     }
                     .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let eta = context.state.etaMinutes, step < 4 {
+                    if active.showsTimer, let endsAt = context.state.etaEndsAt {
+                        CountdownText(endsAt: endsAt, accent: active.color)
+                            .padding(.trailing, 8)
+                    } else if let eta = context.state.etaMinutes, stepIdx < stepDefs.count - 1 {
                         Text("~\(eta) min")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(accent)
+                            .foregroundStyle(active.color)
                             .padding(.trailing, 8)
                     }
                 }
@@ -143,21 +217,29 @@ struct OrderWidgetLiveActivity: Widget {
                     OrderExpandedView(context: context)
                 }
             } compactLeading: {
-                Image(systemName: stepIcons[step])
-                    .foregroundStyle(accent)
+                Image(systemName: active.icon)
+                    .foregroundStyle(active.color)
                     .font(.system(size: 14, weight: .semibold))
             } compactTrailing: {
-                Text(stepLabels[step])
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                if active.showsTimer, let endsAt = context.state.etaEndsAt, Date(timeIntervalSince1970: endsAt) > Date() {
+                    Text(timerInterval: Date()...Date(timeIntervalSince1970: endsAt), countsDown: true)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(active.color)
+                        .monospacedDigit()
+                        .frame(width: 50)
+                } else {
+                    Text(active.label)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(active.color)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
             } minimal: {
-                Image(systemName: stepIcons[step])
-                    .foregroundStyle(accent)
+                Image(systemName: active.icon)
+                    .foregroundStyle(active.color)
             }
             .widgetURL(URL(string: "foodgo://order/\(context.attributes.orderId)"))
-            .keylineTint(accent)
+            .keylineTint(active.color)
         }
     }
 }

@@ -368,6 +368,7 @@ router.patch('/orders/:id/status', async (req, res) => {
     // When marking as DELIVERING: store as DELIVERED in DB immediately,
     // but tell the customer it's "DELIVERING" with a timestamp so the
     // customer sees "PÅ VÄG" for 10-15 minutes then auto-transitions to "LEVERERAD"
+    const isPreparingTransition = status === 'PREPARING';
     const isDeliveringTransition = status === 'DELIVERING';
     const dbStatus = isDeliveringTransition ? 'DELIVERED' : status;
     const customerStatus = status; // Always send the requested status to the customer
@@ -377,6 +378,10 @@ router.patch('/orders/:id/status', async (req, res) => {
       data: {
         status: dbStatus,
         estimatedTime: estimatedTime || undefined,
+        // Anchor points so the LiveActivity countdowns start from the
+        // moment the admin clicked the button (not from when the customer
+        // happens to refresh / re-fetch).
+        ...(isPreparingTransition ? { preparingAt: new Date() } : {}),
         ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
       },
     });
@@ -396,11 +401,22 @@ router.patch('/orders/:id/status', async (req, res) => {
     // response. Uses customerStatus so DELIVERING shows "På väg" even though
     // the DB row is DELIVERED.
     if (existing.liveActivityToken) {
+      // Compute the absolute moment the active step's countdown should hit
+      // zero. Anchor on the freshly-stamped timestamps (preparingAt /
+      // deliveringAt) so the widget's countdown matches what the customer
+      // will see on the order detail screen.
+      let etaEndsAt: Date | null = null;
+      if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
+        etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
+      } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
+        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 20 * 60_000);
+      }
       pushOrderStatusUpdate({
         token: existing.liveActivityToken,
         serverStatus: customerStatus,
         orderType: existing.type,
         etaMinutes: order.estimatedTime ?? null,
+        etaEndsAt,
       }).catch((e) => console.warn('[admin] Live Activity push failed:', e?.message));
     }
 
@@ -449,6 +465,7 @@ router.patch('/orders/:id/status', async (req, res) => {
         // apns-collapse-id="order-<id>" så iOS *ersätter* den föregående
         // notisen istället för att lägga ihop en ny per statusstep.
         if (userToNotify.apnsDeviceToken) {
+          console.log(`[push] Order ${order.id} -> APNs direct (collapse) status=${status}`);
           await sendApnsAlert({
             token: userToNotify.apnsDeviceToken,
             title,
@@ -458,7 +475,10 @@ router.patch('/orders/:id/status', async (req, res) => {
             data: { orderId: order.id, status },
           }).catch((e) => console.warn('[admin] APNs alert failed:', e?.message));
         } else if (userToNotify.pushToken) {
+          console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);
           await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });
+        } else {
+          console.warn(`[push] Order ${order.id} -> NO push tokens on user, skipping notification`);
         }
       }
 

@@ -1,7 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   Modal,
   Pressable,
   ScrollView,
@@ -28,7 +30,9 @@ import {
 } from "../lib/quickAddresses";
 import ScalePressable from "../components/ScalePressable";
 import { palette, styles } from "../constants/theme";
-
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
+import { startOrderActivity } from '../lib/liveActivities';
 
 import { CartItem, DeliveryCheck, City } from "../types";
 
@@ -39,13 +43,63 @@ import { Header, ScreenWrap, PrimaryButton } from "../components/ui";
 import { CartScreenSkeleton } from "../components/SkeletonLoader";
 
 function CartEmptyState({ onExplore }: { onExplore: () => void }) {
+  const { t } = useTranslation();
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Fade in
+    Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+
+    // Gentle float loop
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, { toValue: -12, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(floatAnim, { toValue: 0, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+
+    // Subtle shadow pulse (scale of shadow placeholder)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 0.75, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40, marginTop: 100 }}>
-      <Ionicons name="cart-outline" size={64} color={palette.muted} style={{ marginBottom: 20 }} />
-      <Text style={{ color: palette.text, fontSize: 20, fontWeight: "900", marginBottom: 8 }}>Din varukorg är tom</Text>
-      <Text style={{ color: palette.muted, fontSize: 14, textAlign: "center", marginBottom: 30 }}>Upptäck mat från våra grymma restauranger!</Text>
-      <PrimaryButton label="UTFORSKA RESTAURANGER" onPress={onExplore} />
-    </View>
+    <Animated.View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 40, marginTop: 80, opacity: fadeAnim }}>
+      <Animated.View style={{ transform: [{ translateY: floatAnim }], alignItems: "center" }}>
+        {/* Icon with gold ring */}
+        <View style={{
+          width: 100, height: 100, borderRadius: 30,
+          backgroundColor: "rgba(231,178,75,0.08)",
+          borderWidth: 1.5, borderColor: "rgba(231,178,75,0.2)",
+          alignItems: "center", justifyContent: "center",
+          marginBottom: 4,
+        }}>
+          <Ionicons name="bag-outline" size={46} color={palette.gold} />
+        </View>
+      </Animated.View>
+
+      {/* Shadow that shrinks as icon rises */}
+      <Animated.View style={{
+        width: 48, height: 6, borderRadius: 3,
+        backgroundColor: "rgba(125,97,38,0.12)",
+        marginBottom: 28,
+        transform: [{ scaleX: scaleAnim }],
+      }} />
+
+      <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900", marginBottom: 8, letterSpacing: -0.3 }}>
+        {t('cart.empty.title')}
+      </Text>
+      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600", textAlign: "center", marginBottom: 32, lineHeight: 20 }}>
+        {t('cart.empty.description')}
+      </Text>
+      <PrimaryButton label={t('cart.empty.cta')} onPress={onExplore} />
+    </Animated.View>
   );
 }
 
@@ -132,6 +186,8 @@ export default function CartScreen({
   openOrder: (id: string) => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const screenTopPadding = getScreenTopPadding(insets.top);
   const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
 
@@ -242,13 +298,13 @@ export default function CartScreen({
     const maxTime = getLastScheduledTimeToday();
 
     if (maxTime.getTime() < minTime.getTime()) {
-      return "Det finns tyvärr inga fler tider kvar att förbeställa idag.";
+      return t('cart.schedule.noSlots');
     }
     if (value.getTime() < minTime.getTime()) {
-      return `Tiden måste vara minst ${SCHEDULE_MINUTES_AHEAD} minuter fram i tiden.`;
+      return t('cart.schedule.tooSoon', { min: SCHEDULE_MINUTES_AHEAD });
     }
     if (value.getTime() > maxTime.getTime()) {
-      return "Du kan bara välja tider för idag.";
+      return t('cart.schedule.onlyTodayError');
     }
     return null;
   }, []);
@@ -256,7 +312,7 @@ export default function CartScreen({
   const handleOpenSchedulePicker = useCallback(() => {
     const nextValue = clampScheduledTimeToToday(scheduledFor || getMinimumScheduledTime());
     if (!nextValue) {
-      Alert.alert("Inga tider kvar idag", "Det finns tyvärr inga fler tider kvar att förbeställa idag.");
+      Alert.alert(t('cart.schedule.noMore'), t('cart.schedule.noSlots'));
       return;
     }
 
@@ -547,25 +603,25 @@ export default function CartScreen({
   const handleCheckoutPress = async () => {
     if (submitting) return;
     if (!formData.customerName.trim()) {
-      Alert.alert("Namn saknas", "Fyll i ditt namn.");
+      Alert.alert(t('cart.validation.noName'), t('cart.validation.noNameHelp'));
       return;
     }
     if (!formData.customerPhone.trim()) {
-      Alert.alert("Telefon saknas", "Fyll i ditt telefonnummer.");
+      Alert.alert(t('cart.validation.noPhone'), t('cart.validation.noPhoneHelp'));
       return;
     }
     if (orderType === "DELIVERY" && !formData.deliveryStreet.trim()) {
-      Alert.alert("Adress saknas", "Fyll i en fullständig leveransadress.");
+      Alert.alert(t('cart.validation.noAddress'), t('cart.validation.noAddressHelp'));
       return;
     }
     if (!items.length) {
-      Alert.alert("Tom varukorg", "Lägg till produkter först.");
+      Alert.alert(t('cart.validation.empty'), t('cart.validation.emptyHelp'));
       return;
     }
 
     const scheduleError = getScheduleValidationMessage(scheduledFor);
     if (scheduleError) {
-      Alert.alert("Schemaläggning", scheduleError);
+      Alert.alert(t('cart.schedule.label'), scheduleError);
       return;
     }
 
@@ -573,7 +629,7 @@ export default function CartScreen({
     let finalPaymentIntentId = "FREE_PROMO";
     try {
       if (!restaurantSettings.isOpen) {
-        Alert.alert("Stängt", "Restaurangen är för närvarande stängd.");
+        Alert.alert(t('cart.errors.restaurantClosed'), t('cart.errors.restaurantClosedHelp'));
         setSubmitting(false);
         return;
       }
@@ -624,20 +680,20 @@ export default function CartScreen({
 
             if (!zRes.data?.covered) {
               setZoneCheckStatus("error");
-              Alert.alert("Utanför leveransområde", "Vi levererar tyvärr inte till din adress. Ange en annan adress eller välj avhämtning.", [{ text: "OK" }]);
+              Alert.alert(t('cart.errors.outOfZone'), t('cart.errors.outOfZoneHelp'), [{ text: t('common.confirm') }]);
               setSubmitting(false);
               return;
             }
 
             const allRests: any[] = (zRes.data.cities || []).flatMap((c: any) => c.restaurants || []);
-            const thisRest = allRests.find((r: any) => 
-              r.id === currentRestaurantId || 
+            const thisRest = allRests.find((r: any) =>
+              r.id === currentRestaurantId ||
               (r.slug && currentRestaurantSlug && r.slug.toLowerCase() === currentRestaurantSlug.toLowerCase())
             );
 
             if (!thisRest || (thisRest.isOpen === false)) {
               setZoneCheckStatus("error");
-              Alert.alert("Leverans ej möjlig", "Den här restaurangen kan tyvärr inte leverera till din adress just nu.", [{ text: "OK" }]);
+              Alert.alert(t('cart.errors.notPossible'), t('cart.errors.notPossibleHelp'), [{ text: t('common.confirm') }]);
               setSubmitting(false);
               return;
             }
@@ -650,14 +706,14 @@ export default function CartScreen({
             setZoneCheckStatus("ok");
           } catch {}
         } else if (formData.deliveryStreet) {
-          Alert.alert("Kunde inte verifiera adress", "Vänligen välj din adress från förslagen.");
+          Alert.alert(t('cart.errors.addressNotVerified'), t('cart.errors.addressNotVerifiedHelp'));
           setSubmitting(false);
           return;
         }
       }
 
       if (subtotal < restaurantSettings.minOrderAmount) {
-        Alert.alert("Minsta ordervärde", `Minsta ordervärde är ${restaurantSettings.minOrderAmount} kr.`);
+        Alert.alert(t('cart.errors.minimumOrder'), t('cart.summary.minimum', { amount: restaurantSettings.minOrderAmount }));
         setSubmitting(false);
         return;
       }
@@ -670,10 +726,11 @@ export default function CartScreen({
         const { clientSecret, paymentIntentId } = intentRes.data;
 
         const initInfo = await initPaymentSheet({
-          merchantDisplayName: 'MatGo AB',
+          merchantDisplayName: 'FoodGo',
           paymentIntentClientSecret: clientSecret,
-          // applePay: { merchantCountryCode: 'SE' }, // Kräver ny DEV Build
-          returnURL: 'matgo://stripe-redirect',
+          applePay: { merchantCountryCode: 'SE' },
+          googlePay: { merchantCountryCode: 'SE', testEnv: false },
+          returnURL: 'foodgo://stripe-redirect',
           appearance: {
             colors: {
               primary: palette.gold,
@@ -782,6 +839,14 @@ export default function CartScreen({
 
       const successId = response.data?.orderId || response.data?.id;
       if (successId) {
+        // Kick off Dynamic Island Live Activity right after the order is placed.
+        startOrderActivity({
+          orderId: String(successId),
+          restaurantName: cartRestaurant?.name || "FoodGo",
+          orderTotal: Math.round(total),
+          etaMinutes: restaurantSettings.deliveryFee ? 30 : 25,
+          orderType,
+        }).catch(() => {});
         clearCart();
         openOrder(successId);
       } else {
@@ -798,18 +863,18 @@ export default function CartScreen({
         try {
           await api.post("/api/payments/refund", { paymentIntentId: finalPaymentIntentId });
           Alert.alert(
-            "Betalning återbetald",
-            "Din betalning registrerades men ordern kunde inte skapas. Beloppet har återbetalats automatiskt — det kan ta 1–3 bankdagar. Försök igen."
+            t('cart.errors.paymentRefunded'),
+            t('cart.errors.paymentRefundedHelp')
           );
         } catch {
           Alert.alert(
-            "Kontakta support",
-            `Din betalning registrerades men ordern misslyckades och återbetalningen kunde inte genomföras automatiskt. Spara den här koden och kontakta oss: ${finalPaymentIntentId}`
+            t('cart.errors.paymentFailed'),
+            t('cart.errors.paymentFailedHelp', { code: finalPaymentIntentId })
           );
         }
       } else {
         const msg = error?.response?.data?.error || error?.message || "Okänt fel";
-        Alert.alert("Kunde inte skicka order", typeof msg === "string" ? msg : JSON.stringify(msg));
+        Alert.alert(t('cart.errors.orderFailed'), typeof msg === "string" ? msg : JSON.stringify(msg));
       }
     } finally {
       setSubmitting(false);
@@ -819,7 +884,7 @@ export default function CartScreen({
   if (pageLoading) {
     return (
       <ScreenWrap>
-        <Header title="Din kasse" subtitle="Förbereder din beställning" />
+        <Header title={t('cart.header')} subtitle={t('cart.preparing')} />
         <CartScreenSkeleton />
       </ScreenWrap>
     );
@@ -837,14 +902,14 @@ export default function CartScreen({
       ]}
     >
       <Header
-        title="Din kasse"
+        title={t('cart.header')}
         subtitle={items.length === 1 ? "1 produkt" : `${items.length} produkter`}
       />
 
       {pageLoading && (
         <View style={{ alignItems: "center", paddingVertical: 36, gap: 10 }}>
           <ActivityIndicator size="large" color={palette.gold} />
-          <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" }}>Förbereder din kasse...</Text>
+          <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: ls(2), textTransform: "uppercase" }}>{t('cart.loading')}</Text>
         </View>
       )}
 
@@ -872,7 +937,7 @@ export default function CartScreen({
                       ))}
                     </View>
                   )}
-                  <Text style={{ color: palette.gold, fontSize: 9, fontWeight: "900", letterSpacing: 2, marginTop: 6, opacity: 0.7 }}>TRYCK FÖR ATT REDIGERA</Text>
+                  <Text style={{ color: palette.gold, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginTop: 6, opacity: 0.7 }}>{t('cart.editHint')}</Text>
                 </Pressable>
                 <View style={[styles.cartActions, { flexDirection: "row", alignItems: "center", gap: 12 }]}>
                   <View style={styles.counter}>
@@ -922,10 +987,10 @@ export default function CartScreen({
                     fontWeight: "900",
                     textTransform: "uppercase",
                     fontSize: 11,
-                    letterSpacing: 1,
+                    letterSpacing: ls(1),
                   }}
                 >
-                  {type === "DELIVERY" ? "Leverans" : "Hämtning"}
+                  {type === "DELIVERY" ? t('cart.delivery') : t('cart.pickup')}
                 </Text>
               </Pressable>
             ))}
@@ -949,8 +1014,8 @@ export default function CartScreen({
               }}
             >
               <Ionicons name="flash-outline" size={18} color={!scheduledFor ? "#000" : palette.muted} />
-              <Text style={{ color: !scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>
-                Snarast
+              <Text style={{ color: !scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(1) }}>
+                {t('cart.asap')}
               </Text>
             </Pressable>
             <Pressable
@@ -971,8 +1036,8 @@ export default function CartScreen({
               }}
             >
               <Ionicons name="time-outline" size={18} color={scheduledFor ? "#000" : palette.muted} />
-              <Text style={{ color: scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: 1 }}>
-                Schemalägg
+              <Text style={{ color: scheduledFor ? "#000" : palette.text, fontWeight: "900", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(1) }}>
+                {t('cart.schedule.label')}
               </Text>
             </Pressable>
           </View>
@@ -989,8 +1054,8 @@ export default function CartScreen({
                     <Text style={{ color: palette.gold, fontSize: 18, fontWeight: "900", marginTop: 2 }}>
                       {scheduledFor.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })}
                     </Text>
-                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", marginTop: 4, textTransform: "uppercase", letterSpacing: 1.2 }}>
-                      Endast idag
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", marginTop: 4, textTransform: "uppercase", letterSpacing: ls(1.2) }}>
+                      {t('cart.schedule.onlyToday')}
                     </Text>
                   </View>
                 </View>
@@ -1029,8 +1094,8 @@ export default function CartScreen({
                 onPress={(e) => e.stopPropagation()}
               >
                 <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: palette.muted, alignSelf: "center", marginBottom: 20, opacity: 0.3 }} />
-                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 }}>
-                  Välj tid idag
+                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", textAlign: "center", marginBottom: 20, textTransform: "uppercase", letterSpacing: ls(1) }}>
+                  {t('cart.schedule.title')}
                 </Text>
 
                 {/* Quick times */}
@@ -1056,7 +1121,7 @@ export default function CartScreen({
                           borderColor: isActive ? palette.gold : palette.border,
                         }}
                       >
-                        <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                        <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1) }}>
                           {qt.label}
                         </Text>
                       </Pressable>
@@ -1066,15 +1131,15 @@ export default function CartScreen({
 
                 {/* Custom time picker */}
                 <View style={{ marginBottom: 14, alignItems: "center" }}>
-                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 1.3 }}>
-                    Förbeställning gäller endast dagens datum
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: ls(1.3) }}>
+                    {t('cart.schedule.onlyToday')}
                   </Text>
                 </View>
 
                 <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
                   {/* Hour scroll */}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Timme</Text>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 8, textAlign: "center" }}>{t('cart.schedule.hourLabel')}</Text>
                     <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
                       {availableHours.map((hour) => {
                         const isSelected = scheduledFor && scheduledFor.getHours() === hour;
@@ -1107,7 +1172,7 @@ export default function CartScreen({
 
                   {/* Minute scroll */}
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8, textAlign: "center" }}>Minut</Text>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 8, textAlign: "center" }}>{t('cart.schedule.minuteLabel')}</Text>
                     <ScrollView style={{ height: 120 }} showsVerticalScrollIndicator={false}>
                       {Array.from({ length: 12 }, (_, i) => {
                         const m = i * 5;
@@ -1149,7 +1214,7 @@ export default function CartScreen({
                   onPress={() => {
                     const scheduleError = getScheduleValidationMessage(scheduledFor);
                     if (scheduleError) {
-                      Alert.alert("Schemaläggning", scheduleError);
+                      Alert.alert(t('cart.schedule.label'), scheduleError);
                       return;
                     }
                     setShowTimePicker(false);
@@ -1161,7 +1226,7 @@ export default function CartScreen({
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>Bekräfta tid</Text>
+                  <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1) }}>{t('cart.schedule.confirm')}</Text>
                 </Pressable>
               </Pressable>
             </Pressable>
@@ -1174,11 +1239,11 @@ export default function CartScreen({
                   <Ionicons name="person-outline" size={20} color={palette.gold} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>Beställ som gäst</Text>
-                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>Logga in för personliga erbjudanden och se tidigare beställningar.</Text>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>{t('cart.guest.title')}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>{t('cart.guest.description')}</Text>
                 </View>
                 <Pressable onPress={openProfile} style={{ backgroundColor: palette.gold, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
-                  <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Logga in</Text>
+                  <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{t('cart.guest.loginBtn')}</Text>
                 </Pressable>
               </View>
             </View>
@@ -1186,18 +1251,18 @@ export default function CartScreen({
 
           {/* 3. Customer Info */}
           <View style={styles.formCard}>
-            <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Personuppgifter</Text>
+            <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 12 }}>{t('cart.sections.customer')}</Text>
             <View style={{ gap: 10 }}>
               <TextInput
                 style={styles.input}
-                placeholder="Fullständigt namn"
+                placeholder={t('cart.inputs.name')}
                 placeholderTextColor={palette.muted}
                 value={formData.customerName}
                 onChangeText={(value) => setFormData((v) => ({ ...v, customerName: value }))}
               />
               <TextInput
                 style={styles.input}
-                placeholder="Telefonnummer"
+                placeholder={t('cart.inputs.phone')}
                 placeholderTextColor={palette.muted}
                 keyboardType="phone-pad"
                 value={formData.customerPhone}
@@ -1209,7 +1274,7 @@ export default function CartScreen({
           {/* 4. Delivery Info */}
           {orderType === "DELIVERY" && (
             <View style={styles.formCard}>
-              <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Leveransadress</Text>
+              <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 12 }}>{t('cart.sections.delivery')}</Text>
 
               {quickAddresses.length > 0 && (
                 <View style={{ marginBottom: 16 }}>
@@ -1255,7 +1320,7 @@ export default function CartScreen({
                         <Text numberOfLines={1} style={{ color: autocompleteValue === formatQuickAddress(addr) ? palette.gold : palette.text, fontSize: 10, fontWeight: "900" }}>
                           {formatQuickAddress(addr)}
                         </Text>
-                        {addr.isDefault && <Text style={{ color: palette.gold, fontSize: 8, fontWeight: "900" }}>• STANDARD</Text>}
+                        {addr.isDefault && <Text style={{ color: palette.gold, fontSize: 8, fontWeight: "900" }}>• {t('cart.address.default')}</Text>}
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -1290,13 +1355,13 @@ export default function CartScreen({
                     }
                     setZoneCheckStatus("checking");
                   }}
-                  placeholder="Sök din leveransadress..."
+                  placeholder={t('cart.inputs.addressSearch')}
                 />
 
                 {zoneCheckStatus === "checking" && (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4 }}>
                     <ActivityIndicator size="small" color={palette.gold} />
-                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>Kontrollerar leveranszon...</Text>
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(0.5) }}>{t('cart.address.checking')}</Text>
                   </View>
                 )}
                 {zoneCheckStatus === "ok" && (
@@ -1304,12 +1369,12 @@ export default function CartScreen({
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: palette.success, alignItems: "center", justifyContent: "center" }}>
                       <Ionicons name="checkmark" size={12} color="#000" />
                     </View>
-                    <Text style={{ color: palette.success, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                      Vi levererar dit!{" "}
+                    <Text style={{ color: palette.success, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(0.5) }}>
+                      {t('cart.address.deliverable')}{" "}
                       {deliveryCheck?.deliveryFee != null && deliveryCheck.deliveryFee > 0
-                        ? `Avgift: ${Math.round(deliveryCheck.deliveryFee)} kr`
+                        ? `(${Math.round(deliveryCheck.deliveryFee)} kr)`
                         : deliveryCheck?.deliveryFee === 0
-                          ? "Gratis leverans"
+                          ? t('common.free')
                           : ""}
                     </Text>
                   </View>
@@ -1319,15 +1384,15 @@ export default function CartScreen({
                     <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: palette.danger, alignItems: "center", justifyContent: "center" }}>
                       <Ionicons name="close" size={12} color="#fff" />
                     </View>
-                    <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.5, flex: 1 }}>
-                      Restaurangen levererar tyvärr inte till din adress
+                    <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(0.5), flex: 1 }}>
+                      {t('cart.address.notDeliverable')}
                     </Text>
                   </View>
                 )}
 
                 {!!formData.deliveryStreet && (
                   <View style={{ marginTop: 8, padding: 14, borderRadius: 16, backgroundColor: palette.panelMuted, borderWidth: 1, borderColor: palette.border }}>
-                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Vald adress</Text>
+                    <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1), marginBottom: 4 }}>{t('cart.address.selected')}</Text>
                     <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{formData.deliveryStreet}</Text>
                     <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", marginTop: 2 }}>
                       {formData.deliveryZip} {formData.deliveryCity}
@@ -1335,13 +1400,13 @@ export default function CartScreen({
                   </View>
                 )}
 
-                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginTop: 12, marginBottom: 8 }}>Instruktioner</Text>
+                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginTop: 12, marginBottom: 8 }}>{t('cart.sections.instructions')}</Text>
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                   {[
-                    { id: "RING_DOORBELL", label: "Ring på", icon: "notifications-outline" },
-                    { id: "LEAVE_AT_DOOR", label: "Lämna dörr", icon: "exit-outline" },
-                    { id: "MEET_OUTSIDE", label: "Möt ute", icon: "person-outline" },
-                    { id: "PORTKOD", label: "Portkod", icon: "key-outline" },
+                    { id: "RING_DOORBELL", label: t('cart.instructions.ringDoorbell'), icon: "notifications-outline" },
+                    { id: "LEAVE_AT_DOOR", label: t('cart.instructions.leaveAtDoor'), icon: "exit-outline" },
+                    { id: "MEET_OUTSIDE", label: t('cart.instructions.meetOutside'), icon: "person-outline" },
+                    { id: "PORTKOD", label: t('cart.instructions.doorCode'), icon: "key-outline" },
                   ].map((opt) => (
                     <Pressable
                       key={opt.id}
@@ -1378,10 +1443,10 @@ export default function CartScreen({
 
           {/* 5. Notes & Promo */}
           <View style={styles.formCard}>
-            <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 12 }}>Övrigt</Text>
+            <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 12 }}>{t('cart.sections.notes')}</Text>
             <TextInput
               style={[styles.input, { height: 80, textAlignVertical: "top", paddingTop: 14 }]}
-              placeholder="Notering (t.ex. allergier, portkod...)"
+              placeholder={t('cart.inputs.note')}
               placeholderTextColor={palette.muted}
               multiline
               value={formData.note}
@@ -1391,7 +1456,7 @@ export default function CartScreen({
             <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
               <TextInput
                 style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder="Rabattkod"
+                placeholder={t('cart.inputs.promo')}
                 placeholderTextColor={palette.muted}
                 autoCapitalize="none"
                 value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCode}
@@ -1415,7 +1480,7 @@ export default function CartScreen({
                 }}
               >
                 <Text style={{ color: selectedPersonalDeal ? "#fff" : "#000", fontWeight: "900", textTransform: "uppercase", fontSize: 10 }}>
-                  {selectedPersonalDeal ? "Ta bort" : "Kolla"}
+                  {selectedPersonalDeal ? t('cart.promo.remove') : t('cart.promo.check')}
                 </Text>
               </Pressable>
             </View>
@@ -1426,12 +1491,12 @@ export default function CartScreen({
             <View style={[styles.formCard, { paddingVertical: 20 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <Ionicons name="heart" size={20} color={palette.gold} />
-                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1.5 }}>
-                  Dricks till föraren
+                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5) }}>
+                  {t('cart.sections.tip')}
                 </Text>
               </View>
               <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginBottom: 16 }}>
-                100% av dricksen går direkt till budet.
+                {t('cart.tip.description')}
               </Text>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 {[0, 10, 20, 50].map((amt) => {
@@ -1451,7 +1516,7 @@ export default function CartScreen({
                       }}
                     >
                       <Text style={{ color: isActive ? "#000" : palette.text, fontWeight: "900", fontSize: 12 }}>
-                        {amt === 0 ? "Inget" : `+${amt} kr`}
+                        {amt === 0 ? t('cart.tip.none') : `+${amt} kr`}
                       </Text>
                     </ScalePressable>
                   );
@@ -1464,46 +1529,51 @@ export default function CartScreen({
           <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4 }]}>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Delsumma</Text>
+                <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.subtotal')}</Text>
                 <Text style={{ color: palette.text, fontWeight: "900", fontSize: 11 }}>{Math.round(subtotal)} KR</Text>
               </View>
               {orderType === "DELIVERY" && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Leveransavgift</Text>
+                  <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.deliveryFee')}</Text>
                   <Text style={{ color: palette.text, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
                 </View>
               )}
               {tipAmount > 0 && orderType === "DELIVERY" && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.gold, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Dricks</Text>
+                  <Text style={{ color: palette.gold, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.tip')}</Text>
                   <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{tipAmount} KR</Text>
                 </View>
               )}
               {personalDiscount > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: 0.5 }}>Rabatt</Text>
+                  <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.discount')}</Text>
                   <Text style={{ color: palette.success, fontWeight: "900", fontSize: 11 }}>-{Math.round(personalDiscount)} KR</Text>
                 </View>
               )}
             </View>
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 20 }}>
-              <Text style={{ color: palette.text, fontSize: 34, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase", letterSpacing: -1.2 }}>Totalt</Text>
+              <Text style={{ color: palette.text, fontSize: 34, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase", letterSpacing: -1.2 }}>{t('cart.summary.total')}</Text>
               <Text style={{ color: palette.gold, fontSize: 48, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
                 {Math.round(total)} <Text style={{ fontSize: 14, fontStyle: "normal", opacity: 0.6 }}>SEK</Text>
               </Text>
             </View>
 
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
+              <Text style={{ color: palette.muted, fontWeight: "600", fontSize: 10, letterSpacing: ls(0.3) }}>{t('cart.vatIncluded', { rate: 6 })}</Text>
+              <Text style={{ color: palette.muted, fontWeight: "700", fontSize: 10 }}>{Math.round(total * 6 / 106)} kr</Text>
+            </View>
+
             {subtotal < restaurantSettings.minOrderAmount && (
               <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 16, padding: 14, marginTop: 18, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textAlign: "center", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                  Minsta order på {restaurantSettings.minOrderAmount} kr krävs
+                <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textAlign: "center", textTransform: "uppercase", letterSpacing: ls(0.5) }}>
+                  {t('cart.summary.minimum', { amount: restaurantSettings.minOrderAmount })}
                 </Text>
               </View>
             )}
 
             <PrimaryButton
-              label={submitting ? "Skickar order..." : `Slutför köp — ${Math.round(total)} kr`}
+              label={submitting ? t('cart.submittingBtn') : t('cart.checkoutBtn', { amount: Math.round(total) })}
               onPress={handleCheckoutPress}
               disabled={submitting || !restaurantSettings.isOpen || subtotal < restaurantSettings.minOrderAmount}
               icon="checkmark-circle-outline"

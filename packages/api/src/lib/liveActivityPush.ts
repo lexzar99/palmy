@@ -71,6 +71,8 @@ export interface LiveActivityState {
   progressStep: number;
   etaMinutes?: number | null;
   driverName?: string | null;
+  orderType?: string | null;     // "DELIVERY" | "PICKUP" — drives 4-step vs 3-step UI
+  etaEndsAt?: number | null;     // Unix epoch *seconds* when current step's countdown hits zero
 }
 
 /**
@@ -187,17 +189,19 @@ function sendApns(opts: {
   });
 }
 
-// Mirror of mobile_apps/REACT-MATGO/src/lib/liveActivities.ts STATUS_META so
-// the Dynamic Island shows the same Swedish strings/progress whether the app
-// updates in foreground or APNs pushes the update in background.
+// Mirror of mobile_apps/REACT-MATGO/src/lib/liveActivities.ts STATUS_META.
+//
+// Step semantics differ per orderType:
+//   DELIVERY (4 steps): 0=Mottagen, 1=Tillagas, 2=På väg, 3=Levererad
+//   PICKUP   (3 steps): 0=Mottagen, 1=Tillagas, 2=Redo att hämtas
 const STATUS_META: Record<string, { statusText: string; progressStep: number }> = {
   accepted:        { statusText: 'Restaurangen har accepterat din order', progressStep: 0 },
-  preparing:       { statusText: 'Din mat förbereds just nu',             progressStep: 1 },
+  preparing:       { statusText: 'Din mat tillagas just nu',              progressStep: 1 },
   ready_delivery:  { statusText: 'Maten är redo — väntar på bud',         progressStep: 1 },
-  ready_pickup:    { statusText: 'Din mat är klar att hämtas! 🛍️',        progressStep: 4 },
+  ready_pickup:    { statusText: 'Din mat är klar att hämtas! 🛍️',        progressStep: 2 },
   on_the_way:      { statusText: 'Din order är på väg!',                  progressStep: 2 },
-  arrived:         { statusText: 'Föraren är framme!',                    progressStep: 3 },
-  delivered:       { statusText: 'Levererad — smaklig måltid! 🎉',        progressStep: 4 },
+  arrived:         { statusText: 'Föraren är framme!',                    progressStep: 2 },
+  delivered:       { statusText: 'Levererad — smaklig måltid! 🎉',        progressStep: 3 },
   cancelled:       { statusText: 'Ordern avbruten',                       progressStep: 0 },
 };
 
@@ -244,11 +248,14 @@ export async function sendApnsAlert(opts: {
 }): Promise<void> {
   if (!isConfigured()) return;
 
+  // Pure alert push — NO `content-available` flag. iOS occasionally suppresses
+  // the banner when both an alert AND content-available are set (you get the
+  // sound but no visible notification). The Live Activity has its own
+  // push-to-update path so we don't need to wake JS from this push.
   const aps: Record<string, unknown> = {
     alert: { title: opts.title, body: opts.body },
     sound: opts.sound ?? 'default',
-    'mutable-content': 1,
-    'content-available': 1, // wakes JS for ~30s so the LiveActivity also stays in sync
+    badge: 1,
   };
   if (opts.threadId) aps['thread-id'] = opts.threadId;
 
@@ -273,6 +280,7 @@ export async function pushOrderStatusUpdate(opts: {
   serverStatus: string;
   orderType: string | null | undefined;
   etaMinutes?: number | null;
+  etaEndsAt?: Date | null;
   alertBody?: string;
 }): Promise<void> {
   const mapped = mapServerStatusToActivity(opts.serverStatus, opts.orderType);
@@ -289,6 +297,8 @@ export async function pushOrderStatusUpdate(opts: {
       progressStep: meta.progressStep,
       etaMinutes: opts.etaMinutes ?? null,
       driverName: null,
+      orderType: opts.orderType ?? null,
+      etaEndsAt: opts.etaEndsAt ? Math.floor(opts.etaEndsAt.getTime() / 1000) : null,
     },
     alertTitle: 'FoodGo',
     alertBody: opts.alertBody ?? meta.statusText,

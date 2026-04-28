@@ -4,6 +4,7 @@ import {
   Animated,
   Easing,
   FlatList,
+  I18nManager,
   Image,
   KeyboardAvoidingView,
   LayoutAnimation,
@@ -22,6 +23,10 @@ import {
   ActivityIndicator,
   BackHandler,
 } from "react-native";
+
+// Keep layout LTR for all languages — no RTL flip even for Arabic
+I18nManager.allowRTL(false);
+I18nManager.forceRTL(false);
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { NavigationContainer, createNavigationContainerRef, StackActions, CommonActions } from "@react-navigation/native";
@@ -36,6 +41,9 @@ import * as WebBrowser from "expo-web-browser";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 
+import { I18nextProvider } from 'react-i18next';
+import { initI18n } from './src/i18n';
+import { RestartContext } from './src/contexts/restart';
 import { supabase } from "./src/lib/supabase";
 import { validateEnv } from "./src/lib/env";
 import {
@@ -56,6 +64,7 @@ import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src
 import { palette, styles } from "./src/constants/theme";
 import { useAppStore } from "./src/store/useAppStore";
 import { usePushNotifications } from "./src/hooks/usePushNotifications";
+import { useOrderActivitySync } from "./src/hooks/useOrderActivitySync";
 
 import type {
   AppRoute,
@@ -112,7 +121,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
     shouldShowBanner: true,
     shouldShowList: true,
   }),
@@ -599,7 +608,26 @@ function AppContent() {
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
 
-  usePushNotifications(token);
+  const handleNotificationTap = useCallback((data: Record<string, any>) => {
+    if (data?.orderId && navigationRef.isReady()) {
+      setActiveOrder(data.orderId);
+      navigationRef.navigate('order', { id: data.orderId });
+    }
+  }, [setActiveOrder]);
+
+  const { requestPermission: requestPushPermission, initialNotificationData } = usePushNotifications(token, handleNotificationTap);
+
+  // Keep the iOS Live Activity / Dynamic Island in sync with whatever the
+  // backend reports, regardless of which screen the user is currently on.
+  // Previously this lived inside LiveOrderBanner, which is hidden on the
+  // order detail screen — meaning statuses froze until the user backed out.
+  useOrderActivitySync(activeOrderId);
+
+  // When app is launched from a killed state by tapping a notification,
+  // wait for NavigationContainer to be ready before navigating
+  const handleNavReady = useCallback(() => {
+    if (initialNotificationData) handleNotificationTap(initialNotificationData);
+  }, [initialNotificationData, handleNotificationTap]);
 
   useEffect(() => {
     const missingKeys = validateEnv();
@@ -640,25 +668,16 @@ function AppContent() {
   const openRoot = useCallback(
     (name: "home" | "search" | "cart" | "profile" | "discover") => {
       if (navigationRef.isReady()) {
-        const TABS = ["home", "search", "discover", "cart", "profile"];
         const currentName = navigationRef.getCurrentRoute()?.name || "home";
 
         if (currentName === name) {
           return;
         }
 
-        const currentIndex = TABS.indexOf(currentName as "home");
-        const targetIndex = TABS.indexOf(name as "home");
-        
-        let direction = "slide_from_right";
-        if (currentIndex !== -1 && targetIndex !== -1) {
-          direction = targetIndex > currentIndex ? "slide_from_right" : "slide_from_left";
-        }
-
         // StackActions.replace prevents the iOS back-swipe revealing a previous tab
         // while still keeping other mounted screens alive (unlike CommonActions.reset
         // which unmounts everything and wipes in-memory state like scroll position).
-        navigationRef.dispatch(StackActions.replace(name, { _slideDirection: direction }));
+        navigationRef.dispatch(StackActions.replace(name, { _tabSwitch: true }));
       }
     },
     []
@@ -724,6 +743,7 @@ function AppContent() {
         setToken(session.access_token);
         setOnboardingComplete(true);
         if (event === "SIGNED_IN") {
+          setCurrentRouteName("home");
           try {
             const profileRes = await api.get("/api/profile", {
               headers: { Authorization: `Bearer ${session.access_token}` },
@@ -734,9 +754,11 @@ function AppContent() {
         }
       } else if (event === "SIGNED_OUT") {
         setToken(null);
-        setOnboardingComplete(false);
+        // onboardingComplete stays true — notifications/location only asked once
       }
     });
+
+    // Push registration is handled by usePushNotifications hook
 
     const handleUrl = async (url: string) => {
       if (!isAuthRedirectUrl(url)) return;
@@ -815,40 +837,6 @@ function AppContent() {
       handleUrl(url).catch(() => {});
     });
 
-    // Push Notification Registration
-    const registerForPush = async () => {
-      if (Platform.OS === "web") return;
-      
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== "granted") return;
-
-      try {
-        const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: Constants.expoConfig?.extra?.eas?.projectId,
-        });
-        
-        if (tokenData.data && token) {
-          await api.post("/api/notifications/register", { token: tokenData.data }, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          console.log("🚀 Push token registered:", tokenData.data);
-        }
-      } catch (error) {
-        console.warn("Failed to register for push notifications:", error);
-      }
-    };
-
-    if (token && hydrated) {
-      registerForPush();
-    }
-
     return () => {
       authListener.unsubscribe();
       linkSub.remove();
@@ -859,8 +847,14 @@ function AppContent() {
     return <PremiumLoader message="Gör dig redo för en smakupplevelse..." />;
   }
 
-  if (!onboardingComplete && !token) {
-    return <OnboardingScreen onComplete={() => {}} />;
+  if (!token && !onboardingComplete) {
+    return (
+      <OnboardingScreen
+        onComplete={() => {}}
+        requestPushPermission={requestPushPermission}
+        skipPermissions={onboardingComplete}
+      />
+    );
   }
 
   const tabValue =
@@ -882,6 +876,7 @@ function AppContent() {
           <NetworkBanner />
           <NavigationContainer
             ref={navigationRef}
+            onReady={handleNavReady}
             onStateChange={() => {
               const currentRoute = navigationRef.getCurrentRoute();
               if (currentRoute) {
@@ -893,13 +888,15 @@ function AppContent() {
               screenOptions={{
                 headerShown: false,
                 animation: "slide_from_right",
+                animationDuration: 280,
                 contentStyle: { backgroundColor: palette.bg }
               }}
             >
-              <Stack.Screen 
+              <Stack.Screen
                 name="home"
                 options={({ route }: any) => ({
-                  animation: route.params?._slideDirection || "slide_from_left", // Default slide left when returning home
+                  animation: "fade",
+                  animationDuration: 180,
                 })}
               >
                 {() => (
@@ -918,7 +915,7 @@ function AppContent() {
               <Stack.Screen
                 name="discover"
                 options={({ route }: any) => ({
-                  animation: route.params?.fromSearch ? "fade" : (route.params?._slideDirection || "slide_from_right"),
+                  animation: "fade",
                   animationDuration: 180,
                 })}
               >
@@ -927,6 +924,7 @@ function AppContent() {
                     openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
                     goBack={goBack}
                     autoFocus={!!props.route.params?.fromSearch}
+                    initialCuisine={props.route.params?.cuisine}
                   />
                 )}
               </Stack.Screen>
@@ -942,11 +940,12 @@ function AppContent() {
                 )}
               </Stack.Screen>
 
-              <Stack.Screen 
+              <Stack.Screen
                 name="search"
-                options={({ route }: any) => ({
-                  animation: route.params?._slideDirection || "slide_from_right",
-                })}
+                options={{
+                  animation: "fade",
+                  animationDuration: 180,
+                }}
               >
                 {() => <SearchScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)} />}
               </Stack.Screen>
@@ -961,11 +960,12 @@ function AppContent() {
                 )}
               </Stack.Screen>
 
-              <Stack.Screen 
+              <Stack.Screen
                 name="cart"
-                options={({ route }: any) => ({
-                  animation: route.params?._slideDirection || "slide_from_right",
-                })}
+                options={{
+                  animation: "fade",
+                  animationDuration: 180,
+                }}
               >
                 {() => (
                   <CartScreen
@@ -979,11 +979,12 @@ function AppContent() {
                 )}
               </Stack.Screen>
 
-              <Stack.Screen 
+              <Stack.Screen
                 name="profile"
-                options={({ route }: any) => ({
-                  animation: route.params?._slideDirection || "slide_from_right",
-                })}
+                options={{
+                  animation: "fade",
+                  animationDuration: 180,
+                }}
               >
                 {() => (
                   <ProfileScreen
@@ -1036,11 +1037,32 @@ function AppContent() {
 
 // ─── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [appKey, setAppKey] = React.useState(0);
+  const [i18nReady, setI18nReady] = React.useState(false);
+  const [i18nInstance, setI18nInstance] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    initI18n().then((instance) => {
+      setI18nInstance(instance);
+      setI18nReady(true);
+    });
+  }, []);
+
+  const restartApp = React.useCallback(() => {
+    setAppKey((k) => k + 1);
+  }, []);
+
+  if (!i18nReady || !i18nInstance) return null;
+
   return (
-    <SafeAreaProvider>
-      <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="matgo">
-        <AppContent />
-      </AppStripeProvider>
-    </SafeAreaProvider>
+    <RestartContext.Provider value={restartApp}>
+      <I18nextProvider i18n={i18nInstance}>
+        <SafeAreaProvider>
+          <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="foodgo">
+            <AppContent key={appKey} />
+          </AppStripeProvider>
+        </SafeAreaProvider>
+      </I18nextProvider>
+    </RestartContext.Provider>
   );
 }
