@@ -28,7 +28,7 @@ export default function RegisterScreen({
   // Steps: "phone" -> "name" -> "email" -> "allergens" -> "otp"
   const [step, setStep] = useState<"phone" | "name" | "email" | "allergens" | "otp">(initialPhone ? "name" : "phone");
   
-  const [phone, setPhone] = useState(initialPhone?.replace(/^\+\d{2}0?/, '') || ""); // Stripping cc for visual
+  const [phone, setPhone] = useState(initialPhone?.replace(/^\+\d{1,4}0?/, '') || ""); // Stripping cc for visual (supports 1–4 digit country codes e.g. +358)
   const [fullPhone, setFullPhone] = useState(initialPhone || "");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,7 +50,7 @@ export default function RegisterScreen({
     if (step === "phone") {
       if (!phone.trim()) { setError("Ange ditt telefonnummer"); return; }
       const countryCode = "+46"; // Defaulting to Swedish for simplicity (could add picker)
-      const parsedFull = `${countryCode}${phone.replace(/\\D/g, "").replace(/^0/, "")}`;
+      const parsedFull = `${countryCode}${phone.replace(/\D/g, "").replace(/^0/, "")}`;
       setFullPhone(parsedFull);
       setStep("name");
     } else if (step === "name") {

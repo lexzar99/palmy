@@ -13,7 +13,6 @@ import {
   NativeSyntheticEvent,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -21,14 +20,20 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  BackHandler,
 } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { NavigationContainer, createNavigationContainerRef, StackActions, CommonActions } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+
+const Stack = createNativeStackNavigator();
+export const navigationRef = createNavigationContainerRef<any>();
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 import { io, Socket } from "socket.io-client";
 import * as WebBrowser from "expo-web-browser";
 import * as Notifications from "expo-notifications";
-import * as ExpoLinking from "expo-linking";
 import Constants from "expo-constants";
 
 import { supabase } from "./src/lib/supabase";
@@ -40,10 +45,16 @@ import {
   api,
   getImageUrl,
 } from "./src/lib/api";
+import {
+  APP_AUTH_CALLBACK_URL,
+  isAuthRedirectUrl,
+  parseAuthRedirect,
+} from "./src/lib/authRedirect";
 import { AppStripeProvider, useAppPaymentSheet } from "./src/lib/stripeProvider";
 import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src/lib/liveActivities";
 import { palette, styles } from "./src/constants/theme";
 import { useAppStore } from "./src/store/useAppStore";
+import { usePushNotifications } from "./src/hooks/usePushNotifications";
 
 import type {
   AppRoute,
@@ -90,6 +101,7 @@ import ZipAutocomplete from "./src/components/ZipAutocomplete";
 // ─── Shared UI atoms (no longer exported from App — live in src/components/ui) ─
 import ScalePressable from "./src/components/ScalePressable";
 import StarRating from "./src/components/StarRating";
+import NetworkBanner from "./src/components/NetworkBanner";
 
 // Required for expo-auth-session to handle redirects on Android/web
 WebBrowser.maybeCompleteAuthSession();
@@ -105,8 +117,8 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Use ExpoLinking.createURL so it works in BOTH Expo Go (exp://...) and production (matgo://...)
-const SUPABASE_REDIRECT_URL = ExpoLinking.createURL("/auth/callback");
+// Use a fixed custom scheme so Supabase can whitelist one stable mobile redirect.
+const SUPABASE_REDIRECT_URL = APP_AUTH_CALLBACK_URL;
 
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sverige" },
@@ -117,103 +129,6 @@ const COUNTRY_CODES = [
 
 const cuisineFilters = ["Alla", "Pizza", "Sushi", "Kebab", "Burgare", "Pasta", "Asiatiskt"];
 
-// ─── Google OAuth helper ───────────────────────────────────────────────────────
-function useGoogleAuth() {
-  const [loading, setLoading] = useState(false);
-  const [tokenResult, setTokenResult] = useState<{ token: string; user: any } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const prompt = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    setTokenResult(null);
-    try {
-      if (Platform.OS === "web") {
-        const webRedirectTo =
-          typeof window !== "undefined"
-            ? window.location.origin + window.location.pathname
-            : SUPABASE_REDIRECT_URL;
-        const { error: oauthError } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: { redirectTo: webRedirectTo, skipBrowserRedirect: false },
-        });
-        if (oauthError) throw oauthError;
-        return;
-      }
-
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: SUPABASE_REDIRECT_URL, skipBrowserRedirect: true },
-      });
-      if (oauthError || !data.url) throw oauthError ?? new Error("Ingen OAuth-URL");
-
-      const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
-
-      if (result.type === "success" && result.url) {
-        const parsedUrl = ExpoLinking.parse(result.url);
-        const code = parsedUrl.queryParams?.code as string | undefined;
-        if (!code) {
-          setError("Inget auth-code i callback-URL");
-          return;
-        }
-
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.exchangeCodeForSession(code);
-        if (sessionError) throw sessionError;
-
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) throw new Error("Ingen session");
-
-        const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        setTokenResult({ token: accessToken, user: profileRes.data });
-      } else if (result.type === "cancel" || result.type === "dismiss") {
-        setError("__cancelled__");
-      }
-    } catch (e: any) {
-      setError(e?.message || "Inloggning misslyckades");
-    } finally {
-      if (Platform.OS !== "web") setLoading(false);
-    }
-  }, []);
-
-  return { prompt, loading, tokenResult, error, setLoading };
-}
-
-// ─── PaymentButton ─────────────────────────────────────────────────────────────
-type PaymentButtonProps = {
-  amount: number;
-  disabled: boolean;
-  onPaid: (paymentIntentId: string) => Promise<void>;
-};
-
-function PaymentButton({ amount, disabled, onPaid }: PaymentButtonProps) {
-  const { initPaymentSheet, presentPaymentSheet } = useAppPaymentSheet();
-  const [busy, setBusy] = useState(false);
-
-  const handlePay = useCallback(async () => {
-    if (disabled || busy) return;
-    setBusy(true);
-    try {
-      // PAYMENT BYPASSED FOR APP TESTING
-      await onPaid("FREE_PROMO");
-    } catch (error: any) {
-      Alert.alert("Slutförande misslyckades", error?.message || "Försök igen om en stund.");
-    } finally {
-      setBusy(false);
-    }
-  }, [amount, busy, disabled, initPaymentSheet, onPaid, presentPaymentSheet]);
-
-  return (
-    <PrimaryButton
-      label={busy ? "Skickar order..." : `Beställ nu — ${Math.round(amount)} kr`}
-      onPress={handlePay}
-      disabled={disabled || busy}
-      icon="card-outline"
-    />
-  );
-}
 
 // ─── Shared UI components (defined here for use by App-internal screens) ───────
 function PulseIndicator({ color, size = 12 }: { color: string; size?: number }) {
@@ -575,8 +490,6 @@ const DISCOVER_CATEGORIES = [
 ];
 
 const PREFERENCE_OPTIONS = ["Lök", "Vitlök", "Nötter", "Fisk", "Skaldjur", "Ägg", "Mjölk", "Gluten"];
-const APP_AUTH_DEEP_LINK = "matgo://auth";
-
 type SavedAddress = {
   id: string;
   label: string;
@@ -676,15 +589,16 @@ export function getOpeningHoursLines(restaurant?: Restaurant | null) {
 
 // ─── AppContent ────────────────────────────────────────────────────────────────
 function AppContent() {
-  const [routeStack, setRouteStack] = useState<AppRoute[]>([{ name: "home" }]);
+  const [currentRouteName, setCurrentRouteName] = useState<string>("home");
   const [splashFinished, setSplashFinished] = useState(false);
-  const route = routeStack[routeStack.length - 1];
   const hydrated = useAppStore((s) => s.hydrated);
   const hydrate = useAppStore((s) => s.hydrate);
   const { activeOrderId, setActiveOrder } = useAppStore();
   const onboardingComplete = useAppStore((s) => s.onboardingComplete);
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
+
+  usePushNotifications(token);
 
   useEffect(() => {
     hydrate().catch(() => {});
@@ -695,20 +609,50 @@ function AppContent() {
   }, [hydrate]);
 
   const pushRoute = useCallback((next: AppRoute) => {
-    setRouteStack((current) => [...current, next]);
+    if (navigationRef.isReady()) {
+      navigationRef.navigate(next.name, next);
+    }
   }, []);
 
   const replaceRoute = useCallback((next: AppRoute) => {
-    setRouteStack((current) => [...current.slice(0, current.length - 1), next]);
+    if (navigationRef.isReady()) {
+      navigationRef.dispatch(StackActions.replace(next.name, next));
+    }
   }, []);
 
   const goBack = useCallback(() => {
-    setRouteStack((current) => (current.length > 1 ? current.slice(0, -1) : current));
+    if (navigationRef.isReady() && navigationRef.canGoBack()) {
+      navigationRef.goBack();
+    }
   }, []);
 
   const openRoot = useCallback(
     (name: "home" | "search" | "cart" | "profile" | "discover") => {
-      setRouteStack([{ name }]);
+      if (navigationRef.isReady()) {
+        const TABS = ["home", "search", "discover", "cart", "profile"];
+        const currentName = navigationRef.getCurrentRoute()?.name || "home";
+
+        if (currentName === name) {
+          return;
+        }
+
+        const currentIndex = TABS.indexOf(currentName as "home");
+        const targetIndex = TABS.indexOf(name as "home");
+        
+        let direction = "slide_from_right";
+        if (currentIndex !== -1 && targetIndex !== -1) {
+          direction = targetIndex > currentIndex ? "slide_from_right" : "slide_from_left";
+        }
+
+        // We use reset so that iOS doesn't try to "Go Back" revealing a stuck page. 
+        // Reset forces the fresh screen to slide over perfectly according to our calculation!
+        navigationRef.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name, params: { _slideDirection: direction } }],
+          })
+        );
+      }
     },
     []
   );
@@ -788,19 +732,75 @@ function AppContent() {
     });
 
     const handleUrl = async (url: string) => {
-      if (!url.startsWith(SUPABASE_REDIRECT_URL)) return;
-      const parsed = ExpoLinking.parse(url);
-      const code = parsed.queryParams?.code as string | undefined;
+      if (!isAuthRedirectUrl(url)) return;
+
+      const {
+        code,
+        token: appToken,
+        accessToken,
+        refreshToken,
+        error: authError,
+      } = parseAuthRedirect(url);
+
+      if (authError) {
+        Alert.alert("Inloggning misslyckades", authError);
+        return;
+      }
+
+      if (accessToken && refreshToken) {
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (!error && data.session?.access_token) {
+            setToken(data.session.access_token);
+            setOnboardingComplete(true);
+            try {
+              const profileRes = await api.get("/api/profile", {
+                headers: { Authorization: `Bearer ${data.session.access_token}` },
+              });
+              setProfile(profileRes.data);
+            } catch {}
+            openRoot("home");
+          }
+        } catch (e) {
+          console.error("Session restore failed:", e);
+        }
+        return;
+      }
+
       if (code) {
         try {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (!error && data.session?.access_token) {
             setToken(data.session.access_token);
+            setOnboardingComplete(true);
+            try {
+              const profileRes = await api.get("/api/profile", {
+                headers: { Authorization: `Bearer ${data.session.access_token}` },
+              });
+              setProfile(profileRes.data);
+            } catch {}
             openRoot("home");
           }
         } catch (e) {
           console.error("Code exchange failed:", e);
         }
+        return;
+      }
+
+      const redirectedToken = appToken ?? accessToken;
+      if (redirectedToken) {
+        setToken(redirectedToken);
+        setOnboardingComplete(true);
+        try {
+          const profileRes = await api.get("/api/profile", {
+            headers: { Authorization: `Bearer ${redirectedToken}` },
+          });
+          setProfile(profileRes.data);
+        } catch {}
+        openRoot("home");
       }
     };
 
@@ -846,7 +846,7 @@ function AppContent() {
       authListener.unsubscribe();
       linkSub.remove();
     };
-  }, [setToken, openRoot]);
+  }, [openRoot, setOnboardingComplete, setProfile, setToken]);
 
   if (!hydrated || !splashFinished) {
     return <PremiumLoader message="Gör dig redo för en smakupplevelse..." />;
@@ -857,9 +857,9 @@ function AppContent() {
   }
 
   const tabValue =
-    route.name === "restaurant" || route.name === "order" || route.name === "register"
+    currentRouteName === "restaurant" || currentRouteName === "order" || currentRouteName === "register"
       ? "home"
-      : route.name;
+      : currentRouteName;
 
   return (
     <View style={styles.safe}>
@@ -870,89 +870,154 @@ function AppContent() {
         locations={[0, 0.22, 1]}
         style={StyleSheet.absoluteFill}
       />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+      <SafeAreaView edges={["left", "right"]} style={{ flex: 1, backgroundColor: "transparent" }}>
         <View style={styles.appBg}>
-        {route.name === "home" && (
-          <HomeScreen
-            openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })}
-            openTab={(tab) => {
-              if (tab === "discover") {
-                pushRoute({ name: "discover" });
-              } else {
-                openRoot(tab);
+          <NetworkBanner />
+          <NavigationContainer
+            ref={navigationRef}
+            onStateChange={() => {
+              const currentRoute = navigationRef.getCurrentRoute();
+              if (currentRoute) {
+                setCurrentRouteName(currentRoute.name);
               }
             }}
-            pushRoute={pushRoute}
-          />
-        )}
-        {route.name === "discover" && (
-          <DiscoverScreen
-            openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })}
-            goBack={goBack}
-          />
-        )}
-        {route.name === "discover-filtered" && (
-          <DiscoverScreen
-            openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })}
-            goBack={goBack}
-            initialFilteredIds={route.restaurantIds}
-            filteredTitle={route.dealTitle}
-          />
-        )}
-        {route.name === "search" && (
-          <SearchScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug })} />
-        )}
-        {route.name === "restaurant" && (
-          <RestaurantScreen
-            slug={route.slug}
-            goBack={goBack}
-            openCart={() => pushRoute({ name: "cart" })}
-          />
-        )}
-        {route.name === "cart" && (
-          <CartScreen
-            openProfile={() => pushRoute({ name: "profile" })}
-            openOrder={(id) => {
-              setActiveOrder(id);
-              replaceRoute({ name: "order", id });
-            }}
-            openHome={() => openRoot("home")}
-          />
-        )}
-        {route.name === "profile" && (
-          <ProfileScreen
-            openRegister={(initialPhone) => pushRoute({ name: "register", initialPhone })}
-            openOrder={(id) => pushRoute({ name: "order", id })}
-            openCart={() => openRoot("cart")}
-          />
-        )}
-        {route.name === "register" && (
-          <RegisterScreen
-            initialPhone={route.name === "register" ? route.initialPhone : undefined}
-            goBack={goBack}
-            onRegistered={() => replaceRoute({ name: "profile" })}
-          />
-        )}
-        {route.name === "order" && (
-          <OrderScreen
-            id={route.id}
-            goBack={() => {
-              if (routeStack.length > 1) goBack();
-              else openRoot("home");
-            }}
-          />
-        )}
+          >
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+                animation: "slide_from_right",
+                contentStyle: { backgroundColor: palette.bg }
+              }}
+            >
+              <Stack.Screen 
+                name="home"
+                options={({ route }: any) => ({
+                  animation: route.params?._slideDirection || "slide_from_left", // Default slide left when returning home
+                })}
+              >
+                {() => (
+                  <HomeScreen
+                    openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
+                    openTab={(tab) => {
+                      if (tab === "discover") pushRoute({ name: "discover" });
+                      else openRoot(tab as any);
+                    }}
+                    pushRoute={pushRoute}
+                  />
+                )}
+              </Stack.Screen>
 
-        {activeOrderId && route.name !== "order" && (
-          <LiveOrderBanner
-            id={activeOrderId}
-            openOrder={(id) => pushRoute({ name: "order", id })}
-            onDismiss={() => setActiveOrder(null)}
-          />
-        )}
-        {!["restaurant", "order", "register"].includes(route.name) && (
-          <BottomTabs active={tabValue} onChange={openRoot} />
-        )}
+              <Stack.Screen 
+                name="discover"
+                options={({ route }: any) => ({
+                  animation: route.params?._slideDirection || "slide_from_right",
+                })}
+              >
+                {() => (
+                  <DiscoverScreen
+                    openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
+                    goBack={goBack}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen name="discover-filtered">
+                {(props: any) => (
+                  <DiscoverScreen
+                    openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
+                    goBack={goBack}
+                    initialFilteredIds={props.route.params?.restaurantIds}
+                    filteredTitle={props.route.params?.dealTitle}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen 
+                name="search"
+                options={({ route }: any) => ({
+                  animation: route.params?._slideDirection || "slide_from_right",
+                })}
+              >
+                {() => <SearchScreen openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)} />}
+              </Stack.Screen>
+
+              <Stack.Screen name="restaurant">
+                {(props: any) => (
+                  <RestaurantScreen
+                    slug={props.route.params?.slug}
+                    goBack={goBack}
+                    openCart={() => pushRoute({ name: "cart" })}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen 
+                name="cart"
+                options={({ route }: any) => ({
+                  animation: route.params?._slideDirection || "slide_from_right",
+                })}
+              >
+                {() => (
+                  <CartScreen
+                    openProfile={() => pushRoute({ name: "profile" })}
+                    openOrder={(id) => {
+                      setActiveOrder(id);
+                      replaceRoute({ name: "order", id } as any);
+                    }}
+                    openHome={() => openRoot("home")}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen 
+                name="profile"
+                options={({ route }: any) => ({
+                  animation: route.params?._slideDirection || "slide_from_right",
+                })}
+              >
+                {() => (
+                  <ProfileScreen
+                    openRegister={(initialPhone) => pushRoute({ name: "register", initialPhone } as any)}
+                    openOrder={(id) => pushRoute({ name: "order", id } as any)}
+                    openCart={() => openRoot("cart")}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen name="register">
+                {(props: any) => (
+                  <RegisterScreen
+                    initialPhone={props.route.params?.initialPhone}
+                    goBack={goBack}
+                    onRegistered={() => replaceRoute({ name: "profile" })}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen name="order">
+                {(props: any) => (
+                  <OrderScreen
+                    id={props.route.params?.id}
+                    goBack={() => {
+                      if (navigationRef.isReady() && navigationRef.canGoBack()) goBack();
+                      else openRoot("home");
+                    }}
+                  />
+                )}
+              </Stack.Screen>
+            </Stack.Navigator>
+          </NavigationContainer>
+
+          {activeOrderId && currentRouteName !== "order" && (
+            <LiveOrderBanner
+              id={activeOrderId}
+              openOrder={(id) => pushRoute({ name: "order", id } as any)}
+              onDismiss={() => setActiveOrder(null)}
+            />
+          )}
+          {!["restaurant", "order", "register"].includes(currentRouteName) && (
+            <BottomTabs active={tabValue as any} onChange={openRoot} />
+          )}
         </View>
       </SafeAreaView>
     </View>
@@ -962,8 +1027,10 @@ function AppContent() {
 // ─── Root ──────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="reactmatgo">
-      <AppContent />
-    </AppStripeProvider>
+    <SafeAreaProvider>
+      <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="matgo">
+        <AppContent />
+      </AppStripeProvider>
+    </SafeAreaProvider>
   );
 }

@@ -23,10 +23,10 @@ For every fix, run on a real device or simulator before marking done — type ch
 ## P0 — Critical (crashes, broken core flows, money loss, security)
 
 - [x] **Fix paid-but-no-order risk in checkout.** `src/screens/CartScreen.tsx:668–725` calls `presentPaymentSheet` BEFORE `POST /api/orders` (line 779). If order creation fails, the customer is charged with no order. Fixed: catch block now attempts `POST /api/payments/refund` automatically; if that also fails, user sees an alert with the `paymentIntentId` reference code to contact support. Long-term: migrate to server-side manual-capture flow.
-- [ ] **Delete duplicate `useGoogleAuth` in `App.tsx:132–212`.** The canonical version lives at `src/hooks/useGoogleAuth.ts` and is what `OnboardingScreen.tsx:10` and `ProfileScreen.tsx:15` import. Confirm no caller uses the App.tsx copy, then delete.
-- [ ] **Delete dead `PaymentButton` in `App.tsx:215–281`.** It POSTs `/api/payments/create-intent` and calls `onPaid` but never creates the order. The real flow is in `CartScreen.handleCheckoutPress`.
-- [ ] **Fix `RegisterScreen.tsx:31` initial phone corruption.** Regex `/^\+\d{2}0?/` strips a 2-digit country code, but Finland (`+358`) is 3 digits, so a Finnish user gets `8123456789`. Use `parsePhoneNumber` from `libphonenumber-js`, or strip based on the matched country object's dial code.
-- [ ] **Fix `RegisterScreen.tsx:53` regex bug.** `phone.replace(/\\D/g, "")` is a literal backslash-D match (does nothing). Change to `/\D/g`. Verify Supabase receives `+46701234567`, not `+46070 123 45 67`.
+- [x] **Delete duplicate `useGoogleAuth` in `App.tsx:132–212`.** Deleted — no callers in App.tsx, canonical version in `src/hooks/useGoogleAuth.ts`.
+- [x] **Delete dead `PaymentButton` in `App.tsx:215–281`.** Deleted — never rendered, real flow is in `CartScreen.handleCheckoutPress`.
+- [x] **Fix `RegisterScreen.tsx:31` initial phone corruption.** Changed `/^\+\d{2}0?/` to `/^\+\d{1,4}0?/` so 1–4 digit country codes (e.g. Finland +358) are all stripped correctly.
+- [x] **Fix `RegisterScreen.tsx:53` regex bug.** Changed `/\\D/g` (literal backslash-D, did nothing) to `/\D/g` so non-digits are actually stripped before sending to Supabase.
 - [ ] **Defer env validation in `src/lib/env.ts`.** `getRequiredExpoPublicEnv` throws at module import for 5 keys, crashing the bundle before React mounts. Move validation to runtime accessors so the app can boot and show a recoverable error UI.
 - [ ] **Audit guest-checkout auth.** `CartScreen.tsx:779–781` sends `headers: freshToken ? {...} : {}`. Verify backend `/api/orders` accepts anonymous orders with phone+name; if not, hide the "checkout" CTA when `!token`.
 - [ ] **Persist `favorites` in `HomeScreen.tsx:154`.** Currently `useState<Set<string>>` — wiped on every `CommonActions.reset`. Move into Zustand with AsyncStorage persistence; ideally sync to backend.
