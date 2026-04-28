@@ -2,9 +2,12 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Animated, Image, Linking, NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl, SOCKET_URL } from '../lib/api';
+import { getRestaurantHeroTopInset } from '../constants/layout';
+import { getScreenCache, setScreenCache } from '../lib/screenCache';
 import { palette, styles } from '../constants/theme';
 import { EmptyPanel } from '../components/ui';
 import CityModal from '../components/CityModal';
@@ -14,8 +17,16 @@ import StarRating from '../components/StarRating';
 import ProductModal from '../components/ProductModal';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
 import { RestaurantScreenSkeleton } from '../components/SkeletonLoader';
+import ScalePressable from '../components/ScalePressable';
 
 import type { Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
+
+type RestaurantScreenCache = {
+  restaurant: Restaurant | null;
+  categories: MenuCategory[];
+  deals: PublicDeal[];
+  cities: City[];
+};
 
 
 
@@ -29,12 +40,16 @@ export default function RestaurantScreen({
   goBack: () => void;
   openCart: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const heroTopInset = getRestaurantHeroTopInset(insets.top);
+  const stickyHeaderTopInset = Math.max(insets.top - 8, 18);
+  const cachedData = getScreenCache<RestaurantScreenCache>('restaurant', slug);
 
 
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [categories, setCategories] = useState<MenuCategory[]>([]);
-  const [deals, setDeals] = useState<PublicDeal[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(() => cachedData?.restaurant || null);
+  const [categories, setCategories] = useState<MenuCategory[]>(() => cachedData?.categories || []);
+  const [deals, setDeals] = useState<PublicDeal[]>(() => cachedData?.deals || []);
+  const [loading, setLoading] = useState(!cachedData);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
@@ -51,12 +66,14 @@ export default function RestaurantScreen({
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
   const cartItems = useAppStore((s) => s.items);
+  const cartRestaurantId = useAppStore((s) => s.restaurantId);
+  const clearCart = useAppStore((s) => s.clearCart);
   const cartItemCount = useMemo(() => cartItems.reduce((sum, item) => sum + item.quantity, 0), [cartItems]);
   const orderType = useAppStore((s) => s.orderType);
   const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
-  const [cities, setCities] = useState<City[]>([]);
+  const [cities, setCities] = useState<City[]>(() => cachedData?.cities || []);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [cityModalOpen, setCityModalOpen] = useState(false);
 
@@ -88,8 +105,9 @@ export default function RestaurantScreen({
           api.get("/api/cities").catch(() => ({ data: [] })),
         ]);
         if (!active) return;
-        setCategories(menuRes.data || []);
-        setActiveCategory(menuRes.data?.[0]?.id || null);
+        const nextCategories = (menuRes.data || []) as MenuCategory[];
+        setCategories(nextCategories);
+        setActiveCategory(nextCategories[0]?.id || null);
         
         const rawRest = restaurantRes.data || null;
         if (rawRest && deliveryOverrides[rawRest.id] && orderType === "DELIVERY") {
@@ -99,10 +117,20 @@ export default function RestaurantScreen({
         }
         setRestaurant(rawRest);
         
-        setDeals(dealsRes.data || []);
-        setCities(citiesRes.data || []);
+        const nextDeals = (dealsRes.data || []) as PublicDeal[];
+        const nextCities = (citiesRes.data || []) as City[];
+        setDeals(nextDeals);
+        setCities(nextCities);
+        setScreenCache<RestaurantScreenCache>('restaurant', slug, {
+          restaurant: rawRest,
+          categories: nextCategories,
+          deals: nextDeals,
+          cities: nextCities,
+        });
       } catch {
-        Alert.alert("Restaurant not available", "We could not load this restaurant right now.");
+        if (!cachedData) {
+          Alert.alert("Restaurant not available", "We could not load this restaurant right now.");
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -215,6 +243,11 @@ export default function RestaurantScreen({
 
   const categoryTabs = useMemo(() => (searchTerm.trim() ? filteredCategories : categories), [categories, filteredCategories, searchTerm]);
 
+  const discountedProducts = useMemo(
+    () => categories.flatMap((category) => category.products).filter((product) => product.discountActive && product.discountScope === "PRODUCT"),
+    [categories]
+  );
+
   const restaurantNameParts = useMemo(() => {
     const parts = (restaurant?.name || "Restaurant").trim().split(/\s+/).filter(Boolean);
     return {
@@ -281,8 +314,11 @@ export default function RestaurantScreen({
 
   if (loading) {
     return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.restaurantScreenContent}>
-        <RestaurantScreenSkeleton />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.restaurantScreenContent}
+      >
+        <RestaurantScreenSkeleton heroTopInset={heroTopInset} />
       </ScrollView>
     );
   }
@@ -291,13 +327,13 @@ export default function RestaurantScreen({
     <>
       <ScrollView
         ref={menuScrollRef}
-        stickyHeaderIndices={[4]}
+        stickyHeaderIndices={[discountedProducts.length > 0 ? 4 : 3]}
         onScroll={handleMenuScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.restaurantScreenContent}
       >
-        <View style={styles.restaurantHeroWrap}>
+        <View style={[styles.restaurantHeroWrap, { paddingTop: heroTopInset }]}>
           <View style={styles.restaurantHeroCardPremium}>
             {heroImage ? (
               <Image source={{ uri: getImageUrl(heroImage) }} style={styles.restaurantHeroCoverImage} />
@@ -308,13 +344,13 @@ export default function RestaurantScreen({
 
             <View style={styles.restaurantHeroTopBar}>
               <Pressable style={styles.restaurantHeroBackButton} onPress={goBack}>
-                <Ionicons name="chevron-back" size={18} color={palette.gold} />
+                <Ionicons name="chevron-back" size={16} color={palette.gold} />
                 <Text style={styles.restaurantHeroBackText}>Tillbaka</Text>
               </Pressable>
 
               <View style={styles.restaurantHeroActionRow}>
                 <Pressable style={styles.restaurantHeroGhostButton} onPress={() => setShowInfoModal(true)}>
-                  <Ionicons name="information-circle-outline" size={16} color={palette.gold} />
+                  <Ionicons name="information-circle-outline" size={15} color={palette.gold} />
                   <Text style={styles.restaurantHeroGhostButtonText}>Info</Text>
                 </Pressable>
                 {!!restaurant?.phone && (
@@ -322,7 +358,7 @@ export default function RestaurantScreen({
                     style={styles.restaurantHeroPrimaryButton}
                     onPress={() => Linking.openURL(`tel:${String(restaurant.phone).replace(/\s+/g, "")}`).catch(() => {})}
                   >
-                    <Ionicons name="call-outline" size={16} color="#000" />
+                    <Ionicons name="call-outline" size={15} color="#000" />
                     <Text style={styles.restaurantHeroPrimaryButtonText}>Kontakt</Text>
                   </Pressable>
                 )}
@@ -382,33 +418,31 @@ export default function RestaurantScreen({
 
         <View style={styles.restaurantQuickStatsRow} id="stats-sticky">
           <View style={styles.restaurantQuickStatCard}>
-            <Ionicons name="bicycle-outline" size={18} color={palette.gold} />
+            <Ionicons name="bicycle-outline" size={16} color={palette.gold} />
             <Text style={styles.restaurantQuickStatLabel}>Avgift</Text>
             <Text style={styles.restaurantQuickStatValue}>
               {zoneAvailable === false ? "–" : (restaurant?.deliveryFee === 0 ? "GRATIS" : `${Math.round(restaurant?.deliveryFee || 0)} KR`)}
             </Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
-            <Ionicons name="time-outline" size={18} color={palette.gold} />
+            <Ionicons name="time-outline" size={16} color={palette.gold} />
             <Text style={styles.restaurantQuickStatLabel}>Väntetid</Text>
             <Text style={styles.restaurantQuickStatValue}>~{Math.round(restaurant?.etaMinutes || 35)} MIN</Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
-            <Ionicons name="storefront-outline" size={18} color={palette.gold} />
+            <Ionicons name="storefront-outline" size={16} color={palette.gold} />
             <Text style={styles.restaurantQuickStatLabel}>Minsta order</Text>
             <Text style={styles.restaurantQuickStatValue}>{Math.round(restaurant?.minOrderAmount || 0)} KR</Text>
           </View>
         </View>
 
         {(() => {
-          const allProducts = categories.flatMap((c) => c.products);
-          const discounted = allProducts.filter((p) => p.discountActive && p.discountScope === "PRODUCT");
-          if (discounted.length === 0) return null;
+          if (discountedProducts.length === 0) return null;
           return (
             <View style={styles.discountedRail}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discountedRailContent}>
-                {discounted.map((product) => (
-                  <Pressable
+                {discountedProducts.map((product) => (
+                  <ScalePressable
                     key={product.id}
                     style={styles.discountedProductCard}
                     onPress={() => {
@@ -437,57 +471,65 @@ export default function RestaurantScreen({
                         </Text>
                       </View>
                     </View>
-                  </Pressable>
+                  </ScalePressable>
                 ))}
               </ScrollView>
             </View>
           );
         })()}
 
-        <View style={styles.restaurantStickyNavWrap} id="category-sticky">
-          <View style={styles.restaurantStickyNavCard}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Pressable 
-                onPress={goBack} 
-                style={{ backgroundColor: palette.panel, padding: 12, borderRadius: 22, height: '100%', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', shadowColor: palette.gold, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
-              >
-                <Ionicons name="chevron-back" size={22} color={palette.gold} />
-              </Pressable>
-              
-              <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
-                <Ionicons name="search-outline" size={18} color={palette.muted} />
-                <TextInput
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                  placeholder="Vad är du sugen på?"
-                  placeholderTextColor={palette.muted}
-                  style={styles.restaurantSearchInput}
-                />
-              </View>
-            </View>
-
-            <ScrollView
-              ref={categoryRailRef}
-              horizontal
-              nestedScrollEnabled
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.restaurantCategoryRail}
-            >
-              {categoryTabs.map((category) => (
-                <Pressable
-                  key={category.id}
-                  onLayout={(event) => {
-                    categoryRailPositions.current[category.id] = event.nativeEvent.layout.x;
-                  }}
-                  style={[styles.restaurantCategoryChip, activeCategory === category.id && styles.restaurantCategoryChipActive]}
-                  onPress={() => scrollToCategory(category.id)}
+        <View pointerEvents="box-none" style={{ zIndex: 20, elevation: 20 }} id="category-sticky">
+          <LinearGradient
+            pointerEvents="none"
+            colors={["rgba(255,248,239,0.98)", "rgba(255,248,239,0.95)", "rgba(255,248,239,0.76)", "rgba(255,248,239,0)"]}
+            locations={[0, 0.38, 0.76, 1]}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={[styles.restaurantStickyNavWrap, { paddingTop: stickyHeaderTopInset }]}>
+            <View style={styles.restaurantStickyNavCard}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Pressable 
+                  onPress={goBack} 
+                  style={{ backgroundColor: palette.panel, padding: 12, borderRadius: 22, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(125,97,38,0.12)', shadowColor: palette.gold, shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 }}
                 >
-                  <Text style={[styles.restaurantCategoryChipText, activeCategory === category.id && styles.restaurantCategoryChipTextActive]}>
-                    {category.name}
-                  </Text>
+                  <Ionicons name="chevron-back" size={20} color={palette.gold} />
                 </Pressable>
-              ))}
-            </ScrollView>
+                
+                <View style={[styles.restaurantSearchInputWrap, { flex: 1 }]}>
+                  <Ionicons name="search-outline" size={18} color={palette.muted} />
+                  <TextInput
+                    value={searchTerm}
+                    onChangeText={setSearchTerm}
+                    placeholder="Vad är du sugen på?"
+                    placeholderTextColor={palette.muted}
+                    style={styles.restaurantSearchInput}
+                  />
+                </View>
+              </View>
+
+              <ScrollView
+                ref={categoryRailRef}
+                horizontal
+                nestedScrollEnabled
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.restaurantCategoryRail}
+              >
+                {categoryTabs.map((category) => (
+                  <ScalePressable
+                    key={category.id}
+                    onLayout={(event: any) => {
+                      categoryRailPositions.current[category.id] = event.nativeEvent.layout.x;
+                    }}
+                    style={[styles.restaurantCategoryChip, activeCategory === category.id && styles.restaurantCategoryChipActive]}
+                    onPress={() => scrollToCategory(category.id)}
+                  >
+                    <Text numberOfLines={1} style={[styles.restaurantCategoryChipText, activeCategory === category.id && styles.restaurantCategoryChipTextActive]}>
+                      {category.name}
+                    </Text>
+                  </ScalePressable>
+                ))}
+              </ScrollView>
+            </View>
           </View>
         </View>
 
@@ -520,7 +562,7 @@ export default function RestaurantScreen({
                     const disabled = restaurant?.isOpen === false || (zoneAvailable === false && orderType === "DELIVERY");
 
                     return (
-                      <Pressable
+                      <ScalePressable
                         key={product.id}
                         style={[styles.restaurantMenuProductCard, disabled && styles.restaurantMenuProductCardDisabled]}
                         onPress={() => {
@@ -569,7 +611,7 @@ export default function RestaurantScreen({
                             {product.isGlutenFree && <View style={[styles.restaurantMenuDietDot, { backgroundColor: "#38bdf8" }]} />}
                           </View>
                         </View>
-                      </Pressable>
+                      </ScalePressable>
                     );
                   })}
                 </View>
@@ -621,17 +663,36 @@ export default function RestaurantScreen({
             }
             return;
           }
-          addItem({
-            productId: selectedProduct.id,
-            restaurantId: restaurant.id,
-            restaurantSlug: restaurant.slug,
-            name: selectedProduct.name,
-            price: selectedProduct.price,
-            quantity: payload.quantity,
-            extras: payload.extras,
-            note: payload.note,
-          });
-          setSelectedProduct(null);
+          const doAdd = () => {
+            addItem({
+              productId: selectedProduct.id,
+              restaurantId: restaurant.id,
+              restaurantSlug: restaurant.slug,
+              name: selectedProduct.name,
+              price: selectedProduct.price,
+              quantity: payload.quantity,
+              extras: payload.extras,
+              note: payload.note,
+            });
+            setSelectedProduct(null);
+          };
+
+          if (cartItems.length > 0 && cartRestaurantId && cartRestaurantId !== restaurant.id) {
+            Alert.alert(
+              "Annan restaurang i varukorgen",
+              `Du har redan varor från en annan restaurang i varukorgen. Du kan bara beställa från en restaurang åt gången.\n\nVill du tömma varukorgen och lägga till från ${restaurant.name}?`,
+              [
+                { text: "Avbryt", style: "cancel" },
+                {
+                  text: "Töm & lägg till",
+                  style: "destructive",
+                  onPress: () => { clearCart(); doAdd(); },
+                },
+              ]
+            );
+          } else {
+            doAdd();
+          }
         }}
       />
 

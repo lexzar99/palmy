@@ -31,8 +31,8 @@ For every fix, run on a real device or simulator before marking done — type ch
 - [x] **Audit guest-checkout auth.** Backend `orders.ts:199` explicitly handles missing/invalid token as guest — intentional. No change needed.
 - [ ] **Persist `favorites` in `HomeScreen.tsx:154`.** Currently `useState<Set<string>>` — wiped on every `CommonActions.reset`. Move into Zustand with AsyncStorage persistence; ideally sync to backend.
 - [ ] **Replace `CommonActions.reset` tab switching in `App.tsx:799–804`.** Resetting on every tab tap unmounts screens and kills scroll position / in-progress searches. Migrate to `@react-navigation/bottom-tabs` or use `navigate`.
-- [ ] **Don't wipe delivery overrides on transient errors.** `HomeScreen.tsx:218–253` `validateZone` calls `setDeliveryOverrides({})` in `catch` — clears valid fees on a network blip. Only clear on a successful "uncovered" response.
-- [ ] **Confirm before clobbering cart.** `useAppStore.addItem` (store ~line 60) silently replaces the cart when `addItem` is called with a different restaurant. Add an Alert ("Töm varukorgen och starta om?") with confirm before replacing.
+- [x] **Don't wipe delivery overrides on transient errors.** `HomeScreen.tsx` catch block no longer calls `setDeliveryOverrides({})` — existing fees stay on network error, only cleared on a confirmed "not covered" API response.
+- [x] **Confirm before clobbering cart.** `RestaurantScreen.tsx` now shows an Alert ("Töm & lägg till") when user adds from a different restaurant while cart is non-empty. ProfileScreen and PreviouslyOrderedBar already called clearCart() first — no change needed there.
 - [ ] **Add auth header to order polling.** `OrderScreen.tsx:90–92` polls `/api/orders/${id}` every 15 s with no `Authorization` header. If endpoint is auth-gated, polling 401s silently. Add `Bearer ${token}`.
 - [ ] **Proxy Geoapify calls through backend.** `AddressAutocomplete.tsx:53`, `CartScreen.tsx:325` and `:595` call Geoapify directly with an `EXPO_PUBLIC_*` key embedded in the bundle. Move to `/api/places/*` like `AddressModal.tsx` already does, or restrict the key in Geoapify dashboard.
 

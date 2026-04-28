@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Easing,
   FlatList,
   Image,
+  LayoutAnimation,
   Pressable,
   ScrollView,
   Text,
@@ -11,6 +13,8 @@ import {
   type NativeScrollEvent,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import DealFlipCard, { type DealFlipCardData } from "../components/DealFlipCard";
 import AddressModal from "../components/AddressModal";
 import ScalePressable from "../components/ScalePressable";
@@ -23,6 +27,7 @@ import DiscountedDishesRail from "../components/DiscountedDishesRail";
 import FreeDeliveryRail from "../components/FreeDeliveryRail";
 import { HomeScreenSkeleton } from "../components/SkeletonLoader";
 import { resolveHomeCategoryRestaurants } from "../lib/homeCategories";
+import { getScreenCache, setScreenCache } from "../lib/screenCache";
 
 import {
   AppRoute,
@@ -35,6 +40,7 @@ import { useAppStore } from "../store/useAppStore";
 import { api, getImageUrl } from "../lib/api";
 import { rememberQuickAddress } from "../lib/quickAddresses";
 import { palette, styles } from "../constants/theme";
+import { getBottomTabsContentPadding, getScreenTopPadding, getStickyHeaderTopInset } from "../constants/layout";
 
 
 // ─── Local helpers ─────────────────────────────────────────────────────────────
@@ -56,6 +62,15 @@ type PromoCarouselItem =
   | { id: string; kind: "sponsor"; sponsor: any };
 
 type SponsorCarouselItem = Extract<PromoCarouselItem, { kind: "sponsor" }>;
+
+type HomeScreenCache = {
+  restaurants: Restaurant[];
+  cities: City[];
+  deals: PublicDeal[];
+  personalDeals: PersonalDeal[];
+  homeCategorySections: HomeCategorySection[];
+  sponsors: any[];
+};
 
 const PROMO_CARD_WIDTH = 260;
 const PROMO_CARD_GAP = 12;
@@ -112,32 +127,42 @@ export default function HomeScreen({
   openTab: (name: "home" | "search" | "cart" | "profile" | "discover") => void;
   pushRoute?: (route: AppRoute) => void;
 }) {
+  const token = useAppStore((s) => s.token);
+  const cacheKey = token || "__guest__";
+  const cachedData = getScreenCache<HomeScreenCache>("home", cacheKey);
+  const insets = useSafeAreaInsets();
+  const screenTopPadding = getScreenTopPadding(insets.top);
+  const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
+  const stickySearchTopInset = getStickyHeaderTopInset(insets.top);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const stickySearchVisibleRef = useRef(false);
 
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [cities, setCities] = useState<City[]>([]);
-  const [deals, setDeals] = useState<PublicDeal[]>([]);
-  const [personalDeals, setPersonalDeals] = useState<PersonalDeal[]>([]);
-  const [homeCategorySections, setHomeCategorySections] = useState<HomeCategorySection[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
+  const [cities, setCities] = useState<City[]>(() => cachedData?.cities || []);
+  const [deals, setDeals] = useState<PublicDeal[]>(() => cachedData?.deals || []);
+  const [personalDeals, setPersonalDeals] = useState<PersonalDeal[]>(() => cachedData?.personalDeals || []);
+  const [homeCategorySections, setHomeCategorySections] = useState<HomeCategorySection[]>(() => cachedData?.homeCategorySections || []);
+  const [loading, setLoading] = useState(!cachedData);
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
   const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [stickySearchActive, setStickySearchActive] = useState(false);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
-  const [sponsors, setSponsors] = useState<any[]>([]);
+  const [sponsors, setSponsors] = useState<any[]>(() => cachedData?.sponsors || []);
   const promoListRef = useRef<FlatList<SponsorCarouselItem> | null>(null);
-  const promoIndexRef = useRef(0);
+  const [activePromoIndex, setActivePromoIndex] = useState(0);
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
   const orderType = useAppStore((s) => s.orderType);
-  const token = useAppStore((s) => s.token);
   const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
@@ -221,8 +246,8 @@ export default function HomeScreen({
         setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
       }
     } catch {
+      // Network error — don't clear existing overrides; previous valid fees stay in place.
       setZoneRestaurantIds(null);
-      setDeliveryOverrides({});
       setZoneError(null);
     }
   }, [setDeliveryOverrides]);
@@ -256,12 +281,26 @@ export default function HomeScreen({
           api.get("/api/sponsors").catch(() => ({ data: [] })),
         ]);
         if (!active) return;
-        setRestaurants(restaurantsRes.data || []);
-        setCities(citiesRes.data || []);
-        setDeals((dealsRes.data || []).filter((deal: PublicDeal) => deal.isActive !== false && deal.showOnSite !== false));
-        setHomeCategorySections(homeCategorySectionsRes.data || []);
-        setPersonalDeals(persDealsRes.data || []);
-        setSponsors(sponsorsRes.data || []);
+        const nextRestaurants = (restaurantsRes.data || []) as Restaurant[];
+        const nextCities = (citiesRes.data || []) as City[];
+        const nextDeals = ((dealsRes.data || []) as PublicDeal[]).filter((deal: PublicDeal) => deal.isActive !== false && deal.showOnSite !== false);
+        const nextHomeCategorySections = (homeCategorySectionsRes.data || []) as HomeCategorySection[];
+        const nextPersonalDeals = (persDealsRes.data || []) as PersonalDeal[];
+        const nextSponsors = sponsorsRes.data || [];
+        setRestaurants(nextRestaurants);
+        setCities(nextCities);
+        setDeals(nextDeals);
+        setHomeCategorySections(nextHomeCategorySections);
+        setPersonalDeals(nextPersonalDeals);
+        setSponsors(nextSponsors);
+        setScreenCache<HomeScreenCache>("home", cacheKey, {
+          restaurants: nextRestaurants,
+          cities: nextCities,
+          deals: nextDeals,
+          personalDeals: nextPersonalDeals,
+          homeCategorySections: nextHomeCategorySections,
+          sponsors: nextSponsors,
+        });
       } catch {
         // silent — skeleton stays
       } finally {
@@ -271,7 +310,7 @@ export default function HomeScreen({
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [cacheKey, token]);
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.name.toLowerCase() === address.toLowerCase()) || null,
@@ -426,24 +465,37 @@ export default function HomeScreen({
 
   const handlePromoMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / PROMO_SNAP);
-    promoIndexRef.current = Math.max(0, Math.min(nextIndex, Math.max(sponsorCards.length - 1, 0)));
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setActivePromoIndex(Math.max(0, Math.min(nextIndex, Math.max(sponsorCards.length - 1, 0))));
   }, [sponsorCards.length]);
 
   useEffect(() => {
-    promoIndexRef.current = 0;
     if (sponsorCards.length <= 1) return;
 
-    const interval = setInterval(() => {
-      const nextIndex = (promoIndexRef.current + 1) % sponsorCards.length;
-      promoIndexRef.current = nextIndex;
-      promoListRef.current?.scrollToOffset({
-        offset: nextIndex * PROMO_SNAP,
-        animated: true,
-      });
-    }, 4000);
+    progressAnim.setValue(0);
+    const anim = Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 5000,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
 
-    return () => clearInterval(interval);
-  }, [sponsorCards.length]);
+    anim.start(({ finished }) => {
+      if (finished) {
+        const nextIndex = (activePromoIndex + 1) % sponsorCards.length;
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setActivePromoIndex(nextIndex);
+        promoListRef.current?.scrollToOffset({
+          offset: nextIndex * PROMO_SNAP,
+          animated: true,
+        });
+      }
+    });
+
+    return () => {
+      anim.stop();
+    };
+  }, [activePromoIndex, sponsorCards.length, progressAnim]);
 
   const toggleAnim = useRef(new Animated.Value(orderType === "DELIVERY" ? 0 : 1)).current;
 
@@ -460,6 +512,56 @@ export default function HomeScreen({
     inputRange: [0, 1],
     outputRange: ["1.5%", "49%"],
   });
+
+  const stickySearchOpacity = scrollY.interpolate({
+    inputRange: [60, 100, 135],
+    outputRange: [0, 0, 1],
+    extrapolate: "clamp",
+  });
+
+  const stickySearchTranslateY = scrollY.interpolate({
+    inputRange: [60, 100, 135],
+    outputRange: [-16, -10, 0],
+    extrapolate: "clamp",
+  });
+
+  const handleHomeScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextActive = event.nativeEvent.contentOffset.y > 110;
+    if (stickySearchVisibleRef.current !== nextActive) {
+      stickySearchVisibleRef.current = nextActive;
+      setStickySearchActive(nextActive);
+    }
+  }, []);
+
+  const renderSearchBar = useCallback(
+    (containerStyle?: any) => (
+      <ScalePressable
+        onPress={() => openTab("discover")}
+        style={[
+          {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            borderRadius: 18,
+            backgroundColor: "rgba(255,255,255,0.94)",
+            borderWidth: 1,
+            borderColor: palette.border,
+            paddingLeft: 14,
+            paddingRight: 4,
+            paddingVertical: 4,
+          },
+          containerStyle,
+        ]}
+      >
+        <Ionicons name="search-outline" size={14} color={palette.muted} />
+        <Text style={{ flex: 1, color: palette.muted, fontSize: 12, fontWeight: "800" }}>Sök restaurang eller maträtt</Text>
+        <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
+          <Ionicons name="arrow-forward" size={14} color="#000" />
+        </View>
+      </ScalePressable>
+    ),
+    [openTab]
+  );
 
   const renderRestaurantCategoryRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
     <View style={{ marginTop: 18 }}>
@@ -497,7 +599,10 @@ export default function HomeScreen({
 
   if (loading) {
     return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: screenTopPadding, paddingBottom: screenBottomPadding }}
+      >
         <HomeScreenSkeleton />
       </ScrollView>
     );
@@ -505,7 +610,15 @@ export default function HomeScreen({
 
   return (
     <>
-      <ScrollView contentContainerStyle={{ paddingTop: 18, paddingBottom: 120, gap: 16 }}>
+      <Animated.ScrollView
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: false,
+          listener: handleHomeScroll,
+        })}
+        scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: screenTopPadding, paddingBottom: screenBottomPadding, gap: 16 }}
+      >
         <View style={{ paddingTop: 14, marginBottom: 6, paddingHorizontal: 20 }}>
           {/* Compact adresspil i toppen */}
           <AddressPullDown
@@ -615,29 +728,14 @@ export default function HomeScreen({
             </View>
           )}
 
-          {/* Kompakt sökbar */}
-          <ScalePressable
-            onPress={() => openTab("discover")}
-            style={{
-              marginTop: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              borderRadius: 14,
-              backgroundColor: palette.panel,
-              borderWidth: 1,
-              borderColor: palette.border,
-              paddingLeft: 14,
-              paddingRight: 4,
-              paddingVertical: 4,
-            }}
-          >
-            <Ionicons name="search-outline" size={14} color={palette.muted} />
-            <Text style={{ flex: 1, color: palette.muted, fontSize: 12, fontWeight: "800" }}>Sök restaurang eller maträtt</Text>
-            <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="arrow-forward" size={14} color="#000" />
-            </View>
-          </ScalePressable>
+          {renderSearchBar({
+            marginTop: 8,
+            shadowColor: palette.gold,
+            shadowOpacity: 0.05,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 2,
+          })}
 
           {/* Zonstatus visas nu som en liten färgad prick på adress-pilen ovan istället för en
               hel banner – zonError behåller däremot fullständigt fel-meddelande så användaren
@@ -706,6 +804,33 @@ export default function HomeScreen({
                 </View>
               )}
             />
+            {sponsorCards.length > 1 && (
+              <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 5, marginTop: 10 }}>
+                {sponsorCards.map((_, i) => {
+                  const isActive = i === activePromoIndex;
+                  return (
+                    <View 
+                      key={i} 
+                      style={{ 
+                        height: 4, 
+                        width: isActive ? 34 : 6, 
+                        backgroundColor: isActive ? "rgba(234,181,69,0.2)" : "rgba(255,255,255,0.18)", 
+                        borderRadius: 3, 
+                        overflow: "hidden",
+                      }}
+                    >
+                      {isActive && (
+                        <Animated.View style={{ 
+                           height: "100%", 
+                           backgroundColor: palette.gold, 
+                           width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) 
+                        }} />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
           </View>
         )}
 
@@ -847,7 +972,37 @@ export default function HomeScreen({
 
           {!loading && !filtered.length && <EmptyPanel label="Ingen träff. Här ekar det tomt just nu." />}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
+
+      <Animated.View
+        pointerEvents={stickySearchActive ? "auto" : "none"}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 30,
+          elevation: 30,
+          opacity: stickySearchOpacity,
+          transform: [{ translateY: stickySearchTranslateY }],
+        }}
+      >
+        <LinearGradient
+          pointerEvents="none"
+          colors={["rgba(255,248,239,0.98)", "rgba(255,248,239,0.94)", "rgba(255,248,239,0.72)", "rgba(255,248,239,0)"]}
+          locations={[0, 0.38, 0.76, 1]}
+          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        <View pointerEvents="box-none" style={{ paddingTop: stickySearchTopInset, paddingBottom: 12, paddingHorizontal: 20 }}>
+          {renderSearchBar({
+            shadowColor: palette.gold,
+            shadowOpacity: 0.08,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 6 },
+            elevation: 4,
+          })}
+        </View>
+      </Animated.View>
 
       <CityModal
         open={cityModalOpen}
