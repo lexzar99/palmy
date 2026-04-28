@@ -88,36 +88,38 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   const token = authHeader.split(' ')[1];
 
   // ── 1. Try Supabase JWT ───────────────────────────────────────────────────
-  try {
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (!error && user) {
-      // Ensure a corresponding row exists in the local User table
-      const dbUser = await (prisma as any).user.upsert({
-        where: { id: user.id },
-        update: {
-          email: user.email || undefined,
-          name: user.user_metadata?.name || user.user_metadata?.full_name || undefined,
-          image: user.user_metadata?.avatar_url || user.user_metadata?.picture || undefined,
-          phone: user.phone || undefined,
-          isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
-        },
-        create: {
-          id: user.id,
-          email: user.email ?? null,
-          name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? 'Användare',
-          image: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
-          phone: user.phone ?? null,
-          oauthProvider: user.app_metadata?.provider ?? null,
-          oauthId: user.id,
-          isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
-        },
-      }).catch(() => null);
+  if (supabaseAdmin) {
+    try {
+      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+      if (!error && user) {
+        // Ensure a corresponding row exists in the local User table
+        const dbUser = await (prisma as any).user.upsert({
+          where: { id: user.id },
+          update: {
+            email: user.email || undefined,
+            name: user.user_metadata?.name || user.user_metadata?.full_name || undefined,
+            image: user.user_metadata?.avatar_url || user.user_metadata?.picture || undefined,
+            phone: user.phone || undefined,
+            isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
+          },
+          create: {
+            id: user.id,
+            email: user.email ?? null,
+            name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? 'Användare',
+            image: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+            phone: user.phone ?? null,
+            oauthProvider: user.app_metadata?.provider ?? null,
+            oauthId: user.id,
+            isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
+          },
+        }).catch(() => null);
 
-      req.user = { id: user.id, email: user.email, phone: user.phone, role: 'USER' };
-      return next();
+        req.user = { id: user.id, email: user.email, phone: user.phone, role: 'USER' };
+        return next();
+      }
+    } catch {
+      // Fall through to legacy JWT
     }
-  } catch {
-    // Fall through to legacy JWT
   }
 
   // ── 2. Fall back to legacy custom JWT ────────────────────────────────────
@@ -215,10 +217,14 @@ router.post('/verify-otp', async (req, res) => {
       let currentUserId: string | null = null;
       const token = authHeader.split(' ')[1];
       try {
-        const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
-        if (sbUser) {
-          currentUserId = sbUser.id;
-        } else {
+        if (supabaseAdmin) {
+          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
+          if (sbUser) {
+            currentUserId = sbUser.id;
+          }
+        }
+
+        if (!currentUserId) {
           const payload = jwt.verify(token, JWT_SECRET) as any;
           currentUserId = payload.id;
         }
