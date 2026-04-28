@@ -60,12 +60,16 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
 
   const fetchOrder = useCallback(async () => {
     try {
-      const response = await api.get(`/api/orders/${id}`);
+      const response = await api.get(`/api/orders/${id}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setOrder(response.data || null);
+    } catch {
+      setOrder(null);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, token]);
 
   useEffect(() => {
     fetchOrder();

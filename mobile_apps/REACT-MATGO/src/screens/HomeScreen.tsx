@@ -151,7 +151,6 @@ export default function HomeScreen({
   const [stickySearchActive, setStickySearchActive] = useState(false);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
 
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
@@ -169,6 +168,8 @@ export default function HomeScreen({
   const setPendingPromoCode = useAppStore((s) => s.setPendingPromoCode);
   const setDeliveryOverrides = useAppStore((s) => s.setDeliveryOverrides);
   const profile = useAppStore((s) => s.profile);
+  const favorites = useAppStore((s) => s.favorites);
+  const toggleFavorite = useAppStore((s) => s.toggleFavorite);
 
   const renderGreeting = () => {
     const hour = new Date().getHours();
@@ -952,13 +953,8 @@ export default function HomeScreen({
                   dealTone={activeDeal?.tone}
                   onPress={() => openRestaurant(restaurant.slug)}
                   containerStyle={{ opacity: dimmed ? 0.6 : 1 }}
-                  isFavorite={favorites.has(restaurant.id)}
-                  onToggleFavorite={() => setFavorites(prev => {
-                    const next = new Set(prev);
-                    if (next.has(restaurant.id)) next.delete(restaurant.id);
-                    else next.add(restaurant.id);
-                    return next;
-                  })}
+                  isFavorite={favorites.includes(restaurant.id)}
+                  onToggleFavorite={() => toggleFavorite(restaurant.id)}
                 />
                 {/* Option 1: Inline Feed Injection */}
                 {injectDeal && (

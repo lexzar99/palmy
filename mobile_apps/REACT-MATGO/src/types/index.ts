@@ -273,6 +273,8 @@ export interface AppStoreState {
   activeOrderId: string | null;
   dislikedIngredients: string[];
   deliveryOverrides: Record<string, { deliveryFee: number; minOrderAmount: number }>;
+  favorites: string[];
+  toggleFavorite: (restaurantId: string) => void;
   addItem: (item: Omit<CartItem, "cartItemId">) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;

@@ -655,14 +655,10 @@ function AppContent() {
           direction = targetIndex > currentIndex ? "slide_from_right" : "slide_from_left";
         }
 
-        // We use reset so that iOS doesn't try to "Go Back" revealing a stuck page. 
-        // Reset forces the fresh screen to slide over perfectly according to our calculation!
-        navigationRef.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name, params: { _slideDirection: direction } }],
-          })
-        );
+        // StackActions.replace prevents the iOS back-swipe revealing a previous tab
+        // while still keeping other mounted screens alive (unlike CommonActions.reset
+        // which unmounts everything and wipes in-memory state like scroll position).
+        navigationRef.dispatch(StackActions.replace(name, { _slideDirection: direction }));
       }
     },
     []

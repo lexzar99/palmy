@@ -29,11 +29,11 @@ For every fix, run on a real device or simulator before marking done — type ch
 - [x] **Fix `RegisterScreen.tsx:53` regex bug.** Changed `/\\D/g` (literal backslash-D, did nothing) to `/\D/g` so non-digits are actually stripped before sending to Supabase.
 - [x] **Defer env validation in `src/lib/env.ts`.** `getRequiredExpoPublicEnv` now logs+returns "" instead of throwing at import time. Added `validateEnv()` called in `AppContent` first useEffect — shows an Alert listing missing keys after React mounts.
 - [x] **Audit guest-checkout auth.** Backend `orders.ts:199` explicitly handles missing/invalid token as guest — intentional. No change needed.
-- [ ] **Persist `favorites` in `HomeScreen.tsx:154`.** Currently `useState<Set<string>>` — wiped on every `CommonActions.reset`. Move into Zustand with AsyncStorage persistence; ideally sync to backend.
-- [ ] **Replace `CommonActions.reset` tab switching in `App.tsx:799–804`.** Resetting on every tab tap unmounts screens and kills scroll position / in-progress searches. Migrate to `@react-navigation/bottom-tabs` or use `navigate`.
+- [x] **Persist `favorites` in `HomeScreen.tsx`.** Moved from `useState<Set<string>>` to Zustand `favorites: string[]` + `toggleFavorite` action. Persisted in AsyncStorage alongside the rest of the store.
+- [x] **Replace `CommonActions.reset` tab switching in `App.tsx`.** Replaced with `StackActions.replace` — still prevents iOS back-swipe between tabs but no longer unmounts all screens on every tab tap.
 - [x] **Don't wipe delivery overrides on transient errors.** `HomeScreen.tsx` catch block no longer calls `setDeliveryOverrides({})` — existing fees stay on network error, only cleared on a confirmed "not covered" API response.
 - [x] **Confirm before clobbering cart.** `RestaurantScreen.tsx` now shows an Alert ("Töm & lägg till") when user adds from a different restaurant while cart is non-empty. ProfileScreen and PreviouslyOrderedBar already called clearCart() first — no change needed there.
-- [ ] **Add auth header to order polling.** `OrderScreen.tsx:90–92` polls `/api/orders/${id}` every 15 s with no `Authorization` header. If endpoint is auth-gated, polling 401s silently. Add `Bearer ${token}`.
+- [x] **Add auth header to order polling.** `OrderScreen.tsx` `fetchOrder` now sends `Authorization: Bearer ${token}` on every poll and has a proper catch that sets `order = null` instead of leaving loading=true forever.
 - [ ] **Proxy Geoapify calls through backend.** `AddressAutocomplete.tsx:53`, `CartScreen.tsx:325` and `:595` call Geoapify directly with an `EXPO_PUBLIC_*` key embedded in the bundle. Move to `/api/places/*` like `AddressModal.tsx` already does, or restrict the key in Geoapify dashboard.
 
 ## P1 — High (degraded UX, missing essentials, accessibility blockers)
