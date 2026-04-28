@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, Image, Modal } from 'react-native';
+import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, Image, Modal, KeyboardAvoidingView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl } from '../lib/api';
 import { palette, styles } from '../constants/theme';
@@ -31,6 +32,8 @@ export default function ProductModal({
   initialExtras?: CartItem["extras"];
   initialNote?: string;
 }) {
+  const insets = useSafeAreaInsets();
+  const modalScrollRef = useRef<ScrollView | null>(null);
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [note, setNote] = useState(initialNote ?? "");
   const [extras, setExtras] = useState<CartItem["extras"]>(initialExtras ?? []);
@@ -109,7 +112,10 @@ export default function ProductModal({
   if (!product) return null;
 
   const extrasPrice = extras.reduce((sum: number, extra: any) => sum + extra.price, 0);
-  const totalPrice = (product.price + extrasPrice) * quantity;
+  const basePrice = product.discountActive
+    ? (product.discountPrice || Math.round(product.price - product.price * ((product.discountPercent || 0) / 100)))
+    : product.price;
+  const totalPrice = (basePrice + extrasPrice) * quantity;
 
   const toggleExtra = (group: MenuExtraGroup, extra: MenuExtra) => {
     setSelectionError(null);
@@ -182,17 +188,38 @@ export default function ProductModal({
     onAdd({ quantity, note: finalNote || undefined, extras });
   };
 
+  const handleNoteFocus = () => {
+    requestAnimationFrame(() => {
+      modalScrollRef.current?.scrollToEnd({ animated: true });
+    });
+    setTimeout(() => {
+      modalScrollRef.current?.scrollToEnd({ animated: true });
+    }, 140);
+  };
+
   return (
     <Modal visible={!!product && !forceHide} transparent animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <View style={[styles.modalBackdrop, styles.productModalBackdrop]}>
-        <Pressable style={styles.productModalScrim} onPress={onClose} />
-        <View style={styles.productModalSheet}>
-          <View style={styles.productModalHandle} />
-          <Pressable style={styles.productModalCloseButton} onPress={onClose}>
-            <Ionicons name="close" size={20} color={palette.text} />
-          </Pressable>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Math.max(insets.bottom - 6, 0)}
+        style={{ flex: 1 }}
+      >
+        <View style={[styles.modalBackdrop, styles.productModalBackdrop]}>
+          <Pressable style={styles.productModalScrim} onPress={onClose} />
+          <View style={styles.productModalSheet}>
+            <View style={styles.productModalHandle} />
+            <Pressable style={styles.productModalCloseButton} onPress={onClose}>
+              <Ionicons name="close" size={20} color={palette.text} />
+            </Pressable>
 
-          <ScrollView style={styles.productModalScroll} contentContainerStyle={styles.productModalContent} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              ref={modalScrollRef}
+              style={styles.productModalScroll}
+              contentContainerStyle={styles.productModalContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            >
             {product.imageUrl ? (
               <View style={styles.productHeroCard}>
                 <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.productHeroImage} />
@@ -200,7 +227,14 @@ export default function ProductModal({
                 <View style={styles.productHeroContent}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <View style={styles.productHeroPriceChip}>
-                      <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                      {product.discountActive ? (
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                          <Text style={[styles.productHeroPriceChipText, { textDecorationLine: "line-through", opacity: 0.55 }]}>{product.price} kr</Text>
+                          <Text style={[styles.productHeroPriceChipText, { color: palette.gold }]}>{basePrice} kr</Text>
+                        </View>
+                      ) : (
+                        <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                      )}
                     </View>
                     {matchedIngredients.length > 0 && (
                       <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -224,7 +258,14 @@ export default function ProductModal({
               <View style={{ padding: 24, paddingBottom: 0 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                   <View style={styles.productHeroPriceChip}>
-                    <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                    {product.discountActive ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                        <Text style={[styles.productHeroPriceChipText, { textDecorationLine: "line-through", opacity: 0.55 }]}>{product.price} kr</Text>
+                        <Text style={[styles.productHeroPriceChipText, { color: palette.gold }]}>{basePrice} kr</Text>
+                      </View>
+                    ) : (
+                      <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                    )}
                   </View>
                   {matchedIngredients.length > 0 && (
                     <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -310,6 +351,7 @@ export default function ProductModal({
                 placeholderTextColor={palette.muted}
                 value={note}
                 onChangeText={setNote}
+                onFocus={handleNoteFocus}
               />
             </View>
 
@@ -319,47 +361,48 @@ export default function ProductModal({
                 <Text style={styles.productSelectionErrorText}>{selectionError}</Text>
               </View>
             )}
-          </ScrollView>
+            </ScrollView>
 
-          <View style={styles.productModalFooter}>
-            <View style={styles.productFooterSummaryRow}>
-              <View>
-                <Text style={styles.productFooterLabel}>Totalt</Text>
-                <Text style={styles.productFooterValue}>{totalPrice} kr</Text>
-              </View>
-              <View style={styles.productQuantityCard}>
-                <Pressable onPress={() => setQuantity((current) => Math.max(1, current - 1))} style={styles.productQuantityButton}>
-                  <Ionicons name="remove-outline" size={18} color={palette.text} />
-                </Pressable>
-                <Text style={styles.productQuantityValue}>{quantity}</Text>
-                <Pressable onPress={() => setQuantity((current) => current + 1)} style={styles.productQuantityButton}>
-                  <Ionicons name="add-outline" size={18} color={palette.text} />
-                </Pressable>
-              </View>
-            </View>
-
-            <Pressable 
-              style={[styles.productAddButton, !address && { backgroundColor: "#E2C06C" }]}
-              onPress={handleAddToCart}
-            >
-              <View style={styles.productAddButtonContent}>
-                <View style={styles.productAddButtonIconWrap}>
-                  <Ionicons name={!address ? "location-outline" : "bag-handle-outline"} size={18} color="#000" />
-                </View>
+            <View style={[styles.productModalFooter, { paddingBottom: Math.max(insets.bottom, 12) + 14 }]}>
+              <View style={styles.productFooterSummaryRow}>
                 <View>
-                  <Text style={styles.productAddButtonLabel}>
-                    {!address ? (orderType === "DELIVERY" ? "Ange adress" : "Välj stad") : "Lägg i kassen"}
-                  </Text>
-                  <Text style={styles.productAddButtonSubLabel}>
-                    {!address ? "Krävs för att fortsätta" : "Klar att beställa"}
-                  </Text>
+                  <Text style={styles.productFooterLabel}>Totalt</Text>
+                  <Text style={styles.productFooterValue}>{totalPrice} kr</Text>
+                </View>
+                <View style={styles.productQuantityCard}>
+                  <Pressable onPress={() => setQuantity((current) => Math.max(1, current - 1))} style={styles.productQuantityButton}>
+                    <Ionicons name="remove-outline" size={18} color={palette.text} />
+                  </Pressable>
+                  <Text style={styles.productQuantityValue}>{quantity}</Text>
+                  <Pressable onPress={() => setQuantity((current) => current + 1)} style={styles.productQuantityButton}>
+                    <Ionicons name="add-outline" size={18} color={palette.text} />
+                  </Pressable>
                 </View>
               </View>
-              <Text style={styles.productAddButtonPrice}>{totalPrice} kr</Text>
-            </Pressable>
+
+              <Pressable 
+                style={[styles.productAddButton, !address && { backgroundColor: "#E2C06C" }]}
+                onPress={handleAddToCart}
+              >
+                <View style={styles.productAddButtonContent}>
+                  <View style={styles.productAddButtonIconWrap}>
+                    <Ionicons name={!address ? "location-outline" : "bag-handle-outline"} size={18} color="#000" />
+                  </View>
+                  <View>
+                    <Text style={styles.productAddButtonLabel}>
+                      {!address ? (orderType === "DELIVERY" ? "Ange adress" : "Välj stad") : "Lägg i kassen"}
+                    </Text>
+                    <Text style={styles.productAddButtonSubLabel}>
+                      {!address ? "Krävs för att fortsätta" : "Klar att beställa"}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.productAddButtonPrice}>{totalPrice} kr</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -570,6 +570,7 @@ export default function CartScreen({
     }
 
     setSubmitting(true);
+    let finalPaymentIntentId = "FREE_PROMO";
     try {
       if (!restaurantSettings.isOpen) {
         Alert.alert("Stängt", "Restaurangen är för närvarande stängd.");
@@ -663,7 +664,6 @@ export default function CartScreen({
 
       // ===== 1. STRIPE BETALNINGSFLÖDE (NATIVE) =====
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
-      let finalPaymentIntentId = "FREE_PROMO";
       
       if (!isTestFlow && Platform.OS !== "web") {
         const intentRes = await api.post("/api/payments/create-intent", { amount: total });

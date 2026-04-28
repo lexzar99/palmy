@@ -44,6 +44,8 @@ export default function RestaurantScreen({
   const heroTopInset = getRestaurantHeroTopInset(insets.top);
   const stickyHeaderTopInset = Math.max(insets.top - 8, 18);
   const cachedData = getScreenCache<RestaurantScreenCache>('restaurant', slug);
+  const [isHeaderStuck, setIsHeaderStuck] = useState(false);
+  const stickyHeaderLayoutY = useRef(0);
 
 
   const [restaurant, setRestaurant] = useState<Restaurant | null>(() => cachedData?.restaurant || null);
@@ -288,6 +290,10 @@ export default function RestaurantScreen({
 
   const handleMenuScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const sy = event.nativeEvent.contentOffset.y;
+      const stuck = sy >= stickyHeaderLayoutY.current;
+      setIsHeaderStuck((prev) => (prev !== stuck ? stuck : prev));
+
       if (isScrollingRef.current) return;
       
       if (!filteredCategories.length) return;
@@ -436,14 +442,19 @@ export default function RestaurantScreen({
           </View>
         </View>
 
-        <View pointerEvents="box-none" style={{ zIndex: 20, elevation: 20 }} id="category-sticky">
+        <View
+          pointerEvents="box-none"
+          style={{ zIndex: 20, elevation: 20 }}
+          id="category-sticky"
+          onLayout={(e) => { stickyHeaderLayoutY.current = e.nativeEvent.layout.y; }}
+        >
           <LinearGradient
             pointerEvents="none"
             colors={["rgba(255,248,239,0.98)", "rgba(255,248,239,0.95)", "rgba(255,248,239,0.76)", "rgba(255,248,239,0)"]}
             locations={[0, 0.38, 0.76, 1]}
             style={StyleSheet.absoluteFillObject}
           />
-          <View style={[styles.restaurantStickyNavWrap, { paddingTop: stickyHeaderTopInset }]}>
+          <View style={[styles.restaurantStickyNavWrap, { paddingTop: isHeaderStuck ? stickyHeaderTopInset : 6 }]}>
             <View style={styles.restaurantStickyNavCard}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <Pressable 
@@ -667,12 +678,15 @@ export default function RestaurantScreen({
             return;
           }
           const doAdd = () => {
+            const effectivePrice = selectedProduct.discountActive
+              ? (selectedProduct.discountPrice || Math.round(selectedProduct.price - selectedProduct.price * ((selectedProduct.discountPercent || 0) / 100)))
+              : selectedProduct.price;
             addItem({
               productId: selectedProduct.id,
               restaurantId: restaurant.id,
               restaurantSlug: restaurant.slug,
               name: selectedProduct.name,
-              price: selectedProduct.price,
+              price: effectivePrice,
               quantity: payload.quantity,
               extras: payload.extras,
               note: payload.note,
