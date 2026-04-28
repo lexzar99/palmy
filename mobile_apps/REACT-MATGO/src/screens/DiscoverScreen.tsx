@@ -1,344 +1,320 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, TextInput, Pressable, FlatList,
+  Image, Animated, Easing, ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl } from '../lib/api';
-import { palette, styles } from '../constants/theme';
-import type { Order, Restaurant } from '../types';
-import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
-import ScalePressable from '../components/ScalePressable';
+import { getScreenCache, setScreenCache } from '../lib/screenCache';
+import { palette } from '../constants/theme';
+import { getBottomTabsContentPadding } from '../constants/layout';
 import StarRating from '../components/StarRating';
-import { DiscoverScreenSkeleton } from '../components/SkeletonLoader';
+import ScalePressable from '../components/ScalePressable';
+import type { Restaurant } from '../types';
 
-const DISCOVER_CATEGORIES = [
-  { name: "Pizza", icon: "pizza-outline" as const, tint: "#ef4444", bg: "rgba(239,68,68,0.1)" },
-  { name: "Burgare", icon: "fast-food-outline" as const, tint: "#f59e0b", bg: "rgba(245,158,11,0.1)" },
-  { name: "Sallad", icon: "leaf-outline" as const, tint: "#22c55e", bg: "rgba(34,197,94,0.1)" },
-  { name: "Sushi", icon: "fish-outline" as const, tint: "#38bdf8", bg: "rgba(56,189,248,0.1)" },
-  { name: "Kebab", icon: "restaurant-outline" as const, tint: "#f97316", bg: "rgba(249,115,22,0.1)" },
-  { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "rgba(168,85,247,0.1)" },
-];
+const CUISINE_CHIPS = ['Pizza', 'Sushi', 'Burgare', 'Kebab', 'Asiatiskt', 'Pasta', 'Sallad', 'Snabbmat'];
 
-export default function DiscoverScreen({ openRestaurant, goBack, initialFilteredIds, filteredTitle }: { openRestaurant: (slug: string) => void; goBack: () => void; initialFilteredIds?: string[]; filteredTitle?: string }) {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [activeSearch, setActiveSearch] = useState("");
-  const [loading, setLoading] = useState(true);
-  const token = useAppStore((s) => s.token);
-  const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
+type Cache = { restaurants: Restaurant[] };
+
+function RestaurantRow({ restaurant, onPress, index }: { restaurant: Restaurant; onPress: () => void; index: number }) {
+  const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (initialFilteredIds) {
-      clearFilteredIds(null);
+    Animated.timing(opacity, {
+      toValue: 1,
+      duration: 220,
+      delay: Math.min(index, 7) * 40,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  return (
+    <Animated.View style={{ opacity }}>
+      <ScalePressable
+        onPress={onPress}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 14,
+          paddingVertical: 12,
+          borderBottomWidth: 1,
+          borderBottomColor: 'rgba(125,97,38,0.07)',
+        }}
+      >
+        <View style={{
+          width: 68, height: 68, borderRadius: 18, overflow: 'hidden',
+          backgroundColor: palette.panelMuted, flexShrink: 0,
+        }}>
+          {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
+            <Image
+              source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }}
+              style={{ width: '100%', height: '100%' }}
+            />
+          )}
+        </View>
+
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: palette.text, fontSize: 15, fontWeight: '800', marginBottom: 3 }}>
+            {restaurant.name}
+          </Text>
+          <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 11, fontWeight: '600', marginBottom: 5 }}>
+            {[restaurant.cuisine, restaurant.city].filter(Boolean).join(' · ')}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <StarRating rating={restaurant.rating} size={11} showNumber />
+            <View style={{
+              paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
+              backgroundColor: restaurant.isOpen === false ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
+            }}>
+              <Text style={{ fontSize: 9, fontWeight: '900', color: restaurant.isOpen === false ? '#fb7185' : '#10b981' }}>
+                {restaurant.isOpen === false ? 'STÄNGD' : 'ÖPPET'}
+              </Text>
+            </View>
+            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: '700' }}>
+              ~{Math.round(restaurant.etaMinutes || 30)} min
+            </Text>
+          </View>
+        </View>
+
+        <Ionicons name="chevron-forward" size={16} color="rgba(125,97,38,0.35)" />
+      </ScalePressable>
+    </Animated.View>
+  );
+}
+
+export default function DiscoverScreen({
+  openRestaurant,
+  goBack,
+  initialFilteredIds,
+  filteredTitle,
+  autoFocus,
+}: {
+  openRestaurant: (slug: string) => void;
+  goBack: () => void;
+  initialFilteredIds?: string[];
+  filteredTitle?: string;
+  autoFocus?: boolean;
+}) {
+  const insets = useSafeAreaInsets();
+  const token = useAppStore((s) => s.token);
+  const cacheKey = token || '__guest__';
+  const cachedData = getScreenCache<Cache>('discover', cacheKey);
+  const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
+  const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
+
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(!cachedData);
+  const inputRef = useRef<TextInput>(null);
+
+  // Fade the content list when query changes
+  const listOpacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (autoFocus) {
+      const t = setTimeout(() => inputRef.current?.focus(), 120);
+      return () => clearTimeout(t);
     }
+  }, [autoFocus]);
+
+  useEffect(() => {
+    if (initialFilteredIds) clearFilteredIds(null);
   }, [initialFilteredIds, clearFilteredIds]);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
-        const [restaurantsRes, ordersRes] = await Promise.all([
-          api.get("/api/restaurants"),
-          token ? api.get("/api/profile/orders", { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve({ data: [] }),
-        ]);
+        const res = await api.get('/api/restaurants');
         if (!active) return;
-        setRestaurants(restaurantsRes.data || []);
-        setOrders(ordersRes.data || []);
+        const next = (res.data || []) as Restaurant[];
+        setRestaurants(next);
+        setScreenCache<Cache>('discover', cacheKey, { restaurants: next });
       } catch {
       } finally {
         if (active) setLoading(false);
       }
     })();
-    return () => {
-      active = false;
-    };
-  }, [token]);
+    return () => { active = false; };
+  }, [cacheKey]);
 
-  const recentOrders = orders.slice(0, 3);
-  const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
+  const handleQueryChange = useCallback((text: string) => {
+    Animated.timing(listOpacity, {
+      toValue: 0,
+      duration: 80,
+      easing: Easing.in(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setQuery(text);
+      Animated.timing(listOpacity, {
+        toValue: 1,
+        duration: 200,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [listOpacity]);
+
   const activeFilteredIds = initialFilteredIds || storedFilteredIds;
-  const filteredRestaurants = (activeFilteredIds ? restaurants.filter((r) => activeFilteredIds.includes(r.id)) : restaurants).filter((restaurant) => {
-    const haystack = `${restaurant.name} ${restaurant.cuisine || ""} ${(restaurant.tags || []).join(" ")}`.toLowerCase();
-    return haystack.includes(activeSearch.toLowerCase());
+
+  const results = (activeFilteredIds
+    ? restaurants.filter((r) => activeFilteredIds.includes(r.id))
+    : restaurants
+  ).filter((r) => {
+    if (!query) return true;
+    const hay = `${r.name} ${r.cuisine || ''} ${(r.tags || []).join(' ')}`.toLowerCase();
+    return hay.includes(query.toLowerCase());
   });
 
-  const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
+  const trending = [...restaurants]
+    .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+    .slice(0, 12);
 
-  if (loading) {
-    return (
-      <ScreenWrap>
-        <DiscoverScreenSkeleton />
-      </ScreenWrap>
-    );
-  }
+  const showResults = !!query || !!activeFilteredIds;
+  const listData = showResults ? results : trending;
+  const listLabel = filteredTitle
+    ? `${results.length} RESTAURANGER`
+    : showResults
+    ? query
+      ? `${results.length} RESULTAT FÖR "${query.toUpperCase()}"`
+      : `${results.length} RESTAURANGER`
+    : 'POPULÄRT JUST NU';
 
   return (
-    <ScreenWrap>
-      <View style={{ paddingTop: 8 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <View>
-            <Text style={{ fontSize: 34, fontWeight: "900" }}>
-              {filteredTitle ? (
-                <Text style={{ color: palette.text }}>{filteredTitle.toUpperCase()}</Text>
-              ) : (
-                <>
-                  <Text style={{ color: palette.text }}>UPPTÄCK</Text>
-                  <Text style={{ color: palette.gold }}>MATGO</Text>
-                </>
-              )}
-            </Text>
-            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 2, marginTop: 6 }}>
-              {filteredTitle ? `${filteredRestaurants.length} RESTAURANGER` : "HITTA DIN NÄSTA FAVORITUPPLEVELSE"}
+    <View style={{ flex: 1, backgroundColor: palette.bg }}>
+      {/* ─── Sökruta + rubrik ─────────────────────────────────── */}
+      <View style={{
+        paddingTop: insets.top + 12,
+        paddingHorizontal: 20,
+        paddingBottom: 0,
+        backgroundColor: palette.bg,
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 18 }}>
+          <Pressable
+            onPress={() => { clearFilteredIds(null); goBack(); }}
+            style={{
+              width: 42, height: 42, borderRadius: 14, backgroundColor: palette.panel,
+              borderWidth: 1, borderColor: palette.border,
+              alignItems: 'center', justifyContent: 'center', marginRight: 12,
+            }}
+          >
+            <Ionicons name="chevron-back" size={18} color={palette.gold} />
+          </Pressable>
+
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: palette.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.3 }}>
+              {filteredTitle || 'Sök'}
             </Text>
           </View>
-          {filteredTitle ? (
+
+          {!!query && (
             <Pressable
-              onPress={() => { clearFilteredIds(null); goBack(); }}
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 20,
-                backgroundColor: palette.panel,
-                borderWidth: 1,
-                borderColor: palette.border,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+              onPress={() => handleQueryChange('')}
+              style={{ paddingHorizontal: 8, paddingVertical: 4 }}
             >
-              <Ionicons name="close" size={26} color={palette.muted} />
-            </Pressable>
-          ) : (
-            <Pressable
-              onPress={goBack}
-              style={{
-                width: 58,
-                height: 58,
-                borderRadius: 20,
-                backgroundColor: palette.panel,
-                borderWidth: 1,
-                borderColor: palette.border,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Ionicons name="compass-outline" size={26} color={palette.gold} />
+              <Text style={{ color: palette.gold, fontSize: 12, fontWeight: '800' }}>RENSA</Text>
             </Pressable>
           )}
         </View>
 
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            borderRadius: 30,
-            borderWidth: 1,
-            borderColor: palette.border,
-            backgroundColor: palette.panel,
-            paddingHorizontal: 20,
-            paddingVertical: 16,
-            marginBottom: 18,
-          }}
-        >
-          <Ionicons name="search-outline" size={24} color={palette.muted} />
+        {/* Sökruta */}
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 10,
+          backgroundColor: palette.panel,
+          borderRadius: 20, borderWidth: 1, borderColor: palette.border,
+          paddingHorizontal: 16, paddingVertical: 13,
+          marginBottom: 14,
+        }}>
+          <Ionicons name="search-outline" size={18} color={palette.muted} />
           <TextInput
-            value={activeSearch}
-            onChangeText={setActiveSearch}
-            placeholder="Hitta din favorit..."
+            ref={inputRef}
+            value={query}
+            onChangeText={handleQueryChange}
+            placeholder="Restaurang, maträtt eller kök..."
             placeholderTextColor={palette.muted}
-            style={{ flex: 1, color: palette.text, fontSize: 16, fontWeight: "700", marginBottom: 0, padding: 0 }}
+            style={{ flex: 1, color: palette.text, fontSize: 15, fontWeight: '600', padding: 0 }}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
           />
+          {loading && <ActivityIndicator size="small" color={palette.gold} />}
+        </View>
+
+        {/* Cuisine chips — alltid synliga som snabbfilter */}
+        <View style={{
+          flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 6,
+          paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: 'rgba(125,97,38,0.08)',
+        }}>
+          {CUISINE_CHIPS.map((chip) => {
+            const active = query.toLowerCase() === chip.toLowerCase();
+            return (
+              <Pressable
+                key={chip}
+                onPress={() => handleQueryChange(active ? '' : chip)}
+                style={{
+                  paddingHorizontal: 14, paddingVertical: 7,
+                  borderRadius: 12, borderWidth: 1,
+                  backgroundColor: active ? palette.gold : palette.panel,
+                  borderColor: active ? palette.gold : palette.border,
+                }}
+              >
+                <Text style={{
+                  fontSize: 11, fontWeight: '800',
+                  color: active ? '#000' : palette.muted,
+                }}>
+                  {chip}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
-      {loading && (
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator color={palette.gold} />
-        </View>
-      )}
-
-
-
-      {!loading && !activeSearch && !activeFilteredIds && (
-        <View style={{ marginTop: 10 }}>
-          <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2, marginBottom: 16 }}>KATEGORIER</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 14 }}>
-            {DISCOVER_CATEGORIES.map((category: any) => (
-              <ScalePressable
-                key={category.name}
-                onPress={() => setActiveSearch(category.name)}
-                style={{
-                  width: 100,
-                  height: 120,
-                  borderRadius: 24,
-                  backgroundColor: palette.panel,
-                  borderWidth: 1,
-                  borderColor: palette.border,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 12,
-                }}
-              >
-                <View
-                  style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: 14,
-                    backgroundColor: category.bg,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Ionicons name={category.icon as any} size={22} color={category.tint} />
-                </View>
-                <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>{category.name.toUpperCase()}</Text>
-              </ScalePressable>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {!loading && !activeSearch && !activeFilteredIds && (
-        <View style={{ marginTop: 16 }}>
-          <View style={[styles.sectionTitleRow, { marginBottom: 18 }]}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 }}>POPULÄRT JUST NU</Text>
-          </View>
-          {trendingRestaurants.map((restaurant) => (
-            <ScalePressable
-              key={restaurant.id}
-              onPress={() => openRestaurant(restaurant.slug)}
-              style={{
-                backgroundColor: palette.panel,
-                borderRadius: 30,
-                borderWidth: 1,
-                borderColor: palette.border,
-                padding: 16,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 16,
-                marginBottom: 14,
-              }}
-            >
-              <View style={{ width: 82, height: 82, borderRadius: 24, overflow: "hidden", backgroundColor: palette.bg }}>
-                {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
-                  <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
-                )}
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <Text style={{ color: palette.text, fontSize: 19, fontWeight: "900" }}>{restaurant.name.toUpperCase()}</Text>
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      backgroundColor: restaurant.isOpen === false ? "rgba(244,63,94,0.15)" : "rgba(16,185,129,0.15)",
-                    }}
-                  >
-                    <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 10, fontWeight: "900" }}>
-                      {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-                    </Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <StarRating rating={restaurant.rating} size={12} showNumber={true} />
-                  <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward-outline" size={20} color={palette.gold} />
-            </ScalePressable>
-          ))}
-        </View>
-      )}
-
-      {!loading && !!activeFilteredIds && !activeSearch && (
-        <View style={{ marginTop: 16 }}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 }}>
-              {filteredRestaurants.length} RESTAURANG{filteredRestaurants.length !== 1 ? "ER" : ""} MED DENNA DEAL
+      {/* ─── Resultatlista ────────────────────────────────────── */}
+      <Animated.View style={{ flex: 1, opacity: listOpacity }}>
+        <FlatList
+          data={listData}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingTop: 10,
+            paddingBottom: getBottomTabsContentPadding(insets.bottom),
+          }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          ListHeaderComponent={
+            <Text style={{
+              color: palette.muted, fontSize: 9, fontWeight: '900',
+              letterSpacing: 1.5, marginBottom: 8, marginTop: 4,
+            }}>
+              {listLabel}
             </Text>
-          </View>
-          {filteredRestaurants.length === 0 ? (
-            <EmptyPanel label="Inga restauranger hittade." />
-          ) : (
-            filteredRestaurants.map((restaurant) => (
-              <ScalePressable
-                key={restaurant.id}
-                onPress={() => openRestaurant(restaurant.slug)}
-                style={{
-                  backgroundColor: palette.panel,
-                  borderRadius: 28,
-                  borderWidth: 1,
-                  borderColor: "rgba(234,181,69,0.24)",
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 16,
-                  marginBottom: 14,
-                }}
-              >
-                <View style={{ width: 90, height: 90, borderRadius: 22, overflow: "hidden", backgroundColor: palette.bg }}>
-                  {!!(restaurant.heroImageUrl || restaurant.imageUrl) && (
-                    <Image source={{ uri: getImageUrl(restaurant.heroImageUrl || restaurant.imageUrl) }} style={{ width: "100%", height: "100%" }} />
-                  )}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                    <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900" }}>{restaurant.name.toUpperCase()}</Text>
-                    <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 10,
-                        backgroundColor: restaurant.isOpen === false ? "rgba(244,63,94,0.15)" : "rgba(16,185,129,0.15)",
-                      }}
-                    >
-                      <Text style={{ color: restaurant.isOpen === false ? "#fb7185" : "#10b981", fontSize: 9, fontWeight: "900" }}>
-                        {restaurant.isOpen === false ? "STÄNGD" : "ÖPPET"}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginBottom: 8 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="time-outline" size={13} color={palette.gold} />
-                      <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900" }}>{Math.round(restaurant.etaMinutes || 30)} MIN</Text>
-                    </View>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="receipt-outline" size={13} color={palette.gold} />
-                      <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900" }}>MIN {restaurant.minOrderAmount || 0} KR</Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                    <StarRating rating={restaurant.rating} size={12} />
-                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{(restaurant.city || "").toUpperCase()}</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward-outline" size={20} color={palette.gold} />
-              </ScalePressable>
-            ))
+          }
+          ListEmptyComponent={
+            !loading ? (
+              <View style={{ alignItems: 'center', paddingTop: 48 }}>
+                <Ionicons name="search-outline" size={36} color={palette.border} />
+                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700', marginTop: 14 }}>
+                  Inga restauranger hittades
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '600', marginTop: 6, opacity: 0.7 }}>
+                  Prova ett annat sökord
+                </Text>
+              </View>
+            ) : null
+          }
+          renderItem={({ item, index }) => (
+            <RestaurantRow
+              restaurant={item}
+              index={index}
+              onPress={() => openRestaurant(item.slug)}
+            />
           )}
-        </View>
-      )}
-
-      {!loading && !!activeSearch && (
-        <View style={{ marginTop: 16 }}>
-          <View style={styles.sectionTitleRow}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", letterSpacing: 2 }}>
-              SÖKRESULTAT FÖR "{activeSearch.toUpperCase()}"
-            </Text>
-            <Pressable onPress={() => setActiveSearch("")}>
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900" }}>RENSA</Text>
-            </Pressable>
-          </View>
-          {filteredRestaurants.length === 0 ? (
-            <EmptyPanel label="Inga restauranger hittade. Prova att söka på något annat." />
-          ) : (
-            filteredRestaurants.map((restaurant) => (
-              <RestaurantCard key={restaurant.id} restaurant={restaurant} onPress={() => openRestaurant(restaurant.slug)} />
-            ))
-          )}
-        </View>
-      )}
-    </ScreenWrap>
+        />
+      </Animated.View>
+    </View>
   );
 }

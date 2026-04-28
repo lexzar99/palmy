@@ -909,21 +909,24 @@ function AppContent() {
                       if (tab === "discover") pushRoute({ name: "discover" });
                       else openRoot(tab as any);
                     }}
+                    onSearchPress={() => pushRoute({ name: "discover", fromSearch: true } as any)}
                     pushRoute={pushRoute}
                   />
                 )}
               </Stack.Screen>
 
-              <Stack.Screen 
+              <Stack.Screen
                 name="discover"
                 options={({ route }: any) => ({
-                  animation: route.params?._slideDirection || "slide_from_right",
+                  animation: route.params?.fromSearch ? "fade" : (route.params?._slideDirection || "slide_from_right"),
+                  animationDuration: 180,
                 })}
               >
-                {() => (
+                {(props: any) => (
                   <DiscoverScreen
                     openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
                     goBack={goBack}
+                    autoFocus={!!props.route.params?.fromSearch}
                   />
                 )}
               </Stack.Screen>

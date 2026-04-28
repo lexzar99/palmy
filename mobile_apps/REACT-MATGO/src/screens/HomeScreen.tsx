@@ -122,10 +122,12 @@ export default function HomeScreen({
   openRestaurant,
   openTab,
   pushRoute,
+  onSearchPress,
 }: {
   openRestaurant: (slug: string) => void;
   openTab: (name: "home" | "search" | "cart" | "profile" | "discover") => void;
   pushRoute?: (route: AppRoute) => void;
+  onSearchPress?: () => void;
 }) {
   const token = useAppStore((s) => s.token);
   const cacheKey = token || "__guest__";
@@ -537,7 +539,7 @@ export default function HomeScreen({
   const renderSearchBar = useCallback(
     (containerStyle?: any) => (
       <ScalePressable
-        onPress={() => openTab("discover")}
+        onPress={() => onSearchPress ? onSearchPress() : openTab("discover")}
         style={[
           {
             flexDirection: "row",
