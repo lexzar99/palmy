@@ -242,6 +242,12 @@ router.post('/send-otp', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
 
+    // Test numbers bypass everything — no DB write, no Twilio call
+    if (TEST_PHONES[phone] !== undefined) {
+      console.log(`🧪 Test-nummer ${phone} — ingen SMS skickas`);
+      return res.json({ success: true, message: 'Kod skickad' });
+    }
+
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -250,12 +256,6 @@ router.post('/send-otp', async (req, res) => {
     await (prisma as any).verificationCode.create({
       data: { phone, code, expiresAt }
     });
-
-    // Test numbers skip SMS entirely — verify-otp accepts them with hardcoded code
-    if (TEST_PHONES[phone] !== undefined) {
-      console.log(`🧪 Test-nummer ${phone} — skippar SMS`);
-      return res.json({ success: true, message: 'Kod skickad' });
-    }
 
     // Send SMS via Twilio — prefer Messaging Service SID over plain from-number
     if (twilioClient && (TWILIO_MESSAGING_SID || TWILIO_PHONE)) {
@@ -281,9 +281,10 @@ router.post('/send-otp', async (req, res) => {
         ...(isDev && { devCode: code }),
       });
     }
-  } catch (error) {
-    console.error('Send OTP error:', error);
-    res.status(500).json({ error: 'Kunde inte skicka SMS' });
+  } catch (error: any) {
+    const detail = error?.message || String(error);
+    console.error('Send OTP error:', detail);
+    res.status(500).json({ error: `Kunde inte skicka SMS: ${detail}` });
   }
 });
 
