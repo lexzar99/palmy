@@ -65,6 +65,90 @@ export const normalizeDeliveryZones = (raw: unknown): DeliveryZone[] => {
 };
 
 /**
+ * Resolve the delivery fee for a (restaurant, lat, lng) tuple — single
+ * source of truth shared by:
+ *   - POST /api/cities/validate-location  (what the kassa shows the user)
+ *   - POST /api/orders                    (what gets stored on the order)
+ *
+ * Both routes MUST produce the same fee for the same address, otherwise
+ * the customer is charged one amount and admin sees another. The previous
+ * divergence (orders.ts used restaurant-lat/lng as the legacy-zone center
+ * while validate-location used city-center) was the reason admin showed
+ * "49 kr" while the customer paid 30/40/50.
+ *
+ * Inputs:
+ *   restaurant   prisma row with at least { deliveryZones, latitude,
+ *                longitude, cityId, deliveryFee }
+ *   lat, lng     customer address coords
+ *   prisma       prisma client (used to fetch the city for inheritance)
+ *
+ * Returns { fee, minOrder } in **öre**, or null when the address is
+ * outside every zone the restaurant covers.
+ */
+export const resolveDeliveryFee = async (
+  restaurant: {
+    deliveryZones?: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    cityId?: string | null;
+    deliveryFee?: number | null;
+    minOrderAmount?: number | null;
+  },
+  lat: number,
+  lng: number,
+  prisma: { city: { findUnique: (args: any) => Promise<any> } }
+): Promise<{ fee: number; minOrder: number } | null> => {
+  const { findDeliveryZone } = await import('./geo');
+
+  // 1) Pull city center first — it's the canonical anchor for legacy
+  //    (centerless) circle zones AND the source of inherited zones.
+  let cityCenter: { lat: number; lng: number } | undefined;
+  let cityZones: DeliveryZone[] = [];
+  if (restaurant.cityId) {
+    const city = await prisma.city.findUnique({
+      where: { id: restaurant.cityId },
+      select: {
+        zones: true,
+        centerLat: true, centerLng: true,
+        latitude: true, longitude: true,
+      },
+    });
+    if (city) {
+      const cLat = (city.centerLat ?? city.latitude) as number | null | undefined;
+      const cLng = (city.centerLng ?? city.longitude) as number | null | undefined;
+      if (cLat != null && cLng != null) cityCenter = { lat: cLat, lng: cLng };
+
+      let cityZonesRaw: any[] = [];
+      try { cityZonesRaw = JSON.parse(city.zones || '[]'); } catch { cityZonesRaw = []; }
+      cityZones = normalizeDeliveryZones(cityZonesRaw);
+    }
+  }
+
+  // 2) Restaurant zones (its own) — these always win when present.
+  let restZonesRaw: any[] = [];
+  try { restZonesRaw = JSON.parse(restaurant.deliveryZones || '[]'); } catch { restZonesRaw = []; }
+  const restZones = normalizeDeliveryZones(restZonesRaw);
+
+  // 3) Match exactly the way validate-location does:
+  //    - Restaurant has own zones → match against those, but with cityCenter
+  //      as the legacy-circle anchor (NOT restaurant lat/lng).
+  //    - Restaurant has no zones → inherit the city's matched zone.
+  if (restZones.length > 0) {
+    const zone = findDeliveryZone(lat, lng, restZones, cityCenter);
+    if (!zone) return null;
+    return { fee: zone.fee, minOrder: zone.minOrder };
+  }
+
+  if (cityZones.length > 0) {
+    const zone = findDeliveryZone(lat, lng, cityZones, cityCenter);
+    if (!zone) return null;
+    return { fee: zone.fee, minOrder: zone.minOrder };
+  }
+
+  return null;
+};
+
+/**
  * Heuristic: if value >= 1000 treat as already in öre, else multiply by 100.
  */
 export const normalizeMoneyToOre = (value: number): number => {

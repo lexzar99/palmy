@@ -13,7 +13,7 @@ import {
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
-import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
+import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
 
 const router = Router();
@@ -254,44 +254,37 @@ router.post('/', async (req: Request, res: Response) => {
     if (data.type === 'DELIVERY') {
       const defaultFee = (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100));
 
-      if (data.lat && data.lng && restaurant?.latitude && restaurant?.longitude) {
-        const { findDeliveryZone } = await import('../utils/geo');
-
-        // Restaurants without their own delivery zones inherit the city's
-        // zones — same fallback as POST /api/cities/validate-location, which
-        // is what the mobile app uses to compute the zone fee shown at
-        // checkout. Without this fallback the order POST would silently fall
-        // back to defaultFee (49 kr) and the customer would be charged the
-        // city zone fee but admin would see 49.
-        let zonesRaw: any[] = [];
-        try { zonesRaw = JSON.parse((restaurant as any).deliveryZones || '[]'); } catch { zonesRaw = []; }
-        let zones = normalizeDeliveryZones(zonesRaw);
-        let zoneCenter: { lat: number; lng: number } = { lat: restaurant.latitude!, lng: restaurant.longitude! };
-
-        if (zones.length === 0 && (restaurant as any).cityId) {
-          const city = await (prisma as any).city.findUnique({
-            where: { id: (restaurant as any).cityId },
-            select: { zones: true, centerLat: true, centerLng: true, latitude: true, longitude: true },
-          });
-          if (city) {
-            let cityZonesRaw: any[] = [];
-            try { cityZonesRaw = JSON.parse(city.zones || '[]'); } catch { cityZonesRaw = []; }
-            zones = normalizeDeliveryZones(cityZonesRaw);
-            const cLat = city.centerLat ?? city.latitude;
-            const cLng = city.centerLng ?? city.longitude;
-            if (cLat != null && cLng != null) zoneCenter = { lat: cLat, lng: cLng };
-          }
-        }
-
-        if (zones.length > 0) {
-          const matchedZone = findDeliveryZone(data.lat, data.lng, zones, zoneCenter);
-          if (!matchedZone) {
+      if (data.lat && data.lng) {
+        // Single source of truth shared with POST /api/cities/validate-location
+        // (the kassa endpoint). Whatever fee the customer sees in checkout is
+        // what we store on the order — no more "kunden betalade 50 men admin
+        // visar 49" drift.
+        const resolved = await resolveDeliveryFee(
+          restaurant as any,
+          data.lat,
+          data.lng,
+          prisma as any,
+        );
+        if (resolved) {
+          deliveryFee = resolved.fee;
+          minOrderAmount = resolved.minOrder || minOrderAmount;
+        } else {
+          // The restaurant configured zones but the address falls outside
+          // them — same gating the kassa applied. Refuse the order rather
+          // than silently charging the default fallback fee.
+          const hasZones =
+            (() => {
+              try {
+                return JSON.parse((restaurant as any).deliveryZones || '[]').length > 0;
+              } catch {
+                return false;
+              }
+            })() ||
+            ((restaurant as any).cityId ? true : false);
+          if (hasZones) {
             res.status(400).json({ error: 'Tyvärr levererar vi inte till din adress (utanför täckningsområde).' });
             return;
           }
-          deliveryFee = matchedZone.fee;
-          minOrderAmount = matchedZone.minOrder;
-        } else {
           deliveryFee = defaultFee;
         }
       } else {
