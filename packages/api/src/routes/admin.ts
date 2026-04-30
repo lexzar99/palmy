@@ -9,7 +9,7 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { pushOrderStatusUpdate, sendApnsAlert, ApnsError } from '../lib/liveActivityPush';
+import { pushOrderStatusUpdate, sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 
 const router = Router();
 router.use(authenticate);
@@ -455,6 +455,19 @@ router.patch('/orders/:id/status', async (req, res) => {
     if (userToNotify && (userToNotify.pushToken || userToNotify.apnsDeviceToken)) {
       const isDelivery = existing.type === "DELIVERY";
       const { sendPushNotification } = require('../lib/notifications');
+
+      // For DELIVERED we skip the user-visible push (the review prompt comes
+      // later) but still need to wake the JS background handler so the LA
+      // gets reconciled with server state — this is the safety net for when
+      // iOS throttles the dedicated `liveactivity` push topic. Without it
+      // the LA banner stays stuck on "På väg" until iOS auto-stales it.
+      if (status === 'DELIVERED' && userToNotify.apnsDeviceToken) {
+        sendApnsSilentWake({
+          token: userToNotify.apnsDeviceToken,
+          data: { orderId: order.id, kind: 'la-wake' },
+          collapseId: `order-${order.id}-wake`,
+        }).catch((e) => console.warn('[admin] silent wake (DELIVERED) failed:', e?.message));
+      }
 
       // Skip the "Delivered" notification — review prompt comes instead after a delay
       if (status !== 'DELIVERED') {

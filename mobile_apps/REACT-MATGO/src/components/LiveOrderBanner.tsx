@@ -33,6 +33,9 @@ function getStatusDisplay(status: string) {
 
 function getDynamicETA(order: Order) {
   const currentType = order.orderType || order.type;
+  if (order.status === "DELIVERED" || order.status === "COMPLETED") {
+    return "Klar! 🎉";
+  }
   if (currentType === "PICKUP") {
     if (order.status === "READY") return "Hämta nu! 🙌";
     if (order.scheduledFor) {
@@ -204,8 +207,12 @@ export default function LiveOrderBanner({
 
   // ── Guards ────────────────────────────────────────────────────────────────────
   if (!order) return null;
-  const finished = ["DELIVERED", "COMPLETED", "REJECTED", "CANCELLED"].includes(order.status);
-  if (finished) return null;
+  // DELIVERED / COMPLETED stay on screen for 2 minutes (handled by the
+  // `setActiveOrder(null)` timer above) so the customer actually sees the
+  // final "LEVERERAD" step. CANCELLED / REJECTED are hidden immediately —
+  // the timer in fetchOrder also unmounts them by clearing activeOrder.
+  const aborted = ["REJECTED", "CANCELLED"].includes(order.status);
+  if (aborted) return null;
 
   const display = getStatusDisplay(order.status);
   const currentTip = TIPS[tipIndex];

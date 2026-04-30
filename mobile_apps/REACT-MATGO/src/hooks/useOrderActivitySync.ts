@@ -71,18 +71,19 @@ export function useOrderActivitySync(orderId: string | null) {
               etaEndsAt,
             });
             if (mapped.ends) {
-              // The backend is the single source of truth for *when* the LA
-              // dismisses (it pushes `event:'end'` with the right
-              // `dismissal-date`: 2 min for DELIVERED, ~8 s for cancelled,
-              // 18 min after deliveringAt for the DELIVERING courtesy
-              // window). Calling endOrderActivity here as well used to
-              // wallpaper over that with an 8-second local dismissal, which
-              // cut the "Levererad" banner short. So we only ever
-              // *update* state from the foreground; the backend handles end.
-              //
-              // Cancelled is the one exception: if the activity is truly
-              // dead, just yank it.
-              if (mapped.status === 'cancelled') {
+              // Belt-and-braces: also schedule the local end so the LA
+              // disappears even if iOS throttled the backend's
+              // `event:'end'` APNs push (which can happen when the user
+              // hasn't enabled Settings → FoodGo → Live Activities →
+              // Frequent Updates). Backend still pushes its own end with
+              // the same dismissal-date, whichever wins is fine.
+              if (mapped.status === 'delivered') {
+                await endOrderActivity(orderId, {
+                  dismissalSeconds: 120,
+                  finalStatus: 'delivered',
+                  orderType,
+                });
+              } else if (mapped.status === 'cancelled') {
                 await endOrderActivity(orderId);
               }
             }

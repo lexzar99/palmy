@@ -2,13 +2,18 @@ import React, { useEffect, useCallback, useRef } from "react";
 import {
   Animated,
   Dimensions,
+  Image,
   Platform,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
+
+// Same artwork that the iOS launch screen uses (ios/.../SplashScreenLegacy.imageset).
+// Reusing it here makes the hand-off from native splash → React Native splash
+// look like a single uninterrupted shot instead of two unrelated screens.
+const SPLASH_ICON = require("../../assets/splash-icon.png");
 
 const { width, height } = Dimensions.get("window");
 
@@ -169,46 +174,41 @@ export default function MatGoSplashScreen({ onFinish }: { onFinish: () => void }
           }}
         />
 
-        {/* Icon */}
+        {/* Icon — same artwork as the native iOS launch screen so the
+            hand-off feels like one continuous animation instead of two
+            disconnected screens. */}
         <Animated.View
           style={{
             transform: [{ scale: Animated.multiply(logoScale, iconPulse) }],
             opacity: logoOpacity,
-            marginBottom: 32,
+            marginBottom: 24,
+            shadowColor: palette.gold,
+            shadowOpacity: 0.5,
+            shadowRadius: 30,
+            shadowOffset: { width: 0, height: 10 },
           }}
         >
-          <View
-            style={{
-              width: 100,
-              height: 100,
-              borderRadius: 32,
-              backgroundColor: "rgba(231,178,75,0.1)",
-              borderWidth: 1.5,
-              borderColor: "rgba(231,178,75,0.35)",
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: palette.gold,
-              shadowOpacity: 0.5,
-              shadowRadius: 30,
-              shadowOffset: { width: 0, height: 10 },
-            }}
-          >
-            <Ionicons name="restaurant" size={46} color={palette.gold} />
-          </View>
+          <Image
+            source={SPLASH_ICON}
+            style={{ width: 168, height: 168 }}
+            resizeMode="contain"
+          />
         </Animated.View>
 
-        {/* WordMark */}
+        {/* Wordmark below the logo — appears AFTER the static splash icon
+            to extend the brand impression without re-drawing a logo that's
+            already on-screen. */}
         <Animated.View style={{ opacity: textOpacity, alignItems: "center" }}>
           <Text
             style={{
               color: palette.gold,
-              fontSize: 60,
+              fontSize: 44,
               fontWeight: "900",
-              letterSpacing: -2,
+              letterSpacing: -1.5,
               fontStyle: "italic",
             }}
           >
-            MatGo
+            FoodGo
           </Text>
         </Animated.View>
 
