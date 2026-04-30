@@ -294,6 +294,16 @@ router.post('/lookup-phone', async (req, res) => {
   }
 });
 
+// Test numbers that always pass regardless of sent code (dev + staging use)
+const TEST_PHONES: Record<string, string> = {
+  '+46728357970': '111111',
+  '46728357970':  '111111',
+  '+4671234567':  '111111',
+  '4671234567':   '111111',
+  '+4672234567':  '111111',
+  '4672234567':   '111111',
+};
+
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
   try {
@@ -306,7 +316,9 @@ router.post('/verify-otp', async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    if (!validCode && code !== '123456') { // Allow 123456 for testing if needed
+    const isTestPhone = TEST_PHONES[phone] === code;
+
+    if (!validCode && !isTestPhone && code !== '123456') { // Allow 123456 for testing if needed
       return res.status(400).json({ error: 'Ogiltig eller utgången kod' });
     }
 
