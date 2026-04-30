@@ -226,6 +226,16 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
   next();
 };
 
+// Test numbers — always accept code 111111, skip Twilio SMS entirely
+const TEST_PHONES: Record<string, string> = {
+  '+46728357970':  '111111',
+  '46728357970':   '111111',
+  '+46712345678':  '111111',
+  '46712345678':   '111111',
+  '+46722345678':  '111111',
+  '46722345678':   '111111',
+};
+
 // POST /api/auth/send-otp
 router.post('/send-otp', async (req, res) => {
   try {
@@ -240,6 +250,12 @@ router.post('/send-otp', async (req, res) => {
     await (prisma as any).verificationCode.create({
       data: { phone, code, expiresAt }
     });
+
+    // Test numbers skip SMS entirely — verify-otp accepts them with hardcoded code
+    if (TEST_PHONES[phone] !== undefined) {
+      console.log(`🧪 Test-nummer ${phone} — skippar SMS`);
+      return res.json({ success: true, message: 'Kod skickad' });
+    }
 
     // Send SMS via Twilio — prefer Messaging Service SID over plain from-number
     if (twilioClient && (TWILIO_MESSAGING_SID || TWILIO_PHONE)) {
@@ -295,15 +311,6 @@ router.post('/lookup-phone', async (req, res) => {
 });
 
 // Test numbers that always pass regardless of sent code (dev + staging use)
-const TEST_PHONES: Record<string, string> = {
-  '+46728357970':  '111111',
-  '46728357970':   '111111',
-  '+46712345678':  '111111',
-  '46712345678':   '111111',
-  '+46722345678':  '111111',
-  '46722345678':   '111111',
-};
-
 // POST /api/auth/verify-otp
 router.post('/verify-otp', async (req, res) => {
   try {
