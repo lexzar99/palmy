@@ -65,27 +65,17 @@ export function useOrderActivitySync(orderId: string | null) {
         if (status) {
           const mapped = mapServerStatusToActivity(status, orderType);
           if (mapped) {
-            await updateOrderActivity(orderId, mapped.status, {
-              etaMinutes: eta ?? undefined,
-              orderType,
-              etaEndsAt,
-            });
             if (mapped.ends) {
-              // Belt-and-braces: also schedule the local end so the LA
-              // disappears even if iOS throttled the backend's
-              // `event:'end'` APNs push (which can happen when the user
-              // hasn't enabled Settings → FoodGo → Live Activities →
-              // Frequent Updates). Backend still pushes its own end with
-              // the same dismissal-date, whichever wins is fine.
-              if (mapped.status === 'delivered') {
-                await endOrderActivity(orderId, {
-                  dismissalSeconds: 120,
-                  finalStatus: 'delivered',
-                  orderType,
-                });
-              } else if (mapped.status === 'cancelled') {
-                await endOrderActivity(orderId);
-              }
+              // No "Levererad" final step — iOS throttling made it
+              // unreliable. Just dismiss the LA the moment the order
+              // transitions to a terminal state (delivered/cancelled).
+              await endOrderActivity(orderId, { dismissalSeconds: 0 });
+            } else {
+              await updateOrderActivity(orderId, mapped.status, {
+                etaMinutes: eta ?? undefined,
+                orderType,
+                etaEndsAt,
+              });
             }
           }
         }

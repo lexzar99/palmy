@@ -75,7 +75,6 @@ export default function LiveOrderBanner({
 }) {
   const [order, setOrder] = useState<Order | null>(null);
   const lastStatus = useRef<string | null>(null);
-  const finalClearScheduled = useRef<boolean>(false);
   const setActiveOrder = useAppStore((s) => s.setActiveOrder);
 
   // Carousel
@@ -119,18 +118,9 @@ export default function LiveOrderBanner({
           | undefined;
         const mappedFinal = mapServerStatusToActivity(data.status, orderType);
         if (mappedFinal?.ends) {
-          // Match the LA dismissal lifetime so the in-app banner doesn't
-          // disappear right when the LA still proudly says "Levererad":
-          //   - DELIVERED: keep banner up for 2 min, then drop
-          //   - CANCELLED / failures: clear immediately
-          if (mappedFinal.status === "delivered") {
-            if (!finalClearScheduled.current) {
-              finalClearScheduled.current = true;
-              setTimeout(() => setActiveOrder(null), 2 * 60 * 1000);
-            }
-          } else {
-            setActiveOrder(null);
-          }
+          // Terminal status (delivered / cancelled / failed) — drop the
+          // active order from the store so this component unmounts.
+          setActiveOrder(null);
         }
       } catch {}
     };
@@ -207,12 +197,11 @@ export default function LiveOrderBanner({
 
   // ── Guards ────────────────────────────────────────────────────────────────────
   if (!order) return null;
-  // DELIVERED / COMPLETED stay on screen for 2 minutes (handled by the
-  // `setActiveOrder(null)` timer above) so the customer actually sees the
-  // final "LEVERERAD" step. CANCELLED / REJECTED are hidden immediately —
-  // the timer in fetchOrder also unmounts them by clearing activeOrder.
-  const aborted = ["REJECTED", "CANCELLED"].includes(order.status);
-  if (aborted) return null;
+  // The LA banner has no "Levererad" final step (iOS throttling made it
+  // unreliable), so the in-app banner mirrors that — once the order is
+  // delivered or cancelled, hide the banner straight away.
+  const finished = ["DELIVERED", "COMPLETED", "REJECTED", "CANCELLED"].includes(order.status);
+  if (finished) return null;
 
   const display = getStatusDisplay(order.status);
   const currentTip = TIPS[tipIndex];

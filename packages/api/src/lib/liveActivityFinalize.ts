@@ -69,15 +69,16 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
 
     if (elapsed >= DELIVERED_AT_MS && !deliveredPushed.has(order.id)) {
       try {
-        // Single 'end' push: shows "Levererad" in the LA for 2 minutes then
-        // iOS auto-dismisses. Using 'end' (not 'update') is required so iOS
-        // actually removes the activity after dismissalDate instead of leaving
-        // it as a stale badge indefinitely.
+        // Yank the LA immediately at T+15. We don't try to render a final
+        // "Levererad" step any more — iOS frequently throttles the in-flight
+        // state change so the LA stays stuck on "På väg" until staleDate.
+        // Going straight to dismissal is the only path that survives the
+        // throttle reliably.
         await pushLiveActivityUpdate({
           token,
           event: 'end',
           state: { ...DELIVERED_STATE, orderType },
-          dismissalDate: Math.floor(now / 1000) + 120, // 2 minutes
+          dismissalDate: Math.floor(now / 1000),
         });
         deliveredPushed.add(order.id);
         console.log(`[liveActivityFinalize] ✅ end push sent for order ${order.id}`);

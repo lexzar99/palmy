@@ -263,28 +263,20 @@ export async function syncOrderActivityFromServer(orderId: string): Promise<void
       ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
       : null;
 
+    if (mapped.ends) {
+      // No "Levererad" final step — iOS' frequent-updates throttle makes
+      // late state changes during the dismissal window unreliable, so the
+      // LA would get stuck on "På väg". Skip the update entirely and yank
+      // the activity right away.
+      await endOrderActivity(orderId, { dismissalSeconds: 0 });
+      return;
+    }
+
     await updateOrderActivity(orderId, mapped.status, {
       etaMinutes: eta ?? undefined,
       orderType,
       etaEndsAt,
     });
-    if (mapped.ends) {
-      // delivered: keep the "Levererad" step visible for 2 minutes so the
-      //   user actually reads it. This is the JS-side fallback that fires
-      //   when the silent wake push lands — the dedicated APNs liveactivity
-      //   `event:end` push from the backend already does the same with its
-      //   own dismissal-date, so whichever arrives first wins.
-      // cancelled: nothing to read, dismiss right away (~8 s).
-      if (mapped.status === "delivered") {
-        await endOrderActivity(orderId, {
-          dismissalSeconds: 120,
-          finalStatus: "delivered",
-          orderType,
-        });
-      } else {
-        await endOrderActivity(orderId);
-      }
-    }
   } catch (e) {
     console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
   }

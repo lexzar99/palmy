@@ -371,14 +371,15 @@ export async function pushOrderStatusUpdate(opts: {
   const meta = STATUS_META[mapped.activityStatus];
   if (!meta) return;
 
-  // Different end-states want different lock-screen lifetimes:
-  //   - DELIVERED: keep the "Levererad" card visible for 2 minutes so the
-  //     customer actually sees the final step, then iOS dismisses.
-  //   - CANCELLED / failures: no reason to linger — ~8 seconds.
+  // We deliberately skip the "Levererad" final step. iOS unreliably renders
+  // late-arriving state changes inside the dismissal window when the user
+  // hasn't enabled "Frequent Updates" (the LA gets throttled and just sits
+  // on "På väg"). Pushing `event: 'end'` with `dismissal-date = now` makes
+  // iOS yank the LA immediately on every delivered/cancelled transition,
+  // which is the only behaviour we can guarantee works end-to-end.
   let dismissalDate: number | undefined;
   if (mapped.ends) {
-    const seconds = mapped.activityStatus === 'delivered' ? 120 : 8;
-    dismissalDate = Math.floor(Date.now() / 1000) + seconds;
+    dismissalDate = Math.floor(Date.now() / 1000);
   }
 
   await pushLiveActivityUpdate({
