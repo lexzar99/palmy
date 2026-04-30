@@ -401,33 +401,40 @@ router.patch('/orders/:id/status', async (req, res) => {
     // response. Uses customerStatus so DELIVERING shows "På väg" even though
     // the DB row is DELIVERED.
     if (existing.liveActivityToken) {
-      // Compute the absolute moment the active step's countdown should hit
-      // zero. Anchor on the freshly-stamped timestamps (preparingAt /
-      // deliveringAt) so the widget's countdown matches what the customer
-      // will see on the order detail screen.
       let etaEndsAt: Date | null = null;
       if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
         etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
       } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
         etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 15 * 60_000);
       }
+      console.log(`[admin] LA push → order ${order.id}, customerStatus=${customerStatus}, token=${existing.liveActivityToken.slice(0,12)}…`);
       pushOrderStatusUpdate({
         token: existing.liveActivityToken,
         serverStatus: customerStatus,
         orderType: existing.type,
         etaMinutes: order.estimatedTime ?? null,
         etaEndsAt,
+      }).then(() => {
+        console.log(`[admin] LA push ✅ order ${order.id} status=${customerStatus}`);
+        // For direct DELIVERED, clear token after the 2-min dismissal window
+        // (120s) so the DB stays clean. The token is useless once the LA ends.
+        if (customerStatus === 'DELIVERED') {
+          setTimeout(() => {
+            (prisma as any).order
+              .update({ where: { id: order.id }, data: { liveActivityToken: null } })
+              .catch(() => null);
+          }, 130_000);
+        }
       }).catch(async (e) => {
-        console.warn('[admin] Live Activity push failed:', e?.message);
-        // iOS rotated / invalidated this activity token. Clearing it lets
-        // the client re-register a fresh one the next time it observes
-        // pushTokenUpdates (or starts a new activity).
+        console.warn('[admin] LA push failed:', e?.message);
         if (e instanceof ApnsError && e.invalidToken) {
           await (prisma as any).order
             .update({ where: { id: order.id }, data: { liveActivityToken: null } })
             .catch(() => null);
         }
       });
+    } else {
+      console.log(`[admin] No LA token on order ${order.id} — skipping LA push`);
     }
 
     // Fetcha kundens Push Token via userId eller telefonnummer.
