@@ -253,17 +253,38 @@ router.post('/', async (req: Request, res: Response) => {
 
     if (data.type === 'DELIVERY') {
       const defaultFee = (restaurant?.deliveryFee ?? globalSettings?.deliveryFee ?? Math.round(DEFAULT_DELIVERY_FEE * 100));
-      
+
       if (data.lat && data.lng && restaurant?.latitude && restaurant?.longitude) {
-        const { haversineKm, findDeliveryZone } = await import('../utils/geo');
-        const dist = haversineKm(data.lat, data.lng, restaurant.latitude, restaurant.longitude);
-        
+        const { findDeliveryZone } = await import('../utils/geo');
+
+        // Restaurants without their own delivery zones inherit the city's
+        // zones — same fallback as POST /api/cities/validate-location, which
+        // is what the mobile app uses to compute the zone fee shown at
+        // checkout. Without this fallback the order POST would silently fall
+        // back to defaultFee (49 kr) and the customer would be charged the
+        // city zone fee but admin would see 49.
         let zonesRaw: any[] = [];
         try { zonesRaw = JSON.parse((restaurant as any).deliveryZones || '[]'); } catch { zonesRaw = []; }
-        const zones = normalizeDeliveryZones(zonesRaw);
-        
+        let zones = normalizeDeliveryZones(zonesRaw);
+        let zoneCenter: { lat: number; lng: number } = { lat: restaurant.latitude!, lng: restaurant.longitude! };
+
+        if (zones.length === 0 && (restaurant as any).cityId) {
+          const city = await (prisma as any).city.findUnique({
+            where: { id: (restaurant as any).cityId },
+            select: { zones: true, centerLat: true, centerLng: true, latitude: true, longitude: true },
+          });
+          if (city) {
+            let cityZonesRaw: any[] = [];
+            try { cityZonesRaw = JSON.parse(city.zones || '[]'); } catch { cityZonesRaw = []; }
+            zones = normalizeDeliveryZones(cityZonesRaw);
+            const cLat = city.centerLat ?? city.latitude;
+            const cLng = city.centerLng ?? city.longitude;
+            if (cLat != null && cLng != null) zoneCenter = { lat: cLat, lng: cLng };
+          }
+        }
+
         if (zones.length > 0) {
-          const matchedZone = findDeliveryZone(data.lat, data.lng, zones, { lat: restaurant.latitude!, lng: restaurant.longitude! });
+          const matchedZone = findDeliveryZone(data.lat, data.lng, zones, zoneCenter);
           if (!matchedZone) {
             res.status(400).json({ error: 'Tyvärr levererar vi inte till din adress (utanför täckningsområde).' });
             return;
@@ -847,7 +868,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     let customerStatus = order.status;
     if (order.status === 'DELIVERED' && order.deliveringAt) {
       const minutesSinceDelivering = (Date.now() - new Date(order.deliveringAt).getTime()) / 60000;
-      if (minutesSinceDelivering < 15) {
+      if (minutesSinceDelivering < 20) {
         customerStatus = 'DELIVERING';
       }
     }
@@ -859,7 +880,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
       etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
     } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
-      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 15 * 60_000).toISOString();
+      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000).toISOString();
     }
 
     res.json({

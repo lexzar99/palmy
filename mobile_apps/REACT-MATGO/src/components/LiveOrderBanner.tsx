@@ -145,14 +145,15 @@ export default function LiveOrderBanner({
     };
   }, [id, setActiveOrder, progressAnim]);
 
-  // ── Auto-transition DELIVERING → DELIVERED after 15 min ──────────────────────
-  // Matches the backend LA finaliser: it pushes the LA "Levererad" state at
-  // T+15 and dismisses the banner ~3 minutes later.
+  // ── Auto-transition DELIVERING → DELIVERED after 20 min ──────────────────────
+  // Matches the backend LA finaliser (DELIVERED_AT_MS = 20 min): the LA is
+  // dismissed and the in-app banner unmounts itself the moment the order
+  // flips to DELIVERED.
   useEffect(() => {
     const deliveringAt = (order as any)?.deliveringAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
     const deliveringTime = new Date(deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 15 * 60 * 1000) - Date.now();
+    const msRemaining = (deliveringTime + 20 * 60 * 1000) - Date.now();
     if (msRemaining <= 0) {
       setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
       return;

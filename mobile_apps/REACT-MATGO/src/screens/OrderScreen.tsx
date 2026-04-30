@@ -101,14 +101,14 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     };
   }, [fetchOrder, id]);
 
-  // Auto-transition from DELIVERING to DELIVERED after 15 minutes
-  // (matches the backend LA finaliser; the LA banner stays on "Levererad"
-  // for ~3 minutes after this, then auto-dismisses).
+  // Auto-transition from DELIVERING to DELIVERED after 20 minutes
+  // (matches the backend LA finaliser DELIVERED_AT_MS — the LA dismisses
+  // the moment the status flips, no extra courtesy window).
   useEffect(() => {
     const deliveringAt = (order as any)?.deliveringAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
     const deliveringTime = new Date(deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 15 * 60 * 1000) - Date.now();
+    const msRemaining = (deliveringTime + 20 * 60 * 1000) - Date.now();
     if (msRemaining <= 0) {
       setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
       return;
@@ -126,9 +126,9 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
       if (order.status === "DELIVERED" || order.status === "COMPLETED") return;
 
       if (order.status === "DELIVERING" && (order as any).deliveringAt) {
-        // Om den är på väg, räkna ner 15 minuter från när den markerades "DELIVERING"
+        // 20-min nedräkning från DELIVERING-tidpunkten
         const deliveringTime = new Date((order as any).deliveringAt).getTime();
-        const msLeft = (deliveringTime + 15 * 60 * 1000) - Date.now();
+        const msLeft = (deliveringTime + 20 * 60 * 1000) - Date.now();
         setMinutesLeft(Math.max(0, Math.ceil(msLeft / 60000)));
       } else if (order.estimatedTime) {
         // Annars, räkna ner estimatedTime från när ordern skapades

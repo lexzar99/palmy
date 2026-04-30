@@ -33,7 +33,7 @@ import { ApnsError, pushLiveActivityUpdate, sendApnsSilentWake } from './liveAct
 // order leaves the query and we drop its id below.
 const deliveredPushed = new Set<string>();
 
-const DELIVERED_AT_MS = 15 * 60 * 1000;
+const DELIVERED_AT_MS = 20 * 60 * 1000;
 
 const DELIVERED_STATE = {
   status: 'delivered',

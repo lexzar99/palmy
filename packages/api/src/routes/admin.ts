@@ -9,7 +9,7 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { pushOrderStatusUpdate, sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
+import { pushOrderStatusUpdate, sendApnsAlert, ApnsError } from '../lib/liveActivityPush';
 
 const router = Router();
 router.use(authenticate);
@@ -407,7 +407,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
         etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
       } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
-        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 15 * 60_000);
+        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 20 * 60_000);
       }
       console.log(`[admin] LA push → order ${order.id}, customerStatus=${customerStatus}, token=${existing.liveActivityToken.slice(0,12)}…`);
       pushOrderStatusUpdate({
@@ -456,21 +456,14 @@ router.patch('/orders/:id/status', async (req, res) => {
       const isDelivery = existing.type === "DELIVERY";
       const { sendPushNotification } = require('../lib/notifications');
 
-      // For DELIVERED we skip the user-visible push (the review prompt comes
-      // later) but still need to wake the JS background handler so the LA
-      // gets reconciled with server state — this is the safety net for when
-      // iOS throttles the dedicated `liveactivity` push topic. Without it
-      // the LA banner stays stuck on "På väg" until iOS auto-stales it.
-      if (status === 'DELIVERED' && userToNotify.apnsDeviceToken) {
-        sendApnsSilentWake({
-          token: userToNotify.apnsDeviceToken,
-          data: { orderId: order.id, kind: 'la-wake' },
-          collapseId: `order-${order.id}-wake`,
-        }).catch((e) => console.warn('[admin] silent wake (DELIVERED) failed:', e?.message));
-      }
-
-      // Skip the "Delivered" notification — review prompt comes instead after a delay
-      if (status !== 'DELIVERED') {
+      // Send a real alert push for *every* status — including DELIVERED.
+      // Earlier we skipped DELIVERED so the user wouldn't get spammed before
+      // the 20-min review prompt, but skipping meant the LA stayed stuck on
+      // "På väg" because the silent-wake fallback (priority 5) was getting
+      // throttled by iOS while the alert path (priority 10) goes through
+      // reliably — that's why CANCEL dismisses the LA but DELIVERED didn't.
+      // The review prompt still fires 20 min later as a separate notification.
+      {
         let title = "Order uppdaterad";
         let body = "Din order har fått en ny status.";
 
@@ -490,7 +483,10 @@ router.patch('/orders/:id/status', async (req, res) => {
           }
         } else if (status === 'DELIVERING') {
           title = "🚗 Maten är på väg!";
-          body = "Föraren är på väg - förväntas framme om ca 10-15 minuter.";
+          body = "Föraren är på väg - förväntas framme om ca 20 minuter.";
+        } else if (status === 'DELIVERED') {
+          title = "✅ Levererad!";
+          body = "Hoppas det smakade!";
         }
 
         // Föredra direkt APNs när vi har enhetens token: då kan vi sätta
