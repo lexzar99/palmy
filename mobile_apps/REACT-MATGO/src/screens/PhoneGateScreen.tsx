@@ -46,15 +46,22 @@ export default function PhoneGateScreen() {
   const [countryCode, setCountryCode] = useState("+46");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const needsName = !profile?.name || profile.name.trim().toLowerCase() === "användare";
+
   const buildPhone = (cc: string, raw: string) =>
     `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
   const sendOtp = useCallback(async () => {
+    if (needsName && !name.trim()) {
+      setError("Ange ditt namn");
+      return;
+    }
     if (!phone.trim() || !token) {
       setError("Ange ditt telefonnummer");
       return;
@@ -91,16 +98,28 @@ export default function PhoneGateScreen() {
         { phone: otpPhone, code: otpCode },
         { headers: { Authorization: `Bearer ${token}` } },
       );
+      // Save name if provided
+      if (name.trim()) {
+        await api.patch(
+          "/api/profile",
+          { name: name.trim() },
+          { headers: { Authorization: `Bearer ${token}` } },
+        ).catch(() => null);
+      }
       const profileRes = await api.get("/api/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      // Override "Användare" placeholder if we have a real name
+      if (name.trim() && profileRes.data) {
+        profileRes.data.name = name.trim();
+      }
       setProfile(profileRes.data);
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Felaktig kod");
     } finally {
       setLoading(false);
     }
-  }, [otpCode, otpPhone, token, setProfile]);
+  }, [otpCode, otpPhone, token, name, setProfile]);
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut().catch(() => null);
@@ -171,6 +190,22 @@ export default function PhoneGateScreen() {
 
           {step === "phone" && (
             <View style={{ gap: 12 }}>
+              {needsName && (
+                <TextInput
+                  style={{
+                    paddingHorizontal: 16, paddingVertical: 16,
+                    borderRadius: 16, backgroundColor: palette.card,
+                    borderWidth: 1, borderColor: palette.border,
+                    color: palette.text, fontSize: 16, fontWeight: "700",
+                  }}
+                  placeholder="Ditt namn"
+                  placeholderTextColor={palette.muted}
+                  value={name}
+                  onChangeText={(t) => { setName(t); setError(""); }}
+                  autoCapitalize="words"
+                  returnKeyType="next"
+                />
+              )}
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
                   onPress={() => setPickerOpen((v) => !v)}
