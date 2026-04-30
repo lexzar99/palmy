@@ -378,11 +378,13 @@ router.patch('/orders/:id/status', async (req, res) => {
       data: {
         status: dbStatus,
         estimatedTime: estimatedTime || undefined,
-        // Anchor points so the LiveActivity countdowns start from the
-        // moment the admin clicked the button (not from when the customer
-        // happens to refresh / re-fetch).
         ...(isPreparingTransition ? { preparingAt: new Date() } : {}),
         ...(isDeliveringTransition ? { deliveringAt: new Date() } : {}),
+        // When admin explicitly clicks DELIVERED (not the auto DELIVERING→DELIVERED
+        // path), clear deliveringAt. Otherwise orders.ts keeps returning
+        // status:'DELIVERING' for 15 min, the banner stays visible and the LA
+        // never flips to "Levererad".
+        ...(status === 'DELIVERED' && !isDeliveringTransition ? { deliveringAt: null } : {}),
       },
     });
 
