@@ -121,47 +121,21 @@ public class LiveActivitiesModule: Module {
             }
         }
 
-        // endOrderActivity(orderId, options)
-        //   options.dismissalSeconds: how long to keep the activity visible
-        //     after end. Default 8s (matches iOS' minimum useful window for
-        //     a "cancelled" toast). Pass 120 for "Levererad" so the user
-        //     actually reads the final step before iOS removes it.
-        //   options.state: optional final ContentState. When supplied,
-        //     iOS displays this state for the dismissal window — used so
-        //     "Levererad" renders properly even if a prior `update` was
-        //     throttled by APNs.
-        // The JS wrapper always passes a dictionary (possibly empty), so the
-        // signature here is non-optional — keeps the Expo Modules arg coercer
-        // happy across SDK versions.
-        AsyncFunction("endOrderActivity") { (orderId: String, options: [String: Any]) in
+        // Single-arg form on purpose: this is the version that has shipped
+        // and is known to dismiss the LA reliably for CANCEL. We tried
+        // adding an options dict (dismissalSeconds / final state) earlier
+        // and it broke the dismiss path — keep it simple. iOS removes the
+        // activity ~8 seconds after this call regardless of the prior state.
+        AsyncFunction("endOrderActivity") { (orderId: String) in
             guard #available(iOS 16.2, *) else { return }
 
-            let dismissalSeconds = (options["dismissalSeconds"] as? Double) ?? 8
-            let policy: ActivityUIDismissalPolicy = dismissalSeconds > 0
-                ? .after(.now + dismissalSeconds)
-                : .immediate
-
-            var finalContent: ActivityContent<OrderActivityAttributes.OrderState>? = nil
-            if let stateDict = options["state"] as? [String: Any] {
-                let newState = OrderActivityAttributes.OrderState(
-                    status:       stateDict["status"] as? String ?? "delivered",
-                    statusText:   stateDict["statusText"] as? String ?? "",
-                    progressStep: stateDict["progressStep"] as? Int ?? 3,
-                    etaMinutes:   stateDict["etaMinutes"] as? Int,
-                    driverName:   stateDict["driverName"] as? String,
-                    orderType:    stateDict["orderType"] as? String,
-                    etaEndsAt:    stateDict["etaEndsAt"] as? Double
-                )
-                finalContent = ActivityContent(state: newState, staleDate: nil, relevanceScore: 100)
-            }
-
             if let activity = self.activities[orderId] as? Activity<OrderActivityAttributes> {
-                await activity.end(finalContent, dismissalPolicy: policy)
+                await activity.end(nil, dismissalPolicy: .after(.now + 8))
                 self.activities.removeValue(forKey: orderId)
             } else {
                 for activity in Activity<OrderActivityAttributes>.activities
                 where activity.attributes.orderId == orderId {
-                    await activity.end(finalContent, dismissalPolicy: policy)
+                    await activity.end(nil, dismissalPolicy: .after(.now + 8))
                     break
                 }
             }

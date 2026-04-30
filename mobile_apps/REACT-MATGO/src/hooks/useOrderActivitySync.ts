@@ -65,17 +65,17 @@ export function useOrderActivitySync(orderId: string | null) {
         if (status) {
           const mapped = mapServerStatusToActivity(status, orderType);
           if (mapped) {
+            await updateOrderActivity(orderId, mapped.status, {
+              etaMinutes: eta ?? undefined,
+              orderType,
+              etaEndsAt,
+            });
             if (mapped.ends) {
-              // No "Levererad" final step — iOS throttling made it
-              // unreliable. Just dismiss the LA the moment the order
-              // transitions to a terminal state (delivered/cancelled).
-              await endOrderActivity(orderId, { dismissalSeconds: 0 });
-            } else {
-              await updateOrderActivity(orderId, mapped.status, {
-                etaMinutes: eta ?? undefined,
-                orderType,
-                etaEndsAt,
-              });
+              // Single dismiss path for BOTH delivered and cancelled.
+              // This is the exact call the cancel flow was using before
+              // the dismissalSeconds refactor — known to dismiss the LA
+              // reliably (iOS removes the activity ~8 s later).
+              await endOrderActivity(orderId);
             }
           }
         }

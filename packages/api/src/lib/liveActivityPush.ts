@@ -372,15 +372,13 @@ export async function pushOrderStatusUpdate(opts: {
   const meta = STATUS_META[mapped.activityStatus];
   if (!meta) return;
 
-  // We deliberately skip the "Levererad" final step. iOS unreliably renders
-  // late-arriving state changes inside the dismissal window when the user
-  // hasn't enabled "Frequent Updates" (the LA gets throttled and just sits
-  // on "På väg"). Pushing `event: 'end'` with `dismissal-date = now` makes
-  // iOS yank the LA immediately on every delivered/cancelled transition,
-  // which is the only behaviour we can guarantee works end-to-end.
+  // Same dismissal lifetime for delivered and cancelled — short window so
+  // iOS removes the LA right away. Don't try to render a "Levererad" final
+  // step inside the dismissal window: iOS' frequent-updates throttle drops
+  // the late state change so the LA freezes on "På väg" instead.
   let dismissalDate: number | undefined;
   if (mapped.ends) {
-    dismissalDate = Math.floor(Date.now() / 1000);
+    dismissalDate = Math.floor(Date.now() / 1000) + 8;
   }
 
   await pushLiveActivityUpdate({

@@ -16,7 +16,7 @@ type LiveActivitiesNative = {
   isSupported(): boolean;
   startOrderActivity(params: Record<string, unknown>): Promise<string>;
   updateOrderActivity(orderId: string, params: Record<string, unknown>): Promise<void>;
-  endOrderActivity(orderId: string, options: Record<string, unknown>): Promise<void>;
+  endOrderActivity(orderId: string): Promise<void>;
   endAllActivities(): Promise<void>;
   addListener(event: "onPushTokenUpdate", cb: (e: { orderId: string; token: string }) => void): { remove: () => void };
 };
@@ -187,43 +187,12 @@ export async function updateOrderActivity(
 
 /**
  * Call when the order is delivered or cancelled to dismiss the Live Activity.
- *
- * options.dismissalSeconds — how long iOS keeps the activity visible after
- *   the end signal. Default 8 (good for "cancelled" toasts). Pass 120 for
- *   "Levererad" so the user has time to read the final step before iOS
- *   removes it.
- * options.finalStatus — optional status to render during the dismissal
- *   window. When supplied, iOS displays this state even if a prior update
- *   was throttled by APNs (the LA "Levererad" fallback). Currently only
- *   "delivered" is wired up here; extend if other final states ever need it.
+ * iOS removes the activity ~8 seconds after the call.
  */
-export async function endOrderActivity(
-  orderId: string,
-  options?: {
-    dismissalSeconds?: number;
-    finalStatus?: OrderStatus;
-    orderType?: "DELIVERY" | "PICKUP";
-  }
-): Promise<void> {
+export async function endOrderActivity(orderId: string): Promise<void> {
   if (!supported) return;
   try {
-    const nativeOptions: Record<string, unknown> = {};
-    if (typeof options?.dismissalSeconds === "number") {
-      nativeOptions.dismissalSeconds = options.dismissalSeconds;
-    }
-    if (options?.finalStatus) {
-      const m = meta(options.finalStatus);
-      nativeOptions.state = {
-        status:       options.finalStatus,
-        statusText:   m.statusText,
-        progressStep: m.progressStep,
-        etaMinutes:   null,
-        driverName:   null,
-        orderType:    options.orderType ?? null,
-        etaEndsAt:    null,
-      };
-    }
-    await LA!.endOrderActivity(orderId, nativeOptions);
+    await LA!.endOrderActivity(orderId);
   } catch (e) {
     console.warn("[LiveActivities] endOrderActivity failed:", e);
   }
@@ -266,20 +235,17 @@ export async function syncOrderActivityFromServer(orderId: string): Promise<void
       ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
       : null;
 
-    if (mapped.ends) {
-      // No "Levererad" final step — iOS' frequent-updates throttle makes
-      // late state changes during the dismissal window unreliable, so the
-      // LA would get stuck on "På väg". Skip the update entirely and yank
-      // the activity right away.
-      await endOrderActivity(orderId, { dismissalSeconds: 0 });
-      return;
-    }
-
     await updateOrderActivity(orderId, mapped.status, {
       etaMinutes: eta ?? undefined,
       orderType,
       etaEndsAt,
     });
+    if (mapped.ends) {
+      // Same path as the cancel flow that has shipped and works: just call
+      // endOrderActivity, iOS handles the ~8-second dismissal. Don't try
+      // to render a final "Levererad" step — the widget is 3-step now.
+      await endOrderActivity(orderId);
+    }
   } catch (e) {
     console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
   }
