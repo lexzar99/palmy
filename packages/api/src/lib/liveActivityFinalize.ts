@@ -37,8 +37,8 @@ const DELIVERED_AT_MS = 15 * 60 * 1000;
 
 const DELIVERED_STATE = {
   status: 'delivered',
-  statusText: 'Levererad — smaklig måltid! 🎉',
-  progressStep: 3,
+  statusText: 'Levererad',
+  progressStep: 2,
   etaMinutes: null,
   driverName: null,
   etaEndsAt: null,

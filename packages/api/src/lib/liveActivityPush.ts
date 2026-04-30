@@ -240,9 +240,10 @@ function sendApns(opts: {
 
 // Mirror of mobile_apps/REACT-MATGO/src/lib/liveActivities.ts STATUS_META.
 //
-// Step semantics differ per orderType:
-//   DELIVERY (4 steps): 0=Mottagen, 1=Tillagas, 2=På väg, 3=Levererad
-//   PICKUP   (3 steps): 0=Mottagen, 1=Tillagas, 2=Redo att hämtas
+// Both DELIVERY and PICKUP render as 3-step progress bars in the widget.
+// `delivered` is no longer a visible step — the LA is dismissed on
+// transition — but we still send progressStep=2 so any in-flight render
+// before iOS yanks the activity stays on "På väg" / "Redo".
 const STATUS_META: Record<string, { statusText: string; progressStep: number }> = {
   accepted:        { statusText: 'Restaurangen har accepterat din order', progressStep: 0 },
   preparing:       { statusText: 'Din mat tillagas just nu',              progressStep: 1 },
@@ -250,7 +251,7 @@ const STATUS_META: Record<string, { statusText: string; progressStep: number }> 
   ready_pickup:    { statusText: 'Din mat är klar att hämtas! 🛍️',        progressStep: 2 },
   on_the_way:      { statusText: 'Din order är på väg!',                  progressStep: 2 },
   arrived:         { statusText: 'Föraren är framme!',                    progressStep: 2 },
-  delivered:       { statusText: 'Levererad — smaklig måltid! 🎉',        progressStep: 3 },
+  delivered:       { statusText: 'Levererad',                             progressStep: 2 },
   cancelled:       { statusText: 'Ordern avbruten',                       progressStep: 0 },
 };
 

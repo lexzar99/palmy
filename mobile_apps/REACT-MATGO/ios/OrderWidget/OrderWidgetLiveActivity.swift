@@ -3,8 +3,12 @@
 //  OrderWidget
 //
 //  Step-based Live Activity:
-//    DELIVERY (4 steps): Mottagen → Tillagas (timer) → På väg (timer) → Levererad
+//    DELIVERY (3 steps): Mottagen → Tillagas (timer) → På väg (timer)
 //    PICKUP   (3 steps): Mottagen → Tillagas (timer) → Redo att hämtas
+//
+//  There is no "Levererad" step — iOS' frequent-updates throttle made the
+//  late state change to a 4th step unreliable, so the LA is dismissed the
+//  moment the order is delivered instead.
 //
 
 import ActivityKit
@@ -46,7 +50,6 @@ private func steps(for orderType: String?) -> [StepDef] {
         StepDef(label: "Mottagen",  icon: "checkmark.circle.fill", color: .fgGold,   showsTimer: false),
         StepDef(label: "Tillagas",  icon: "flame.fill",            color: .fgOrange, showsTimer: true),
         StepDef(label: "På väg",    icon: "bicycle",               color: .fgGreen,  showsTimer: true),
-        StepDef(label: "Levererad", icon: "checkmark.seal.fill",   color: .fgMint,   showsTimer: false),
     ]
 }
 

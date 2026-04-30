@@ -63,9 +63,12 @@ interface StatusMeta {
   progressStep: number;
 }
 
-// Step semantics:
-//   DELIVERY (4 steps): 0=Mottagen, 1=Tillagas, 2=På väg, 3=Levererad
-//   PICKUP   (3 steps): 0=Mottagen, 1=Tillagas, 2=Redo att hämtas
+// Step semantics (both DELIVERY and PICKUP are 3 steps):
+//   DELIVERY: 0=Mottagen, 1=Tillagas, 2=På väg
+//   PICKUP:   0=Mottagen, 1=Tillagas, 2=Redo att hämtas
+// `delivered` and `cancelled` never render — the LA is dismissed the moment
+// the order hits a terminal status. progressStep is left at 2 so any
+// in-flight render before dismissal stays on the last visible step.
 const STATUS_META: Record<string, StatusMeta> = {
   accepted:        { statusText: "Restaurangen har accepterat din order", progressStep: 0 },
   preparing:       { statusText: "Din mat tillagas just nu",              progressStep: 1 },
@@ -73,7 +76,7 @@ const STATUS_META: Record<string, StatusMeta> = {
   ready_pickup:    { statusText: "Din mat är klar att hämtas! 🛍️",        progressStep: 2 },
   on_the_way:      { statusText: "Din order är på väg!",                  progressStep: 2 },
   arrived:         { statusText: "Föraren är framme!",                    progressStep: 2 },
-  delivered:       { statusText: "Levererad — smaklig måltid! 🎉",        progressStep: 3 },
+  delivered:       { statusText: "Levererad",                             progressStep: 2 },
   cancelled:       { statusText: "Ordern avbruten",                       progressStep: 0 },
 };
 
