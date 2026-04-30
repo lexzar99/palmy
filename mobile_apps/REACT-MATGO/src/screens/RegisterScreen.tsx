@@ -3,14 +3,8 @@ import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, Activ
 import { Ionicons } from '@expo/vector-icons';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import { palette, styles } from '../constants/theme';
 import { Header, ScreenWrap } from '../components/ui';
-
-const PREFERENCE_OPTIONS = [
-  "Gluten", "Laktos", "Nötter", "Ägg", "Fisk", "Skaldjur", 
-  "Soja", "Selleri", "Senap", "Sesam", "Vetemjöl", "Mjölk"
-];
 
 export default function RegisterScreen({
   initialPhone = "",
@@ -23,16 +17,14 @@ export default function RegisterScreen({
 }) {
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
-  const setDislikedIngredients = useAppStore((s) => s.setDislikedIngredients);
 
-  // Steps: "phone" -> "name" -> "email" -> "allergens" -> "otp"
-  const [step, setStep] = useState<"phone" | "name" | "email" | "allergens" | "otp">(initialPhone ? "name" : "phone");
-  
+  // Steps: "phone" -> "name" -> "email" -> "otp"
+  const [step, setStep] = useState<"phone" | "name" | "email" | "otp">(initialPhone ? "name" : "phone");
+
   const [phone, setPhone] = useState(initialPhone?.replace(/^\+\d{1,4}0?/, '') || ""); // Stripping cc for visual (supports 1–4 digit country codes e.g. +358)
   const [fullPhone, setFullPhone] = useState(initialPhone || "");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [allergens, setAllergens] = useState<string[]>([]);
   const [otpCode, setOtpCode] = useState("");
   
   const [loading, setLoading] = useState(false);
@@ -58,8 +50,6 @@ export default function RegisterScreen({
       setStep("email");
     } else if (step === "email") {
       if (!email.trim() || !email.includes("@")) { setError("Ange en giltig e-post"); return; }
-      setStep("allergens");
-    } else if (step === "allergens") {
       triggerOtp();
     }
   };
@@ -68,18 +58,17 @@ export default function RegisterScreen({
     setError("");
     if (step === "name") setStep("phone");
     else if (step === "email") setStep("name");
-    else if (step === "allergens") setStep("email");
-    else if (step === "otp") setStep("allergens");
+    else if (step === "otp") setStep("email");
   };
 
   const triggerOtp = async () => {
     setLoading(true);
     try {
-      const { error: otpErr } = await supabase.auth.signInWithOtp({ phone: fullPhone });
-      if (otpErr) throw otpErr;
+      const { data } = await api.post("/api/auth/send-otp", { phone: fullPhone });
+      if (data?.devCode) setOtpCode(data.devCode);
       setStep("otp");
     } catch (e: any) {
-      setError(e.message || "Kunde inte skicka SMS");
+      setError(e?.response?.data?.error || e?.message || "Kunde inte skicka SMS");
     } finally {
       setLoading(false);
     }
@@ -89,41 +78,37 @@ export default function RegisterScreen({
     if (!otpCode.trim()) { setError("Ange koden från SMS:et"); return; }
     setLoading(true); setError("");
     try {
-      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+      // Verify with our Twilio-backed endpoint. Backend creates / fetches the
+      // user keyed by phone (one phone = one account, enforced by the unique
+      // constraint) and returns our own JWT.
+      const { data } = await api.post("/api/auth/verify-otp", {
         phone: fullPhone,
-        token: otpCode,
-        type: 'sms',
+        code: otpCode,
+        name: name.trim(),
+        email: email.trim() || undefined,
       });
-      
-      if (verifyErr) throw verifyErr;
-      
-      if (data.session) {
-        // Update user metadata in Supabase
-        await supabase.auth.updateUser({
-          data: { name: name.trim(), full_name: name.trim(), email: email.trim() }
-        });
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
 
-        setToken(data.session.access_token);
-        
-        // Sync extra fields to backend profile directly
+      setToken(tok);
+
+      // Persist any extra fields collected during registration.
+      try {
         await api.patch("/api/profile", {
           name: name.trim(),
-          email: email.trim() || null
+          email: email.trim() || null,
         }, {
-           headers: { Authorization: `Bearer ${data.session.access_token}` }
+           headers: { Authorization: `Bearer ${tok}` },
         });
+      } catch {}
 
-        // Fetch full profile from API 
-        const profileRes = await api.get("/api/profile", {
-           headers: { Authorization: `Bearer ${data.session.access_token}` }
-        });
-
-        setProfile(profileRes.data);
-        setDislikedIngredients(allergens);
-        onRegistered();
-      }
+      const profileRes = await api.get("/api/profile", {
+         headers: { Authorization: `Bearer ${tok}` },
+      });
+      setProfile(profileRes.data);
+      onRegistered();
     } catch (e: any) {
-      setError(e.message || "Felaktig kod");
+      setError(e?.response?.data?.error || e?.message || "Felaktig kod");
     } finally { setLoading(false); }
   };
 
@@ -131,7 +116,6 @@ export default function RegisterScreen({
     if (step === "phone") return "Logga in / Skapa";
     if (step === "name") return "Ditt namn";
     if (step === "email") return "Din e-post";
-    if (step === "allergens") return "Allergener";
     return "Verifiera";
   };
 
@@ -139,7 +123,6 @@ export default function RegisterScreen({
     if (step === "phone") return "Vilket telefonnummer använder du?";
     if (step === "name") return "Vad heter du?";
     if (step === "email") return "Kvitto och erbjudanden skickas hit.";
-    if (step === "allergens") return "Har du några matallergier?";
     return `Ange koden som skickades till ${fullPhone}`;
   };
 
@@ -200,33 +183,6 @@ export default function RegisterScreen({
               autoFocus
               onSubmitEditing={nextStep}
             />
-          )}
-
-          {step === "allergens" && (
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-              {PREFERENCE_OPTIONS.map((pref) => {
-                const active = allergens.includes(pref);
-                return (
-                  <Pressable
-                    key={pref}
-                    onPress={() => {
-                      if (active) setAllergens(allergens.filter(a => a !== pref));
-                      else setAllergens([...allergens, pref]);
-                    }}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 10,
-                      borderRadius: 14,
-                      backgroundColor: active ? "rgba(234,181,69,0.15)" : palette.panelMuted,
-                      borderWidth: 1,
-                      borderColor: active ? palette.gold : palette.border,
-                    }}
-                  >
-                    <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 13, fontWeight: "800" }}>{pref}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
           )}
 
           {step === "otp" && (

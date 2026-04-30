@@ -409,7 +409,7 @@ router.patch('/orders/:id/status', async (req, res) => {
       if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
         etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
       } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
-        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 20 * 60_000);
+        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 15 * 60_000);
       }
       pushOrderStatusUpdate({
         token: existing.liveActivityToken,

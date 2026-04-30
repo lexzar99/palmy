@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from '../lib/api';
+import { syncOrderActivityFromServer } from '../lib/liveActivities';
 
 export function usePushNotifications(
   sessionToken: string | null,
@@ -94,14 +95,25 @@ export function usePushNotifications(
 
     requestPermissionRef.current = requestPushPermissionManual;
 
-    // Vanlig notis-listener — bara för att fånga payload (sätt notis-state).
-    // LiveActivity uppdateras INTE härifrån längre. iOS pushar direkt till
-    // activity-tokenen via APNs, och appens egna sync-hook
-    // (`useOrderActivitySync`) tar hand om foreground-uppdateringar. Att även
-    // kalla updateOrderActivity här gjorde att vi triggade ett "ding" varje
-    // gång användaren navigerade och re-fetch lyckades.
+    // Notis-listener: capture payload + (NEW) trigger an LA resync from
+    // server when the alert carries an orderId. The backend now sets
+    // content-available: 1 on order-status alerts so iOS briefly wakes JS in
+    // the background — we use that wake to call `Activity.update()` directly.
+    // This is the belt-and-braces fallback for the dedicated LA APNs push,
+    // which iOS aggressively throttles when the user hasn't enabled
+    // "Frequent Updates" in Settings → FoodGo → Live Activities.
+    //
+    // It's safe to call updateOrderActivity here even though we have a
+    // separate foreground sync hook: `LiveActivitiesModule.updateOrderActivity`
+    // no longer triggers a system "ding" (no AlertConfiguration), so re-syncs
+    // are silent.
     notificationListener.current = Notifications.addNotificationReceivedListener((notif) => {
       setNotification(notif);
+      const data = notif?.request?.content?.data as Record<string, any> | undefined;
+      const orderId = data?.orderId;
+      if (typeof orderId === 'string' && orderId.length > 0) {
+        syncOrderActivityFromServer(orderId).catch(() => {});
+      }
     });
 
     // Anropas när man TAPPAT på en notis i notis-centret (app i bakgrunden)

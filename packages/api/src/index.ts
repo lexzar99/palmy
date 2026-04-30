@@ -35,6 +35,7 @@ import printingRoutes from './routes/printing';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
+import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
 import { getAllowedOrigins } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
@@ -279,6 +280,11 @@ const PORT = Number(process.env.PORT || 4000);
     setInterval(() => {
       checkAllRestaurantsStatus().catch(err => console.error('[Watchdog] Scheduled run error:', err));
     }, 60 * 1000);
+
+    // Live Activity finaliser — auto-flips DELIVERING → "Levererad" after
+    // 15 min and dismisses the LA after a further ~3 min. Survives server
+    // restarts because it's a periodic DB scan, not in-flight setTimeouts.
+    startLiveActivityFinalizer();
 
   } catch (error) {
     console.warn('⚠️ Bootstrap error:', error);

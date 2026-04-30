@@ -158,6 +158,9 @@ function sendApns(opts: {
   payload: string;
   priority: '10' | '5';
   collapseId?: string;
+  // Seconds from now until the push expires. 0 = immediate-or-discard;
+  // any positive value tells APNs to retry delivery up to that time.
+  expirationSecondsFromNow?: number;
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     let client: http2.ClientHttp2Session | null = null;
@@ -176,6 +179,15 @@ function sendApns(opts: {
       reject(err);
     });
 
+    // Default: retry for 1 hour. Earlier we used 0 (deliver-now-or-drop),
+    // which silently dropped LA pushes whenever the device was briefly
+    // off-network — exactly the "stuck on Mottagen" symptom users hit when
+    // the order moved to På väg while the app was in the background.
+    const expSeconds = opts.expirationSecondsFromNow ?? 60 * 60;
+    const expiration = expSeconds > 0
+      ? String(Math.floor(Date.now() / 1000) + expSeconds)
+      : '0';
+
     const headers: Record<string, string> = {
       ':method': 'POST',
       ':path': `/3/device/${opts.token}`,
@@ -183,7 +195,7 @@ function sendApns(opts: {
       'apns-topic': opts.topic,
       'apns-push-type': opts.pushType,
       'apns-priority': opts.priority,
-      'apns-expiration': '0',
+      'apns-expiration': expiration,
       'content-type': 'application/json',
     };
     if (opts.collapseId) {
@@ -285,14 +297,17 @@ export async function sendApnsAlert(opts: {
 }): Promise<void> {
   if (!isConfigured()) return;
 
-  // Pure alert push — NO `content-available` flag. iOS occasionally suppresses
-  // the banner when both an alert AND content-available are set (you get the
-  // sound but no visible notification). The Live Activity has its own
-  // push-to-update path so we don't need to wake JS from this push.
+  // Alert push WITH `content-available: 1` so iOS briefly wakes the app to
+  // run the JS background handler. That handler triggers `useOrderActivitySync`
+  // which calls `Activity.update()` directly — a belt-and-braces fallback for
+  // the dedicated LA push, in case iOS throttled it (e.g. user hasn't enabled
+  // "Frequent Updates" in Settings → FoodGo → Live Activities).
   const aps: Record<string, unknown> = {
     alert: { title: opts.title, body: opts.body },
     sound: opts.sound ?? 'default',
     badge: 1,
+    'content-available': 1,
+    'mutable-content': 1,
   };
   if (opts.threadId) aps['thread-id'] = opts.threadId;
 
@@ -305,6 +320,37 @@ export async function sendApnsAlert(opts: {
     payload,
     priority: '10',
     collapseId: opts.collapseId,
+  });
+}
+
+/**
+ * Silent background wake push.
+ *
+ * No alert, no sound — just `content-available: 1` to let iOS briefly run
+ * the app's JS in the background. We use this from the LA finaliser so the
+ * mobile-side `Notifications.addNotificationReceivedListener` callback fires
+ * and calls `Activity.update()` directly. That makes the LA auto-flip to
+ * "Levererad" even when the user hasn't enabled "Frequent Updates" and iOS
+ * is throttling the dedicated `liveactivity` push topic.
+ */
+export async function sendApnsSilentWake(opts: {
+  token: string;
+  data?: Record<string, unknown>;
+  collapseId?: string;
+}): Promise<void> {
+  if (!isConfigured()) return;
+  const aps = { 'content-available': 1 };
+  const payload = JSON.stringify({ aps, ...(opts.data ?? {}) });
+  await sendApns({
+    token: opts.token,
+    topic: APNS_BUNDLE_ID!,
+    pushType: 'alert',
+    // Silent pushes must use priority 5 — Apple penalises priority-10
+    // content-available pushes (will discard them or block the device token).
+    priority: '5',
+    payload,
+    collapseId: opts.collapseId,
+    expirationSecondsFromNow: 30 * 60,
   });
 }
 
@@ -325,6 +371,16 @@ export async function pushOrderStatusUpdate(opts: {
   const meta = STATUS_META[mapped.activityStatus];
   if (!meta) return;
 
+  // Different end-states want different lock-screen lifetimes:
+  //   - DELIVERED: keep the "Levererad" card visible for 2 minutes so the
+  //     customer actually sees the final step, then iOS dismisses.
+  //   - CANCELLED / failures: no reason to linger — ~8 seconds.
+  let dismissalDate: number | undefined;
+  if (mapped.ends) {
+    const seconds = mapped.activityStatus === 'delivered' ? 120 : 8;
+    dismissalDate = Math.floor(Date.now() / 1000) + seconds;
+  }
+
   await pushLiveActivityUpdate({
     token: opts.token,
     event: mapped.ends ? 'end' : 'update',
@@ -339,8 +395,6 @@ export async function pushOrderStatusUpdate(opts: {
     },
     alertTitle: 'FoodGo',
     alertBody: opts.alertBody ?? meta.statusText,
-    dismissalDate: mapped.ends
-      ? Math.floor(Date.now() / 1000) + 8
-      : undefined,
+    dismissalDate,
   });
 }

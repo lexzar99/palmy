@@ -187,12 +187,19 @@ export default function ProfileScreen({
       if (showLoader) setPageLoading(true);
       try {
         const headers = getAuthHeaders(authToken);
-        const [profileRes, ordersRes, dealsRes, addressRes] = await Promise.all([
-          api.get("/api/profile", { headers }),
+        // Profile is the authoritative call — only an unauthorised response
+        // here means the session is dead. The other three are best-effort
+        // and must not nuke activeOrderId / log the user out if they fail
+        // (that was clobbering the LiveOrderBanner mid-login).
+        const profileRes = await api.get("/api/profile", { headers });
+        const [ordersResR, dealsResR, addressResR] = await Promise.allSettled([
           api.get("/api/profile/orders", { headers }),
           api.get("/api/profile/deals", { headers }),
           api.get("/api/profile/addresses", { headers }),
         ]);
+        const ordersRes = ordersResR.status === "fulfilled" ? ordersResR.value : { data: [] };
+        const dealsRes = dealsResR.status === "fulfilled" ? dealsResR.value : { data: [] };
+        const addressRes = addressResR.status === "fulfilled" ? addressResR.value : { data: [] };
 
         const nextProfile = (profileRes.data || null) as any;
         setProfile(nextProfile);
@@ -222,11 +229,17 @@ export default function ProfileScreen({
           editEmail: nextProfile?.email || "",
           showAddPhone: !nextProfile?.phone,
         });
-      } catch {
-        clearSession();
-        setOrders([]);
-        setDeals([]);
-        setSavedAddresses([]);
+      } catch (err: any) {
+        // Only clear the session if the profile call returned 401/403 — a
+        // network blip or 5xx must not log the user out (and must not blank
+        // out the active-order banner via clearSession).
+        const status = err?.response?.status;
+        if (status === 401 || status === 403) {
+          clearSession();
+          setOrders([]);
+          setDeals([]);
+          setSavedAddresses([]);
+        }
       } finally {
         setPageLoading(false);
       }
@@ -304,21 +317,23 @@ export default function ProfileScreen({
     setLoginError("");
     setAddPhoneError("");
     try {
-      // If the current user is a Google/Apple session that is missing a phone,
-      // *attach* the phone to the existing Supabase user instead of starting a
-      // fresh phone sign-in (which would mint a separate account). Twilio still
-      // delivers the OTP — the difference is the verification type used below.
+      // Always go through our Twilio-backed /send-otp endpoint. When the
+      // current session is an OAuth user missing a phone we forward the
+      // Supabase JWT so /verify-otp later attaches the new number to that
+      // existing account rather than minting a phone-only one.
       const isLinking = !!token && !!(profile as any)?.needsPhone;
-      const { error } = isLinking
-        ? await supabase.auth.updateUser({ phone: phoneNumber })
-        : await supabase.auth.signInWithOtp({ phone: phoneNumber });
-      if (error) throw error;
+      const headers = isLinking && token
+        ? { Authorization: `Bearer ${token}` }
+        : undefined;
+      const { data } = await api.post("/api/auth/send-otp", { phone: phoneNumber }, { headers });
+      if (data?.devCode) setOtpCode(data.devCode);
       setOtpPhone(phoneNumber);
       setShowOtp(true);
       setShowAddPhone(false);
     } catch (error: any) {
-      setLoginError(error.message || "Kunde inte skicka kod");
-      setAddPhoneError(error.message || "Kunde inte skicka kod");
+      const msg = error?.response?.data?.error || error?.message || "Kunde inte skicka kod";
+      setLoginError(msg);
+      setAddPhoneError(msg);
     } finally {
       setAuthLoading(false);
       setAddPhoneLoading(false);
@@ -371,23 +386,17 @@ export default function ProfileScreen({
     setLoginError("");
     try {
       const isLinking = !!token && !!(profile as any)?.needsPhone;
-      const { data, error } = await supabase.auth.verifyOtp({
-        phone: otpPhone,
-        token: otpCode,
-        type: isLinking ? 'phone_change' : 'sms',
-      });
-
-      if (error) throw error;
-
-      // For phone_change linking, Supabase doesn't always return a fresh
-      // session in `data` — pull the current one and re-fetch the profile so
-      // the `needsPhone` gate clears.
       if (isLinking) {
-        const { data: { session } } = await supabase.auth.getSession();
-        const tok = session?.access_token ?? token;
-        setToken(tok);
+        // Twilio verify with the Supabase JWT attached: /verify-otp links the
+        // phone (uniquely) to the OAuth user record. We keep the same JWT and
+        // just re-fetch the profile to clear `needsPhone`.
+        await api.post(
+          "/api/auth/verify-otp",
+          { phone: otpPhone, code: otpCode },
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
         try {
-          const profileRes = await api.get('/api/profile', { headers: { Authorization: `Bearer ${tok}` } });
+          const profileRes = await api.get('/api/profile', { headers: { Authorization: `Bearer ${token}` } });
           setProfile(profileRes.data);
         } catch {}
         setShowOtp(false);
@@ -397,25 +406,29 @@ export default function ProfileScreen({
         return;
       }
 
-      if (data.session) {
-        setToken(data.session.access_token);
-        const nextProfile = {
-          id: data.user?.id || "",
-          name: data.user?.user_metadata?.name || data.user?.user_metadata?.full_name || `Gäst ${otpPhone.slice(-4)}`,
-          phone: data.user?.phone || otpPhone,
-          email: data.user?.email,
-          image: data.user?.user_metadata?.avatar_url,
-          isVerified: true
-        };
-        setProfile(nextProfile);
-        setShowOtp(false);
-        setOtpCode("");
-        setPhone("");
-        setAddPhoneNum("");
-        setPageLoading(true);
-      }
+      // Phone-only login / registration. Backend creates or fetches the user
+      // by phone and returns our own JWT — no Supabase session is involved.
+      const { data } = await api.post("/api/auth/verify-otp", {
+        phone: otpPhone,
+        code: otpCode,
+      });
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
+      setToken(tok);
+      const nextProfile = data?.user || {
+        id: "",
+        name: `Gäst ${otpPhone.slice(-4)}`,
+        phone: otpPhone,
+        isVerified: true,
+      };
+      setProfile(nextProfile);
+      setShowOtp(false);
+      setOtpCode("");
+      setPhone("");
+      setAddPhoneNum("");
+      setPageLoading(true);
     } catch (error: any) {
-      setLoginError(error.message || "Felaktig kod");
+      setLoginError(error?.response?.data?.error || error?.message || "Felaktig kod");
     } finally {
       setAuthLoading(false);
     }

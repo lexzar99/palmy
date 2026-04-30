@@ -13,6 +13,7 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 const TWILIO_PHONE = process.env.TWILIO_PHONE_NUMBER;
+const TWILIO_MESSAGING_SID = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
 // Always store/compare phone in E.164 format (+46...). Handles legacy records without +.
 function normalizePhone(phone: string): string {
@@ -148,21 +149,27 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           return next();
         }
 
-        // Normal path — upsert by Supabase UUID.
+        // Normal path — upsert by Supabase UUID. Don't overwrite an existing
+        // real name with the "Användare" placeholder if Supabase metadata
+        // happens to be empty on a refresh (Apple, in particular, only ships
+        // fullName on the first sign-in).
+        const sbName = user.user_metadata?.name || user.user_metadata?.full_name || null;
+        const sbImage = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
         await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
             email: user.email || undefined,
-            name: user.user_metadata?.name || user.user_metadata?.full_name || undefined,
-            image: user.user_metadata?.avatar_url || user.user_metadata?.picture || undefined,
+            name: sbName || undefined,
+            image: sbImage || undefined,
             phone: normalizedPhone || undefined,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
+            oauthProvider: user.app_metadata?.provider || undefined,
           },
           create: {
             id: user.id,
             email: user.email ?? null,
-            name: user.user_metadata?.name ?? user.user_metadata?.full_name ?? 'Användare',
-            image: user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null,
+            name: sbName ?? 'Användare',
+            image: sbImage,
             phone: normalizedPhone ?? null,
             oauthProvider: user.app_metadata?.provider ?? null,
             oauthId: user.id,
@@ -234,19 +241,30 @@ router.post('/send-otp', async (req, res) => {
       data: { phone, code, expiresAt }
     });
 
-    // Send SMS via Twilio
-    if (twilioClient && TWILIO_PHONE) {
-      await twilioClient.messages.create({
+    // Send SMS via Twilio — prefer Messaging Service SID over plain from-number
+    if (twilioClient && (TWILIO_MESSAGING_SID || TWILIO_PHONE)) {
+      const msgParams: Record<string, string> = {
         body: `Din verifieringskod för MatGo är: ${code}`,
-        from: TWILIO_PHONE,
-        to: phone
-      });
+        to: phone,
+      };
+      if (TWILIO_MESSAGING_SID) {
+        msgParams.messagingServiceSid = TWILIO_MESSAGING_SID;
+      } else {
+        msgParams.from = TWILIO_PHONE!;
+      }
+      await twilioClient.messages.create(msgParams as any);
       console.log(`✅ SMS skickat till ${phone}`);
+      res.json({ success: true, message: 'Kod skickad' });
     } else {
-      console.log(`⚠️ Twilio ej konfigurerat. Kod för ${phone}: ${code}`);
+      console.warn(`⚠️ Twilio ej konfigurerat — ange TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN och TWILIO_MESSAGING_SERVICE_SID i .env`);
+      console.log(`🔑 DEV-kod för ${phone}: ${code}`);
+      const isDev = process.env.NODE_ENV !== 'production';
+      res.json({
+        success: true,
+        message: isDev ? `SMS ej skickat (Twilio ej konfigurerat). DEV-kod: ${code}` : 'Kod skickad',
+        ...(isDev && { devCode: code }),
+      });
     }
-
-    res.json({ success: true, message: 'Kod skickad' });
   } catch (error) {
     console.error('Send OTP error:', error);
     res.status(500).json({ error: 'Kunde inte skicka SMS' });
@@ -322,23 +340,44 @@ router.post('/verify-otp', async (req, res) => {
       if (currentUserId) {
         try {
           // Before updating, check if this phone is already taken by another account
-          const existingWithPhone = await (prisma as any).user.findUnique({ where: { phone } });
-          
+          const existingWithPhone = await (prisma as any).user.findFirst({
+            where: { phone: { in: phoneVariants(phone) } },
+          });
+
           if (existingWithPhone && existingWithPhone.id !== currentUserId) {
-            // If the existing account is just a guest (no Google/Email), we can "consume" its phone number
-            if (!existingWithPhone.oauthId && !existingWithPhone.email && !existingWithPhone.password) {
-               await (prisma as any).user.delete({ where: { id: existingWithPhone.id } });
-            } else {
-               return res.status(400).json({ error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto' });
+            const isGuestLike = !existingWithPhone.oauthId
+              && !existingWithPhone.email
+              && !existingWithPhone.password;
+
+            if (!isGuestLike) {
+              return res.status(400).json({
+                error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto',
+              });
             }
+
+            // Merge the guest-like phone-only record into the OAuth user
+            // before deleting it, otherwise the FK on Order.userId would
+            // either block the delete or leave orphan rows. Done as a single
+            // transaction so a partial failure can't strand half-merged data.
+            await (prisma as any).$transaction([
+              (prisma as any).order.updateMany({
+                where: { userId: existingWithPhone.id },
+                data: { userId: currentUserId },
+              }),
+              (prisma as any).user.delete({ where: { id: existingWithPhone.id } }),
+            ]);
           }
 
+          // Final guard against the unique-phone constraint racing.
           user = await (prisma as any).user.update({
             where: { id: currentUserId },
-            data: { phone, isVerified: true }
+            data: { phone, isVerified: true },
           });
-        } catch (e) {
+        } catch (e: any) {
           console.error('Link phone error:', e);
+          return res.status(500).json({
+            error: 'Kunde inte koppla telefonnumret. Försök igen.',
+          });
         }
       }
     }

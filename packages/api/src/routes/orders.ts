@@ -840,12 +840,14 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // For customer-facing view: if order was recently marked as DELIVERING (stored as DELIVERED in DB),
-    // show DELIVERING status for 12 minutes, then switch to DELIVERED
+    // For customer-facing view: if order was recently marked as DELIVERING
+    // (stored as DELIVERED in DB), show DELIVERING for 15 minutes, then
+    // switch to DELIVERED. Matches the LA finalizer (libs/liveActivityFinalize)
+    // which auto-flips the LA to "Levererad" at the 15-min mark.
     let customerStatus = order.status;
     if (order.status === 'DELIVERED' && order.deliveringAt) {
       const minutesSinceDelivering = (Date.now() - new Date(order.deliveringAt).getTime()) / 60000;
-      if (minutesSinceDelivering < 12) {
+      if (minutesSinceDelivering < 15) {
         customerStatus = 'DELIVERING';
       }
     }
@@ -857,7 +859,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
       etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
     } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
-      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000).toISOString();
+      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 15 * 60_000).toISOString();
     }
 
     res.json({

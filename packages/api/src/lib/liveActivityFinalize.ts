@@ -1,0 +1,160 @@
+/**
+ * Auto-finalisation for Live Activities.
+ *
+ * After the admin marks an order as DELIVERING, the customer-facing UI
+ * (Live Activity + order screen) should:
+ *   1. Show "På väg" for 15 minutes.
+ *   2. Auto-flip to "Levererad" at the 15-min mark.
+ *   3. Stay on "Levererad" for ~3 minutes, then dismiss the LA banner.
+ *
+ * Previously the LA stuck on "På väg" until the user dismissed it manually,
+ * because nothing pushed a final state once the human admin had moved on.
+ *
+ * Strategy: a setInterval (1-minute tick) scans the DB for orders that are
+ *   - status = 'DELIVERED'   (DB stores DELIVERED immediately on DELIVERING; see admin.ts)
+ *   - deliveringAt is set    (so we know when the 15-min window started)
+ *   - liveActivityToken set  (so we have somewhere to push)
+ *
+ * For each, depending on elapsed time since deliveringAt:
+ *   - 15..18 min  → push 'update' with status='delivered' (idempotent in-memory)
+ *   - 18+ min     → push 'end' with dismissalDate ~3 min out, then clear token
+ *
+ * Once the token is cleared the order falls out of the query, so this is
+ * naturally self-terminating.
+ */
+
+import prisma from './prisma';
+import { ApnsError, pushLiveActivityUpdate, sendApnsSilentWake } from './liveActivityPush';
+
+// In-memory dedupe: orders that have already received the "delivered" state
+// push during this process's lifetime. After a server restart this is empty,
+// so a single duplicate push may go out — iOS treats it as a no-op state
+// update so the cost is negligible. Once the LA is ended (token cleared) the
+// order leaves the query and we drop its id below.
+const deliveredPushed = new Set<string>();
+
+const DELIVERED_AT_MS = 15 * 60 * 1000;
+const END_AT_MS = 18 * 60 * 1000;
+
+const DELIVERED_STATE = {
+  status: 'delivered',
+  statusText: 'Levererad — smaklig måltid! 🎉',
+  progressStep: 3,
+  etaMinutes: null,
+  driverName: null,
+  etaEndsAt: null,
+};
+
+export async function finalizeStaleLiveActivities(): Promise<void> {
+  const orders = await prisma.order.findMany({
+    where: {
+      status: 'DELIVERED',
+      deliveringAt: { not: null },
+      liveActivityToken: { not: null },
+    },
+    select: {
+      id: true,
+      type: true,
+      userId: true,
+      customerPhone: true,
+      deliveringAt: true,
+      liveActivityToken: true,
+    },
+  });
+
+  const now = Date.now();
+  for (const order of orders) {
+    const elapsed = now - new Date(order.deliveringAt!).getTime();
+    const token = order.liveActivityToken!;
+    const orderType = order.type;
+
+    if (elapsed >= END_AT_MS) {
+      try {
+        // Final 'end' push. dismissalDate sits ~8s out so the LA fades from
+        // the lock screen / Dynamic Island shortly after the "Levererad"
+        // banner has been seen.
+        await pushLiveActivityUpdate({
+          token,
+          event: 'end',
+          state: { ...DELIVERED_STATE, orderType },
+          dismissalDate: Math.floor(now / 1000) + 8,
+        });
+      } catch (e) {
+        if (e instanceof ApnsError && e.invalidToken) {
+          // Fall through to clear the token below.
+        } else {
+          console.warn('[liveActivityFinalize] end push failed for', order.id, ':', (e as Error)?.message);
+          continue; // Try again next tick.
+        }
+      }
+      await prisma.order
+        .update({ where: { id: order.id }, data: { liveActivityToken: null } })
+        .catch(() => null);
+      deliveredPushed.delete(order.id);
+      await sendSilentWake(order.id, order.userId, order.customerPhone);
+    } else if (elapsed >= DELIVERED_AT_MS && !deliveredPushed.has(order.id)) {
+      try {
+        await pushLiveActivityUpdate({
+          token,
+          event: 'update',
+          state: { ...DELIVERED_STATE, orderType },
+        });
+        deliveredPushed.add(order.id);
+      } catch (e) {
+        if (e instanceof ApnsError && e.invalidToken) {
+          await prisma.order
+            .update({ where: { id: order.id }, data: { liveActivityToken: null } })
+            .catch(() => null);
+        } else {
+          console.warn('[liveActivityFinalize] delivered push failed for', order.id, ':', (e as Error)?.message);
+        }
+      }
+      // Wake JS so the foreground sync hook can flip the LA to "Levererad"
+      // even when iOS is throttling our `liveactivity` topic (the case the
+      // user hits when they haven't toggled "Frequent Updates" on).
+      await sendSilentWake(order.id, order.userId, order.customerPhone);
+    }
+  }
+}
+
+async function sendSilentWake(
+  orderId: string,
+  userId: string | null,
+  customerPhone: string,
+): Promise<void> {
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          ...(userId ? [{ id: userId }] : []),
+          { phone: customerPhone },
+        ],
+      },
+      select: { apnsDeviceToken: true },
+    });
+    if (!user?.apnsDeviceToken) return;
+    await sendApnsSilentWake({
+      token: user.apnsDeviceToken,
+      data: { orderId, kind: 'la-wake' },
+      collapseId: `order-${orderId}-wake`,
+    });
+  } catch (e) {
+    console.warn('[liveActivityFinalize] silent wake failed for', orderId, ':', (e as Error)?.message);
+  }
+}
+
+let intervalHandle: ReturnType<typeof setInterval> | null = null;
+
+export function startLiveActivityFinalizer(): void {
+  if (intervalHandle) return;
+  // Run immediately on startup so a server restart that landed mid-window
+  // catches up without waiting a minute.
+  finalizeStaleLiveActivities().catch((e) =>
+    console.error('[liveActivityFinalize] initial run error:', e),
+  );
+  intervalHandle = setInterval(() => {
+    finalizeStaleLiveActivities().catch((e) =>
+      console.error('[liveActivityFinalize] tick error:', e),
+    );
+  }, 60 * 1000);
+}

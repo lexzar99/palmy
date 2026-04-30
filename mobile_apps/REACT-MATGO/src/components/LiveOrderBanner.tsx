@@ -23,6 +23,9 @@ function getStatusDisplay(status: string) {
     case "OUT_FOR_DELIVERY":
     case "DELIVERING":
       return { label: "PÅ VÄG!", icon: "bicycle", color: "#059669", bgColor: "rgba(16,185,129,0.15)", baseProgress: 72 };
+    case "DELIVERED":
+    case "COMPLETED":
+      return { label: "LEVERERAD", icon: "checkmark-done", color: "#059669", bgColor: "rgba(16,185,129,0.15)", baseProgress: 100 };
     default:
       return { label: "AKTIV", icon: "flash", color: palette.goldDark, bgColor: "rgba(217,176,85,0.16)", baseProgress: 5 };
   }
@@ -69,6 +72,7 @@ export default function LiveOrderBanner({
 }) {
   const [order, setOrder] = useState<Order | null>(null);
   const lastStatus = useRef<string | null>(null);
+  const finalClearScheduled = useRef<boolean>(false);
   const setActiveOrder = useAppStore((s) => s.setActiveOrder);
 
   // Carousel
@@ -112,9 +116,18 @@ export default function LiveOrderBanner({
           | undefined;
         const mappedFinal = mapServerStatusToActivity(data.status, orderType);
         if (mappedFinal?.ends) {
-          // Just clear the active-order pointer in the store; the global sync
-          // handles the actual endOrderActivity call.
-          setActiveOrder(null);
+          // Match the LA dismissal lifetime so the in-app banner doesn't
+          // disappear right when the LA still proudly says "Levererad":
+          //   - DELIVERED: keep banner up for 2 min, then drop
+          //   - CANCELLED / failures: clear immediately
+          if (mappedFinal.status === "delivered") {
+            if (!finalClearScheduled.current) {
+              finalClearScheduled.current = true;
+              setTimeout(() => setActiveOrder(null), 2 * 60 * 1000);
+            }
+          } else {
+            setActiveOrder(null);
+          }
         }
       } catch {}
     };
@@ -139,12 +152,14 @@ export default function LiveOrderBanner({
     };
   }, [id, setActiveOrder, progressAnim]);
 
-  // ── Auto-transition DELIVERING → DELIVERED after 12 min ──────────────────────
+  // ── Auto-transition DELIVERING → DELIVERED after 15 min ──────────────────────
+  // Matches the backend LA finaliser: it pushes the LA "Levererad" state at
+  // T+15 and dismisses the banner ~3 minutes later.
   useEffect(() => {
     const deliveringAt = (order as any)?.deliveringAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
     const deliveringTime = new Date(deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 12 * 60 * 1000) - Date.now();
+    const msRemaining = (deliveringTime + 15 * 60 * 1000) - Date.now();
     if (msRemaining <= 0) {
       setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
       return;

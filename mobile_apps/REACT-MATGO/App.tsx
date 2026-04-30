@@ -93,6 +93,7 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
+import PhoneGateScreen from "./src/screens/PhoneGateScreen";
 
 // ─── Component imports ─────────────────────────────────────────────────────────
 import ProductModal from "./src/components/ProductModal";
@@ -607,6 +608,7 @@ function AppContent() {
   const onboardingComplete = useAppStore((s) => s.onboardingComplete);
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
+  const profile = useAppStore((s) => s.profile);
 
   const handleNotificationTap = useCallback((data: Record<string, any>) => {
     if (data?.orderId && navigationRef.isReady()) {
@@ -731,6 +733,14 @@ function AppContent() {
       if (session?.access_token) {
         setToken(session.access_token);
         setOnboardingComplete(true);
+        // Re-fetch profile on every cold start so the phone-gate flag (and
+        // any name/avatar updates from the previous session) is fresh.
+        try {
+          const profileRes = await api.get("/api/profile", {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          setProfile(profileRes.data);
+        } catch {}
       }
     };
 
@@ -855,6 +865,13 @@ function AppContent() {
         skipPermissions={onboardingComplete}
       />
     );
+  }
+
+  // Hard gate: Apple/Google sign-ins that haven't linked a phone yet are
+  // bounced into the phone-verification flow. They can only finish that or
+  // sign out — the rest of the app stays hidden.
+  if (token && (profile as any)?.needsPhone) {
+    return <PhoneGateScreen />;
   }
 
   const tabValue =

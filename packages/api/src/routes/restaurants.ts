@@ -300,7 +300,7 @@ router.post('/', authenticate, async (req: AuthRequest, res) => {
     if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
       try {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
-        const adminEmail = restaurant.slug.toLowerCase();
+        const adminEmail = (restaurant.adminEmail || restaurant.slug).toLowerCase();
         
         const adminUser = await prisma.adminUser.upsert({
           where: { email: adminEmail },
@@ -421,19 +421,25 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       console.log(`[Hours] Updating isOpen for ${existingRestaurant.name} -> ${data.isOpen} based on new schedule`);
     }
 
-    const previousSlug = existingRestaurant.slug;
+    const previousAdminLogin =
+      (existingRestaurant.adminEmail || existingRestaurant.slug).toLowerCase();
 
     const restaurant = await prisma.restaurant.update({
       where: { id },
       data,
     });
 
-    if (payload.slug !== undefined && restaurant.slug !== previousSlug) {
+    const nextAdminLogin = (restaurant.adminEmail || restaurant.slug).toLowerCase();
+
+    if (previousAdminLogin !== nextAdminLogin) {
       try {
         await prisma.adminUser.updateMany({
-          where: { email: previousSlug.toLowerCase(), role: { not: 'SUPER_ADMIN' } },
+          where: {
+            email: previousAdminLogin,
+            role: { not: 'SUPER_ADMIN' },
+          },
           data: {
-            email: restaurant.slug.toLowerCase(),
+            email: nextAdminLogin,
             name: `${restaurant.name} Admin`,
           },
         });
@@ -446,7 +452,7 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.adminPassword && payload.adminPassword.trim().length > 0) {
       try {
         const hashedPassword = await bcrypt.hash(payload.adminPassword.trim(), 10);
-        const adminEmail = restaurant.slug.toLowerCase();
+        const adminEmail = (restaurant.adminEmail || restaurant.slug).toLowerCase();
         const adminUser = await prisma.adminUser.upsert({
           where: { email: adminEmail },
           update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },

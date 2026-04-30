@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import { palette, styles } from '../constants/theme';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
@@ -325,18 +324,20 @@ export default function OnboardingScreen({
 
   const triggerOtp = async (full: string) => {
     try {
-      if (isGoogleLinking) {
-        // Link phone to the existing Apple/Google Supabase session (does NOT create a new user)
-        const { error } = await supabase.auth.updateUser({ phone: full });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signInWithOtp({ phone: full });
-        if (error) throw error;
-      }
+      // Send via our own Twilio-backed endpoint regardless of whether we're
+      // linking an OAuth account or doing phone-only sign-in. The backend
+      // verify-otp route then either links the phone to the active OAuth
+      // user (when the request carries the Supabase JWT) or creates / logs
+      // in a phone-only account.
+      const headers = isGoogleLinking && pendingToken
+        ? { Authorization: `Bearer ${pendingToken}` }
+        : undefined;
+      const { data } = await api.post("/api/auth/send-otp", { phone: full }, { headers });
+      if (data?.devCode) setOtpCode(data.devCode);
       setOtpPhone(full);
       setStep("otp");
     } catch (e: any) {
-      setError(e.message || "Kunde inte skicka SMS");
+      setError(e.response?.data?.error || e.message || "Kunde inte skicka SMS");
     }
   };
 
@@ -353,37 +354,35 @@ export default function OnboardingScreen({
     setLoading(true); setError("");
     try {
       if (isGoogleLinking) {
-        // Verify phone_change — links phone to the existing Apple/Google user, no new account created
-        const { error: verifyErr } = await supabase.auth.verifyOtp({
-          phone: otpPhone,
-          token: otpCode,
-          type: 'phone_change',
+        // Twilio verify with the OAuth Supabase JWT attached: backend reads
+        // the current user from the JWT and links this phone (uniquely) to
+        // that user record. We keep using the Supabase JWT afterwards so the
+        // OAuth session machinery (refresh, sign-out) keeps working.
+        await api.post(
+          "/api/auth/verify-otp",
+          { phone: otpPhone, code: otpCode },
+          { headers: { Authorization: `Bearer ${pendingToken}` } },
+        );
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${pendingToken}` },
         });
-        if (verifyErr) throw verifyErr;
-        // Get the refreshed session (still the Apple/Google user, now with phone attached)
-        const { data: { session } } = await supabase.auth.getSession();
-        const tok = session?.access_token ?? pendingToken!;
+        afterAuth(pendingToken!, profileRes.data);
+      } else {
+        // Phone-only sign-in / registration: backend creates or fetches the
+        // user keyed by phone and returns our own JWT. No Supabase session.
+        const { data } = await api.post("/api/auth/verify-otp", {
+          phone: otpPhone,
+          code: otpCode,
+          name: isNewUser ? name.trim() : undefined,
+          email: isNewUser ? email.trim() : undefined,
+        });
+        const tok = data.token;
+        if (!tok) throw new Error("Ingen session mottogs");
         const profileRes = await api.get("/api/auth/me", { headers: { Authorization: `Bearer ${tok}` } });
         afterAuth(tok, profileRes.data);
-      } else {
-        // Normal phone sign-in / registration
-        const { data, error: verifyErr } = await supabase.auth.verifyOtp({
-          phone: otpPhone,
-          token: otpCode,
-          type: 'sms',
-        });
-        if (verifyErr) throw verifyErr;
-        if (data.session) {
-          if (isNewUser) {
-            await supabase.auth.updateUser({ data: { name: name.trim(), full_name: name.trim() } });
-          }
-          const tok = data.session.access_token;
-          const profileRes = await api.get("/api/auth/me", { headers: { Authorization: `Bearer ${tok}` } });
-          afterAuth(tok, profileRes.data);
-        }
       }
     } catch (e: any) {
-      setError(e.message || "Felaktig kod");
+      setError(e.response?.data?.error || e.message || "Felaktig kod");
     } finally { setLoading(false); }
   };
 

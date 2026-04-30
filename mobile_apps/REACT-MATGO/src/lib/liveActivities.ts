@@ -204,3 +204,43 @@ export async function endAllOrderActivities(): Promise<void> {
     console.warn("[LiveActivities] endAllActivities failed:", e);
   }
 }
+
+/**
+ * Force-resync a single order's LiveActivity from server state.
+ *
+ * Used as a fallback when the dedicated LA APNs push gets throttled (e.g. the
+ * user hasn't enabled "Frequent Updates" in Settings → FoodGo → Live
+ * Activities). The accompanying alert-style push that arrives at the same
+ * moment carries `content-available: 1`, which iOS uses to briefly wake JS in
+ * the background. From there we hit `/api/orders/:id` and call
+ * `Activity.update()` directly, so the Dynamic Island catches up regardless of
+ * whether the LA-topic push made it through.
+ */
+export async function syncOrderActivityFromServer(orderId: string): Promise<void> {
+  if (!supported || !orderId) return;
+  try {
+    const res = await api.get(`/api/orders/${orderId}`);
+    const data = res.data || {};
+    const orderType: "DELIVERY" | "PICKUP" | undefined = data.orderType || data.type;
+    const serverStatus: string | undefined = data.status;
+    if (!serverStatus) return;
+    const mapped = mapServerStatusToActivity(serverStatus, orderType);
+    if (!mapped) return;
+
+    const eta: number | null = data.estimatedTime ?? null;
+    const etaEndsAt: number | null = data.etaEndsAt
+      ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
+      : null;
+
+    await updateOrderActivity(orderId, mapped.status, {
+      etaMinutes: eta ?? undefined,
+      orderType,
+      etaEndsAt,
+    });
+    if (mapped.ends) {
+      await endOrderActivity(orderId);
+    }
+  } catch (e) {
+    console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
+  }
+}
