@@ -22,38 +22,58 @@
  *   4. That fetches the latest order state and calls `Activity.update()`
  *      directly on the native side — Dynamic Island refreshes.
  */
-import * as TaskManager from 'expo-task-manager';
-import * as Notifications from 'expo-notifications';
 import { syncOrderActivityFromServer } from './liveActivities';
 
 const TASK_NAME = 'foodgo-background-notification';
 
-TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    console.warn('[bgNotif] task error:', error.message);
-    return;
-  }
+// Defer requires so a missing native module never crashes app start.
+// The native ExpoTaskManager pod must be linked (`pod install`) for this
+// path to engage; without it we silently no-op and rely on the
+// foreground-only `addNotificationReceivedListener` fallback.
+let TaskManager: typeof import('expo-task-manager') | null = null;
+let Notifications: typeof import('expo-notifications') | null = null;
+try {
+  TaskManager = require('expo-task-manager');
+  Notifications = require('expo-notifications');
+} catch (e) {
+  console.warn('[bgNotif] expo-task-manager not available — skipping background sync');
+}
+
+let taskDefined = false;
+function defineTaskOnce() {
+  if (taskDefined || !TaskManager) return;
   try {
-    const payload: any = data;
-    // Expo wraps the APNs payload in slightly different shapes depending on
-    // SDK + push delivery path. Probe each location we've seen in practice.
-    const inner =
-      payload?.notification?.data ??
-      payload?.notification?.request?.content?.data ??
-      payload?.data ??
-      payload;
-    const orderId = inner?.orderId ?? inner?.['order-id'];
-    if (typeof orderId === 'string' && orderId.length > 0) {
-      await syncOrderActivityFromServer(orderId);
-    }
+    TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
+      if (error) {
+        console.warn('[bgNotif] task error:', error.message);
+        return;
+      }
+      try {
+        const payload: any = data;
+        const inner =
+          payload?.notification?.data ??
+          payload?.notification?.request?.content?.data ??
+          payload?.data ??
+          payload;
+        const orderId = inner?.orderId ?? inner?.['order-id'];
+        if (typeof orderId === 'string' && orderId.length > 0) {
+          await syncOrderActivityFromServer(orderId);
+        }
+      } catch (e) {
+        console.warn('[bgNotif] sync failed:', (e as Error)?.message);
+      }
+    });
+    taskDefined = true;
   } catch (e) {
-    console.warn('[bgNotif] sync failed:', (e as Error)?.message);
+    console.warn('[bgNotif] defineTask failed:', (e as Error)?.message);
   }
-});
+}
+
+defineTaskOnce();
 
 let registered = false;
 export async function registerBackgroundNotificationTask(): Promise<void> {
-  if (registered) return;
+  if (registered || !Notifications) return;
   try {
     await Notifications.registerTaskAsync(TASK_NAME);
     registered = true;
