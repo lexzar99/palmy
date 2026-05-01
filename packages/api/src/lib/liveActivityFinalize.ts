@@ -69,11 +69,16 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
     const orderType = order.type;
 
     if (elapsed >= windowMs && !deliveredPushed.has(order.id)) {
+      // Fire the JS-wake path FIRST (in parallel with the LA-topic push
+      // below). The LA-topic push gets throttled by iOS once the per-app
+      // budget is spent, so we can't rely on it as the sole dismiss
+      // mechanism. The wake triggers the mobile background task which
+      // calls endOrderActivity locally — independent delivery channel.
+      void sendSilentWake(order.id, order.userId, order.customerPhone);
+
       try {
         // Same short dismissal window the admin path uses — iOS removes
-        // the LA ~8 s after the push. We don't render a "Levererad" final
-        // step (iOS throttle drops the late state change), so the LA just
-        // disappears straight from "På väg".
+        // the LA ~8 s after the push.
         await pushLiveActivityUpdate({
           token,
           event: 'end',
@@ -95,7 +100,6 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
         .update({ where: { id: order.id }, data: { liveActivityToken: null } })
         .catch(() => null);
       deliveredPushed.delete(order.id);
-      await sendSilentWake(order.id, order.userId, order.customerPhone);
     }
   }
 }

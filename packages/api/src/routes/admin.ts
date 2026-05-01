@@ -9,7 +9,7 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { pushOrderStatusUpdate, sendApnsAlert, ApnsError } from '../lib/liveActivityPush';
+import { pushOrderStatusUpdate, sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 
 const router = Router();
@@ -515,6 +515,18 @@ router.patch('/orders/:id/status', async (req, res) => {
                 .update({ where: { id: existing.userId }, data: { apnsDeviceToken: null } })
                 .catch(() => null);
             }
+          });
+
+          // Belt-and-braces: also fire a silent (priority 5, content-available)
+          // wake. Different APNs delivery pipeline than the alert push above —
+          // when iOS throttles one, the other often still wakes JS so the
+          // background notification task can call Activity.update().
+          sendApnsSilentWake({
+            token: userToNotify.apnsDeviceToken,
+            data: { orderId: order.id, status, kind: 'la-wake' },
+            collapseId: `order-${order.id}-wake`,
+          }).catch((e) => {
+            console.warn('[admin] silent wake failed:', e?.message);
           });
         } else if (userToNotify.pushToken) {
           console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);

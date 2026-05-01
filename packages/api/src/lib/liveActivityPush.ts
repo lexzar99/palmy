@@ -309,6 +309,12 @@ export async function sendApnsAlert(opts: {
     badge: 1,
     'content-available': 1,
     'mutable-content': 1,
+    // Time-sensitive notifications bypass DND / Focus and get higher
+    // priority background-wake scheduling on iOS 15+. That makes the
+    // LA-sync background task fire reliably even when the device has been
+    // idle for a while — without this iOS often parks silent wakes for
+    // hours, leaving the Dynamic Island stuck on the previous step.
+    'interruption-level': 'time-sensitive',
   };
   if (opts.threadId) aps['thread-id'] = opts.threadId;
 
