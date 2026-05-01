@@ -288,16 +288,19 @@ export async function syncOrderActivityFromServer(orderId: string): Promise<void
       ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
       : null;
 
-    await updateOrderActivity(orderId, mapped.status, {
-      etaMinutes: eta ?? undefined,
-      orderType,
-      etaEndsAt,
-    });
     if (mapped.ends) {
-      // Same path as the cancel flow that has shipped and works: just call
-      // endOrderActivity, iOS handles the ~8-second dismissal. Don't try
-      // to render a final "Levererad" step — the widget is 3-step now.
+      // Terminal status: don't push an interim update first — that would
+      // freeze the LA on a "delivered" state and a subsequent end push
+      // gets coalesced/dropped, leaving the banner stuck. The cancel flow
+      // that has always worked just calls endOrderActivity directly and
+      // lets iOS handle the ~8-second dismissal.
       await endOrderActivity(orderId);
+    } else {
+      await updateOrderActivity(orderId, mapped.status, {
+        etaMinutes: eta ?? undefined,
+        orderType,
+        etaEndsAt,
+      });
     }
   } catch (e) {
     console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
