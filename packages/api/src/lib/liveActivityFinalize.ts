@@ -135,9 +135,12 @@ export function startLiveActivityFinalizer(): void {
   finalizeStaleLiveActivities().catch((e) =>
     console.error('[liveActivityFinalize] initial run error:', e),
   );
+  // ⚠️ TEMP TESTING — 5 s tick (was 60 s) so the auto-DELIVERED finaliser
+  // catches the new 20 s deliveryWindow promptly. Revert to 60 * 1000 when
+  // the temp window in deliveryWindow.ts is restored.
   intervalHandle = setInterval(() => {
     finalizeStaleLiveActivities().catch((e) =>
       console.error('[liveActivityFinalize] tick error:', e),
     );
-  }, 60 * 1000);
+  }, 5 * 1000);
 }
