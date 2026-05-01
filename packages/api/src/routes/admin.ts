@@ -10,6 +10,7 @@ import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { pushOrderStatusUpdate, sendApnsAlert, ApnsError } from '../lib/liveActivityPush';
+import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 
 const router = Router();
 router.use(authenticate);
@@ -407,7 +408,10 @@ router.patch('/orders/:id/status', async (req, res) => {
       if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
         etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
       } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
-        etaEndsAt = new Date(new Date((order as any).deliveringAt).getTime() + 20 * 60_000);
+        const deliveringAtDate = new Date((order as any).deliveringAt);
+        const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
+        etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs);
+        console.log(`[admin] DELIVERING window for ${order.id}: ${windowMs / 60_000} min (deliveringAt=${deliveringAtDate.toISOString()})`);
       }
       console.log(`[admin] LA push → order ${order.id}, customerStatus=${customerStatus}, token=${existing.liveActivityToken.slice(0,12)}…`);
       pushOrderStatusUpdate({

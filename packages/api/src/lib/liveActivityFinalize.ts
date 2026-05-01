@@ -25,6 +25,7 @@
 
 import prisma from './prisma';
 import { ApnsError, pushLiveActivityUpdate, sendApnsSilentWake } from './liveActivityPush';
+import { computeDeliveryWindowMs } from './deliveryWindow';
 
 // In-memory dedupe: orders that have already received the "delivered" state
 // push during this process's lifetime. After a server restart this is empty,
@@ -32,8 +33,6 @@ import { ApnsError, pushLiveActivityUpdate, sendApnsSilentWake } from './liveAct
 // update so the cost is negligible. Once the LA is ended (token cleared) the
 // order leaves the query and we drop its id below.
 const deliveredPushed = new Set<string>();
-
-const DELIVERED_AT_MS = 20 * 60 * 1000;
 
 const DELIVERED_STATE = {
   status: 'delivered',
@@ -63,11 +62,13 @@ export async function finalizeStaleLiveActivities(): Promise<void> {
 
   const now = Date.now();
   for (const order of orders) {
-    const elapsed = now - new Date(order.deliveringAt!).getTime();
+    const deliveringAtDate = new Date(order.deliveringAt!);
+    const elapsed = now - deliveringAtDate.getTime();
+    const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
     const token = order.liveActivityToken!;
     const orderType = order.type;
 
-    if (elapsed >= DELIVERED_AT_MS && !deliveredPushed.has(order.id)) {
+    if (elapsed >= windowMs && !deliveredPushed.has(order.id)) {
       try {
         // Same short dismissal window the admin path uses — iOS removes
         // the LA ~8 s after the push. We don't render a "Levererad" final
