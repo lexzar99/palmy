@@ -21,10 +21,14 @@ import {
   Easing,
   Platform,
   Dimensions,
+  KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../lib/api";
 import { palette } from "../constants/theme";
+import { useTranslation } from "react-i18next";
 
 // Session token for Google billing grouping
 const makeToken = () =>
@@ -87,7 +91,10 @@ export default function AddressModal({
   onClose,
   onSelect,
 }: AddressModalProps) {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [orderType, setOrderType] = useState<OrderType>(initialOrderType);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
 
   // Delivery state
   const [input, setInput]               = useState(initialValue);
@@ -136,6 +143,19 @@ export default function AddressModal({
   }, [visible]);
 
   useEffect(() => () => { if (debounceRef.current) clearTimeout(debounceRef.current); }, []);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // ── Fetch cities ─────────────────────────────────────────────────────────────
   const fetchCities = async () => {
@@ -237,20 +257,35 @@ export default function AddressModal({
   return (
     <Modal visible={visible} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
       {/* Backdrop */}
-      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: C.overlay, opacity: fadeAnim }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: C.overlay, opacity: fadeAnim }]}> 
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
 
       {/* Centered card */}
-      <View style={s.outer} pointerEvents="box-none">
-        <Animated.View style={[s.card, { width: CARD_W, opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Math.max(insets.bottom - 6, 0)}
+        style={{ flex: 1 }}
+      >
+        <View
+          style={[
+            s.outer,
+            keyboardVisible && {
+              justifyContent: "flex-start",
+              paddingTop: insets.top + 24,
+              paddingBottom: Math.max(insets.bottom, 24),
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          <Animated.View style={[s.card, { width: CARD_W, opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}> 
 
           {/* Header */}
           <View style={s.header}>
             <View style={{ flex: 1 }}>
-              <Text style={s.headerSub}>INNAN DU BESTÄLLER</Text>
+              <Text style={s.headerSub}>{t('addressModal.beforeOrder')}</Text>
               <Text style={s.headerTitle}>
-                {orderType === "DELIVERY" ? "Leveransadress" : "Välj stad"}
+                {orderType === "DELIVERY" ? t('addressModal.deliveryTitle') : t('addressModal.pickupTitle')}
               </Text>
             </View>
             <Pressable onPress={onClose} style={s.closeBtn} hitSlop={10}>
@@ -260,19 +295,19 @@ export default function AddressModal({
 
           {/* Toggle */}
           <View style={s.toggle}>
-            {(["DELIVERY", "PICKUP"] as OrderType[]).map((t) => (
+            {(["DELIVERY", "PICKUP"] as OrderType[]).map((type) => (
               <Pressable
-                key={t}
-                onPress={() => { setOrderType(t); setError(null); }}
-                style={[s.toggleBtn, orderType === t && s.toggleBtnActive]}
+                key={type}
+                onPress={() => { setOrderType(type); setError(null); }}
+                style={[s.toggleBtn, orderType === type && s.toggleBtnActive]}
               >
                 <Ionicons
-                  name={t === "DELIVERY" ? "bicycle-outline" : "storefront-outline"}
+                  name={type === "DELIVERY" ? "bicycle-outline" : "storefront-outline"}
                   size={14}
-                  color={orderType === t ? "#000" : C.muted}
+                  color={orderType === type ? "#000" : C.muted}
                 />
-                <Text style={[s.toggleTxt, orderType === t && s.toggleTxtActive]}>
-                  {t === "DELIVERY" ? "Leverans" : "Avhämtning"}
+                <Text style={[s.toggleTxt, orderType === type && s.toggleTxtActive]}>
+                  {type === "DELIVERY" ? t('addressModal.delivery') : t('addressModal.pickup')}
                 </Text>
               </Pressable>
             ))}
@@ -294,7 +329,7 @@ export default function AddressModal({
                   style={s.textInput}
                   value={input}
                   onChangeText={handleInputChange}
-                  placeholder="Gatuadress, postnummer…"
+                  placeholder={t('addressModal.inputPlaceholder')}
                   placeholderTextColor={C.muted}
                   autoFocus
                   returnKeyType="search"
@@ -313,12 +348,12 @@ export default function AddressModal({
               {confirmedCoords && !error && (
                 <View style={s.badge}>
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
-                  <Text style={[s.badgeTxt, { color: C.green }]}>Adress är verifierad.</Text>
+                  <Text style={[s.badgeTxt, { color: C.green }]}>{t('addressModal.verified')}</Text>
                 </View>
               )}
 
               {predictions.length > 0 && (
-                <ScrollView style={s.predList} keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                <ScrollView style={s.predList} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} nestedScrollEnabled>
                   {predictions.map((p, idx) => (
                     <Pressable
                       key={p.place_id}
@@ -349,14 +384,14 @@ export default function AddressModal({
               {loadingCities ? (
                 <View style={s.cityLoading}>
                   <ActivityIndicator size="small" color={C.gold} />
-                  <Text style={s.cityLoadingTxt}>Hämtar städer…</Text>
+                  <Text style={s.cityLoadingTxt}>{t('addressModal.loadingCities')}</Text>
                 </View>
               ) : cities.length === 0 ? (
                 <View style={s.cityEmpty}>
-                  <Text style={s.cityEmptyTxt}>Inga städer med avhämtning tillgängliga</Text>
+                  <Text style={s.cityEmptyTxt}>{t('addressModal.noCities')}</Text>
                 </View>
               ) : (
-                <ScrollView style={s.cityList} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                <ScrollView style={s.cityList} nestedScrollEnabled keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
                   {cities.map((city, idx) => (
                     <Pressable
                       key={city.id}
@@ -381,7 +416,7 @@ export default function AddressModal({
                           {city.name}
                         </Text>
                         <Text style={s.cityMode}>
-                          {city.deliveryMode === "ALL" ? "Leverans & avhämtning" : "Endast avhämtning"}
+                          {city.deliveryMode === "ALL" ? t('addressModal.mode.both') : t('addressModal.mode.pickupOnly')}
                         </Text>
                       </View>
                       <Ionicons
@@ -396,7 +431,7 @@ export default function AddressModal({
               {selectedCity && (
                 <View style={s.badge}>
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
-                  <Text style={[s.badgeTxt, { color: C.green }]}>{selectedCity.name} vald som hämtplats</Text>
+                  <Text style={[s.badgeTxt, { color: C.green }]}>{t('addressModal.citySelected', { city: selectedCity.name })}</Text>
                 </View>
               )}
             </>
@@ -412,9 +447,7 @@ export default function AddressModal({
 
           {/* Hint */}
           <Text style={s.hint}>
-            {orderType === "DELIVERY"
-              ? "Vi visar restauranger som kan leverera till din adress."
-              : "Välj den stad du vill hämta mat i."}
+            {orderType === "DELIVERY" ? t('addressModal.deliveryHint') : t('addressModal.pickupHint')}
           </Text>
 
           {/* Confirm */}
@@ -423,13 +456,14 @@ export default function AddressModal({
             onPress={handleConfirm}
           >
             <Text style={s.confirmTxt}>
-              {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
+              {orderType === "DELIVERY" ? t('addressModal.confirmDelivery') : t('addressModal.confirmPickup')}
             </Text>
             <Ionicons name="arrow-forward" size={19} color="#000" />
           </Pressable>
 
-        </Animated.View>
-      </View>
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

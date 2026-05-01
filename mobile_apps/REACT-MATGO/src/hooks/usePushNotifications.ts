@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from '../lib/api';
 import { syncOrderActivityFromServer } from '../lib/liveActivities';
+import { maybeShowNotificationsDeniedPrompt } from '../lib/permissionPrompts';
 
 export function usePushNotifications(
   sessionToken: string | null,
@@ -36,7 +37,14 @@ export function usePushNotifications(
       if (Platform.OS === 'web') return null;
 
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      
+
+      // If the user actively declined we can't recover by re-requesting (iOS
+      // returns 'denied' without showing the popup again). Show a one-shot
+      // soft nudge that links them straight to the Settings entry.
+      if (existingStatus === 'denied') {
+        void maybeShowNotificationsDeniedPrompt();
+      }
+
       // Endast om de redan har godkänt hämtar vi token automatiskt vid appstart
       if (existingStatus === 'granted') {
         try {
@@ -138,33 +146,58 @@ export function usePushNotifications(
     };
   }, []);
 
-  // Skicka push token till databasen så fort vi har ett token och en inloggad användare
+  // Skicka push token till databasen så fort vi har ett token och en inloggad
+  // användare. Retries with exponential backoff so a transient network blip
+  // at app launch doesn't permanently leave the device unreachable for
+  // pushes (we used to silently drop the failure and never retry).
   useEffect(() => {
-    if (sessionToken && expoPushToken) {
-      api.post(
-        '/api/notifications/register',
-        { token: expoPushToken },
-        { headers: { Authorization: `Bearer ${sessionToken}` } }
-      ).catch((err) => console.warn('Kunde inte skicka push token till servern:', err));
-    }
+    if (!sessionToken || !expoPushToken) return;
+    let cancelled = false;
+    const send = async (attempt = 0) => {
+      try {
+        await api.post(
+          '/api/notifications/register',
+          { token: expoPushToken },
+          { headers: { Authorization: `Bearer ${sessionToken}` } }
+        );
+      } catch (err) {
+        if (cancelled || attempt >= 4) {
+          console.warn('Kunde inte skicka push token till servern:', err);
+          return;
+        }
+        const delay = Math.min(2000 * Math.pow(2, attempt), 16000);
+        setTimeout(() => { if (!cancelled) send(attempt + 1); }, delay);
+      }
+    };
+    send();
+    return () => { cancelled = true; };
   }, [sessionToken, expoPushToken]);
 
   // Registrera även den råa APNs-tokenen så backenden kan skicka direkt via
   // APNs (med apns-collapse-id) istället för Expo, vilket låter iOS *ersätta*
   // status-notisen istället för att stapla en ny per steg.
   useEffect(() => {
-    if (sessionToken && apnsDeviceToken) {
-      console.log('[push] Registering APNs device token (len=' + apnsDeviceToken.length + ')');
-      api.post(
-        '/api/notifications/register-device',
-        { token: apnsDeviceToken },
-        { headers: { Authorization: `Bearer ${sessionToken}` } }
-      )
-        .then(() => console.log('[push] APNs device token registered'))
-        .catch((err) => {
+    if (!sessionToken || !apnsDeviceToken) return;
+    let cancelled = false;
+    const send = async (attempt = 0) => {
+      try {
+        await api.post(
+          '/api/notifications/register-device',
+          { token: apnsDeviceToken },
+          { headers: { Authorization: `Bearer ${sessionToken}` } }
+        );
+        console.log('[push] APNs device token registered');
+      } catch (err: any) {
+        if (cancelled || attempt >= 4) {
           console.warn('[push] APNs token registration failed:', err?.response?.status, err?.response?.data || err?.message);
-        });
-    }
+          return;
+        }
+        const delay = Math.min(2000 * Math.pow(2, attempt), 16000);
+        setTimeout(() => { if (!cancelled) send(attempt + 1); }, delay);
+      }
+    };
+    send();
+    return () => { cancelled = true; };
   }, [sessionToken, apnsDeviceToken]);
 
   const requestPermission = async () => {

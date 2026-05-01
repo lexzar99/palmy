@@ -2,12 +2,64 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PencilLine, Plus, Search, Store, Trash2 } from "lucide-react";
+import { Loader2, PencilLine, Plus, Search, Store, Trash2, X } from "lucide-react";
 import { createRestaurant, deleteRestaurant, getRestaurantDetail, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
-type RestaurantTab = "info" | "menu" | "orders" | "settings";
+type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings";
+
+type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+type Shift = { open: string; close: string };
+type DayHours = { closed: boolean; shifts: Shift[] };
+type HoursForm = Record<DayKey, DayHours>;
+
+const DAYS: { key: DayKey; label: string }[] = [
+  { key: "monday", label: "Måndag" },
+  { key: "tuesday", label: "Tisdag" },
+  { key: "wednesday", label: "Onsdag" },
+  { key: "thursday", label: "Torsdag" },
+  { key: "friday", label: "Fredag" },
+  { key: "saturday", label: "Lördag" },
+  { key: "sunday", label: "Söndag" },
+];
+
+const buildDefaultHours = (): HoursForm =>
+  DAYS.reduce((acc, { key }) => {
+    acc[key] = { closed: false, shifts: [{ open: "11:00", close: "22:00" }] };
+    return acc;
+  }, {} as HoursForm);
+
+const parseHoursFromDetail = (raw: unknown): HoursForm => {
+  const hours = buildDefaultHours();
+  if (!raw || typeof raw !== "object") return hours;
+  const root = raw as Record<string, any>;
+  const regular = (root.regular && typeof root.regular === "object") ? root.regular : root;
+  if (!regular || typeof regular !== "object") return hours;
+
+  for (const { key } of DAYS) {
+    const dayData = regular[key];
+    if (!dayData || typeof dayData !== "object") {
+      hours[key] = { closed: true, shifts: [] };
+      continue;
+    }
+    const shifts: Shift[] = [];
+    if (Array.isArray(dayData.shifts)) {
+      for (const s of dayData.shifts) {
+        if (s && typeof s.open === "string" && typeof s.close === "string") {
+          shifts.push({ open: s.open, close: s.close });
+        }
+      }
+    } else if (typeof dayData.open === "string" && typeof dayData.close === "string") {
+      shifts.push({ open: dayData.open, close: dayData.close });
+    }
+    hours[key] = {
+      closed: dayData.closed === true,
+      shifts: shifts.length > 0 ? shifts : (dayData.closed === true ? [] : [{ open: "11:00", close: "22:00" }]),
+    };
+  }
+  return hours;
+};
 
 type RestaurantFormState = {
   name: string;
@@ -34,6 +86,7 @@ type RestaurantFormState = {
   latitude: string;
   longitude: string;
   freeDeliveryAbove: number;
+  openingHours: HoursForm;
 };
 
 const emptyForm: RestaurantFormState = {
@@ -61,6 +114,7 @@ const emptyForm: RestaurantFormState = {
   latitude: "",
   longitude: "",
   freeDeliveryAbove: 0,
+  openingHours: buildDefaultHours(),
 };
 
 const detailQueryKey = (restaurantId: string | null) => ["restaurants", "detail", restaurantId] as const;
@@ -91,6 +145,7 @@ const mapDetailToForm = (detail: RestaurantDetail): RestaurantFormState => ({
   latitude: detail.latitude != null ? String(detail.latitude) : "",
   longitude: detail.longitude != null ? String(detail.longitude) : "",
   freeDeliveryAbove: detail.freeDeliveryAbove || 0,
+  openingHours: parseHoursFromDetail(detail.openingHours),
 });
 
 const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => ({
@@ -118,6 +173,7 @@ const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => (
   latitude: form.latitude.trim() ? Number(form.latitude) : null,
   longitude: form.longitude.trim() ? Number(form.longitude) : null,
   freeDeliveryAbove: Number(form.freeDeliveryAbove || 0),
+  openingHours: { regular: form.openingHours },
 });
 
 function RestaurantEditorModal({
@@ -225,6 +281,7 @@ function RestaurantEditorModal({
             { value: "info", label: "Info" },
             { value: "menu", label: "Menu" },
             { value: "orders", label: "Orders" },
+            { value: "hours", label: "Hours" },
             { value: "settings", label: "Settings" },
           ]}
         />
@@ -313,6 +370,98 @@ function RestaurantEditorModal({
           ) : (
             <EmptyState title="No recent orders" description="Recent restaurant order activity will appear here." />
           )
+        ) : null}
+
+        {tab === "hours" ? (
+          <div className="grid gap-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Sätt öppettider per dag. Lägg till flera skift om restaurangen stänger för lunchpaus.
+              Ändringar sparas tillsammans med övriga fält när du trycker Save.
+            </p>
+            {DAYS.map(({ key, label }) => {
+              const day = form.openingHours[key];
+              const updateDay = (next: DayHours) =>
+                setForm((current) => ({
+                  ...current,
+                  openingHours: { ...current.openingHours, [key]: next },
+                }));
+              return (
+                <div key={key} className="surface-muted px-5 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-base font-black tracking-[-0.02em]">{label}</p>
+                    <label className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={day.closed}
+                        onChange={(event) =>
+                          updateDay({
+                            closed: event.target.checked,
+                            shifts: event.target.checked ? [] : (day.shifts.length ? day.shifts : [{ open: "11:00", close: "22:00" }]),
+                          })
+                        }
+                      />
+                      Stängd
+                    </label>
+                  </div>
+                  {!day.closed ? (
+                    <div className="mt-3 grid gap-2">
+                      {day.shifts.map((shift, index) => (
+                        <div key={index} className="flex flex-wrap items-center gap-2">
+                          <Input
+                            type="time"
+                            value={shift.open}
+                            onChange={(event) => {
+                              const nextShifts = day.shifts.map((s, i) =>
+                                i === index ? { ...s, open: event.target.value } : s
+                              );
+                              updateDay({ ...day, shifts: nextShifts });
+                            }}
+                            className="w-32"
+                          />
+                          <span className="text-[var(--text-secondary)]">–</span>
+                          <Input
+                            type="time"
+                            value={shift.close}
+                            onChange={(event) => {
+                              const nextShifts = day.shifts.map((s, i) =>
+                                i === index ? { ...s, close: event.target.value } : s
+                              );
+                              updateDay({ ...day, shifts: nextShifts });
+                            }}
+                            className="w-32"
+                          />
+                          {day.shifts.length > 1 ? (
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                const nextShifts = day.shifts.filter((_, i) => i !== index);
+                                updateDay({ ...day, shifts: nextShifts });
+                              }}
+                            >
+                              <X size={14} /> Ta bort skift
+                            </Button>
+                          ) : null}
+                        </div>
+                      ))}
+                      <div>
+                        <Button
+                          variant="secondary"
+                          onClick={() =>
+                            updateDay({
+                              ...day,
+                              shifts: [...day.shifts, { open: "17:00", close: "22:00" }],
+                            })
+                          }
+                        >
+                          <Plus size={14} /> Lägg till skift
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         ) : null}
 
         {tab === "settings" ? (

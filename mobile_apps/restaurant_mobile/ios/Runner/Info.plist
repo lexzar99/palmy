@@ -22,6 +22,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth access is used to connect thermal printers for order receipts.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Bluetooth access is used to connect thermal printers for order receipts.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Local network access is used to find and print to kitchen receipt printers.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

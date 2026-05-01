@@ -90,6 +90,10 @@ export default function ProfileScreen({
   const { currentLanguage, changeLanguage } = useLanguage();
   const { ls } = useArabic();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
+  const [sentryTestCrash, setSentryTestCrash] = useState(false);
+  if (sentryTestCrash) {
+    throw new Error("Sentry test crash @ " + new Date().toISOString());
+  }
   const addItem = useAppStore((s) => s.addItem);
   const clearCart = useAppStore((s) => s.clearCart);
   const deliveryAddress = useAppStore((s) => s.deliveryAddress);
@@ -777,6 +781,25 @@ export default function ProfileScreen({
   // is preserved below exactly as in App.tsx.
   return (
     <ScreenWrap>
+      {__DEV__ && (
+        <Pressable
+          onPress={() => setSentryTestCrash(true)}
+          style={{
+            backgroundColor: "rgba(220,38,38,0.12)",
+            borderColor: "rgba(220,38,38,0.4)",
+            borderWidth: 1,
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 12,
+            alignItems: "center",
+          }}
+        >
+          <Text style={{ color: "#fb7185", fontSize: 12, fontWeight: "900" }}>
+            🧪 SENTRY TEST — KRASCHA APPEN (DEV)
+          </Text>
+        </Pressable>
+      )}
+
       {/* Profile header */}
       <View style={[styles.formCard, { borderRadius: 34, padding: 22 }]}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>

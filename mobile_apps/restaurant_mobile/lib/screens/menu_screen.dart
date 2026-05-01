@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../core/log_service.dart';
+import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
-import '../core/theme.dart';
-import '../core/log_service.dart';
+
+enum _MenuView { products, extras }
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -15,6 +18,8 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen> {
   List<dynamic> _categories = [];
   bool _isLoading = true;
+  String _query = '';
+  _MenuView _view = _MenuView.products;
 
   @override
   void initState() {
@@ -23,15 +28,15 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   bool _setProductActiveLocal(String productId, bool isActive) {
-    bool updated = false;
-    for (final cat in _categories) {
-      if (cat is! Map) continue;
-      final products = cat['products'];
+    var updated = false;
+    for (final category in _categories) {
+      if (category is! Map) continue;
+      final products = category['products'];
       if (products is! List) continue;
-      for (final p in products) {
-        if (p is! Map) continue;
-        if (p['id'] == productId) {
-          p['isActive'] = isActive;
+      for (final product in products) {
+        if (product is! Map) continue;
+        if (product['id'] == productId) {
+          product['isActive'] = isActive;
           updated = true;
           break;
         }
@@ -41,25 +46,25 @@ class _MenuScreenState extends State<MenuScreen> {
   }
 
   bool _setExtraActiveLocal(String extraId, bool isActive) {
-    bool updated = false;
-    for (final cat in _categories) {
-      if (cat is! Map) continue;
-      final products = cat['products'];
+    var updated = false;
+    for (final category in _categories) {
+      if (category is! Map) continue;
+      final products = category['products'];
       if (products is! List) continue;
-      for (final prod in products) {
-        if (prod is! Map) continue;
-        final groups = prod['extraGroups'];
+      for (final product in products) {
+        if (product is! Map) continue;
+        final groups = product['extraGroups'];
         if (groups is! List) continue;
-        for (final g in groups) {
-          if (g is! Map) continue;
-          final extraGroup = g['extraGroup'] ?? g;
+        for (final groupItem in groups) {
+          if (groupItem is! Map) continue;
+          final extraGroup = groupItem['extraGroup'] ?? groupItem;
           if (extraGroup is! Map) continue;
           final extras = extraGroup['extras'];
           if (extras is! List) continue;
-          for (final e in extras) {
-            if (e is! Map) continue;
-            if (e['id'] == extraId) {
-              e['isActive'] = isActive;
+          for (final extra in extras) {
+            if (extra is! Map) continue;
+            if (extra['id'] == extraId) {
+              extra['isActive'] = isActive;
               updated = true;
               break;
             }
@@ -75,288 +80,379 @@ class _MenuScreenState extends State<MenuScreen> {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final restaurantId = auth.user?['restaurantId'] ?? '';
-    
+
     final data = await provider.fetchMenu(restaurantId);
-    debugPrint('LOADED MENU DATA: ${data.length} categories');
-    if (data.isNotEmpty) {
-      debugPrint('FIRST CAT: ${data.first}');
-    }
-    if (mounted) {
-      setState(() {
-        _categories = data;
-        _isLoading = false;
-      });
-    }
+    if (!mounted) return;
+
+    setState(() {
+      _categories = data;
+      _isLoading = false;
+    });
   }
 
   Future<void> _toggleProduct(String productId, bool isActive) async {
     logger.log('BUTTON: Toggle Product $productId -> $isActive');
     final provider = Provider.of<OrderProvider>(context, listen: false);
-    final didUpdate = _setProductActiveLocal(productId, isActive);
-    if (didUpdate && mounted) setState(() {});
+    final updated = _setProductActiveLocal(productId, isActive);
+    if (updated && mounted) setState(() {});
+
     final ok = await provider.updateProductStatus(productId, isActive);
-    if (!ok && mounted) {
-      // Roll back local optimistic update
-      _setProductActiveLocal(productId, !isActive);
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kunde inte uppdatera artikeln. Försök igen.')),
-      );
-    }
+    if (!mounted || ok) return;
+
+    _setProductActiveLocal(productId, !isActive);
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kunde inte uppdatera artikeln.')),
+    );
   }
 
   Future<void> _toggleExtra(String extraId, bool isActive) async {
     logger.log('BUTTON: Toggle Extra $extraId -> $isActive');
     final provider = Provider.of<OrderProvider>(context, listen: false);
-    final didUpdate = _setExtraActiveLocal(extraId, isActive);
-    if (didUpdate && mounted) setState(() {});
+    final updated = _setExtraActiveLocal(extraId, isActive);
+    if (updated && mounted) setState(() {});
+
     final ok = await provider.updateExtraStatus(extraId, isActive);
-    if (!ok && mounted) {
-      _setExtraActiveLocal(extraId, !isActive);
-      setState(() {});
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kunde inte uppdatera tillbehöret. Försök igen.')),
-      );
+    if (!mounted || ok) return;
+
+    _setExtraActiveLocal(extraId, !isActive);
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Kunde inte uppdatera tillbehöret.')),
+    );
+  }
+
+  List<Map<String, dynamic>> _filteredCategories() {
+    final query = _query.trim().toLowerCase();
+    final filtered = <Map<String, dynamic>>[];
+
+    for (final category in _categories) {
+      if (category is! Map) continue;
+      final categoryMap =
+          Map<String, dynamic>.from(category.cast<String, dynamic>());
+      final products = (categoryMap['products'] as List? ?? const [])
+          .whereType<Map>()
+          .map(
+            (product) =>
+                Map<String, dynamic>.from(product.cast<String, dynamic>()),
+          )
+          .toList();
+
+      products.sort((a, b) {
+        final posA = (a['position'] as num?)?.toInt() ?? 0;
+        final posB = (b['position'] as num?)?.toInt() ?? 0;
+        final positionComparison = posA.compareTo(posB);
+        if (positionComparison != 0) return positionComparison;
+        return (a['name'] ?? '')
+            .toString()
+            .compareTo((b['name'] ?? '').toString());
+      });
+
+      final matchingProducts = query.isEmpty
+          ? products
+          : products.where((product) {
+              final name = (product['name'] ?? '').toString().toLowerCase();
+              return name.contains(query);
+            }).toList();
+
+      if (matchingProducts.isEmpty) continue;
+      categoryMap['products'] = matchingProducts;
+      filtered.add(categoryMap);
     }
+
+    return filtered;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          elevation: 0,
-          title: Text('MENY & TILLBEHÖR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
-          bottom: TabBar(
-            indicatorColor: AppTheme.gold,
-            labelColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold,
-            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5),
-            labelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2.5),
-            tabs: [
-              Tab(text: 'PRODUKTER'),
-              Tab(text: 'TILLBEHÖR & EXTRA'),
-            ],
-          ),
-        ),
-        body: RefreshIndicator(
-          onRefresh: _loadMenu,
-          color: AppTheme.gold,
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Theme.of(context).scaffoldBackgroundColor, Theme.of(context).scaffoldBackgroundColor.withAlpha(200)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: AppTheme.gold))
-              : TabBarView(
-                  children: [
-                    _buildProductsTab(),
-                    _buildExtrasTab(),
-                  ],
-                ),
-          ),
-        ),
-      ),
-    );
-  }
+  List<Map<String, dynamic>> _filteredExtraGroups() {
+    final groups = <String, Map<String, dynamic>>{};
+    final query = _query.trim().toLowerCase();
 
-  Widget _buildProductsTab() {
-    if (_categories.isEmpty) return _buildEmptyState();
-    return ListView.builder(
-      padding: const EdgeInsets.all(25),
-      itemCount: _categories.length,
-      itemBuilder: (ctx, i) => _buildCategoryTile(context, _categories[i]),
-    );
-  }
+    for (final category in _categories) {
+      if (category is! Map) continue;
+      final products = category['products'];
+      if (products is! List) continue;
+      for (final product in products) {
+        if (product is! Map) continue;
+        final extraGroups = product['extraGroups'];
+        if (extraGroups is! List) continue;
+        for (final item in extraGroups) {
+          if (item is! Map) continue;
+          final rawGroup = item['extraGroup'] ?? item;
+          if (rawGroup is! Map) continue;
+          final group =
+              Map<String, dynamic>.from(rawGroup.cast<String, dynamic>());
+          final extras = (group['extras'] as List? ?? const [])
+              .whereType<Map>()
+              .map(
+                (extra) =>
+                    Map<String, dynamic>.from(extra.cast<String, dynamic>()),
+              )
+              .where((extra) {
+            if (query.isEmpty) return true;
+            return (extra['name'] ?? '')
+                .toString()
+                .toLowerCase()
+                .contains(query);
+          }).toList();
 
-  Widget _buildExtrasTab() {
-    final Map<String, dynamic> extraGroups = {};
-    for (var cat in _categories) {
-       // IMPORTANT: The products might be null if the mapping failed
-      final dynamic productsRaw = cat['products'];
-      if (productsRaw is List) {
-        for (var prod in productsRaw) {
-          final dynamic groupsRaw = prod['extraGroups'];
-          if (groupsRaw is List) {
-            for (var g in groupsRaw) {
-              final Map<String, dynamic>? group = g['extraGroup'] ?? (g is Map<String, dynamic> ? g : null); 
-              if (group != null && group['id'] != null) {
-                extraGroups[group['id']] = group;
-              }
-            }
-          }
+          if (extras.isEmpty) continue;
+          group['extras'] = extras;
+          groups[group['id'].toString()] = group;
         }
       }
     }
 
-    if (extraGroups.isEmpty) return _buildEmptyState();
-
-    return ListView(
-      padding: const EdgeInsets.all(25),
-      children: extraGroups.values.map((group) => _buildExtraGroupTile(context, group)).toList(),
-    );
+    return groups.values.toList()
+      ..sort(
+        (a, b) => (a['name'] ?? '')
+            .toString()
+            .compareTo((b['name'] ?? '').toString()),
+      );
   }
 
-  Widget _buildEmptyState() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        alignment: Alignment.center,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.restaurant_menu_outlined, size: 60, color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.05)),
-            const SizedBox(height: 16),
-            Text('INGET DATA HITTADES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodySmall?.color, letterSpacing: 3)),
-          ],
-        ),
-      ),
+  @override
+  Widget build(BuildContext context) {
+    final productSections = _filteredCategories();
+    final extraSections = _filteredExtraGroups();
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.gold))
+          : Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Meny',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _loadMenu,
+                        icon: const Icon(Icons.refresh_rounded),
+                        tooltip: 'Uppdatera',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    onChanged: (value) => setState(() => _query = value),
+                    decoration: const InputDecoration(
+                      labelText: 'Sök',
+                      prefixIcon: Icon(Icons.search_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<_MenuView>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment<_MenuView>(
+                        value: _MenuView.products,
+                        label: Text('Artiklar'),
+                      ),
+                      ButtonSegment<_MenuView>(
+                        value: _MenuView.extras,
+                        label: Text('Tillbehör'),
+                      ),
+                    ],
+                    selected: {_view},
+                    onSelectionChanged: (selection) {
+                      setState(() => _view = selection.first);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _loadMenu,
+                      child: _view == _MenuView.products
+                          ? _MenuSectionList(
+                              emptyTitle: 'Ingen meny',
+                              sections: productSections,
+                              rowBuilder: (entry) => _MenuToggleTile(
+                                title: (entry['name'] ?? '').toString(),
+                                subtitle:
+                                    '${((entry['price'] ?? 0) as num).toStringAsFixed(0)} kr',
+                                active: entry['isActive'] != false,
+                                accent: AppTheme.info,
+                                onChanged: (value) => _toggleProduct(
+                                  entry['id'].toString(),
+                                  value,
+                                ),
+                              ),
+                            )
+                          : _MenuSectionList(
+                              emptyTitle: 'Inga tillbehör',
+                              sections: extraSections,
+                              rowBuilder: (entry) => _MenuToggleTile(
+                                title: (entry['name'] ?? '').toString(),
+                                subtitle:
+                                    '+${((entry['priceAddon'] ?? 0) as num).toStringAsFixed(0)} kr',
+                                active: entry['isActive'] != false,
+                                accent: AppTheme.success,
+                                onChanged: (value) => _toggleExtra(
+                                  entry['id'].toString(),
+                                  value,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
+}
 
-  Widget _buildCategoryTile(BuildContext context, Map<String, dynamic> category) {
-    final dynamic productsRaw = category['products'];
-    final List<Map<String, dynamic>> products = [];
-    if (productsRaw is List) {
-      for (final p in productsRaw) {
-        if (p is Map) products.add(p.cast<String, dynamic>());
-      }
-    }
+class _MenuSectionList extends StatelessWidget {
+  final String emptyTitle;
+  final List<Map<String, dynamic>> sections;
+  final Widget Function(Map<String, dynamic>) rowBuilder;
 
-    int posOf(Map<String, dynamic> p) {
-      final v = p['position'];
-      return v is int ? v : (v is num ? v.toInt() : 0);
-    }
+  const _MenuSectionList({
+    required this.emptyTitle,
+    required this.sections,
+    required this.rowBuilder,
+  });
 
-    String nameOf(Map<String, dynamic> p) => (p['name'] ?? '').toString();
-
-    // Stable display ordering even when many items share the same position.
-    products.sort((a, b) {
-      final pos = posOf(a).compareTo(posOf(b));
-      if (pos != 0) return pos;
-      return nameOf(a).toLowerCase().compareTo(nameOf(b).toLowerCase());
-    });
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader((category['name'] ?? 'KATEGORI').toUpperCase()),
-        const SizedBox(height: 25),
-        if (products.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 10, bottom: 40),
-            child: Text('INGA ARTIKLAR HITTADES I ${(category['name'] ?? 'KATEGORIEN').toUpperCase()}', 
-              style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.35), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          ),
-        ...products.map((p) => _buildToggleCard(
-          context: context,
-          title: (p['name'] ?? '').toUpperCase(),
-          subtitle: '${((p['price'] ?? 0) as num).toDouble().toInt()} KR',
-          isActive: p['isActive'] ?? true,
-          onChanged: (v) => _toggleProduct(p['id'], v),
-        )).toList(),
-        const SizedBox(height: 30),
-      ],
-    );
-  }
-
-  Widget _buildExtraGroupTile(BuildContext context, Map<String, dynamic> group) {
-    final dynamic extrasRaw = group['extras'];
-    final List extras = extrasRaw is List ? extrasRaw : [];
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader((group['name'] ?? 'EXTRA').toUpperCase()),
-        const SizedBox(height: 20),
-        if (extras.isEmpty)
-          Padding(padding: const EdgeInsets.only(left: 10, bottom: 20), child: Text('INGA TILLBEHÖR HITTADES', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5), fontSize: 10))),
-        ...extras.map((e) => _buildToggleCard(
-          context: context,
-          title: (e['name'] ?? '').toUpperCase(),
-          subtitle: '${((e['priceAddon'] ?? 0) as num).toDouble().toInt()} KR EXTRA',
-          isActive: e['isActive'] ?? true,
-          onChanged: (v) => _toggleExtra(e['id'], v),
-        )).toList(),
-        const SizedBox(height: 30),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      children: [
-        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? AppTheme.gold : AppTheme.lightGold, letterSpacing: 3.5)),
-        const SizedBox(width: 20),
-        Expanded(child: Container(height: 1.5, color: (isDark ? AppTheme.gold : AppTheme.lightGold).withOpacity(0.15))),
-      ],
-    );
-  }
-
-  Widget _buildToggleCard({
-    required BuildContext context,
-    required String title,
-    required String subtitle,
-    required bool isActive,
-    required Function(bool) onChanged,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 15),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(26),
-        gradient: LinearGradient(
-          colors: [Theme.of(context).colorScheme.surface, Theme.of(context).colorScheme.surface.withOpacity(0.7)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(
-          color: isActive ? Colors.white.withOpacity(0.04) : AppTheme.danger.withOpacity(0.3),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(Theme.of(context).brightness == Brightness.dark ? 0.3 : 0.08),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+  @override
+  Widget build(BuildContext context) {
+    if (sections.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 80),
+          Center(
+            child: Text(
+              emptyTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
           ),
         ],
+      );
+    }
+
+    return ListView.separated(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
       ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
-        title: Text(title, style: TextStyle(color: isActive ? Theme.of(context).textTheme.bodyLarge?.color : Colors.grey, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1)),
-        subtitle: Row(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: sections.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 18),
+      itemBuilder: (context, index) {
+        final section = sections[index];
+        final items = (section['products'] as List? ??
+                section['extras'] as List? ??
+                const [])
+            .whereType<Map>()
+            .map((item) =>
+                Map<String, dynamic>.from(item.cast<String, dynamic>()))
+            .toList();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(subtitle, style: TextStyle(color: isActive ? Theme.of(context).primaryColor : Theme.of(context).textTheme.bodySmall?.color, fontSize: 16, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
-            const SizedBox(width: 12),
-            if (!isActive) _buildStatusBadge('STÄNGD', AppTheme.danger),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Text(
+                (section['name'] ?? '').toString(),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            ...items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: rowBuilder(item),
+              ),
+            ),
           ],
-        ),
-        trailing: Transform.scale(
-          scale: 1.2,
-          child: Switch(
-            value: isActive,
-            onChanged: (v) => onChanged(v),
-            activeColor: AppTheme.gold,
-            inactiveThumbColor: AppTheme.danger,
-            inactiveTrackColor: AppTheme.danger.withOpacity(0.1),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildStatusBadge(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: color.withOpacity(0.5), width: 0.8)),
-      child: Text(text, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: color, letterSpacing: 1.2)),
+class _MenuToggleTile extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool active;
+  final Color accent;
+  final ValueChanged<bool> onChanged;
+
+  const _MenuToggleTile({
+    required this.title,
+    required this.subtitle,
+    required this.active,
+    required this.accent,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final backgroundColor = active
+        ? (isDark ? accent.withOpacity(0.10) : Colors.white)
+        : AppTheme.panelColor(context);
+    final borderColor = active
+        ? accent.withOpacity(isDark ? 0.38 : 0.22)
+        : AppTheme.borderColor(context);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: borderColor,
+        ),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: const Color(0xFF95A3BE).withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 36,
+            decoration: BoxDecoration(
+              color: active ? accent : AppTheme.faintColor(context),
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontSize: 15,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Switch(value: active, onChanged: onChanged),
+        ],
+      ),
     );
   }
 }

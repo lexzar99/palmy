@@ -27,7 +27,8 @@ class LogService {
   }
 
   void log(String message) {
-    final timestamp = DateTime.now().toIso8601String().split('T').last.substring(0, 8);
+    final timestamp =
+        DateTime.now().toIso8601String().split('T').last.substring(0, 8);
     final logLine = '[$timestamp] $message';
     _logs.add(logLine);
     if (_logs.length > 2000) _logs.removeAt(0);

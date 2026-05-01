@@ -10,6 +10,13 @@ public class LiveActivitiesModule: Module {
     private var activities: [String: Any] = [:]
     // Tracks per-order pushToken Tasks so we don't double-subscribe.
     private var tokenTasks: [String: Any] = [:]
+    // Guards against two near-simultaneous startOrderActivity calls (e.g. a
+    // user double-tapping "Place order", or an offline retry racing the
+    // original POST) racing past the duplicate check before either has a
+    // chance to register itself in `activities`. Without this you can end up
+    // with two Live Activities for the same order until iOS garbage-collects
+    // the loser.
+    private var inFlightStarts: Set<String> = []
 
     public func definition() -> ModuleDefinition {
         Name("LiveActivities")
@@ -32,8 +39,27 @@ public class LiveActivitiesModule: Module {
                 throw NSError(domain: "LiveActivities", code: -1, userInfo: [NSLocalizedDescriptionKey: "Requires iOS 16.2+"])
             }
 
-            // Prevent duplicates for the same order
             let orderId = params["orderId"] as? String ?? UUID().uuidString
+
+            // Race guard: if another start for this orderId is mid-flight,
+            // drop in and return the activity it ends up creating instead of
+            // racing it.
+            if self.inFlightStarts.contains(orderId) {
+                if let existing = self.activities[orderId] as? Activity<OrderActivityAttributes> {
+                    return existing.id
+                }
+                // Wait one runloop tick and re-check — the other call should
+                // have populated `activities` by then.
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                if let existing = self.activities[orderId] as? Activity<OrderActivityAttributes> {
+                    return existing.id
+                }
+            }
+            self.inFlightStarts.insert(orderId)
+            defer { self.inFlightStarts.remove(orderId) }
+
+            // Prevent duplicates for the same order (covers activities that
+            // survived a process restart).
             for existing in Activity<OrderActivityAttributes>.activities
             where existing.attributes.orderId == orderId {
                 self.activities[orderId] = existing
@@ -103,10 +129,11 @@ public class LiveActivitiesModule: Module {
             // Silent state update — DO NOT pass an AlertConfiguration here.
             // Every alertConfiguration triggers a system "ding" sound, which
             // made the app appear to receive a new notification each time the
-            // user navigated and the global LA sync re-fetched the order. Use
-            // a stale-date 6h out so iOS keeps the activity prominent without
-            // throttling subsequent push-to-update writes.
-            let staleDate = Date().addingTimeInterval(6 * 60 * 60)
+            // user navigated and the global LA sync re-fetched the order. The
+            // 90-minute stale-date matches the upper bound of a normal order
+            // lifecycle (kitchen + delivery), so a forgotten activity gets
+            // greyed out instead of lingering for hours.
+            let staleDate = Date().addingTimeInterval(90 * 60)
             let content = ActivityContent(state: newState, staleDate: staleDate, relevanceScore: 100)
 
             if let activity = self.activities[orderId] as? Activity<OrderActivityAttributes> {
@@ -129,13 +156,23 @@ public class LiveActivitiesModule: Module {
         AsyncFunction("endOrderActivity") { (orderId: String) in
             guard #available(iOS 16.2, *) else { return }
 
+            // Push a final high-relevance ActivityContent so the Dynamic
+            // Island stays visible for the same ~8 seconds as the Lock
+            // Screen banner — without this iOS often drops the Island the
+            // moment we call .end() because relevanceScore implicitly falls
+            // back to 0 at termination.
+            func finalContent(for activity: Activity<OrderActivityAttributes>) -> ActivityContent<OrderActivityAttributes.OrderState> {
+                let staleDate = Date().addingTimeInterval(15)
+                return ActivityContent(state: activity.content.state, staleDate: staleDate, relevanceScore: 100)
+            }
+
             if let activity = self.activities[orderId] as? Activity<OrderActivityAttributes> {
-                await activity.end(nil, dismissalPolicy: .after(.now + 8))
+                await activity.end(finalContent(for: activity), dismissalPolicy: .after(.now + 8))
                 self.activities.removeValue(forKey: orderId)
             } else {
                 for activity in Activity<OrderActivityAttributes>.activities
                 where activity.attributes.orderId == orderId {
-                    await activity.end(nil, dismissalPolicy: .after(.now + 8))
+                    await activity.end(finalContent(for: activity), dismissalPolicy: .after(.now + 8))
                     break
                 }
             }
@@ -150,8 +187,15 @@ public class LiveActivitiesModule: Module {
             for activity in Activity<OrderActivityAttributes>.activities {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
+            // Cancel before clearing — `removeAll()` alone leaves the
+            // pushTokenUpdates async streams alive, which keeps the Tasks
+            // running and slowly leaks if `endAllActivities` is called again.
+            for case let task as Task<Void, Never> in self.tokenTasks.values {
+                task.cancel()
+            }
             self.activities.removeAll()
             self.tokenTasks.removeAll()
+            self.inFlightStarts.removeAll()
         }
 
         // Re-attach token observers for any activities that survived an app

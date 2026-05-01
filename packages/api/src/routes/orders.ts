@@ -13,6 +13,7 @@ import {
 import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
+import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
 
@@ -122,6 +123,26 @@ const CreateOrderSchema = z.object({
 
 // POST /api/orders - Skapa ny order
 router.post('/', async (req: Request, res: Response) => {
+  // Optional client-supplied idempotency key — if the same key arrives twice
+  // (e.g. network retry of the same checkout attempt) we replay the original
+  // response without doing the work twice.
+  const idempotencyKey = getIdempotencyKey(req);
+  if (idempotencyKey) {
+    const cached = getCachedResponse(`orders:${idempotencyKey}`);
+    if (cached) {
+      console.log(`♻️ Replaying cached response for idempotency-key ${idempotencyKey}`);
+      return res.status(cached.status).json(cached.body);
+    }
+    // Wrap res.json so any successful 2xx response is captured before sending.
+    const originalJson = res.json.bind(res);
+    res.json = (body: any) => {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        cacheResponse(`orders:${idempotencyKey}`, res.statusCode, body);
+      }
+      return originalJson(body);
+    };
+  }
+
   try {
     console.log('📦 New Order Request:', JSON.stringify(req.body, null, 2));
     const data = CreateOrderSchema.parse(req.body);

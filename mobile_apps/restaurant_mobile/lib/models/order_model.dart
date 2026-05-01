@@ -71,7 +71,8 @@ class OrderModel {
       deliveryInstructions: json['deliveryInstructions'],
       note: json['note'],
       estimatedTime: json['estimatedTime'],
-      scheduledFor: json['scheduledFor'] != null && json['scheduledFor'].toString().isNotEmpty
+      scheduledFor: json['scheduledFor'] != null &&
+              json['scheduledFor'].toString().isNotEmpty
           ? DateTime.tryParse(json['scheduledFor'].toString())
           : null,
       paymentMethod: json['paymentMethod'],
@@ -84,7 +85,8 @@ class OrderModel {
     );
   }
 
-  OrderModel copyWith({String? status, int? estimatedTime, String? discountCode}) {
+  OrderModel copyWith(
+      {String? status, int? estimatedTime, String? discountCode}) {
     return OrderModel(
       id: id,
       orderNumber: orderNumber,
@@ -161,7 +163,7 @@ class OrderItemModel {
   factory OrderItemModel.fromJson(Map<String, dynamic> json) {
     var extrasRaw = json['selectedExtras'];
     List<dynamic> parsedExtras = [];
-    
+
     if (extrasRaw is String) {
       try {
         parsedExtras = jsonDecode(extrasRaw);
@@ -175,17 +177,20 @@ class OrderItemModel {
     }
 
     // MAP EXTRAS TO TEXT
-    final List<String> extraTexts = parsedExtras.map((e) {
-      if (e is Map) {
-        return (e['extraName'] ?? e['name'] ?? "").toString();
-      }
-      return e.toString();
-    }).where((s) => s.isNotEmpty).toList();
+    final List<String> extraTexts = parsedExtras
+        .map((e) {
+          if (e is Map) {
+            return (e['extraName'] ?? e['name'] ?? "").toString();
+          }
+          return e.toString();
+        })
+        .where((s) => s.isNotEmpty)
+        .toList();
 
-    String name = json['productName'] ?? 
-                 json['product']?['name'] ?? 
-                 json['name'] ?? 
-                 'Okänd produkt';
+    String name = json['productName'] ??
+        json['product']?['name'] ??
+        json['name'] ??
+        'Okänd produkt';
 
     return OrderItemModel(
       productName: name,

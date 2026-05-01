@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Platform, Animated } from 'react-native';
+import { View, Text, Pressable, Platform, Animated, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
+import { getBottomTabsBottomOffset } from '../constants/layout';
 import { useAppStore } from '../store/useAppStore';
 import { palette, styles } from '../constants/theme';
 
@@ -12,12 +16,15 @@ export default function BottomTabs({
   active: string;
   onChange: (name: "home" | "search" | "cart" | "profile" | "discover") => void;
 }) {
+  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const itemCount = useAppStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
   const tabs: { key: "home" | "discover" | "cart" | "profile"; label: string; icon: keyof typeof Ionicons.glyphMap; count?: number }[] = [
-    { key: "home", label: "HEM", icon: "home-outline" },
-    { key: "discover", label: "UPPTÄCK", icon: "compass-outline" },
-    { key: "cart", label: "KASSE", icon: "bag-handle-outline", count: itemCount },
-    { key: "profile", label: "PROFIL", icon: "person-outline" },
+    { key: "home", label: t('tabs.home'), icon: "home-outline" },
+    { key: "discover", label: t('tabs.discover'), icon: "compass-outline" },
+    { key: "cart", label: t('tabs.cart'), icon: "bag-handle-outline", count: itemCount },
+    { key: "profile", label: t('tabs.profile'), icon: "person-outline" },
   ];
 
   const translateX = useRef(new Animated.Value(0)).current;
@@ -27,17 +34,17 @@ export default function BottomTabs({
   useEffect(() => {
     if (layouts[active]) {
       Animated.parallel([
-        Animated.spring(translateX, {
+        Animated.timing(translateX, {
           toValue: layouts[active].x,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: false,
-          friction: 8,
-          tension: 40,
         }),
-        Animated.spring(pillWidth, {
+        Animated.timing(pillWidth, {
           toValue: layouts[active].width,
+          duration: 240,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: false,
-          friction: 8,
-          tension: 40,
         }),
       ]).start();
     }
@@ -50,7 +57,7 @@ export default function BottomTabs({
         {
           left: 18,
           right: 18,
-          bottom: 28,
+          bottom: getBottomTabsBottomOffset(insets.bottom),
           borderRadius: 45,
           paddingVertical: 8,
           paddingHorizontal: 8,
@@ -100,6 +107,7 @@ export default function BottomTabs({
           key={tab.key}
           tab={tab}
           isFocused={active === tab.key}
+          ls={ls}
           onLayout={(e) => {
             const { x, width } = e.nativeEvent.layout;
             setLayouts((prev) => ({ ...prev, [tab.key]: { x, width } }));
@@ -111,32 +119,36 @@ export default function BottomTabs({
   );
 }
 
-function TabItem({ 
-  tab, 
-  isFocused, 
+function TabItem({
+  tab,
+  isFocused,
+  ls,
   onLayout,
-  onPress 
-}: { 
-  tab: any; 
-  isFocused: boolean; 
+  onPress,
+}: {
+  tab: any;
+  isFocused: boolean;
+  ls: (v: number) => number;
   onLayout: (e: any) => void;
-  onPress: () => void 
+  onPress: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.9,
+    Animated.timing(scale, {
+      toValue: 0.94,
+      duration: 100,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: Platform.OS !== "web",
-      friction: 4,
     }).start();
   };
 
   const handlePressOut = () => {
-    Animated.spring(scale, {
+    Animated.timing(scale, {
       toValue: 1,
+      duration: 160,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: Platform.OS !== "web",
-      friction: 4,
     }).start();
   };
 
@@ -196,10 +208,10 @@ function TabItem({
           <Text 
             numberOfLines={1} 
             style={{ 
-              color: "#000", // Changed to black for contrast
-              fontSize: 8, 
+              color: "#000",
+              fontSize: 8,
               fontWeight: "900",
-              letterSpacing: 2,
+              letterSpacing: ls(2),
               textTransform: "uppercase"
             }}
           >

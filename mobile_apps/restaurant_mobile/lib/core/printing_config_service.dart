@@ -69,7 +69,8 @@ class ReceiptTemplateSettings {
       platformName: json['platformName']?.toString() ?? 'MatGo',
       elements: rawElements
           .whereType<Map>()
-          .map((element) => ReceiptTemplateElement.fromJson(Map<String, dynamic>.from(element)))
+          .map((element) => ReceiptTemplateElement.fromJson(
+              Map<String, dynamic>.from(element)))
           .toList(),
     );
   }
@@ -132,7 +133,9 @@ class PrinterProfile {
       receiptMode: json['receiptMode']?.toString() ?? 'STANDARD',
       notes: json['notes']?.toString(),
       status: json['status']?.toString(),
-      lastSeenAt: json['lastSeenAt'] != null ? DateTime.tryParse(json['lastSeenAt'].toString()) : null,
+      lastSeenAt: json['lastSeenAt'] != null
+          ? DateTime.tryParse(json['lastSeenAt'].toString())
+          : null,
     );
   }
 
@@ -170,12 +173,14 @@ class PrintingConfig {
     final rawPrinters = json['printers'] as List? ?? const [];
     final printers = rawPrinters
         .whereType<Map>()
-        .map((printer) => PrinterProfile.fromJson(Map<String, dynamic>.from(printer)))
+        .map((printer) =>
+            PrinterProfile.fromJson(Map<String, dynamic>.from(printer)))
         .toList();
 
     PrinterProfile? defaultPrinter;
     if (json['defaultPrinter'] is Map) {
-      defaultPrinter = PrinterProfile.fromJson(Map<String, dynamic>.from(json['defaultPrinter'] as Map));
+      defaultPrinter = PrinterProfile.fromJson(
+          Map<String, dynamic>.from(json['defaultPrinter'] as Map));
     } else {
       for (final printer in printers) {
         if (printer.isDefault) {
@@ -186,7 +191,8 @@ class PrintingConfig {
     }
 
     return PrintingConfig(
-      template: ReceiptTemplateSettings.fromJson(Map<String, dynamic>.from(json['template'] as Map? ?? const {})),
+      template: ReceiptTemplateSettings.fromJson(
+          Map<String, dynamic>.from(json['template'] as Map? ?? const {})),
       printers: printers,
       defaultPrinter: defaultPrinter,
     );
@@ -209,7 +215,8 @@ class PrintingConfigService {
     try {
       final response = await _api.get('/api/admin/printing/config');
       if (response.statusCode == 200 && response.data is Map) {
-        final config = PrintingConfig.fromJson(Map<String, dynamic>.from(response.data));
+        final config =
+            PrintingConfig.fromJson(Map<String, dynamic>.from(response.data));
         await _cacheRemoteConfig(config);
         return config;
       }
@@ -222,7 +229,9 @@ class PrintingConfigService {
 
   Future<ReceiptTemplateSettings> fetchTemplate() async {
     final config = await fetchConfig();
-    return config?.template ?? (await loadCachedConfig())?.template ?? _defaultTemplate();
+    return config?.template ??
+        (await loadCachedConfig())?.template ??
+        _defaultTemplate();
   }
 
   Future<PrinterProfile?> saveOrUpdateDefaultPrinter({
@@ -246,11 +255,14 @@ class PrintingConfigService {
       'markSeen': true,
     };
 
-    final Response response = existingPrinterId != null && existingPrinterId.isNotEmpty
-        ? await _api.patch('/api/admin/printing/printers/$existingPrinterId', payload)
-        : await _api.post('/api/admin/printing/printers', payload);
+    final Response response =
+        existingPrinterId != null && existingPrinterId.isNotEmpty
+            ? await _api.patch(
+                '/api/admin/printing/printers/$existingPrinterId', payload)
+            : await _api.post('/api/admin/printing/printers', payload);
 
-    final printer = PrinterProfile.fromJson(Map<String, dynamic>.from(response.data));
+    final printer =
+        PrinterProfile.fromJson(Map<String, dynamic>.from(response.data));
     await _saveLocalPrinter(printer);
     return printer;
   }
@@ -278,7 +290,8 @@ class PrintingConfigService {
     }
 
     try {
-      final template = ReceiptTemplateSettings.fromJson(Map<String, dynamic>.from(jsonDecode(rawTemplate)));
+      final template = ReceiptTemplateSettings.fromJson(
+          Map<String, dynamic>.from(jsonDecode(rawTemplate)));
       final printer = await loadLocalPrinter();
       return PrintingConfig(
         template: template,
@@ -335,7 +348,8 @@ class PrintingConfigService {
 
   Future<void> _cacheRemoteConfig(PrintingConfig config) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_templateCacheKey, jsonEncode(config.template.toJson()));
+    await prefs.setString(
+        _templateCacheKey, jsonEncode(config.template.toJson()));
     final printer = config.defaultPrinter;
     if (printer != null) {
       await _saveLocalPrinter(printer);
@@ -358,34 +372,258 @@ class PrintingConfigService {
         paperWidth: '80mm',
         platformName: 'MatGo',
         elements: [
-          ReceiptTemplateElement(key: 'restaurantName', label: 'Restaurangnamn', content: null, visible: true, size: 14, weight: 'black', align: 'center', uppercase: true),
-          ReceiptTemplateElement(key: 'platformName', label: 'Plattformsnamn (MatGo)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: true),
-          ReceiptTemplateElement(key: 'address', label: 'Adress', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'phone', label: 'Telefon', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'divider1', label: 'Avdelare (efter info)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'headerMsg', label: 'Sidhuvud', content: '', visible: true, size: 9, weight: 'bold', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'divider2', label: 'Avdelare (efter sidhuvud)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'orderNumber', label: 'Ordernummer', content: null, visible: true, size: 10, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'timestamp', label: 'Datum & tid', content: null, visible: true, size: 8, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'orderType', label: 'Typ (Leverans/Avhämtning)', content: null, visible: true, size: 9, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'scheduledFor', label: 'Förbeställd tid', content: null, visible: true, size: 9, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'customerName', label: 'Kundnamn', content: null, visible: true, size: 9, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'customerPhone', label: 'Kundtelefon', content: null, visible: true, size: 8, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'customerAddress', label: 'Leveransadress', content: null, visible: true, size: 8, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'deliveryInstructions', label: 'Leveransinstruktioner', content: null, visible: true, size: 8, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'note', label: 'Ordernotering', content: null, visible: true, size: 8, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'allergens', label: 'Allergener', content: null, visible: true, size: 8, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'divider3', label: 'Avdelare (före produkter)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'items', label: 'Produktrader', content: null, visible: true, size: 10, weight: 'bold', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'extras', label: 'Tillbehör', content: null, visible: true, size: 8, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'divider4', label: 'Avdelare (före summa)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'deliveryFee', label: 'Leveransavgift', content: null, visible: true, size: 9, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'discount', label: 'Rabatt/Kod', content: null, visible: true, size: 9, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'total', label: 'Totalt', content: null, visible: true, size: 12, weight: 'black', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'paymentMethod', label: 'Betalmetod', content: null, visible: true, size: 8, weight: 'normal', align: 'left', uppercase: false),
-          ReceiptTemplateElement(key: 'divider5', label: 'Avdelare (efter summa)', content: null, visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'thankYou', label: 'Tack-meddelande', content: 'Tack för din beställning!', visible: true, size: 9, weight: 'bold', align: 'center', uppercase: false),
-          ReceiptTemplateElement(key: 'footerMsg', label: 'Sidfot', content: 'Välkommen åter!', visible: true, size: 8, weight: 'normal', align: 'center', uppercase: false),
+          ReceiptTemplateElement(
+              key: 'restaurantName',
+              label: 'Restaurangnamn',
+              content: null,
+              visible: true,
+              size: 14,
+              weight: 'black',
+              align: 'center',
+              uppercase: true),
+          ReceiptTemplateElement(
+              key: 'platformName',
+              label: 'Plattformsnamn (MatGo)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: true),
+          ReceiptTemplateElement(
+              key: 'address',
+              label: 'Adress',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'phone',
+              label: 'Telefon',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'divider1',
+              label: 'Avdelare (efter info)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'headerMsg',
+              label: 'Sidhuvud',
+              content: '',
+              visible: true,
+              size: 9,
+              weight: 'bold',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'divider2',
+              label: 'Avdelare (efter sidhuvud)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'orderNumber',
+              label: 'Ordernummer',
+              content: null,
+              visible: true,
+              size: 10,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'timestamp',
+              label: 'Datum & tid',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'orderType',
+              label: 'Typ (Leverans/Avhämtning)',
+              content: null,
+              visible: true,
+              size: 9,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'scheduledFor',
+              label: 'Förbeställd tid',
+              content: null,
+              visible: true,
+              size: 9,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'customerName',
+              label: 'Kundnamn',
+              content: null,
+              visible: true,
+              size: 9,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'customerPhone',
+              label: 'Kundtelefon',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'customerAddress',
+              label: 'Leveransadress',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'deliveryInstructions',
+              label: 'Leveransinstruktioner',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'note',
+              label: 'Ordernotering',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'allergens',
+              label: 'Allergener',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'divider3',
+              label: 'Avdelare (före produkter)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'items',
+              label: 'Produktrader',
+              content: null,
+              visible: true,
+              size: 10,
+              weight: 'bold',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'extras',
+              label: 'Tillbehör',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'divider4',
+              label: 'Avdelare (före summa)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'deliveryFee',
+              label: 'Leveransavgift',
+              content: null,
+              visible: true,
+              size: 9,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'discount',
+              label: 'Rabatt/Kod',
+              content: null,
+              visible: true,
+              size: 9,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'total',
+              label: 'Totalt',
+              content: null,
+              visible: true,
+              size: 12,
+              weight: 'black',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'paymentMethod',
+              label: 'Betalmetod',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'left',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'divider5',
+              label: 'Avdelare (efter summa)',
+              content: null,
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'thankYou',
+              label: 'Tack-meddelande',
+              content: 'Tack för din beställning!',
+              visible: true,
+              size: 9,
+              weight: 'bold',
+              align: 'center',
+              uppercase: false),
+          ReceiptTemplateElement(
+              key: 'footerMsg',
+              label: 'Sidfot',
+              content: 'Välkommen åter!',
+              visible: true,
+              size: 8,
+              weight: 'normal',
+              align: 'center',
+              uppercase: false),
         ],
       );
 }

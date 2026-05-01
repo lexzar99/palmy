@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, TextInput, Pressable, FlatList,
   Image, Animated, Easing, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl } from '../lib/api';
 import { getScreenCache, setScreenCache } from '../lib/screenCache';
@@ -14,11 +16,12 @@ import StarRating from '../components/StarRating';
 import ScalePressable from '../components/ScalePressable';
 import type { Restaurant } from '../types';
 
-const CUISINE_CHIPS = ['Pizza', 'Sushi', 'Burgare', 'Kebab', 'Asiatiskt', 'Pasta', 'Sallad', 'Snabbmat'];
+const CUISINE_CHIPS = ['Favoriter', 'Pizza', 'Sushi', 'Burgare', 'Kebab', 'Asiatiskt', 'Pasta', 'Sallad', 'Snabbmat'];
 
 type Cache = { restaurants: Restaurant[] };
 
 function RestaurantRow({ restaurant, onPress, index }: { restaurant: Restaurant; onPress: () => void; index: number }) {
+  const { t } = useTranslation();
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -70,7 +73,7 @@ function RestaurantRow({ restaurant, onPress, index }: { restaurant: Restaurant;
               backgroundColor: restaurant.isOpen === false ? 'rgba(244,63,94,0.1)' : 'rgba(16,185,129,0.1)',
             }}>
               <Text style={{ fontSize: 9, fontWeight: '900', color: restaurant.isOpen === false ? '#fb7185' : '#10b981' }}>
-                {restaurant.isOpen === false ? 'STÄNGD' : 'ÖPPET'}
+                {restaurant.isOpen === false ? t('status.closed') : t('status.open')}
               </Text>
             </View>
             <Text style={{ color: palette.muted, fontSize: 10, fontWeight: '700' }}>
@@ -91,22 +94,30 @@ export default function DiscoverScreen({
   initialFilteredIds,
   filteredTitle,
   autoFocus,
+  initialCuisine,
 }: {
   openRestaurant: (slug: string) => void;
   goBack: () => void;
   initialFilteredIds?: string[];
   filteredTitle?: string;
   autoFocus?: boolean;
+  initialCuisine?: string;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const token = useAppStore((s) => s.token);
   const cacheKey = token || '__guest__';
+  const favorites = useAppStore((s) => s.favorites);
+  const orderType = useAppStore((s) => s.orderType);
+  const pickupCity = useAppStore((s) => s.pickupCity);
+  const storeAddress = useAppStore((s) => s.address);
   const cachedData = getScreenCache<Cache>('discover', cacheKey);
   const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
   const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialCuisine || '');
   const [loading, setLoading] = useState(!cachedData);
   const inputRef = useRef<TextInput>(null);
 
@@ -160,10 +171,31 @@ export default function DiscoverScreen({
 
   const activeFilteredIds = initialFilteredIds || storedFilteredIds;
 
+  const isFavoritesMode = query.toLowerCase() === 'favoriter';
+
+  // Derive user's city for favorites city-filter
+  const userCity = useMemo(() => {
+    if (orderType === 'PICKUP') return pickupCity?.trim().toLowerCase() || null;
+    // Extract city from delivery address "Street, City, Country" → middle segment
+    if (storeAddress) {
+      const parts = storeAddress.split(',').map((s) => s.trim());
+      if (parts.length >= 2) return parts[parts.length - 2].toLowerCase();
+    }
+    return null;
+  }, [orderType, pickupCity, storeAddress]);
+
   const results = (activeFilteredIds
     ? restaurants.filter((r) => activeFilteredIds.includes(r.id))
     : restaurants
   ).filter((r) => {
+    if (isFavoritesMode) {
+      if (!favorites.includes(r.id)) return false;
+      // City gate — only show favorites reachable from user's location
+      if (userCity && r.city) {
+        return r.city.toLowerCase() === userCity;
+      }
+      return true;
+    }
     if (!query) return true;
     const hay = `${r.name} ${r.cuisine || ''} ${(r.tags || []).join(' ')}`.toLowerCase();
     return hay.includes(query.toLowerCase());
@@ -176,12 +208,14 @@ export default function DiscoverScreen({
   const showResults = !!query || !!activeFilteredIds;
   const listData = showResults ? results : trending;
   const listLabel = filteredTitle
-    ? `${results.length} RESTAURANGER`
+    ? t('discover.restaurants', { count: results.length })
+    : isFavoritesMode
+    ? t('discover.favorites', { count: results.length })
     : showResults
     ? query
-      ? `${results.length} RESULTAT FÖR "${query.toUpperCase()}"`
-      : `${results.length} RESTAURANGER`
-    : 'POPULÄRT JUST NU';
+      ? t('discover.results', { count: results.length, query: query.toUpperCase() })
+      : t('discover.restaurants', { count: results.length })
+    : t('discover.trending');
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.bg }}>
@@ -206,7 +240,7 @@ export default function DiscoverScreen({
 
           <View style={{ flex: 1 }}>
             <Text style={{ color: palette.text, fontSize: 22, fontWeight: '900', letterSpacing: -0.3 }}>
-              {filteredTitle || 'Sök'}
+              {filteredTitle || (initialCuisine ? initialCuisine : t('discover.title'))}
             </Text>
           </View>
 
@@ -215,7 +249,7 @@ export default function DiscoverScreen({
               onPress={() => handleQueryChange('')}
               style={{ paddingHorizontal: 8, paddingVertical: 4 }}
             >
-              <Text style={{ color: palette.gold, fontSize: 12, fontWeight: '800' }}>RENSA</Text>
+              <Text style={{ color: palette.gold, fontSize: 12, fontWeight: '800' }}>{t('discover.clear')}</Text>
             </Pressable>
           )}
         </View>
@@ -233,7 +267,7 @@ export default function DiscoverScreen({
             ref={inputRef}
             value={query}
             onChangeText={handleQueryChange}
-            placeholder="Restaurang, maträtt eller kök..."
+            placeholder={t('discover.searchPlaceholder')}
             placeholderTextColor={palette.muted}
             style={{ flex: 1, color: palette.text, fontSize: 15, fontWeight: '600', padding: 0 }}
             returnKeyType="search"
@@ -264,7 +298,7 @@ export default function DiscoverScreen({
                   fontSize: 11, fontWeight: '800',
                   color: active ? '#000' : palette.muted,
                 }}>
-                  {chip}
+                  {t(`discover.cuisineChips.${chip}`, chip)}
                 </Text>
               </Pressable>
             );
@@ -288,7 +322,7 @@ export default function DiscoverScreen({
           ListHeaderComponent={
             <Text style={{
               color: palette.muted, fontSize: 9, fontWeight: '900',
-              letterSpacing: 1.5, marginBottom: 8, marginTop: 4,
+              letterSpacing: ls(1.5), marginBottom: 8, marginTop: 4,
             }}>
               {listLabel}
             </Text>
@@ -296,12 +330,12 @@ export default function DiscoverScreen({
           ListEmptyComponent={
             !loading ? (
               <View style={{ alignItems: 'center', paddingTop: 48 }}>
-                <Ionicons name="search-outline" size={36} color={palette.border} />
+                <Ionicons name={isFavoritesMode ? 'heart-outline' : 'search-outline'} size={36} color={palette.border} />
                 <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700', marginTop: 14 }}>
-                  Inga restauranger hittades
+                  {isFavoritesMode ? t('discover.empty.noFavorites') : t('discover.empty.noResults')}
                 </Text>
                 <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '600', marginTop: 6, opacity: 0.7 }}>
-                  Prova ett annat sökord
+                  {isFavoritesMode ? t('discover.empty.noFavoritesHelp') : t('discover.empty.noResultsHelp')}
                 </Text>
               </View>
             ) : null

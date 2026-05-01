@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
+import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 
 const router = Router();
 
@@ -22,6 +23,14 @@ const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
 // POST /api/payments/create-intent
 // Skapar en Stripe PaymentIntent för checkout
 router.post('/create-intent', async (req, res) => {
+  const idempotencyKey = getIdempotencyKey(req);
+  if (idempotencyKey) {
+    const cached = getCachedResponse(`create-intent:${idempotencyKey}`);
+    if (cached) {
+      return res.status(cached.status).json(cached.body);
+    }
+  }
+
   try {
     const { amount, currency = 'sek', metadata } = req.body;
     const parsedAmount = Number(amount);
@@ -44,19 +53,24 @@ router.post('/create-intent', async (req, res) => {
       return acc;
     }, {});
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(safeAmount * 100), // kr till ören
-      currency,
-      metadata: normalizedMetadata,
-      automatic_payment_methods: { enabled: true },
-    });
+    const paymentIntent = await stripe.paymentIntents.create(
+      {
+        amount: Math.round(safeAmount * 100), // kr till ören
+        currency,
+        metadata: normalizedMetadata,
+        automatic_payment_methods: { enabled: true },
+      },
+      idempotencyKey ? { idempotencyKey: `create-intent:${idempotencyKey}` } : undefined
+    );
 
-
-
-    res.json({
+    const responseBody = {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
-    });
+    };
+    if (idempotencyKey) {
+      cacheResponse(`create-intent:${idempotencyKey}`, 200, responseBody);
+    }
+    res.json(responseBody);
   } catch (error) {
     console.error('Stripe error:', error);
     res.status(500).json({ error: 'Kunde inte initiera betalning' });
@@ -66,6 +80,14 @@ router.post('/create-intent', async (req, res) => {
 // POST /api/payments/refund
 // Refundar en PaymentIntent — anropas automatiskt av appen om orderSkapandet misslyckas efter betalning
 router.post('/refund', async (req, res) => {
+  const idempotencyKey = getIdempotencyKey(req);
+  if (idempotencyKey) {
+    const cached = getCachedResponse(`refund:${idempotencyKey}`);
+    if (cached) {
+      return res.status(cached.status).json(cached.body);
+    }
+  }
+
   const { paymentIntentId } = req.body;
 
   if (!paymentIntentId || typeof paymentIntentId !== 'string') {
@@ -74,7 +96,10 @@ router.post('/refund', async (req, res) => {
   }
 
   try {
-    const refund = await stripe.refunds.create({ payment_intent: paymentIntentId });
+    const refund = await stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      idempotencyKey ? { idempotencyKey: `refund:${idempotencyKey}` } : undefined
+    );
 
     // Mark the order as refunded if one exists with this intent
     await prisma.order.updateMany({
@@ -83,7 +108,11 @@ router.post('/refund', async (req, res) => {
     });
 
     console.log(`💸 Refund created: ${refund.id} for intent ${paymentIntentId}`);
-    res.json({ success: true, refundId: refund.id });
+    const responseBody = { success: true, refundId: refund.id };
+    if (idempotencyKey) {
+      cacheResponse(`refund:${idempotencyKey}`, 200, responseBody);
+    }
+    res.json(responseBody);
   } catch (error: any) {
     console.error('Stripe refund error:', error);
     res.status(500).json({ error: error?.message || 'Återbetalning misslyckades' });

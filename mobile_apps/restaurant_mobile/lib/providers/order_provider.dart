@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import '../core/log_service.dart';
 import '../core/print_service.dart';
+
 class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
   List<OrderModel> _orders = [];
@@ -35,21 +36,29 @@ class OrderProvider with ChangeNotifier {
       _orders.where((o) => o.status == 'PENDING').toList();
 
   // Active means ACCEPTED, PREPARING, READY (Wait for pickup)
-  // For Delivery, once it's DELIVERING it goes to history. 
+  // For Delivery, once it's DELIVERING it goes to history.
   // For Pickup, READY is active until DELIVERED.
   List<OrderModel> get activeOrders => _orders
-      .where((o) =>
-          (['ACCEPTED', 'PREPARING'].contains(o.status)))
+      .where((o) => (['ACCEPTED', 'PREPARING'].contains(o.status)))
       .toList();
 
   // HISTORY TAB FILTERS
   List<OrderModel> get todayHistoryOrders {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
-    
+
     return _orders.where((o) {
-      final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
-      return isCompleted && o.createdAt.isAfter(startOfToday) && !_isTestOrder(o);
+      final isCompleted = [
+        'READY',
+        'DELIVERING',
+        'DELIVERED',
+        'COMPLETED',
+        'CANCELLED',
+        'REJECTED'
+      ].contains(o.status);
+      return isCompleted &&
+          o.createdAt.isAfter(startOfToday) &&
+          !_isTestOrder(o);
     }).toList();
   }
 
@@ -57,10 +66,20 @@ class OrderProvider with ChangeNotifier {
     final now = DateTime.now();
     final startOfYesterday = DateTime(now.year, now.month, now.day - 1);
     final startOfToday = DateTime(now.year, now.month, now.day);
-    
+
     return _orders.where((o) {
-      final isCompleted = ['READY', 'DELIVERING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].contains(o.status);
-      return isCompleted && o.createdAt.isAfter(startOfYesterday) && o.createdAt.isBefore(startOfToday) && !_isTestOrder(o);
+      final isCompleted = [
+        'READY',
+        'DELIVERING',
+        'DELIVERED',
+        'COMPLETED',
+        'CANCELLED',
+        'REJECTED'
+      ].contains(o.status);
+      return isCompleted &&
+          o.createdAt.isAfter(startOfYesterday) &&
+          o.createdAt.isBefore(startOfToday) &&
+          !_isTestOrder(o);
     }).toList();
   }
 
@@ -68,12 +87,12 @@ class OrderProvider with ChangeNotifier {
     if (o.id.startsWith('mock_')) return true;
     final code = o.discountCode?.toLowerCase() ?? '';
     if (code == 'test' || code == 'testa') return true;
-    
+
     final name = o.customerName.toLowerCase();
     final note = o.note?.toLowerCase() ?? '';
     if (name.contains('test jari')) return true;
     if (note.contains('test-order') || note.contains('testorder')) return true;
-    
+
     return false;
   }
 
@@ -87,7 +106,12 @@ class OrderProvider with ChangeNotifier {
       deliveryCity: 'Testby',
       deliveryZip: '12345',
       items: [
-        OrderItemModel(productName: 'Test Pizza', quantity: 1, subtotal: 100, basePrice: 100, selectedExtras: []),
+        OrderItemModel(
+            productName: 'Test Pizza',
+            quantity: 1,
+            subtotal: 100,
+            basePrice: 100,
+            selectedExtras: []),
       ],
       total: 100,
       deliveryFee: 0,
@@ -97,7 +121,7 @@ class OrderProvider with ChangeNotifier {
       discountCode: 'testa',
       note: 'Dette är en test-order',
     );
-    
+
     _orders.insert(0, mockOrder);
     _evaluateAlarms();
     _saveOrdersToCache();
@@ -115,7 +139,7 @@ class OrderProvider with ChangeNotifier {
 
   Future<void> fetchOrders(String restaurantId) async {
     _restaurantId = restaurantId;
-    
+
     // 1. Immediately try to load from cache so user sees something while loading
     if (_orders.isEmpty) {
       _isLoading = true;
@@ -132,20 +156,23 @@ class OrderProvider with ChangeNotifier {
 
       if (res.statusCode == 200) {
         final List data = res.data['orders'] ?? res.data;
-        
+
         // Merge strategy: Keep existing mock orders but update with server data
-        final List<OrderModel> serverOrders = data.map((o) => OrderModel.fromJson(o)).toList();
-        final mockOrders = _orders.where((o) => o.id.startsWith('mock_')).toList();
-        
+        final List<OrderModel> serverOrders =
+            data.map((o) => OrderModel.fromJson(o)).toList();
+        final mockOrders =
+            _orders.where((o) => o.id.startsWith('mock_')).toList();
+
         _orders = [...mockOrders, ...serverOrders];
-        
+
         // Remove duplicates if any (cases where a mock becomes a real order)
         final seenIds = <String>{};
         _orders = _orders.where((o) => seenIds.add(o.id)).toList();
-        
+
         // Sort: pending first, then by date desc
         _orders.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        logger.log('SUCCESS: Fetched ${_orders.length} orders. Pending: ${pendingOrders.length}');
+        logger.log(
+            'SUCCESS: Fetched ${_orders.length} orders. Pending: ${pendingOrders.length}');
         _saveOrdersToCache();
       }
     } catch (e) {
@@ -170,7 +197,7 @@ class OrderProvider with ChangeNotifier {
     final parts = openingTime.split(':');
     final openHour = int.parse(parts[0]);
     final openMinute = int.parse(parts[1]);
-    
+
     if (now.hour < openHour) return true;
     if (now.hour == openHour && now.minute < openMinute) return true;
     return false;
@@ -197,16 +224,17 @@ class OrderProvider with ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final now = DateTime.now();
-      
+
       // Filter out completed/cancelled orders older than 2 days
       final cutoff = now.subtract(const Duration(days: 2));
       final validOrders = _orders.where((o) {
-        if (!['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED'].contains(o.status)) return true;
+        if (!['COMPLETED', 'DELIVERED', 'CANCELLED', 'REJECTED']
+            .contains(o.status)) return true;
         return o.createdAt.isAfter(cutoff);
       }).toList();
 
       final encoded = jsonEncode(validOrders.map((o) => o.toJson()).toList());
-       await prefs.setString('cached_orders_$_restaurantId', encoded);
+      await prefs.setString('cached_orders_$_restaurantId', encoded);
     } catch (e) {
       debugPrint('Cache saving error: $e');
     }
@@ -233,13 +261,15 @@ class OrderProvider with ChangeNotifier {
       final res = await _api.get('/api/restaurants');
       if (res.statusCode == 200) {
         final List data = res.data;
-        final current = data.firstWhere((r) => r['id'] == _restaurantId, orElse: () => null);
+        final current = data.firstWhere((r) => r['id'] == _restaurantId,
+            orElse: () => null);
         if (current != null) {
-          _isRestaurantOpen = current['manualIsOpen'] ?? current['isOpen'] ?? true;
-          
+          _isRestaurantOpen =
+              current['manualIsOpen'] ?? current['isOpen'] ?? true;
+
           final Map<String, dynamic> allHours = current['openingHours'] ?? {};
           final hoursString = allHours.toString();
-          
+
           if (_lastKnownHours.isNotEmpty && _lastKnownHours != hoursString) {
             logger.log('ADMIN CHANGED SCHEDULE: Resetting manual override.');
           }
@@ -247,7 +277,7 @@ class OrderProvider with ChangeNotifier {
 
           final now = DateTime.now();
           final dayName = _getDayName(now.weekday).toLowerCase();
-          
+
           // Look for day key case-insensitively
           dynamic dayData;
           allHours.forEach((key, value) {
@@ -259,17 +289,22 @@ class OrderProvider with ChangeNotifier {
             if (dayData is Map) {
               if (dayData.containsKey('open')) {
                 slot = dayData;
-              } else if (dayData.containsKey('shifts') && dayData['shifts'] is List && (dayData['shifts'] as List).isNotEmpty) {
+              } else if (dayData.containsKey('shifts') &&
+                  dayData['shifts'] is List &&
+                  (dayData['shifts'] as List).isNotEmpty) {
                 slot = dayData['shifts'][0];
               }
             }
-            if (slot != null && slot.containsKey('open') && slot.containsKey('close')) {
+            if (slot != null &&
+                slot.containsKey('open') &&
+                slot.containsKey('close')) {
               openingTime = slot['open'];
               closingTime = slot['close'];
-              logger.log('SCHEDULE LOADED: $dayName is $openingTime - $closingTime');
+              logger.log(
+                  'SCHEDULE LOADED: $dayName is $openingTime - $closingTime');
             }
           }
-          
+
           notifyListeners();
         }
       }
@@ -280,14 +315,22 @@ class OrderProvider with ChangeNotifier {
 
   String _getDayName(int weekday) {
     switch (weekday) {
-      case 1: return 'monday';
-      case 2: return 'tuesday';
-      case 3: return 'wednesday';
-      case 4: return 'thursday';
-      case 5: return 'friday';
-      case 6: return 'saturday';
-      case 7: return 'sunday';
-      default: return 'monday';
+      case 1:
+        return 'monday';
+      case 2:
+        return 'tuesday';
+      case 3:
+        return 'wednesday';
+      case 4:
+        return 'thursday';
+      case 5:
+        return 'friday';
+      case 6:
+        return 'saturday';
+      case 7:
+        return 'sunday';
+      default:
+        return 'monday';
     }
   }
 
@@ -363,10 +406,10 @@ class OrderProvider with ChangeNotifier {
     return [];
   }
 
-
   Future<bool> updateProductStatus(String productId, bool isActive) async {
     try {
-      final res = await _api.patch('/api/admin/products/$productId', {'isActive': isActive});
+      final res = await _api
+          .patch('/api/admin/products/$productId', {'isActive': isActive});
       return res.statusCode == 200;
     } catch (e) {
       debugPrint('Error updating product status: $e');
@@ -376,7 +419,8 @@ class OrderProvider with ChangeNotifier {
 
   Future<bool> updateExtraStatus(String extraId, bool isActive) async {
     try {
-      final res = await _api.patch('/api/admin/extras/$extraId', {'isActive': isActive});
+      final res = await _api
+          .patch('/api/admin/extras/$extraId', {'isActive': isActive});
       return res.statusCode == 200;
     } catch (e) {
       debugPrint('Error updating extra status: $e');
@@ -385,7 +429,9 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> initSocket(String restaurantId) async {
-    if (_socket != null && _socket!.connected && _restaurantId == restaurantId) {
+    if (_socket != null &&
+        _socket!.connected &&
+        _restaurantId == restaurantId) {
       return; // Already initialized for this restaurant
     }
     _restaurantId = restaurantId;
@@ -406,7 +452,8 @@ class OrderProvider with ChangeNotifier {
 
     _socket!.onConnect((_) {
       _isOffline = false;
-      _socket!.emit('join:admin', {'restaurantId': restaurantId, 'token': token});
+      _socket!
+          .emit('join:admin', {'restaurantId': restaurantId, 'token': token});
       logger.log('SOCKET CONNECTED: $restaurantId');
       notifyListeners();
     });
@@ -417,15 +464,15 @@ class OrderProvider with ChangeNotifier {
       if (!_orders.any((o) => o.id == newOrder.id)) {
         _orders.insert(0, newOrder);
         _saveOrdersToCache();
-        
+
         // Foodora-feel: Play chime AND trigger heavy vibration immediately
         AudioHelper.playAudio(_selectedAlarm);
         HapticFeedback.vibrate();
         HapticFeedback.heavyImpact();
 
         unawaited(PrintService.printReceipt(newOrder, respectAutoPrint: true));
-         
-        _evaluateAlarms(); 
+
+        _evaluateAlarms();
         notifyListeners();
       } else {
         debugPrint('📩 SOCKET: ORDER ALREADY EXISTS IN LIST');
@@ -439,20 +486,24 @@ class OrderProvider with ChangeNotifier {
     });
 
     _socket!.on('order:updated', (data) {
-      if (data is Map && data.containsKey('orderId') && data.containsKey('status')) {
+      if (data is Map &&
+          data.containsKey('orderId') &&
+          data.containsKey('status')) {
         _updateLocalOrderStatus(
-          data['orderId'].toString(), 
-          data['status'].toString(), 
-          data['estimatedTime'] != null ? int.tryParse(data['estimatedTime'].toString()) : null
-        );
+            data['orderId'].toString(),
+            data['status'].toString(),
+            data['estimatedTime'] != null
+                ? int.tryParse(data['estimatedTime'].toString())
+                : null);
       } else {
         fetchOrders(restaurantId);
       }
     });
-    
+
     _socket!.on('settings:updated', (data) {
       debugPrint('📩 SOCKET EVENT: settings:updated RECEIVED: $data');
-      if (data['restaurantId'] == _restaurantId || data['restaurantId'].toString() == _restaurantId) {
+      if (data['restaurantId'] == _restaurantId ||
+          data['restaurantId'].toString() == _restaurantId) {
         if (data.containsKey('isOpen')) {
           _isRestaurantOpen = data['isOpen'];
           notifyListeners();
@@ -463,37 +514,42 @@ class OrderProvider with ChangeNotifier {
     });
 
     _socket!.on('status:auto-updated', (data) {
-       debugPrint('📩 SOCKET EVENT: status:auto-updated RECEIVED: $data');
-       // This comes specifically from the server watchdog
-       logger.log('SOCKET: Status AUTO-UPDATED by server: ${data['isOpen'] ? "OPEN" : "CLOSED"}');
-       _isRestaurantOpen = data['isOpen'];
-       notifyListeners();
+      debugPrint('📩 SOCKET EVENT: status:auto-updated RECEIVED: $data');
+      // This comes specifically from the server watchdog
+      logger.log(
+          'SOCKET: Status AUTO-UPDATED by server: ${data['isOpen'] ? "OPEN" : "CLOSED"}');
+      _isRestaurantOpen = data['isOpen'];
+      notifyListeners();
     });
 
     // Start watchdogs
     _alarmWatchdog?.cancel();
-    _alarmWatchdog = Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
-    
+    _alarmWatchdog =
+        Timer.periodic(const Duration(seconds: 10), (_) => _evaluateAlarms());
+
     // Removed client side status watchdog, rely on server push.
   }
 
   void _evaluateAlarms() {
-    debugPrint('📢 Watchdog: Evaluating alarms. Pending: ${pendingOrders.length}');
+    debugPrint(
+        '📢 Watchdog: Evaluating alarms. Pending: ${pendingOrders.length}');
     if (pendingOrders.isNotEmpty) {
-       // Intense "Dring-Dring" effect by playing/vibrating in a short sequence
-       AudioHelper.startLooping(_selectedAlarm);
-       
-       // Pulse vibration every time watchdog runs (every 10s)
-       HapticFeedback.vibrate();
-       Future.delayed(const Duration(milliseconds: 500), () => HapticFeedback.heavyImpact());
-       Future.delayed(const Duration(milliseconds: 1000), () => HapticFeedback.vibrate());
+      // Intense "Dring-Dring" effect by playing/vibrating in a short sequence
+      AudioHelper.startLooping(_selectedAlarm);
+
+      // Pulse vibration every time watchdog runs (every 10s)
+      HapticFeedback.vibrate();
+      Future.delayed(const Duration(milliseconds: 500),
+          () => HapticFeedback.heavyImpact());
+      Future.delayed(
+          const Duration(milliseconds: 1000), () => HapticFeedback.vibrate());
     } else {
-       AudioHelper.stopLooping();
+      AudioHelper.stopLooping();
     }
   }
 
   Future<void> playDisconnectAlarm() async {
-      await AudioHelper.playAudio('disconnect.wav');
+    await AudioHelper.playAudio('disconnect.wav');
   }
 
   // Used for settings menu
@@ -513,12 +569,12 @@ class OrderProvider with ChangeNotifier {
         return true;
       }
 
-      final res =
-          await _api.patch('/api/admin/orders/$orderId/status', body);
+      final res = await _api.patch('/api/admin/orders/$orderId/status', body);
 
       if (res.statusCode == 200) {
         _updateLocalOrderStatus(orderId, status, estimatedTime);
-        logger.log('STATUS UPDATED: Order #$orderId -> $status ($estimatedTime min)');
+        logger.log(
+            'STATUS UPDATED: Order #$orderId -> $status ($estimatedTime min)');
         return true;
       }
       return false;
@@ -528,11 +584,12 @@ class OrderProvider with ChangeNotifier {
     }
   }
 
-  void _updateLocalOrderStatus(String orderId, String status, int? estimatedTime) {
+  void _updateLocalOrderStatus(
+      String orderId, String status, int? estimatedTime) {
     final idx = _orders.indexWhere((o) => o.id == orderId);
     if (idx != -1) {
-      _orders[idx] = _orders[idx]
-          .copyWith(status: status, estimatedTime: estimatedTime);
+      _orders[idx] =
+          _orders[idx].copyWith(status: status, estimatedTime: estimatedTime);
       _saveOrdersToCache();
       _evaluateAlarms();
       notifyListeners();

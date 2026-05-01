@@ -31,10 +31,10 @@ class AuthProvider with ChangeNotifier {
       if (res.statusCode == 200) {
         final data = res.data;
         final prefs = await SharedPreferences.getInstance();
-        
+
         await prefs.setString(AppConstants.tokenKey, data['token']);
         await prefs.setString(AppConstants.adminKey, jsonEncode(data['admin']));
-        
+
         _user = data['admin'];
         logger.log('LOGIN SUCCESS: ${_user?['email'] ?? identifier}');
         _isLoading = false;
@@ -44,15 +44,19 @@ class AuthProvider with ChangeNotifier {
       // Shouldn't normally happen because Dio throws on non-2xx, but keep a fallback.
       _error = 'Inloggning misslyckades (HTTP ${res.statusCode})';
     } on DioException catch (e) {
-      final responseError = e.response?.data is Map ? (e.response?.data['error'] as String?) : null;
+      final responseError = e.response?.data is Map
+          ? (e.response?.data['error'] as String?)
+          : null;
       if (responseError != null && responseError.trim().isNotEmpty) {
         _error = responseError;
       } else if (e.response?.statusCode != null) {
         _error = 'Inloggning misslyckades (HTTP ${e.response?.statusCode})';
       } else if (e.type == DioExceptionType.connectionError) {
-        _error = 'Kunde inte ansluta till servern (DNS/nätverk). Kontrollera internet.';
+        _error =
+            'Kunde inte ansluta till servern (DNS/nätverk). Kontrollera internet.';
       } else if (e.type == DioExceptionType.badCertificate) {
-        _error = 'SSL-certifikatfel. Kontrollera att datum/tid på mobilen är korrekt.';
+        _error =
+            'SSL-certifikatfel. Kontrollera att datum/tid på mobilen är korrekt.';
       } else if (e.message != null && e.message!.trim().isNotEmpty) {
         _error = 'Inloggning misslyckades: ${e.message}';
       } else {
@@ -100,12 +104,14 @@ class AuthProvider with ChangeNotifier {
         return;
       }
 
-      _user = Map<String, dynamic>.from((res.data['admin'] as Map?) ?? jsonDecode(adminStr));
+      _user = Map<String, dynamic>.from(
+          (res.data['admin'] as Map?) ?? jsonDecode(adminStr));
       await prefs.setString(AppConstants.adminKey, jsonEncode(_user));
       logger.log('AUTO-LOGIN VERIFIED: ${_user?['email']}');
       notifyListeners();
     } on DioException catch (e) {
-      logger.log('AUTO-LOGIN VERIFY ERROR: ${e.response?.statusCode ?? e.message}');
+      logger.log(
+          'AUTO-LOGIN VERIFY ERROR: ${e.response?.statusCode ?? e.message}');
       if (e.response?.statusCode == 401) {
         await prefs.remove(AppConstants.tokenKey);
         await prefs.remove(AppConstants.adminKey);

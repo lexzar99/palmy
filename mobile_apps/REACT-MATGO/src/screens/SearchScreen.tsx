@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { getScreenCache, setScreenCache } from '../lib/screenCache';
 import { palette, styles } from '../constants/theme';
 import type { Restaurant } from '../types';
 import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
@@ -17,17 +18,26 @@ const DISCOVER_CATEGORIES = [
   { name: "Snabbmat", icon: "bicycle-outline" as const, tint: "#a855f7", bg: "rgba(168,85,247,0.1)" },
 ];
 
+type SearchScreenCache = {
+  restaurants: Restaurant[];
+};
+
 export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug: string) => void }) {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const cachedData = getScreenCache<SearchScreenCache>('search', 'shared');
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedData);
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
         const response = await api.get("/api/restaurants");
-        if (active) setRestaurants(response.data || []);
+        if (active) {
+          const nextRestaurants = (response.data || []) as Restaurant[];
+          setRestaurants(nextRestaurants);
+          setScreenCache<SearchScreenCache>('search', 'shared', { restaurants: nextRestaurants });
+        }
       } catch {}
       if (active) setLoading(false);
     })();

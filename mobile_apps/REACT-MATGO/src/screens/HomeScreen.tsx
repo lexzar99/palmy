@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
 import {
   Animated,
   Easing,
@@ -7,6 +9,7 @@ import {
   LayoutAnimation,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
   type NativeSyntheticEvent,
@@ -110,6 +113,7 @@ function sortRestaurantsForHome(restaurants: Restaurant[], zoneIds: string[] | n
 
 const cuisineFilters = [
   { name: "Alla", emoji: "🍽️" },
+  { name: "Favoriter", emoji: "❤️" },
   { name: "Pizza", emoji: "🍕" },
   { name: "Sushi", emoji: "🍣" },
   { name: "Kebab", emoji: "🥙" },
@@ -129,6 +133,8 @@ export default function HomeScreen({
   pushRoute?: (route: AppRoute) => void;
   onSearchPress?: () => void;
 }) {
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const token = useAppStore((s) => s.token);
   const cacheKey = token || "__guest__";
   const cachedData = getScreenCache<HomeScreenCache>("home", cacheKey);
@@ -148,8 +154,8 @@ export default function HomeScreen({
   const [activeCuisine, setActiveCuisine] = useState("Alla");
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [autoOpenAddressPicker, setAutoOpenAddressPicker] = useState(false);
   const [infoRestaurant, setInfoRestaurant] = useState<Restaurant | null>(null);
-  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
   const [stickySearchActive, setStickySearchActive] = useState(false);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
@@ -164,6 +170,7 @@ export default function HomeScreen({
   const address = useAppStore((s) => s.address);
   const coords = useAppStore((s) => s.coords);
   const orderType = useAppStore((s) => s.orderType);
+  const pickupCity = useAppStore((s) => s.pickupCity);
   const deliveryOverrides = useAppStore((s) => s.deliveryOverrides);
   const setAddress = useAppStore((s) => s.setAddress);
   const setOrderType = useAppStore((s) => s.setOrderType);
@@ -173,50 +180,24 @@ export default function HomeScreen({
   const favorites = useAppStore((s) => s.favorites);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
 
-  const renderGreeting = () => {
-    const hour = new Date().getHours();
-    const name = profile?.name ? profile.name.split(" ")[0] : null;
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    const firstName = profile?.name ? profile.name.split(" ")[0] : null;
 
-    if (name) {
-      let timeGreet = "HEJ";
-      let postGreet = "VAD ÄR DU SUGEN PÅ?";
-      
-      if (hour < 10) { timeGreet = "GOD MORGON"; postGreet = "REDO FÖR FRUKOST? ☕️"; }
-      else if (hour < 14) { timeGreet = "HEJ"; postGreet = "DAGS FÖR LUNCH? 🍱"; }
-      else if (hour >= 18) { timeGreet = "KVÄLLSMAT DAGS,"; postGreet = "PIZZA-KVÄLL? 🍕"; }
-
-      return (
-        <Text>
-          {timeGreet} <Text style={{ color: palette.gold }}>{name.toUpperCase()}</Text>,{"\n"}
-          {postGreet}
-        </Text>
-      );
+    if (firstName) {
+      if (h < 10) return { pre: t('home.greetings.morningName'), highlight: firstName, sub: t('home.greetings.subMorning') };
+      if (h < 14) return { pre: t('home.greetings.lunchName'), highlight: firstName, sub: t('home.greetings.subLunch') };
+      if (h < 17) return { pre: t('home.greetings.afternoonName'), highlight: firstName, sub: t('home.greetings.subAfternoon') };
+      if (h < 22) return { pre: t('home.greetings.eveningName'), highlight: firstName, sub: t('home.greetings.subEvening') };
+      return { pre: t('home.greetings.lateName'), highlight: firstName, sub: t('home.greetings.subLate') };
     }
 
-    let mainText = "VAD SKA VI";
-    let accentText = "KÄKA";
-    let endText = "IDAG?";
-
-    if (hour < 10) { mainText = "DAGS FÖR EN"; accentText = "BRA"; endText = "FRUKOST?"; }
-    else if (hour < 14) { mainText = "VAD BLIR DET TILL"; accentText = "LUNCH"; endText = "IDAG?"; }
-
-    return (
-      <Text>
-        {mainText} <Text style={{ color: palette.gold }}>{accentText}</Text>{"\n"}
-        {endText}
-      </Text>
-    );
-  };
-
-  const subGreeting = useMemo(() => {
-    const options = [
-      "Unna dig något riktigt gott idag! 🍣",
-      "Stans bästa rätter, direkt till dörren. 🍟",
-      "Hungrig? Vi har maten som räddar dagen. 🌮",
-      "Gör idag lite godare med MatGo! 🍦",
-    ];
-    return options[Math.floor(Math.random() * options.length)];
-  }, []);
+    if (h < 10) return { pre: t('home.greetings.morningGuest.pre'), highlight: t('home.greetings.morningGuest.highlight'), sub: t('home.greetings.morningGuest.sub') };
+    if (h < 14) return { pre: t('home.greetings.lunchGuest.pre'), highlight: t('home.greetings.lunchGuest.highlight'), sub: t('home.greetings.lunchGuest.sub') };
+    if (h < 17) return { pre: t('home.greetings.afternoonGuest.pre'), highlight: t('home.greetings.afternoonGuest.highlight'), sub: t('home.greetings.afternoonGuest.sub') };
+    if (h < 22) return { pre: t('home.greetings.eveningGuest.pre'), highlight: t('home.greetings.eveningGuest.highlight'), sub: t('home.greetings.eveningGuest.sub') };
+    return { pre: t('home.greetings.lateGuest.pre'), highlight: t('home.greetings.lateGuest.highlight'), sub: t('home.greetings.lateGuest.sub') };
+  }, [profile, t]);
 
   const validateZone = useCallback(async (lat: number, lng: number) => {
     try {
@@ -246,14 +227,14 @@ export default function HomeScreen({
       } else {
         setZoneRestaurantIds([]);
         setDeliveryOverrides({});
-        setZoneError("Vi levererar inte till den här adressen ännu. Välj avhämtning eller prova en annan adress.");
+        setZoneError(t('home.zoneUnavailable'));
       }
     } catch {
       // Network error — don't clear existing overrides; previous valid fees stay in place.
       setZoneRestaurantIds(null);
       setZoneError(null);
     }
-  }, [setDeliveryOverrides]);
+  }, [setDeliveryOverrides, t]);
 
   const lastValidatedCoords = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -327,16 +308,16 @@ export default function HomeScreen({
 
     const personalCards = personalDeals.map((deal) => {
       const campaign = deal.campaign || {};
-      const campaignTitle = campaign.title || "Personligt erbjudande";
+      const campaignTitle = campaign.title || t('home.deals.personalDefault');
       const isWelcome = campaignTitle.toLowerCase().includes("välkomst");
 
       return {
         id: `personal-${deal.id || deal.code}`,
-        badgeLabel: isWelcome ? "VÄLKOMST" : "PERSONLIGT",
+        badgeLabel: isWelcome ? t('home.deals.welcome') : t('home.deals.personal'),
         title: campaignTitle,
-        subtitle: deal.code ? `Din kod ${deal.code}` : "Unikt erbjudande för ditt konto",
+        subtitle: deal.code ? t('home.deals.yourCode', { code: deal.code }) : "Unikt erbjudande för ditt konto",
         rewardLabel: formatPersonalDealReward(deal),
-        description: campaign.description || "Det här erbjudandet är kopplat till ditt konto och kan användas i kassan.",
+        description: campaign.description || t('home.deals.personalDescription'),
         code: deal.code?.toUpperCase(),
         validUntil: campaign.validUntil || null,
         minOrderText: campaign.minOrder && campaign.minOrder > 0 ? `MIN ${campaign.minOrder} KR` : null,
@@ -364,10 +345,10 @@ export default function HomeScreen({
         badgeLabel: (deal.badgeText || (deal.isGlobal ? "Deal" : "Restaurang")).toUpperCase(),
         title: deal.title,
         subtitle: deal.isGlobal
-          ? "Gäller i hela appen"
-          : primaryRestaurant?.name || (relatedRestaurants.length > 1 ? `${relatedRestaurants.length} restauranger` : "Utvalda restauranger"),
+          ? t('home.deals.globalSubtitle')
+          : primaryRestaurant?.name || (relatedRestaurants.length > 1 ? t('home.deals.restaurants', { count: relatedRestaurants.length }) : "Utvalda restauranger"),
         rewardLabel: formatPublicDealReward(deal),
-        description: deal.description || "Erbjudandet aktiveras automatiskt när du uppfyller villkoren i kassan.",
+        description: deal.description || t('home.deals.publicDescription'),
         validUntil: deal.validUntil || null,
         minOrderText: deal.minOrder && deal.minOrder > 0 ? `MIN ${deal.minOrder} KR` : null,
         tags: deal.comboProductNames || [],
@@ -392,7 +373,7 @@ export default function HomeScreen({
     });
 
     return [...personalCards, ...publicCards];
-  }, [deals, openRestaurant, personalDeals, restaurants, pushRoute]);
+  }, [deals, openRestaurant, personalDeals, restaurants, pushRoute, t]);
 
   const filtered = useMemo(() => {
     const raw = sortRestaurantsForHome(
@@ -528,6 +509,12 @@ export default function HomeScreen({
     extrapolate: "clamp",
   });
 
+  const inlineSearchOpacity = scrollY.interpolate({
+    inputRange: [70, 110],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+
   const handleHomeScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextActive = event.nativeEvent.contentOffset.y > 110;
     if (stickySearchVisibleRef.current !== nextActive) {
@@ -557,24 +544,25 @@ export default function HomeScreen({
         ]}
       >
         <Ionicons name="search-outline" size={14} color={palette.muted} />
-        <Text style={{ flex: 1, color: palette.muted, fontSize: 12, fontWeight: "800" }}>Sök restaurang eller maträtt</Text>
+        <Text style={{ flex: 1, color: palette.muted, fontSize: 12, fontWeight: "800" }}>{t('home.searchPlaceholder')}</Text>
         <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
           <Ionicons name="arrow-forward" size={14} color="#000" />
         </View>
       </ScalePressable>
     ),
-    [openTab]
+    [openTab, t]
   );
 
   const renderRestaurantCategoryRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
-    <View style={{ marginTop: 18 }}>
-      <View style={[styles.sectionTitleRow, { marginBottom: 14, paddingHorizontal: 20 }]}>
-        <View>
-          <Text style={{ color: palette.gold, fontSize: 24, fontWeight: "900", fontStyle: "italic" }}>{title.toUpperCase()}</Text>
-          {!!subtitle && <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 3, marginTop: 6 }}>{subtitle.toUpperCase()}</Text>}
+    <View>
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, marginBottom: 10 }}>
+        <View style={{ flex: 1, minWidth: 0, marginRight: 12 }}>
+          <Text numberOfLines={1} style={{ color: palette.gold, fontSize: 18, fontWeight: "900", fontStyle: "italic" }}>{title.toUpperCase()}</Text>
+          {!!subtitle && <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2.5), marginTop: 3 }}>{subtitle.toUpperCase()}</Text>}
         </View>
-        <ScalePressable onPress={() => openTab("discover")}>
-          <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 4 }}>VISA ALLA</Text>
+        <ScalePressable onPress={() => openTab("discover")} style={{ flexShrink: 0 }}>
+          <Text style={{ color: palette.text, fontSize: 10, fontWeight: "900", borderBottomWidth: 1, borderBottomColor: palette.goldDark, paddingBottom: 3 }}>{t('home.viewAll')}</Text>
         </ScalePressable>
       </View>
 
@@ -620,22 +608,24 @@ export default function HomeScreen({
         })}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: screenTopPadding, paddingBottom: screenBottomPadding, gap: 16 }}
+        contentContainerStyle={{ paddingTop: screenTopPadding, paddingBottom: screenBottomPadding, gap: 10 }}
       >
-        <View style={{ paddingTop: 14, marginBottom: 6, paddingHorizontal: 20 }}>
+        <View style={{ paddingTop: 10, marginBottom: 2, paddingHorizontal: 20 }}>
           {/* Compact adresspil i toppen */}
           <AddressPullDown
             onOpenFull={() => setAddressModalOpen(true)}
             zoneStatus={orderType === 'DELIVERY' ? (zoneError ? 'error' : coords ? 'ok' : null) : null}
+            autoOpen={autoOpenAddressPicker}
+            onAutoOpenHandled={() => setAutoOpenAddressPicker(false)}
           />
 
           {/* Greeting */}
           <View style={{ marginTop: 8 }}>
-            <Text numberOfLines={1} style={{ color: palette.text, fontSize: 22, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
-              Vad blir det <Text style={{ color: palette.gold }}>idag?</Text>
+            <Text style={{ color: palette.text, fontSize: 22, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>
+              {greeting.pre}<Text style={{ color: palette.gold }}>{greeting.highlight}</Text>
             </Text>
-            <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: 2, marginTop: 2 }}>
-              Hitta snabbt · beställ enkelt
+            <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: ls(1.5), marginTop: 3 }}>
+              {greeting.sub}
             </Text>
           </View>
 
@@ -666,19 +656,24 @@ export default function HomeScreen({
             />
             {(
               [
-                { key: "DELIVERY", label: "LEVERANS", icon: "bicycle-outline" },
-                { key: "PICKUP", label: "HÄMTNING", icon: "storefront-outline" },
+                { key: "DELIVERY", label: t('home.delivery'), icon: "bicycle-outline" },
+                { key: "PICKUP", label: t('home.pickup'), icon: "storefront-outline" },
               ] as const
             ).map((item) => {
               const active = orderType === item.key;
               return (
                 <Pressable
                   key={item.key}
-                  onPress={() => setOrderType(item.key)}
+                  onPress={() => {
+                    setOrderType(item.key);
+                    if (item.key === "PICKUP" && !pickupCity) {
+                      setAutoOpenAddressPicker(true);
+                    }
+                  }}
                   style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, zIndex: 2 }}
                 >
                   <Ionicons name={item.icon} size={16} color={active ? "#000" : palette.muted} />
-                  <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 12, letterSpacing: 1.5 }}>
+                  <Text style={{ color: active ? "#000" : palette.muted, fontWeight: "900", fontSize: 12, letterSpacing: ls(1.5) }}>
                     {item.label}
                   </Text>
                 </Pressable>
@@ -686,59 +681,16 @@ export default function HomeScreen({
             })}
           </View>
 
-          {/* Pickup: city dropdown compact */}
-          {orderType === "PICKUP" && (
-            <View style={{ marginTop: 8 }}>
-              <ScalePressable
-                onPress={() => setCityDropdownOpen(!cityDropdownOpen)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 10,
-                  borderRadius: 14,
-                  backgroundColor: palette.panel,
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  borderWidth: 1,
-                  borderColor: cityDropdownOpen ? palette.gold : palette.border,
-                }}
-              >
-                <Ionicons name="business-outline" size={14} color={palette.gold} />
-                <Text style={{ flex: 1, color: palette.text, fontSize: 12, fontWeight: "800" }}>
-                  {selectedCity?.name || "Alla städer"}
-                </Text>
-                <Ionicons name={cityDropdownOpen ? "chevron-up" : "chevron-down"} size={14} color={palette.muted} />
-              </ScalePressable>
-              {cityDropdownOpen && (
-                <View style={{ marginTop: 8, backgroundColor: palette.panel, borderRadius: 14, padding: 6, borderWidth: 1, borderColor: palette.border }}>
-                  <Pressable
-                    onPress={() => { setAddress("", null); setCityDropdownOpen(false); }}
-                    style={{ padding: 10, borderRadius: 8, backgroundColor: !selectedCity ? "rgba(234,181,69,0.12)" : "transparent" }}
-                  >
-                    <Text style={{ color: !selectedCity ? palette.gold : palette.text, fontWeight: "800", fontSize: 12 }}>Alla städer</Text>
-                  </Pressable>
-                  {cities.map((city) => (
-                    <Pressable
-                      key={city.id}
-                      onPress={() => { setAddress(city.name, null); setCityDropdownOpen(false); }}
-                      style={{ padding: 10, borderRadius: 8, backgroundColor: selectedCity?.id === city.id ? "rgba(234,181,69,0.12)" : "transparent" }}
-                    >
-                      <Text style={{ color: selectedCity?.id === city.id ? palette.gold : palette.text, fontWeight: "800", fontSize: 12 }}>{city.name}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-
-          {renderSearchBar({
-            marginTop: 8,
-            shadowColor: palette.gold,
-            shadowOpacity: 0.05,
-            shadowRadius: 10,
-            shadowOffset: { width: 0, height: 4 },
-            elevation: 2,
-          })}
+          <Animated.View style={{ opacity: inlineSearchOpacity }}>
+            {renderSearchBar({
+              marginTop: 8,
+              shadowColor: palette.gold,
+              shadowOpacity: 0.05,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 4 },
+              elevation: 2,
+            })}
+          </Animated.View>
 
           {/* Zonstatus visas nu som en liten färgad prick på adress-pilen ovan istället för en
               hel banner – zonError behåller däremot fullständigt fel-meddelande så användaren
@@ -751,29 +703,37 @@ export default function HomeScreen({
           )}
         </View>
 
-        {/* Categories / Cuisine filters (Flyttad högst upp likt Foodora/UberEats) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingHorizontal: 20, paddingVertical: 4, marginTop: 8 }}>
+        {/* Categories / Cuisine filters */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 20, paddingVertical: 2, marginTop: 4 }}>
           {cuisineFilters.map((filter) => {
             const active = activeCuisine === filter.name;
             return (
               <ScalePressable
                 key={filter.name}
-                onPress={() => setActiveCuisine(filter.name)}
-                style={{ alignItems: "center", gap: 8 }}
+                onPress={() => {
+                  setActiveCuisine(filter.name);
+                  if (filter.name === "Alla") {
+                    pushRoute({ name: "discover" } as any);
+                  } else {
+                    pushRoute({ name: "discover", cuisine: filter.name } as any);
+                  }
+                  // Favoriter navigates to discover with favorites filter
+                }}
+                style={{ alignItems: "center", gap: 6 }}
               >
                 <View style={{
-                  width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center',
+                  width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center',
                   backgroundColor: active ? palette.gold : palette.panel,
                   borderWidth: 1, borderColor: active ? palette.gold : palette.border,
                   shadowColor: "#1C1C1E",
-                  shadowOpacity: active ? 0.15 : 0.04,
-                  shadowRadius: active ? 12 : 6,
-                  elevation: active ? 6 : 2,
+                  shadowOpacity: active ? 0.12 : 0.04,
+                  shadowRadius: active ? 8 : 4,
+                  elevation: active ? 4 : 1,
                 }}>
-                  <Text style={{ fontSize: 26, opacity: active ? 1 : 0.9 }}>{filter.emoji}</Text>
+                  <Text style={{ fontSize: 22, opacity: active ? 1 : 0.9 }}>{filter.emoji}</Text>
                 </View>
-                <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 9, fontWeight: "700", letterSpacing: 1 }}>
-                  {filter.name === "Alla" ? "Alla" : filter.name}
+                <Text style={{ color: active ? palette.gold : palette.muted, fontSize: 9, fontWeight: "700", letterSpacing: ls(1) }}>
+                  {t(`home.cuisines.${filter.name}`, filter.name)}
                 </Text>
               </ScalePressable>
             );
@@ -781,11 +741,12 @@ export default function HomeScreen({
         </ScrollView>
 
         {sponsorCards.length > 0 && (
-          <View style={{ marginTop: 18, marginBottom: 6 }}>
-            <View style={{ paddingHorizontal: 18, marginBottom: 10 }}>
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2 }}>AKTUELLT</Text>
-              <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 2, marginTop: 3 }}>
-                KAMPANJER &amp; PARTNERS
+          <View style={{ marginBottom: 4 }}>
+            <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+            <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+              <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", letterSpacing: ls(2) }}>{t('home.section.current')}</Text>
+              <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginTop: 2 }}>
+                {t('home.section.campaigns')}
               </Text>
             </View>
             <FlatList
@@ -847,7 +808,7 @@ export default function HomeScreen({
               </React.Fragment>
             ))
           : featured.length > 0
-            ? renderRestaurantCategoryRail("Heta listan", "Toppvalen i din stad just nu", featured)
+            ? renderRestaurantCategoryRail(t('home.section.hotlist.title'), t('home.section.hotlist.subtitle'), featured)
             : null}
 
 
@@ -860,12 +821,11 @@ export default function HomeScreen({
           const fast = filtered.filter((r) => (r.etaMinutes ?? Number.POSITIVE_INFINITY) <= 25).slice(0, 10);
           if (fast.length === 0) return null;
           return (
-            <View style={{ marginTop: 14, marginBottom: 14 }}>
-              <View style={[styles.sectionTitleRow, { marginBottom: 10, paddingHorizontal: 20 }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="flash" size={14} color="#f59e0b" />
-                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 2, textTransform: 'uppercase' }}>SNABBAST LEVERANS</Text>
-                </View>
+            <View>
+              <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, marginBottom: 10 }}>
+                <Ionicons name="flash" size={12} color="#f59e0b" />
+                <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", letterSpacing: ls(2), textTransform: 'uppercase' }}>{t('home.section.fastDelivery')}</Text>
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 20 }}>
                 {fast.map((r) => (
@@ -894,20 +854,21 @@ export default function HomeScreen({
 
 
 
-        <View style={[styles.sectionTitleRow, { paddingHorizontal: 20 }]}>
-          <Text style={{ color: palette.muted, fontSize: 15, fontWeight: "800", letterSpacing: 2 }}>
-            {(activeCuisine === "Alla" ? "ALLA RESTAURANGER" : activeCuisine.toUpperCase()) + ` / ${filtered.length} ST`}
+        <View>
+          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", letterSpacing: ls(2), paddingHorizontal: 20 }}>
+            {(activeCuisine === "Alla" ? t('home.section.allRestaurants') : t(`home.cuisines.${activeCuisine}`, activeCuisine).toUpperCase()) + ` · ${filtered.length} ST`}
           </Text>
         </View>
 
         {/* STICKY QUICK-FILTERS – sortering over lista */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 8, paddingHorizontal: 20 }}>
           {([
-            { key: "all",   label: "Alla",          icon: "apps-outline" },
-            { key: "rated", label: "Betyg 4.0+",     icon: "star-outline" },
-            { key: "fast",  label: "Under 30 min",   icon: "flash-outline" },
-            { key: "deals", label: "Erbjudanden",    icon: "pricetag-outline" },
-            { key: "free",  label: "Fri leverans",   icon: "bicycle-outline" },
+            { key: "all",   label: t('home.filters.all'),   icon: "apps-outline" },
+            { key: "rated", label: t('home.filters.rated'),  icon: "star-outline" },
+            { key: "fast",  label: t('home.filters.fast'),   icon: "flash-outline" },
+            { key: "deals", label: t('home.filters.deals'),  icon: "pricetag-outline" },
+            { key: "free",  label: t('home.filters.free'),   icon: "bicycle-outline" },
           ] as const).map((qf) => {
             const active = quickFilter === qf.key;
             return (
@@ -968,7 +929,7 @@ export default function HomeScreen({
             );
           })}
 
-          {!loading && !filtered.length && <EmptyPanel label="Ingen träff. Här ekar det tomt just nu." />}
+          {!loading && !filtered.length && <EmptyPanel label={t('home.empty')} />}
         </View>
       </Animated.ScrollView>
 

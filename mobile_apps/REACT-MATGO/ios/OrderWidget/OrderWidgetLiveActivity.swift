@@ -81,8 +81,17 @@ private struct CountdownText: View {
 }
 
 // ── Lock-screen / banner view ─────────────────────────────────────────────────
+//
+// Two near-identical layouts: the full Lock Screen one keeps the FoodGo
+// header + order total, while the Dynamic Island bottom region drops them
+// because the .leading region already shows the FoodGo logo and the trailing
+// region carries the timer. Sharing one view caused the expanded island to
+// repeat the header twice, eating room from the status text.
 struct OrderExpandedView: View {
     let context: ActivityViewContext<OrderActivityAttributes>
+    /// When false, the FoodGo header + order total are omitted (used by the
+    /// Dynamic Island bottom region; the leading region already supplies them).
+    var includeHeader: Bool = true
 
     var body: some View {
         let state = context.state
@@ -91,18 +100,19 @@ struct OrderExpandedView: View {
         let active = stepDefs[stepIdx]
 
         VStack(alignment: .leading, spacing: 14) {
-            // Header
-            HStack {
-                Image(systemName: "fork.knife")
-                    .foregroundStyle(active.color)
-                Text("FoodGo")
-                    .font(.system(size: 16, weight: .black))
-                    .italic()
-                    .foregroundStyle(active.color)
-                Spacer()
-                Text(context.attributes.orderTotal)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.fgMuted)
+            if includeHeader {
+                HStack {
+                    Image(systemName: "fork.knife")
+                        .foregroundStyle(active.color)
+                    Text("FoodGo")
+                        .font(.system(size: 16, weight: .black))
+                        .italic()
+                        .foregroundStyle(active.color)
+                    Spacer()
+                    Text(context.attributes.orderTotal)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.fgMuted)
+                }
             }
 
             // Restaurant + status text
@@ -128,7 +138,9 @@ struct OrderExpandedView: View {
             // Progress row
             StepRow(stepDefs: stepDefs, current: stepIdx)
         }
-        .padding(16)
+        .padding(includeHeader
+                 ? EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
+                 : EdgeInsets(top: 4, leading: 12, bottom: 12, trailing: 12))
         .background(Color.fgBg)
     }
 }
@@ -149,6 +161,15 @@ private struct StepRow: View {
 
                 VStack(spacing: 4) {
                     ZStack {
+                        // Pulsing halo on the active step — purely decorative
+                        // breath that draws the eye to where we are now.
+                        if isActive {
+                            Circle()
+                                .fill(def.color.opacity(0.18))
+                                .frame(width: 36, height: 36)
+                                .scaleEffect(1.0)
+                                .transition(.scale.combined(with: .opacity))
+                        }
                         Circle()
                             .fill(circleFill)
                             .frame(width: 28, height: 28)
@@ -157,15 +178,20 @@ private struct StepRow: View {
                                     .strokeBorder(isActive ? def.color.opacity(0.6) : Color.clear, lineWidth: 2)
                                     .scaleEffect(isActive ? 1.15 : 1.0)
                             )
+                            .scaleEffect(isActive ? 1.08 : 1.0)
                         Image(systemName: def.icon)
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(iconColor)
+                            .scaleEffect(isActive ? 1.08 : 1.0)
                     }
+                    .animation(.spring(response: 0.45, dampingFraction: 0.7), value: isActive)
+                    .animation(.spring(response: 0.45, dampingFraction: 0.7), value: isDone)
                     Text(def.label)
                         .font(.system(size: 9, weight: isActive ? .bold : .regular))
                         .foregroundStyle(isActive ? def.color : Color.fgMuted)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .animation(.easeInOut(duration: 0.25), value: isActive)
                 }
                 .frame(maxWidth: .infinity)
 
@@ -174,6 +200,7 @@ private struct StepRow: View {
                         .fill(i < current ? stepDefs[i].color : Color.fgPanel)
                         .frame(height: 2)
                         .padding(.bottom, 18)
+                        .animation(.easeInOut(duration: 0.4), value: current)
                 }
             }
         }
@@ -217,7 +244,9 @@ struct OrderWidgetLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    OrderExpandedView(context: context)
+                    // Skip the FoodGo header here — it's already in .leading
+                    // and we'd otherwise repeat the logo + order total.
+                    OrderExpandedView(context: context, includeHeader: false)
                 }
             } compactLeading: {
                 Image(systemName: active.icon)

@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:animate_do/animate_do.dart';
+
+import '../core/log_service.dart';
+import '../core/theme.dart';
 import '../models/order_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
-import '../screens/order_detail_screen.dart';
-import '../core/theme.dart';
-import '../core/log_service.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/order_card.dart';
+import 'new_order_alert_screen.dart';
+import 'order_detail_screen.dart';
+import 'order_take_screen.dart';
 
+/// Compact, mobile-first dashboard. Optimised for ≥320 dp width.
+///
+/// New orders show with a pulsing accent on their card, plus a top
+/// "Ny order!" pulse banner that fades in when the pending count goes up.
+/// Tapping a pending order opens the dedicated [OrderTakeScreen] with a
+/// stripped-down "accept it now" flow.
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -15,13 +25,28 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with SingleTickerProviderStateMixin {
+  int _lastPendingCount = 0;
+  late final AnimationController _newOrderPulse;
+  bool _showNewOrderBanner = false;
+  bool _alertScreenOpen = false;
+  String? _initialPendingFingerprint;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadOrders();
-    });
+    _newOrderPulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadOrders());
+  }
+
+  @override
+  void dispose() {
+    _newOrderPulse.dispose();
+    super.dispose();
   }
 
   void _loadOrders() {
@@ -34,109 +59,235 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _approveAll() async {
-    final provider = Provider.of<OrderProvider>(context, listen: false);
+  void _maybeFireNewOrderPulse(OrderProvider provider) {
     final pending = provider.pendingOrders;
-    if (pending.isEmpty) return;
+    final currentPending = pending.length;
 
-    bool? confirm = await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.zinc,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        title: const Text('GODKÄNN ALLA?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        content: Text('Vill du godkänna ${pending.length} nya ordrar med 20 minuters tid?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('AVBRYT')),
-          ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppTheme.gold, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))), child: const Text('JA, GODKÄNN ALLA', style: TextStyle(color: AppTheme.charcoal, fontWeight: FontWeight.bold))),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      for (var order in pending) {
-        if (order.scheduledFor != null) {
-          await provider.updateStatus(order.id, 'ACCEPTED');
-        } else {
-          await provider.updateStatus(order.id, 'PREPARING', estimatedTime: 20);
-        }
-      }
-      if (mounted) _loadOrders();
+    // First load: don't trigger alerts for orders that arrived before the
+    // app was opened (they're pre-existing, not "new" to this session).
+    if (_initialPendingFingerprint == null) {
+      _initialPendingFingerprint = pending.map((o) => o.id).join('|');
+      _lastPendingCount = currentPending;
+      return;
     }
+
+    if (currentPending > _lastPendingCount && !_alertScreenOpen && mounted) {
+      final newest = pending.first;
+      _alertScreenOpen = true;
+
+      // Subtle in-place pulse banner
+      setState(() => _showNewOrderBanner = true);
+      _newOrderPulse.forward(from: 0);
+      Future.delayed(const Duration(seconds: 4), () {
+        if (mounted) setState(() => _showNewOrderBanner = false);
+      });
+
+      // Big blue fullscreen alert — tap to go to take-screen
+      Navigator.of(context).push(
+        PageRouteBuilder(
+          opaque: true,
+          transitionDuration: const Duration(milliseconds: 320),
+          pageBuilder: (_, __, ___) => NewOrderAlertScreen(
+            order: newest,
+            onTap: () {
+              Navigator.of(context).pushReplacement(
+                PageRouteBuilder(
+                  transitionDuration: const Duration(milliseconds: 280),
+                  pageBuilder: (_, __, ___) => OrderTakeScreen(
+                    order: newest,
+                    arrivedAt: newest.createdAt,
+                  ),
+                  transitionsBuilder: (_, anim, __, child) =>
+                      FadeTransition(opacity: anim, child: child),
+                ),
+              );
+            },
+          ),
+          transitionsBuilder: (_, anim, __, child) =>
+              FadeTransition(opacity: anim, child: child),
+        ),
+      ).whenComplete(() {
+        _alertScreenOpen = false;
+      });
+    }
+    _lastPendingCount = currentPending;
   }
 
   Future<void> _markReady(OrderModel order) async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final nextStatus = order.type == 'PICKUP' ? 'READY' : 'DELIVERING';
     final ok = await provider.updateStatus(order.id, nextStatus);
-    if (ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ Kö färdigställd'), backgroundColor: Colors.blue.shade800));
-    }
+    if (!mounted || !ok) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          order.type == 'PICKUP' ? 'Klar för hämtning' : 'Markerad som på väg',
+        ),
+        backgroundColor: AppTheme.success,
+      ),
+    );
+  }
+
+  void _openTake(OrderModel order) {
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 280),
+        pageBuilder: (_, __, ___) => OrderTakeScreen(
+          order: order,
+          arrivedAt: order.createdAt,
+        ),
+        transitionsBuilder: (_, anim, __, child) {
+          return FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.06),
+                end: Offset.zero,
+              ).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+              ),
+              child: child,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openDetail(OrderModel order) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
-    final orderProvider = Provider.of<OrderProvider>(context);
-    debugPrint('🖥️ Dashboard Build. Pending Count: ${orderProvider.pendingOrders.length}');
-
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        elevation: 0,
-        centerTitle: false,
-        title: Row(
-          children: [
-            Container(width: 10, height: 10, decoration: BoxDecoration(color: Colors.green, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.5), blurRadius: 10, spreadRadius: 2)])),
-            const SizedBox(width: 12),
-            Text('LIVE ORDRAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.bodyLarge?.color)),
-            const SizedBox(width: 10),
-            IconButton(
-              onPressed: () => Provider.of<OrderProvider>(context, listen: false).testAlarm(),
-              icon: Icon(Icons.volume_up, size: 16, color: Theme.of(context).textTheme.bodyLarge?.color?.withOpacity(0.1)),
-            ),
-          ],
-        ),
-        actions: [
-          Consumer<OrderProvider>(
-            builder: (context, provider, _) => Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildStatusToggle(provider),
-                const SizedBox(width: 10),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          const SizedBox(width: 10),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: Consumer<OrderProvider>(
-        builder: (context, provider, child) {
-          if (provider.isLoading) return const Center(child: CircularProgressIndicator(color: AppTheme.gold));
-          
+        builder: (context, provider, _) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _maybeFireNewOrderPulse(provider);
+          });
+
+          if (provider.isLoading && provider.orders.isEmpty) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppTheme.gold),
+            );
+          }
+
           return Stack(
             children: [
-              if (isTablet) _buildTabletLayout(provider) else _buildPhoneLayout(provider),
-              if (provider.isOffline)
-                Positioned.fill(
-                  child: Pulse(
-                    infinite: true,
-                    child: Container(
-                      color: Colors.red.withOpacity(0.9),
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(Icons.wifi_off, size: 80, color: Colors.white),
-                            SizedBox(height: 20),
-                            Text('INGEN ANSLUTNING', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                            SizedBox(height: 10),
-                            Text('Försöker återansluta till servern...', style: TextStyle(color: Colors.white70, fontSize: 16)),
-                          ],
+              RefreshIndicator(
+                onRefresh: () async => provider.refresh(),
+                color: AppTheme.gold,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                        child: _Header(provider: provider),
+                      ),
+                    ),
+                    if (provider.isOffline)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                          child: _buildOfflineBanner(),
+                        ),
+                      ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 14, 12, 8),
+                        child: _SectionLabel(
+                          title: 'NYA',
+                          count: provider.pendingOrders.length,
+                          accent: AppTheme.warning,
                         ),
                       ),
                     ),
+                    if (provider.pendingOrders.isEmpty)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(12, 0, 12, 0),
+                          child: AppEmptyState(
+                            icon: Icons.task_alt_rounded,
+                            title: 'Inga nya',
+                            subtitle: '',
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                        sliver: SliverList.separated(
+                          itemCount: provider.pendingOrders.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final o = provider.pendingOrders[index];
+                            return OrderCard(
+                              order: o,
+                              pending: true,
+                              onTap: () => _openTake(o),
+                            );
+                          },
+                        ),
+                      ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 16, 12, 8),
+                        child: _SectionLabel(
+                          title: 'AKTIVA',
+                          count: provider.activeOrders.length,
+                          accent: AppTheme.info,
+                        ),
+                      ),
+                    ),
+                    if (provider.activeOrders.isEmpty)
+                      const SliverToBoxAdapter(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(12, 0, 12, 24),
+                          child: AppEmptyState(
+                            icon: Icons.inbox_outlined,
+                            title: 'Inga aktiva',
+                            subtitle: '',
+                          ),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+                        sliver: SliverList.separated(
+                          itemCount: provider.activeOrders.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final o = provider.activeOrders[index];
+                            return OrderCard(
+                              order: o,
+                              pending: false,
+                              onTap: () => _openDetail(o),
+                              onAction: () => _markReady(o),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (_showNewOrderBanner)
+                Positioned(
+                  top: 8,
+                  left: 12,
+                  right: 12,
+                  child: _NewOrderBanner(
+                    controller: _newOrderPulse,
+                    count: provider.pendingOrders.length,
                   ),
                 ),
             ],
@@ -146,37 +297,158 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildTabletLayout(OrderProvider provider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return RefreshIndicator(
-      onRefresh: () async => provider.refresh(),
-      color: AppTheme.gold,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height - 100, // Ensure it fills screen to allow scroll
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (provider.pendingOrders.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-                  child: _buildSectionHeader('NYA INKOMNA', isDark ? AppTheme.gold : AppTheme.lightGold),
+  Widget _buildOfflineBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.danger.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.danger.withOpacity(0.35)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.wifi_off_rounded, color: AppTheme.danger, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'Offline',
+            style: TextStyle(
+              color: AppTheme.danger,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Header ────────────────────────────────────────────────────────────────────
+class _Header extends StatelessWidget {
+  final OrderProvider provider;
+  const _Header({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'Ordrar',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: 26,
+                  letterSpacing: -0.6,
                 ),
-                SizedBox(
-                  height: 250,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: provider.pendingOrders.map((o) => _buildOrderCard(o, true)).toList(),
-                    ),
-                  ),
+          ),
+        ),
+        _StatusChip(
+          label: provider.isRestaurantOpen ? 'Öppet' : 'Stängt',
+          color: provider.isRestaurantOpen ? AppTheme.success : AppTheme.danger,
+          onTap: () => _showStatusPicker(context, provider),
+        ),
+        const SizedBox(width: 6),
+        _IconButton(
+          icon: Icons.volume_up_rounded,
+          onTap: provider.testAlarm,
+        ),
+      ],
+    );
+  }
+
+  void _showStatusPicker(BuildContext context, OrderProvider provider) {
+    logger.log('TAP: Open restaurant status picker');
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppTheme.panelColor(ctx),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppTheme.borderColor(ctx)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _StatusTile(
+                  title: 'Öppet',
+                  selected: provider.isRestaurantOpen,
+                  color: AppTheme.success,
+                  icon: Icons.storefront_rounded,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (!provider.isRestaurantOpen) {
+                      await provider.setStatus(true);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                _StatusTile(
+                  title: 'Stängt',
+                  selected: !provider.isRestaurantOpen,
+                  color: AppTheme.danger,
+                  icon: Icons.store_mall_directory_outlined,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (provider.isRestaurantOpen) {
+                      await provider.setStatus(false);
+                    }
+                  },
                 ),
               ],
-              Expanded(
-                child: _buildOrderList('UNDER BEHANDLING', provider.activeOrders, false),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StatusChip({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: color.withOpacity(0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  letterSpacing: 0.4,
+                ),
               ),
             ],
           ),
@@ -184,512 +456,186 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+}
 
-  Widget _buildPhoneLayout(OrderProvider provider) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return RefreshIndicator(
-      onRefresh: () async => provider.refresh(), color: AppTheme.gold,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.all(25),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildSectionHeader('NYA INKOMNA'.toUpperCase(), isDark ? AppTheme.gold : AppTheme.lightGold),
-                if (provider.pendingOrders.length > 1) 
-                  TextButton.icon(
-                    onPressed: _approveAll,
-                    icon: const Icon(Icons.done_all, size: 16, color: Colors.greenAccent),
-                    label: const Text('GODKÄNN ALLA', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w900)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            if (provider.pendingOrders.isNotEmpty)
-              SizedBox(
-                height: 260,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  clipBehavior: Clip.none,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(width: 15), // Smaller initial spacing
-                      ...provider.pendingOrders.map((order) => _buildOrderCard(order, true)),
-                    ],
-                  ),
-                ),
-              ),
-            const SizedBox(height: 40),
-            _buildSectionHeader('UNDER BEHANDLING'.toUpperCase(), isDark ? Colors.white.withOpacity(0.3) : Colors.black87),
-            const SizedBox(height: 15),
-            ...provider.activeOrders.map((order) => _buildOrderCard(order, false)),
-            if (provider.pendingOrders.isEmpty && provider.activeOrders.isEmpty)
-              Padding(padding: const EdgeInsets.only(top: 100), child: Center(child: Column(children: [Icon(Icons.inbox_outlined, size: 60, color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.4)), const SizedBox(height: 16), Text('INGA AKTIVA ORDRAR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.5), letterSpacing: 3))]))),
-          ]),
+class _IconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _IconButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.faintColor(context),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Icon(icon, size: 18),
+        ),
       ),
     );
   }
+}
 
-  Widget _buildOrderList(String title, List<OrderModel> orders, bool isNew) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start, 
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  final int count;
+  final Color accent;
+  const _SectionLabel({
+    required this.title,
+    required this.count,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
       children: [
-        Padding(padding: const EdgeInsets.fromLTRB(20, 20, 20, 10), child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildSectionHeader(title, isNew ? (isDark ? AppTheme.gold : AppTheme.lightGold) : (isDark ? Colors.white.withOpacity(0.3) : Colors.black87)),
-            if (isNew && orders.length > 1) 
-              TextButton.icon(
-                onPressed: _approveAll,
-                icon: const Icon(Icons.done_all, size: 16, color: Colors.greenAccent),
-                label: const Text('GODKÄNN ALLA', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w900)),
-              ),
-          ],
-        )),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 20), 
-            itemCount: orders.length, 
-            itemBuilder: (ctx, i) => _buildOrderCard(orders[i], isNew)
-          )
+        Text(
+          title,
+          style: TextStyle(
+            color: accent,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+          ),
         ),
-      ]);
-  }
-
-  Widget _buildSectionHeader(String title, Color color) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(title, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color, letterSpacing: 4)),
-        const SizedBox(width: 15),
-      ]);
-  }
-
-  String _twoDigits(int value) => value.toString().padLeft(2, '0');
-
-  String _formatScheduledTime(DateTime scheduledFor) {
-    return '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
-  }
-
-  String _formatScheduledDate(DateTime scheduledFor) {
-    return '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
-  }
-
-  Widget _buildOrderCard(OrderModel order, bool isNew) {
-    final bool isDelivery = order.type == 'DELIVERY';
-    final Color typeColor = isDelivery ? Colors.blue : Colors.green;
-    final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final bool isScheduled = order.scheduledFor != null;
-    final String? scheduledTime = order.scheduledFor != null ? _formatScheduledTime(order.scheduledFor!) : null;
-    final String? scheduledDate = order.scheduledFor != null ? _formatScheduledDate(order.scheduledFor!) : null;
-
-    if (isNew) {
-      final Color accentColor = isScheduled
-          ? AppTheme.gold
-          : (isDelivery ? const Color(0xFF00E676) : const Color(0xFF2979FF));
-
-      return FadeInRight(
-        duration: const Duration(milliseconds: 600),
-        child: Container(
-          width: 220,
-          height: 220,
-          margin: const EdgeInsets.only(right: 20, bottom: 30),
-          child: _GlowFrame(
-            color: accentColor,
-            isDark: isDark,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? Colors.black.withOpacity(0.8) : Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: accentColor.withOpacity(0.5), width: 1.5),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: InkWell(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                              style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
-                            ),
-                            Icon(isDelivery ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: typeColor, size: 18),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '#${order.orderNumber}',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
-                            color: isDark ? Colors.white : AppTheme.charcoal,
-                            letterSpacing: -1,
-                            height: 1,
-                          ),
-                        ),
-                        if (isScheduled && scheduledTime != null && scheduledDate != null) ...[
-                          const SizedBox(height: 12),
-                          _buildBadge('FÖRBESTÄLLNING', AppTheme.gold),
-                          const SizedBox(height: 10),
-                          Text(
-                            scheduledTime,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              color: AppTheme.gold,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            scheduledDate,
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: isDark ? Colors.white60 : AppTheme.charcoal.withOpacity(0.65),
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ],
-                        const Spacer(),
-                        Text(
-                          order.customerName.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white.withOpacity(0.6) : AppTheme.charcoal.withOpacity(0.7),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              '${order.total.toInt()} KR',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                color: accentColor,
-                              ),
-                            ),
-                            Icon(Icons.arrow_forward_ios_rounded, size: 12, color: accentColor.withOpacity(0.5)),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: accent.withOpacity(0.16),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: accent,
+              fontWeight: FontWeight.w900,
+              fontSize: 12,
             ),
           ),
         ),
-      );
-    }
-
-    return FadeInUp(
-      duration: const Duration(milliseconds: 400),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 18),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: typeColor.withOpacity(0.1), width: 2),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: InkWell(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-          borderRadius: BorderRadius.circular(28),
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: typeColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        order.orderNumber,
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: typeColor),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        order.customerName.toUpperCase(),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Text(
-                            isDelivery ? 'UTKÖRNING' : 'AVHÄMTNING',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: typeColor, letterSpacing: 1),
-                          ),
-                          if (isScheduled && scheduledTime != null)
-                            _buildBadge('FÖRBESTÄLLNING $scheduledTime', AppTheme.gold),
-                        ],
-                      ),
-                      if (isScheduled && scheduledDate != null) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          scheduledDate,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            color: isDark ? Colors.white60 : Colors.black54,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                Text(
-                  '${order.total.toInt()} KR',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(width: 15),
-                IconButton(
-                  onPressed: () => _markReady(order),
-                  icon: Icon(order.type == 'PICKUP' ? Icons.check_circle_outline : Icons.delivery_dining, color: typeColor),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      ],
     );
-  }
-
-
-  Widget _buildBadge(String text, Color color) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(9), border: Border.all(color: color.withOpacity(0.5), width: 1)), child: Text(text, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 1)));
-  }
-
-  Widget _buildStatusToggle(OrderProvider provider) {
-    final isOpen = provider.isRestaurantOpen;
-    return GestureDetector(
-      onTap: () => _showStatusPicker(provider),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isOpen 
-              ? [Colors.green.shade800, Colors.green.shade500] 
-              : [AppTheme.danger.withOpacity(0.8), AppTheme.danger],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: (isOpen ? Colors.green : AppTheme.danger).withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(isOpen ? Icons.check_circle : Icons.power_settings_new, color: Colors.white, size: 14),
-            const SizedBox(width: 8),
-            Text(isOpen ? 'ÖPPEN' : 'STÄNGD', style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showStatusPicker(OrderProvider provider) {
-    logger.log('TAP: Open Restaurant Status Picker');
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.dark ? AppTheme.charcoal : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 20)],
-        ),
-        padding: const EdgeInsets.all(40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('RESTAURANGSTATUS', style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 4)),
-            const SizedBox(height: 35),
-            _buildStatusOption(
-              ctx, 'ÖPPEN', 'Kunder kan beställa mat nu.', true, provider.isRestaurantOpen,
-              () async { 
-                if (!provider.isRestaurantOpen) {
-                  if (provider.isBeforeOpening()) {
-                    Navigator.pop(ctx);
-                    final confirm = await _showEarlyOpenConfirmation(provider);
-                    if (confirm) provider.setStatus(true);
-                  } else {
-                    provider.setStatus(true);
-                    Navigator.pop(ctx);
-                  }
-                } else {
-                  Navigator.pop(ctx);
-                }
-              }
-            ),
-            const SizedBox(height: 15),
-            _buildStatusOption(
-              ctx, 'STÄNGD', 'Inga nya beställningar tas emot.', false, !provider.isRestaurantOpen,
-              () { 
-                if (provider.isRestaurantOpen) provider.setStatus(false); 
-                Navigator.pop(ctx); 
-              }
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusOption(BuildContext context, String title, String sub, bool targetOpen, bool isCurrent, VoidCallback onTap) {
-    final color = targetOpen ? Colors.green : AppTheme.danger;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      onTap: () {
-        logger.log('BUTTON: Change Status to $title');
-        onTap();
-      },
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: isDark ? AppTheme.zinc : Colors.white,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: isCurrent ? color : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.08)), width: 2),
-          boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-        ),
-        child: Row(
-          children: [
-            Container(width: 50, height: 50, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(18)), child: Icon(targetOpen ? Icons.storefront : Icons.store_outlined, color: color)),
-            const SizedBox(width: 25),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: TextStyle(color: isCurrent ? color : (isDark ? Colors.white : Colors.black), fontWeight: FontWeight.w900, fontSize: 16)),
-              const SizedBox(height: 5),
-              Text(sub, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 12, fontWeight: FontWeight.bold)),
-            ])),
-            if (isCurrent) Icon(Icons.check_circle, color: color),
-          ],
-        ),
-      ),
-    );
-  }
-  Future<bool> _showEarlyOpenConfirmation(OrderProvider provider) async {
-    return await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppTheme.zinc,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: AppTheme.gold),
-            SizedBox(width: 15),
-            Text('ÖPPNA TIDIGT?', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
-          ],
-        ),
-        content: Text(
-          'Restaurangen öppnar automatiskt kl ${provider.openingTime}. Är du säker på att du vill öppna redan nu?',
-          style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('AVBRYT', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.w900, letterSpacing: 1)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.gold,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('ÖPPNA', style: TextStyle(fontWeight: FontWeight.w900)),
-          ),
-        ],
-      ),
-    ) ?? false;
   }
 }
 
-class _GlowFrame extends StatefulWidget {
-  final Widget child;
+class _StatusTile extends StatelessWidget {
+  final String title;
+  final bool selected;
   final Color color;
-  final bool isDark;
-  const _GlowFrame({required this.child, required this.color, required this.isDark});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _StatusTile({
+    required this.title,
+    required this.selected,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
 
   @override
-  State<_GlowFrame> createState() => _GlowFrameState();
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected ? color.withOpacity(0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? color.withOpacity(0.4)
+                  : AppTheme.borderColor(context),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              Icon(
+                selected ? Icons.check_circle_rounded : Icons.chevron_right,
+                color: selected ? color : AppTheme.mutedColor(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _GlowFrameState extends State<_GlowFrame> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
+// ── New-order pulse banner ────────────────────────────────────────────────────
+class _NewOrderBanner extends StatelessWidget {
+  final AnimationController controller;
+  final int count;
 
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.2, end: 1.0).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+  const _NewOrderBanner({required this.controller, required this.count});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withOpacity(0.3 * _animation.value),
-                blurRadius: 15 * _animation.value,
-                spreadRadius: 2 * _animation.value,
+      animation: controller,
+      builder: (context, _) {
+        final t = controller.value;
+        final scale = 0.96 + t * 0.05;
+        return Center(
+          child: Transform.scale(
+            scale: scale,
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [AppTheme.warning, AppTheme.gold],
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.warning.withOpacity(0.45),
+                    blurRadius: 24 + t * 16,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.notifications_active_rounded,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    count > 1 ? '$count nya ordrar!' : 'Ny order!',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: widget.child,
         );
       },
     );

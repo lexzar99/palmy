@@ -19,6 +19,7 @@ import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
+import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
   type QuickAddress,
@@ -33,6 +34,7 @@ import { palette, styles } from "../constants/theme";
 import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 import { startOrderActivity } from '../lib/liveActivities';
+import { maybeShowFrequentUpdatesPrompt } from '../lib/permissionPrompts';
 
 import { CartItem, DeliveryCheck, City } from "../types";
 
@@ -627,6 +629,9 @@ export default function CartScreen({
 
     setSubmitting(true);
     let finalPaymentIntentId = "FREE_PROMO";
+    // Single idempotency key per checkout attempt — replayed across all
+    // intent/order/refund calls so a network retry never double-charges.
+    const idempotencyKey = Crypto.randomUUID();
     try {
       if (!restaurantSettings.isOpen) {
         Alert.alert(t('cart.errors.restaurantClosed'), t('cart.errors.restaurantClosedHelp'));
@@ -722,7 +727,11 @@ export default function CartScreen({
       const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
       
       if (!isTestFlow && Platform.OS !== "web") {
-        const intentRes = await api.post("/api/payments/create-intent", { amount: total });
+        const intentRes = await api.post(
+          "/api/payments/create-intent",
+          { amount: total },
+          { headers: { "Idempotency-Key": `${idempotencyKey}:intent` } }
+        );
         const { clientSecret, paymentIntentId } = intentRes.data;
 
         const initInfo = await initPaymentSheet({
@@ -834,19 +843,37 @@ export default function CartScreen({
       }
 
       const response = await api.post("/api/orders", payload, {
-        headers: freshToken ? { Authorization: `Bearer ${freshToken}` } : {},
+        headers: {
+          ...(freshToken ? { Authorization: `Bearer ${freshToken}` } : {}),
+          "Idempotency-Key": `${idempotencyKey}:order`,
+        },
       });
 
       const successId = response.data?.orderId || response.data?.id;
       if (successId) {
-        // Kick off Dynamic Island Live Activity right after the order is placed.
+        // Trust the server's ETA when it gives us one — the old "30 if
+        // delivery fee else 25" heuristic was wrong for free-delivery
+        // restaurants. Falling back to 30 / 25 only if the API is silent.
+        const serverEta: number | undefined =
+          typeof response.data?.estimatedTime === "number"
+            ? response.data.estimatedTime
+            : undefined;
+        const etaMinutes = serverEta ?? (orderType === "PICKUP" ? 25 : 30);
+        // Seed the Dynamic Island countdown immediately so the timer doesn't
+        // sit blank for the first few seconds while we wait for the first
+        // server-side push to arrive.
+        const etaEndsAt = Math.floor(Date.now() / 1000) + etaMinutes * 60;
         startOrderActivity({
           orderId: String(successId),
           restaurantName: cartRestaurant?.name || "FoodGo",
           orderTotal: Math.round(total),
-          etaMinutes: restaurantSettings.deliveryFee ? 30 : 25,
+          etaMinutes,
+          etaEndsAt,
           orderType,
         }).catch(() => {});
+        // Soft nudge (once per install) to enable Frequent Updates so the
+        // Dynamic Island countdown stays accurate. No-op outside iOS.
+        void maybeShowFrequentUpdatesPrompt();
         clearCart();
         openOrder(successId);
       } else {
@@ -861,7 +888,11 @@ export default function CartScreen({
 
       if (paymentWasTaken) {
         try {
-          await api.post("/api/payments/refund", { paymentIntentId: finalPaymentIntentId });
+          await api.post(
+            "/api/payments/refund",
+            { paymentIntentId: finalPaymentIntentId },
+            { headers: { "Idempotency-Key": `${idempotencyKey}:refund` } }
+          );
           Alert.alert(
             t('cart.errors.paymentRefunded'),
             t('cart.errors.paymentRefundedHelp')

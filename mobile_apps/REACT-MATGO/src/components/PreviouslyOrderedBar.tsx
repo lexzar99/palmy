@@ -5,6 +5,8 @@ import { api } from '../lib/api';
 import { palette } from '../constants/theme';
 import { useAppStore } from '../store/useAppStore';
 import ScalePressable from './ScalePressable';
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
 
 interface Summary {
   hasHistory: boolean;
@@ -27,6 +29,8 @@ export default function PreviouslyOrderedBar({
   restaurantId: string;
   onReorderComplete: () => void;
 }) {
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const token = useAppStore((s) => s.token);
   const addItem = useAppStore((s) => s.addItem);
   const clearCart = useAppStore((s) => s.clearCart);
@@ -99,9 +103,9 @@ export default function PreviouslyOrderedBar({
         <Ionicons name="time-outline" size={16} color={palette.goldDark} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: palette.goldDark, fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>DU BESTÄLLDE HÄR SENAST</Text>
+        <Text style={{ color: palette.goldDark, fontSize: 9, fontWeight: '900', letterSpacing: ls(2) }}>{t('restaurant.historyLabel')}</Text>
         <Text numberOfLines={1} style={{ color: palette.text, fontSize: 11, fontWeight: '700', marginTop: 2 }}>
-          {summary.itemCount} rätter · {summary.total} kr{names ? ` · ${names}${extra}` : ''}
+          {t('restaurant.historyCount', { count: summary.itemCount, total: summary.total })}{names ? ` · ${names}${extra}` : ''}
         </Text>
       </View>
       <ScalePressable
@@ -112,7 +116,7 @@ export default function PreviouslyOrderedBar({
           <ActivityIndicator size="small" color="#000" />
         ) : (
           <>
-            <Text style={{ color: '#000', fontSize: 9, fontWeight: '900', letterSpacing: 1 }}>BESTÄLL IGEN</Text>
+            <Text style={{ color: '#000', fontSize: 9, fontWeight: '900', letterSpacing: ls(1) }}>{t('restaurant.reorderBtn')}</Text>
             <Ionicons name="arrow-forward" size={12} color="#000" />
           </>
         )}

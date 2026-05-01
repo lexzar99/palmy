@@ -18,6 +18,8 @@ import ProductModal from '../components/ProductModal';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
 import { RestaurantScreenSkeleton } from '../components/SkeletonLoader';
 import ScalePressable from '../components/ScalePressable';
+import { useTranslation } from 'react-i18next';
+import { useArabic } from '../hooks/useArabic';
 
 import type { Restaurant, MenuCategory, MenuProduct, PublicDeal, City } from '../types';
 
@@ -41,6 +43,8 @@ export default function RestaurantScreen({
   openCart: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { ls } = useArabic();
   const heroTopInset = getRestaurantHeroTopInset(insets.top);
   const stickyHeaderTopInset = Math.max(insets.top - 8, 18);
   const cachedData = getScreenCache<RestaurantScreenCache>('restaurant', slug);
@@ -358,13 +362,13 @@ export default function RestaurantScreen({
             <View style={styles.restaurantHeroTopBar}>
               <Pressable style={styles.restaurantHeroBackButton} onPress={goBack}>
                 <Ionicons name="chevron-back" size={16} color={palette.gold} />
-                <Text style={styles.restaurantHeroBackText}>Tillbaka</Text>
+                <Text style={styles.restaurantHeroBackText}>{t('restaurant.back')}</Text>
               </Pressable>
 
               <View style={styles.restaurantHeroActionRow}>
                 <Pressable style={styles.restaurantHeroGhostButton} onPress={() => setShowInfoModal(true)}>
                   <Ionicons name="information-circle-outline" size={15} color={palette.gold} />
-                  <Text style={styles.restaurantHeroGhostButtonText}>Info</Text>
+                  <Text style={styles.restaurantHeroGhostButtonText}>{t('restaurant.info')}</Text>
                 </Pressable>
                 {!!restaurant?.phone && (
                   <Pressable
@@ -372,7 +376,7 @@ export default function RestaurantScreen({
                     onPress={() => Linking.openURL(`tel:${String(restaurant.phone).replace(/\s+/g, "")}`).catch(() => {})}
                   >
                     <Ionicons name="call-outline" size={15} color="#000" />
-                    <Text style={styles.restaurantHeroPrimaryButtonText}>Kontakt</Text>
+                    <Text style={styles.restaurantHeroPrimaryButtonText}>{t('restaurant.contact')}</Text>
                   </Pressable>
                 )}
               </View>
@@ -382,7 +386,7 @@ export default function RestaurantScreen({
               <View style={[styles.restaurantHeroStatusPill, restaurant?.isOpen === false ? styles.restaurantHeroStatusPillClosed : styles.restaurantHeroStatusPillOpen]}>
                 <View style={[styles.restaurantHeroStatusDot, restaurant?.isOpen === false ? styles.restaurantHeroStatusDotClosed : styles.restaurantHeroStatusDotOpen]} />
                 <Text style={[styles.restaurantHeroStatusText, restaurant?.isOpen === false ? styles.restaurantHeroStatusTextClosed : styles.restaurantHeroStatusTextOpen]}>
-                  {restaurant?.isOpen === false ? "Stängd" : "Öppen"}
+                  {restaurant?.isOpen === false ? t('restaurant.statusClosed') : t('restaurant.statusOpen')}
                 </Text>
               </View>
 
@@ -404,11 +408,11 @@ export default function RestaurantScreen({
                 <View style={{ marginTop: 12, padding: 12, borderRadius: 16, backgroundColor: "rgba(224, 61, 61, 0.15)", borderWidth: 1, borderColor: "rgba(224, 61, 61, 0.3)", flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <Ionicons name="alert-circle-outline" size={18} color="#ff6b6b" />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: "#ff6b6b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>Levererar inte hit</Text>
-                    <Text style={{ color: "rgba(255,107,107,0.7)", fontSize: 9, fontWeight: "700" }}>Restaurangen levererar tyvärr inte till din adress.</Text>
+                    <Text style={{ color: "#ff6b6b", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{t('restaurant.noDelivery')}</Text>
+                    <Text style={{ color: "rgba(255,107,107,0.7)", fontSize: 9, fontWeight: "700" }}>{t('restaurant.noDeliveryHelp')}</Text>
                   </View>
                   <Pressable onPress={() => setAddressModalOpen(true)} style={{ backgroundColor: "rgba(224, 61, 61, 0.2)", paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}>
-                    <Text style={{ color: "#ff6b6b", fontSize: 9, fontWeight: "900", textTransform: "uppercase" }}>Ändra</Text>
+                    <Text style={{ color: "#ff6b6b", fontSize: 9, fontWeight: "900", textTransform: "uppercase" }}>{t('restaurant.change')}</Text>
                   </Pressable>
                 </View>
               )}
@@ -432,19 +436,19 @@ export default function RestaurantScreen({
         <View style={styles.restaurantQuickStatsRow} id="stats-sticky">
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="bicycle-outline" size={16} color={palette.gold} />
-            <Text style={styles.restaurantQuickStatLabel}>Avgift</Text>
+            <Text style={styles.restaurantQuickStatLabel}>{t('restaurant.fee')}</Text>
             <Text style={styles.restaurantQuickStatValue}>
-              {zoneAvailable === false ? "–" : (restaurant?.deliveryFee === 0 ? "GRATIS" : `${Math.round(restaurant?.deliveryFee || 0)} KR`)}
+              {zoneAvailable === false ? "–" : (restaurant?.deliveryFee === 0 ? t('common.free').toUpperCase() : `${Math.round(restaurant?.deliveryFee || 0)} KR`)}
             </Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="time-outline" size={16} color={palette.gold} />
-            <Text style={styles.restaurantQuickStatLabel}>Väntetid</Text>
+            <Text style={styles.restaurantQuickStatLabel}>{t('restaurant.eta')}</Text>
             <Text style={styles.restaurantQuickStatValue}>~{Math.round(restaurant?.etaMinutes || 35)} MIN</Text>
           </View>
           <View style={styles.restaurantQuickStatCard}>
             <Ionicons name="storefront-outline" size={16} color={palette.gold} />
-            <Text style={styles.restaurantQuickStatLabel}>Minsta order</Text>
+            <Text style={styles.restaurantQuickStatLabel}>{t('restaurant.minOrder')}</Text>
             <Text style={styles.restaurantQuickStatValue}>{Math.round(restaurant?.minOrderAmount || 0)} KR</Text>
           </View>
         </View>
@@ -475,7 +479,7 @@ export default function RestaurantScreen({
                   <TextInput
                     value={searchTerm}
                     onChangeText={setSearchTerm}
-                    placeholder="Vad är du sugen på?"
+                    placeholder={t('restaurant.searchPlaceholder')}
                     placeholderTextColor={palette.muted}
                     style={styles.restaurantSearchInput}
                   />
@@ -512,7 +516,7 @@ export default function RestaurantScreen({
           {discountedProducts.length > 0 && (
             <View style={styles.discountedRail}>
               <View style={styles.discountedRailHeaderRow}>
-                <Text style={styles.discountedRailHeaderText}>ERBJUDANDEN</Text>
+                <Text style={styles.discountedRailHeaderText}>{t('restaurant.offers')}</Text>
                 <View style={styles.discountedRailHeaderLine} />
               </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.discountedRailContent}>
@@ -557,7 +561,7 @@ export default function RestaurantScreen({
           {loading && (
             <View style={{ alignItems: "center", paddingVertical: 48, gap: 12 }}>
               <ActivityIndicator size="large" color={palette.gold} />
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase" }}>Laddar meny...</Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", letterSpacing: ls(2), textTransform: "uppercase" }}>{t('restaurant.loadingMenu')}</Text>
             </View>
           )}
 
@@ -622,7 +626,7 @@ export default function RestaurantScreen({
                           </View>
 
                           <Text numberOfLines={2} style={styles.restaurantMenuProductDescription}>
-                            {product.description || "Tryck för att välja tillbehör, sås och önskemål."}
+                            {product.description || t('restaurant.tapForExtras')}
                           </Text>
 
                           <View style={styles.restaurantMenuProductTags}>
@@ -663,7 +667,7 @@ export default function RestaurantScreen({
               <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900" }}>{cartItemCount}</Text>
             </View>
           </View>
-          <Text style={styles.floatingCartText}>Gå till kassan</Text>
+          <Text style={styles.floatingCartText}>{t('restaurant.goToCart')}</Text>
         </Pressable>
       )}
 
@@ -702,12 +706,12 @@ export default function RestaurantScreen({
 
           if (cartItems.length > 0 && cartRestaurantId && cartRestaurantId !== restaurant.id) {
             Alert.alert(
-              "Annan restaurang i varukorgen",
-              `Du har redan varor från en annan restaurang i varukorgen. Du kan bara beställa från en restaurang åt gången.\n\nVill du tömma varukorgen och lägga till från ${restaurant.name}?`,
+              t('restaurant.differentRestaurant'),
+              t('restaurant.differentRestaurantHelp', { name: restaurant.name }),
               [
-                { text: "Avbryt", style: "cancel" },
+                { text: t('common.cancel'), style: "cancel" },
                 {
-                  text: "Töm & lägg till",
+                  text: t('restaurant.clearAndAdd'),
                   style: "destructive",
                   onPress: () => { clearCart(); doAdd(); },
                 },

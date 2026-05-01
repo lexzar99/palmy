@@ -19,6 +19,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import { palette, styles } from "../constants/theme";
 import { getImageUrl } from "../lib/api";
 import ScalePressable from "./ScalePressable";
@@ -116,7 +118,22 @@ export function Header({
 
 // ─── ScreenWrap ────────────────────────────────────────────────────────────────
 export function ScreenWrap({ children }: { children: React.ReactNode }) {
-  return <ScrollView contentContainerStyle={styles.scrollContent}>{children}</ScrollView>;
+  const insets = useSafeAreaInsets();
+
+  return (
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={[
+        styles.scrollContent,
+        {
+          paddingTop: getScreenTopPadding(insets.top),
+          paddingBottom: getBottomTabsContentPadding(insets.bottom),
+        },
+      ]}
+    >
+      {children}
+    </ScrollView>
+  );
 }
 
 // ─── RestaurantCard ────────────────────────────────────────────────────────────

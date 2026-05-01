@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/bluetooth_printer_service.dart';
 import '../core/network_scanner.dart';
+import '../core/print_service.dart';
 import '../core/printing_config_service.dart';
 import '../core/theme.dart';
+import '../widgets/app_ui.dart';
 
 class PrintSettingsScreen extends StatefulWidget {
   const PrintSettingsScreen({super.key});
@@ -14,18 +17,24 @@ class PrintSettingsScreen extends StatefulWidget {
 class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
   final PrintingConfigService _printingConfigService = PrintingConfigService();
   final _nameController = TextEditingController();
-  final _ipController = TextEditingController();
+  final _addressController = TextEditingController();
 
   bool _loading = true;
   bool _saving = false;
-  bool _isScanning = false;
+  bool _testing = false;
+  bool _isScanningNetwork = false;
+  bool _isScanningBluetooth = false;
   bool _autoPrint = false;
   int _copies = 1;
   String _paperWidth = '80mm';
   String _selectedPrinterId = '';
+  String _connectionType = 'NETWORK';
   String? _templatePaperWidth;
   String? _syncStatus;
+  String? _bluetoothIssue;
   List<PrinterProfile> _configuredPrinters = [];
+  List<PrinterProfile> _networkPrinters = [];
+  List<PrinterProfile> _bluetoothPrinters = [];
 
   @override
   void initState() {
@@ -41,89 +50,120 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
       final printer = config?.defaultPrinter ?? fallbackPrinter;
 
       if (!mounted) return;
+
       setState(() {
-        _configuredPrinters = config?.printers ?? (fallbackPrinter == null ? [] : [fallbackPrinter]);
+        _configuredPrinters = config?.printers ??
+            (fallbackPrinter == null ? [] : [fallbackPrinter]);
         _autoPrint = printer?.autoPrint ?? false;
         _copies = printer?.copies ?? 1;
-        _paperWidth = printer?.paperWidth ?? config?.template.paperWidth ?? '80mm';
+        _paperWidth =
+            printer?.paperWidth ?? config?.template.paperWidth ?? '80mm';
         _templatePaperWidth = config?.template.paperWidth;
         _selectedPrinterId = printer?.id ?? '';
-        _nameController.text = printer?.name ?? 'Nätverksskrivare';
-        _ipController.text = printer?.address ?? '';
+        _connectionType = printer?.connectionType.toUpperCase() ?? 'NETWORK';
+        _nameController.text = printer?.name ?? 'Köksskrivare';
+        _addressController.text = printer?.address ?? '';
         _syncStatus = printer?.status ?? 'LOCAL';
       });
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  Future<void> _startScan() async {
-    setState(() => _isScanning = true);
+  Future<void> _startNetworkScan() async {
+    setState(() => _isScanningNetwork = true);
     try {
-      final ips = await NetworkScanner.discoverPrinters();
+      final addresses = await NetworkScanner.discoverPrinters();
       if (!mounted) return;
 
-      final merged = <PrinterProfile>[];
-      merged.addAll(_configuredPrinters);
+      final discovered = addresses.map(_networkProfileFromAddress).toList();
+      setState(() {
+        _networkPrinters = discovered;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Nätverksskanning misslyckades: $error', isError: true);
+    } finally {
+      if (mounted) setState(() => _isScanningNetwork = false);
+    }
+  }
 
-      for (final ip in ips) {
-        if (merged.any((printer) => printer.address == ip)) continue;
-        merged.add(
-          PrinterProfile(
-            id: '',
-            restaurantId: '',
-            restaurantName: null,
-            name: 'Upptäckt nätverksskrivare',
-            connectionType: 'NETWORK',
-            address: ip,
-            paperWidth: _paperWidth,
-            copies: _copies,
-            autoPrint: _autoPrint,
-            isDefault: false,
-            isActive: true,
-            receiptMode: 'STANDARD',
-            notes: null,
-            status: 'DISCOVERED',
-            lastSeenAt: null,
-          ),
-        );
+  Future<void> _startBluetoothScan() async {
+    setState(() {
+      _isScanningBluetooth = true;
+      _bluetoothIssue = null;
+    });
+
+    try {
+      final issue = await BluetoothPrinterService.availabilityIssue();
+      if (issue != null) {
+        if (!mounted) return;
+        setState(() => _bluetoothIssue = issue);
+        _showMessage(issue, isError: true);
+        return;
       }
+
+      final devices = await BluetoothPrinterService.discoverPrinters();
+      if (!mounted) return;
 
       setState(() {
-        _configuredPrinters = merged;
+        _bluetoothPrinters = devices
+            .map(
+              (device) => PrinterProfile(
+                id: '',
+                restaurantId: '',
+                restaurantName: null,
+                name: device.name.trim().isEmpty
+                    ? 'Bluetooth-skrivare'
+                    : device.name,
+                connectionType: 'BLUETOOTH',
+                address: device.address,
+                paperWidth: _paperWidth,
+                copies: _copies,
+                autoPrint: _autoPrint,
+                isDefault: false,
+                isActive: true,
+                receiptMode: 'STANDARD',
+                notes: null,
+                status: 'DISCOVERED',
+                lastSeenAt: null,
+              ),
+            )
+            .toList();
       });
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Bluetooth-skanning misslyckades: $error', isError: true);
     } finally {
-      if (mounted) {
-        setState(() => _isScanning = false);
-      }
+      if (mounted) setState(() => _isScanningBluetooth = false);
     }
   }
 
   Future<void> _saveSettings() async {
-    final printerName = _nameController.text.trim().isEmpty ? 'Nätverksskrivare' : _nameController.text.trim();
-    final printerAddress = _ipController.text.trim();
-
-    if (printerAddress.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Ange skrivare eller IP-adress först')),
-      );
+    final draft = _buildDraftPrinter();
+    if (draft.address.isEmpty) {
+      _showMessage('Ange skrivare eller adress innan du sparar.',
+          isError: true);
       return;
     }
 
     setState(() => _saving = true);
     try {
       final printer = await _printingConfigService.saveOrUpdateDefaultPrinter(
-        existingPrinterId: _selectedPrinterId.isEmpty ? null : _selectedPrinterId,
-        name: printerName,
-        address: printerAddress,
-        autoPrint: _autoPrint,
-        copies: _copies,
-        paperWidth: _paperWidth,
+        existingPrinterId:
+            _selectedPrinterId.isEmpty ? null : _selectedPrinterId,
+        name: draft.name,
+        address: draft.address,
+        autoPrint: draft.autoPrint,
+        copies: draft.copies,
+        paperWidth: draft.paperWidth,
+        connectionType: draft.connectionType,
       );
 
-      await _printingConfigService.heartbeat(printerId: printer?.id, address: printerAddress);
+      await _printingConfigService.heartbeat(
+        printerId: printer?.id,
+        address: draft.address,
+      );
       if (!mounted) return;
 
       setState(() {
@@ -133,318 +173,594 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
 
       await _loadSettings();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Utskriftsinställningar sparade och synkade'), backgroundColor: Colors.green),
-      );
-      Navigator.pop(context);
+      _showMessage('Utskriftsinställningarna är sparade och synkade.');
     } catch (_) {
       await _printingConfigService.saveLocalFallback(
-        name: printerName,
-        address: printerAddress,
-        autoPrint: _autoPrint,
-        copies: _copies,
-        paperWidth: _paperWidth,
+        name: draft.name,
+        address: draft.address,
+        autoPrint: draft.autoPrint,
+        copies: draft.copies,
+        paperWidth: draft.paperWidth,
         printerId: _selectedPrinterId,
+        connectionType: draft.connectionType,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('⚠️ Sparade lokalt. Servern kunde inte uppdateras just nu.'), backgroundColor: Colors.orange),
+      _showMessage(
+        'Sparade lokalt. Servern kunde inte uppdateras just nu.',
+        isError: true,
       );
     } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
 
+  Future<void> _testPrint() async {
+    final draft = _buildDraftPrinter();
+    if (draft.address.isEmpty && draft.paperWidth != 'A4') {
+      _showMessage('Välj eller ange en skrivare för att testa utskrift.',
+          isError: true);
+      return;
+    }
+
+    setState(() => _testing = true);
+    try {
+      final issue = await PrintService.printTestTicket(printer: draft);
+      if (!mounted) return;
+      if (issue == null) {
+        _showMessage('Testutskrift skickad.');
+      } else {
+        _showMessage(issue, isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _testing = false);
+    }
+  }
+
+  void _applyPrinter(PrinterProfile printer) {
+    setState(() {
+      _selectedPrinterId = printer.id;
+      _connectionType = printer.connectionType.toUpperCase();
+      _nameController.text = printer.name;
+      _addressController.text = printer.address;
+      _paperWidth = printer.paperWidth;
+      _copies = printer.copies;
+      _autoPrint = printer.autoPrint;
+      _syncStatus = printer.status;
+    });
+  }
+
+  PrinterProfile _buildDraftPrinter() {
+    return PrinterProfile(
+      id: _selectedPrinterId,
+      restaurantId: '',
+      restaurantName: null,
+      name: _nameController.text.trim().isEmpty
+          ? (_connectionType == 'BLUETOOTH'
+              ? 'Bluetooth-skrivare'
+              : 'Nätverksskrivare')
+          : _nameController.text.trim(),
+      connectionType: _connectionType,
+      address: _addressController.text.trim(),
+      paperWidth: _paperWidth,
+      copies: _copies,
+      autoPrint: _autoPrint,
+      isDefault: true,
+      isActive: true,
+      receiptMode: 'STANDARD',
+      notes: null,
+      status: _syncStatus,
+      lastSeenAt: null,
+    );
+  }
+
+  PrinterProfile _networkProfileFromAddress(String address) {
+    return PrinterProfile(
+      id: '',
+      restaurantId: '',
+      restaurantName: null,
+      name: 'Nätverksskrivare',
+      connectionType: 'NETWORK',
+      address: address,
+      paperWidth: _paperWidth,
+      copies: _copies,
+      autoPrint: _autoPrint,
+      isDefault: false,
+      isActive: true,
+      receiptMode: 'STANDARD',
+      notes: null,
+      status: 'DISCOVERED',
+      lastSeenAt: null,
+    );
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.orange : Colors.green,
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
-    _ipController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final visibleDiscovered =
+        _connectionType == 'BLUETOOTH' ? _bluetoothPrinters : _networkPrinters;
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppTheme.charcoal,
-        elevation: 0,
-        title: const Text('SKRIVARINSTÄLLNINGAR', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2)),
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        child: SafeArea(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => Navigator.pop(context),
+                            icon: const Icon(Icons.arrow_back_rounded),
+                          ),
+                          const SizedBox(width: 4),
+                          const Expanded(
+                            child: AppSectionHeader(
+                              eyebrow: 'Utskrift',
+                              title: 'Skrivare och kvitton',
+                              subtitle:
+                                  'Konfigurera riktig utskrift via Bluetooth eller nätverk och testköra layouten direkt.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                        children: [
+                          _buildSummaryCard(),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: _saving ? null : _saveSettings,
+                                  icon: _saving
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.save_outlined),
+                                  label: Text(_saving
+                                      ? 'Sparar...'
+                                      : 'Spara och synka'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _testing ? null : _testPrint,
+                                  icon: _testing
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.receipt_long_rounded),
+                                  label: Text(
+                                      _testing ? 'Skickar...' : 'Testutskrift'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const AppSectionHeader(
+                            eyebrow: 'Anslutning',
+                            title: 'Välj anslutning',
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              ChoiceChip(
+                                label: const Text('Nätverk'),
+                                selected: _connectionType == 'NETWORK',
+                                onSelected: (_) {
+                                  setState(() => _connectionType = 'NETWORK');
+                                },
+                              ),
+                              ChoiceChip(
+                                label: const Text('Bluetooth'),
+                                selected: _connectionType == 'BLUETOOTH',
+                                onSelected: (_) {
+                                  setState(() => _connectionType = 'BLUETOOTH');
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _buildSettingsCard(),
+                          const SizedBox(height: 20),
+                          const AppSectionHeader(
+                            eyebrow: 'Sparade',
+                            title: 'Sparade skrivare',
+                          ),
+                          const SizedBox(height: 12),
+                          if (_configuredPrinters.isEmpty)
+                            const AppEmptyState(
+                              icon: Icons.print_disabled_outlined,
+                              title: 'Ingen standardskrivare sparad',
+                              subtitle:
+                                  'Skanna en skrivare eller fyll i adressen manuellt för att spara en profil.',
+                            )
+                          else
+                            ..._configuredPrinters.map(_buildPrinterTile),
+                          const SizedBox(height: 20),
+                          AppSectionHeader(
+                            eyebrow: 'Upptäckt',
+                            title: _connectionType == 'BLUETOOTH'
+                                ? 'Bluetooth-skrivare'
+                                : 'Nätverksskrivare',
+                            subtitle: _connectionType == 'BLUETOOTH'
+                                ? 'Visa parade eller närliggande Bluetooth-skrivare beroende på plattform.'
+                                : 'Skanna lokalt nätverk efter skrivare på port 9100.',
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isScanningNetwork
+                                      ? null
+                                      : _startNetworkScan,
+                                  icon: _isScanningNetwork
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(Icons.wifi_find_rounded),
+                                  label: const Text('Skanna nätverk'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: _isScanningBluetooth
+                                      ? null
+                                      : _startBluetoothScan,
+                                  icon: _isScanningBluetooth
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2),
+                                        )
+                                      : const Icon(
+                                          Icons.bluetooth_searching_rounded),
+                                  label: const Text('Skanna Bluetooth'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_bluetoothIssue != null) ...[
+                            const SizedBox(height: 12),
+                            AppPanel(
+                              padding: const EdgeInsets.all(16),
+                              tint: Colors.orange,
+                              color: Colors.orange.withOpacity(0.10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.info_outline_rounded,
+                                      color: Colors.orange),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(_bluetoothIssue!)),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          if (visibleDiscovered.isEmpty)
+                            const AppEmptyState(
+                              icon: Icons.search_off_rounded,
+                              title: 'Ingen skrivare hittades än',
+                              subtitle:
+                                  'Försök igen efter att skrivaren är på, parad eller ansluten till samma nätverk.',
+                            )
+                          else
+                            ...visibleDiscovered.map(_buildPrinterTile),
+                          const SizedBox(height: 20),
+                          const AppSectionHeader(
+                            eyebrow: 'Manuell',
+                            title: 'Manuell profil',
+                            subtitle:
+                                'Bra när du redan vet IP-adressen eller vill lägga in en Bluetooth-adress direkt.',
+                          ),
+                          const SizedBox(height: 12),
+                          AppPanel(
+                            child: Column(
+                              children: [
+                                TextField(
+                                  controller: _nameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Namn på skrivaren',
+                                    prefixIcon:
+                                        Icon(Icons.label_outline_rounded),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: _addressController,
+                                  decoration: InputDecoration(
+                                    labelText: _connectionType == 'BLUETOOTH'
+                                        ? 'Bluetooth-adress'
+                                        : 'IP-adress eller host:port',
+                                    prefixIcon: Icon(
+                                      _connectionType == 'BLUETOOTH'
+                                          ? Icons.bluetooth_rounded
+                                          : Icons.print_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        ),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppTheme.gold))
-          : ListView(
-              padding: const EdgeInsets.all(25),
-              children: [
-                _buildSectionHeader('AKTIV KONFIGURATION'),
-                const SizedBox(height: 15),
-                _buildInfoCard(
-                  title: _nameController.text.isEmpty ? 'Ingen standardskrivare vald' : _nameController.text,
-                  subtitle: _ipController.text.isEmpty ? 'Lägg till en skrivare nedan' : 'Adress: ${_ipController.text}',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: AppTheme.gold.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                    child: Text((_syncStatus ?? 'LOCAL').toUpperCase(), style: const TextStyle(color: AppTheme.gold, fontSize: 8, fontWeight: FontWeight.w900)),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                _buildInfoCard(
-                  title: 'Kvittobas från admin',
-                  subtitle: 'Pappersbredd i mallen: ${_templatePaperWidth ?? '80mm'}',
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: AppTheme.gold.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                    child: const Text('SYNC', style: TextStyle(color: AppTheme.gold, fontSize: 8, fontWeight: FontWeight.w900)),
-                  ),
-                ),
-                const SizedBox(height: 35),
+    );
+  }
 
-                _buildSectionHeader('GRUNDINSTÄLLNINGAR'),
-                const SizedBox(height: 20),
-                _buildSettingCard(
-                  title: 'Auto-print',
-                  subtitle: 'Skriv ut direkt när ny order kommer in',
-                  child: Switch(
-                    value: _autoPrint,
-                    onChanged: (value) => setState(() => _autoPrint = value),
-                    activeColor: AppTheme.gold,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                _buildSettingCard(
-                  title: 'Antal kopior',
-                  subtitle: 'Hur många kvitton per order som skrivs ut',
-                  child: Row(
-                    children: [
-                      IconButton(
-                        onPressed: () => setState(() => _copies = (_copies > 1 ? _copies - 1 : 1)),
-                        icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6)),
-                      ),
-                      Text('$_copies', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 18, fontWeight: FontWeight.w900)),
-                      IconButton(
-                        onPressed: () => setState(() => _copies = (_copies < 5 ? _copies + 1 : 5)),
-                        icon: const Icon(Icons.add_circle_outline, color: AppTheme.gold),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 15),
-                _buildSettingCard(
-                  title: 'Pappersbredd',
-                  subtitle: 'Påverkar både PDF-fallback och ESC/POS-utskrift',
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _paperWidth,
-                      dropdownColor: AppTheme.zinc,
-                      onChanged: (value) {
-                        if (value != null) setState(() => _paperWidth = value);
-                      },
-                      items: const [
-                        DropdownMenuItem(value: '58mm', child: Text('58mm')),
-                        DropdownMenuItem(value: '80mm', child: Text('80mm')),
-                        DropdownMenuItem(value: 'A4', child: Text('A4/PDF')),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 35),
+  Widget _buildSummaryCard() {
+    final selected = _buildDraftPrinter();
 
-                _buildSectionHeader('UPPTÄCKT & LAGRADE SKRIVARE'),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton.icon(
-                    onPressed: _isScanning ? null : _startScan,
-                    icon: _isScanning
-                        ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.network_ping),
-                    label: Text(_isScanning ? 'SÖKER SKRIVARE...' : 'SKANNA LOKALT NÄTVERK', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.zinc,
-                      foregroundColor: AppTheme.gold,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15), side: BorderSide(color: AppTheme.gold.withOpacity(0.2))),
+    return AppPanel(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Aktiv profil',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 8),
+                    Text(
+                      selected.name,
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                if (_configuredPrinters.isEmpty)
-                  _buildEmptyState()
-                else
-                  ..._configuredPrinters.map(_buildPrinterTile),
-                const SizedBox(height: 24),
-
-                _buildSectionHeader('MANUELL STANDARDPRINTER'),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _nameController,
-                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppTheme.zinc,
-                    hintText: 'Namn på skrivaren',
-                    hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.label_outline, color: AppTheme.gold, size: 20),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _ipController,
-                  style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: AppTheme.zinc,
-                    hintText: 'Ange skrivarens IP-adress',
-                    hintStyle: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.5)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
-                    prefixIcon: const Icon(Icons.print_outlined, color: AppTheme.gold, size: 20),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppTheme.gold.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppTheme.gold.withOpacity(0.15)),
-                  ),
-                  child: const Text(
-                    'Desktop-adminen lagrar och synkar nu riktiga printerprofiler. Själva nätverkstestet måste fortfarande ske från restaurangens egen enhet, eftersom skrivaren ligger på deras lokala nätverk.',
-                    style: TextStyle(color: Colors.white70, height: 1.6, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                SizedBox(
-                  width: double.infinity,
-                  height: 65,
-                  child: ElevatedButton(
-                    onPressed: _saving ? null : _saveSettings,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.gold,
-                      foregroundColor: AppTheme.charcoal,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                    const SizedBox(height: 4),
+                    Text(
+                      selected.address.isEmpty
+                          ? 'Ingen adress vald än.'
+                          : selected.address,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                    child: _saving
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.charcoal))
-                        : const Text('SPARA OCH SYNKA', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-              ],
+              ),
+              const SizedBox(width: 12),
+              AppPill(
+                label: (_syncStatus ?? 'LOCAL').toUpperCase(),
+                color: (_syncStatus ?? 'LOCAL') == 'ONLINE'
+                    ? Colors.green
+                    : Colors.orange,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              AppPill(
+                label: selected.connectionType == 'BLUETOOTH'
+                    ? 'Bluetooth'
+                    : 'Nätverk',
+                color: selected.connectionType == 'BLUETOOTH'
+                    ? Colors.blueAccent
+                    : Colors.deepPurple,
+              ),
+              AppPill(
+                label: 'Papper ${selected.paperWidth}',
+                color: Colors.amber,
+              ),
+              AppPill(
+                label:
+                    selected.autoPrint ? 'Autoutskrift på' : 'Autoutskrift av',
+                color: selected.autoPrint ? Colors.green : Colors.grey,
+              ),
+            ],
+          ),
+          if (_templatePaperWidth != null) ...[
+            const SizedBox(height: 14),
+            Text(
+              'Adminmallen använder ${_templatePaperWidth!} som grund. Du kan överstyra pappersbredden här om den lokala skrivaren behöver det.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsCard() {
+    return AppPanel(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Autoutskrift',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Skriv ut direkt när en ny order kommer in.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: _autoPrint,
+                onChanged: (value) => setState(() => _autoPrint = value),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Antal kopior',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Hur många kvitton per order som skickas.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () =>
+                    setState(() => _copies = _copies > 1 ? _copies - 1 : 1),
+                icon: const Icon(Icons.remove_circle_outline_rounded),
+              ),
+              Text('$_copies', style: Theme.of(context).textTheme.titleLarge),
+              IconButton(
+                onPressed: () =>
+                    setState(() => _copies = _copies < 5 ? _copies + 1 : 5),
+                icon: const Icon(Icons.add_circle_outline_rounded),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Pappersbredd',
+                style: Theme.of(context).textTheme.titleMedium),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: ['58mm', '80mm', 'A4']
+                .map(
+                  (value) => ChoiceChip(
+                    label: Text(value),
+                    selected: _paperWidth == value,
+                    onSelected: (_) => setState(() => _paperWidth = value),
+                  ),
+                )
+                .toList(),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildPrinterTile(PrinterProfile printer) {
-    final isSelected = _ipController.text == printer.address;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isSelected ? AppTheme.gold.withOpacity(0.05) : AppTheme.zinc,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: isSelected ? AppTheme.gold : Theme.of(context).dividerColor.withOpacity(0.6), width: 1.5),
-      ),
-      child: ListTile(
-        onTap: () => setState(() {
-          _selectedPrinterId = printer.id;
-          _nameController.text = printer.name;
-          _ipController.text = printer.address;
-          _paperWidth = printer.paperWidth;
-          _copies = printer.copies;
-          _autoPrint = printer.autoPrint;
-          _syncStatus = printer.status;
-        }),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(color: Colors.black26, borderRadius: BorderRadius.circular(12)),
-          child: Icon(printer.connectionType == 'NETWORK' ? Icons.print : Icons.bluetooth, color: AppTheme.gold, size: 22),
-        ),
-        title: Text(printer.name, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1)),
-        subtitle: Text('${printer.address} · ${printer.status ?? 'UNKNOWN'}', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold)),
-        trailing: isSelected
-            ? const Icon(Icons.check_circle, color: AppTheme.gold)
-            : printer.isDefault
-                ? const Text('STANDARD', style: TextStyle(color: AppTheme.gold, fontSize: 8, fontWeight: FontWeight.w900))
-                : null,
-      ),
-    );
-  }
+    final isSelected =
+        _connectionType == printer.connectionType.toUpperCase() &&
+            _addressController.text.trim() == printer.address;
 
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Column(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: AppPanel(
+        onTap: () => _applyPrinter(printer),
+        tint: isSelected ? Colors.green : null,
+        color: isSelected
+            ? Colors.green.withOpacity(0.10)
+            : AppTheme.panelColor(context),
+        child: Row(
           children: [
-            Icon(Icons.print_disabled, size: 40, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.2)),
-            const SizedBox(height: 10),
-            Text('INGA SKRIVARE KONFIGURERADE ÄN', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.6), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: (printer.connectionType.toUpperCase() == 'BLUETOOTH'
+                        ? Colors.blueAccent
+                        : Colors.deepPurple)
+                    .withOpacity(0.14),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Icon(
+                printer.connectionType.toUpperCase() == 'BLUETOOTH'
+                    ? Icons.bluetooth_rounded
+                    : Icons.print_rounded,
+                color: printer.connectionType.toUpperCase() == 'BLUETOOTH'
+                    ? Colors.blueAccent
+                    : Colors.deepPurple,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(printer.name,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(printer.address,
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      AppPill(
+                        label: printer.connectionType.toUpperCase(),
+                        color:
+                            printer.connectionType.toUpperCase() == 'BLUETOOTH'
+                                ? Colors.blueAccent
+                                : Colors.deepPurple,
+                      ),
+                      AppPill(
+                        label: printer.status ?? 'UNKNOWN',
+                        color: printer.isDefault ? Colors.green : Colors.orange,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Icon(
+              isSelected
+                  ? Icons.check_circle_rounded
+                  : Icons.chevron_right_rounded,
+              color: isSelected ? Colors.green : null,
+            ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Row(
-      children: [
-        Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 3)),
-        const SizedBox(width: 15),
-        Expanded(child: Container(height: 1, color: AppTheme.gold.withOpacity(0.1))),
-      ],
-    );
-  }
-
-  Widget _buildSettingCard({required String title, required String subtitle, required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 20),
-      decoration: BoxDecoration(
-        color: AppTheme.zinc,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.6)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(fontSize: 11, color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          child,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoCard({required String title, required String subtitle, Widget? trailing}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.zinc,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.5)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900, fontSize: 14)),
-                const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7), fontSize: 11, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          if (trailing != null) trailing,
-        ],
       ),
     );
   }

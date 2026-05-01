@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, Platform, ScrollView, Animated, PanRe
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppStore } from '../store/useAppStore';
+import { useTranslation } from 'react-i18next';
 import { api, getImageUrl } from '../lib/api';
 import { palette, styles } from '../constants/theme';
 import { Header, PrimaryButton } from '../components/ui';
@@ -32,19 +32,13 @@ export default function ProductModal({
   initialExtras?: CartItem["extras"];
   initialNote?: string;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const modalScrollRef = useRef<ScrollView | null>(null);
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [note, setNote] = useState(initialNote ?? "");
   const [extras, setExtras] = useState<CartItem["extras"]>(initialExtras ?? []);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const dislikedIngredients = useAppStore((s) => s.dislikedIngredients || []);
-
-  const matchedIngredients = dislikedIngredients.filter(
-    (ing) =>
-      product?.description?.toLowerCase().includes(ing.toLowerCase()) ||
-      product?.name?.toLowerCase().includes(ing.toLowerCase())
-  );
 
   const orderedGroups = useMemo(
     () => [...(product?.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
@@ -86,13 +80,13 @@ export default function ProductModal({
     const min = group.minSelections || 0;
     const max = group.maxSelections || 0;
 
-    if (min > 0 && max > 0 && min === max) return `Välj ${max} alternativ`;
-    if (min > 0 && max > 0) return `Välj ${min}-${max} alternativ`;
-    if (min > 0) return `Välj minst ${min}`;
-    if (max > 1) return `Välj upp till ${max}`;
-    if (group.type === "RADIO") return "Välj 1 alternativ";
-    return group.required ? "Måste väljas" : "Valfritt";
-  }, []);
+    if (min > 0 && max > 0 && min === max) return t('product.chooseExact', { count: max });
+    if (min > 0 && max > 0) return t('product.chooseBetween', { min, max });
+    if (min > 0) return t('product.chooseMin', { count: min });
+    if (max > 1) return t('product.chooseUpTo', { count: max });
+    if (group.type === "RADIO") return t('product.chooseOne');
+    return group.required ? t('product.required') : t('product.optional');
+  }, [t]);
 
   useEffect(() => {
     if (!product) {
@@ -188,27 +182,22 @@ export default function ProductModal({
       const selectedInGroup = extras.filter((item: any) => item.groupId === group.id);
 
       if (group.required && selectedInGroup.length === 0) {
-        setSelectionError(`Välj ett alternativ i ${group.name.toLowerCase()}.`);
+        setSelectionError(t('product.validationRequired', { group: group.name.toLowerCase() }));
         return;
       }
 
       if (selectedInGroup.length < (group.minSelections || 0)) {
-        setSelectionError(`${group.name} kräver minst ${group.minSelections} val.`);
+        setSelectionError(t('product.validationMin', { group: group.name, count: group.minSelections }));
         return;
       }
 
       if (selectedInGroup.length > (group.maxSelections || 99)) {
-        setSelectionError(`${group.name} tillåter högst ${group.maxSelections} val.`);
+        setSelectionError(t('product.validationMax', { group: group.name, count: group.maxSelections }));
         return;
       }
     }
 
-    let finalNote = note.trim();
-    if (matchedIngredients.length > 0) {
-      const prefText = matchedIngredients.map((i) => `UTAN ${i.toUpperCase()}`).join(", ");
-      finalNote = finalNote ? `${finalNote} (${prefText})` : prefText;
-    }
-
+    const finalNote = note.trim();
     onAdd({ quantity, note: finalNote || undefined, extras });
   };
 
@@ -252,22 +241,16 @@ export default function ProductModal({
                 <LinearGradient colors={["rgba(24,18,12,0.04)", "rgba(24,18,12,0.18)", "rgba(24,18,12,0.72)"]} style={styles.productHeroOverlay} />
                 <View style={styles.productHeroContent}>
                   <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                    <View style={styles.productHeroPriceChip}>
+                    <View style={[styles.productHeroPriceChip, { backgroundColor: "rgba(0,0,0,0.52)", borderColor: "rgba(255,255,255,0.15)" }]}>
                       {product.discountActive ? (
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
-                          <Text style={[styles.productHeroPriceChipText, { textDecorationLine: "line-through", opacity: 0.55 }]}>{product.price} kr</Text>
+                          <Text style={[styles.productHeroPriceChipText, { color: "rgba(255,255,255,0.5)", textDecorationLine: "line-through" }]}>{product.price} kr</Text>
                           <Text style={[styles.productHeroPriceChipText, { color: palette.gold }]}>{basePrice} kr</Text>
                         </View>
                       ) : (
-                        <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                        <Text style={[styles.productHeroPriceChipText, { color: "#fff" }]}>{t('product.from', { price: product.price })}</Text>
                       )}
                     </View>
-                    {matchedIngredients.length > 0 && (
-                      <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                        <Ionicons name="alert-circle" size={14} color="#dc2626" />
-                        <Text style={{ color: "#dc2626", fontSize: 10, fontWeight: "900" }}>{matchedIngredients[0].toUpperCase()}</Text>
-                      </View>
-                    )}
                   </View>
                   <LinearGradient
                     colors={["rgba(24,18,12,0)", "rgba(24,18,12,0.28)", "rgba(24,18,12,0.88)"]}
@@ -290,15 +273,9 @@ export default function ProductModal({
                         <Text style={[styles.productHeroPriceChipText, { color: palette.gold }]}>{basePrice} kr</Text>
                       </View>
                     ) : (
-                      <Text style={styles.productHeroPriceChipText}>Från {product.price} kr</Text>
+                      <Text style={styles.productHeroPriceChipText}>{t('product.from', { price: product.price })}</Text>
                     )}
                   </View>
-                  {matchedIngredients.length > 0 && (
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Ionicons name="alert-circle" size={14} color="#dc2626" />
-                      <Text style={{ color: "#dc2626", fontSize: 10, fontWeight: "900" }}>INNEHÅLLER {matchedIngredients[0].toUpperCase()}</Text>
-                    </View>
-                  )}
                 </View>
                 <Text style={styles.productModalTitle}>{product.name}</Text>
                 {!!product.description && <Text style={styles.productModalDescription}>{product.description}</Text>}
@@ -308,7 +285,7 @@ export default function ProductModal({
             <View style={styles.productMetaCard}>
               <Ionicons name="location-outline" size={18} color={palette.gold} />
               <Text style={styles.productMetaText} numberOfLines={2}>
-                {address ? `Leverans till ${address}` : "Lägg till adress på startsidan om du vill kontrollera leveransen."}
+                {address ? t('product.deliveryTo', { address }) : t('product.noAddress')}
               </Text>
             </View>
 
@@ -324,7 +301,7 @@ export default function ProductModal({
                     <View style={styles.productGroupBadgeRow}>
                       <View style={[styles.productGroupBadge, group.required ? styles.productGroupBadgeRequired : styles.productGroupBadgeOptional]}>
                         <Text style={[styles.productGroupBadgeText, group.required ? styles.productGroupBadgeTextRequired : styles.productGroupBadgeTextOptional]}>
-                          {group.required ? "Måste väljas" : "Valfritt"}
+                          {group.required ? t('product.required') : t('product.optional')}
                         </Text>
                       </View>
                       {(group.maxSelections || 0) > 1 && (
@@ -355,7 +332,7 @@ export default function ProductModal({
                             <View style={styles.productOptionTextWrap}>
                               <Text style={[styles.productOptionTitle, active && styles.productOptionTitleActive]}>{extra.name}</Text>
                               <Text style={[styles.productOptionMeta, active && styles.productOptionMetaActive]}>
-                                {extraPrice > 0 ? `+${extraPrice} kr` : "Ingår"}
+                                {extraPrice > 0 ? `+${extraPrice} kr` : t('product.included')}
                               </Text>
                             </View>
                           </View>
@@ -369,11 +346,11 @@ export default function ProductModal({
             })}
 
             <View style={styles.productNoteCard}>
-              <Text style={styles.productNoteLabel}>Önskemål</Text>
+              <Text style={styles.productNoteLabel}>{t('product.wishes')}</Text>
               <TextInput
                 style={styles.productNoteInput}
                 multiline
-                placeholder="Allergier eller speciella önskemål?"
+                placeholder={t('product.wishesPlaceholder')}
                 placeholderTextColor={palette.muted}
                 value={note}
                 onChangeText={setNote}
@@ -392,7 +369,7 @@ export default function ProductModal({
             <View style={[styles.productModalFooter, { paddingBottom: Math.max(insets.bottom, 12) + 14 }]}>
               <View style={styles.productFooterSummaryRow}>
                 <View>
-                  <Text style={styles.productFooterLabel}>Totalt</Text>
+                  <Text style={styles.productFooterLabel}>{t('product.total')}</Text>
                   <Text style={styles.productFooterValue}>{totalPrice} kr</Text>
                 </View>
                 <View style={styles.productQuantityCard}>
@@ -416,10 +393,10 @@ export default function ProductModal({
                   </View>
                   <View>
                     <Text style={styles.productAddButtonLabel}>
-                      {!address ? (orderType === "DELIVERY" ? "Ange adress" : "Välj stad") : "Lägg i kassen"}
+                      {!address ? t('product.enterAddress') : t('product.addToCart')}
                     </Text>
                     <Text style={styles.productAddButtonSubLabel}>
-                      {!address ? "Krävs för att fortsätta" : "Klar att beställa"}
+                      {!address ? t('product.addressRequired') : t('product.readyToOrder')}
                     </Text>
                   </View>
                 </View>

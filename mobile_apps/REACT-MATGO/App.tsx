@@ -46,6 +46,10 @@ import { initI18n } from './src/i18n';
 import { RestartContext } from './src/contexts/restart';
 import { supabase } from "./src/lib/supabase";
 import { validateEnv } from "./src/lib/env";
+import { initSentry, wrap as sentryWrap } from "./src/lib/sentry";
+import ErrorBoundary from "./src/components/ErrorBoundary";
+
+initSentry();
 import {
   API_URL,
   SOCKET_URL,
@@ -97,7 +101,7 @@ import PhoneGateScreen from "./src/screens/PhoneGateScreen";
 
 // ─── Component imports ─────────────────────────────────────────────────────────
 import ProductModal from "./src/components/ProductModal";
-import PremiumLoader from "./src/components/PremiumLoader";
+import SplashLoader from "./src/components/SplashLoader";
 import LiveOrderBanner from "./src/components/LiveOrderBanner";
 import BottomTabs from "./src/components/BottomTabs";
 import CityModal from "./src/components/CityModal";
@@ -117,15 +121,21 @@ import NetworkBanner from "./src/components/NetworkBanner";
 // Required for expo-auth-session to handle redirects on Android/web
 WebBrowser.maybeCompleteAuthSession();
 
-// Configure notifications
+// Configure notifications. We honour a `silent: true` payload field so the
+// content-available wake-pushes that resync the Live Activity don't ding the
+// user every time the order moves between status states.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification?.request?.content?.data as Record<string, any> | undefined;
+    const silent = data?.silent === true || data?.silent === "true";
+    return {
+      shouldShowAlert: !silent,
+      shouldPlaySound: !silent,
+      shouldSetBadge: true,
+      shouldShowBanner: !silent,
+      shouldShowList: !silent,
+    };
+  },
 });
 
 // Use a fixed custom scheme so Supabase can whitelist one stable mobile redirect.
@@ -645,7 +655,7 @@ function AppContent() {
     hydrate().catch(() => {});
     const timer = setTimeout(() => {
       setSplashFinished(true);
-    }, 2500); // Ensures the splash screen shows for at least 2.5s
+    }, 1500); // Tight hold — wordmark fade lands ~640 ms in, then a beat of breath
     return () => clearTimeout(timer);
   }, [hydrate]);
 
@@ -854,7 +864,7 @@ function AppContent() {
   }, [openRoot, setOnboardingComplete, setProfile, setToken]);
 
   if (!hydrated || !splashFinished) {
-    return <PremiumLoader message="Gör dig redo för en smakupplevelse..." />;
+    return <SplashLoader />;
   }
 
   if (!token && !onboardingComplete) {
@@ -1053,7 +1063,7 @@ function AppContent() {
 }
 
 // ─── Root ──────────────────────────────────────────────────────────────────────
-export default function App() {
+function App() {
   const [appKey, setAppKey] = React.useState(0);
   const [i18nReady, setI18nReady] = React.useState(false);
   const [i18nInstance, setI18nInstance] = React.useState<any>(null);
@@ -1069,17 +1079,27 @@ export default function App() {
     setAppKey((k) => k + 1);
   }, []);
 
-  if (!i18nReady || !i18nInstance) return null;
+  if (!i18nReady || !i18nInstance) {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.bg }}>
+        <SplashLoader />
+      </View>
+    );
+  }
 
   return (
     <RestartContext.Provider value={restartApp}>
-      <I18nextProvider i18n={i18nInstance}>
-        <SafeAreaProvider>
-          <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="foodgo">
-            <AppContent key={appKey} />
-          </AppStripeProvider>
-        </SafeAreaProvider>
-      </I18nextProvider>
+      <ErrorBoundary onReset={restartApp}>
+        <I18nextProvider i18n={i18nInstance}>
+          <SafeAreaProvider>
+            <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="foodgo">
+              <AppContent key={appKey} />
+            </AppStripeProvider>
+          </SafeAreaProvider>
+        </I18nextProvider>
+      </ErrorBoundary>
     </RestartContext.Provider>
   );
 }
+
+export default sentryWrap(App);

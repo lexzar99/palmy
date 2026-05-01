@@ -39,10 +39,11 @@ export default function DiscountedDishesRail({ openRestaurant }: { openRestauran
   if (!loaded || dishes.length === 0) return null;
 
   return (
-    <View style={{ marginTop: 18 }}>
-      <View style={{ paddingHorizontal: 18, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Ionicons name="pricetag" size={14} color={palette.gold} />
-        <Text style={{ color: palette.text, fontSize: 14, fontWeight: '900', letterSpacing: 2 }}>REA &amp; RABATTER</Text>
+    <View>
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+      <View style={{ paddingHorizontal: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name="pricetag" size={12} color={palette.gold} />
+        <Text style={{ color: palette.text, fontSize: 12, fontWeight: '900', letterSpacing: 2 }}>REA &amp; RABATTER</Text>
       </View>
       <FlatList
         data={dishes}

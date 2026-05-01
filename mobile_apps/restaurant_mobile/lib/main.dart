@@ -14,10 +14,11 @@ import 'screens/insights_screen.dart';
 import 'providers/theme_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'core/audio_helper.dart';
+import 'widgets/app_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Try initializing audio configurations
   try {
     await AudioHelper.initConfigs();
@@ -29,21 +30,21 @@ void main() async {
   await authProvider.tryAutoLogin();
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
-  final String fullVersion = '${packageInfo.version}+${packageInfo.buildNumber}';
-
+  final String fullVersion =
+      '${packageInfo.version}+${packageInfo.buildNumber}';
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
-        ChangeNotifierProvider(create: (_) => ThemeProvider()), // NEW THEME PROVIDER
+        ChangeNotifierProvider(
+            create: (_) => ThemeProvider()), // NEW THEME PROVIDER
       ],
       child: MatGoBusinessApp(version: fullVersion),
     ),
   );
 }
-
 
 class MatGoBusinessApp extends StatelessWidget {
   final String version;
@@ -55,7 +56,6 @@ class MatGoBusinessApp extends StatelessWidget {
       builder: (context, themeProvider, _) {
         return Consumer<AuthProvider>(
           builder: (context, auth, _) {
-            debugPrint('🏠 APP ROOT: Authenticated: ${auth.isAuthenticated}. User: ${auth.user?['name']}');
             return MaterialApp(
               title: 'MatGo Business v$version',
               debugShowCheckedModeBanner: false,
@@ -68,7 +68,14 @@ class MatGoBusinessApp extends StatelessWidget {
                   PointerDeviceKind.unknown
                 },
               ),
-              home: auth.isAuthenticated ? const MainShell() : const LoginScreen(),
+              home: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 360),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: auth.isAuthenticated
+                    ? const MainShell(key: ValueKey('main-shell'))
+                    : const LoginScreen(key: ValueKey('login-screen')),
+              ),
             );
           },
         );
@@ -86,6 +93,7 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
+  late final PageController _pageController;
 
   final _pages = const [
     DashboardScreen(),
@@ -95,9 +103,38 @@ class _MainShellState extends State<MainShell> {
     SettingsScreen(),
   ];
 
+  final _destinations = const [
+    _ShellDestination(
+      label: 'Ordrar',
+      icon: Icons.receipt_long_outlined,
+      activeIcon: Icons.receipt_long_rounded,
+    ),
+    _ShellDestination(
+      label: 'Historik',
+      icon: Icons.history_toggle_off_rounded,
+      activeIcon: Icons.history_rounded,
+    ),
+    _ShellDestination(
+      label: 'Insikter',
+      icon: Icons.auto_graph_outlined,
+      activeIcon: Icons.auto_graph_rounded,
+    ),
+    _ShellDestination(
+      label: 'Meny',
+      icon: Icons.restaurant_menu_outlined,
+      activeIcon: Icons.restaurant_menu_rounded,
+    ),
+    _ShellDestination(
+      label: 'Inställningar',
+      icon: Icons.tune_rounded,
+      activeIcon: Icons.tune_rounded,
+    ),
+  ];
+
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final orders = Provider.of<OrderProvider>(context, listen: false);
@@ -109,87 +146,168 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     super.dispose();
+  }
+
+  void _selectTab(int index) {
+    if (index == _currentIndex) return;
+
+    setState(() => _currentIndex = index);
+    _pageController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isTablet = MediaQuery.of(context).size.shortestSide >= 600;
+    final mediaQuery = MediaQuery.of(context);
+    final showRail = mediaQuery.size.width >= 1080;
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    debugPrint('📱 MainShell Build. Authenticated: ${authProvider.isAuthenticated}. User: ${authProvider.user?['name']}');
-    
-    // Sync system brightness to provider for 'SYNC WITH SYSTEM' mode
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      themeProvider.updateSystemBrightness(MediaQuery.of(context).platformBrightness);
+      themeProvider.updateSystemBrightness(mediaQuery.platformBrightness);
     });
 
-    final currentTheme = themeProvider.currentTheme;
-    final bgColor = currentTheme.scaffoldBackgroundColor;
-    final isDark = currentTheme.brightness == Brightness.dark;
-
-    if (isTablet) {
-      return Scaffold(
-        body: Row(children: [
-            NavigationRail(
-              backgroundColor: bgColor,
-              selectedIndex: _currentIndex,
-              onDestinationSelected: (i) => setState(() => _currentIndex = i),
-              labelType: NavigationRailLabelType.all,
-              leading: Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Container(width: 45, height: 45, decoration: BoxDecoration(color: AppTheme.gold, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: AppTheme.gold.withOpacity(0.1), blurRadius: 10)]), child: const Center(child: Text('M', style: TextStyle(color: AppTheme.charcoal, fontSize: 24, fontWeight: FontWeight.w900))))),
-              selectedIconTheme: IconThemeData(color: isDark ? AppTheme.charcoal : AppTheme.lightGold, size: 28),
-              unselectedIconTheme: IconThemeData(color: isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext, size: 24), 
-              selectedLabelTextStyle: TextStyle(color: isDark ? AppTheme.gold : AppTheme.lightGold, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-              unselectedLabelTextStyle: TextStyle(color: isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1), 
-              indicatorColor: isDark ? AppTheme.gold : const Color(0x257A5522),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(Icons.receipt_long_outlined), selectedIcon: Icon(Icons.receipt_long, color: AppTheme.charcoal), label: Text('ORDRAR')),
-                NavigationRailDestination(icon: Icon(Icons.history_outlined), selectedIcon: Icon(Icons.history, color: AppTheme.charcoal), label: Text('HISTORIK')),
-                NavigationRailDestination(icon: Icon(Icons.bar_chart_outlined), selectedIcon: Icon(Icons.add_chart_rounded, color: AppTheme.charcoal), label: Text('STATS')),
-                NavigationRailDestination(icon: Icon(Icons.restaurant_menu_outlined), selectedIcon: Icon(Icons.restaurant_menu, color: AppTheme.charcoal), label: Text('MENY')),
-                NavigationRailDestination(icon: Icon(Icons.settings_outlined), selectedIcon: Icon(Icons.settings, color: AppTheme.charcoal), label: Text('INST.')),
-              ],
-            ),
-            Container(width: 1.5, color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06)),
-            Expanded(child: IndexedStack(index: _currentIndex, children: _pages)),
-          ]),
-      );
-    }
-
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(color: bgColor, border: Border(top: BorderSide(color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06), width: 1.5))),
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
         child: SafeArea(
-          child: Padding(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-            child: Row(mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildNavItem(0, Icons.receipt_long_outlined, Icons.receipt_long, 'ORDRAR', isDark),
-                _buildNavItem(1, Icons.history_outlined, Icons.history, 'HIST.', isDark),
-                _buildNavItem(2, Icons.bar_chart_outlined, Icons.add_chart_rounded, 'STATS', isDark),
-                _buildNavItem(3, Icons.restaurant_menu_outlined, Icons.restaurant_menu, 'MENY', isDark),
-                _buildNavItem(4, Icons.settings_outlined, Icons.settings, 'INST.', isDark),
-              ]),
-          ),
+          child: showRail
+              ? Row(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 0, 12),
+                      child: SizedBox(
+                          width: 92, child: _buildDesktopRail(context)),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        child: _buildViewport(),
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                        child: _buildViewport(),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: _buildBottomNavigation(context),
+                    ),
+                  ],
+                ),
         ),
       ),
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label, bool isDark) {
-    final isActive = _currentIndex == index;
-    final activeColor = isDark ? AppTheme.gold : AppTheme.lightGold;
-    final inactiveColor = isDark ? Colors.white.withOpacity(0.4) : AppTheme.lightSubtext;
-    return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
-      behavior: HitTestBehavior.opaque,
-      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(isActive ? activeIcon : icon, color: isActive ? activeColor : inactiveColor, size: 24),
-            const SizedBox(height: 5),
-            Text(label, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1, color: isActive ? activeColor : inactiveColor)),
-          ]),
+  Widget _buildViewport() {
+    return PageView(
+      controller: _pageController,
+      physics: const NeverScrollableScrollPhysics(),
+      onPageChanged: (index) => setState(() => _currentIndex = index),
+      children: _pages,
+    );
+  }
+
+  Widget _buildDesktopRail(BuildContext context) {
+    final activeColor =
+        AppTheme.isDark(context) ? AppTheme.gold : AppTheme.lightGold;
+
+    return AppPanel(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.goldAccent, AppTheme.gold],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Center(
+              child: Text(
+                'M',
+                style: TextStyle(
+                  color: AppTheme.ink,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: NavigationRail(
+              backgroundColor: Colors.transparent,
+              minWidth: 64,
+              selectedIndex: _currentIndex,
+              labelType: NavigationRailLabelType.all,
+              indicatorColor: activeColor.withOpacity(0.16),
+              onDestinationSelected: _selectTab,
+              destinations: _destinations
+                  .map(
+                    (destination) => NavigationRailDestination(
+                      icon: Icon(destination.icon),
+                      selectedIcon: Icon(
+                        destination.activeIcon,
+                        color: activeColor,
+                      ),
+                      label: Text(destination.label),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
+
+  Widget _buildBottomNavigation(BuildContext context) {
+    return AppPanel(
+      padding: EdgeInsets.zero,
+      radius: 18,
+      child: NavigationBar(
+        height: 68,
+        backgroundColor: Colors.transparent,
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _selectTab,
+        destinations: _destinations
+            .map(
+              (destination) => NavigationDestination(
+                icon: Icon(destination.icon),
+                selectedIcon: Icon(destination.activeIcon),
+                label: destination.label,
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _ShellDestination {
+  final String label;
+  final IconData icon;
+  final IconData activeIcon;
+
+  const _ShellDestination({
+    required this.label,
+    required this.icon,
+    required this.activeIcon,
+  });
 }

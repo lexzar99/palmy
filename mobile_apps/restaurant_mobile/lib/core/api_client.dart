@@ -21,7 +21,7 @@ class ApiClient {
       onRequest: (options, handler) async {
         final prefs = await SharedPreferences.getInstance();
         final token = prefs.getString(AppConstants.tokenKey);
-        
+
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }
@@ -36,8 +36,10 @@ class ApiClient {
     ));
   }
 
-  Future<Response> post(String path, dynamic data) => dio.post(path, data: data);
-  Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) => 
+  Future<Response> post(String path, dynamic data) =>
+      dio.post(path, data: data);
+  Future<Response> get(String path, {Map<String, dynamic>? queryParameters}) =>
       dio.get(path, queryParameters: queryParameters);
-  Future<Response> patch(String path, dynamic data) => dio.patch(path, data: data);
+  Future<Response> patch(String path, dynamic data) =>
+      dio.patch(path, data: data);
 }

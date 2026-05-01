@@ -11,7 +11,7 @@ export function AppStripeProvider({ children, publishableKey, urlScheme }: { chi
     <StripeProvider 
       publishableKey={publishableKey} 
       urlScheme={urlScheme}
-      merchantIdentifier="merchant.com.matgo.app" // Krävs för Apple Pay i Sverige
+      merchantIdentifier="merchant.com.foodgo.app"
     >
       <>{children}</>
     </StripeProvider>

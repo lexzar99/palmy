@@ -271,6 +271,9 @@ export interface AppStoreState {
   pendingPromoCode: string | null;
   filteredRestaurantIds: string[] | null;
   activeOrderId: string | null;
+  /** Latest snapshot of the active order. Written by `useOrderActivitySync` so
+   *  the in-app banner doesn't need its own socket / poll loop. */
+  activeOrder: Order | null;
   dislikedIngredients: string[];
   deliveryOverrides: Record<string, { deliveryFee: number; minOrderAmount: number }>;
   favorites: string[];
@@ -290,6 +293,7 @@ export interface AppStoreState {
   setFilteredRestaurantIds: (ids: string[] | null) => void;
   clearSession: () => void;
   setActiveOrder: (id: string | null) => void;
+  setActiveOrderData: (order: Order | null) => void;
   setDislikedIngredients: (ingredients: string[]) => void;
   setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
   updateDeliveryOverride: (restaurantId: string, deliveryFee: number, minOrderAmount: number) => void;

@@ -88,6 +88,7 @@ export interface RestaurantFormPayload {
   latitude?: number | null;
   longitude?: number | null;
   freeDeliveryAbove?: number;
+  openingHours?: { regular: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }> };
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;

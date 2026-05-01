@@ -43,6 +43,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   pendingPromoCode: null,
   filteredRestaurantIds: null,
   activeOrderId: null,
+  activeOrder: null,
   dislikedIngredients: [],
   deliveryOverrides: {},
   onboardingComplete: false,
@@ -59,7 +60,20 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
-        set({ ...JSON.parse(raw), hydrated: true });
+        const parsed = JSON.parse(raw);
+        // Clear pickupCity if it looks like a street address (contains comma) — stale from old bug
+        if (parsed.pickupCity && parsed.pickupCity.includes(",")) {
+          parsed.pickupCity = "";
+        }
+        // Recompute address from mode-specific fields to prevent stale values after restart
+        if (parsed.orderType === "PICKUP") {
+          parsed.address = parsed.pickupCity || "";
+          parsed.coords = null;
+        } else {
+          parsed.address = parsed.deliveryAddress || "";
+          parsed.coords = parsed.deliveryCoords || null;
+        }
+        set({ ...parsed, hydrated: true });
         return;
       }
     } catch {}
@@ -145,13 +159,11 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   setAddress: (address, coords) => {
     const state = get();
     const nextState: any = { address, coords: coords ?? null };
-    
-    // Also update the mode-specific field
+
+    // Only update the delivery-specific fields — never write to pickupCity via setAddress
     if (state.orderType === "DELIVERY") {
       nextState.deliveryAddress = address;
       nextState.deliveryCoords = coords ?? null;
-    } else {
-      nextState.pickupCity = address;
     }
 
     set(nextState);
@@ -219,16 +231,24 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
     set({ filteredRestaurantIds });
   },
   clearSession: () => {
-    set({ token: null, profile: null, pendingPromoCode: null, activeOrderId: null });
+    set({ token: null, profile: null, pendingPromoCode: null, activeOrderId: null, activeOrder: null });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });
   },
   setActiveOrder: (activeOrderId) => {
-    set({ activeOrderId });
+    // Clearing the id means the order is no longer in flight; drop the
+    // cached snapshot too so consumers don't keep rendering stale data.
+    set(activeOrderId === null ? { activeOrderId, activeOrder: null } : { activeOrderId });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });
+  },
+  setActiveOrderData: (activeOrder) => {
+    set({ activeOrder });
+    // Deliberately not persisted — the snapshot is reconstructed from the
+    // server on every cold start, and we don't want stale in-flight orders
+    // to flash up after a restart.
   },
   setDislikedIngredients: (dislikedIngredients) => {
     set({ dislikedIngredients });

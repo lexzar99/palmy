@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,17 +6,22 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 
 import '../models/order_model.dart';
 import 'api_client.dart';
+import 'bluetooth_printer_service.dart';
+import 'network_print_client.dart';
 import 'printing_config_service.dart';
 
 class PrintService {
   static final ApiClient _api = ApiClient();
-  static final PrintingConfigService _printingConfigService = PrintingConfigService();
+  static final PrintingConfigService _printingConfigService =
+      PrintingConfigService();
 
   static String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
-  static String _scheduledTime(DateTime scheduledFor) => '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
+  static String _scheduledTime(DateTime scheduledFor) =>
+      '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
 
-  static String _scheduledDate(DateTime scheduledFor) => '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
+  static String _scheduledDate(DateTime scheduledFor) =>
+      '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
 
   static String _safeValue(dynamic value) => value?.toString() ?? '';
 
@@ -27,37 +30,109 @@ class PrintService {
     return uppercase ? normalized.toUpperCase() : normalized;
   }
 
-  static Future<void> printReceipt(OrderModel order, {bool respectAutoPrint = false}) async {
+  static Future<void> printReceipt(OrderModel order,
+      {bool respectAutoPrint = false}) async {
     final config = await _printingConfigService.fetchConfig();
-    final printer = config?.defaultPrinter;
+    final printer = config?.defaultPrinter ??
+        await _printingConfigService.loadLocalPrinter();
 
     if (respectAutoPrint && !(printer?.autoPrint ?? false)) {
       return;
     }
 
     final receiptData = await _fetchReceiptData(order.id);
-    final template = receiptData != null && receiptData['template'] is Map<String, dynamic>
-        ? ReceiptTemplateSettings.fromJson(receiptData['template'])
-        : await _printingConfigService.fetchTemplate();
+    final template =
+        receiptData != null && receiptData['template'] is Map<String, dynamic>
+            ? ReceiptTemplateSettings.fromJson(receiptData['template'])
+            : await _printingConfigService.fetchTemplate();
+    final issue = await _dispatchPrint(
+      order: order,
+      receiptData: receiptData,
+      template: template,
+      printer: printer,
+      allowPdfFallback: !respectAutoPrint,
+      printJobName: 'Order_${order.orderNumber}',
+    );
 
-    final effectivePrinter = printer ?? await _printingConfigService.loadLocalPrinter();
-    final paperWidth = effectivePrinter?.paperWidth ?? template.paperWidth;
-    final copies = effectivePrinter?.copies ?? 1;
-    final address = effectivePrinter?.address ?? '';
+    if (issue != null) {
+      debugPrint('Receipt print issue: $issue');
+    }
+  }
 
-    if (address.isNotEmpty && address.contains('.') && paperWidth != 'A4') {
-      final networkPrinted = await _tryNetworkPrint(
-        address: address,
-        paperWidth: paperWidth,
-        copies: copies,
-        receiptData: receiptData,
-        template: template,
-      );
+  static Future<String?> printTestTicket({PrinterProfile? printer}) async {
+    final config = await _printingConfigService.fetchConfig();
+    final effectivePrinter = printer ??
+        config?.defaultPrinter ??
+        await _printingConfigService.loadLocalPrinter();
+    final template =
+        config?.template ?? await _printingConfigService.fetchTemplate();
+    final sampleOrder = _buildTestOrder();
 
-      if (networkPrinted) {
-        await _printingConfigService.heartbeat(printerId: effectivePrinter?.id, address: address);
-        return;
+    return _dispatchPrint(
+      order: sampleOrder,
+      receiptData: _fallbackReceiptData(sampleOrder, template),
+      template: template,
+      printer: effectivePrinter,
+      allowPdfFallback:
+          effectivePrinter == null || effectivePrinter.paperWidth == 'A4',
+      printJobName: 'MatGo_Testkvitto',
+    );
+  }
+
+  static Future<String?> _dispatchPrint({
+    required OrderModel order,
+    required Map<String, dynamic>? receiptData,
+    required ReceiptTemplateSettings template,
+    required PrinterProfile? printer,
+    required bool allowPdfFallback,
+    required String printJobName,
+  }) async {
+    final paperWidth = printer?.paperWidth ?? template.paperWidth;
+    final copies = printer?.copies ?? 1;
+    final address = (printer?.address ?? '').trim();
+
+    if (printer != null && paperWidth != 'A4' && address.isNotEmpty) {
+      if (_isBluetoothPrinter(printer)) {
+        final printed = await _tryBluetoothPrint(
+          address: address,
+          paperWidth: paperWidth,
+          copies: copies,
+          receiptData: receiptData,
+          template: template,
+        );
+        if (printed) {
+          await _printingConfigService.heartbeat(
+            printerId: printer.id,
+            address: address,
+          );
+          return null;
+        }
+      } else if (_looksLikeNetworkPrinter(address)) {
+        final printed = await _tryNetworkPrint(
+          address: address,
+          paperWidth: paperWidth,
+          copies: copies,
+          receiptData: receiptData,
+          template: template,
+        );
+        if (printed) {
+          await _printingConfigService.heartbeat(
+            printerId: printer.id,
+            address: address,
+          );
+          return null;
+        }
       }
+    }
+
+    if (!allowPdfFallback) {
+      if (printer == null || address.isEmpty) {
+        return 'Ingen fysisk skrivare är vald för testutskrift.';
+      }
+      if (_isBluetoothPrinter(printer)) {
+        return 'Bluetooth-skrivaren svarade inte. Kontrollera parkoppling och behörighet.';
+      }
+      return 'Nätverksskrivaren kunde inte nås. Kontrollera IP-adress och att skrivaren är online.';
     }
 
     final pdfBytes = await _buildPdfReceipt(
@@ -69,13 +144,16 @@ class PrintService {
 
     await Printing.layoutPdf(
       onLayout: (_) async => Uint8List.fromList(pdfBytes),
-      name: 'Order_${order.orderNumber}',
+      name: printJobName,
     );
+
+    return null;
   }
 
   static Future<Map<String, dynamic>?> _fetchReceiptData(String orderId) async {
     try {
-      final response = await _api.get('/api/admin/orders/$orderId/receipt-data');
+      final response =
+          await _api.get('/api/admin/orders/$orderId/receipt-data');
       if (response.statusCode == 200 && response.data is Map) {
         return Map<String, dynamic>.from(response.data);
       }
@@ -101,18 +179,72 @@ class PrintService {
       );
 
       final bytes = _buildEscPosBytes(generator, receiptData, template);
-      for (var i = 0; i < copies; i += 1) {
-        final socket = await Socket.connect(address, 9100, timeout: const Duration(seconds: 5));
-        socket.add(bytes);
-        await socket.flush();
-        await socket.close();
-      }
-
-      return true;
+      return NetworkPrintClient.sendBytes(
+        host: _networkHost(address),
+        port: _networkPort(address),
+        bytes: bytes,
+        copies: copies,
+      );
     } catch (error) {
       debugPrint('Network print failed, falling back to PDF: $error');
       return false;
     }
+  }
+
+  static Future<bool> _tryBluetoothPrint({
+    required String address,
+    required String paperWidth,
+    required int copies,
+    required Map<String, dynamic>? receiptData,
+    required ReceiptTemplateSettings template,
+  }) async {
+    try {
+      final profile = await CapabilityProfile.load();
+      final generator = Generator(
+        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
+        profile,
+      );
+
+      final bytes = _buildEscPosBytes(generator, receiptData, template);
+      for (var index = 0; index < copies; index += 1) {
+        final printed = await BluetoothPrinterService.printBytes(
+          address: address,
+          bytes: bytes,
+        );
+        if (!printed) return false;
+      }
+
+      return true;
+    } catch (error) {
+      debugPrint('Bluetooth print failed: $error');
+      return false;
+    }
+  }
+
+  static bool _isBluetoothPrinter(PrinterProfile printer) {
+    return printer.connectionType.toUpperCase() == 'BLUETOOTH';
+  }
+
+  static bool _looksLikeNetworkPrinter(String address) {
+    return address.contains('.') || RegExp(r'^.+:\d+$').hasMatch(address);
+  }
+
+  static String _networkHost(String address) {
+    final trimmed = address.trim();
+    final lastColon = trimmed.lastIndexOf(':');
+    if (lastColon > 0 && trimmed.substring(0, lastColon).contains('.')) {
+      return trimmed.substring(0, lastColon);
+    }
+    return trimmed;
+  }
+
+  static int _networkPort(String address) {
+    final trimmed = address.trim();
+    final lastColon = trimmed.lastIndexOf(':');
+    if (lastColon > 0 && trimmed.substring(0, lastColon).contains('.')) {
+      return int.tryParse(trimmed.substring(lastColon + 1)) ?? 9100;
+    }
+    return 9100;
   }
 
   static Future<List<int>> _buildPdfReceipt({
@@ -127,10 +259,16 @@ class PrintService {
     final payload = receiptData ?? _fallbackReceiptData(order, template);
 
     final pageFormat = paperWidth == '58mm'
-        ? const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity, marginAll: 4 * PdfPageFormat.mm)
+        ? const PdfPageFormat(58 * PdfPageFormat.mm, double.infinity,
+            marginAll: 4 * PdfPageFormat.mm)
         : paperWidth == 'A4'
-            ? PdfPageFormat.a4.copyWith(marginBottom: 24, marginTop: 24, marginLeft: 24, marginRight: 24)
-            : const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity, marginAll: 5 * PdfPageFormat.mm);
+            ? PdfPageFormat.a4.copyWith(
+                marginBottom: 24,
+                marginTop: 24,
+                marginLeft: 24,
+                marginRight: 24)
+            : const PdfPageFormat(80 * PdfPageFormat.mm, double.infinity,
+                marginAll: 5 * PdfPageFormat.mm);
 
     doc.addPage(
       pw.Page(
@@ -157,21 +295,32 @@ class PrintService {
     required pw.Font regularFont,
   }) {
     final widgets = <pw.Widget>[];
-    final header = Map<String, dynamic>.from(payload['header'] as Map? ?? const {});
-    final orderInfo = Map<String, dynamic>.from(payload['orderInfo'] as Map? ?? const {});
-    final customer = Map<String, dynamic>.from(payload['customer'] as Map? ?? const {});
-    final totals = Map<String, dynamic>.from(payload['totals'] as Map? ?? const {});
+    final header =
+        Map<String, dynamic>.from(payload['header'] as Map? ?? const {});
+    final orderInfo =
+        Map<String, dynamic>.from(payload['orderInfo'] as Map? ?? const {});
+    final customer =
+        Map<String, dynamic>.from(payload['customer'] as Map? ?? const {});
+    final totals =
+        Map<String, dynamic>.from(payload['totals'] as Map? ?? const {});
     final items = (payload['items'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    final visibleKeys = {for (final element in template.elements.where((element) => element.visible)) element.key: element};
+    final visibleKeys = {
+      for (final element
+          in template.elements.where((element) => element.visible))
+        element.key: element
+    };
     final extrasVisible = visibleKeys.containsKey('extras');
     final noteVisible = visibleKeys.containsKey('note');
 
-    for (final element in template.elements.where((element) => element.visible)) {
+    for (final element
+        in template.elements.where((element) => element.visible)) {
       if (element.key.startsWith('divider')) {
-        widgets.add(pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 6), child: pw.Divider()));
+        widgets.add(pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Divider()));
         continue;
       }
 
@@ -184,53 +333,111 @@ class PrintService {
 
       switch (element.key) {
         case 'restaurantName':
-          widget = _pdfText(_safeValue(header['restaurantName']), style, align, element.uppercase);
+          widget = _pdfText(_safeValue(header['restaurantName']), style, align,
+              element.uppercase);
           break;
         case 'platformName':
-          widget = _pdfText(template.platformName, style.copyWith(color: PdfColors.grey700), align, element.uppercase);
+          widget = _pdfText(
+              template.platformName,
+              style.copyWith(color: PdfColors.grey700),
+              align,
+              element.uppercase);
           break;
         case 'address':
-          final address = [header['address'], [header['zip'], header['city']].where((value) => _safeValue(value).isNotEmpty).join(' ')].where((value) => _safeValue(value).isNotEmpty).join(', ');
-          if (address.isNotEmpty) widget = _pdfText(address, style.copyWith(color: PdfColors.grey700), align, element.uppercase);
+          final address = [
+            header['address'],
+            [header['zip'], header['city']]
+                .where((value) => _safeValue(value).isNotEmpty)
+                .join(' ')
+          ].where((value) => _safeValue(value).isNotEmpty).join(', ');
+          if (address.isNotEmpty)
+            widget = _pdfText(address, style.copyWith(color: PdfColors.grey700),
+                align, element.uppercase);
           break;
         case 'phone':
-          if (_safeValue(header['phone']).isNotEmpty) widget = _pdfText('Tel: ${_safeValue(header['phone'])}', style.copyWith(color: PdfColors.grey700), align, element.uppercase);
+          if (_safeValue(header['phone']).isNotEmpty)
+            widget = _pdfText(
+                'Tel: ${_safeValue(header['phone'])}',
+                style.copyWith(color: PdfColors.grey700),
+                align,
+                element.uppercase);
           break;
         case 'headerMsg':
-          if ((element.content ?? '').trim().isNotEmpty) widget = _pdfText(element.content!, style, align, element.uppercase);
+          if ((element.content ?? '').trim().isNotEmpty)
+            widget =
+                _pdfText(element.content!, style, align, element.uppercase);
           break;
         case 'orderNumber':
-          widget = _pdfText('Order #${_safeValue(orderInfo['number'])}', style, align, element.uppercase);
+          widget = _pdfText('Order #${_safeValue(orderInfo['number'])}', style,
+              align, element.uppercase);
           break;
         case 'timestamp':
-          widget = _pdfText('${_safeValue(orderInfo['date'])} ${_safeValue(orderInfo['time'])}'.trim(), style, align, element.uppercase);
+          widget = _pdfText(
+              '${_safeValue(orderInfo['date'])} ${_safeValue(orderInfo['time'])}'
+                  .trim(),
+              style,
+              align,
+              element.uppercase);
           break;
         case 'orderType':
-          widget = _pdfText(_safeValue(orderInfo['type']) == 'DELIVERY' ? 'Utkörning' : 'Avhämtning', style, align, element.uppercase);
+          widget = _pdfText(
+              _safeValue(orderInfo['type']) == 'DELIVERY'
+                  ? 'Utkörning'
+                  : 'Avhämtning',
+              style,
+              align,
+              element.uppercase);
           break;
         case 'scheduledFor':
           if (orderInfo['isPreorder'] == true) {
-            widget = _pdfText('Förbeställd ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'.trim(), style, align, element.uppercase);
+            widget = _pdfText(
+                'Förbeställd ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'
+                    .trim(),
+                style,
+                align,
+                element.uppercase);
           }
           break;
         case 'customerName':
-          if (_safeValue(customer['name']).isNotEmpty) widget = _pdfText('Kund: ${_safeValue(customer['name'])}', style, align, element.uppercase);
+          if (_safeValue(customer['name']).isNotEmpty)
+            widget = _pdfText('Kund: ${_safeValue(customer['name'])}', style,
+                align, element.uppercase);
           break;
         case 'customerPhone':
-          if (_safeValue(customer['phone']).isNotEmpty) widget = _pdfText('Telefon: ${_safeValue(customer['phone'])}', style, align, element.uppercase);
+          if (_safeValue(customer['phone']).isNotEmpty)
+            widget = _pdfText('Telefon: ${_safeValue(customer['phone'])}',
+                style, align, element.uppercase);
           break;
         case 'customerAddress':
-          final customerAddress = [_safeValue(customer['street']), [customer['zip'], customer['city']].where((value) => _safeValue(value).isNotEmpty).join(' ')].where((value) => value.isNotEmpty).join(', ');
-          if (customerAddress.isNotEmpty) widget = _pdfText(customerAddress, style, align, element.uppercase);
+          final customerAddress = [
+            _safeValue(customer['street']),
+            [customer['zip'], customer['city']]
+                .where((value) => _safeValue(value).isNotEmpty)
+                .join(' ')
+          ].where((value) => value.isNotEmpty).join(', ');
+          if (customerAddress.isNotEmpty)
+            widget = _pdfText(customerAddress, style, align, element.uppercase);
           break;
         case 'deliveryInstructions':
-          if (_safeValue(customer['instructions']).isNotEmpty) widget = _pdfText('Instruktion: ${_safeValue(customer['instructions'])}', style, align, element.uppercase);
+          if (_safeValue(customer['instructions']).isNotEmpty)
+            widget = _pdfText(
+                'Instruktion: ${_safeValue(customer['instructions'])}',
+                style,
+                align,
+                element.uppercase);
           break;
         case 'note':
-          if (_safeValue(customer['note']).isNotEmpty) widget = _pdfText('Notering: ${_safeValue(customer['note'])}', style, align, element.uppercase);
+          if (_safeValue(customer['note']).isNotEmpty)
+            widget = _pdfText('Notering: ${_safeValue(customer['note'])}',
+                style, align, element.uppercase);
           break;
         case 'allergens':
-          if (_safeValue(customer['allergens']).isNotEmpty) widget = _pdfText('Allergener: ${_safeValue(customer['allergens'])}', style, align, element.uppercase);
+          if (_safeValue(customer['allergens']).isNotEmpty)
+            widget = _pdfText(
+                'Allergener: ${_safeValue(customer['allergens'])}',
+                style,
+                align,
+                element.uppercase);
           break;
         case 'items':
           widget = pw.Column(
@@ -241,17 +448,26 @@ class PrintService {
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Expanded(child: _pdfText('${item['qty']}x ${_safeValue(item['name'])}', style, pw.TextAlign.left, element.uppercase)),
+                    pw.Expanded(
+                        child: _pdfText(
+                            '${item['qty']}x ${_safeValue(item['name'])}',
+                            style,
+                            pw.TextAlign.left,
+                            element.uppercase)),
                     pw.Text('${_safeValue(item['subtotal'])} kr', style: style),
                   ],
                 ),
               );
               if (extrasVisible) {
-                for (final extra in (item['extras'] as List? ?? const []).whereType<Map>()) {
+                for (final extra
+                    in (item['extras'] as List? ?? const []).whereType<Map>()) {
                   localWidgets.add(
                     pw.Padding(
                       padding: const pw.EdgeInsets.only(left: 10, top: 2),
-                      child: pw.Text('+ ${_safeValue(extra['name'])}', style: pw.TextStyle(font: regularFont, fontSize: element.size.toDouble() - 1)),
+                      child: pw.Text('+ ${_safeValue(extra['name'])}',
+                          style: pw.TextStyle(
+                              font: regularFont,
+                              fontSize: element.size.toDouble() - 1)),
                     ),
                   );
                 }
@@ -260,7 +476,10 @@ class PrintService {
                 localWidgets.add(
                   pw.Padding(
                     padding: const pw.EdgeInsets.only(left: 10, top: 2),
-                    child: pw.Text('! ${_safeValue(item['note'])}', style: pw.TextStyle(font: boldFont, fontSize: element.size.toDouble() - 1)),
+                    child: pw.Text('! ${_safeValue(item['note'])}',
+                        style: pw.TextStyle(
+                            font: boldFont,
+                            fontSize: element.size.toDouble() - 1)),
                   ),
                 );
               }
@@ -270,12 +489,15 @@ class PrintService {
           );
           break;
         case 'deliveryFee':
-          if ((totals['deliveryFee'] as num?) != null && (totals['deliveryFee'] as num).toDouble() > 0) {
-            widget = _pdfRow('Leverans', '${_safeValue(totals['deliveryFee'])} kr', style);
+          if ((totals['deliveryFee'] as num?) != null &&
+              (totals['deliveryFee'] as num).toDouble() > 0) {
+            widget = _pdfRow(
+                'Leverans', '${_safeValue(totals['deliveryFee'])} kr', style);
           }
           break;
         case 'discount':
-          if ((totals['discount'] as num?) != null && (totals['discount'] as num).toDouble() > 0) {
+          if ((totals['discount'] as num?) != null &&
+              (totals['discount'] as num).toDouble() > 0) {
             final code = _safeValue(totals['discountCode']);
             widget = _pdfRow(
               code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
@@ -285,18 +507,30 @@ class PrintService {
           }
           break;
         case 'total':
-          widget = _pdfRow('Totalt', '${_safeValue(totals['total'])} kr', style);
+          widget =
+              _pdfRow('Totalt', '${_safeValue(totals['total'])} kr', style);
           break;
         case 'paymentMethod':
           if (_safeValue(orderInfo['paymentMethod']).isNotEmpty) {
-            widget = _pdfText('Betalmetod: ${_safeValue(orderInfo['paymentMethod'])}', style, align, element.uppercase);
+            widget = _pdfText(
+                'Betalmetod: ${_safeValue(orderInfo['paymentMethod'])}',
+                style,
+                align,
+                element.uppercase);
           }
           break;
         case 'thankYou':
-          if ((element.content ?? '').trim().isNotEmpty) widget = _pdfText(element.content!, style, align, element.uppercase);
+          if ((element.content ?? '').trim().isNotEmpty)
+            widget =
+                _pdfText(element.content!, style, align, element.uppercase);
           break;
         case 'footerMsg':
-          if ((element.content ?? '').trim().isNotEmpty) widget = _pdfText(element.content!, style.copyWith(color: PdfColors.grey700), align, element.uppercase);
+          if ((element.content ?? '').trim().isNotEmpty)
+            widget = _pdfText(
+                element.content!,
+                style.copyWith(color: PdfColors.grey700),
+                align,
+                element.uppercase);
           break;
       }
 
@@ -315,20 +549,29 @@ class PrintService {
     ReceiptTemplateSettings template,
   ) {
     final payload = receiptData ?? _fallbackReceiptData(null, template);
-    final header = Map<String, dynamic>.from(payload['header'] as Map? ?? const {});
-    final orderInfo = Map<String, dynamic>.from(payload['orderInfo'] as Map? ?? const {});
-    final customer = Map<String, dynamic>.from(payload['customer'] as Map? ?? const {});
-    final totals = Map<String, dynamic>.from(payload['totals'] as Map? ?? const {});
+    final header =
+        Map<String, dynamic>.from(payload['header'] as Map? ?? const {});
+    final orderInfo =
+        Map<String, dynamic>.from(payload['orderInfo'] as Map? ?? const {});
+    final customer =
+        Map<String, dynamic>.from(payload['customer'] as Map? ?? const {});
+    final totals =
+        Map<String, dynamic>.from(payload['totals'] as Map? ?? const {});
     final items = (payload['items'] as List? ?? const [])
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
-    final visibleKeys = {for (final element in template.elements.where((element) => element.visible)) element.key: element};
+    final visibleKeys = {
+      for (final element
+          in template.elements.where((element) => element.visible))
+        element.key: element
+    };
     final extrasVisible = visibleKeys.containsKey('extras');
     final noteVisible = visibleKeys.containsKey('note');
 
     final bytes = <int>[];
-    for (final element in template.elements.where((element) => element.visible)) {
+    for (final element
+        in template.elements.where((element) => element.visible)) {
       if (element.key.startsWith('divider')) {
         bytes.addAll(generator.hr());
         continue;
@@ -336,100 +579,174 @@ class PrintService {
 
       switch (element.key) {
         case 'restaurantName':
-          bytes.addAll(_posText(generator, _safeValue(header['restaurantName']), element));
+          bytes.addAll(_posText(
+              generator, _safeValue(header['restaurantName']), element));
           break;
         case 'platformName':
           bytes.addAll(_posText(generator, template.platformName, element));
           break;
         case 'address':
-          final address = [header['address'], [header['zip'], header['city']].where((value) => _safeValue(value).isNotEmpty).join(' ')].where((value) => _safeValue(value).isNotEmpty).join(', ');
-          if (address.isNotEmpty) bytes.addAll(_posText(generator, address, element));
+          final address = [
+            header['address'],
+            [header['zip'], header['city']]
+                .where((value) => _safeValue(value).isNotEmpty)
+                .join(' ')
+          ].where((value) => _safeValue(value).isNotEmpty).join(', ');
+          if (address.isNotEmpty)
+            bytes.addAll(_posText(generator, address, element));
           break;
         case 'phone':
-          if (_safeValue(header['phone']).isNotEmpty) bytes.addAll(_posText(generator, 'Tel: ${_safeValue(header['phone'])}', element));
+          if (_safeValue(header['phone']).isNotEmpty)
+            bytes.addAll(_posText(
+                generator, 'Tel: ${_safeValue(header['phone'])}', element));
           break;
         case 'headerMsg':
-          if ((element.content ?? '').trim().isNotEmpty) bytes.addAll(_posText(generator, element.content!, element));
+          if ((element.content ?? '').trim().isNotEmpty)
+            bytes.addAll(_posText(generator, element.content!, element));
           break;
         case 'orderNumber':
-          bytes.addAll(_posText(generator, 'Order #${_safeValue(orderInfo['number'])}', element));
+          bytes.addAll(_posText(
+              generator, 'Order #${_safeValue(orderInfo['number'])}', element));
           break;
         case 'timestamp':
-          bytes.addAll(_posText(generator, '${_safeValue(orderInfo['date'])} ${_safeValue(orderInfo['time'])}'.trim(), element));
+          bytes.addAll(_posText(
+              generator,
+              '${_safeValue(orderInfo['date'])} ${_safeValue(orderInfo['time'])}'
+                  .trim(),
+              element));
           break;
         case 'orderType':
-          bytes.addAll(_posText(generator, _safeValue(orderInfo['type']) == 'DELIVERY' ? 'UTKORNING' : 'AVHAMTNING', element));
+          bytes.addAll(_posText(
+              generator,
+              _safeValue(orderInfo['type']) == 'DELIVERY'
+                  ? 'UTKORNING'
+                  : 'AVHAMTNING',
+              element));
           break;
         case 'scheduledFor':
-          if (orderInfo['isPreorder'] == true) bytes.addAll(_posText(generator, 'FORBESTALLD ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'.trim(), element));
+          if (orderInfo['isPreorder'] == true)
+            bytes.addAll(_posText(
+                generator,
+                'FORBESTALLD ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'
+                    .trim(),
+                element));
           break;
         case 'customerName':
-          if (_safeValue(customer['name']).isNotEmpty) bytes.addAll(_posText(generator, 'KUND: ${_safeValue(customer['name'])}', element));
+          if (_safeValue(customer['name']).isNotEmpty)
+            bytes.addAll(_posText(
+                generator, 'KUND: ${_safeValue(customer['name'])}', element));
           break;
         case 'customerPhone':
-          if (_safeValue(customer['phone']).isNotEmpty) bytes.addAll(_posText(generator, 'TELEFON: ${_safeValue(customer['phone'])}', element));
+          if (_safeValue(customer['phone']).isNotEmpty)
+            bytes.addAll(_posText(generator,
+                'TELEFON: ${_safeValue(customer['phone'])}', element));
           break;
         case 'customerAddress':
-          final customerAddress = [_safeValue(customer['street']), [customer['zip'], customer['city']].where((value) => _safeValue(value).isNotEmpty).join(' ')].where((value) => value.isNotEmpty).join(', ');
-          if (customerAddress.isNotEmpty) bytes.addAll(_posText(generator, customerAddress, element));
+          final customerAddress = [
+            _safeValue(customer['street']),
+            [customer['zip'], customer['city']]
+                .where((value) => _safeValue(value).isNotEmpty)
+                .join(' ')
+          ].where((value) => value.isNotEmpty).join(', ');
+          if (customerAddress.isNotEmpty)
+            bytes.addAll(_posText(generator, customerAddress, element));
           break;
         case 'deliveryInstructions':
-          if (_safeValue(customer['instructions']).isNotEmpty) bytes.addAll(_posText(generator, 'INSTRUKTION: ${_safeValue(customer['instructions'])}', element));
+          if (_safeValue(customer['instructions']).isNotEmpty)
+            bytes.addAll(_posText(
+                generator,
+                'INSTRUKTION: ${_safeValue(customer['instructions'])}',
+                element));
           break;
         case 'note':
-          if (_safeValue(customer['note']).isNotEmpty) bytes.addAll(_posText(generator, 'NOTERING: ${_safeValue(customer['note'])}', element));
+          if (_safeValue(customer['note']).isNotEmpty)
+            bytes.addAll(_posText(generator,
+                'NOTERING: ${_safeValue(customer['note'])}', element));
           break;
         case 'allergens':
-          if (_safeValue(customer['allergens']).isNotEmpty) bytes.addAll(_posText(generator, 'ALLERGENER: ${_safeValue(customer['allergens'])}', element));
+          if (_safeValue(customer['allergens']).isNotEmpty)
+            bytes.addAll(_posText(generator,
+                'ALLERGENER: ${_safeValue(customer['allergens'])}', element));
           break;
         case 'items':
           for (final item in items) {
             bytes.addAll(generator.row([
-              PosColumn(text: '${item['qty']}x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}', width: 9, styles: _posStyles(element)),
-              PosColumn(text: '${_safeValue(item['subtotal'])} kr', width: 3, styles: _posStyles(element, align: PosAlign.right)),
+              PosColumn(
+                  text:
+                      '${item['qty']}x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}',
+                  width: 9,
+                  styles: _posStyles(element)),
+              PosColumn(
+                  text: '${_safeValue(item['subtotal'])} kr',
+                  width: 3,
+                  styles: _posStyles(element, align: PosAlign.right)),
             ]));
 
             if (extrasVisible) {
-              for (final extra in (item['extras'] as List? ?? const []).whereType<Map>()) {
-                bytes.addAll(generator.text('+ ${_safeValue(extra['name'])}', styles: const PosStyles()));
+              for (final extra
+                  in (item['extras'] as List? ?? const []).whereType<Map>()) {
+                bytes.addAll(generator.text('+ ${_safeValue(extra['name'])}',
+                    styles: const PosStyles()));
               }
             }
             if (noteVisible && _safeValue(item['note']).isNotEmpty) {
-              bytes.addAll(generator.text('! ${_safeValue(item['note'])}', styles: const PosStyles(bold: true)));
+              bytes.addAll(generator.text('! ${_safeValue(item['note'])}',
+                  styles: const PosStyles(bold: true)));
             }
           }
           break;
         case 'deliveryFee':
-          if ((totals['deliveryFee'] as num?) != null && (totals['deliveryFee'] as num).toDouble() > 0) {
+          if ((totals['deliveryFee'] as num?) != null &&
+              (totals['deliveryFee'] as num).toDouble() > 0) {
             bytes.addAll(generator.row([
-              PosColumn(text: 'Leverans', width: 8, styles: _posStyles(element)),
-              PosColumn(text: '${_safeValue(totals['deliveryFee'])} kr', width: 4, styles: _posStyles(element, align: PosAlign.right)),
+              PosColumn(
+                  text: 'Leverans', width: 8, styles: _posStyles(element)),
+              PosColumn(
+                  text: '${_safeValue(totals['deliveryFee'])} kr',
+                  width: 4,
+                  styles: _posStyles(element, align: PosAlign.right)),
             ]));
           }
           break;
         case 'discount':
-          if ((totals['discount'] as num?) != null && (totals['discount'] as num).toDouble() > 0) {
+          if ((totals['discount'] as num?) != null &&
+              (totals['discount'] as num).toDouble() > 0) {
             final code = _safeValue(totals['discountCode']);
             bytes.addAll(generator.row([
-              PosColumn(text: code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt', width: 8, styles: _posStyles(element)),
-              PosColumn(text: '-${_safeValue(totals['discount'])} kr', width: 4, styles: _posStyles(element, align: PosAlign.right)),
+              PosColumn(
+                  text: code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
+                  width: 8,
+                  styles: _posStyles(element)),
+              PosColumn(
+                  text: '-${_safeValue(totals['discount'])} kr',
+                  width: 4,
+                  styles: _posStyles(element, align: PosAlign.right)),
             ]));
           }
           break;
         case 'total':
           bytes.addAll(generator.row([
             PosColumn(text: 'TOTALT', width: 8, styles: _posStyles(element)),
-            PosColumn(text: '${_safeValue(totals['total'])} kr', width: 4, styles: _posStyles(element, align: PosAlign.right)),
+            PosColumn(
+                text: '${_safeValue(totals['total'])} kr',
+                width: 4,
+                styles: _posStyles(element, align: PosAlign.right)),
           ]));
           break;
         case 'paymentMethod':
-          if (_safeValue(orderInfo['paymentMethod']).isNotEmpty) bytes.addAll(_posText(generator, 'BETALMETOD: ${_safeValue(orderInfo['paymentMethod'])}', element));
+          if (_safeValue(orderInfo['paymentMethod']).isNotEmpty)
+            bytes.addAll(_posText(
+                generator,
+                'BETALMETOD: ${_safeValue(orderInfo['paymentMethod'])}',
+                element));
           break;
         case 'thankYou':
-          if ((element.content ?? '').trim().isNotEmpty) bytes.addAll(_posText(generator, element.content!, element));
+          if ((element.content ?? '').trim().isNotEmpty)
+            bytes.addAll(_posText(generator, element.content!, element));
           break;
         case 'footerMsg':
-          if ((element.content ?? '').trim().isNotEmpty) bytes.addAll(_posText(generator, element.content!, element));
+          if ((element.content ?? '').trim().isNotEmpty)
+            bytes.addAll(_posText(generator, element.content!, element));
           break;
       }
     }
@@ -439,8 +756,10 @@ class PrintService {
     return bytes;
   }
 
-  static pw.Widget _pdfText(String text, pw.TextStyle style, pw.TextAlign align, bool uppercase) {
-    return pw.Text(_normalizeText(text, uppercase: uppercase), style: style, textAlign: align);
+  static pw.Widget _pdfText(
+      String text, pw.TextStyle style, pw.TextAlign align, bool uppercase) {
+    return pw.Text(_normalizeText(text, uppercase: uppercase),
+        style: style, textAlign: align);
   }
 
   static pw.Widget _pdfRow(String left, String right, pw.TextStyle style) {
@@ -464,14 +783,16 @@ class PrintService {
     }
   }
 
-  static List<int> _posText(Generator generator, String text, ReceiptTemplateElement element) {
+  static List<int> _posText(
+      Generator generator, String text, ReceiptTemplateElement element) {
     return generator.text(
       _normalizeText(text, uppercase: element.uppercase),
       styles: _posStyles(element),
     );
   }
 
-  static PosStyles _posStyles(ReceiptTemplateElement element, {PosAlign? align}) {
+  static PosStyles _posStyles(ReceiptTemplateElement element,
+      {PosAlign? align}) {
     return PosStyles(
       align: align ?? _posAlign(element.align),
       bold: element.weight != 'normal',
@@ -491,7 +812,8 @@ class PrintService {
     }
   }
 
-  static Map<String, dynamic> _fallbackReceiptData(OrderModel? order, ReceiptTemplateSettings template) {
+  static Map<String, dynamic> _fallbackReceiptData(
+      OrderModel? order, ReceiptTemplateSettings template) {
     final activeOrder = order;
     final now = DateTime.now();
     final date = '${_twoDigits(now.day)}/${_twoDigits(now.month)}/${now.year}';
@@ -513,8 +835,12 @@ class PrintService {
         'time': time,
         'paymentMethod': activeOrder?.paymentMethod ?? 'ONLINE',
         'isPreorder': activeOrder?.scheduledFor != null,
-        'scheduledDate': activeOrder?.scheduledFor != null ? _scheduledDate(activeOrder!.scheduledFor!) : null,
-        'scheduledTime': activeOrder?.scheduledFor != null ? _scheduledTime(activeOrder!.scheduledFor!) : null,
+        'scheduledDate': activeOrder?.scheduledFor != null
+            ? _scheduledDate(activeOrder!.scheduledFor!)
+            : null,
+        'scheduledTime': activeOrder?.scheduledFor != null
+            ? _scheduledTime(activeOrder!.scheduledFor!)
+            : null,
       },
       'customer': {
         'name': activeOrder?.customerName ?? '',
@@ -531,7 +857,9 @@ class PrintService {
                 'name': item.productName,
                 'qty': item.quantity,
                 'subtotal': item.subtotal.toStringAsFixed(0),
-                'extras': item.selectedExtras.map((extra) => {'name': extra.toString()}).toList(),
+                'extras': item.selectedExtras
+                    .map((extra) => {'name': extra.toString()})
+                    .toList(),
                 'note': item.note ?? '',
               })
           .toList(),
@@ -543,5 +871,38 @@ class PrintService {
       },
       'template': template.toJson(),
     };
+  }
+
+  static OrderModel _buildTestOrder() {
+    final now = DateTime.now();
+    return OrderModel(
+      id: 'test_print',
+      orderNumber: 'TEST-01',
+      status: 'PENDING',
+      type: 'DELIVERY',
+      customerName: 'MatGo Testkvitto',
+      customerPhone: '070-000 00 00',
+      total: 219,
+      deliveryFee: 29,
+      createdAt: now,
+      deliveryStreet: 'Kungsgatan 1',
+      deliveryCity: 'Stockholm',
+      deliveryZip: '111 43',
+      deliveryInstructions: 'Ring pa dorren',
+      note: 'Extra tydligt test sa ni ser pappersbredd och layout.',
+      paymentMethod: 'Kort',
+      discountCode: 'TEST',
+      discountAmount: 10,
+      items: [
+        OrderItemModel(
+          productName: 'Signature Burger',
+          quantity: 2,
+          subtotal: 180,
+          basePrice: 90,
+          selectedExtras: ['Pommes', 'Vitloksdipp'],
+          note: 'Utan lok',
+        ),
+      ],
+    );
   }
 }

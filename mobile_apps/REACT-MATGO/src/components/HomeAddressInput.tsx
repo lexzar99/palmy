@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { palette } from "../constants/theme";
-import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
+import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
 
 interface HomeAddressInputProps {
   value: string;
@@ -11,24 +11,13 @@ interface HomeAddressInputProps {
   onPress: () => void;
 }
 
-interface Suggestion {
-  properties: {
-    formatted: string;
-  city?: string;
-  postcode?: string;
-  };
-  geometry: {
-    coordinates: [number, number];
-  };
-}
-
 export default function HomeAddressInput({
   value,
   onChangeText,
   onSelect,
   onPress,
 }: HomeAddressInputProps) {
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestions, setSuggestions] = useState<PlaceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -48,11 +37,8 @@ export default function HomeAddressInput({
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&bias=proximity:13.19,55.70&limit=5&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
-      );
-      const data = await response.json();
-      setSuggestions(data.features || []);
+      const items = await placesAutocomplete(text, { bias: "proximity:13.19,55.70" });
+      setSuggestions(items);
     } catch (err) {
       console.error("Autocomplete error:", err);
       setSuggestions([]);
@@ -69,14 +55,15 @@ export default function HomeAddressInput({
     debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
   };
 
-  const handleSelect = (suggestion: Suggestion) => {
-    const formatted = suggestion.properties.formatted;
-    const [lng, lat] = suggestion.geometry.coordinates;
+  const handleSelect = async (suggestion: PlaceItem) => {
+    const formatted = suggestion.description;
     onChangeText(formatted);
-    onSelect(formatted, { lat, lng });
     setSuggestions([]);
     setShowSuggestions(false);
     setIsEditing(false);
+
+    const coords = suggestion.coords ?? (await placesResolveCoords(suggestion));
+    onSelect(formatted, coords ?? undefined);
   };
 
   if (!isEditing) {
@@ -153,7 +140,7 @@ export default function HomeAddressInput({
             >
               <Ionicons name="location-outline" size={16} color={palette.muted} />
               <Text style={styles.suggestionText} numberOfLines={2}>
-                {suggestion.properties.formatted}
+                {suggestion.description}
               </Text>
             </Pressable>
           ))}

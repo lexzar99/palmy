@@ -9,13 +9,13 @@ public struct OrderActivityAttributes: ActivityAttributes {
     public typealias ContentState = OrderState
 
     public struct OrderState: Codable, Hashable {
-        public var status: String        // "accepted" | "preparing" | "ready_delivery" | "ready_pickup" | "on_the_way" | "arrived" | "delivered" | "cancelled"
+        public var status: String        // "accepted" | "preparing" | "ready_delivery" | "ready_pickup" | "on_the_way" | "delivered" | "cancelled"
         public var statusText: String
-        public var progressStep: Int     // DELIVERY: 0-3 (4 steps); PICKUP: 0-2 (3 steps)
+        public var progressStep: Int     // 0-2 — both DELIVERY and PICKUP render 3 steps; iOS frequent-update throttling made a 4th step unreliable
         public var etaMinutes: Int?
         public var driverName: String?
-        public var orderType: String?    // "DELIVERY" | "PICKUP" — drives 4-step vs 3-step UI
-        public var etaEndsAt: Double?    // Unix epoch *seconds* when the active step's countdown should hit 0
+        public var orderType: String?    // "DELIVERY" | "PICKUP" — drives 3rd-step icon (bicycle vs bag)
+        public var etaEndsAt: Double?    // Unix epoch *seconds* when the active step's countdown should hit 0; nil suppresses the timer
 
         public init(
             status: String,

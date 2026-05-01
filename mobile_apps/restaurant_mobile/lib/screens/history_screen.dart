@@ -1,11 +1,13 @@
+import 'package:animate_do/animate_do.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:animate_do/animate_do.dart';
-import '../providers/order_provider.dart';
-import '../models/order_model.dart';
-import '../core/theme.dart';
+
+import '../core/order_ui.dart';
 import '../core/print_service.dart';
-import '../screens/order_detail_screen.dart';
+import '../core/theme.dart';
+import '../models/order_model.dart';
+import '../providers/order_provider.dart';
+import 'order_detail_screen.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -15,170 +17,339 @@ class HistoryScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.charcoal : AppTheme.lightBg,
-          elevation: 0,
-          title: Text('ORDERHISTORIK', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: Theme.of(context).textTheme.titleLarge?.color)),
-          bottom: TabBar(
-            indicatorColor: AppTheme.gold,
-            labelColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.gold : AppTheme.lightGold,
-            unselectedLabelColor: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.4),
-            labelStyle: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13),
-            tabs: [
-              const Tab(text: 'IDAG'),
-              const Tab(text: 'IGÅR'),
-            ],
-          ),
-        ),
-        body: RefreshIndicator(
-          onRefresh: () async => Provider.of<OrderProvider>(context, listen: false).refresh(),
-          color: AppTheme.gold,
-          child: Consumer<OrderProvider>(
-            builder: (context, provider, _) {
-              final todayCompleted = provider.todayHistoryOrders;
-              final yesterdayCompleted = provider.yesterdayHistoryOrders;
+        backgroundColor: Colors.transparent,
+        body: Consumer<OrderProvider>(
+          builder: (context, provider, _) {
+            final todayOrders = provider.todayHistoryOrders;
+            final yesterdayOrders = provider.yesterdayHistoryOrders;
 
-              return Column(
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSummaryCards(context, provider),
+                  Text(
+                    'Historik',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontSize: 26,
+                          letterSpacing: -0.6,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  // Compact dual-day summary in a row of two equal cards
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DaySummary(
+                          eyebrow: 'IDAG',
+                          value:
+                              OrderUi.formatCurrency(provider.todayTotal),
+                          sub: '${todayOrders.length} ordrar',
+                          accent: AppTheme.gold,
+                          icon: Icons.today_rounded,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _DaySummary(
+                          eyebrow: 'IGÅR',
+                          value: OrderUi.formatCurrency(
+                              provider.yesterdayTotal),
+                          sub: '${yesterdayOrders.length} ordrar',
+                          accent: AppTheme.lavender,
+                          icon: Icons.event_repeat_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppTheme.faintColor(context),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const TabBar(
+                      indicator: BoxDecoration(),
+                      labelPadding: EdgeInsets.symmetric(vertical: 4),
+                      tabs: [
+                        Tab(text: 'Idag'),
+                        Tab(text: 'Igår'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Expanded(
                     child: TabBarView(
                       children: [
-                        _buildHistoryList(todayCompleted),
-                        _buildHistoryList(yesterdayCompleted),
+                        _HistoryList(orders: todayOrders),
+                        _HistoryList(orders: yesterdayOrders),
                       ],
                     ),
                   ),
                 ],
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ),
     );
   }
+}
 
-  Widget _buildSummaryCards(BuildContext context, OrderProvider provider) {
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        children: [
-          Expanded(child: _buildStatCard(context, 'IDAG', '${provider.todayTotal.toInt()} KR', AppTheme.gold, '${provider.todayHistoryOrders.length} ORDRAR')),
-          const SizedBox(width: 15),
-          Expanded(child: _buildStatCard(context, 'IGÅR', '${provider.yesterdayTotal.toInt()} KR', Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.3), '${provider.yesterdayHistoryOrders.length} ORDRAR')),
-        ],
-      ),
-    );
-  }
+class _DaySummary extends StatelessWidget {
+  final String eyebrow;
+  final String value;
+  final String sub;
+  final Color accent;
+  final IconData icon;
 
-  Widget _buildStatCard(BuildContext context, String label, String value, Color color, String subtitle) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+  const _DaySummary({
+    required this.eyebrow,
+    required this.value,
+    required this.sub,
+    required this.accent,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.zinc : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: isDark ? color.withOpacity(0.2) : Colors.black.withOpacity(0.08), width: 1.5),
-        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withOpacity(0.18)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: isDark ? color : AppTheme.lightGold, letterSpacing: 2)),
+          Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: accent, size: 14),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                eyebrow,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
-          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Theme.of(context).textTheme.bodyLarge?.color)),
-          const SizedBox(height: 4),
-          Text(subtitle, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: isDark ? color.withOpacity(0.5) : AppTheme.lightSubtext, letterSpacing: 0.5)),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sub,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.mutedColor(context),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildHistoryList(List<OrderModel> orders) {
-    if (orders.isEmpty) {
-      return SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          height: 400,
-          alignment: Alignment.center,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.history_outlined, size: 60, color: Colors.white.withOpacity(0.1)),
-              const SizedBox(height: 16),
-              Text('INGA ORDRAR HITTADES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.white.withOpacity(0.15), letterSpacing: 3)),
-            ],
-          ),
-        ),
-      );
-    }
+class _HistoryList extends StatelessWidget {
+  final List<OrderModel> orders;
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      itemCount: orders.length,
-      itemBuilder: (ctx, i) => _buildHistoryCard(ctx, orders[i]),
-    );
-  }
+  const _HistoryList({required this.orders});
 
-  Widget _buildHistoryCard(BuildContext context, OrderModel order) {
-    return FadeInUp(
-      duration: const Duration(milliseconds: 300),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Theme.of(context).textTheme.bodyLarge!.color!.withOpacity(0.1)),
-        ),
-        child: ListTile(
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order))),
-          contentPadding: const EdgeInsets.all(18),
-          leading: Container(
-            width: 50, height: 50,
-            decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(15)),
-            child: Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  order.orderNumber,
-                  style: const TextStyle(color: AppTheme.gold, fontWeight: FontWeight.w900),
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async =>
+          Provider.of<OrderProvider>(context, listen: false).refresh(),
+      child: orders.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                const SizedBox(height: 60),
+                Center(
+                  child: Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: AppTheme.faintColor(context),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Icon(
+                      Icons.history_toggle_off_rounded,
+                      color: AppTheme.mutedColor(context),
+                    ),
+                  ),
                 ),
+                const SizedBox(height: 14),
+                Center(
+                  child: Text(
+                    'Ingen historik',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            )
+          : ListView.separated(
+              physics: const BouncingScrollPhysics(
+                parent: AlwaysScrollableScrollPhysics(),
+              ),
+              padding: const EdgeInsets.only(bottom: 24, top: 4),
+              itemCount: orders.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) => FadeInUp(
+                duration: Duration(milliseconds: 200 + (index * 30)),
+                child: _HistoryCard(order: orders[index]),
               ),
             ),
+    );
+  }
+}
+
+class _HistoryCard extends StatelessWidget {
+  final OrderModel order;
+
+  const _HistoryCard({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = OrderUi.typeColor(order.type);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => OrderDetailScreen(order: order)),
+          );
+        },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+          decoration: BoxDecoration(
+            color: AppTheme.panelColor(context),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: accent.withOpacity(0.16)),
           ),
-          title: Text(order.customerName.toUpperCase(), style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 14, fontWeight: FontWeight.w900)),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 5),
-              Text(
-                order.items.map((i) => '${i.quantity}x ${i.productName}').join(', ').toUpperCase(),
-                style: TextStyle(
-                  color: Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  overflow: TextOverflow.ellipsis,
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
                 ),
+                child: Icon(OrderUi.typeIcon(order.type),
+                    color: accent, size: 18),
               ),
-            ],
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('${order.total.toInt()} KR', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 6),
-              // REPRINT BUTTON
-              InkWell(
-                onTap: () => PrintService.printReceipt(order),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: const [
-                    Icon(Icons.print_outlined, size: 14, color: AppTheme.gold),
-                    SizedBox(width: 4),
-                    Text('KOPIA', style: TextStyle(color: AppTheme.gold, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            order.customerName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '#${order.orderNumber}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.mutedColor(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      order.items
+                          .map((i) => '${i.quantity}× ${i.productName}')
+                          .join(' • '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.mutedColor(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      OrderUi.formatTime(order.createdAt),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.mutedColor(context),
+                      ),
+                    ),
                   ],
                 ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    OrderUi.formatCurrency(order.total),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                    onPressed: () => PrintService.printReceipt(order),
+                    icon: Icon(
+                      Icons.print_outlined,
+                      size: 18,
+                      color: AppTheme.mutedColor(context),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

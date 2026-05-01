@@ -1,48 +1,52 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+import '../core/audio_helper.dart';
+import '../core/order_ui.dart';
+import '../core/print_service.dart';
+import '../core/theme.dart';
 import '../models/order_model.dart';
 import '../providers/order_provider.dart';
-import '../core/theme.dart';
-import '../core/print_service.dart';
-import '../core/audio_helper.dart';
+import '../widgets/app_ui.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final OrderModel order;
+
   const OrderDetailScreen({super.key, required this.order});
 
   @override
   State<OrderDetailScreen> createState() => _OrderDetailScreenState();
 }
 
-class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTickerProviderStateMixin {
+class _OrderDetailScreenState extends State<OrderDetailScreen>
+    with SingleTickerProviderStateMixin {
   late OrderModel order;
-  AnimationController? _pulseController;
+  late final AnimationController _pulseController;
   Timer? _overdueTimer;
 
   @override
   void initState() {
     super.initState();
     order = widget.order;
-    
     _pulseController = AnimationController(
-       vsync: this, 
-       duration: const Duration(milliseconds: 1500),
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
     )..repeat(reverse: true);
-
     _startOverdueCheck();
   }
 
   @override
   void dispose() {
-    _pulseController?.dispose();
     _overdueTimer?.cancel();
+    _pulseController.dispose();
     super.dispose();
   }
 
   void _startOverdueCheck() {
-    _overdueTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+    _overdueTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (_checkIfOverdue()) {
         AudioHelper.playAudio('notification.mp3');
       }
@@ -52,237 +56,496 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
 
   bool _checkIfOverdue() {
     if (order.estimatedTime == null) return false;
-    if (['DELIVERING', 'DELIVERED', 'CANCELLED', 'REJECTED'].contains(order.status)) return false;
+    if (const {'DELIVERING', 'DELIVERED', 'CANCELLED', 'REJECTED'}
+        .contains(order.status)) {
+      return false;
+    }
 
-    final baseTime = order.scheduledFor != null && order.scheduledFor!.isAfter(order.createdAt)
+    final baseTime = order.scheduledFor != null &&
+            order.scheduledFor!.isAfter(order.createdAt)
         ? order.scheduledFor!
         : order.createdAt;
     final deadline = baseTime.add(Duration(minutes: order.estimatedTime! + 20));
     return DateTime.now().isAfter(deadline);
   }
 
-  String _twoDigits(int value) => value.toString().padLeft(2, '0');
-
-  String _formatScheduledTime(DateTime scheduledFor) {
-    return '${_twoDigits(scheduledFor.hour)}:${_twoDigits(scheduledFor.minute)}';
-  }
-
-  String _formatScheduledDate(DateTime scheduledFor) {
-    return '${_twoDigits(scheduledFor.day)}/${_twoDigits(scheduledFor.month)}/${scheduledFor.year}';
-  }
-
   Future<void> _acceptScheduledOrder() async {
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final ok = await provider.updateStatus(order.id, 'ACCEPTED');
-    if (ok && mounted) {
-      setState(() {
-        order = order.copyWith(status: 'ACCEPTED');
-      });
-    }
+    if (!ok || !mounted) return;
+
+    setState(() {
+      order = order.copyWith(status: 'ACCEPTED');
+    });
   }
 
   void _showAcceptDialog() {
-    int selectedMinutes = 40;
-    final minuteOptions = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90];
-    final scrollController = ScrollController();
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (scrollController.hasClients) {
-        final screenWidth = MediaQuery.of(context).size.width;
-        final targetCenter = (7 * 72.0) + 36.0;
-        final offset = targetCenter - (screenWidth / 2);
-        scrollController.jumpTo(offset > 0 ? offset : 0);
-      }
-    });
-    
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
+    var selectedMinutes = 40;
+    const minuteOptions = [
+      5,
+      10,
+      15,
+      20,
+      25,
+      30,
+      35,
+      40,
+      45,
+      50,
+      55,
+      60,
+      70,
+      80,
+      90
+    ];
+    const optionWidth = 72.0;
+    const optionSpacing = 10.0;
+    final initialIndex = minuteOptions.indexOf(selectedMinutes);
+    final scrollController = ScrollController(
+      initialScrollOffset:
+          initialIndex <= 0 ? 0 : initialIndex * (optionWidth + optionSpacing),
+    );
+
+    showModalBottomSheet<void>(
       context: context,
-      backgroundColor: isDark ? AppTheme.zinc : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheetState) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 25),
-              const Text('VÄLJ FÖRBEREDELSETID',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 3)),
-              const SizedBox(height: 30),
-              SingleChildScrollView(
-                controller: scrollController,
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: minuteOptions.map((min) {
-                    final isSelected = selectedMinutes == min;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: GestureDetector(
-                        onTap: () => setSheetState(() => selectedMinutes = min),
-                        child: Container(
-                          width: 60, height: 60,
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppTheme.gold : (isDark ? Colors.black26 : Colors.black.withOpacity(0.05)),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: isSelected ? AppTheme.gold : (isDark ? Colors.white10 : Colors.black12), width: 2),
-                          ),
-                          child: Center(child: Text('$min',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900,
-                              color: isSelected ? (isDark ? AppTheme.charcoal : Colors.white) : (isDark ? Colors.white60 : Colors.black54)))),
-                        ),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: AppPanel(
+                padding: const EdgeInsets.all(22),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tid',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      height: 68,
+                      child: ListView.separated(
+                        controller: scrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: minuteOptions.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 10),
+                        itemBuilder: (context, index) {
+                          final minutes = minuteOptions[index];
+                          final selected = minutes == selectedMinutes;
+                          return GestureDetector(
+                            onTap: () {
+                              setModalState(() => selectedMinutes = minutes);
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 72,
+                              decoration: BoxDecoration(
+                                color: selected
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: selected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : AppTheme.borderColor(context),
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  '$minutes',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(
+                                        color: selected
+                                            ? Theme.of(context)
+                                                .colorScheme
+                                                .onPrimary
+                                            : Theme.of(context)
+                                                .textTheme
+                                                .titleMedium
+                                                ?.color,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  }).toList(),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Avbryt'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              Navigator.pop(context);
+                              final provider = Provider.of<OrderProvider>(
+                                  this.context,
+                                  listen: false);
+                              final ok = await provider.updateStatus(
+                                order.id,
+                                'PREPARING',
+                                estimatedTime: selectedMinutes,
+                              );
+                              if (!ok || !mounted) return;
+                              setState(() {
+                                order = order.copyWith(
+                                  status: 'PREPARING',
+                                  estimatedTime: selectedMinutes,
+                                );
+                              });
+                            },
+                            child: const Text('Godkänn order'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 35),
+            );
+          },
+        );
+      },
+    ).whenComplete(scrollController.dispose);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = OrderUi.typeColor(order.type);
+    final statusColor = OrderUi.statusColor(order.status);
+    final isOverdue = _checkIfOverdue();
+
+    return Scaffold(
+      extendBody: true,
+      backgroundColor: Colors.transparent,
+      body: AppBackdrop(
+        child: SafeArea(
+          child: Column(
+            children: [
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 30),
+                padding: const EdgeInsets.fromLTRB(12, 12, 16, 0),
                 child: Row(
                   children: [
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const SizedBox(width: 4),
                     Expanded(
-                      child: SizedBox(height: 60,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(ctx),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #${order.orderNumber}',
+                            style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          child: Text('AVBRYT',
-                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black54, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                          const SizedBox(height: 4),
+                          Text(
+                            OrderUi.formatDateTime(order.createdAt),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    AppPill(
+                      label: OrderUi.statusLabel(order.status),
+                      color: statusColor,
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () => PrintService.printReceipt(order),
+                      icon: const Icon(Icons.print_outlined),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+                  children: [
+                    AnimatedBuilder(
+                      animation: _pulseController,
+                      builder: (context, child) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(32),
+                            boxShadow: isOverdue
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.red.withOpacity(
+                                        0.18 + (_pulseController.value * 0.22),
+                                      ),
+                                      blurRadius: 26,
+                                      spreadRadius: 2,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: child,
+                        );
+                      },
+                      child: AppPanel(
+                        tint: isOverdue ? Colors.red : accent,
+                        gradient: LinearGradient(
+                          colors: [
+                            accent.withOpacity(0.12),
+                            AppTheme.panelColor(context),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                AppPill(
+                                  label: OrderUi.typeLabel(order.type),
+                                  color: accent,
+                                  icon: OrderUi.typeIcon(order.type),
+                                ),
+                                const SizedBox(width: 10),
+                                if (order.scheduledFor != null)
+                                  AppPill(
+                                    label:
+                                        'Förbeställd ${OrderUi.formatTime(order.scheduledFor!)}',
+                                    color: AppTheme.gold,
+                                  ),
+                                const Spacer(),
+                                Text(
+                                  OrderUi.formatCurrency(order.total),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineMedium
+                                      ?.copyWith(
+                                        color: accent,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 18),
+                            Text(
+                              order.customerName,
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              order.customerPhone,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    color: accent,
+                                  ),
+                            ),
+                            if (order.type == 'DELIVERY' &&
+                                order.deliveryStreet != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
+                                    .trim(),
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                            if (isOverdue) ...[
+                              const SizedBox(height: 16),
+                              AppPanel(
+                                padding: const EdgeInsets.all(14),
+                                tint: Colors.red,
+                                color: Colors.red.withOpacity(0.12),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.warning_amber_rounded,
+                                        color: Colors.red),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        'Ordern ligger efter uppskattad tid. Kolla status och informera teamet vid behov.',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 15),
-                    Expanded(
-                      flex: 2,
-                      child: SizedBox(height: 60,
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            Navigator.pop(ctx);
-                            final provider = Provider.of<OrderProvider>(context, listen: false);
-                            final ok = await provider.updateStatus(order.id, 'PREPARING', estimatedTime: selectedMinutes);
-                            if (ok && mounted) {
-                              setState(() { order = order.copyWith(status: 'PREPARING', estimatedTime: selectedMinutes); });
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green.shade700,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                          ),
-                          child: const Text('GODKÄNN',
-                            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                    if (order.scheduledFor != null) ...[
+                      const SizedBox(height: 16),
+                      AppPanel(
+                        tint: AppTheme.gold,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: AppTheme.gold.withOpacity(0.14),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: const Icon(Icons.schedule_rounded,
+                                  color: AppTheme.gold),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Förbeställning',
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    OrderUi.scheduledLabel(order),
+                                    style:
+                                        Theme.of(context).textTheme.bodyMedium,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    ],
+                    if (_hasNotesOrAlerts) ...[
+                      const SizedBox(height: 16),
+                      AppPanel(
+                        tint: AppTheme.warning,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Noteringar och viktiga detaljer',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            if (order.deliveryInstructions?.isNotEmpty ==
+                                true) ...[
+                              const SizedBox(height: 12),
+                              _InfoRow(
+                                icon: Icons.door_front_door_outlined,
+                                title: 'Leveransinstruktion',
+                                value: order.deliveryInstructions!,
+                              ),
+                            ],
+                            if (order.note?.isNotEmpty == true) ...[
+                              const SizedBox(height: 12),
+                              _InfoRow(
+                                icon: Icons.sticky_note_2_outlined,
+                                title: 'Kundnotering',
+                                value: order.note!,
+                              ),
+                            ],
+                            if (_allergens.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                'Allergener',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _allergens
+                                    .map(
+                                      (allergen) => AppPill(
+                                        label: allergen,
+                                        color: Colors.red,
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    AppPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const AppSectionHeader(
+                            eyebrow: 'Artiklar',
+                            title: 'Beställning',
+                          ),
+                          const SizedBox(height: 14),
+                          ...order.items.map(
+                            (item) => Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: _ItemCard(item: item),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    AppPanel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const AppSectionHeader(
+                            eyebrow: 'Summering',
+                            title: 'Betalning och totalsumma',
+                          ),
+                          const SizedBox(height: 14),
+                          _SummaryRow(
+                            label: 'Betalmetod',
+                            value: order.paymentMethod ?? 'Ej angiven',
+                          ),
+                          if (order.deliveryFee > 0) ...[
+                            const SizedBox(height: 10),
+                            _SummaryRow(
+                              label: 'Leveransavgift',
+                              value: OrderUi.formatCurrency(order.deliveryFee),
+                            ),
+                          ],
+                          if (order.discountAmount > 0) ...[
+                            const SizedBox(height: 10),
+                            _SummaryRow(
+                              label: order.discountCode == null
+                                  ? 'Rabatt'
+                                  : 'Rabatt (${order.discountCode})',
+                              value:
+                                  '-${OrderUi.formatCurrency(order.discountAmount)}',
+                              valueColor: Colors.green,
+                            ),
+                          ],
+                          const Divider(height: 28),
+                          _SummaryRow(
+                            label: 'Totalt',
+                            value: OrderUi.formatCurrency(order.total),
+                            emphasize: true,
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final statusLabel = {
-      'PENDING': 'VÄNTAR',
-      'ACCEPTED': 'BEKRÄFTAD',
-      'PREPARING': 'TILLAGAS',
-      'READY': 'KLAR',
-      'DELIVERING': 'PÅ VÄG',
-      'DELIVERED': 'LEVERERAD',
-    }[order.status] ?? order.status;
-
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.transparent,
-        title: Text('ORDER #${order.orderNumber}',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1, color: Theme.of(context).textTheme.bodyLarge?.color),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-        actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 10),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: order.status == 'PENDING' ? AppTheme.gold.withOpacity(0.15) : Colors.green.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Center(
-              child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900,
-                color: order.status == 'PENDING' ? AppTheme.gold : Colors.green, letterSpacing: 1.5)),
-            ),
-          ),
-          IconButton(
-            onPressed: () => PrintService.printReceipt(order),
-            icon: const Icon(Icons.print_outlined, color: AppTheme.gold),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: AnimatedBuilder(
-        animation: _pulseController!,
-        builder: (context, child) {
-          final isOverdue = _checkIfOverdue();
-          final borderColor = Colors.red.withOpacity(isOverdue ? (0.3 + (_pulseController!.value * 0.4)) : 0);
-          return Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: borderColor, width: isOverdue ? 4 : 0),
-            ),
-            child: child,
-          );
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: Center(
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 600),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, spreadRadius: 5),
-                ],
-              ),
-                  child: Column(
-                 children: [
-                    _buildReceiptHeader(),
-                    if (order.scheduledFor != null) _buildScheduledInfoCard(isDark),
-                    _buildReceiptCustomerInfo(isDark),
-                    
-                    if ((order.note != null && order.note!.isNotEmpty) || (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty))
-                     _buildReceiptNotes(isDark),
-                   
-                   _buildDashedDivider(),
-                   
-                   Padding(
-                     padding: const EdgeInsets.all(25),
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         const Text('ORDERDETALJER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2, color: Colors.grey)),
-                         const SizedBox(height: 25),
-                         ...order.items.map((item) => _buildReceiptItem(item, isDark)),
-                       ],
-                     ),
-                   ),
-                   
-                   _buildDashedDivider(),
-                   _buildReceiptSummary(isDark),
-                   const SizedBox(height: 30),
-                ],
-              ),
-            ),
           ),
         ),
       ),
@@ -290,339 +553,235 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> with SingleTicker
     );
   }
 
-  Widget _buildReceiptHeader() {
-    final accentColor = order.type == 'DELIVERY' ? Colors.green : Colors.blue;
-    return Container(
-      padding: const EdgeInsets.all(25),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
+  bool get _hasNotesOrAlerts {
+    return (order.deliveryInstructions?.isNotEmpty ?? false) ||
+        (order.note?.isNotEmpty ?? false) ||
+        _allergens.isNotEmpty;
+  }
+
+  List<String> get _allergens {
+    final raw = order.allergens;
+    if (raw == null || raw.isEmpty || raw == '[]') return const [];
+
+    try {
+      return (jsonDecode(raw) as List)
+          .map((item) => item.toString())
+          .where((item) => item.trim().isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [raw];
+    }
+  }
+
+  Widget? _buildActionFooter() {
+    if (const {
+      'DELIVERED',
+      'COMPLETED',
+      'CANCELLED',
+      'REJECTED',
+      'DELIVERING',
+    }.contains(order.status)) {
+      return null;
+    }
+
+    if (order.status == 'READY' && order.type == 'PICKUP') {
+      return null;
+    }
+
+    final isPending = order.status == 'PENDING';
+    final nextStatus = order.type == 'PICKUP' ? 'READY' : 'DELIVERING';
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+        child: AppPanel(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                if (isPending) {
+                  if (order.scheduledFor != null) {
+                    await _acceptScheduledOrder();
+                  } else {
+                    _showAcceptDialog();
+                  }
+                  return;
+                }
+
+                final provider =
+                    Provider.of<OrderProvider>(context, listen: false);
+                final ok = await provider.updateStatus(order.id, nextStatus);
+                if (!ok || !mounted) return;
+
+                setState(() {
+                  order = order.copyWith(status: nextStatus);
+                });
+
+                if (nextStatus == 'DELIVERING' || nextStatus == 'READY') {
+                  Navigator.pop(context);
+                }
+              },
+              icon: Icon(
+                isPending
+                    ? Icons.check_circle_outline_rounded
+                    : order.type == 'PICKUP'
+                        ? Icons.shopping_bag_rounded
+                        : Icons.delivery_dining_rounded,
+              ),
+              label: Text(
+                isPending
+                    ? (order.scheduledFor != null
+                        ? 'Bekräfta förbeställning'
+                        : 'Godkänn order')
+                    : (order.type == 'PICKUP'
+                        ? 'Klar för hämtning'
+                        : 'Maten är på väg'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String value;
+
+  const _InfoRow({
+    required this.icon,
+    required this.title,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'ORDER #${order.orderNumber}',
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                  height: 1.1,
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(value, style: Theme.of(context).textTheme.bodyMedium),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ItemCard extends StatelessWidget {
+  final OrderItemModel item;
+
+  const _ItemCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPanel(
+      padding: const EdgeInsets.all(16),
+      tint: AppTheme.info,
+      color: AppTheme.panelColor(context).withOpacity(0.92),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppPill(
+                label: '${item.quantity}x',
+                color: AppTheme.info,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  item.productName,
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
               ),
-              Text(order.createdAt.toString().split('.')[0].substring(0, 16), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            ],
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: accentColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-            child: Row(
-              children: [
-                Icon(order.type == 'DELIVERY' ? Icons.delivery_dining : Icons.shopping_bag_outlined, color: accentColor, size: 16),
-                const SizedBox(width: 8),
-                Text(order.type == 'DELIVERY' ? 'UTKÖRNING' : 'AVHÄMTNING', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: accentColor)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReceiptCustomerInfo(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.person, size: 16, color: Colors.grey),
               const SizedBox(width: 10),
-              Text(order.customerName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text(
+                OrderUi.formatCurrency(item.subtotal),
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Icon(Icons.phone, size: 16, color: Colors.grey),
-              const SizedBox(width: 10),
-              Text(order.customerPhone, style: const TextStyle(fontSize: 16, color: AppTheme.gold, fontWeight: FontWeight.w900)),
-            ],
-          ),
-          if (order.type == 'DELIVERY' && order.deliveryStreet != null) ...[
+          if (item.selectedExtras.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text('${order.deliveryStreet}\n${order.deliveryZip ?? ""} ${order.deliveryCity ?? ""}'.trim(), 
-                    style: const TextStyle(fontSize: 16, height: 1.3, fontWeight: FontWeight.w500)),
-                ),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildScheduledInfoCard(bool isDark) {
-    final scheduledFor = order.scheduledFor;
-    if (scheduledFor == null) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(25, 0, 25, 10),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppTheme.gold.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.gold.withOpacity(0.3), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 46,
-            height: 46,
-            decoration: BoxDecoration(
-              color: AppTheme.gold.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: const Icon(Icons.schedule, color: AppTheme.gold),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'FÖRBESTÄLLNING',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: AppTheme.gold, letterSpacing: 2),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _formatScheduledTime(scheduledFor),
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                    color: isDark ? Colors.white : AppTheme.charcoal,
-                    height: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatScheduledDate(scheduledFor),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReceiptNotes(bool isDark) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.all(25),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.amber.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('NOTERING TILL RESTAURANGEN:', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.amber, letterSpacing: 1.5)),
-          const SizedBox(height: 10),
-          if (order.deliveryInstructions != null && order.deliveryInstructions!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text('DÖRR/KOD: ${order.deliveryInstructions}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Colors.blueAccent)),
-            ),
-          if (order.note != null && order.note!.isNotEmpty)
-            Text(order.note!, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black, height: 1.2)),
-          
-          if (order.allergens != null && order.allergens != "[]" && order.allergens!.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            const Text('KUNDENS ALLERGENER (VIKTIGT!):', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Colors.red, letterSpacing: 1.5)),
-            const SizedBox(height: 10),
+            Text('Tillval', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: (jsonDecode(order.allergens!) as List).map((a) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(8)),
-                child: Text(a.toString().toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
-              )).toList(),
+              children: item.selectedExtras
+                  .map(
+                    (extra) => AppPill(
+                      label: extra.toString(),
+                      color: AppTheme.success,
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+          if (item.note?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            AppPanel(
+              padding: const EdgeInsets.all(12),
+              tint: Colors.red,
+              color: Colors.red.withOpacity(0.08),
+              child: Row(
+                children: [
+                  const Icon(Icons.priority_high_rounded, color: Colors.red),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(item.note!)),
+                ],
+              ),
             ),
           ],
         ],
       ),
     );
   }
+}
 
-  Widget _buildReceiptItem(OrderItemModel item, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 25),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${item.quantity}x', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppTheme.gold)),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Text(item.productName.toUpperCase(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-              ),
-              Text('${item.subtotal.toInt()} KR', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey)),
-            ],
-          ),
-          
-          if (item.selectedExtras.isNotEmpty) 
-            Padding(
-              padding: const EdgeInsets.only(left: 40, top: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: item.selectedExtras.map((e) {
-                   final name = e is Map ? (e['name'] ?? "") : "$e";
-                   return Padding(
-                     padding: const EdgeInsets.only(bottom: 4),
-                     child: Row(
-                       children: [
-                         const Icon(Icons.add_circle_outline, size: 12, color: Colors.green),
-                         const SizedBox(width: 8),
-                         Text(name.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.green)),
-                       ],
-                     ),
-                   );
-                }).toList(),
-              ),
-            ),
-            
-          if (item.note != null && item.note!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 40, top: 10),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.red.withOpacity(0.08), borderRadius: BorderRadius.circular(6)),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.remove_circle_outline, size: 14, color: Colors.red),
-                    const SizedBox(width: 8),
-                    Text(item.note!.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.red)),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool emphasize;
+  final Color? valueColor;
 
-  Widget _buildReceiptSummary(bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.all(25),
-      child: Column(
-        children: [
-          if (order.deliveryFee > 0) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('LEVERANSAVGIFT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                Text('${order.deliveryFee.toInt()} KR', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 10),
-          ],
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('TOTALT', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-              Text('${order.total.toInt()} KR', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, fontStyle: FontStyle.italic)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+    this.valueColor,
+  });
 
-  Widget _buildDashedDivider() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 25),
-      child: Row(
-        children: List.generate(40, (index) => Expanded(
-          child: Container(
-            color: index % 2 == 0 ? Colors.transparent : Colors.grey.withOpacity(0.3),
-            height: 1.5,
-          ),
-        )),
-      ),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = emphasize
+        ? Theme.of(context).textTheme.titleLarge
+        : Theme.of(context).textTheme.titleMedium;
+    final valueStyle = (emphasize
+            ? Theme.of(context).textTheme.headlineMedium
+            : Theme.of(context).textTheme.titleMedium)
+        ?.copyWith(color: valueColor);
 
-  Widget _buildActionFooter() {
-    if (['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED', 'DELIVERING'].contains(order.status)) {
-       return const SizedBox.shrink();
-    }
-    
-    if (order.status == 'READY' && order.type == 'PICKUP') {
-       return const SizedBox.shrink();
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 25),
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: SafeArea(
-        child: SizedBox(
-          width: double.infinity, height: 65,
-          child: order.status == 'PENDING'
-            ? ElevatedButton.icon(
-                onPressed: order.scheduledFor != null ? _acceptScheduledOrder : _showAcceptDialog,
-                icon: const Icon(Icons.check_circle, size: 24),
-                label: Text(order.scheduledFor != null ? 'BEKRÄFTA FÖRBESTÄLLNING' : 'GODKÄNN ORDER',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green.shade700,
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-              )
-            : ElevatedButton.icon(
-                onPressed: () async {
-                  final nextStatus = order.type == 'PICKUP' ? 'READY' : 'DELIVERING';
-                  final provider = Provider.of<OrderProvider>(context, listen: false);
-                  final ok = await provider.updateStatus(order.id, nextStatus);
-                  if (ok && mounted) {
-                    setState(() { order = order.copyWith(status: nextStatus); });
-                    if (nextStatus == 'DELIVERING' || nextStatus == 'READY') {
-                      Navigator.pop(context);
-                    }
-                  }
-                },
-                icon: Icon(order.type == 'PICKUP' ? Icons.shopping_bag : Icons.delivery_dining, size: 24),
-                label: Text(order.type == 'PICKUP' ? 'KLAR FÖR HÄMTNING' : 'PÅ VÄG (MATEN KLAR)',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  foregroundColor: Colors.white,
-                  elevation: 8,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                ),
-              ),
-        ),
-      ),
+    return Row(
+      children: [
+        Expanded(child: Text(label, style: titleStyle)),
+        const SizedBox(width: 12),
+        Text(value, style: valueStyle),
+      ],
     );
   }
 }

@@ -1,11 +1,11 @@
 import { useCallback, useState } from "react";
 import { Platform } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import * as ExpoLinking from "expo-linking";
 import { supabase } from "../lib/supabase";
 import { api } from "../lib/api";
+import { APP_AUTH_CALLBACK_URL, parseAuthRedirect } from "../lib/authRedirect";
 
-const SUPABASE_REDIRECT_URL = ExpoLinking.createURL("/auth/callback");
+const SUPABASE_REDIRECT_URL = APP_AUTH_CALLBACK_URL;
 
 /**
  * Native Google OAuth via Supabase Auth.
@@ -48,23 +48,41 @@ export function useGoogleAuth() {
       const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
 
       if (result.type === "success" && result.url) {
-        const parsedUrl = ExpoLinking.parse(result.url);
-        const code = parsedUrl.queryParams?.code as string | undefined;
-        if (!code) {
-          setError("Inget auth-code i callback-URL");
+        const {
+          code,
+          accessToken,
+          refreshToken,
+          error: authError,
+        } = parseAuthRedirect(result.url);
+        if (authError) {
+          setError(authError);
           return;
         }
 
-        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-        if (sessionError) throw sessionError;
+        let sessionAccessToken: string | undefined;
 
-        const accessToken = sessionData.session?.access_token;
-        if (!accessToken) throw new Error("Ingen session");
+        if (accessToken && refreshToken) {
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          if (sessionError) throw sessionError;
+          sessionAccessToken = sessionData.session?.access_token;
+        } else if (code) {
+          const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+          if (sessionError) throw sessionError;
+          sessionAccessToken = sessionData.session?.access_token;
+        }
+
+        if (!sessionAccessToken) {
+          setError("Ingen auth-data i callback-URL");
+          return;
+        }
 
         const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${accessToken}` },
+          headers: { Authorization: `Bearer ${sessionAccessToken}` },
         });
-        setTokenResult({ token: accessToken, user: profileRes.data });
+        setTokenResult({ token: sessionAccessToken, user: profileRes.data });
       } else if (result.type === "cancel" || result.type === "dismiss") {
         setError("__cancelled__");
       }

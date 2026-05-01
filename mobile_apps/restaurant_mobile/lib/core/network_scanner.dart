@@ -8,8 +8,9 @@ class NetworkScanner {
     if (wifiIP == null) return [];
 
     final String subnet = wifiIP.substring(0, wifiIP.lastIndexOf('.'));
-    final stream = NetworkAnalyzer.discover2(subnet, 9100, timeout: Duration(milliseconds: 2000));
-    
+    final stream = NetworkAnalyzer.discover2(subnet, 9100,
+        timeout: Duration(milliseconds: 2000));
+
     List<String> printers = [];
     await for (final addr in stream) {
       if (addr.exists) {

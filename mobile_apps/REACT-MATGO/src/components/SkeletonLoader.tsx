@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform, View } from "react-native";
-import { palette } from "../constants/theme";
+import { palette, styles } from "../constants/theme";
 
 /**
  * A single shimmer bone for skeleton loading.
@@ -126,41 +126,65 @@ export function HomeScreenSkeleton() {
 }
 
 /** Skeleton for RestaurantScreen (menu loading) */
-export function RestaurantScreenSkeleton() {
+export function RestaurantScreenSkeleton({ heroTopInset = 18 }: { heroTopInset?: number }) {
   return (
-    <View style={{ paddingHorizontal: 16, paddingTop: 16, gap: 16 }}>
-      {/* Hero */}
-      <Bone height={420} style={{ borderRadius: 0, marginHorizontal: -16 }} />
-      {/* Stats row */}
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <Bone height={80} style={{ flex: 1, borderRadius: 22 }} />
-        <Bone height={80} style={{ flex: 1, borderRadius: 22 }} />
-        <Bone height={80} style={{ flex: 1, borderRadius: 22 }} />
-      </View>
-      {/* Category rail */}
-      <Bone height={48} style={{ borderRadius: 24 }} />
-      {/* Menu items */}
-      {[1, 2, 3, 4].map((i) => (
-        <View
-          key={i}
-          style={{
-            backgroundColor: palette.panel,
-            borderRadius: 22,
-            padding: 14,
-            flexDirection: "row",
-            gap: 14,
-            borderWidth: 1,
-            borderColor: palette.border,
-          }}
-        >
-          <Bone width={90} height={90} style={{ borderRadius: 18 }} />
-          <View style={{ flex: 1, gap: 8 }}>
-            <Bone width="70%" height={16} />
-            <Bone width="90%" height={11} />
-            <Bone width="40%" height={11} />
+    <View style={{ gap: 12 }}>
+      <View style={[styles.restaurantHeroWrap, { paddingTop: heroTopInset }]}> 
+        <View style={[styles.restaurantHeroCardPremium, { minHeight: 244 }]}> 
+          <Bone
+            height={244}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, borderRadius: 34 }}
+          />
+          <View style={styles.restaurantHeroTopBar}>
+            <Bone width={102} height={36} style={{ borderRadius: 16, backgroundColor: palette.skeletonHighlight }} />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Bone width={66} height={36} style={{ borderRadius: 16, backgroundColor: palette.skeletonHighlight }} />
+              <Bone width={88} height={36} style={{ borderRadius: 16, backgroundColor: palette.skeletonHighlight }} />
+            </View>
+          </View>
+          <View style={styles.restaurantHeroContentPremium}>
+            <Bone width={96} height={22} style={{ borderRadius: 999 }} />
+            <Bone width="66%" height={30} style={{ borderRadius: 12, backgroundColor: palette.skeletonHighlight }} />
+            <Bone width="40%" height={12} style={{ borderRadius: 8 }} />
           </View>
         </View>
-      ))}
+      </View>
+
+      <View style={styles.restaurantQuickStatsRow}>
+        {[1, 2, 3].map((i) => (
+          <Bone key={i} height={58} style={{ flex: 1, borderRadius: 18 }} />
+        ))}
+      </View>
+
+      <View style={styles.restaurantStickyNavWrap}>
+        <View style={styles.restaurantStickyNavCard}>
+          <Bone height={42} style={{ borderRadius: 20, backgroundColor: palette.skeletonHighlight }} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            {[1, 2, 3].map((i) => (
+              <Bone key={i} width={80} height={36} style={{ borderRadius: 18 }} />
+            ))}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.restaurantMenuSectionsWrap}>
+        <View style={styles.restaurantMenuSection}>
+          <View style={styles.restaurantMenuSectionHeader}>
+            <Bone width="42%" height={28} style={{ borderRadius: 10 }} />
+            <Bone height={1} style={{ flex: 1, borderRadius: 1 }} />
+          </View>
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={styles.restaurantMenuProductCard}>
+              <Bone width={98} height={98} style={{ borderRadius: 24 }} />
+              <View style={{ flex: 1, gap: 8 }}>
+                <Bone width="74%" height={16} />
+                <Bone width="92%" height={11} />
+                <Bone width="38%" height={11} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }

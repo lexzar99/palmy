@@ -6,12 +6,12 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "newArchEnabled": false,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0b0a0f"
+      "backgroundColor": "#FFF8EF"
     },
     "ios": {
       "supportsTablet": true,
@@ -30,7 +30,7 @@
       "package": "com.foodgo.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0b0a0f"
+        "backgroundColor": "#FFF8EF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -68,7 +68,8 @@
           "merchantIdentifier": "merchant.com.foodgoJalle.app",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "@sentry/react-native"
     ],
     "web": {
       "favicon": "./assets/favicon.png"

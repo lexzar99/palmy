@@ -33,10 +33,11 @@ export default function FreeDeliveryRail({ openRestaurant }: { openRestaurant: (
   if (!loaded || items.length === 0) return null;
 
   return (
-    <View style={{ marginTop: 18 }}>
-      <View style={{ paddingHorizontal: 18, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Ionicons name="bicycle" size={14} color="#34d399" />
-        <Text style={{ color: palette.text, fontSize: 14, fontWeight: '900', letterSpacing: 2 }}>FRI LEVERANS</Text>
+    <View>
+      <View style={{ height: 0.5, backgroundColor: palette.border, marginHorizontal: 20, marginBottom: 12 }} />
+      <View style={{ paddingHorizontal: 20, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Ionicons name="bicycle" size={12} color="#34d399" />
+        <Text style={{ color: palette.text, fontSize: 12, fontWeight: '900', letterSpacing: 2 }}>FRI LEVERANS</Text>
       </View>
       <FlatList
         data={items}

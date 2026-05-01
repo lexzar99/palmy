@@ -36,7 +36,7 @@ class AudioHelper {
     try {
       debugPrint('🔊 AudioHelper: Starting loop for audio/$assetName');
       await _loopPlayer.setReleaseMode(ReleaseMode.loop);
-      
+
       try {
         await _loopPlayer.play(AssetSource('audio/$assetName'));
       } catch (e) {
@@ -57,7 +57,7 @@ class AudioHelper {
           debugPrint('ℹ️ Mac Sound Bridge not running (ignore if not on Mac)');
         }
       }
-      
+
       _isLooping = true;
     } catch (e) {
       debugPrint('❌ AudioHelper Error: $e');
@@ -79,7 +79,7 @@ class AudioHelper {
       debugPrint('🔔 AudioHelper: Playing test for $assetName');
       await _testPlayer.setReleaseMode(ReleaseMode.loop);
       await _testPlayer.play(AssetSource('audio/$assetName'));
-      
+
       // Stop after 5 seconds
       Future.delayed(const Duration(seconds: 5), () {
         _testPlayer.stop();

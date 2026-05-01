@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+
 import '../core/log_service.dart';
-import '../core/theme.dart';
 
 class LogScreen extends StatefulWidget {
   const LogScreen({super.key});
@@ -17,7 +17,9 @@ class _LogScreenState extends State<LogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DEBUG LOGS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
+        title: const Text('DEBUG LOGS',
+            style: TextStyle(
+                fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
         actions: [
           IconButton(
             onPressed: () {
@@ -28,12 +30,14 @@ class _LogScreenState extends State<LogScreen> {
           ),
           IconButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await logger.copyToClipboard();
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('✅ Logs copied to clipboard'), backgroundColor: Colors.green),
-                );
-              }
+              if (!mounted) return;
+              messenger.showSnackBar(
+                const SnackBar(
+                    content: Text('✅ Logs copied to clipboard'),
+                    backgroundColor: Colors.green),
+              );
             },
             icon: const Icon(Icons.copy_all),
           ),
