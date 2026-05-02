@@ -1,8 +1,26 @@
 import 'package:flutter/material.dart';
 
-import '../core/order_ui.dart';
 import '../core/theme.dart';
 import '../models/order_model.dart';
+
+String _hhmm(DateTime dt) =>
+    '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+bool _isToday(DateTime dt) {
+  final now = DateTime.now();
+  return dt.year == now.year && dt.month == now.month && dt.day == now.day;
+}
+
+bool _isYesterday(DateTime dt) {
+  final y = DateTime.now().subtract(const Duration(days: 1));
+  return dt.year == y.year && dt.month == y.month && dt.day == y.day;
+}
+
+String _relTime(DateTime dt) {
+  if (_isToday(dt)) return 'Idag ${_hhmm(dt)}';
+  if (_isYesterday(dt)) return 'Igår ${_hhmm(dt)}';
+  return '${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} ${_hhmm(dt)}';
+}
 
 // ── New order card (horizontal scroll – NYA ORDER) ────────────────────────────
 class NewOrderCard extends StatelessWidget {
@@ -14,69 +32,75 @@ class NewOrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final typeColor = order.type == 'DELIVERY' ? AppTheme.info : AppTheme.gold;
-    final typeIcon = order.type == 'DELIVERY'
-        ? Icons.delivery_dining_rounded
-        : Icons.shopping_bag_rounded;
+    final isPickup = order.type != 'DELIVERY';
+    final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
+    final tintBg = isPickup ? AppTheme.creamBg : AppTheme.blueTint;
+    final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
+    final typeIcon =
+        isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+
+    final cardBg = isDark
+        ? AppTheme.deepSea
+        : (isPickup ? tintBg : Colors.white);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 150,
+        width: 168,
         decoration: BoxDecoration(
-          color: isDark ? AppTheme.deepSea : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isDark
                 ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.07),
+                : Colors.black.withOpacity(0.05),
             width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.28 : 0.07),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(isDark ? 0.28 : 0.045),
+              blurRadius: 14,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top row: type icon + NY ORDER badge
+                      // Top row: type icon square + NY ORDER pill
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 46,
+                            height: 46,
                             decoration: BoxDecoration(
-                              color: typeColor.withOpacity(0.14),
-                              borderRadius: BorderRadius.circular(10),
+                              color: iconBg,
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Icon(typeIcon, color: typeColor, size: 20),
+                            child: Icon(typeIcon, color: typeColor, size: 22),
                           ),
                           const Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 3),
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppTheme.warning,
-                              borderRadius: BorderRadius.circular(7),
+                              color: typeColor,
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Text(
                               'NY ORDER',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 8,
+                                fontSize: 9,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 0.5,
                               ),
@@ -84,45 +108,41 @@ class NewOrderCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const Spacer(),
-                      // Order number
+                      const SizedBox(height: 16),
                       Text(
                         '#${order.orderNumber}',
                         style: TextStyle(
-                          fontSize: 26,
+                          fontSize: 28,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.6,
+                          letterSpacing: -0.8,
                           height: 1.0,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      // Type label
+                      const SizedBox(height: 6),
                       Text(
-                        order.type == 'DELIVERY' ? 'leverans' : 'avhämtning',
+                        isPickup ? 'avhämtning' : 'leverans',
                         style: TextStyle(
                           color: typeColor,
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      // Time
+                      const Spacer(),
                       Text(
-                        OrderUi.formatTime(order.createdAt),
+                        _relTime(order.createdAt),
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color: isDark
-                              ? Colors.white.withOpacity(0.38)
-                              : AppTheme.mutedInk.withOpacity(0.62),
+                              ? Colors.white.withOpacity(0.40)
+                              : AppTheme.mutedInk.withOpacity(0.65),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              // Bottom colored accent bar
               Container(height: 4, color: typeColor),
             ],
           ),
@@ -132,44 +152,86 @@ class NewOrderCard extends StatelessWidget {
   }
 }
 
-// ── Order list tile (TIDIGARE ORDER list) ─────────────────────────────────────
+// ── Order list tile (PÅGÅENDE ORDER list) ─────────────────────────────────────
 class OrderListTile extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onTap;
 
   const OrderListTile({super.key, required this.order, required this.onTap});
 
+  static String _statusLabel(String s) {
+    switch (s) {
+      case 'PENDING':
+        return 'VÄNTAR';
+      case 'ACCEPTED':
+        return 'ACCEPTERAD';
+      case 'PREPARING':
+        return 'TILLAGAS';
+      case 'READY':
+        return 'KLAR';
+      case 'DELIVERING':
+        return 'PÅ VÄG';
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return 'LEVERERAD';
+      case 'CANCELLED':
+        return 'AVBRUTEN';
+      case 'REJECTED':
+        return 'NEKAD';
+      default:
+        return s;
+    }
+  }
+
+  static Color _statusColor(String s) {
+    switch (s) {
+      case 'ACCEPTED':
+      case 'PREPARING':
+        return AppTheme.success;
+      case 'READY':
+      case 'DELIVERING':
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return AppTheme.success;
+      case 'CANCELLED':
+      case 'REJECTED':
+        return AppTheme.danger;
+      default:
+        return AppTheme.brandGold;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
-    final typeColor = order.type == 'DELIVERY' ? AppTheme.info : AppTheme.gold;
-    final typeIcon = order.type == 'DELIVERY'
-        ? Icons.delivery_dining_rounded
-        : Icons.shopping_bag_rounded;
-    final statusColor = OrderUi.statusColor(order.status);
-    final statusLabel = OrderUi.statusLabel(order.status);
+    final isPickup = order.type != 'DELIVERY';
+    final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
+    final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
+    final pillBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
+    final typeIcon =
+        isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
+    final statusColor = _statusColor(order.status);
+    final statusLabel = _statusLabel(order.status);
 
     return InkWell(
       onTap: onTap,
       highlightColor:
           (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
-      splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.06),
+      splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.05),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            // Type icon square
             Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
-                color: typeColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(12),
+                color: iconBg,
+                borderRadius: BorderRadius.circular(13),
               ),
-              child: Icon(typeIcon, color: typeColor, size: 22),
+              child: Icon(typeIcon, color: typeColor, size: 24),
             ),
-            const SizedBox(width: 12),
-            // Order# + time
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,7 +239,7 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     '#${order.orderNumber}',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 17,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.3,
                       color: isDark ? Colors.white : AppTheme.ink,
@@ -185,87 +247,60 @@ class OrderListTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    OrderUi.formatTime(order.createdAt),
+                    _relTime(order.createdAt),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: isDark
                           ? Colors.white.withOpacity(0.40)
-                          : AppTheme.mutedInk,
+                          : AppTheme.mutedInk.withOpacity(0.85),
                     ),
                   ),
                 ],
               ),
             ),
-            // Type pill + status label
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _TypePill(
-                  label:
-                      order.type == 'DELIVERY' ? 'LEVERANS' : 'AVHÄMTNING',
-                  color: typeColor,
-                  isDark: isDark,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: pillBg,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    isPickup ? 'AVHÄMTNING' : 'LEVERANS',
+                    style: TextStyle(
+                      color: typeColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.1,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
             Icon(
               Icons.chevron_right_rounded,
               size: 22,
               color: isDark
                   ? Colors.white.withOpacity(0.28)
-                  : AppTheme.mutedInk.withOpacity(0.45),
+                  : AppTheme.mutedInk.withOpacity(0.50),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Type pill ─────────────────────────────────────────────────────────────────
-class _TypePill extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool isDark;
-
-  const _TypePill({
-    required this.label,
-    required this.color,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.16 : 0.10),
-        borderRadius: BorderRadius.circular(7),
-        border: Border.all(
-          color: color.withOpacity(isDark ? 0.35 : 0.25),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
         ),
       ),
     );

@@ -13,6 +13,14 @@ class AppTheme {
   static const Color gold = Color(0xFFFFC86B);
   static const Color goldAccent = Color(0xFFFFE5AE);
   static const Color lightGold = Color(0xFFA76A17);
+  // Brand gold from mockup (AVHÄMTNING button + accents)
+  static const Color brandGold = Color(0xFFC8941A);
+  static const Color brandGoldSoft = Color(0xFFD9A33A);
+  static const Color creamBg = Color(0xFFFFF4DC);
+  static const Color creamPill = Color(0xFFFCEAC4);
+  static const Color brandBlue = Color(0xFF4A90E2);
+  static const Color blueTint = Color(0xFFE8F0FE);
+  static const Color blueTintPill = Color(0xFFDCE8FF);
   static const Color success = Color(0xFF2DC48D);
   static const Color danger = Color(0xFFFF6B78);
   static const Color warning = Color(0xFFFFA749);
@@ -42,7 +50,7 @@ class AppTheme {
     }
 
     return const LinearGradient(
-      colors: [Color(0xFFFDFEFE), Color(0xFFF7F9FC), Color(0xFFF2F5F9)],
+      colors: [Color(0xFFFAFAFA), Color(0xFFF5F5F5), Color(0xFFF2F2F2)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
