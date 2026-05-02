@@ -625,9 +625,14 @@ function AppContent() {
   const profile = useAppStore((s) => s.profile);
 
   const handleNotificationTap = useCallback((data: Record<string, any>) => {
-    if (data?.orderId && navigationRef.isReady()) {
+    if (!navigationRef.isReady()) return;
+    if (data?.orderId) {
       setActiveOrder(data.orderId);
       navigationRef.navigate('order', { id: data.orderId });
+    } else if (data?.restaurantSlug) {
+      (navigationRef as any).navigate('restaurant', { slug: data.restaurantSlug });
+    } else if (data?.screen) {
+      (navigationRef as any).navigate(data.screen);
     }
   }, [setActiveOrder]);
 

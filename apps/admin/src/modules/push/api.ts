@@ -56,3 +56,6 @@ export const sendPushToCity = (payload: PushCityPayload) =>
 
 export const getPushHistory = () =>
   apiGet<{ logs: PushLogRecord[] }>("/notifications/admin/history");
+
+export const getPushHistoryForCustomer = (customerId: string) =>
+  apiGet<{ logs: PushLogRecord[] }>(`/customers/${customerId}/push-history`);

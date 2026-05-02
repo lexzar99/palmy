@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, UserRound } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, Plus, UserRound } from "lucide-react";
 import {
   createCustomerDeal,
   customerDetailQueryKey,
@@ -16,10 +16,49 @@ import {
   type CustomerDetail,
   type CustomerRecord,
 } from "@/modules/customers/api";
+import { getPushHistoryForCustomer, type PushLogRecord } from "@/modules/push/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatDateTime, formatNumber, orderStatusLabel } from "@/shared/utils/format";
 
-type CustomerTab = "info" | "orders" | "deals";
+type CustomerTab = "info" | "orders" | "deals" | "push";
+
+function CustomerPushHistory({ customerId }: { customerId: string }) {
+  const history = useQuery({
+    queryKey: ["customers", "push-history", customerId],
+    queryFn: () => getPushHistoryForCustomer(customerId),
+    enabled: Boolean(customerId),
+  });
+
+  if (history.isLoading) return <p className="text-sm text-[var(--text-secondary)]">Laddar push-historik…</p>;
+
+  const logs: PushLogRecord[] = history.data?.logs ?? [];
+
+  if (logs.length === 0) return <EmptyState title="Inga push-notiser skickade till denna kund" />;
+
+  return (
+    <div className="table-shell">
+      <table className="data-table">
+        <thead>
+          <tr><th>Tid</th><th>Rubrik</th><th>Meddelande</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {logs.map((log) => (
+            <tr key={log.id}>
+              <td className="whitespace-nowrap text-sm">{formatDateTime(log.createdAt)}</td>
+              <td className="font-black text-sm">{log.title}</td>
+              <td className="max-w-[260px] truncate text-sm text-[var(--text-secondary)]">{log.body}</td>
+              <td>
+                {log.success
+                  ? <Badge tone="success"><CheckCircle2 size={11} /> Skickad</Badge>
+                  : <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function CustomerModal({ customerId, open, onClose }: { customerId: string | null; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
@@ -99,7 +138,7 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
         <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Loading customer...</div>
       ) : (
         <div className="space-y-5">
-          <Tabs value={tab} onChange={setTab} options={[{ value: "info", label: "Info" }, { value: "orders", label: "Orders" }, { value: "deals", label: "Deals" }]} />
+          <Tabs value={tab} onChange={setTab} options={[{ value: "info", label: "Info" }, { value: "orders", label: "Orders" }, { value: "deals", label: "Deals" }, { value: "push", label: "Push" }]} />
 
           {tab === "info" ? (
             <div className="grid gap-4 md:grid-cols-2">
@@ -137,6 +176,8 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
               </div>
             )
           ) : null}
+
+          {tab === "push" ? <CustomerPushHistory customerId={customerId!} /> : null}
 
           {tab === "deals" ? (
             <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">

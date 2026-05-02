@@ -248,4 +248,27 @@ router.post('/:id/deals', authenticate, requireSuperAdmin, async (req, res) => {
   }
 });
 
+// GET /api/customers/:id/push-history
+router.get('/:id/push-history', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, email: true, phone: true },
+    });
+    if (!user) return res.status(404).json({ error: 'Kunden hittades inte' });
+
+    const identifiers = [user.id, user.email, user.phone].filter(Boolean) as string[];
+
+    const logs = await (prisma as any).pushLog.findMany({
+      where: { target: 'user', identifier: { in: identifiers } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    res.json({ logs });
+  } catch (error) {
+    res.status(500).json({ error: 'Kunde inte hämta push-historik' });
+  }
+});
+
 export default router;

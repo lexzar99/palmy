@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Loader2, Send, Smartphone, XCircle } from "lucide-react";
 import { getCities, zonesCitiesQueryKey } from "@/modules/zones/api";
 import { getCustomers, customersQueryKey } from "@/modules/customers/api";
+import { getRestaurantOverview, restaurantsQueryKey } from "@/modules/restaurants/api";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
 import {
   getPushHistory,
@@ -19,11 +20,14 @@ import { Badge, Button, Field, Input, SectionHeader, Select, Surface, Tabs, Text
 import { formatDateTime } from "@/shared/utils/format";
 
 type TargetMode = "all" | "user" | "city";
+type LinkType = "none" | "restaurant" | "discover" | "manual";
 
 interface ComposerForm {
   title: string;
   body: string;
-  deeplink: string;
+  linkType: LinkType;
+  restaurantSlug: string;
+  manualLink: string;
   userId: string;
   city: string;
   userSearch: string;
@@ -32,19 +36,35 @@ interface ComposerForm {
 const EMPTY_FORM: ComposerForm = {
   title: "",
   body: "",
-  deeplink: "",
+  linkType: "none",
+  restaurantSlug: "",
+  manualLink: "",
   userId: "",
   city: "",
   userSearch: "",
 };
 
 const TEMPLATES = [
-  { label: "Lunch", title: "Lunch live på MatGo", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden.", deeplink: "/deals" },
-  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till MatGo och kolla de senaste restaurangerbjudandena.", deeplink: "/discover" },
-  { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn.", deeplink: "/menu" },
+  { label: "Lunch", title: "Lunch live på MatGo", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden." },
+  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till MatGo och kolla de senaste restaurangerbjudandena." },
+  { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn." },
 ];
 
-function PhonePreview({ title, body, deeplink }: { title: string; body: string; deeplink: string }) {
+function buildPushData(form: ComposerForm): Record<string, unknown> | undefined {
+  if (form.linkType === "restaurant" && form.restaurantSlug) return { restaurantSlug: form.restaurantSlug };
+  if (form.linkType === "discover") return { screen: "discover" };
+  if (form.linkType === "manual" && form.manualLink) return { deeplink: form.manualLink };
+  return undefined;
+}
+
+function linkPreviewLabel(form: ComposerForm): string {
+  if (form.linkType === "restaurant" && form.restaurantSlug) return `Öppnar restaurang: ${form.restaurantSlug}`;
+  if (form.linkType === "discover") return "Öppnar Utforska / Erbjudanden";
+  if (form.linkType === "manual" && form.manualLink) return `Öppnar ${form.manualLink}`;
+  return "";
+}
+
+function PhonePreview({ title, body, linkLabel }: { title: string; body: string; linkLabel: string }) {
   return (
     <div className="w-[260px] rounded-[26px] border border-[rgba(255,255,255,0.1)] bg-[#0b101b] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
       <div className="mx-auto mb-3 h-1.5 w-16 rounded-full bg-white/15" />
@@ -59,7 +79,7 @@ function PhonePreview({ title, body, deeplink }: { title: string; body: string; 
         <div className="mt-3 rounded-[16px] border border-white/8 bg-white/6 px-3 py-3">
           <p className="text-sm font-black text-white">{title || "Push-rubrik"}</p>
           <p className="mt-1.5 text-sm leading-5 text-white/70">{body || "Meddelandetext"}</p>
-          {deeplink ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)]">Öppnar {deeplink}</p> : null}
+          {linkLabel ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)]">{linkLabel}</p> : null}
         </div>
       </div>
     </div>
@@ -82,6 +102,7 @@ export function PushPage() {
   const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 30_000 });
   const cities = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
   const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
+  const restaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
   const history = useQuery({ queryKey: pushHistoryQueryKey, queryFn: getPushHistory });
 
   const audience = health.data?.operations.userCount ?? 0;
@@ -99,51 +120,35 @@ export function PushPage() {
     [customers.data, form.userId]
   );
 
-  const handleSend = () => {
-    setResult(null);
+  const onSuccess = async (r: PushResult) => {
+    setResult(r);
     setSendError(null);
-    const dataField = form.deeplink ? { deeplink: form.deeplink } : undefined;
-    const onSuccess = async (r: PushResult) => {
-      setResult(r);
-      await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey });
-    };
-    const onError = (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka");
-
-    if (mode === "all") {
-      broadcastMutation.mutate({ title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
-    } else if (mode === "user") {
-      userMutation.mutate({ identifier: form.userId, title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
-    } else {
-      cityMutation.mutate({ city: form.city, title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
-    }
-
-    void onSuccess; void onError;
+    await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey });
   };
+  const onError = (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka");
 
-  const broadcastMutation = useMutation({
-    mutationFn: sendPushBroadcast,
-    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
-    onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
-  });
-
-  const userMutation = useMutation({
-    mutationFn: sendPushToUser,
-    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
-    onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
-  });
-
-  const cityMutation = useMutation({
-    mutationFn: sendPushToCity,
-    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
-    onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
-  });
+  const broadcastMutation = useMutation({ mutationFn: sendPushBroadcast, onSuccess, onError });
+  const userMutation = useMutation({ mutationFn: sendPushToUser, onSuccess, onError });
+  const cityMutation = useMutation({ mutationFn: sendPushToCity, onSuccess, onError });
 
   const isPending = broadcastMutation.isPending || userMutation.isPending || cityMutation.isPending;
 
   const canSend =
     form.title.trim() &&
     form.body.trim() &&
-    (mode === "all" || (mode === "user" && form.userId) || (mode === "city" && form.city));
+    (mode === "all" || (mode === "user" && form.userId) || (mode === "city" && form.city)) &&
+    (form.linkType !== "restaurant" || form.restaurantSlug) &&
+    (form.linkType !== "manual" || form.manualLink.trim());
+
+  const handleSend = () => {
+    setResult(null);
+    setSendError(null);
+    const data = buildPushData(form);
+    const base = { title: form.title, body: form.body, ...(data ? { data } : {}) };
+    if (mode === "all") broadcastMutation.mutate(base);
+    else if (mode === "user") userMutation.mutate({ ...base, identifier: form.userId });
+    else cityMutation.mutate({ ...base, city: form.city });
+  };
 
   const handleModeChange = (next: TargetMode) => {
     setMode(next);
@@ -157,10 +162,10 @@ export function PushPage() {
         <SectionHeader
           eyebrow="Push"
           title="Push-notiser"
-          description="Välj målgrupp, skriv meddelande och skicka via Expo."
+          description="Välj målgrupp, skriv meddelande och skicka via Apple APNs."
           actions={
             <>
-              <Badge tone="info"><Smartphone size={12} /> Expo</Badge>
+              <Badge tone="info"><Smartphone size={12} /> APNs</Badge>
               <Badge tone="success">{audience} användare</Badge>
             </>
           }
@@ -180,6 +185,7 @@ export function PushPage() {
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_280px]">
           <div className="space-y-5">
+            {/* Target selector */}
             {mode === "user" && (
               <div className="space-y-3">
                 <Field label="Sök användare">
@@ -193,7 +199,7 @@ export function PushPage() {
                   <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[rgba(48,199,143,0.06)] px-4 py-3 text-sm">
                     <div>
                       <p className="font-black">{selectedCustomer.name}</p>
-                      <p className="text-[var(--text-secondary)]">{selectedCustomer.phone || selectedCustomer.email || "Inget kontakt"}</p>
+                      <p className="text-[var(--text-secondary)]">{selectedCustomer.phone || selectedCustomer.email || "—"}</p>
                     </div>
                     <Button variant="secondary" onClick={() => setForm((s) => ({ ...s, userId: "", userSearch: "" }))}>
                       <XCircle size={14} /> Ändra
@@ -214,7 +220,7 @@ export function PushPage() {
                           >
                             <div>
                               <p className="font-black">{c.name}</p>
-                              <p className="text-[var(--text-secondary)]">{c.phone || c.email || "-"}</p>
+                              <p className="text-[var(--text-secondary)]">{c.phone || c.email || "—"}</p>
                             </div>
                             <p className="text-[var(--text-muted)]">{c._count?.orders ?? 0} orders</p>
                           </button>
@@ -229,50 +235,59 @@ export function PushPage() {
             {mode === "city" && (
               <Field label="Stad">
                 <Select value={form.city} onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}>
-                  <option value="">Välj stad...</option>
+                  <option value="">Välj stad…</option>
                   {(cities.data || []).map((city) => (
-                    <option key={city.id} value={city.name}>
-                      {city.name}
-                    </option>
+                    <option key={city.id} value={city.name}>{city.name}</option>
                   ))}
                 </Select>
               </Field>
             )}
 
+            {/* Templates */}
             <div className="flex flex-wrap gap-2">
               {TEMPLATES.map((t) => (
-                <Button
-                  key={t.label}
-                  variant="secondary"
-                  onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body, deeplink: t.deeplink }))}
-                >
+                <Button key={t.label} variant="secondary" onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body }))}>
                   {t.label}
                 </Button>
               ))}
             </div>
 
-            <Field label="Titel">
-              <Input
-                value={form.title}
-                onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
-                placeholder="Push-rubrik (syns på låsskärmen)"
-              />
+            {/* Message */}
+            <Field label="Rubrik">
+              <Input value={form.title} onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} placeholder="Rubrik (syns på låsskärmen)" />
             </Field>
             <Field label="Meddelande">
-              <Textarea
-                value={form.body}
-                onChange={(e) => setForm((s) => ({ ...s, body: e.target.value }))}
-                placeholder="Meddelandetext"
-              />
-            </Field>
-            <Field label="Deep link (valfri)">
-              <Input
-                value={form.deeplink}
-                onChange={(e) => setForm((s) => ({ ...s, deeplink: e.target.value }))}
-                placeholder="/deals"
-              />
+              <Textarea value={form.body} onChange={(e) => setForm((s) => ({ ...s, body: e.target.value }))} placeholder="Meddelandetext" />
             </Field>
 
+            {/* Deep link */}
+            <div className="space-y-3 rounded-xl border border-[var(--border-subtle)] px-4 py-4">
+              <Field label="Länka till (valfri)">
+                <Select value={form.linkType} onChange={(e) => setForm((s) => ({ ...s, linkType: e.target.value as LinkType, restaurantSlug: "", manualLink: "" }))}>
+                  <option value="none">Ingen länk</option>
+                  <option value="restaurant">Restaurang</option>
+                  <option value="discover">Utforska / Erbjudanden</option>
+                  <option value="manual">Manuell</option>
+                </Select>
+              </Field>
+              {form.linkType === "restaurant" && (
+                <Field label="Välj restaurang">
+                  <Select value={form.restaurantSlug} onChange={(e) => setForm((s) => ({ ...s, restaurantSlug: e.target.value }))}>
+                    <option value="">Välj restaurang…</option>
+                    {(restaurants.data || []).map((r) => (
+                      <option key={r.id} value={r.slug}>{r.name}{r.city ? ` (${r.city})` : ""}</option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
+              {form.linkType === "manual" && (
+                <Field label="Sökväg">
+                  <Input value={form.manualLink} onChange={(e) => setForm((s) => ({ ...s, manualLink: e.target.value }))} placeholder="/min-sida" />
+                </Field>
+              )}
+            </div>
+
+            {/* Result / error */}
             {result && (
               <div className="rounded-2xl border border-[rgba(48,199,143,0.25)] bg-[rgba(48,199,143,0.08)] px-4 py-4">
                 <div className="flex items-center gap-2 text-sm font-black text-[#c4ffeb]">
@@ -282,7 +297,6 @@ export function PushPage() {
                 </div>
               </div>
             )}
-
             {sendError && (
               <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-4">
                 <div className="flex items-center gap-2 text-sm text-rose-400">
@@ -292,24 +306,22 @@ export function PushPage() {
             )}
 
             <div>
-              <Button
-                variant="primary"
-                onClick={handleSend}
-                disabled={isPending || !canSend}
-              >
+              <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
                 {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 {isPending ? "Skickar…" : "Skicka push"}
               </Button>
             </div>
           </div>
 
+          {/* Phone preview */}
           <div className="flex flex-col items-center gap-4 pt-1">
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Förhandsvisning</p>
-            <PhonePreview title={form.title} body={form.body} deeplink={form.deeplink} />
+            <PhonePreview title={form.title} body={form.body} linkLabel={linkPreviewLabel(form)} />
           </div>
         </div>
       </Surface>
 
+      {/* History */}
       <Surface className="px-6 py-6">
         <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Skickade notiser</p>
         {history.isLoading ? (
@@ -320,14 +332,7 @@ export function PushPage() {
           <div className="mt-4 table-shell">
             <table className="data-table">
               <thead>
-                <tr>
-                  <th>Tid</th>
-                  <th>Målgrupp</th>
-                  <th>Mottagare</th>
-                  <th>Rubrik</th>
-                  <th>Enheter</th>
-                  <th>Status</th>
-                </tr>
+                <tr><th>Tid</th><th>Målgrupp</th><th>Mottagare</th><th>Rubrik</th><th>Enheter</th><th>Status</th></tr>
               </thead>
               <tbody>
                 {history.data.logs.map((log) => (
@@ -344,11 +349,9 @@ export function PushPage() {
                     <td className="max-w-[200px] truncate text-sm">{log.title}</td>
                     <td className="font-black">{log.count}</td>
                     <td>
-                      {log.success ? (
-                        <Badge tone="success"><CheckCircle2 size={11} /> OK</Badge>
-                      ) : (
-                        <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>
-                      )}
+                      {log.success
+                        ? <Badge tone="success"><CheckCircle2 size={11} /> OK</Badge>
+                        : <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>}
                     </td>
                   </tr>
                 ))}
