@@ -21,10 +21,17 @@
 import http2 from 'node:http2';
 import crypto from 'node:crypto';
 
-const APNS_KEY_ID = process.env.APNS_KEY_ID;
-const APNS_TEAM_ID = process.env.APNS_TEAM_ID;
-const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID;
-const APNS_KEY_P8 = (process.env.APNS_KEY_P8 || '').replace(/\\n/g, '\n');
+// Some hosting providers (Railway, certain dotenv configs) preserve the
+// surrounding quotes from .env values like APNS_BUNDLE_ID="com.foo.bar".
+// If we forwarded that into the apns-topic header verbatim the literal
+// quotes would land in the topic string and APNs would respond
+// 403 BadEnvironmentKeyInToken. Strip leading/trailing quotes defensively.
+const stripQuotes = (v: string | undefined): string =>
+  (v ?? '').replace(/^["']|["']$/g, '').trim();
+const APNS_KEY_ID = stripQuotes(process.env.APNS_KEY_ID);
+const APNS_TEAM_ID = stripQuotes(process.env.APNS_TEAM_ID);
+const APNS_BUNDLE_ID = stripQuotes(process.env.APNS_BUNDLE_ID);
+const APNS_KEY_P8 = stripQuotes(process.env.APNS_KEY_P8).replace(/\\n/g, '\n');
 const APNS_HOST_PRODUCTION = 'https://api.push.apple.com';
 const APNS_HOST_SANDBOX = 'https://api.sandbox.push.apple.com';
 const APNS_HOST = process.env.APNS_PRODUCTION === '1'
@@ -187,7 +194,12 @@ async function sendApns(opts: {
     if (cached !== primary) tokenHostCache.set(opts.token, primary);
     return;
   } catch (e) {
-    if (e instanceof ApnsError && (e.reason === 'BadDeviceToken' || e.reason === 'DeviceTokenNotForTopic')) {
+    if (
+      e instanceof ApnsError &&
+      (e.reason === 'BadDeviceToken' ||
+        e.reason === 'DeviceTokenNotForTopic' ||
+        e.reason === 'BadEnvironmentKeyInToken')
+    ) {
       console.log(`[liveActivityPush] ${primary} rejected token (${e.reason}); retrying ${secondary}`);
       await sendApnsToHost({ ...opts, host: secondary });
       tokenHostCache.set(opts.token, secondary);
