@@ -19,6 +19,8 @@ import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { placesAutocomplete, placesResolveCoords } from "../lib/places";
+import { captureError } from "../lib/sentry";
+import { STRIPE_PUBLISHABLE_KEY } from "../lib/api";
 import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
@@ -728,14 +730,38 @@ export default function CartScreen({
 
       // ===== 1. STRIPE BETALNINGSFLÖDE (NATIVE) =====
       const isTestFlow = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
-      
+
       if (!isTestFlow && Platform.OS !== "web") {
-        const intentRes = await api.post(
-          "/api/payments/create-intent",
-          { amount: total },
-          { headers: { "Idempotency-Key": `${idempotencyKey}:intent` } }
-        );
-        const { clientSecret, paymentIntentId } = intentRes.data;
+        // Pre-flight: verify the publishable key is loaded. Without it,
+        // initPaymentSheet fails with a confusing native error in release.
+        if (!STRIPE_PUBLISHABLE_KEY || !STRIPE_PUBLISHABLE_KEY.startsWith("pk_")) {
+          captureError(new Error("[checkout] missing STRIPE_PUBLISHABLE_KEY in release bundle"), {
+            keyPrefix: STRIPE_PUBLISHABLE_KEY ? STRIPE_PUBLISHABLE_KEY.slice(0, 4) : "(empty)",
+          });
+          throw new Error("Betalning är inte konfigurerad i denna build. Kontakta support.");
+        }
+
+        let clientSecret: string;
+        let paymentIntentId: string;
+        try {
+          const intentRes = await api.post(
+            "/api/payments/create-intent",
+            { amount: total },
+            { headers: { "Idempotency-Key": `${idempotencyKey}:intent` } }
+          );
+          clientSecret = intentRes.data?.clientSecret;
+          paymentIntentId = intentRes.data?.paymentIntentId;
+          if (!clientSecret || !paymentIntentId) {
+            throw new Error("Servern returnerade ofullständig betalningsdata.");
+          }
+        } catch (intentErr: any) {
+          captureError(intentErr, { stage: "create-intent", amount: total });
+          throw new Error(
+            intentErr?.response?.data?.error
+            || intentErr?.message
+            || "Kunde inte skapa betalning. Försök igen."
+          );
+        }
 
         const initInfo = await initPaymentSheet({
           merchantDisplayName: 'FoodGo',
@@ -775,13 +801,31 @@ export default function CartScreen({
         });
 
         if (initInfo.error) {
-          throw new Error(initInfo.error.message || "Stripe kunde inte starta, stäng appen och öppna igen.");
+          // Detailed Sentry breadcrumb so we can diagnose Apple Pay
+          // entitlement / merchantIdentifier mismatches in production.
+          captureError(new Error(`[stripe-init] ${initInfo.error.code}: ${initInfo.error.message}`), {
+            stripeErrorCode: initInfo.error.code,
+            stripeErrorMessage: initInfo.error.message,
+          });
+          // Special-case the merchantIdentifier error so the user sees a
+          // helpful pointer instead of a Stripe-internal string.
+          const msg = String(initInfo.error.message || "");
+          if (msg.toLowerCase().includes("merchantidentifier")) {
+            throw new Error(
+              "Apple Pay är inte korrekt konfigurerad i appen. Försök betala med kort istället, eller starta om appen."
+            );
+          }
+          throw new Error(initInfo.error.message || "Betalningsformuläret kunde inte öppnas.");
         }
 
         const presentInfo = await presentPaymentSheet();
 
         if (presentInfo.error) {
           if (presentInfo.error.code !== 'Canceled') {
+            captureError(new Error(`[stripe-present] ${presentInfo.error.code}: ${presentInfo.error.message}`), {
+              stripeErrorCode: presentInfo.error.code,
+              stripeErrorMessage: presentInfo.error.message,
+            });
             throw new Error(presentInfo.error.message || "Betalningen misslyckades.");
           }
           setSubmitting(false); // Användaren klickade avbryt
@@ -897,6 +941,16 @@ export default function CartScreen({
         finalPaymentIntentId !== "FREE_PROMO" &&
         !finalPaymentIntentId.startsWith("BYPASS_WEB_");
 
+      // Always capture so we have telemetry on every checkout failure.
+      captureError(error, {
+        stage: paymentWasTaken ? "post-payment-order-create" : "pre-payment",
+        paymentIntentId: finalPaymentIntentId,
+        orderType,
+        total,
+        itemCount: items.length,
+        restaurantId: currentRestaurantId,
+      });
+
       if (paymentWasTaken) {
         try {
           await api.post(
@@ -908,7 +962,8 @@ export default function CartScreen({
             t('cart.errors.paymentRefunded'),
             t('cart.errors.paymentRefundedHelp')
           );
-        } catch {
+        } catch (refundErr: any) {
+          captureError(refundErr, { stage: "refund-failed", paymentIntentId: finalPaymentIntentId });
           Alert.alert(
             t('cart.errors.paymentFailed'),
             t('cart.errors.paymentFailedHelp', { code: finalPaymentIntentId })
