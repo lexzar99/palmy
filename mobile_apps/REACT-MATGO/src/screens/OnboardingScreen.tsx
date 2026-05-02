@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TextInput, Pressable, Platform, ScrollView,
-  Animated, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView,
+  Animated, Easing, ActivityIndicator, StatusBar, StyleSheet, Modal, KeyboardAvoidingView, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -189,6 +189,22 @@ export default function OnboardingScreen({
   const slideAnim = useRef(new Animated.Value(28)).current;
   const stepAnim = useRef(new Animated.Value(1)).current;
 
+  // Landing step — hero & staggered entrance
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+  const heroScale = useRef(new Animated.Value(0.82)).current;
+  const heroBreath = useRef(new Animated.Value(1)).current;
+  const heroRingScale = useRef(new Animated.Value(0.55)).current;
+  const heroRingOpacity = useRef(new Animated.Value(0.8)).current;
+  const lTitle1Opacity = useRef(new Animated.Value(0)).current;
+  const lTitle1Y = useRef(new Animated.Value(28)).current;
+  const lTitle2Opacity = useRef(new Animated.Value(0)).current;
+  const lTitle2Y = useRef(new Animated.Value(28)).current;
+  const lSubOpacity = useRef(new Animated.Value(0)).current;
+  const lBtnsOpacity = useRef(new Animated.Value(0)).current;
+  const lBtnsY = useRef(new Animated.Value(44)).current;
+  const googleScaleAnim = useRef(new Animated.Value(1)).current;
+  const phoneScaleAnim = useRef(new Animated.Value(1)).current;
+
   const { prompt: googlePrompt, loading: googleLoading, tokenResult: googleResult, error: googleError } = useGoogleAuth();
   const { prompt: applePrompt, tokenResult: appleResult, error: appleError } = useAppleAuth();
 
@@ -202,6 +218,80 @@ export default function OnboardingScreen({
   useEffect(() => {
     stepAnim.setValue(0);
     Animated.timing(stepAnim, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+  }, [step]);
+
+  // Landing entrance — runs every time we arrive at the landing step
+  useEffect(() => {
+    if (step !== "landing") return;
+
+    heroOpacity.setValue(0);
+    heroScale.setValue(0.82);
+    heroBreath.setValue(1);
+    heroRingScale.setValue(0.55);
+    heroRingOpacity.setValue(0.8);
+    lTitle1Opacity.setValue(0);
+    lTitle1Y.setValue(28);
+    lTitle2Opacity.setValue(0);
+    lTitle2Y.setValue(28);
+    lSubOpacity.setValue(0);
+    lBtnsOpacity.setValue(0);
+    lBtnsY.setValue(44);
+
+    // Hero icon entrance
+    Animated.parallel([
+      Animated.timing(heroOpacity, { toValue: 1, duration: 450, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(heroScale, { toValue: 1, duration: 600, easing: Easing.out(Easing.back(1.3)), useNativeDriver: true }),
+    ]).start(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(heroBreath, { toValue: 1.06, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(heroBreath, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ])
+      ).start();
+    });
+
+    // Ring expands once
+    Animated.parallel([
+      Animated.timing(heroRingScale, { toValue: 2.1, duration: 1000, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(heroRingOpacity, { toValue: 0, duration: 1000, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+
+    // Title line 1
+    Animated.sequence([
+      Animated.delay(160),
+      Animated.parallel([
+        Animated.timing(lTitle1Opacity, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lTitle1Y, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Title line 2 (gold) — slightly later
+    Animated.sequence([
+      Animated.delay(280),
+      Animated.parallel([
+        Animated.timing(lTitle2Opacity, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lTitle2Y, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Subtitle
+    Animated.sequence([
+      Animated.delay(400),
+      Animated.timing(lSubOpacity, { toValue: 1, duration: 380, useNativeDriver: true }),
+    ]).start();
+
+    // Buttons slide up together
+    Animated.sequence([
+      Animated.delay(440),
+      Animated.parallel([
+        Animated.timing(lBtnsOpacity, { toValue: 1, duration: 480, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lBtnsY, { toValue: 0, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    return () => {
+      heroBreath.stopAnimation();
+    };
   }, [step]);
 
   const transitionToMain = (next: MainStep) => {
@@ -661,98 +751,148 @@ export default function OnboardingScreen({
               {/* ── LANDING ── */}
               {step === "landing" && (
                 <>
-                  {/* Visual hero */}
-                  <View style={{ alignItems: "center", marginBottom: 32, marginTop: 8 }}>
-                    <View style={{
-                      width: 120, height: 120, borderRadius: 36,
-                      backgroundColor: "rgba(231,178,75,0.09)",
-                      borderWidth: 1.5, borderColor: "rgba(231,178,75,0.22)",
-                      alignItems: "center", justifyContent: "center",
-                      shadowColor: palette.gold, shadowOpacity: 0.5, shadowRadius: 50, shadowOffset: { width: 0, height: 14 },
-                    }}>
-                      <Ionicons name="restaurant" size={54} color={palette.gold} />
-                    </View>
+                  {/* Hero icon with animated ring + breath */}
+                  <View style={{ alignItems: "center", marginBottom: 24, marginTop: 4 }}>
+                    <Animated.View
+                      pointerEvents="none"
+                      style={{
+                        position: "absolute",
+                        width: 150, height: 150, borderRadius: 75,
+                        borderWidth: 1.5, borderColor: "rgba(231,178,75,0.85)",
+                        opacity: heroRingOpacity,
+                        transform: [{ scale: heroRingScale }],
+                      }}
+                    />
+                    <Animated.View style={{ transform: [{ scale: heroBreath }] }}>
+                      <Animated.View style={{ opacity: heroOpacity, transform: [{ scale: heroScale }] }}>
+                        <View style={{
+                          width: 130, height: 130, borderRadius: 38,
+                          backgroundColor: "rgba(231,178,75,0.07)",
+                          borderWidth: 1.5, borderColor: "rgba(231,178,75,0.2)",
+                          alignItems: "center", justifyContent: "center",
+                          overflow: "hidden",
+                          shadowColor: palette.gold, shadowOpacity: 0.55, shadowRadius: 50, shadowOffset: { width: 0, height: 16 },
+                        }}>
+                          <Image
+                            source={require("../../assets/icon.png")}
+                            style={{ width: 130, height: 130 }}
+                            resizeMode="cover"
+                          />
+                        </View>
+                      </Animated.View>
+                    </Animated.View>
                   </View>
 
-                  <Text style={{
-                    color: palette.text, fontSize: 44, fontWeight: "900",
-                    lineHeight: 48, letterSpacing: -1.5, marginBottom: 12, textAlign: "center",
-                  }}>
-                    {"Beställ mat.\n"}<Text style={{ color: palette.gold }}>{"Direkt."}</Text>
-                  </Text>
-                  <Text style={{
+                  {/* Title — two lines, staggered */}
+                  <View style={{ alignItems: "center", marginBottom: 14 }}>
+                    <Animated.Text style={{
+                      color: palette.text, fontSize: 46, fontWeight: "900",
+                      lineHeight: 50, letterSpacing: -1.8, textAlign: "center",
+                      opacity: lTitle1Opacity,
+                      transform: [{ translateY: lTitle1Y }],
+                    }}>
+                      Beställ mat.
+                    </Animated.Text>
+                    <Animated.Text style={{
+                      color: palette.gold, fontSize: 46, fontWeight: "900",
+                      lineHeight: 50, letterSpacing: -1.8, textAlign: "center",
+                      opacity: lTitle2Opacity,
+                      transform: [{ translateY: lTitle2Y }],
+                    }}>
+                      Direkt.
+                    </Animated.Text>
+                  </View>
+
+                  {/* Subtitle */}
+                  <Animated.Text style={{
                     color: palette.muted, fontSize: 14, fontWeight: "500",
-                    lineHeight: 22, marginBottom: 36, textAlign: "center",
+                    lineHeight: 22, marginBottom: 32, textAlign: "center",
+                    opacity: lSubOpacity,
                   }}>
                     Restauranger nära dig — levererat snabbt.
-                  </Text>
+                  </Animated.Text>
 
-                  {/* Apple first (iOS compliance: must be at least as prominent as other social logins) */}
-                  {Platform.OS === "ios" && (
-                    <AppleAuthentication.AppleAuthenticationButton
-                      buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                      buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                      cornerRadius={22}
-                      style={{ width: "100%", height: 56, marginBottom: 10 }}
-                      onPress={applePrompt}
-                    />
-                  )}
+                  {/* All buttons slide up together */}
+                  <Animated.View style={{
+                    opacity: lBtnsOpacity,
+                    transform: [{ translateY: lBtnsY }],
+                    gap: 12,
+                  }}>
+                    {/* Apple (iOS compliance: at least as prominent as other social logins) */}
+                    {Platform.OS === "ios" && (
+                      <AppleAuthentication.AppleAuthenticationButton
+                        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                        cornerRadius={22}
+                        style={{ width: "100%", height: 56 }}
+                        onPress={applePrompt}
+                      />
+                    )}
 
-                  {/* Google */}
-                  <Pressable
-                    onPress={googlePrompt}
-                    disabled={googleLoading}
-                    style={{
-                      backgroundColor: "#fff", borderRadius: 22, paddingVertical: 17,
-                      alignItems: "center", marginBottom: 16, opacity: googleLoading ? 0.6 : 1,
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      {googleLoading
-                        ? <ActivityIndicator size="small" color="#000" />
-                        : <Text style={{ fontSize: 17, fontWeight: "900", color: "#4285F4" }}>G</Text>}
-                      <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>Fortsätt med Google</Text>
+                    {/* Google with press-scale */}
+                    <Animated.View style={{ transform: [{ scale: googleScaleAnim }] }}>
+                      <Pressable
+                        onPress={googlePrompt}
+                        onPressIn={() => Animated.spring(googleScaleAnim, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        onPressOut={() => Animated.spring(googleScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        disabled={googleLoading}
+                        style={{
+                          backgroundColor: "#fff", borderRadius: 22, paddingVertical: 17,
+                          alignItems: "center", opacity: googleLoading ? 0.6 : 1,
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          {googleLoading
+                            ? <ActivityIndicator size="small" color="#000" />
+                            : <Text style={{ fontSize: 17, fontWeight: "900", color: "#4285F4" }}>G</Text>}
+                          <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>Fortsätt med Google</Text>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
+
+                    {/* Divider */}
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+                      <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }}>ELLER</Text>
+                      <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
                     </View>
-                  </Pressable>
 
-                  {/* Divider */}
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 14, marginBottom: 16 }}>
-                    <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }}>ELLER</Text>
-                    <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                  </View>
+                    {/* Phone — primary gold CTA with press-scale */}
+                    <Animated.View style={{ transform: [{ scale: phoneScaleAnim }] }}>
+                      <Pressable
+                        onPress={() => { setError(""); setIsGoogleLinking(false); setIsNewUser(false); setStep("phone"); }}
+                        onPressIn={() => Animated.spring(phoneScaleAnim, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        onPressOut={() => Animated.spring(phoneScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        style={{
+                          backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 17,
+                          alignItems: "center",
+                          shadowColor: palette.gold, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 10 },
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <Ionicons name="phone-portrait-outline" size={18} color="#000" />
+                          <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Logga in med telefonnummer</Text>
+                        </View>
+                      </Pressable>
+                    </Animated.View>
 
-                  {/* Phone — primary gold CTA */}
-                  <Pressable
-                    onPress={() => { setError(""); setIsGoogleLinking(false); setIsNewUser(false); setStep("phone"); }}
-                    style={{
-                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 17,
-                      alignItems: "center", marginBottom: 6,
-                      shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
-                    }}
-                  >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <Ionicons name="phone-portrait-outline" size={18} color="#000" />
-                      <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Logga in med telefonnummer</Text>
-                    </View>
-                  </Pressable>
+                    {!!error && (
+                      <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                        <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                      </View>
+                    )}
 
-                  {!!error && (
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", marginTop: 6 }}>
-                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                    </View>
-                  )}
-
-                  {/* Guest link */}
-                  <Pressable
-                    onPress={() => {
-                      if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
-                      else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
-                    }}
-                    style={{ alignItems: "center", paddingVertical: 14, marginTop: 4 }}
-                  >
-                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fortsätt som gäst</Text>
-                  </Pressable>
+                    {/* Guest link */}
+                    <Pressable
+                      onPress={() => {
+                        if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
+                        else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
+                      }}
+                      style={{ alignItems: "center", paddingVertical: 14 }}
+                    >
+                      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fortsätt som gäst</Text>
+                    </Pressable>
+                  </Animated.View>
                 </>
               )}
 
