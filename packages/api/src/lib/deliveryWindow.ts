@@ -13,13 +13,6 @@
  */
 
 export function computeDeliveryWindowMs(deliveringAt: Date, orderId: string): number {
-  // ⚠️ TEMP TESTING — return 30 s for every order so the auto-DELIVERED + LA
-  // dismiss flow can be exercised without waiting 10–25 minutes. Revert this
-  // block (restore the rush-hour 25-min / 10–20-min logic below) before any
-  // public release.
-  return 30 * 1000;
-
-  // eslint-disable-next-line no-unreachable
   const stockholmHour = stockholmHourOf(deliveringAt);
   if (stockholmHour >= 17 && stockholmHour < 20) {
     return 25 * 60 * 1000;

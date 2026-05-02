@@ -102,24 +102,42 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     };
   }, [fetchOrder, id]);
 
-  // Auto-transition from DELIVERING to DELIVERED after the configured window
-  // (driven by DELIVERY_AUTO_DISMISS_MS — currently 30 s for testing,
-  // normally 10–25 min). Matches the backend computeDeliveryWindowMs and the
-  // LA finaliser so all three flip at the same moment.
+  // Auto-transition from DELIVERING to DELIVERED.
+  //
+  // Source of truth for "when": `etaEndsAt` (Unix seconds) returned by the
+  // backend per order — backend uses computeDeliveryWindowMs (rush-hour 25 min
+  // / off-peak deterministic 10–20 min). Falls back to deliveringAt +
+  // DELIVERY_AUTO_DISMISS_MS (25 min) when etaEndsAt is missing.
+  //
+  // We can't physically verify delivery, so once the local timer fires we also
+  // PATCH /api/orders/:id/status DELIVERED so the DB row + restaurant tablet +
+  // bud + LA all see the same status (no client-side ghost state). The PATCH
+  // is idempotent, owner-checked, and ignored if status isn't DELIVERING.
   useEffect(() => {
     const deliveringAt = (order as any)?.deliveringAt;
+    const etaEndsAt = (order as any)?.etaEndsAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
-    const deliveringTime = new Date(deliveringAt).getTime();
-    const msRemaining = (deliveringTime + DELIVERY_AUTO_DISMISS_MS) - Date.now();
-    if (msRemaining <= 0) {
+
+    const flipAt = typeof etaEndsAt === "number"
+      ? etaEndsAt * 1000
+      : new Date(deliveringAt).getTime() + DELIVERY_AUTO_DISMISS_MS;
+
+    const flip = () => {
       setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
-      return;
-    }
-    const timer = setTimeout(() => {
-      setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
-    }, msRemaining);
+      if (token && order?.id) {
+        api.patch(
+          `/api/orders/${order.id}/status`,
+          { status: "DELIVERED" },
+          { headers: { Authorization: `Bearer ${token}` } },
+        ).catch(() => { /* Backend will catch up next read; ignore. */ });
+      }
+    };
+
+    const msRemaining = flipAt - Date.now();
+    if (msRemaining <= 0) { flip(); return; }
+    const timer = setTimeout(flip, msRemaining);
     return () => clearTimeout(timer);
-  }, [(order as any)?.deliveringAt, order?.status]);
+  }, [(order as any)?.deliveringAt, (order as any)?.etaEndsAt, order?.status, order?.id, token]);
 
   // LIVE NEDRÄKNING FÖR "MINUTER KVAR"
   useEffect(() => {

@@ -1185,4 +1185,96 @@ router.post('/:id/live-activity-push', async (req: Request, res: Response) => {
   }
 });
 
+// PATCH /api/orders/:id/status
+//
+// Lets the order's owning customer flip status DELIVERING → DELIVERED in the
+// DB. We can't actually verify the rider physically delivered the food, so the
+// client just calls this when its local fake-delivery countdown expires. This
+// makes the change durable (so all clients/admin/restaurant see the same
+// status, not just the customer's local app), and triggers the LA dispatcher
+// so the iOS Live Activity follows.
+//
+// Authorization: order.userId must match the JWT subject. We accept the same
+// two token shapes as POST /api/orders (Supabase JWT + legacy custom JWT) and
+// the same patterns are intentionally inlined since this is the only other
+// place we need them.
+//
+// Allowed transitions:
+//   DELIVERING → DELIVERED
+// All other transitions are no-ops (return 200 with `{changed: false}` so the
+// client doesn't retry). This endpoint is idempotent.
+router.patch('/:id/status', async (req: Request, res: Response) => {
+  try {
+    const orderId = req.params.id;
+    const newStatus = String(req.body?.status || '').toUpperCase();
+    if (newStatus !== 'DELIVERED') {
+      return res.status(400).json({ error: 'Endast DELIVERED tillåts via denna endpoint' });
+    }
+
+    // Resolve caller identity
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Saknar inloggning' });
+    }
+    const token = auth.slice(7);
+    let callerUserId: string | null = null;
+
+    // Try Supabase JWT first
+    try {
+      const sb = await supabaseAdmin.auth.getUser(token);
+      if (sb.data.user) {
+        callerUserId = sb.data.user.id;
+      }
+    } catch {}
+
+    // Fall back to legacy custom JWT
+    if (!callerUserId) {
+      try {
+        const payload = jwt.verify(token, JWT_SECRET) as any;
+        if (payload?.id) callerUserId = String(payload.id);
+      } catch {}
+    }
+
+    if (!callerUserId) {
+      return res.status(401).json({ error: 'Ogiltig token' });
+    }
+
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: { id: true, userId: true, status: true },
+    });
+    if (!order) return res.status(404).json({ error: 'Ordern hittades inte' });
+    if (order.userId !== callerUserId) {
+      return res.status(403).json({ error: 'Du äger inte denna order' });
+    }
+    if (order.status === 'DELIVERED' || order.status === 'COMPLETED') {
+      return res.json({ changed: false, status: order.status });
+    }
+    if (order.status !== 'DELIVERING') {
+      return res.status(409).json({ error: `Kan inte gå från ${order.status} till DELIVERED` });
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'DELIVERED' },
+      select: { id: true, status: true },
+    });
+
+    // Notify any connected clients (restaurant, admin, customer mirrors).
+    try {
+      getIO()?.to(`order:${orderId}`).emit('order:status', { id: orderId, status: 'DELIVERED' });
+    } catch {}
+
+    // Sync the iOS Live Activity if one is registered.
+    void pushLiveActivityForOrder(orderId).catch((e) =>
+      console.warn(`[orders/status] LA dispatch failed order=${orderId}:`, e?.message),
+    );
+
+    return res.json({ changed: true, status: updated.status });
+  } catch (e: any) {
+    console.error('[orders/status] failed:', e);
+    return res.status(500).json({ error: e?.message ?? 'Serverfel' });
+  }
+});
+
 export default router;
