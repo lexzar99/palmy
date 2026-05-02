@@ -94,21 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     _lastPendingCount = currentPending;
   }
 
-  Future<void> _markReady(OrderModel order) async {
-    final provider = Provider.of<OrderProvider>(context, listen: false);
-    final nextStatus = order.type == 'PICKUP' ? 'READY' : 'DELIVERING';
-    final ok = await provider.updateStatus(order.id, nextStatus);
-    if (!mounted || !ok) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          order.type == 'PICKUP' ? 'Klar för hämtning' : 'Markerad som på väg',
-        ),
-        backgroundColor: AppTheme.success,
-      ),
-    );
-  }
-
   void _openTake(OrderModel order) {
     Navigator.push(
       context,
@@ -122,7 +107,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             position: Tween<Offset>(
               begin: const Offset(0, 0.04),
               end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            ).animate(
+                CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
             child: child,
           ),
         ),
@@ -162,6 +148,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             );
           }
 
+          final earlierOrders = [
+            ...provider.activeOrders,
+            ...provider.todayHistoryOrders,
+          ]..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
           return Stack(
             children: [
               RefreshIndicator(
@@ -173,8 +164,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                     // ── Header ───────────────────────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                        child: _Header(provider: provider, isDark: isDark),
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                        child: _Header(
+                          provider: provider,
+                          isDark: isDark,
+                          hasPending: provider.pendingOrders.isNotEmpty,
+                        ),
                       ),
                     ),
 
@@ -182,96 +177,130 @@ class _DashboardScreenState extends State<DashboardScreen>
                     if (provider.isOffline)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
                           child: _OfflineBanner(),
                         ),
                       ),
 
-                    // ── NYA section ──────────────────────────────────────
+                    // ── NYA ORDER section ────────────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 12),
-                        child: _SectionHeader(
-                          title: 'NYA',
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 14),
+                        child: _SectionLabel(
+                          title: 'NYA ORDER',
                           count: provider.pendingOrders.length,
                           accent: AppTheme.warning,
                         ),
                       ),
                     ),
 
-                    if (provider.pendingOrders.isEmpty)
-                      const SliverToBoxAdapter(
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-                          child: _EmptySection(
-                            icon: Icons.task_alt_rounded,
-                            label: 'Inga nya ordrar',
-                          ),
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-                        sliver: SliverList.separated(
-                          itemCount: provider.pendingOrders.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final o = provider.pendingOrders[index];
-                            return OrderCard(
-                              order: o,
-                              pending: true,
-                              onTap: () => _openTake(o),
-                            );
-                          },
-                        ),
-                      ),
+                    SliverToBoxAdapter(
+                      child: provider.pendingOrders.isEmpty
+                          ? const Padding(
+                              padding: EdgeInsets.fromLTRB(20, 0, 20, 4),
+                              child: _EmptyState(
+                                icon: Icons.task_alt_rounded,
+                                label: 'Inga nya ordrar',
+                              ),
+                            )
+                          : SizedBox(
+                              height: 182,
+                              child: ListView.separated(
+                                padding:
+                                    const EdgeInsets.fromLTRB(20, 0, 20, 0),
+                                scrollDirection: Axis.horizontal,
+                                physics: const ClampingScrollPhysics(),
+                                itemCount: provider.pendingOrders.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 12),
+                                itemBuilder: (context, index) {
+                                  final o = provider.pendingOrders[index];
+                                  return NewOrderCard(
+                                    order: o,
+                                    onTap: () => _openTake(o),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
 
-                    // ── AKTIVA section ───────────────────────────────────
+                    // ── TIDIGARE ORDER section ───────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                        child: _SectionHeader(
-                          title: 'AKTIVA',
-                          count: provider.activeOrders.length,
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 8),
+                        child: _SectionLabel(
+                          title: 'TIDIGARE ORDER',
+                          count: earlierOrders.length,
                           accent: AppTheme.info,
                         ),
                       ),
                     ),
 
-                    if (provider.activeOrders.isEmpty)
+                    if (earlierOrders.isEmpty)
                       const SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(16, 0, 16, 40),
-                          child: _EmptySection(
+                          padding: EdgeInsets.fromLTRB(20, 8, 20, 40),
+                          child: _EmptyState(
                             icon: Icons.inbox_outlined,
-                            label: 'Inga aktiva ordrar',
+                            label: 'Inga tidigare ordrar idag',
                           ),
                         ),
                       )
                     else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                        sliver: SliverList.separated(
-                          itemCount: provider.activeOrders.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final o = provider.activeOrders[index];
-                            return OrderCard(
-                              order: o,
-                              pending: false,
-                              onTap: () => _openDetail(o),
-                              onAction: () => _markReady(o),
-                            );
-                          },
+                      SliverToBoxAdapter(
+                        child: Container(
+                          margin: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                          decoration: BoxDecoration(
+                            color: isDark ? AppTheme.deepSea : Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.08)
+                                  : Colors.black.withOpacity(0.06),
+                              width: 1,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black
+                                    .withOpacity(isDark ? 0.22 : 0.04),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Column(
+                              children: [
+                                for (int i = 0;
+                                    i < earlierOrders.length;
+                                    i++) ...[
+                                  OrderListTile(
+                                    order: earlierOrders[i],
+                                    onTap: () =>
+                                        _openDetail(earlierOrders[i]),
+                                  ),
+                                  if (i < earlierOrders.length - 1)
+                                    Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      indent: 72,
+                                      endIndent: 0,
+                                      color: isDark
+                                          ? Colors.white.withOpacity(0.06)
+                                          : Colors.black.withOpacity(0.05),
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                   ],
                 ),
               ),
 
-              // ── New-order slide-in banner ──────────────────────────────
+              // ── New-order slide-in banner ─────────────────────────────
               if (_showNewOrderBanner)
                 Positioned(
                   top: 12,
@@ -294,32 +323,58 @@ class _DashboardScreenState extends State<DashboardScreen>
 class _Header extends StatelessWidget {
   final OrderProvider provider;
   final bool isDark;
-  const _Header({required this.provider, required this.isDark});
+  final bool hasPending;
+
+  const _Header({
+    required this.provider,
+    required this.isDark,
+    required this.hasPending,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: Text(
-            'Ordrar',
-            style: TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.8,
-              color: isDark ? Colors.white : AppTheme.ink,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Order',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.0,
+                  height: 1.0,
+                  color: isDark ? Colors.white : AppTheme.ink,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Hantera inkommande ordrar',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.48)
+                      : AppTheme.mutedInk,
+                ),
+              ),
+            ],
           ),
         ),
+        const SizedBox(width: 10),
         GestureDetector(
           onTap: () => _showStatusPicker(context, provider),
-          child: _StatusBadge(
-            open: provider.isRestaurantOpen,
-          ),
+          child: _StatusChip(open: provider.isRestaurantOpen, isDark: isDark),
         ),
         const SizedBox(width: 8),
-        _SoundButton(onTap: provider.testAlarm),
+        _BellButton(
+          hasPending: hasPending,
+          isDark: isDark,
+          onTap: provider.testAlarm,
+        ),
       ],
     );
   }
@@ -353,7 +408,9 @@ class _Header extends StatelessWidget {
                 icon: Icons.storefront_rounded,
                 onTap: () async {
                   Navigator.pop(ctx);
-                  if (!provider.isRestaurantOpen) await provider.setStatus(true);
+                  if (!provider.isRestaurantOpen) {
+                    await provider.setStatus(true);
+                  }
                 },
               ),
               const SizedBox(height: 8),
@@ -365,7 +422,9 @@ class _Header extends StatelessWidget {
                 icon: Icons.store_mall_directory_outlined,
                 onTap: () async {
                   Navigator.pop(ctx);
-                  if (provider.isRestaurantOpen) await provider.setStatus(false);
+                  if (provider.isRestaurantOpen) {
+                    await provider.setStatus(false);
+                  }
                 },
               ),
             ],
@@ -376,37 +435,36 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _StatusBadge extends StatelessWidget {
+class _StatusChip extends StatelessWidget {
   final bool open;
-  const _StatusBadge({required this.open});
+  final bool isDark;
+  const _StatusChip({required this.open, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     final color = open ? AppTheme.success : AppTheme.danger;
-    final isDark = AppTheme.isDark(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.18 : 0.10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.55), width: 1.3),
+        color: color.withOpacity(isDark ? 0.15 : 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.40), width: 1.2),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 7,
-            height: 7,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 5),
           Text(
             open ? 'Öppet' : 'Stängt',
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w900,
-              fontSize: 13,
-              letterSpacing: 0.2,
+              fontSize: 12,
             ),
           ),
         ],
@@ -415,45 +473,75 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
-class _SoundButton extends StatelessWidget {
+class _BellButton extends StatelessWidget {
+  final bool hasPending;
+  final bool isDark;
   final VoidCallback onTap;
-  const _SoundButton({required this.onTap});
+
+  const _BellButton({
+    required this.hasPending,
+    required this.isDark,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withOpacity(0.08)
-              : AppTheme.ink.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(11),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.10)
-                : AppTheme.ink.withOpacity(0.10),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : AppTheme.ink.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.10)
+                    : AppTheme.ink.withOpacity(0.08),
+              ),
+            ),
+            child: Icon(
+              Icons.notifications_rounded,
+              size: 20,
+              color:
+                  isDark ? Colors.white.withOpacity(0.72) : AppTheme.mutedInk,
+            ),
           ),
-        ),
-        child: Icon(
-          Icons.volume_up_rounded,
-          size: 18,
-          color: isDark ? Colors.white.withOpacity(0.70) : AppTheme.mutedInk,
-        ),
+          if (hasPending)
+            Positioned(
+              top: -3,
+              right: -3,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: AppTheme.warning,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isDark ? AppTheme.deepSea : Colors.white,
+                    width: 2,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
 }
 
-// ── Section header ────────────────────────────────────────────────────────────
-class _SectionHeader extends StatelessWidget {
+// ── Section label ─────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
   final String title;
   final int count;
   final Color accent;
-  const _SectionHeader({
+
+  const _SectionLabel({
     required this.title,
     required this.count,
     required this.accent,
@@ -461,47 +549,32 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
       children: [
-        Row(
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                color: accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.2,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Container(
-              width: 22,
-              height: 22,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: accent,
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                '$count',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
+        Text(
+          title,
+          style: TextStyle(
+            color: accent,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.8,
+          ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(width: 8),
         Container(
-          height: 2,
+          width: 20,
+          height: 20,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [accent, accent.withOpacity(0.0)],
-              stops: const [0.0, 1.0],
+            color: accent,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
           ),
         ),
@@ -510,25 +583,25 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ── Empty section ─────────────────────────────────────────────────────────────
-class _EmptySection extends StatelessWidget {
+// ── Empty state ───────────────────────────────────────────────────────────────
+class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String label;
-  const _EmptySection({required this.icon, required this.label});
+  const _EmptyState({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.symmetric(vertical: 18),
       child: Row(
         children: [
           Icon(
             icon,
-            size: 20,
+            size: 18,
             color: isDark
-                ? Colors.white.withOpacity(0.25)
-                : AppTheme.ink.withOpacity(0.22),
+                ? Colors.white.withOpacity(0.22)
+                : AppTheme.ink.withOpacity(0.20),
           ),
           const SizedBox(width: 10),
           Text(
@@ -537,8 +610,8 @@ class _EmptySection extends StatelessWidget {
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: isDark
-                  ? Colors.white.withOpacity(0.30)
-                  : AppTheme.ink.withOpacity(0.30),
+                  ? Colors.white.withOpacity(0.28)
+                  : AppTheme.ink.withOpacity(0.28),
             ),
           ),
         ],
@@ -556,7 +629,8 @@ class _OfflineBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.danger.withOpacity(0.10),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.danger.withOpacity(0.45), width: 1.2),
+        border:
+            Border.all(color: AppTheme.danger.withOpacity(0.45), width: 1.2),
       ),
       child: const Row(
         children: [
@@ -639,7 +713,9 @@ class _StatusTile extends StatelessWidget {
               ),
             ),
             Icon(
-              selected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked,
               color: selected ? color : AppTheme.mutedColor(context),
               size: 22,
             ),
@@ -689,7 +765,9 @@ class _NewOrderBanner extends StatelessWidget {
                   color: Colors.white, size: 18),
               const SizedBox(width: 8),
               Text(
-                count > 1 ? '$count nya ordrar inkommen!' : 'Ny order inkommen!',
+                count > 1
+                    ? '$count nya ordrar inkommen!'
+                    : 'Ny order inkommen!',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 15,
