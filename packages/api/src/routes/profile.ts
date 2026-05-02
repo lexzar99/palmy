@@ -14,22 +14,44 @@ function joinFullName(first: string | null | undefined, last: string | null | un
 
 router.get('/', authenticateUser, async (req: any, res: any) => {
   try {
-    const user = await (prisma as any).user.findUnique({
+    let user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
       select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
     });
     if (!user) return res.status(404).json({ error: 'Hittades inte' });
+
+    // Auto-migrate legacy users: if firstName/lastName are null but the
+    // legacy `name` column has at least two words, split it and persist.
+    // This stops the rebuild-then-suddenly-gated regression for accounts
+    // created before firstName/lastName columns existed.
+    let first = (user.firstName || '').trim();
+    let last = (user.lastName || '').trim();
+    const trimmedName = (user.name || '').trim();
+    const isPlaceholder = trimmedName.toLowerCase() === 'användare';
+    if (!first && !last && trimmedName && !isPlaceholder) {
+      const parts = trimmedName.split(/\s+/);
+      if (parts.length >= 2) {
+        const inferredFirst = parts[0];
+        const inferredLast = parts.slice(1).join(' ');
+        await (prisma as any).user.update({
+          where: { id: user.id },
+          data: { firstName: inferredFirst, lastName: inferredLast },
+        }).catch(() => null);
+        user = { ...user, firstName: inferredFirst, lastName: inferredLast };
+        first = inferredFirst;
+        last = inferredLast;
+        console.log(`[profile] auto-migrated legacy name "${trimmedName}" → first="${inferredFirst}" last="${inferredLast}" for user ${user.id}`);
+      }
+    }
+
     // OAuth-only users must complete phone linking before they can use the
     // app. Surface the flag so the client can route them to the gate UI.
     const needsPhone = !!user.oauthProvider && (!user.phone || !user.isVerified);
-    // STRICT: profileComplete iff BOTH firstName AND lastName are stored.
-    // The client gates the "Complete Profile" screen on this exact rule
-    // and NEVER shows it again once it flips true.
-    const first = (user.firstName || '').trim();
-    const last = (user.lastName || '').trim();
-    const profileComplete = !!(first && last);
-    const trimmedName = (user.name || '').trim();
-    const isPlaceholder = trimmedName.toLowerCase() === 'användare';
+    // profileComplete: true when both first AND last are stored. Lenient
+    // back-compat shim: also true if the legacy `name` column has at least
+    // two words (covers accounts that never went through the new flow).
+    const profileComplete = !!(first && last)
+      || (!isPlaceholder && trimmedName.split(/\s+/).filter(Boolean).length >= 2);
     // Legacy compatibility flag — kept so existing call-sites still work.
     // New gates should prefer `profileComplete`.
     const needsName = !profileComplete;
