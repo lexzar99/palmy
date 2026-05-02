@@ -58,6 +58,31 @@ function isConfigured(): boolean {
   return false;
 }
 
+/** Public: lets the dispatcher and the boot banner ask whether APNs is wired. */
+export function isApnsConfigured(): boolean {
+  return Boolean(APNS_KEY_ID && APNS_TEAM_ID && APNS_BUNDLE_ID && APNS_KEY_P8);
+}
+
+/** Boot-time banner so the absence of APNs env vars is impossible to miss. */
+export function logApnsBootStatus(): void {
+  const configured = isApnsConfigured();
+  if (configured) {
+    console.log(
+      `[APNs] ✅ configured for ${process.env.APNS_PRODUCTION === '1' ? 'PRODUCTION' : 'SANDBOX'} ` +
+      `bundle=${APNS_BUNDLE_ID} keyId=${APNS_KEY_ID.slice(0, 2)}…${APNS_KEY_ID.slice(-2)} ` +
+      `teamId=${APNS_TEAM_ID.slice(0, 2)}…${APNS_TEAM_ID.slice(-2)} ` +
+      `keyP8.len=${APNS_KEY_P8.length} keyP8.wrapped=${APNS_KEY_P8.includes('-----BEGIN PRIVATE KEY-----')}`
+    );
+    return;
+  }
+  console.error(
+    '[APNs] ❌ NOT CONFIGURED — Live Activity push (the killed-app path) will NOT work. ' +
+    'Required Railway env vars: APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_KEY_P8. ' +
+    `Currently: keyId=${APNS_KEY_ID ? 'set' : 'MISSING'} teamId=${APNS_TEAM_ID ? 'set' : 'MISSING'} ` +
+    `bundleId=${APNS_BUNDLE_ID ? 'set' : 'MISSING'} keyP8=${APNS_KEY_P8 ? 'set' : 'MISSING'}`
+  );
+}
+
 // APNs JWT — valid for up to 1h. We cache and refresh just before expiry to
 // avoid spending CPU on every push.
 let cachedJwt: { token: string; iat: number } | null = null;

@@ -36,6 +36,7 @@ import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrap
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
+import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
 import { getAllowedOrigins } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
@@ -295,6 +296,11 @@ const PORT = Number(process.env.PORT || 4000);
     console.log(`📡 Socket.IO redo`);
     console.log(`🌍 Internt: http://localhost:${PORT}`);
     console.log(`🌐 Externt: http://192.168.0.3:${PORT} (kontrollera ifconfig om detta ej funkar)\n`);
+    // Print APNs configuration status as the very last boot line so it's
+    // impossible to miss in Railway's log tail. If this prints "❌ NOT
+    // CONFIGURED" the killed-app Live Activity path is guaranteed dead and
+    // no amount of frontend work can fix it.
+    logApnsBootStatus();
   });
 })();
 

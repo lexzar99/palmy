@@ -19,6 +19,7 @@ import prisma from './prisma';
 import {
   pushOrderStatusUpdate,
   ApnsError,
+  isApnsConfigured,
 } from './liveActivityPush';
 import { computeDeliveryWindowMs } from './deliveryWindow';
 
@@ -38,6 +39,19 @@ export async function pushLiveActivityForOrder(
   orderId: string,
   options: DispatchOptions = {},
 ): Promise<{ ok: boolean; reason: string; status?: string }> {
+  // Hard-fail loudly when APNs isn't wired. Without these env vars on
+  // Railway the killed-app path can never work — Apple's APNs HTTP/2 is
+  // the ONLY transport that updates a Live Activity in a dead app. If
+  // this fires in production, set APNS_KEY_ID / APNS_TEAM_ID /
+  // APNS_BUNDLE_ID / APNS_KEY_P8 in Railway env and redeploy.
+  if (!isApnsConfigured()) {
+    console.error(
+      `[la-dispatch] ❌ order=${orderId} APNs NOT CONFIGURED — killed-app LA push is dead. ` +
+      `Set APNS_KEY_ID / APNS_TEAM_ID / APNS_BUNDLE_ID / APNS_KEY_P8 on Railway.`
+    );
+    return { ok: false, reason: 'apns-not-configured' };
+  }
+
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     select: {
