@@ -71,13 +71,38 @@ const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
   return false;
 };
 
+// Collapse duplicates from the same physical address but slightly different
+// coords / formatting (e.g. multiple location-permission grants pushed in
+// near-identical entries before the dedup tightening landed).
+const dedupeAddresses = (entries: QuickAddress[]): QuickAddress[] => {
+  const out: QuickAddress[] = [];
+  for (const entry of entries) {
+    const match = out.findIndex((existing) => isSameAddress(existing, entry));
+    if (match === -1) {
+      out.push(entry);
+    } else {
+      // Keep the freshest copy of the duplicate.
+      const existing = out[match];
+      const winner = (entry.updatedAt || 0) > (existing.updatedAt || 0) ? entry : existing;
+      const isDefault = existing.isDefault || entry.isDefault;
+      out[match] = { ...winner, isDefault };
+    }
+  }
+  return out;
+};
+
 export const readQuickAddresses = async (): Promise<QuickAddress[]> => {
   try {
     const raw = await AsyncStorage.getItem(QUICK_ADDRESSES_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.slice(0, MAX_ADDRESSES);
+    const cleaned = dedupeAddresses(parsed).slice(0, MAX_ADDRESSES);
+    // Persist back if we collapsed anything so the storage stays clean.
+    if (cleaned.length !== parsed.length) {
+      AsyncStorage.setItem(QUICK_ADDRESSES_KEY, JSON.stringify(cleaned)).catch(() => {});
+    }
+    return cleaned;
   } catch {
     return [];
   }
