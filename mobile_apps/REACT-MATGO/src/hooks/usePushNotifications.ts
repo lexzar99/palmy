@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { api } from '../lib/api';
@@ -138,10 +138,23 @@ export function usePushNotifications(
       if (data && Object.keys(data).length > 0) setInitialNotificationData(data);
     });
 
+    // Clear the red badge whenever the user opens the app. iOS leaves the
+    // "1" badge above the app icon until something explicitly resets the
+    // count — without this, status pushes leave a stuck badge that doesn't
+    // go away when the user comes back into the app.
+    const clearBadge = () => {
+      Notifications.setBadgeCountAsync(0).catch(() => {});
+    };
+    clearBadge();
+    const badgeSub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') clearBadge();
+    });
+
     return () => {
       active = false;
       if (notificationListener.current) notificationListener.current.remove();
       if (responseListener.current) responseListener.current.remove();
+      badgeSub.remove();
       requestPermissionRef.current = null;
     };
   }, []);

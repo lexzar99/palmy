@@ -520,6 +520,12 @@ export async function pushOrderStatusUpdate(opts: {
     dismissalDate = Math.floor(Date.now() / 1000) + 8;
   }
 
+  // No alert payload on LA pushes. Even on event:end we want a SILENT
+  // dismiss — the user-visible surface for terminal states (e.g. the
+  // review prompt 10 s after DELIVERED) is sent as a separate alert push
+  // by admin.ts, not piggybacked on the LA dismiss. Including alertBody
+  // here would put a "Levererad" banner on the Lock Screen that the user
+  // doesn't want alongside the LA fading out.
   await pushLiveActivityUpdate({
     token: opts.token,
     event: mapped.ends ? 'end' : 'update',
@@ -532,8 +538,6 @@ export async function pushOrderStatusUpdate(opts: {
       orderType: opts.orderType ?? null,
       etaEndsAt: opts.etaEndsAt ? Math.floor(opts.etaEndsAt.getTime() / 1000) : null,
     },
-    alertTitle: 'FoodGo',
-    alertBody: opts.alertBody ?? meta.statusText,
     dismissalDate,
   });
 }

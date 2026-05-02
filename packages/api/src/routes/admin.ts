@@ -544,23 +544,22 @@ router.patch('/orders/:id/status', async (req, res) => {
         }
       };
 
-      if (status === 'DELIVERED' && !isDelivery) {
-        // Avhämtning: vänta 20 min så kunden hinner komma hem och äta
+      if (status === 'DELIVERED') {
+        // 10 s after DELIVERED, fire the review prompt as the *only*
+        // remaining notification for this order. Same collapseId as the
+        // status pushes (`order-${id}`) so it replaces anything still in
+        // Notification Center, and the LA has already dismissed by then
+        // (backend sent event:end ~8 s earlier). Same timing for delivery
+        // and pickup — the customer has the LA's "Levererad" cue, this
+        // push just nudges them to leave a review.
+        const body = isDelivery
+          ? "Din beställning bör vara framme! Hur var leveransen och maten? Lämna ett omdöme."
+          : "Hoppas det smakade! Klicka här för att lämna en snabb recension.";
         setTimeout(() => {
-          sendReviewPrompt(
-            "⭐ Vad tyckte du om maten?",
-            "Hoppas det smakade! Klicka här för att lämna en snabb recension."
-          ).catch((e) => console.error('Delayed review push failed', e));
-        }, 20 * 60 * 1000);
-      } else if (status === 'DELIVERING' && isDelivery) {
-        // Utkörning: admin klickar 'På väg', appen visar DELIVERING i 12 min, sedan DELIVERED.
-        // Skickar recensionsnotis efter 25 min så kunden hunnit ta emot och äta maten.
-        setTimeout(() => {
-          sendReviewPrompt(
-            "⭐ Vad tyckte du om maten?",
-            "Din beställning bör vara framme! Hur var leveransen och maten? Lämna ett omdöme."
-          ).catch((e) => console.error('Delayed review push failed', e));
-        }, 25 * 60 * 1000);
+          sendReviewPrompt("⭐ Vad tyckte du om maten?", body).catch((e) =>
+            console.error('Delayed review push failed', e),
+          );
+        }, 10 * 1000);
       }
     }
 
