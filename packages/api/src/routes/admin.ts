@@ -9,8 +9,8 @@ import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
 import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTargetIds } from '../lib/deals';
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
-import { pushOrderStatusUpdate, sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
-import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
+import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
+import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 
 const router = Router();
 router.use(authenticate);
@@ -399,49 +399,28 @@ router.patch('/orders/:id/status', async (req, res) => {
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
 
-    // Push the new state directly into the customer's iOS Live Activity (if
-    // they have one). Fire-and-forget: APNs failures shouldn't block the admin
-    // response. Uses customerStatus so DELIVERING shows "På väg" even though
-    // the DB row is DELIVERED.
-    if (existing.liveActivityToken) {
-      let etaEndsAt: Date | null = null;
-      if (customerStatus === 'PREPARING' && (order as any).preparingAt && order.estimatedTime) {
-        etaEndsAt = new Date(new Date((order as any).preparingAt).getTime() + order.estimatedTime * 60_000);
-      } else if (customerStatus === 'DELIVERING' && (order as any).deliveringAt) {
-        const deliveringAtDate = new Date((order as any).deliveringAt);
-        const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
-        etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs);
-        console.log(`[admin] DELIVERING window for ${order.id}: ${windowMs / 60_000} min (deliveringAt=${deliveringAtDate.toISOString()})`);
-      }
-      console.log(`[admin] LA push → order ${order.id}, customerStatus=${customerStatus}, token=${existing.liveActivityToken.slice(0,12)}…`);
-      pushOrderStatusUpdate({
-        token: existing.liveActivityToken,
-        serverStatus: customerStatus,
-        orderType: existing.type,
-        etaMinutes: order.estimatedTime ?? null,
-        etaEndsAt,
-      }).then(() => {
-        console.log(`[admin] LA push ✅ order ${order.id} status=${customerStatus}`);
-        // For direct DELIVERED, clear token after the 2-min dismissal window
-        // (120s) so the DB stays clean. The token is useless once the LA ends.
-        if (customerStatus === 'DELIVERED') {
+    // Push the new state into the customer's iOS Live Activity. Routed
+    // through the centralised dispatcher so every status-mutating path
+    // (this route, the general PATCH, the token-register catch-up, and the
+    // dedicated debug route) takes the exact same code path. Fire-and-
+    // forget: APNs failures shouldn't block the admin response.
+    void pushLiveActivityForOrder(order.id, { serverStatus: customerStatus })
+      .then((result) => {
+        // Clear the token a couple minutes after a direct DELIVERED so the
+        // DB stays clean — the token is useless once the LA dismisses.
+        if (
+          result.ok &&
+          customerStatus === 'DELIVERED' &&
+          existing.liveActivityToken
+        ) {
           setTimeout(() => {
             (prisma as any).order
               .update({ where: { id: order.id }, data: { liveActivityToken: null } })
               .catch(() => null);
           }, 130_000);
         }
-      }).catch(async (e) => {
-        console.warn('[admin] LA push failed:', e?.message);
-        if (e instanceof ApnsError && e.invalidToken) {
-          await (prisma as any).order
-            .update({ where: { id: order.id }, data: { liveActivityToken: null } })
-            .catch(() => null);
-        }
-      });
-    } else {
-      console.log(`[admin] No LA token on order ${order.id} — skipping LA push`);
-    }
+      })
+      .catch((e) => console.warn('[admin] LA dispatch threw:', e?.message));
 
     // Fetcha kundens Push Token via userId eller telefonnummer.
     // Vi hämtar BÅDE Expo-token (för fallback / Android) och iOS APNs-token
@@ -631,6 +610,14 @@ router.patch('/orders/:id', async (req, res) => {
     getIO().emit('order:updated', { id: order.id, status: order.status });
     if (order.restaurantId) {
       getIO().to(`admin-room:${order.restaurantId}`).emit('order:updated', { id: order.id });
+    }
+
+    // If the general edit changed status, drive the LA through the same
+    // central dispatcher so the Dynamic Island doesn't lag behind admin UI.
+    if (status) {
+      void pushLiveActivityForOrder(order.id).catch((e) =>
+        console.warn('[admin] LA dispatch (PATCH /orders/:id) threw:', e?.message),
+      );
     }
 
     res.json(order);

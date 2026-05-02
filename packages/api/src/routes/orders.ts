@@ -16,6 +16,7 @@ import { JWT_SECRET } from '../lib/config';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
+import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -1073,10 +1074,60 @@ router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
       return;
     }
     console.log(`[live-activity-token] ✅ saved token for order=${orderId} (token=${token.slice(0, 16)}…)`);
+
+    // Catch-up push: iOS hands JS the per-activity push token a few hundred
+    // ms (sometimes seconds) AFTER `Activity.request()` returns. If admin
+    // accepted, started preparing, or marked ready/delivering during that
+    // window, the prior `pushOrderStatusUpdate` calls were skipped because
+    // `liveActivityToken` was still null on the row — and the LA would
+    // freeze on the JS-supplied initial "Mottagen" state until the next
+    // admin click. Run the dispatcher immediately so the freshly-registered
+    // token gets the current state.
+    void pushLiveActivityForOrder(orderId).catch((e) =>
+      console.warn(`[live-activity-token] catch-up dispatch threw order=${orderId}:`, e?.message),
+    );
+
     res.json({ success: true });
   } catch (e) {
     console.error('[live-activity-token] failed:', e);
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/orders/:id/live-activity-push
+//
+// Dedicated trigger that pushes the order's *current* DB state into its
+// running iOS Live Activity. Same code path as the admin status route, just
+// callable on its own — useful for:
+//   - Manually re-syncing a stuck LA from a debug curl.
+//   - A future cron / reconciler that nudges LAs whose stored status drifted
+//     from what's on screen (e.g. push was throttled).
+//   - Any service that mutates an order's status outside the admin route
+//     and needs the LA to follow.
+//
+// Optional body: { status?: string } overrides the DB-derived customer
+// status (used by debug to test individual steps without flipping the row).
+//
+// No auth — token in the order row is the capability; the caller still
+// needs the orderId to do anything.
+router.post('/:id/live-activity-push', async (req: Request, res: Response) => {
+  try {
+    const orderId = req.params.id;
+    const overrideStatus =
+      typeof req.body?.status === 'string' ? req.body.status : undefined;
+    const result = await pushLiveActivityForOrder(orderId, {
+      serverStatus: overrideStatus,
+    });
+    if (!result.ok) {
+      const code = result.reason === 'order-not-found' ? 404
+        : result.reason === 'no-token' ? 409
+        : 500;
+      return res.status(code).json(result);
+    }
+    return res.json(result);
+  } catch (e: any) {
+    console.error('[live-activity-push] failed:', e);
+    return res.status(500).json({ error: e?.message ?? 'Serverfel' });
   }
 });
 
