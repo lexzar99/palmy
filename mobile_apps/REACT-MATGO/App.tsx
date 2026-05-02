@@ -616,6 +616,8 @@ export function getOpeningHoursLines(restaurant?: Restaurant | null) {
 function AppContent() {
   const [currentRouteName, setCurrentRouteName] = useState<string>("home");
   const [splashFinished, setSplashFinished] = useState(false);
+  // DEV: show onboarding on every launch for testing — remove this line when done
+  const [devOnboardingDone, setDevOnboardingDone] = useState(false);
   const hydrated = useAppStore((s) => s.hydrated);
   const hydrate = useAppStore((s) => s.hydrate);
   const { activeOrderId, setActiveOrder } = useAppStore();
@@ -891,6 +893,17 @@ function AppContent() {
     return <SplashLoader />;
   }
 
+  if (!devOnboardingDone) {
+    // DEV: always show full onboarding — remove condition when done testing
+    return (
+      <OnboardingScreen
+        onComplete={() => setDevOnboardingDone(true)}
+        requestPushPermission={requestPushPermission}
+        skipPermissions={false}
+      />
+    );
+  }
+
   if (!token && !onboardingComplete) {
     return (
       <OnboardingScreen
@@ -1056,7 +1069,10 @@ function AppContent() {
                   <RegisterScreen
                     initialPhone={props.route.params?.initialPhone}
                     goBack={goBack}
-                    onRegistered={() => replaceRoute({ name: "profile" })}
+                    onRegistered={() => {
+                      setCurrentRouteName("profile");
+                      replaceRoute({ name: "profile" });
+                    }}
                   />
                 )}
               </Stack.Screen>

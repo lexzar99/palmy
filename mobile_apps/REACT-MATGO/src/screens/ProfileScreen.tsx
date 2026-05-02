@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
+  Animated,
+  Easing,
   Image,
   Platform,
   Pressable,
@@ -86,6 +88,7 @@ export default function ProfileScreen({
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
   const clearSession = useAppStore((s) => s.clearSession);
+  const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { ls } = useArabic();
@@ -139,6 +142,86 @@ export default function ProfileScreen({
   // Native Google + Apple OAuth
   const { prompt: googlePrompt, tokenResult: googleResult, error: googleError } = useGoogleAuth();
   const { prompt: applePrompt, tokenResult: appleResult, error: appleError } = useAppleAuth();
+
+  // Guest view entrance animations
+  const guestIconOpacity = useRef(new Animated.Value(0)).current;
+  const guestIconScale = useRef(new Animated.Value(0.78)).current;
+  const guestIconBreath = useRef(new Animated.Value(1)).current;
+  const guestRingScale = useRef(new Animated.Value(0.55)).current;
+  const guestRingOpacity = useRef(new Animated.Value(0.85)).current;
+  const guestTitle1Opacity = useRef(new Animated.Value(0)).current;
+  const guestTitle1Y = useRef(new Animated.Value(24)).current;
+  const guestTitle2Opacity = useRef(new Animated.Value(0)).current;
+  const guestTitle2Y = useRef(new Animated.Value(24)).current;
+  const guestSubOpacity = useRef(new Animated.Value(0)).current;
+  const guestCardOpacity = useRef(new Animated.Value(0)).current;
+  const guestCardY = useRef(new Animated.Value(48)).current;
+  const googleGuestScale = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (token && profile) return;
+
+    guestIconOpacity.setValue(0);
+    guestIconScale.setValue(0.78);
+    guestIconBreath.setValue(1);
+    guestRingScale.setValue(0.55);
+    guestRingOpacity.setValue(0.85);
+    guestTitle1Opacity.setValue(0);
+    guestTitle1Y.setValue(24);
+    guestTitle2Opacity.setValue(0);
+    guestTitle2Y.setValue(24);
+    guestSubOpacity.setValue(0);
+    guestCardOpacity.setValue(0);
+    guestCardY.setValue(48);
+
+    Animated.parallel([
+      Animated.timing(guestIconOpacity, { toValue: 1, duration: 430, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(guestIconScale, { toValue: 1, duration: 580, easing: Easing.out(Easing.back(1.3)), useNativeDriver: true }),
+    ]).start(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(guestIconBreath, { toValue: 1.06, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(guestIconBreath, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ])
+      ).start();
+    });
+
+    Animated.parallel([
+      Animated.timing(guestRingScale, { toValue: 2.0, duration: 950, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(guestRingOpacity, { toValue: 0, duration: 950, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+
+    Animated.sequence([
+      Animated.delay(160),
+      Animated.parallel([
+        Animated.timing(guestTitle1Opacity, { toValue: 1, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(guestTitle1Y, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    Animated.sequence([
+      Animated.delay(270),
+      Animated.parallel([
+        Animated.timing(guestTitle2Opacity, { toValue: 1, duration: 400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(guestTitle2Y, { toValue: 0, duration: 400, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    Animated.sequence([
+      Animated.delay(380),
+      Animated.timing(guestSubOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+    ]).start();
+
+    Animated.sequence([
+      Animated.delay(420),
+      Animated.parallel([
+        Animated.timing(guestCardOpacity, { toValue: 1, duration: 460, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(guestCardY, { toValue: 0, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    return () => { guestIconBreath.stopAnimation(); };
+  }, [token, profile]);
 
   // Google/Apple sign-in completed: if the OAuth user has no verified phone
   // yet, gate them — DO NOT setToken/setProfile until they finish phone+OTP
@@ -652,122 +735,143 @@ export default function ProfileScreen({
             <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{t(`language.languages.${currentLanguage}`)}</Text>
           </Pressable>
 
-          <View
-            style={{
-              width: 108,
-              height: 108,
-              borderRadius: 34,
-              backgroundColor: "rgba(234,181,69,0.1)",
-              borderWidth: 1,
-              borderColor: "rgba(234,181,69,0.2)",
-              alignItems: "center",
-              justifyContent: "center",
-              alignSelf: "center",
-              marginBottom: 22,
-            }}
-          >
-            <Ionicons name="lock-closed-outline" size={44} color={palette.gold} />
+          {/* Hero icon with animated ring + breath */}
+          <View style={{ alignItems: "center", marginBottom: 20 }}>
+            <Animated.View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                width: 120, height: 120, borderRadius: 60,
+                borderWidth: 1.5, borderColor: "rgba(234,181,69,0.85)",
+                opacity: guestRingOpacity,
+                transform: [{ scale: guestRingScale }],
+              }}
+            />
+            <Animated.View style={{ transform: [{ scale: guestIconBreath }] }}>
+              <Animated.View style={{ opacity: guestIconOpacity, transform: [{ scale: guestIconScale }] }}>
+                <View style={{
+                  width: 108, height: 108, borderRadius: 34,
+                  backgroundColor: "rgba(234,181,69,0.1)",
+                  borderWidth: 1.5, borderColor: "rgba(234,181,69,0.2)",
+                  alignItems: "center", justifyContent: "center",
+                  shadowColor: palette.gold, shadowOpacity: 0.5, shadowRadius: 44, shadowOffset: { width: 0, height: 14 },
+                }}>
+                  <Ionicons name="lock-closed-outline" size={44} color={palette.gold} />
+                </View>
+              </Animated.View>
+            </Animated.View>
           </View>
 
-          <Text style={{ color: palette.text, fontSize: 34, fontWeight: "900", textAlign: "center" }}>VÄLKOMMEN</Text>
-          <Text style={{ color: palette.gold, fontSize: 34, fontWeight: "900", textAlign: "center", marginTop: -2 }}>TILLBAKA</Text>
-          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: ls(2), textAlign: "center", marginTop: 18 }}>
+          {/* Title — staggered lines */}
+          <View style={{ alignItems: "center", marginBottom: 14 }}>
+            <Animated.Text style={{
+              color: palette.text, fontSize: 34, fontWeight: "900", textAlign: "center",
+              opacity: guestTitle1Opacity, transform: [{ translateY: guestTitle1Y }],
+            }}>
+              VÄLKOMMEN
+            </Animated.Text>
+            <Animated.Text style={{
+              color: palette.gold, fontSize: 34, fontWeight: "900", textAlign: "center",
+              marginTop: -2,
+              opacity: guestTitle2Opacity, transform: [{ translateY: guestTitle2Y }],
+            }}>
+              TILLBAKA
+            </Animated.Text>
+          </View>
+
+          <Animated.Text style={{
+            color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: ls(2),
+            textAlign: "center", marginBottom: 4,
+            opacity: guestSubOpacity,
+          }}>
             {t('profile.guest.description').toUpperCase()}
-          </Text>
+          </Animated.Text>
 
-          <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
-            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 12 }}>{t('profile.overview.phone').toUpperCase()}</Text>
-            <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-              <Pressable
-                onPress={() => {
-                  const currentIndex = COUNTRY_CODES.findIndex((item) => item.code === countryCode);
-                  const next = COUNTRY_CODES[(currentIndex + 1) % COUNTRY_CODES.length];
-                  setCountryCode(next.code);
-                }}
-                style={{
-                  width: 100,
-                  borderRadius: 18,
-                  backgroundColor: palette.card,
-                  borderWidth: 1,
-                  borderColor: palette.border,
-                  paddingHorizontal: 12,
-                  paddingVertical: 18,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Text style={{ fontSize: 20 }}>{COUNTRY_CODES.find((item) => item.code === countryCode)?.flag || "🇸🇪"}</Text>
-                <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>{countryCode}</Text>
-              </Pressable>
+          {/* Form card + buttons — slide up together */}
+          <Animated.View style={{ opacity: guestCardOpacity, transform: [{ translateY: guestCardY }] }}>
+            <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 12 }}>{t('profile.overview.phone').toUpperCase()}</Text>
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <Pressable
+                  onPress={() => {
+                    const currentIndex = COUNTRY_CODES.findIndex((item) => item.code === countryCode);
+                    const next = COUNTRY_CODES[(currentIndex + 1) % COUNTRY_CODES.length];
+                    setCountryCode(next.code);
+                  }}
+                  style={{
+                    width: 100, borderRadius: 18,
+                    backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border,
+                    paddingHorizontal: 12, paddingVertical: 18,
+                    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+                  }}
+                >
+                  <Text style={{ fontSize: 20 }}>{COUNTRY_CODES.find((item) => item.code === countryCode)?.flag || "🇸🇪"}</Text>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>{countryCode}</Text>
+                </Pressable>
 
-              <View style={{ flex: 1 }}>
-                <TextInput
-                  style={[styles.input, { marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
-                  placeholder="070 000 00 00"
-                  placeholderTextColor={palette.muted}
-                  keyboardType="phone-pad"
-                  value={phone}
-                  onChangeText={setPhone}
+                <View style={{ flex: 1 }}>
+                  <TextInput
+                    style={[styles.input, { marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
+                    placeholder="070 000 00 00"
+                    placeholderTextColor={palette.muted}
+                    keyboardType="phone-pad"
+                    value={phone}
+                    onChangeText={setPhone}
+                  />
+                </View>
+              </View>
+
+              {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
+
+              <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>{t('common.or')}</Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+              </View>
+
+              {Platform.OS === "ios" && (
+                <AppleAuthentication.AppleAuthenticationButton
+                  buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+                  buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                  cornerRadius={24}
+                  style={{ width: "100%", height: 54, marginBottom: 12, opacity: socialLoading && socialLoading !== "apple" ? 0.6 : 1 }}
+                  onPress={() => handleSocialLogin("apple")}
                 />
+              )}
+
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                {(["google", "facebook"] as const).map((provider) => (
+                  <Animated.View key={provider} style={provider === "google" ? { flex: 1, transform: [{ scale: googleGuestScale }] } : { flex: 1 }}>
+                    <Pressable
+                      onPress={() => handleSocialLogin(provider)}
+                      onPressIn={provider === "google" ? () => Animated.spring(googleGuestScale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start() : undefined}
+                      onPressOut={provider === "google" ? () => Animated.spring(googleGuestScale, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start() : undefined}
+                      style={{
+                        backgroundColor: palette.card, borderRadius: 24, borderWidth: 1, borderColor: palette.border,
+                        paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+                        opacity: socialLoading !== null && socialLoading !== provider ? 0.6 : 1,
+                      }}
+                    >
+                      <Ionicons
+                        name={socialLoading === provider ? "hourglass-outline" : provider === "google" ? "logo-google" : "logo-facebook"}
+                        size={20}
+                        color={provider === "facebook" ? "#1877f2" : "#DB4437"}
+                      />
+                      <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{provider.toUpperCase()}</Text>
+                    </Pressable>
+                  </Animated.View>
+                ))}
               </View>
             </View>
 
-            {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
-
-            <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>{t('common.or')}</Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-            </View>
-
-            {Platform.OS === "ios" && (
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={24}
-                style={{ width: "100%", height: 54, marginBottom: 12, opacity: socialLoading && socialLoading !== "apple" ? 0.6 : 1 }}
-                onPress={() => handleSocialLogin("apple")}
-              />
-            )}
-
-            <View style={{ flexDirection: "row", gap: 12 }}>
-              {(["google", "facebook"] as const).map((provider) => (
-                <Pressable
-                  key={provider}
-                  onPress={() => handleSocialLogin(provider)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: palette.card,
-                    borderRadius: 24,
-                    borderWidth: 1,
-                    borderColor: palette.border,
-                    paddingVertical: 18,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 10,
-                    opacity: socialLoading !== null && socialLoading !== provider ? 0.6 : 1,
-                  }}
-                >
-                  <Ionicons
-                    name={socialLoading === provider ? "hourglass-outline" : provider === "google" ? "logo-google" : "logo-facebook"}
-                    size={20}
-                    color={provider === "facebook" ? "#1877f2" : "#DB4437"}
-                  />
-                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{provider.toUpperCase()}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-
-          <Pressable style={{ marginTop: 24 }} onPress={() => openRegister()}>
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
-              INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
-            </Text>
-          </Pressable>
+            <Pressable style={{ marginTop: 24 }} onPress={() => openRegister()}>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
+                INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
+              </Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
         <Modal visible={showOtp} transparent animationType="slide" onRequestClose={() => setShowOtp(false)}>
@@ -1105,6 +1209,23 @@ export default function ProfileScreen({
             <Pressable onPress={handleDeleteAccount} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.deleteAccount')}</Text>
               <Ionicons name="trash-outline" size={18} color={palette.danger} />
+            </Pressable>
+          </View>
+
+          {/* DEV: Reset onboarding to test first-launch flow */}
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,165,0,0.3)" }]}>
+            <Pressable
+              onPress={() => {
+                clearSession();
+                setOnboardingComplete(false);
+              }}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <View>
+                <Text style={{ color: "orange", fontSize: 14, fontWeight: "800" }}>DEV: Rensa & Starta om</Text>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "600", marginTop: 2 }}>Återgår till onboarding-skärmen</Text>
+              </View>
+              <Ionicons name="refresh-outline" size={18} color="orange" />
             </Pressable>
           </View>
         </View>
