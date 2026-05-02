@@ -10,6 +10,14 @@ public class LiveActivitiesModule: Module {
     private var activities: [String: Any] = [:]
     // Tracks per-order pushToken Tasks so we don't double-subscribe.
     private var tokenTasks: [String: Any] = [:]
+    // Per-order native auto-end Tasks. Scheduled when an activity enters
+    // "on_the_way" with an etaEndsAt — at that absolute time + a tiny
+    // grace, native code calls activity.end() locally. This is the
+    // belt-and-braces dismiss path that doesn't depend on APNs delivery
+    // (which iOS aggressively throttles) or on JS being awake (which iOS
+    // suspends after ~30 s of backgrounding). Cancelled and rescheduled
+    // on every update; cancelled when endOrderActivity is called.
+    private var endTasks: [String: Task<Void, Never>] = [:]
     // Guards against two near-simultaneous startOrderActivity calls (e.g. a
     // user double-tapping "Place order", or an offline retry racing the
     // original POST) racing past the duplicate check before either has a
@@ -129,11 +137,20 @@ public class LiveActivitiesModule: Module {
             // Silent state update — DO NOT pass an AlertConfiguration here.
             // Every alertConfiguration triggers a system "ding" sound, which
             // made the app appear to receive a new notification each time the
-            // user navigated and the global LA sync re-fetched the order. The
-            // 90-minute stale-date matches the upper bound of a normal order
-            // lifecycle (kitchen + delivery), so a forgotten activity gets
-            // greyed out instead of lingering for hours.
-            let staleDate = Date().addingTimeInterval(90 * 60)
+            // user navigated and the global LA sync re-fetched the order.
+            //
+            // staleDate sets the visual "stale" cutoff. For on_the_way we
+            // pin it to the countdown end + grace, so iOS will fade the
+            // banner the moment the order is supposed to be delivered even
+            // if every dismiss push was throttled. Other phases use the
+            // generous 90 min upper-bound so a forgotten activity grays out
+            // instead of lingering for hours.
+            let staleDate: Date
+            if status == "on_the_way", let endsAt = etaEndsAt {
+                staleDate = Date(timeIntervalSince1970: endsAt + 60)
+            } else {
+                staleDate = Date().addingTimeInterval(90 * 60)
+            }
             let content = ActivityContent(state: newState, staleDate: staleDate, relevanceScore: 100)
 
             if let activity = self.activities[orderId] as? Activity<OrderActivityAttributes> {
@@ -146,6 +163,18 @@ public class LiveActivitiesModule: Module {
                     break
                 }
             }
+
+            // Schedule a native auto-end at etaEndsAt + 5 s grace. This is
+            // the dismiss path that survives push throttling AND a dead JS
+            // context — it lives inside the host app process and runs
+            // whenever iOS gives the process any execution time. If the
+            // process is fully terminated the staleDate fallback above
+            // still fades the banner.
+            if status == "on_the_way", let endsAt = etaEndsAt {
+                self.scheduleAutoEnd(orderId: orderId, atEpochSeconds: endsAt + 5)
+            } else {
+                self.cancelScheduledEnd(orderId: orderId)
+            }
         }
 
         // Single-arg form on purpose: this is the version that has shipped
@@ -155,6 +184,8 @@ public class LiveActivitiesModule: Module {
         // activity ~8 seconds after this call regardless of the prior state.
         AsyncFunction("endOrderActivity") { (orderId: String) in
             guard #available(iOS 16.2, *) else { return }
+
+            self.cancelScheduledEnd(orderId: orderId)
 
             // Push a final high-relevance ActivityContent so the Dynamic
             // Island stays visible for the same ~8 seconds as the Lock
@@ -193,8 +224,12 @@ public class LiveActivitiesModule: Module {
             for case let task as Task<Void, Never> in self.tokenTasks.values {
                 task.cancel()
             }
+            for task in self.endTasks.values {
+                task.cancel()
+            }
             self.activities.removeAll()
             self.tokenTasks.removeAll()
+            self.endTasks.removeAll()
             self.inFlightStarts.removeAll()
         }
 
@@ -207,6 +242,56 @@ public class LiveActivitiesModule: Module {
                     self.observePushToken(for: activity, orderId: activity.attributes.orderId)
                 }
             }
+        }
+    }
+
+    private func cancelScheduledEnd(orderId: String) {
+        endTasks[orderId]?.cancel()
+        endTasks.removeValue(forKey: orderId)
+    }
+
+    @available(iOS 16.2, *)
+    private func scheduleAutoEnd(orderId: String, atEpochSeconds: Double) {
+        cancelScheduledEnd(orderId: orderId)
+        let nowEpoch = Date().timeIntervalSince1970
+        let delaySeconds = max(0, atEpochSeconds - nowEpoch)
+        let task = Task { [weak self] in
+            if delaySeconds > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delaySeconds * 1_000_000_000))
+            }
+            if Task.isCancelled { return }
+            await self?.runAutoEnd(orderId: orderId)
+        }
+        endTasks[orderId] = task
+    }
+
+    @available(iOS 16.2, *)
+    @MainActor
+    private func runAutoEnd(orderId: String) async {
+        defer { endTasks.removeValue(forKey: orderId) }
+        if let activity = activities[orderId] as? Activity<OrderActivityAttributes> {
+            let finalContent = ActivityContent(
+                state: activity.content.state,
+                staleDate: Date().addingTimeInterval(15),
+                relevanceScore: 100
+            )
+            await activity.end(finalContent, dismissalPolicy: .after(.now + 5))
+            activities.removeValue(forKey: orderId)
+        } else {
+            for activity in Activity<OrderActivityAttributes>.activities
+            where activity.attributes.orderId == orderId {
+                let finalContent = ActivityContent(
+                    state: activity.content.state,
+                    staleDate: Date().addingTimeInterval(15),
+                    relevanceScore: 100
+                )
+                await activity.end(finalContent, dismissalPolicy: .after(.now + 5))
+                break
+            }
+        }
+        if let task = tokenTasks[orderId] as? Task<Void, Never> {
+            task.cancel()
+            tokenTasks.removeValue(forKey: orderId)
         }
     }
 
