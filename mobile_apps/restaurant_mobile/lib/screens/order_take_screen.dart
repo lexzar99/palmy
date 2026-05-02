@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../core/order_ui.dart';
@@ -25,6 +26,7 @@ class OrderTakeScreen extends StatefulWidget {
 class _OrderTakeScreenState extends State<OrderTakeScreen> {
   late int _selectedMinutes;
   bool _busy = false;
+  bool _rejecting = false;
 
   static const _minuteOptions = [
     10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90
@@ -37,7 +39,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   }
 
   Future<void> _accept() async {
-    if (_busy) return;
+    if (_busy || _rejecting) return;
     setState(() => _busy = true);
 
     final provider = Provider.of<OrderProvider>(context, listen: false);
@@ -67,122 +69,133 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     );
   }
 
+  Future<void> _reject() async {
+    if (_busy || _rejecting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Neka order?',
+            style: TextStyle(fontWeight: FontWeight.w900)),
+        content: const Text(
+            'Ordern avvisas och kunden meddelas. Kan inte ångras.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Avbryt'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Neka',
+                style: TextStyle(fontWeight: FontWeight.w900)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    setState(() => _rejecting = true);
+
+    final provider = Provider.of<OrderProvider>(context, listen: false);
+    await provider.updateStatus(widget.order.id, 'REJECTED');
+    if (!mounted) return;
+    Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
+    final isDark = AppTheme.isDark(context);
     final accent = OrderUi.typeColor(order.type);
+    final goldColor = isDark ? AppTheme.gold : AppTheme.lightGold;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.shellGradient(context)),
-        child: SafeArea(
-          child: Column(
-            children: [
-              _Header(order: order, accent: accent),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                  children: [
-                    _CustomerCard(order: order, accent: accent),
+      backgroundColor: isDark ? AppTheme.midnight : AppTheme.mist,
+      body: SafeArea(
+        child: Column(
+          children: [
+            _MinimalHeader(order: order, goldColor: goldColor),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                children: [
+                  _CustomerCard(order: order, goldColor: goldColor, isDark: isDark),
+                  if (order.note?.isNotEmpty == true ||
+                      order.deliveryInstructions?.isNotEmpty == true) ...[
                     const SizedBox(height: 12),
-                    _ItemsCard(order: order, accent: accent),
-                    if (order.note?.isNotEmpty == true ||
-                        order.deliveryInstructions?.isNotEmpty == true) ...[
-                      const SizedBox(height: 12),
-                      _NoteCard(order: order),
-                    ],
+                    _NoteCard(order: order, goldColor: goldColor, isDark: isDark),
                   ],
-                ),
+                  const SizedBox(height: 12),
+                  _TypeRow(type: order.type, accent: accent, isDark: isDark),
+                  const SizedBox(height: 12),
+                  _OrderSection(
+                      order: order, goldColor: goldColor, isDark: isDark),
+                ],
               ),
-              // Fixed bottom: time picker + accept button
-              _BottomBar(
-                options: _minuteOptions,
-                selected: _selectedMinutes,
-                accent: accent,
-                busy: _busy,
-                onTimeChanged: (m) => setState(() => _selectedMinutes = m),
-                onAccept: _accept,
-              ),
-            ],
-          ),
+            ),
+            _BottomBar(
+              options: _minuteOptions,
+              selected: _selectedMinutes,
+              accent: accent,
+              goldColor: goldColor,
+              isDark: isDark,
+              busy: _busy,
+              rejecting: _rejecting,
+              order: order,
+              onTimeChanged: (m) => setState(() => _selectedMinutes = m),
+              onAccept: _accept,
+              onReject: _reject,
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// ── Header ────────────────────────────────────────────────────────────────────
-class _Header extends StatelessWidget {
+// ── Minimal header ────────────────────────────────────────────────────────────
+class _MinimalHeader extends StatelessWidget {
   final OrderModel order;
-  final Color accent;
-  const _Header({required this.order, required this.accent});
+  final Color goldColor;
+  const _MinimalHeader({required this.order, required this.goldColor});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 8, 8, 4),
+      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: Icon(Icons.arrow_back_rounded,
+                color: AppTheme.isDark(context)
+                    ? Colors.white
+                    : AppTheme.ink),
           ),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '#${order.orderNumber}',
-                  style: TextStyle(
-                    color: AppTheme.mutedColor(context),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Row(
-                  children: [
-                    Text(
-                      OrderUi.typeLabel(order.type).toUpperCase(),
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                      ),
-                    ),
-                    if (order.scheduledFor != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.gold.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Förbeställd',
-                          style: const TextStyle(
-                            color: AppTheme.gold,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+            child: Text(
+              'Order #${order.orderNumber}',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.mutedColor(context),
+                letterSpacing: 0.2,
+              ),
             ),
           ),
           IconButton(
             tooltip: 'Alla detaljer',
-            icon: const Icon(Icons.info_outline_rounded),
+            icon: Icon(Icons.info_outline_rounded,
+                color: AppTheme.mutedColor(context)),
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => OrderDetailScreen(order: order),
-              ),
+                  builder: (_) => OrderDetailScreen(order: order)),
             ),
           ),
         ],
@@ -194,230 +207,118 @@ class _Header extends StatelessWidget {
 // ── Customer card ─────────────────────────────────────────────────────────────
 class _CustomerCard extends StatelessWidget {
   final OrderModel order;
-  final Color accent;
-  const _CustomerCard({required this.order, required this.accent});
+  final Color goldColor;
+  final bool isDark;
+  const _CustomerCard(
+      {required this.order, required this.goldColor, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.22)),
-      ),
-      child: Column(
+    return _Card(
+      isDark: isDark,
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  order.customerName,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                OrderUi.formatCurrency(order.total),
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  color: accent,
-                ),
-              ),
-            ],
+          // Avatar
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: goldColor.withOpacity(0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(Icons.person_rounded, color: goldColor, size: 26),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(Icons.phone_rounded, size: 13, color: accent),
-              const SizedBox(width: 5),
-              Text(
-                order.customerPhone,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: accent,
-                ),
-              ),
-            ],
-          ),
-          if (order.type == 'DELIVERY' && order.deliveryStreet != null) ...[
-            const SizedBox(height: 6),
-            Row(
+          const SizedBox(width: 14),
+          // Info
+          Expanded(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.location_on_rounded,
-                    size: 13, color: AppTheme.mutedColor(context)),
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
-                        .trim(),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.mutedColor(context),
-                    ),
+                Text(
+                  order.customerName,
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: isDark ? Colors.white : AppTheme.ink,
                   ),
                 ),
+                const SizedBox(height: 6),
+                _ContactRow(
+                  icon: Icons.phone_rounded,
+                  text: order.customerPhone,
+                  color: goldColor,
+                ),
+                if (order.type == 'DELIVERY' &&
+                    order.deliveryStreet != null) ...[
+                  const SizedBox(height: 4),
+                  _ContactRow(
+                    icon: Icons.location_on_rounded,
+                    text:
+                        '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
+                            .trim(),
+                    color: goldColor,
+                  ),
+                ],
               ],
             ),
-          ],
+          ),
+          const SizedBox(width: 8),
+          // Call button
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(
+                  ClipboardData(text: order.customerPhone));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Nummer kopierat: ${order.customerPhone}'),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: goldColor.withOpacity(0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: goldColor.withOpacity(0.35)),
+              ),
+              child: Icon(Icons.phone_rounded, color: goldColor, size: 20),
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-// ── Items card ────────────────────────────────────────────────────────────────
-class _ItemsCard extends StatelessWidget {
-  final OrderModel order;
-  final Color accent;
-  const _ItemsCard({required this.order, required this.accent});
+class _ContactRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final Color color;
+  const _ContactRow(
+      {required this.icon, required this.text, required this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.borderColor(context)),
-      ),
-      child: Column(
-        children: [
-          for (var i = 0; i < order.items.length; i++) ...[
-            _itemRow(context, order.items[i], accent),
-            if (i < order.items.length - 1)
-              Divider(
-                height: 1,
-                indent: 16,
-                endIndent: 16,
-                color: AppTheme.borderColor(context),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _itemRow(BuildContext context, OrderItemModel item, Color accent) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Product line
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${item.quantity}×',
-                  style: TextStyle(
-                    color: accent,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 7),
-                  child: Text(
-                    item.productName,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 7),
-                child: Text(
-                  OrderUi.formatCurrency(item.subtotal),
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w800),
-                ),
-              ),
-            ],
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.mutedColor(context),
+            ),
           ),
-          // Stacked extras
-          if (item.selectedExtras.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.only(left: 45),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: item.selectedExtras
-                    .map(
-                      (e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 3),
-                        child: Row(
-                          children: [
-                            Icon(Icons.add_rounded,
-                                size: 13,
-                                color: AppTheme.mutedColor(context)),
-                            const SizedBox(width: 4),
-                            Text(
-                              e.toString(),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: AppTheme.mutedColor(context),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          ],
-          // Item-level note
-          if (item.note?.isNotEmpty == true) ...[
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.only(left: 45),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppTheme.warning.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: AppTheme.warning.withOpacity(0.35)),
-                ),
-                child: Text(
-                  item.note!,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.warning,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -425,40 +326,375 @@ class _ItemsCard extends StatelessWidget {
 // ── Note card ─────────────────────────────────────────────────────────────────
 class _NoteCard extends StatelessWidget {
   final OrderModel order;
-  const _NoteCard({required this.order});
+  final Color goldColor;
+  final bool isDark;
+  const _NoteCard(
+      {required this.order, required this.goldColor, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.10),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.38)),
-      ),
+    final text = [
+      if (order.note?.isNotEmpty == true) order.note!,
+      if (order.deliveryInstructions?.isNotEmpty == true)
+        order.deliveryInstructions!,
+    ].join('\n');
+
+    return _Card(
+      isDark: isDark,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.priority_high_rounded,
-              color: AppTheme.warning, size: 18),
-          const SizedBox(width: 8),
+          Icon(Icons.chat_bubble_outline_rounded, color: goldColor, size: 20),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (order.note?.isNotEmpty == true)
-                  Text(
-                    order.note!,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 14),
+                Text(
+                  'NOTERING TILL RESTAURANGEN',
+                  style: TextStyle(
+                    color: goldColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.4,
                   ),
-                if (order.deliveryInstructions?.isNotEmpty == true) ...[
-                  if (order.note?.isNotEmpty == true)
-                    const SizedBox(height: 5),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Type row (display only) ───────────────────────────────────────────────────
+class _TypeRow extends StatelessWidget {
+  final String type;
+  final Color accent;
+  final bool isDark;
+  const _TypeRow(
+      {required this.type, required this.accent, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final isPickup = type == 'PICKUP';
+    final bg = isDark ? const Color(0xFF1A2740) : Colors.white;
+    final borderC = isDark
+        ? Colors.white.withOpacity(0.10)
+        : AppTheme.ink.withOpacity(0.10);
+
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: borderC, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          _TypeTab(
+            label: 'AVHÄMTNING',
+            icon: Icons.shopping_bag_rounded,
+            active: isPickup,
+            accent: accent,
+            isDark: isDark,
+            first: true,
+          ),
+          Container(width: 1, color: borderC),
+          _TypeTab(
+            label: 'UTKÖRNING',
+            icon: Icons.delivery_dining_rounded,
+            active: !isPickup,
+            accent: accent,
+            isDark: isDark,
+            first: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TypeTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool active;
+  final Color accent;
+  final bool isDark;
+  final bool first;
+  const _TypeTab({
+    required this.label,
+    required this.icon,
+    required this.active,
+    required this.accent,
+    required this.isDark,
+    required this.first,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          color: active ? accent : Colors.transparent,
+          borderRadius: BorderRadius.horizontal(
+            left: first ? const Radius.circular(13) : Radius.zero,
+            right: first ? Radius.zero : const Radius.circular(13),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: active
+                  ? Colors.white
+                  : (isDark
+                      ? Colors.white.withOpacity(0.40)
+                      : AppTheme.ink.withOpacity(0.35)),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
+                color: active
+                    ? Colors.white
+                    : (isDark
+                        ? Colors.white.withOpacity(0.40)
+                        : AppTheme.ink.withOpacity(0.35)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Order section ─────────────────────────────────────────────────────────────
+class _OrderSection extends StatelessWidget {
+  final OrderModel order;
+  final Color goldColor;
+  final bool isDark;
+  const _OrderSection(
+      {required this.order, required this.goldColor, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return _Card(
+      isDark: isDark,
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Icon(Icons.receipt_long_rounded, color: goldColor, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  'BESTÄLLNING',
+                  style: TextStyle(
+                    color: goldColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Order #${order.orderNumber}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: goldColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(
+              height: 1,
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : AppTheme.ink.withOpacity(0.07)),
+          // Items
+          ...order.items.asMap().entries.map((entry) {
+            final i = entry.key;
+            final item = entry.value;
+            return Column(
+              children: [
+                _ItemRow(item: item, goldColor: goldColor, isDark: isDark),
+                if (i < order.items.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: 16,
+                    endIndent: 16,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : AppTheme.ink.withOpacity(0.06),
+                  ),
+              ],
+            );
+          }),
+          const SizedBox(height: 4),
+          // Total row
+          Divider(
+              height: 1,
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : AppTheme.ink.withOpacity(0.07)),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            child: Row(
+              children: [
+                Text(
+                  'Totalt',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  OrderUi.formatCurrency(order.total),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: goldColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  final OrderItemModel item;
+  final Color goldColor;
+  final bool isDark;
+  const _ItemRow(
+      {required this.item, required this.goldColor, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasExtras = item.selectedExtras.isNotEmpty;
+    final hasNote = item.note?.isNotEmpty == true;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Qty badge
+          Container(
+            width: 30,
+            height: 30,
+            alignment: Alignment.center,
+            margin: const EdgeInsets.only(top: 1),
+            decoration: BoxDecoration(
+              color: goldColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${item.quantity}x',
+              style: TextStyle(
+                color: goldColor,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name + price
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        item.productName,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.2,
+                          color: isDark ? Colors.white : AppTheme.ink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      OrderUi.formatCurrency(item.subtotal),
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: goldColor,
+                      ),
+                    ),
+                  ],
+                ),
+                // Extras: single line with · separator
+                if (hasExtras) ...[
+                  const SizedBox(height: 3),
                   Text(
-                    order.deliveryInstructions!,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 13),
+                    item.selectedExtras.join(' · '),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.50)
+                          : AppTheme.ink.withOpacity(0.45),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
+                // Item note
+                if (hasNote) ...[
+                  const SizedBox(height: 5),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.edit_outlined,
+                          size: 12,
+                          color: AppTheme.warning.withOpacity(0.85)),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Notering: ${item.note}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.warning.withOpacity(0.85),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],
@@ -470,32 +706,44 @@ class _NoteCard extends StatelessWidget {
   }
 }
 
-// ── Bottom bar: time picker + accept button ───────────────────────────────────
+// ── Bottom bar ────────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
   final List<int> options;
   final int selected;
   final Color accent;
+  final Color goldColor;
+  final bool isDark;
   final bool busy;
+  final bool rejecting;
+  final OrderModel order;
   final ValueChanged<int> onTimeChanged;
   final VoidCallback onAccept;
+  final VoidCallback onReject;
 
   const _BottomBar({
     required this.options,
     required this.selected,
     required this.accent,
+    required this.goldColor,
+    required this.isDark,
     required this.busy,
+    required this.rejecting,
+    required this.order,
     required this.onTimeChanged,
     required this.onAccept,
+    required this.onReject,
   });
 
   @override
   Widget build(BuildContext context) {
+    final borderC = isDark
+        ? Colors.white.withOpacity(0.08)
+        : AppTheme.ink.withOpacity(0.08);
+
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.panelColor(context),
-        border: Border(
-          top: BorderSide(color: AppTheme.borderColor(context)),
-        ),
+        color: isDark ? AppTheme.storm : Colors.white,
+        border: Border(top: BorderSide(color: borderC, width: 1)),
       ),
       child: SafeArea(
         top: false,
@@ -503,87 +751,162 @@ class _BottomBar extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Label row
+              // Time label row
               Row(
                 children: [
+                  Icon(Icons.schedule_rounded,
+                      size: 15, color: AppTheme.mutedColor(context)),
+                  const SizedBox(width: 6),
                   Text(
-                    'UPPSKATTAD TID',
+                    'ÖNSKAD TID',
                     style: TextStyle(
                       color: AppTheme.mutedColor(context),
                       fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.4,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                     decoration: BoxDecoration(
-                      color: accent.withOpacity(0.16),
+                      color: goldColor.withOpacity(0.14),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
                       '$selected min',
                       style: TextStyle(
-                        color: accent,
+                        color: goldColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
+                  const Spacer(),
+                  // Ready time estimate
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Beräknas klar',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.mutedColor(context),
+                        ),
+                      ),
+                      Text(
+                        _readyTime(selected),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: goldColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
-              // Centered time scroller
+              // Horizontal time scroll
               _TimePicker(
                 options: options,
                 selected: selected,
-                accent: accent,
+                accent: goldColor,
+                isDark: isDark,
                 onChanged: onTimeChanged,
               ),
-              const SizedBox(height: 12),
-              // Accept button
-              SizedBox(
-                width: double.infinity,
-                height: 58,
-                child: ElevatedButton(
-                  onPressed: busy ? null : onAccept,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: accent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: busy
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          ),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.check_rounded,
-                                color: Colors.white, size: 24),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Ta emot · $selected min',
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.2,
+              const SizedBox(height: 14),
+              // NEKA + ACCEPTERA
+              Row(
+                children: [
+                  // NEKA button
+                  GestureDetector(
+                    onTap: rejecting ? null : onReject,
+                    child: Container(
+                      width: 62,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppTheme.danger.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                            color: AppTheme.danger.withOpacity(0.50),
+                            width: 1.4),
+                      ),
+                      child: rejecting
+                          ? const Center(
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    color: AppTheme.danger, strokeWidth: 2.5),
                               ),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                Icon(Icons.close_rounded,
+                                    color: AppTheme.danger, size: 20),
+                                SizedBox(height: 2),
+                                Text(
+                                  'NEKA',
+                                  style: TextStyle(
+                                    color: AppTheme.danger,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.8,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  // ACCEPTERA button
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: busy ? null : onAccept,
+                      child: Container(
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: busy
+                              ? accent.withOpacity(0.60)
+                              : accent,
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                ),
+                        child: busy
+                            ? const Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 3),
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.check_rounded,
+                                      color: Colors.white, size: 20),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'ACCEPTERA ORDER',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -591,19 +914,28 @@ class _BottomBar extends StatelessWidget {
       ),
     );
   }
+
+  String _readyTime(int minutes) {
+    final ready = DateTime.now().add(Duration(minutes: minutes));
+    final h = ready.hour.toString().padLeft(2, '0');
+    final m = ready.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 }
 
-// ── Time picker — StatefulWidget for centered auto-scroll ─────────────────────
+// ── Time picker (StatefulWidget, centers selected) ────────────────────────────
 class _TimePicker extends StatefulWidget {
   final List<int> options;
   final int selected;
   final Color accent;
+  final bool isDark;
   final ValueChanged<int> onChanged;
 
   const _TimePicker({
     required this.options,
     required this.selected,
     required this.accent,
+    required this.isDark,
     required this.onChanged,
   });
 
@@ -613,7 +945,7 @@ class _TimePicker extends StatefulWidget {
 
 class _TimePickerState extends State<_TimePicker> {
   late final ScrollController _scroll;
-  static const double _itemW = 62.0;
+  static const double _itemW = 58.0;
   static const double _gap = 8.0;
 
   @override
@@ -638,10 +970,8 @@ class _TimePickerState extends State<_TimePicker> {
     final idx = widget.options.indexOf(widget.selected);
     if (idx < 0) return;
     final viewport = _scroll.position.viewportDimension;
-    final target =
-        idx * (_itemW + _gap) - viewport / 2 + _itemW / 2;
-    final clamped =
-        target.clamp(0.0, _scroll.position.maxScrollExtent);
+    final target = idx * (_itemW + _gap) - viewport / 2 + _itemW / 2;
+    final clamped = target.clamp(0.0, _scroll.position.maxScrollExtent);
     if (animate) {
       _scroll.animateTo(clamped,
           duration: const Duration(milliseconds: 260),
@@ -660,12 +990,12 @@ class _TimePickerState extends State<_TimePicker> {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 60,
+      height: 54,
       child: ListView.separated(
         controller: _scroll,
         scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
         itemCount: widget.options.length,
         separatorBuilder: (_, __) => const SizedBox(width: _gap),
         itemBuilder: (context, i) {
@@ -679,12 +1009,16 @@ class _TimePickerState extends State<_TimePicker> {
               decoration: BoxDecoration(
                 color: isSel
                     ? widget.accent
-                    : AppTheme.panelColor(context).withOpacity(0.0),
-                borderRadius: BorderRadius.circular(14),
+                    : (widget.isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : AppTheme.ink.withOpacity(0.05)),
+                borderRadius: BorderRadius.circular(13),
                 border: Border.all(
                   color: isSel
                       ? widget.accent
-                      : AppTheme.borderColor(context),
+                      : (widget.isDark
+                          ? Colors.white.withOpacity(0.12)
+                          : AppTheme.ink.withOpacity(0.12)),
                   width: isSel ? 2 : 1,
                 ),
               ),
@@ -694,8 +1028,10 @@ class _TimePickerState extends State<_TimePicker> {
                   style: TextStyle(
                     color: isSel
                         ? Colors.white
-                        : Theme.of(context).textTheme.bodyLarge?.color,
-                    fontSize: isSel ? 22 : 18,
+                        : (widget.isDark
+                            ? Colors.white.withOpacity(0.60)
+                            : AppTheme.ink.withOpacity(0.55)),
+                    fontSize: isSel ? 20 : 17,
                     fontWeight:
                         isSel ? FontWeight.w900 : FontWeight.w700,
                   ),
@@ -706,6 +1042,39 @@ class _TimePickerState extends State<_TimePicker> {
           );
         },
       ),
+    );
+  }
+}
+
+// ── Shared card container ─────────────────────────────────────────────────────
+class _Card extends StatelessWidget {
+  final Widget child;
+  final bool isDark;
+  final EdgeInsets? padding;
+  const _Card({required this.child, required this.isDark, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: padding ?? const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16233D) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.09)
+              : AppTheme.ink.withOpacity(0.09),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
