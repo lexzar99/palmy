@@ -4,10 +4,6 @@ import '../core/order_ui.dart';
 import '../core/theme.dart';
 import '../models/order_model.dart';
 
-/// Compact order card optimised for narrow phones (≥ 320 dp).
-///
-/// Pending orders pulse with a soft glow + ring so the staff sees them
-/// instantly. Tapping opens the order detail / take screen.
 class OrderCard extends StatefulWidget {
   final OrderModel order;
   final bool pending;
@@ -30,57 +26,66 @@ class OrderCard extends StatefulWidget {
 
 class _OrderCardState extends State<OrderCard>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
+  late final AnimationController _glow;
 
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(
+    _glow = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1100),
+      duration: const Duration(milliseconds: 2200),
     );
-    if (widget.pending) _pulse.repeat(reverse: true);
+    if (widget.pending) _glow.repeat(reverse: true);
   }
 
   @override
-  void didUpdateWidget(covariant OrderCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.pending && !_pulse.isAnimating) {
-      _pulse.repeat(reverse: true);
-    } else if (!widget.pending && _pulse.isAnimating) {
-      _pulse.stop();
-      _pulse.value = 0;
+  void didUpdateWidget(covariant OrderCard old) {
+    super.didUpdateWidget(old);
+    if (widget.pending && !_glow.isAnimating) {
+      _glow.repeat(reverse: true);
+    } else if (!widget.pending && _glow.isAnimating) {
+      _glow.stop();
+      _glow.value = 0;
     }
   }
 
   @override
   void dispose() {
-    _pulse.dispose();
+    _glow.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final order = widget.order;
-    final accent = OrderUi.typeColor(order.type);
     final pending = widget.pending;
+    final accent = OrderUi.typeColor(order.type);
+    final barColor = pending ? AppTheme.warning : accent;
+    final isDark = AppTheme.isDark(context);
 
     return AnimatedBuilder(
-      animation: _pulse,
+      animation: _glow,
       builder: (context, child) {
-        final glow = pending ? 0.20 + _pulse.value * 0.45 : 0.0;
+        final glowOpacity = pending ? (0.12 + _glow.value * 0.18) : 0.0;
         return Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             boxShadow: pending
                 ? [
                     BoxShadow(
-                      color: AppTheme.warning.withOpacity(glow),
-                      blurRadius: 20 + _pulse.value * 14,
-                      spreadRadius: 1,
+                      color: AppTheme.warning.withOpacity(glowOpacity),
+                      blurRadius: 18 + _glow.value * 10,
+                      spreadRadius: 0,
                     ),
                   ]
-                : null,
+                : [
+                    BoxShadow(
+                      color: Colors.black
+                          .withOpacity(isDark ? 0.22 : 0.06),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
           ),
           child: child,
         );
@@ -89,145 +94,158 @@ class _OrderCardState extends State<OrderCard>
         color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
+          splashColor: barColor.withOpacity(0.08),
+          highlightColor: barColor.withOpacity(0.04),
           child: Container(
             decoration: BoxDecoration(
-              color: AppTheme.panelColor(context),
-              borderRadius: BorderRadius.circular(20),
+              color: pending
+                  ? (isDark
+                      ? AppTheme.warning.withOpacity(0.08)
+                      : AppTheme.warning.withOpacity(0.05))
+                  : (isDark
+                      ? const Color(0xFF16233D)
+                      : Colors.white),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: pending
-                    ? AppTheme.warning.withOpacity(0.45)
-                    : accent.withOpacity(0.18),
-                width: pending ? 1.6 : 1.2,
+                    ? AppTheme.warning.withOpacity(isDark ? 0.50 : 0.45)
+                    : (isDark
+                        ? accent.withOpacity(0.22)
+                        : AppTheme.ink.withOpacity(0.12)),
+                width: 1.4,
               ),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top accent bar
-                Container(
-                  height: 4,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: pending
-                          ? [AppTheme.warning, AppTheme.gold]
-                          : [accent, accent.withOpacity(0.6)],
-                    ),
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(20),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Left accent bar
+                  Container(
+                    width: 5,
+                    decoration: BoxDecoration(
+                      color: barColor,
+                      borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(15),
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Row 1: name + total
-                      Row(
+                  // Content
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (pending) ...[
-                            _LiveDot(color: AppTheme.warning),
-                            const SizedBox(width: 8),
-                          ],
-                          Expanded(
-                            child: Text(
-                              order.customerName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontSize: 15.5),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            OrderUi.formatCurrency(order.total),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
-                                  color: accent,
+                          // Row 1: name + price
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              if (pending) ...[
+                                _LiveDot(color: AppTheme.warning),
+                                const SizedBox(width: 8),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  order.customerName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -0.3,
+                                    color: isDark
+                                        ? Colors.white
+                                        : AppTheme.ink,
+                                  ),
                                 ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                OrderUi.formatCurrency(order.total),
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w900,
+                                  color: barColor,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Row 2: type + #order + scheduled (compact pills)
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _MicroPill(
-                            label: OrderUi.typeLabel(order.type),
-                            color: accent,
-                            icon: OrderUi.typeIcon(order.type),
-                          ),
-                          _MicroPill(
-                            label: '#${order.orderNumber}',
-                            color: AppTheme.lightGold,
-                          ),
-                          if (order.scheduledFor != null)
-                            _MicroPill(
-                              label:
-                                  '⏰ ${OrderUi.formatTime(order.scheduledFor!)}',
-                              color: AppTheme.gold,
-                            ),
-                          if (pending)
-                            _MicroPill(
-                              label: 'NY ORDER',
-                              color: AppTheme.warning,
-                              filled: true,
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      // Items
-                      Text(
-                        order.items
-                            .map((i) => '${i.quantity}× ${i.productName}')
-                            .join(' • '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      // Footer
-                      Row(
-                        children: [
+                          const SizedBox(height: 6),
+                          // Items
                           Text(
-                            OrderUi.formatTime(order.createdAt),
-                            style: Theme.of(context).textTheme.bodySmall,
+                            order.items
+                                .map((i) => '${i.quantity}× ${i.productName}')
+                                .join(' · '),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.62)
+                                  : AppTheme.ink.withOpacity(0.55),
+                              height: 1.35,
+                            ),
                           ),
-                          const Spacer(),
-                          if (pending)
-                            _Cta(
-                              label: 'Öppna',
-                              color: AppTheme.warning,
-                              icon: Icons.arrow_forward_rounded,
-                              onTap: widget.onTap,
-                            )
-                          else if (widget.onAction != null)
-                            _Cta(
-                              label: widget.actionLabel ??
-                                  (order.type == 'PICKUP' ? 'Klar' : 'På väg'),
-                              color: accent,
-                              icon: order.type == 'PICKUP'
-                                  ? Icons.shopping_bag_rounded
-                                  : Icons.delivery_dining_rounded,
-                              onTap: widget.onAction,
-                            )
-                          else
-                            Icon(Icons.chevron_right_rounded, color: accent),
+                          const SizedBox(height: 11),
+                          // Footer row
+                          Row(
+                            children: [
+                              _TypeChip(
+                                label: OrderUi.typeLabel(order.type),
+                                icon: OrderUi.typeIcon(order.type),
+                                color: accent,
+                                isDark: isDark,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                OrderUi.formatTime(order.createdAt),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white.withOpacity(0.40)
+                                      : AppTheme.ink.withOpacity(0.35),
+                                ),
+                              ),
+                              if (order.scheduledFor != null) ...[
+                                const SizedBox(width: 6),
+                                _TypeChip(
+                                  label: OrderUi.formatTime(order.scheduledFor!),
+                                  icon: Icons.schedule_rounded,
+                                  color: AppTheme.gold,
+                                  isDark: isDark,
+                                ),
+                              ],
+                              const Spacer(),
+                              if (pending)
+                                _ActionBtn(
+                                  label: 'Öppna',
+                                  color: AppTheme.warning,
+                                  icon: Icons.arrow_forward_rounded,
+                                  onTap: widget.onTap,
+                                )
+                              else if (widget.onAction != null)
+                                _ActionBtn(
+                                  label: widget.actionLabel ??
+                                      (order.type == 'PICKUP'
+                                          ? 'Klar'
+                                          : 'På väg'),
+                                  color: accent,
+                                  icon: order.type == 'PICKUP'
+                                      ? Icons.shopping_bag_rounded
+                                      : Icons.delivery_dining_rounded,
+                                  onTap: widget.onAction,
+                                ),
+                            ],
+                          ),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -236,17 +254,18 @@ class _OrderCardState extends State<OrderCard>
   }
 }
 
-class _MicroPill extends StatelessWidget {
+// ── Type chip ─────────────────────────────────────────────────────────────────
+class _TypeChip extends StatelessWidget {
   final String label;
+  final IconData icon;
   final Color color;
-  final IconData? icon;
-  final bool filled;
+  final bool isDark;
 
-  const _MicroPill({
+  const _TypeChip({
     required this.label,
+    required this.icon,
     required this.color,
-    this.icon,
-    this.filled = false,
+    required this.isDark,
   });
 
   @override
@@ -254,23 +273,21 @@ class _MicroPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: filled ? color : color.withOpacity(0.13),
+        color: color.withOpacity(isDark ? 0.16 : 0.10),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
-            Icon(icon, size: 11, color: filled ? Colors.white : color),
-            const SizedBox(width: 4),
-          ],
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
           Text(
             label,
             style: TextStyle(
-              color: filled ? Colors.white : color,
-              fontSize: 10,
+              color: color,
+              fontSize: 11,
               fontWeight: FontWeight.w900,
-              letterSpacing: 0.4,
+              letterSpacing: 0.2,
             ),
           ),
         ],
@@ -279,13 +296,14 @@ class _MicroPill extends StatelessWidget {
   }
 }
 
-class _Cta extends StatelessWidget {
+// ── Action button ─────────────────────────────────────────────────────────────
+class _ActionBtn extends StatelessWidget {
   final String label;
   final Color color;
   final IconData icon;
   final VoidCallback? onTap;
 
-  const _Cta({
+  const _ActionBtn({
     required this.label,
     required this.color,
     required this.icon,
@@ -294,36 +312,36 @@ class _Cta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: color,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                  letterSpacing: 0.4,
-                ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                letterSpacing: 0.3,
               ),
-              const SizedBox(width: 4),
-              Icon(icon, size: 14, color: Colors.white),
-            ],
-          ),
+            ),
+            const SizedBox(width: 5),
+            Icon(icon, size: 13, color: Colors.white),
+          ],
         ),
       ),
     );
   }
 }
 
+// ── Live dot (smooth ease, no bounce) ─────────────────────────────────────────
 class _LiveDot extends StatefulWidget {
   final Color color;
   const _LiveDot({required this.color});
@@ -341,7 +359,7 @@ class _LiveDotState extends State<_LiveDot>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
   }
 
@@ -355,20 +373,20 @@ class _LiveDotState extends State<_LiveDot>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (context, _) {
-        final t = _ctrl.value;
+      builder: (_, __) {
+        final t = Curves.easeInOut.transform(_ctrl.value);
         return SizedBox(
-          width: 10,
-          height: 10,
+          width: 12,
+          height: 12,
           child: Stack(
             alignment: Alignment.center,
             children: [
               Container(
-                width: 10 + (t * 6),
-                height: 10 + (t * 6),
+                width: 12 + t * 4,
+                height: 12 + t * 4,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: widget.color.withOpacity(0.4 - (t * 0.4)),
+                  color: widget.color.withOpacity(0.35 - t * 0.35),
                 ),
               ),
               Container(
