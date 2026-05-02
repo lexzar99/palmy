@@ -22,7 +22,20 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
     // OAuth-only users must complete phone linking before they can use the
     // app. Surface the flag so the client can route them to the gate UI.
     const needsPhone = !!user.oauthProvider && (!user.phone || !user.isVerified);
-    res.json({ ...user, needsPhone });
+    // Whether the client should prompt for first / last name. True when we
+    // have nothing real, OR when the legacy "Användare" placeholder is
+    // still on the row — the user explicitly does NOT want that ever shown.
+    const trimmedName = (user.name || '').trim();
+    const isPlaceholder = trimmedName.toLowerCase() === 'användare';
+    const hasStructuredName = !!(user.firstName || user.lastName);
+    const needsName = !hasStructuredName && (!trimmedName || isPlaceholder);
+    res.json({
+      ...user,
+      // Strip the legacy placeholder from the response so no UI ever shows it.
+      name: isPlaceholder ? '' : user.name,
+      needsPhone,
+      needsName,
+    });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }

@@ -183,7 +183,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           create: {
             id: user.id,
             email: user.email ?? null,
-            name: sbName ?? 'Användare',
+            // Empty string when nothing came from the OAuth provider — the
+            // client detects `needsName: true` from GET /api/profile and
+            // prompts the user. NEVER use "Användare" or any other
+            // placeholder; the user explicitly does not want a fallback name.
+            name: sbName ?? '',
             firstName: sbFirst,
             lastName: sbLast,
             image: sbImage,
