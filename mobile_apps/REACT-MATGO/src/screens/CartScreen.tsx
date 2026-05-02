@@ -469,10 +469,15 @@ export default function CartScreen({
         setPersonalDeals(dealsRes.data || []);
         setPickupCities(citiesRes.data || []);
 
+        // Detect guest profile (auto-generated "Gäst XXXX" name or empty id) and
+        // skip auto-fill of name/phone so they explicitly enter their details.
+        const profName = profileRes.data?.name || "";
+        const isGuestProfile =
+          !profileRes.data?.id || /^Gäst\s+\d{2,}$/i.test(profName.trim());
         setFormData((current) => ({
           ...current,
-          customerName: current.customerName || profileRes.data?.name || "",
-          customerPhone: current.customerPhone || profileRes.data?.phone || "",
+          customerName: current.customerName || (isGuestProfile ? "" : profName),
+          customerPhone: current.customerPhone || (isGuestProfile ? "" : (profileRes.data?.phone || "")),
           deliveryStreet: current.deliveryStreet || profileRes.data?.address || "",
           deliveryZip: current.deliveryZip || profileRes.data?.zip || "",
         }));

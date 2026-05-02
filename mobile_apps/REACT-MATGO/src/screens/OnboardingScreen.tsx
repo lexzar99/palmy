@@ -38,6 +38,8 @@ function PermissionPage({
   ctaLoading,
   onCta,
   onSkip,
+  skipLabel,
+  skipSubLabel,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
@@ -48,6 +50,8 @@ function PermissionPage({
   ctaLoading: boolean;
   onCta: () => void;
   onSkip: () => void;
+  skipLabel?: string;
+  skipSubLabel?: string;
 }) {
   const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -135,7 +139,10 @@ function PermissionPage({
         </Pressable>
 
         <Pressable onPress={onSkip} style={{ alignItems: 'center', paddingVertical: 10 }}>
-          <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '600' }}>{t('onboarding.hoppaOver')}</Text>
+          <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700' }}>{skipLabel || t('onboarding.hoppaOver')}</Text>
+          {!!skipSubLabel && (
+            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center', paddingHorizontal: 20, lineHeight: 15 }}>{skipSubLabel}</Text>
+          )}
         </Pressable>
       </ScrollView>
     </Animated.View>
@@ -526,6 +533,7 @@ export default function OnboardingScreen({
             ctaLoading={notifLoading}
             onCta={handleAllowNotifications}
             onSkip={goToAuth}
+            skipLabel="Fortsätt utan notiser"
           />
         </SafeAreaView>
       </View>
@@ -580,6 +588,8 @@ export default function OnboardingScreen({
               if (pendingToken && pendingProfile) finishWithAuth(pendingToken, pendingProfile);
               else { setOnboardingComplete(true); onComplete(); }
             }}
+            skipLabel={pendingToken ? "Fortsätt utan plats" : "Fortsätt som gäst"}
+            skipSubLabel={pendingToken ? undefined : "Som gäst kan du beställa snabbt, men du missar erbjudanden och kampanjer"}
           />
         </SafeAreaView>
       </View>
@@ -646,17 +656,6 @@ export default function OnboardingScreen({
                   <Ionicons name="globe-outline" size={13} color={palette.muted} />
                   <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{currentLanguage.toUpperCase()}</Text>
                 </Pressable>
-                {step === "landing" && (
-                  <Pressable
-                    onPress={() => {
-                      if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
-                      else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
-                    }}
-                    style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border }}
-                  >
-                    <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('onboarding.skipBtn')}</Text>
-                  </Pressable>
-                )}
               </View>
             </Animated.View>
 
@@ -839,7 +838,7 @@ export default function OnboardingScreen({
                       </View>
                     )}
 
-                    {/* Guest link */}
+                    {/* Guest link with tradeoff warning */}
                     <Pressable
                       onPress={() => {
                         if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
@@ -847,7 +846,10 @@ export default function OnboardingScreen({
                       }}
                       style={{ alignItems: "center", paddingVertical: 14 }}
                     >
-                      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Fortsätt som gäst</Text>
+                      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "700" }}>Fortsätt som gäst</Text>
+                      <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "500", marginTop: 4, textAlign: "center", paddingHorizontal: 24, lineHeight: 15 }}>
+                        Som gäst kan du beställa snabbt, men du missar erbjudanden och kampanjer
+                      </Text>
                     </Pressable>
                   </Animated.View>
                 </>

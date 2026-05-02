@@ -545,7 +545,7 @@ export default function ProfileScreen({
       setToken(tok);
       const nextProfile = data?.user || {
         id: "",
-        name: `Gäst ${otpPhone.slice(-4)}`,
+        name: "",
         phone: otpPhone,
         isVerified: true,
       };

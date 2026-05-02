@@ -44,6 +44,18 @@ export const formatQuickAddress = (address: QuickAddress) => {
 };
 
 const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
+  // Text dedup first — same formatted/normalized address counts as same place
+  // regardless of GPS jitter on repeated permission grants.
+  if (
+    normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b)) ||
+    (normalize(a.street) && normalize(a.street) === normalize(b.street) && normalize(a.zip) === normalize(b.zip))
+  ) {
+    return true;
+  }
+
+  // Fallback: GPS proximity. ~0.0005° ≈ 50m — generous enough to swallow
+  // device GPS noise on repeated location-permission grants without
+  // accidentally collapsing genuinely different nearby addresses.
   if (
     a.latitude != null &&
     a.longitude != null &&
@@ -51,15 +63,12 @@ const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
     b.longitude != null
   ) {
     return (
-      Math.abs(a.latitude - b.latitude) < 0.000001 &&
-      Math.abs(a.longitude - b.longitude) < 0.000001
+      Math.abs(a.latitude - b.latitude) < 0.0005 &&
+      Math.abs(a.longitude - b.longitude) < 0.0005
     );
   }
 
-  return (
-    normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b)) ||
-    (normalize(a.street) === normalize(b.street) && normalize(a.zip) === normalize(b.zip))
-  );
+  return false;
 };
 
 export const readQuickAddresses = async (): Promise<QuickAddress[]> => {
