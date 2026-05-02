@@ -13,6 +13,13 @@
  */
 
 export function computeDeliveryWindowMs(deliveringAt: Date, orderId: string): number {
+  // ⚠️ TEMP TESTING — 15 s window so the on-the-way banner + iOS Live
+  // Activity can be exercised quickly. Revert this short-circuit (drop the
+  // early return) before any public release; the rush-hour 25 min /
+  // off-peak deterministic 10–20 min logic below is the production rule.
+  return 15 * 1000;
+
+  // eslint-disable-next-line no-unreachable
   const stockholmHour = stockholmHourOf(deliveringAt);
   if (stockholmHour >= 17 && stockholmHour < 20) {
     return 25 * 60 * 1000;
