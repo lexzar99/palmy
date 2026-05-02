@@ -36,7 +36,7 @@ class OrderUi {
   }
 
   static Color typeColor(String type) {
-    return type == 'DELIVERY' ? AppTheme.info : AppTheme.success;
+    return type == 'DELIVERY' ? AppTheme.brandBlue : AppTheme.brandGold;
   }
 
   static String statusLabel(String status) {

@@ -34,14 +34,13 @@ class NewOrderCard extends StatelessWidget {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
     final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
-    final tintBg = isPickup ? AppTheme.creamBg : AppTheme.blueTint;
     final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
 
     final cardBg = isDark
         ? AppTheme.deepSea
-        : (isPickup ? tintBg : Colors.white);
+        : (isPickup ? AppTheme.creamBg : Colors.white);
 
     return GestureDetector(
       onTap: onTap,
@@ -49,49 +48,42 @@ class NewOrderCard extends StatelessWidget {
         width: 168,
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.black.withOpacity(0.05),
-            width: 1,
-          ),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.28 : 0.045),
-              blurRadius: 14,
+              color: Colors.black.withOpacity(isDark ? 0.28 : 0.05),
+              blurRadius: 12,
               offset: const Offset(0, 3),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Top row: type icon square + NY ORDER pill
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 46,
-                            height: 46,
+                            width: 50,
+                            height: 50,
                             decoration: BoxDecoration(
                               color: iconBg,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(13),
                             ),
-                            child: Icon(typeIcon, color: typeColor, size: 22),
+                            child: Icon(typeIcon, color: typeColor, size: 26),
                           ),
                           const Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
+                                horizontal: 9, vertical: 4),
                             decoration: BoxDecoration(
                               color: typeColor,
                               borderRadius: BorderRadius.circular(8),
@@ -108,13 +100,13 @@ class NewOrderCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 18),
                       Text(
                         '#${order.orderNumber}',
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 30,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -0.8,
+                          letterSpacing: -1.0,
                           height: 1.0,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -124,19 +116,19 @@ class NewOrderCard extends StatelessWidget {
                         isPickup ? 'avhämtning' : 'leverans',
                         style: TextStyle(
                           color: typeColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const Spacer(),
                       Text(
                         _relTime(order.createdAt),
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
                           color: isDark
                               ? Colors.white.withOpacity(0.40)
-                              : AppTheme.mutedInk.withOpacity(0.65),
+                              : const Color(0xFF9AA0A6),
                         ),
                       ),
                     ],
@@ -152,7 +144,7 @@ class NewOrderCard extends StatelessWidget {
   }
 }
 
-// ── Order list tile (PÅGÅENDE ORDER list) ─────────────────────────────────────
+// ── Order list row (PÅGÅENDE ORDER list – inline, no outer card) ──────────────
 class OrderListTile extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onTap;
@@ -185,19 +177,13 @@ class OrderListTile extends StatelessWidget {
 
   static Color _statusColor(String s) {
     switch (s) {
-      case 'ACCEPTED':
-      case 'PREPARING':
-        return AppTheme.success;
-      case 'READY':
-      case 'DELIVERING':
-      case 'DELIVERED':
-      case 'COMPLETED':
-        return AppTheme.success;
       case 'CANCELLED':
       case 'REJECTED':
         return AppTheme.danger;
-      default:
+      case 'PENDING':
         return AppTheme.brandGold;
+      default:
+        return AppTheme.success;
     }
   }
 
@@ -207,7 +193,7 @@ class OrderListTile extends StatelessWidget {
     final isPickup = order.type != 'DELIVERY';
     final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
     final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
-    final pillBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
+    final pillBg = isPickup ? AppTheme.creamBg : AppTheme.blueTint;
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final statusColor = _statusColor(order.status);
@@ -219,17 +205,17 @@ class OrderListTile extends StatelessWidget {
           (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
       splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.05),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
         child: Row(
           children: [
             Container(
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                 color: iconBg,
-                borderRadius: BorderRadius.circular(13),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(typeIcon, color: typeColor, size: 24),
+              child: Icon(typeIcon, color: typeColor, size: 26),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -239,9 +225,9 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     '#${order.orderNumber}',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 18,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -0.3,
+                      letterSpacing: -0.4,
                       color: isDark ? Colors.white : AppTheme.ink,
                     ),
                   ),
@@ -250,10 +236,10 @@ class OrderListTile extends StatelessWidget {
                     _relTime(order.createdAt),
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: isDark
                           ? Colors.white.withOpacity(0.40)
-                          : AppTheme.mutedInk.withOpacity(0.85),
+                          : const Color(0xFF9AA0A6),
                     ),
                   ),
                 ],
@@ -265,29 +251,29 @@ class OrderListTile extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
+                      horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
                     color: pillBg,
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
                     isPickup ? 'AVHÄMTNING' : 'LEVERANS',
                     style: TextStyle(
                       color: typeColor,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
-                const SizedBox(height: 5),
+                const SizedBox(height: 6),
                 Text(
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 0.3,
+                    letterSpacing: 0.4,
                   ),
                 ),
               ],
@@ -298,7 +284,7 @@ class OrderListTile extends StatelessWidget {
               size: 22,
               color: isDark
                   ? Colors.white.withOpacity(0.28)
-                  : AppTheme.mutedInk.withOpacity(0.50),
+                  : const Color(0xFFB0B5BD),
             ),
           ],
         ),

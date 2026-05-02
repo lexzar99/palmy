@@ -133,6 +133,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
+    final dividerColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFFE8E8E8);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -159,6 +162,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: CustomScrollView(
                   physics: const ClampingScrollPhysics(),
                   slivers: [
+                    // ── Header ──────────────────────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
@@ -182,24 +186,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
-                        child: Container(
-                          height: 1,
-                          color: isDark
-                              ? Colors.white.withOpacity(0.06)
-                              : Colors.black.withOpacity(0.06),
-                        ),
+                        child: Container(height: 1, color: dividerColor),
                       ),
                     ),
 
-                    // ── NYA ORDER section ─────────────────────────────────
+                    // ── NYA ORDER section header ─────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
                         child: _SectionHeaderRow(
                           title: 'NYA ORDER',
-                          count: provider.pendingOrders.length,
-                          countColor: AppTheme.brandGold,
-                          trailing: provider.pendingOrders.length > 3
+                          countBadge: provider.pendingOrders.isNotEmpty
+                              ? provider.pendingOrders.length
+                              : null,
+                          trailing: provider.pendingOrders.isNotEmpty
                               ? const _LinkText(label: 'Visa alla')
                               : null,
                         ),
@@ -216,10 +216,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                               ),
                             )
                           : SizedBox(
-                              height: 196,
+                              height: 200,
                               child: ListView.separated(
                                 padding:
-                                    const EdgeInsets.fromLTRB(20, 2, 20, 6),
+                                    const EdgeInsets.fromLTRB(20, 4, 20, 8),
                                 scrollDirection: Axis.horizontal,
                                 physics: const ClampingScrollPhysics(),
                                 itemCount: provider.pendingOrders.length,
@@ -236,17 +236,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                     ),
 
-                    // ── PÅGÅENDE ORDER section ───────────────────────────
+                    // ── PÅGÅENDE ORDER section header ───────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                        child: _SectionHeaderRow(
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 6),
+                        child: const _SectionHeaderRow(
                           title: 'PÅGÅENDE ORDER',
-                          count: activeOrders.length,
-                          countColor: AppTheme.brandGold,
-                          trailing: activeOrders.isNotEmpty
-                              ? const _FilterLink()
-                              : null,
+                          countBadge: null,
+                          trailing: null,
                         ),
                       ),
                     ),
@@ -262,50 +259,24 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       )
                     else
-                      SliverToBoxAdapter(
-                        child: Container(
-                          margin: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-                          decoration: BoxDecoration(
-                            color: isDark ? AppTheme.deepSea : Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isDark
-                                  ? Colors.white.withOpacity(0.08)
-                                  : Colors.black.withOpacity(0.05),
-                              width: 1,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black
-                                    .withOpacity(isDark ? 0.22 : 0.04),
-                                blurRadius: 14,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: Column(
-                              children: [
-                                for (int i = 0; i < activeOrders.length; i++) ...[
-                                  OrderListTile(
-                                    order: activeOrders[i],
-                                    onTap: () => _openDetail(activeOrders[i]),
-                                  ),
-                                  if (i < activeOrders.length - 1)
-                                    Divider(
-                                      height: 1,
-                                      thickness: 1,
-                                      indent: 78,
-                                      endIndent: 0,
-                                      color: isDark
-                                          ? Colors.white.withOpacity(0.06)
-                                          : Colors.black.withOpacity(0.05),
-                                    ),
-                                ],
-                              ],
-                            ),
-                          ),
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+                        sliver: SliverList.builder(
+                          itemCount: activeOrders.length * 2 - 1,
+                          itemBuilder: (context, i) {
+                            if (i.isOdd) {
+                              return Container(
+                                height: 1,
+                                margin: const EdgeInsets.only(left: 66),
+                                color: dividerColor,
+                              );
+                            }
+                            final o = activeOrders[i ~/ 2];
+                            return OrderListTile(
+                              order: o,
+                              onTap: () => _openDetail(o),
+                            );
+                          },
                         ),
                       ),
                   ],
@@ -348,37 +319,35 @@ class _Header extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Order',
-                style: TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.0,
-                  height: 1.0,
-                  color: isDark ? Colors.white : AppTheme.ink,
+          child: GestureDetector(
+            onLongPress: () => _showStatusPicker(context, provider),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Order',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -1.2,
+                    height: 1.0,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Hantera inkommande ordrar',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.50)
-                      : AppTheme.mutedInk,
+                const SizedBox(height: 6),
+                Text(
+                  'Hantera inkommande ordrar',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.50)
+                        : const Color(0xFF8E8E93),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: () => _showStatusPicker(context, provider),
-          child: _StatusChip(open: provider.isRestaurantOpen, isDark: isDark),
         ),
         const SizedBox(width: 8),
         _BellButton(
@@ -446,43 +415,6 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
-  final bool open;
-  final bool isDark;
-  const _StatusChip({required this.open, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = open ? AppTheme.success : AppTheme.danger;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: color.withOpacity(isDark ? 0.15 : 0.10),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            open ? 'Öppet' : 'Stängt',
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-              fontSize: 11,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _BellButton extends StatelessWidget {
   final bool hasPending;
   final bool isDark;
@@ -498,36 +430,40 @@ class _BellButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          SizedBox(
-            width: 38,
-            height: 38,
-            child: Icon(
-              Icons.notifications_none_rounded,
-              size: 30,
-              color: isDark ? Colors.white : AppTheme.ink,
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: Icon(
+                Icons.notifications_none_rounded,
+                size: 30,
+                color: isDark ? Colors.white : AppTheme.ink,
+              ),
             ),
-          ),
-          if (hasPending)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: BoxDecoration(
-                  color: AppTheme.brandGold,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isDark ? AppTheme.deepSea : const Color(0xFFFAFAFA),
-                    width: 1.5,
+            if (hasPending)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: AppTheme.brandGold,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDark
+                          ? AppTheme.deepSea
+                          : const Color(0xFFF4F4F4),
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -536,14 +472,12 @@ class _BellButton extends StatelessWidget {
 // ── Section header row ────────────────────────────────────────────────────────
 class _SectionHeaderRow extends StatelessWidget {
   final String title;
-  final int count;
-  final Color countColor;
+  final int? countBadge;
   final Widget? trailing;
 
   const _SectionHeaderRow({
     required this.title,
-    required this.count,
-    required this.countColor,
+    required this.countBadge,
     this.trailing,
   });
 
@@ -555,30 +489,32 @@ class _SectionHeaderRow extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            color: isDark ? Colors.white.withOpacity(0.85) : AppTheme.ink,
-            fontSize: 13,
+            color: isDark ? Colors.white : AppTheme.ink,
+            fontSize: 14,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.6,
           ),
         ),
-        const SizedBox(width: 10),
-        Container(
-          width: 22,
-          height: 22,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: countColor,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            '$count',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
+        if (countBadge != null) ...[
+          const SizedBox(width: 10),
+          Container(
+            width: 24,
+            height: 24,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppTheme.brandGold,
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '$countBadge',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
-        ),
+        ],
         const Spacer(),
         if (trailing != null) trailing!,
       ],
@@ -593,57 +529,22 @@ class _LinkText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
+    final color = isDark
+        ? Colors.white.withOpacity(0.55)
+        : const Color(0xFF8E8E93);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isDark
-                ? Colors.white.withOpacity(0.55)
-                : AppTheme.mutedInk,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: color,
           ),
         ),
         const SizedBox(width: 4),
-        Icon(
-          Icons.chevron_right_rounded,
-          size: 18,
-          color: isDark
-              ? Colors.white.withOpacity(0.55)
-              : AppTheme.mutedInk,
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterLink extends StatelessWidget {
-  const _FilterLink();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.filter_alt_outlined,
-          size: 16,
-          color: isDark ? Colors.white.withOpacity(0.55) : AppTheme.mutedInk,
-        ),
-        const SizedBox(width: 5),
-        Text(
-          'Filtrera',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: isDark
-                ? Colors.white.withOpacity(0.55)
-                : AppTheme.mutedInk,
-          ),
-        ),
+        Icon(Icons.chevron_right_rounded, size: 18, color: color),
       ],
     );
   }
@@ -658,7 +559,7 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.symmetric(vertical: 24),
       child: Row(
         children: [
           Icon(
@@ -666,7 +567,7 @@ class _EmptyState extends StatelessWidget {
             size: 18,
             color: isDark
                 ? Colors.white.withOpacity(0.22)
-                : AppTheme.ink.withOpacity(0.20),
+                : AppTheme.ink.withOpacity(0.22),
           ),
           const SizedBox(width: 10),
           Text(

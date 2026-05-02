@@ -113,7 +113,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final order = widget.order;
     final isDark = AppTheme.isDark(context);
     final accent = OrderUi.typeColor(order.type);
-    final goldColor = isDark ? AppTheme.gold : AppTheme.lightGold;
+    final goldColor = isDark ? AppTheme.gold : AppTheme.brandGold;
 
     return Scaffold(
       backgroundColor: isDark ? AppTheme.midnight : AppTheme.mist,
@@ -681,7 +681,7 @@ class _ItemRow extends StatelessWidget {
                     children: [
                       Icon(Icons.edit_outlined,
                           size: 12,
-                          color: AppTheme.warning.withOpacity(0.85)),
+                          color: AppTheme.brandGold.withOpacity(0.90)),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -689,7 +689,7 @@ class _ItemRow extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.warning.withOpacity(0.85),
+                            color: AppTheme.brandGold.withOpacity(0.90),
                             fontStyle: FontStyle.italic,
                           ),
                         ),
