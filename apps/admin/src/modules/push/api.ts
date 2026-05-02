@@ -1,4 +1,4 @@
-import { apiPost } from "@/shared/api/client";
+import { apiGet, apiPost } from "@/shared/api/client";
 
 export interface PushBroadcastPayload {
   title: string;
@@ -23,9 +23,27 @@ export interface PushCityPayload {
 export interface PushResult {
   success: boolean;
   count: number;
+  errors?: number;
   chunks?: number;
   error?: string;
 }
+
+export interface PushLogRecord {
+  id: string;
+  createdAt: string;
+  target: "all" | "user" | "city";
+  identifier?: string | null;
+  city?: string | null;
+  title: string;
+  body: string;
+  deeplink?: string | null;
+  count: number;
+  success: boolean;
+  error?: string | null;
+  sentBy?: string | null;
+}
+
+export const pushHistoryQueryKey = ["push", "history"] as const;
 
 export const sendPushBroadcast = (payload: PushBroadcastPayload) =>
   apiPost<PushResult>("/notifications/admin/send-all", payload);
@@ -35,3 +53,6 @@ export const sendPushToUser = (payload: PushUserPayload) =>
 
 export const sendPushToCity = (payload: PushCityPayload) =>
   apiPost<PushResult>("/notifications/admin/send-city", payload);
+
+export const getPushHistory = () =>
+  apiGet<{ logs: PushLogRecord[] }>("/notifications/admin/history");

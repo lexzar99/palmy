@@ -1,12 +1,20 @@
 import axios from 'axios';
 import prisma from './prisma';
 
-/**
- * Skickar push-notiser via Expo's Push API
- * Vi använder axios direkt istället för expo-server-sdk för att undvika beroendeproblem i miljön.
- */
-export async function sendPushNotification(tokens: string[], title: string, body: string, data?: any) {
-  if (tokens.length === 0) return [];
+interface ExpoTicket {
+  status: 'ok' | 'error';
+  id?: string;
+  message?: string;
+  details?: { error?: string };
+}
+
+interface SendResult {
+  sent: number;
+  errors: number;
+}
+
+export async function sendPushNotification(tokens: string[], title: string, body: string, data?: any): Promise<SendResult> {
+  if (tokens.length === 0) return { sent: 0, errors: 0 };
 
   const messages = tokens.map(token => ({
     to: token,
@@ -16,30 +24,36 @@ export async function sendPushNotification(tokens: string[], title: string, body
     data: data || {},
     priority: 'high',
     channelId: 'default',
-    // NB: NO `_contentAvailable` here. Combining alert + content-available
-    // sometimes makes iOS deliver the push silently (sound but no banner).
-    // LiveActivity stays in sync via the dedicated APNs push-to-update path.
   }));
 
-  try {
-    // Expo rekommenderar max 100 meddelanden per anrop
-    const response = await axios.post('https://exp.host/--/api/v2/push/send', messages, {
-      headers: {
-        'Accept': 'application/json',
-        'Accept-encoding': 'gzip, deflate',
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('❌ Expo Push Error:', error);
-    throw error;
+  const response = await axios.post('https://exp.host/--/api/v2/push/send', messages, {
+    headers: {
+      'Accept': 'application/json',
+      'Accept-encoding': 'gzip, deflate',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  const tickets: ExpoTicket[] = response.data?.data || [];
+  let sent = 0;
+  let errors = 0;
+
+  for (const ticket of tickets) {
+    if (ticket.status === 'ok') {
+      sent++;
+    } else {
+      errors++;
+      console.error(`❌ Expo ticket error: ${ticket.message}`, ticket.details);
+    }
   }
+
+  if (errors > 0) {
+    console.warn(`⚠️ Expo Push: ${sent} ok, ${errors} errors out of ${tickets.length} tickets`);
+  }
+
+  return { sent, errors };
 }
 
-/**
- * Skickar push till en specifik användare (via id, email eller telefon)
- */
 export async function sendToUser(identifier: string, title: string, body: string, data?: any) {
   const user = await prisma.user.findFirst({
     where: {
@@ -54,16 +68,13 @@ export async function sendToUser(identifier: string, title: string, body: string
   });
 
   if (!user?.pushToken || !user.pushToken.startsWith('ExponentPushToken')) {
-    return { success: false, count: 0, error: 'Användaren har ingen push-token registrerad' };
+    return { success: false, count: 0, errors: 0, error: 'Användaren har ingen push-token registrerad' };
   }
 
-  await sendPushNotification([user.pushToken], title, body, data);
-  return { success: true, count: 1 };
+  const result = await sendPushNotification([user.pushToken], title, body, data);
+  return { success: result.errors === 0, count: result.sent, errors: result.errors };
 }
 
-/**
- * Skickar push till alla användare i en specifik stad
- */
 export async function sendToCity(city: string, title: string, body: string, data?: any) {
   const users = await prisma.user.findMany({
     where: {
@@ -80,7 +91,7 @@ export async function sendToCity(city: string, title: string, body: string, data
     .filter((t) => t && t.startsWith('ExponentPushToken'));
 
   if (tokens.length === 0) {
-    return { success: true, count: 0 };
+    return { success: true, count: 0, errors: 0 };
   }
 
   const chunks: string[][] = [];
@@ -88,20 +99,20 @@ export async function sendToCity(city: string, title: string, body: string, data
     chunks.push(tokens.slice(i, i + 100));
   }
 
-  await Promise.all(chunks.map((chunk) => sendPushNotification(chunk, title, body, data)));
-  return { success: true, count: tokens.length, chunks: chunks.length };
+  const results = await Promise.all(chunks.map((chunk) => sendPushNotification(chunk, title, body, data)));
+  const sent = results.reduce((s, r) => s + r.sent, 0);
+  const errors = results.reduce((s, r) => s + r.errors, 0);
+  return { success: errors === 0, count: sent, errors, chunks: chunks.length };
 }
 
-/**
- * Skickar push till ALLA registrerade användare
- */
 export async function sendToAllUsers(title: string, body: string, data?: any) {
   const users = await prisma.user.findMany({
-    where: { 
+    where: {
       pushToken: { not: null },
-      isActive: true 
+      isActive: true,
+      deletedAt: null,
     },
-    select: { pushToken: true }
+    select: { pushToken: true },
   });
 
   const tokens = users
@@ -109,22 +120,16 @@ export async function sendToAllUsers(title: string, body: string, data?: any) {
     .filter(t => t && t.startsWith('ExponentPushToken'));
 
   if (tokens.length === 0) {
-    return { success: true, count: 0 };
+    return { success: true, count: 0, errors: 0 };
   }
 
-  // Dela upp i chunks om 100st (Expos limit)
-  const chunks = [];
+  const chunks: string[][] = [];
   for (let i = 0; i < tokens.length; i += 100) {
     chunks.push(tokens.slice(i, i + 100));
   }
 
-  const results = await Promise.all(
-    chunks.map(chunk => sendPushNotification(chunk, title, body, data))
-  );
-
-  return { 
-    success: true, 
-    count: tokens.length, 
-    chunks: chunks.length 
-  };
+  const results = await Promise.all(chunks.map(chunk => sendPushNotification(chunk, title, body, data)));
+  const sent = results.reduce((s, r) => s + r.sent, 0);
+  const errors = results.reduce((s, r) => s + r.errors, 0);
+  return { success: errors === 0, count: sent, errors, chunks: chunks.length };
 }

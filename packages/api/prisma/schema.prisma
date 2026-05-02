@@ -487,3 +487,20 @@ model GroupOrderItem {
   subtotal     Int
   createdAt    DateTime   @default(now())
 }
+
+model PushLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  target     String   // "all" | "user" | "city"
+  identifier String?  // userId/email/phone for "user" target
+  city       String?  // city name for "city" target
+  title      String
+  body       String
+  deeplink   String?
+  count      Int      @default(0)
+  success    Boolean  @default(true)
+  error      String?
+  sentBy     String?
+
+  @@index([createdAt])
+}

@@ -1,103 +1,140 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { AlertCircle, BellRing, CheckCircle2, Loader2, MapPin, Send, Smartphone, User, Users, X } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertCircle, CheckCircle2, Loader2, Send, Smartphone, XCircle } from "lucide-react";
+import { getCities, zonesCitiesQueryKey } from "@/modules/zones/api";
+import { getCustomers, customersQueryKey } from "@/modules/customers/api";
 import { getSystemHealth, healthQueryKey } from "@/modules/dashboard/api";
-import { sendPushBroadcast, sendPushToCity, sendPushToUser, type PushResult } from "@/modules/push/api";
-import { Badge, Button, Field, Input, Modal, SectionHeader, Surface, Textarea } from "@/shared/components/ui";
+import {
+  getPushHistory,
+  pushHistoryQueryKey,
+  sendPushBroadcast,
+  sendPushToCity,
+  sendPushToUser,
+  type PushLogRecord,
+  type PushResult,
+} from "@/modules/push/api";
+import { Badge, Button, Field, Input, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { formatDateTime } from "@/shared/utils/format";
 
 type TargetMode = "all" | "user" | "city";
 
-interface ComposerState {
+interface ComposerForm {
   title: string;
   body: string;
   deeplink: string;
-  identifier: string;
+  userId: string;
   city: string;
+  userSearch: string;
 }
 
-const EMPTY_COMPOSER: ComposerState = {
+const EMPTY_FORM: ComposerForm = {
   title: "",
   body: "",
   deeplink: "",
-  identifier: "",
+  userId: "",
   city: "",
+  userSearch: "",
 };
 
-const templates = [
-  {
-    label: "Lunch",
-    title: "Lunch is live on MatGo",
-    body: "Open the app before 13:30 to catch today's lunch traffic and active offers.",
-    deeplink: "/deals",
-  },
-  {
-    label: "Comeback",
-    title: "We have new offers waiting",
-    body: "Come back to MatGo and check the latest restaurant deals in your area.",
-    deeplink: "/discover",
-  },
-  {
-    label: "New restaurant",
-    title: "A new restaurant just launched",
-    body: "A new partner is live right now. Open the app to see the menu and order.",
-    deeplink: "/menu",
-  },
+const TEMPLATES = [
+  { label: "Lunch", title: "Lunch live på MatGo", body: "Öppna appen innan 13:30 för att se luncher och aktiva erbjudanden.", deeplink: "/deals" },
+  { label: "Comeback", title: "Nya erbjudanden väntar", body: "Kom tillbaka till MatGo och kolla de senaste restaurangerbjudandena.", deeplink: "/discover" },
+  { label: "Ny restaurang", title: "En ny restaurang har öppnat", body: "En ny partner är live just nu. Öppna appen för att se menyn.", deeplink: "/menu" },
 ];
 
 function PhonePreview({ title, body, deeplink }: { title: string; body: string; deeplink: string }) {
   return (
-    <div className="w-[280px] rounded-[28px] border border-[rgba(255,255,255,0.1)] bg-[#0b101b] p-3 shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
-      <div className="mx-auto mb-3 h-1.5 w-20 rounded-full bg-white/15" />
-      <div className="rounded-[22px] bg-[linear-gradient(180deg,#111827,#0b1220)] px-4 py-4">
+    <div className="w-[260px] rounded-[26px] border border-[rgba(255,255,255,0.1)] bg-[#0b101b] p-3 shadow-[0_24px_60px_rgba(0,0,0,0.4)]">
+      <div className="mx-auto mb-3 h-1.5 w-16 rounded-full bg-white/15" />
+      <div className="rounded-[20px] bg-[linear-gradient(180deg,#111827,#0b1220)] px-4 py-4">
         <div className="flex items-center gap-2">
           <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-[linear-gradient(135deg,#f3bf57,#ffd77f)] text-[10px] font-black text-[#11151b]">M</div>
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/60">MatGo</p>
-            <p className="text-[9px] text-white/30">now</p>
+            <p className="text-[9px] text-white/30">nu</p>
           </div>
         </div>
-        <div className="mt-3 rounded-[18px] border border-white/8 bg-white/6 px-3 py-3">
-          <p className="text-sm font-black text-white">{title || "Push title preview"}</p>
-          <p className="mt-1.5 text-sm leading-5 text-white/70">{body || "Push message preview"}</p>
-          {deeplink ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)]">Opens {deeplink}</p> : null}
+        <div className="mt-3 rounded-[16px] border border-white/8 bg-white/6 px-3 py-3">
+          <p className="text-sm font-black text-white">{title || "Push-rubrik"}</p>
+          <p className="mt-1.5 text-sm leading-5 text-white/70">{body || "Meddelandetext"}</p>
+          {deeplink ? <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)]">Öppnar {deeplink}</p> : null}
         </div>
       </div>
     </div>
   );
 }
 
-function ComposerModal({
-  mode,
-  open,
-  onClose,
-  audience,
-}: {
-  mode: TargetMode;
-  open: boolean;
-  onClose: () => void;
-  audience: number;
-}) {
-  const [form, setForm] = useState<ComposerState>(EMPTY_COMPOSER);
+function targetLabel(target: PushLogRecord["target"]) {
+  if (target === "all") return "Alla";
+  if (target === "user") return "Användare";
+  return "Stad";
+}
+
+export function PushPage() {
+  const queryClient = useQueryClient();
+  const [mode, setMode] = useState<TargetMode>("all");
+  const [form, setForm] = useState<ComposerForm>(EMPTY_FORM);
   const [result, setResult] = useState<PushResult | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
 
+  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 30_000 });
+  const cities = useQuery({ queryKey: zonesCitiesQueryKey, queryFn: getCities });
+  const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
+  const history = useQuery({ queryKey: pushHistoryQueryKey, queryFn: getPushHistory });
+
+  const audience = health.data?.operations.userCount ?? 0;
+
+  const filteredCustomers = useMemo(() => {
+    const q = form.userSearch.trim().toLowerCase();
+    if (!q) return (customers.data || []).slice(0, 8);
+    return (customers.data || [])
+      .filter((c) => `${c.name} ${c.phone || ""} ${c.email || ""}`.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [customers.data, form.userSearch]);
+
+  const selectedCustomer = useMemo(
+    () => (form.userId ? (customers.data || []).find((c) => c.id === form.userId) : null),
+    [customers.data, form.userId]
+  );
+
+  const handleSend = () => {
+    setResult(null);
+    setSendError(null);
+    const dataField = form.deeplink ? { deeplink: form.deeplink } : undefined;
+    const onSuccess = async (r: PushResult) => {
+      setResult(r);
+      await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey });
+    };
+    const onError = (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka");
+
+    if (mode === "all") {
+      broadcastMutation.mutate({ title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
+    } else if (mode === "user") {
+      userMutation.mutate({ identifier: form.userId, title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
+    } else {
+      cityMutation.mutate({ city: form.city, title: form.title, body: form.body, ...(dataField ? { data: dataField } : {}) });
+    }
+
+    void onSuccess; void onError;
+  };
+
   const broadcastMutation = useMutation({
-    mutationFn: () => sendPushBroadcast({ title: form.title, body: form.body, ...(form.deeplink ? { data: { deeplink: form.deeplink } } : {}) }),
-    onSuccess: (r) => { setResult(r); setSendError(null); },
+    mutationFn: sendPushBroadcast,
+    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
     onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
   });
 
   const userMutation = useMutation({
-    mutationFn: () => sendPushToUser({ identifier: form.identifier, title: form.title, body: form.body, ...(form.deeplink ? { data: { deeplink: form.deeplink } } : {}) }),
-    onSuccess: (r) => { setResult(r); setSendError(null); },
+    mutationFn: sendPushToUser,
+    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
     onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
   });
 
   const cityMutation = useMutation({
-    mutationFn: () => sendPushToCity({ city: form.city, title: form.title, body: form.body, ...(form.deeplink ? { data: { deeplink: form.deeplink } } : {}) }),
-    onSuccess: (r) => { setResult(r); setSendError(null); },
+    mutationFn: sendPushToCity,
+    onSuccess: async (r) => { setResult(r); setSendError(null); await queryClient.invalidateQueries({ queryKey: pushHistoryQueryKey }); },
     onError: (e: any) => setSendError(e?.response?.data?.error || "Kunde inte skicka"),
   });
 
@@ -106,154 +143,13 @@ function ComposerModal({
   const canSend =
     form.title.trim() &&
     form.body.trim() &&
-    (mode === "all" || (mode === "user" && form.identifier.trim()) || (mode === "city" && form.city.trim()));
+    (mode === "all" || (mode === "user" && form.userId) || (mode === "city" && form.city));
 
-  const handleSend = () => {
+  const handleModeChange = (next: TargetMode) => {
+    setMode(next);
     setResult(null);
     setSendError(null);
-    if (mode === "all") broadcastMutation.mutate();
-    else if (mode === "user") userMutation.mutate();
-    else cityMutation.mutate();
   };
-
-  const handleClose = () => {
-    setForm(EMPTY_COMPOSER);
-    setResult(null);
-    setSendError(null);
-    onClose();
-  };
-
-  const modeLabel = mode === "all" ? "Alla användare" : mode === "user" ? "En användare" : "Stad / grupp";
-  const modeIcon = mode === "all" ? <Users size={16} /> : mode === "user" ? <User size={16} /> : <MapPin size={16} />;
-
-  return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      title={`Push: ${modeLabel}`}
-      description={mode === "all" ? `${audience} användare med push-token` : mode === "user" ? "Skicka till en specifik användare" : "Skicka till alla i en stad"}
-      widthClassName="max-w-[900px]"
-      footer={
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-            {modeIcon}
-            {modeLabel}
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleClose}>Stäng</Button>
-            <Button variant="primary" onClick={handleSend} disabled={isPending || !canSend}>
-              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              {isPending ? "Skickar…" : "Skicka"}
-            </Button>
-          </div>
-        </div>
-      }
-    >
-      <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
-          {mode !== "all" && (
-            <div className="rounded-2xl border border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] px-4 py-4">
-              {mode === "user" ? (
-                <Field label="Användare (ID, email eller telefon)">
-                  <Input
-                    value={form.identifier}
-                    onChange={(e) => setForm((s) => ({ ...s, identifier: e.target.value }))}
-                    placeholder="user@example.com / +46701234567"
-                  />
-                </Field>
-              ) : (
-                <Field label="Stad">
-                  <Input
-                    value={form.city}
-                    onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}
-                    placeholder="Stockholm"
-                  />
-                </Field>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2">
-            {templates.map((t) => (
-              <Button
-                key={t.label}
-                variant="secondary"
-                onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body, deeplink: t.deeplink }))}
-              >
-                {t.label}
-              </Button>
-            ))}
-          </div>
-
-          <Field label="Titel">
-            <Input value={form.title} onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))} placeholder="Push-rubrik" />
-          </Field>
-          <Field label="Meddelande">
-            <Textarea value={form.body} onChange={(e) => setForm((s) => ({ ...s, body: e.target.value }))} placeholder="Meddelandetext" />
-          </Field>
-          <Field label="Deep link (valfri)">
-            <Input value={form.deeplink} onChange={(e) => setForm((s) => ({ ...s, deeplink: e.target.value }))} placeholder="/deals" />
-          </Field>
-
-          {result && (
-            <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-4">
-              <div className="flex items-center gap-2 text-sm text-[#c4ffeb]">
-                <CheckCircle2 size={16} />
-                Skickat till {result.count} enhet{result.count !== 1 ? "er" : ""}
-                {result.chunks && result.chunks > 1 ? ` (${result.chunks} batchar)` : ""}
-              </div>
-            </div>
-          )}
-
-          {sendError && (
-            <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-4">
-              <div className="flex items-center gap-2 text-sm text-rose-400">
-                <AlertCircle size={16} /> {sendError}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col items-center gap-4 pt-2">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Förhandsvisning</p>
-          <PhonePreview title={form.title} body={form.body} deeplink={form.deeplink} />
-          <div className="mt-2 space-y-2 text-sm text-[var(--text-secondary)] w-full">
-            <div className="surface-muted px-3 py-3 text-xs">Publicera innehåll innan du skickar push.</div>
-            <div className="surface-muted px-3 py-3 text-xs">Deep links kräver att destinationen redan finns i appen.</div>
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-export function PushPage() {
-  const health = useQuery({ queryKey: healthQueryKey, queryFn: getSystemHealth, refetchInterval: 30_000 });
-  const [activeMode, setActiveMode] = useState<TargetMode | null>(null);
-
-  const audience = useMemo(() => health.data?.operations.userCount || 0, [health.data?.operations.userCount]);
-
-  const targets: Array<{ mode: TargetMode; icon: React.ReactNode; title: string; desc: string; badge?: string }> = [
-    {
-      mode: "all",
-      icon: <Users size={28} />,
-      title: "Alla användare",
-      desc: `Broadcast till ${audience} registrerade enheter`,
-      badge: String(audience),
-    },
-    {
-      mode: "user",
-      icon: <User size={28} />,
-      title: "En användare",
-      desc: "Skicka till en specifik person via ID, email eller telefon",
-    },
-    {
-      mode: "city",
-      icon: <MapPin size={28} />,
-      title: "Stad / grupp",
-      desc: "Skicka till alla användare i en vald stad",
-    },
-  ];
 
   return (
     <div className="page-stack">
@@ -261,7 +157,7 @@ export function PushPage() {
         <SectionHeader
           eyebrow="Push"
           title="Push-notiser"
-          description="Välj målgrupp och skicka notis via det befintliga push-systemet (Expo)."
+          description="Välj målgrupp, skriv meddelande och skicka via Expo."
           actions={
             <>
               <Badge tone="info"><Smartphone size={12} /> Expo</Badge>
@@ -271,48 +167,196 @@ export function PushPage() {
         />
       </Surface>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {targets.map(({ mode, icon, title, desc, badge }) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setActiveMode(mode)}
-            className="surface-muted flex flex-col items-start gap-4 px-6 py-6 text-left hover:border-[var(--accent-strong)] transition-colors"
-          >
-            <div className="flex w-full items-start justify-between gap-3">
-              <div className="text-[var(--accent-strong)]">{icon}</div>
-              {badge ? <Badge tone="info">{badge}</Badge> : null}
-            </div>
-            <div>
-              <p className="text-lg font-black tracking-[-0.02em]">{title}</p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">{desc}</p>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--accent-strong)]">
-              <BellRing size={12} /> Öppna composer
-            </div>
-          </button>
-        ))}
-      </div>
+      <Surface className="px-6 py-6">
+        <Tabs
+          value={mode}
+          onChange={handleModeChange}
+          options={[
+            { value: "all", label: `Alla användare (${audience})` },
+            { value: "user", label: "En användare" },
+            { value: "city", label: "Stad" },
+          ]}
+        />
 
-      <Surface className="px-6 py-5">
-        <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-          <p className="font-black text-[var(--text-primary)]">Riktlinjer</p>
-          <ul className="space-y-1 list-disc list-inside">
-            <li>Publicera alltid innehållet innan du skickar push-notisen.</li>
-            <li>Håll rubriken kort nog för att synas på låsskärmen.</li>
-            <li>Använd deep links enbart om destinationen redan finns i appen.</li>
-          </ul>
+        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_280px]">
+          <div className="space-y-5">
+            {mode === "user" && (
+              <div className="space-y-3">
+                <Field label="Sök användare">
+                  <Input
+                    value={form.userSearch}
+                    onChange={(e) => setForm((s) => ({ ...s, userSearch: e.target.value, userId: "" }))}
+                    placeholder="Namn, telefon eller e-post"
+                  />
+                </Field>
+                {selectedCustomer ? (
+                  <div className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[rgba(48,199,143,0.06)] px-4 py-3 text-sm">
+                    <div>
+                      <p className="font-black">{selectedCustomer.name}</p>
+                      <p className="text-[var(--text-secondary)]">{selectedCustomer.phone || selectedCustomer.email || "Inget kontakt"}</p>
+                    </div>
+                    <Button variant="secondary" onClick={() => setForm((s) => ({ ...s, userId: "", userSearch: "" }))}>
+                      <XCircle size={14} /> Ändra
+                    </Button>
+                  </div>
+                ) : (
+                  form.userSearch.trim() && (
+                    <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
+                      {filteredCustomers.length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-[var(--text-secondary)]">Inga användare hittades</p>
+                      ) : (
+                        filteredCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[rgba(255,255,255,0.04)] border-b border-[var(--border-subtle)] last:border-0"
+                            onClick={() => setForm((s) => ({ ...s, userId: c.id, userSearch: c.name }))}
+                          >
+                            <div>
+                              <p className="font-black">{c.name}</p>
+                              <p className="text-[var(--text-secondary)]">{c.phone || c.email || "-"}</p>
+                            </div>
+                            <p className="text-[var(--text-muted)]">{c._count?.orders ?? 0} orders</p>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {mode === "city" && (
+              <Field label="Stad">
+                <Select value={form.city} onChange={(e) => setForm((s) => ({ ...s, city: e.target.value }))}>
+                  <option value="">Välj stad...</option>
+                  {(cities.data || []).map((city) => (
+                    <option key={city.id} value={city.name}>
+                      {city.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {TEMPLATES.map((t) => (
+                <Button
+                  key={t.label}
+                  variant="secondary"
+                  onClick={() => setForm((s) => ({ ...s, title: t.title, body: t.body, deeplink: t.deeplink }))}
+                >
+                  {t.label}
+                </Button>
+              ))}
+            </div>
+
+            <Field label="Titel">
+              <Input
+                value={form.title}
+                onChange={(e) => setForm((s) => ({ ...s, title: e.target.value }))}
+                placeholder="Push-rubrik (syns på låsskärmen)"
+              />
+            </Field>
+            <Field label="Meddelande">
+              <Textarea
+                value={form.body}
+                onChange={(e) => setForm((s) => ({ ...s, body: e.target.value }))}
+                placeholder="Meddelandetext"
+              />
+            </Field>
+            <Field label="Deep link (valfri)">
+              <Input
+                value={form.deeplink}
+                onChange={(e) => setForm((s) => ({ ...s, deeplink: e.target.value }))}
+                placeholder="/deals"
+              />
+            </Field>
+
+            {result && (
+              <div className="rounded-2xl border border-[rgba(48,199,143,0.25)] bg-[rgba(48,199,143,0.08)] px-4 py-4">
+                <div className="flex items-center gap-2 text-sm font-black text-[#c4ffeb]">
+                  <CheckCircle2 size={16} />
+                  Skickat till {result.count} enhet{result.count !== 1 ? "er" : ""}
+                  {result.errors && result.errors > 0 ? ` (${result.errors} fel)` : ""}
+                </div>
+              </div>
+            )}
+
+            {sendError && (
+              <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-4">
+                <div className="flex items-center gap-2 text-sm text-rose-400">
+                  <AlertCircle size={16} /> {sendError}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Button
+                variant="primary"
+                onClick={handleSend}
+                disabled={isPending || !canSend}
+              >
+                {isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                {isPending ? "Skickar…" : "Skicka push"}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-4 pt-1">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Förhandsvisning</p>
+            <PhonePreview title={form.title} body={form.body} deeplink={form.deeplink} />
+          </div>
         </div>
       </Surface>
 
-      {activeMode && (
-        <ComposerModal
-          mode={activeMode}
-          open={true}
-          onClose={() => setActiveMode(null)}
-          audience={audience}
-        />
-      )}
+      <Surface className="px-6 py-6">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Skickade notiser</p>
+        {history.isLoading ? (
+          <p className="mt-4 text-sm text-[var(--text-secondary)]">Laddar historik…</p>
+        ) : !history.data?.logs.length ? (
+          <p className="mt-4 text-sm text-[var(--text-secondary)]">Inga skickade notiser än.</p>
+        ) : (
+          <div className="mt-4 table-shell">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Tid</th>
+                  <th>Målgrupp</th>
+                  <th>Mottagare</th>
+                  <th>Rubrik</th>
+                  <th>Enheter</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.data.logs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="whitespace-nowrap text-sm">{formatDateTime(log.createdAt)}</td>
+                    <td>
+                      <Badge tone={log.target === "all" ? "info" : log.target === "user" ? "success" : "warning"}>
+                        {targetLabel(log.target)}
+                      </Badge>
+                    </td>
+                    <td className="text-sm text-[var(--text-secondary)]">
+                      {log.target === "user" ? (log.identifier || "—") : log.target === "city" ? (log.city || "—") : "Alla"}
+                    </td>
+                    <td className="max-w-[200px] truncate text-sm">{log.title}</td>
+                    <td className="font-black">{log.count}</td>
+                    <td>
+                      {log.success ? (
+                        <Badge tone="success"><CheckCircle2 size={11} /> OK</Badge>
+                      ) : (
+                        <Badge tone="danger"><AlertCircle size={11} /> Fel</Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Surface>
     </div>
   );
 }
