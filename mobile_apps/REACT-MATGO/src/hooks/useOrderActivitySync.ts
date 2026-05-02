@@ -1,30 +1,25 @@
 /**
- * Global order sync — keeps the in-app banner data fresh and the Live
- * Activity dismissed at the right moment. This hook NEVER pushes state into
- * the Live Activity; that is the backend's job exclusively (APNs liveactivity
- * push topic). React Native cannot reliably drive ActivityKit updates when
- * the app is backgrounded or killed, so we don't try.
+ * In-app order banner sync. Strictly UI — DOES NOT TOUCH THE LIVE ACTIVITY.
  *
- * What the hook still owns:
- *   - Mirroring fresh /api/orders/:id snapshots into the Zustand store so the
- *     LiveOrderBanner inside the app renders correctly
- *   - Calling endOrderActivity locally as a *dismiss* shortcut when the
- *     server-side state has clearly moved to a terminal status. The LA push
- *     pipeline already does this, but a foreground call gives an instant
- *     dismiss without waiting for APNs.
- *   - Scheduling the local review notification on DELIVERED.
+ * The Live Activity is owned exclusively by the backend over the APNs
+ * `liveactivity` topic, with a native auto-end Task in Swift as a local
+ * fallback for the dismiss timing. JS only calls startOrderActivity once at
+ * order placement (CartScreen) and that's it — no update, no end. Coupling
+ * the LA to this hook is exactly what made it freeze when the in-app banner
+ * fetch stalled, since the hook's terminal-status branch was the dismiss
+ * trigger. They are now fully decoupled.
  *
- * What the hook no longer does:
- *   - Calling updateOrderActivity. Removed in the rewrite — Swift renders
- *     whatever the backend last pushed.
- *   - Auto-flipping the order to DELIVERED client-side; the backend's
- *     liveActivityFinalize tick + heartbeat owns that lifecycle now.
+ * What this hook does:
+ *   - Mirrors fresh /api/orders/:id snapshots into the Zustand store so the
+ *     LiveOrderBanner can render the latest state.
+ *   - Schedules the local review notification on DELIVERED so the customer
+ *     gets a "Vad tyckte du?" prompt regardless of LA dismissal timing.
  */
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { api, SOCKET_URL } from '../lib/api';
-import { endOrderActivity, mapServerStatusToActivity } from '../lib/liveActivities';
+import { mapServerStatusToActivity } from '../lib/liveActivities';
 import { scheduleReviewNotification } from '../lib/reviewNotification';
 import { useAppStore } from '../store/useAppStore';
 
@@ -56,13 +51,13 @@ export function useOrderActivitySync(orderId: string | null) {
         // Mirror the snapshot into the store so the in-app banner renders.
         setActiveOrderData(data);
 
-        // Foreground dismiss shortcut for terminal status. Backend's LA
-        // push pipeline ends the activity too — this just gives an instant
-        // foreground dismiss without waiting for APNs round-trip.
+        // Banner-only terminal handling. We do NOT touch the Live Activity
+        // here — it dismisses itself via the backend APNs end push and the
+        // native scheduled auto-end Task. Decoupling them means a stalled
+        // banner fetch can never freeze the LA.
         if (status) {
           const mapped = mapServerStatusToActivity(status, orderType);
           if (mapped?.ends) {
-            await endOrderActivity(orderId);
             if (status === 'DELIVERED' || status === 'COMPLETED') {
               void scheduleReviewNotification(orderId, data.restaurantName ?? null);
             }
@@ -87,7 +82,7 @@ export function useOrderActivitySync(orderId: string | null) {
       if (payload?.orderId !== orderId) return;
       const terminal = ['DELIVERED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'DELIVERY_FAILED'];
       if (typeof payload?.status === 'string' && terminal.includes(payload.status)) {
-        endOrderActivity(orderId).catch(() => {});
+        // Banner-only — do not call endOrderActivity. Backend handles LA dismiss.
         if (payload.status === 'DELIVERED' || payload.status === 'COMPLETED') {
           const cached = useAppStore.getState().activeOrder;
           void scheduleReviewNotification(orderId, cached?.restaurantName ?? null);

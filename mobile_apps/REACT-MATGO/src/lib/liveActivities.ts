@@ -262,28 +262,15 @@ export async function endAllOrderActivities(): Promise<void> {
 }
 
 /**
- * Foreground / wake-up reconciliation.
+ * Deprecated — no-op kept for backwards compatibility with bg-task imports.
  *
- * Only fires endOrderActivity when the server reports a terminal status —
- * never updateOrderActivity. In-flight state changes (PREPARING → READY →
- * DELIVERING) are delivered to the Live Activity exclusively by the backend
- * over the APNs `liveactivity` topic. JS-driven Activity.update() calls have
- * been removed because they don't run when the app is backgrounded or
- * killed, which is the failure mode that kept biting us.
+ * The Live Activity is owned exclusively by the backend over the APNs
+ * `liveactivity` topic plus the native scheduled auto-end Task in Swift.
+ * JS no longer participates in update or end — coupling them caused the
+ * "banner stops, LA stops" symptom. JS only calls startOrderActivity once
+ * at order placement; everything after is push-driven.
  */
-export async function syncOrderActivityFromServer(orderId: string): Promise<void> {
-  if (!supported || !orderId) return;
-  try {
-    const res = await api.get(`/api/orders/${orderId}`);
-    const data = res.data || {};
-    const orderType: "DELIVERY" | "PICKUP" | undefined = data.orderType || data.type;
-    const serverStatus: string | undefined = data.status;
-    if (!serverStatus) return;
-    const mapped = mapServerStatusToActivity(serverStatus, orderType);
-    if (mapped?.ends) {
-      await endOrderActivity(orderId);
-    }
-  } catch (e) {
-    console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
-  }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function syncOrderActivityFromServer(_orderId: string): Promise<void> {
+  return;
 }
