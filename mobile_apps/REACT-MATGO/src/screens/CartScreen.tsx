@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
-import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
+import { placesAutocomplete, placesResolveCoords } from "../lib/places";
 import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
@@ -380,21 +380,19 @@ export default function CartScreen({
             return;
           }
 
-          const res = await fetch(
-            `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(storeAddress)}&filter=countrycode:se&limit=1&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
-          );
-          const data = await res.json();
-          const feature = data.features?.[0];
-          if (feature) {
-            const [lng, lat] = feature.geometry.coordinates;
-            setAddress(storeAddress, { lat, lng });
+          // Backend-proxied: top-1 autocomplete result, then resolve coords.
+          const items = await placesAutocomplete(storeAddress);
+          const top = items[0];
+          const coords = top ? await placesResolveCoords(top) : null;
+          if (coords) {
+            setAddress(storeAddress, coords);
             setQuickAddresses(
               await rememberQuickAddress({
                 street: storeAddress,
                 city,
                 zip,
-                latitude: lat,
-                longitude: lng,
+                latitude: coords.lat,
+                longitude: coords.lng,
               }),
             );
           }
@@ -425,7 +423,7 @@ export default function CartScreen({
     orderType === "DELIVERY"
       ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? restaurantSettings.deliveryFee)
       : 0;
-  const isTestCode = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+  const isTestCode = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
   const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee - personalDiscount + tipAmount);
 
   // Initial data fetch
@@ -595,7 +593,9 @@ export default function CartScreen({
 
   const handlePromo = useCallback(() => {
     const code = promoCode.trim().toLowerCase();
-    if (code === "test" || code === "testa") {
+    // Dev-only: free-order shortcut. Compiled out of release bundles
+    // by Metro because __DEV__ is statically replaced with `false`.
+    if (__DEV__ && (code === "test" || code === "testa")) {
       setSelectedPersonalDeal({ code, campaign: { discountType: "FIXED", discountValue: total, minOrder: 0 } });
       return;
     }
@@ -659,22 +659,20 @@ export default function CartScreen({
 
         if (!currentCoords && formData.deliveryStreet) {
           try {
-            const gRes = await fetch(
-              `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(formData.deliveryStreet)}&filter=countrycode:se&limit=1&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
-            );
-            const gData = await gRes.json();
-            const feature = gData.features?.[0];
-            if (feature) {
-              const [lng, lat] = feature.geometry.coordinates;
-              currentCoords = { lat, lng };
+            // Backend-proxied: top-1 autocomplete + resolve coords.
+            const items = await placesAutocomplete(formData.deliveryStreet);
+            const top = items[0];
+            const coords = top ? await placesResolveCoords(top) : null;
+            if (coords) {
+              currentCoords = coords;
               setAddress(formData.deliveryStreet, currentCoords);
               setQuickAddresses(
                 await rememberQuickAddress({
                   street: formData.deliveryStreet,
                   city: formData.deliveryCity,
                   zip: formData.deliveryZip,
-                  latitude: lat,
-                  longitude: lng,
+                  latitude: coords.lat,
+                  longitude: coords.lng,
                 }),
               );
             }
@@ -729,7 +727,7 @@ export default function CartScreen({
       }
 
       // ===== 1. STRIPE BETALNINGSFLÖDE (NATIVE) =====
-      const isTestFlow = selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa";
+      const isTestFlow = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
       
       if (!isTestFlow && Platform.OS !== "web") {
         const intentRes = await api.post(
@@ -792,6 +790,14 @@ export default function CartScreen({
 
         finalPaymentIntentId = paymentIntentId;
       } else if (!isTestFlow && Platform.OS === "web") {
+         // Dev-only test channel for the web build — Metro replaces __DEV__
+         // with `false` in release bundles so this branch is dead code in
+         // production. Web release builds must hit Stripe like native does.
+         if (!__DEV__) {
+           Alert.alert("Betalning krävs", "Den här plattformen stöder inte direkt-checkout. Använd appen.");
+           setSubmitting(false);
+           return;
+         }
          finalPaymentIntentId = "BYPASS_WEB_" + Math.random().toString();
       }
 
