@@ -674,4 +674,72 @@ router.get('/:slug', async (req, res) => {
   }
 });
 
+// GET /api/restaurants/:slug/reviews
+// Public list of customer reviews for a restaurant. Drives the in-app
+// reviews modal so users can read what others wrote before ordering.
+// Filters out flagged reviews + entries without a written comment so the
+// list reads like real reviews, not "anonymous gave 4 stars".
+router.get('/:slug/reviews', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const restaurant = await prisma.restaurant.findFirst({
+      where: { OR: [{ slug }, { id: slug }] },
+      select: { id: true },
+    });
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
+    const reviews = await prisma.order.findMany({
+      where: {
+        restaurantId: restaurant.id,
+        rating: { not: null },
+        reviewFlagged: false,
+      },
+      select: {
+        id: true,
+        customerName: true,
+        rating: true,
+        review: true,
+        reviewReply: true,
+        reviewedAt: true,
+        createdAt: true,
+      },
+      orderBy: [{ reviewedAt: 'desc' }, { createdAt: 'desc' }],
+      take: 100,
+    });
+    const summary = reviews.reduce(
+      (acc, r) => {
+        acc.count += 1;
+        acc.sum += r.rating ?? 0;
+        return acc;
+      },
+      { count: 0, sum: 0 },
+    );
+    res.json({
+      averageRating: summary.count ? summary.sum / summary.count : 0,
+      totalCount: summary.count,
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        // Show first name + last initial for privacy. "Jarir Alshher" → "Jarir A."
+        customerName: formatReviewerName(r.customerName),
+        rating: r.rating,
+        comment: (r.review || '').trim(),
+        reply: (r.reviewReply || '').trim(),
+        createdAt: (r.reviewedAt || r.createdAt).toISOString(),
+      })),
+    });
+  } catch (error) {
+    console.error('Error fetching restaurant reviews', error);
+    res.status(500).json({ error: 'Kunde inte hämta recensioner' });
+  }
+});
+
+function formatReviewerName(raw: string | null | undefined): string {
+  const name = (raw || '').trim();
+  if (!name) return 'Anonym';
+  const parts = name.split(/\s+/);
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1].charAt(0).toUpperCase()}.`;
+}
+
 export default router;

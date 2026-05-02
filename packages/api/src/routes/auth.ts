@@ -153,13 +153,28 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         // real name with the "Användare" placeholder if Supabase metadata
         // happens to be empty on a refresh (Apple, in particular, only ships
         // fullName on the first sign-in).
-        const sbName = user.user_metadata?.name || user.user_metadata?.full_name || null;
-        const sbImage = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+        const meta = user.user_metadata || {};
+        const sbFirst =
+          (meta.first_name as string | undefined) ||
+          (meta.given_name as string | undefined) ||
+          null;
+        const sbLast =
+          (meta.last_name as string | undefined) ||
+          (meta.family_name as string | undefined) ||
+          null;
+        const sbName =
+          (meta.name as string | undefined) ||
+          (meta.full_name as string | undefined) ||
+          [sbFirst, sbLast].filter(Boolean).join(' ').trim() ||
+          null;
+        const sbImage = (meta.avatar_url as string | undefined) || (meta.picture as string | undefined) || null;
         await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
             email: user.email || undefined,
             name: sbName || undefined,
+            firstName: sbFirst || undefined,
+            lastName: sbLast || undefined,
             image: sbImage || undefined,
             phone: normalizedPhone || undefined,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
@@ -169,6 +184,8 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             id: user.id,
             email: user.email ?? null,
             name: sbName ?? 'Användare',
+            firstName: sbFirst,
+            lastName: sbLast,
             image: sbImage,
             phone: normalizedPhone ?? null,
             oauthProvider: user.app_metadata?.provider ?? null,

@@ -44,23 +44,35 @@ export function useAppleAuth() {
           // the FIRST sign-in for a given Apple ID. If we miss it here we lose
           // it forever (subsequent sign-ins return an empty fullName), which
           // is why every account ended up displayed as "ANVÄNDARE". Build the
-          // best name we can — with either part filled in — and persist it
-          // both into Supabase metadata (so middleware-driven upserts pick it
-          // up) and into our DB via PATCH.
+          // best name we can — with either part filled in — and persist
+          // BOTH the structured firstName/lastName AND the joined display
+          // name, both into Supabase metadata and into our DB via PATCH.
           const { fullName } = credential;
-          const displayName = [fullName?.givenName, fullName?.familyName]
-            .filter(Boolean)
-            .join(" ")
-            .trim();
+          const firstName = (fullName?.givenName || '').trim();
+          const lastName = (fullName?.familyName || '').trim();
+          const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
 
-          if (displayName) {
+          if (firstName || lastName) {
             await supabase.auth
-              .updateUser({ data: { name: displayName, full_name: displayName } })
+              .updateUser({
+                data: {
+                  name: displayName,
+                  full_name: displayName,
+                  first_name: firstName,
+                  last_name: lastName,
+                  given_name: firstName,
+                  family_name: lastName,
+                },
+              })
               .catch(() => null);
             await api
               .patch(
                 "/api/profile",
-                { name: displayName },
+                {
+                  name: displayName || undefined,
+                  firstName: firstName || undefined,
+                  lastName: lastName || undefined,
+                },
                 { headers: { Authorization: `Bearer ${data.session.access_token}` } },
               )
               .catch(() => null);
@@ -79,10 +91,16 @@ export function useAppleAuth() {
               try {
                 await api.patch(
                   "/api/profile",
-                  { name: displayName },
+                  {
+                    name: displayName,
+                    firstName: firstName || undefined,
+                    lastName: lastName || undefined,
+                  },
                   { headers: { Authorization: `Bearer ${data.session.access_token}` } },
                 );
                 profileRes.data.name = displayName;
+                profileRes.data.firstName = firstName || profileRes.data.firstName;
+                profileRes.data.lastName = lastName || profileRes.data.lastName;
               } catch {}
             }
           }

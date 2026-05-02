@@ -7,11 +7,16 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 const router = Router();
 
 // GET /api/profile
+// Helper: build a full name from first + last (or fallback to existing).
+function joinFullName(first: string | null | undefined, last: string | null | undefined): string {
+  return [first, last].filter(Boolean).join(' ').trim();
+}
+
 router.get('/', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, name: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
+      select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
     });
     if (!user) return res.status(404).json({ error: 'Hittades inte' });
     // OAuth-only users must complete phone linking before they can use the
@@ -39,6 +44,8 @@ router.get('/orders', authenticateUser, async (req: any, res: any) => {
 
 const profileUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
+  firstName: z.string().max(60).optional(),
+  lastName: z.string().max(60).optional(),
   email: z.string().email().optional().nullable(),
   address: z.string().max(200).optional(),
   city: z.string().max(100).optional(),
@@ -49,7 +56,7 @@ const profileUpdateSchema = z.object({
 router.patch('/', authenticateUser, async (req: any, res: any) => {
   try {
     const data = profileUpdateSchema.parse(req.body);
-    
+
     // Check email uniqueness if changing
     if (data.email) {
       const existing = await (prisma as any).user.findFirst({
@@ -59,10 +66,26 @@ router.patch('/', authenticateUser, async (req: any, res: any) => {
         return res.status(400).json({ error: 'E-postadressen används redan' });
       }
     }
-    
+
+    // If firstName/lastName were sent (Apple Sign-In flow), ALSO synthesise
+    // the legacy `name` column so any place that still reads `name` shows
+    // the right thing. The reverse isn't done — a manually-edited `name`
+    // doesn't overwrite the structured first/last fields.
+    const update: Record<string, any> = { ...data };
+    if ((data.firstName !== undefined || data.lastName !== undefined) && data.name === undefined) {
+      const existing = await (prisma as any).user.findUnique({
+        where: { id: req.user.id },
+        select: { firstName: true, lastName: true },
+      });
+      const nextFirst = data.firstName ?? existing?.firstName ?? '';
+      const nextLast = data.lastName ?? existing?.lastName ?? '';
+      const joined = joinFullName(nextFirst, nextLast);
+      if (joined) update.name = joined;
+    }
+
     await (prisma as any).user.update({
       where: { id: req.user.id },
-      data
+      data: update,
     });
     res.json({ success: true });
   } catch (error: any) {

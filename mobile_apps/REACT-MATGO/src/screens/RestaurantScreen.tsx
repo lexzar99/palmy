@@ -13,6 +13,7 @@ import { EmptyPanel } from '../components/ui';
 import CityModal from '../components/CityModal';
 import AddressModal from '../components/AddressModal';
 import RestaurantInfoModal from '../components/RestaurantInfoModal';
+import RestaurantReviewsModal from '../components/RestaurantReviewsModal';
 import StarRating from '../components/StarRating';
 import ProductModal from '../components/ProductModal';
 import PreviouslyOrderedBar from '../components/PreviouslyOrderedBar';
@@ -67,6 +68,7 @@ export default function RestaurantScreen({
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<MenuProduct | null>(null);
   const [zoneAvailable, setZoneAvailable] = useState<boolean | null>(null);
   const [checkingZone, setCheckingZone] = useState(false);
@@ -397,11 +399,15 @@ export default function RestaurantScreen({
 
               <View style={styles.restaurantHeroMetaRowPremium}>
                 <Text style={styles.restaurantHeroCuisine}>{(restaurant?.cuisine || "Restaurang").toUpperCase()}</Text>
-                <View style={styles.restaurantHeroRatingWrap}>
+                <Pressable
+                  onPress={() => setShowReviewsModal(true)}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.restaurantHeroRatingWrap, { opacity: pressed ? 0.6 : 1 }]}
+                >
                   <Ionicons name="star" size={12} color={palette.gold} />
                   <Text style={styles.restaurantHeroRatingText}>{(restaurant?.rating || 4.6).toFixed(1)}</Text>
                   <Text style={styles.restaurantHeroRatingCount}>({restaurant?.ratingCount || 120})</Text>
-                </View>
+                </Pressable>
               </View>
 
               {zoneAvailable === false && orderType === "DELIVERY" && address && (
@@ -749,6 +755,12 @@ export default function RestaurantScreen({
       />
 
       <RestaurantInfoModal restaurant={showInfoModal ? restaurant : null} onClose={() => setShowInfoModal(false)} />
+      <RestaurantReviewsModal
+        restaurantSlug={restaurant?.slug || restaurant?.id || null}
+        restaurantName={restaurant?.name}
+        visible={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+      />
     </>
   );
 }

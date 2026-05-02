@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from '../lib/api';
 import { palette, styles } from '../constants/theme';
 import type { Restaurant } from '../types';
+import RestaurantReviewsModal from './RestaurantReviewsModal';
 
 const dayOrder = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 const dayLabels: Record<string, string> = {
@@ -29,6 +30,7 @@ export default function RestaurantInfoModal({
   restaurant: Restaurant | null;
   onClose: () => void;
 }) {
+  const [reviewsOpen, setReviewsOpen] = useState(false);
   if (!restaurant) return null;
 
   return (
@@ -74,27 +76,50 @@ export default function RestaurantInfoModal({
             </View>
           )}
 
-          {!!restaurant.rating && (
-            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: palette.border }}>
-              <Text style={{ color: palette.goldDark, fontWeight: "900", marginBottom: 12 }}>RECENSIONER</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <View style={{ flexDirection: "row", gap: 4 }}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Ionicons 
-                      key={star} 
-                      name={star <= Math.round(restaurant.rating || 0) ? "star" : "star-outline"} 
-                      size={18} 
-                      color={palette.gold} 
-                    />
-                  ))}
-                </View>
-                <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900" }}>{restaurant.rating.toFixed(1)}</Text>
-                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900" }}>({restaurant.ratingCount || 0} recensioner)</Text>
+          <Pressable
+            onPress={() => setReviewsOpen(true)}
+            style={({ pressed }) => ({
+              marginTop: 16,
+              paddingTop: 16,
+              borderTopWidth: 1,
+              borderTopColor: palette.border,
+              opacity: pressed ? 0.6 : 1,
+            })}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <Text style={{ color: palette.goldDark, fontWeight: "900" }}>RECENSIONER</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "900", letterSpacing: 1 }}>SE ALLA</Text>
+                <Ionicons name="chevron-forward" size={14} color={palette.gold} />
               </View>
             </View>
-          )}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Ionicons
+                    key={star}
+                    name={star <= Math.round(restaurant.rating || 0) ? "star" : "star-outline"}
+                    size={18}
+                    color={palette.gold}
+                  />
+                ))}
+              </View>
+              <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900" }}>
+                {(restaurant.rating || 0).toFixed(1)}
+              </Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900" }}>
+                ({restaurant.ratingCount || 0} recensioner)
+              </Text>
+            </View>
+          </Pressable>
         </View>
       </View>
+      <RestaurantReviewsModal
+        restaurantSlug={restaurant.slug || restaurant.id}
+        restaurantName={restaurant.name}
+        visible={reviewsOpen}
+        onClose={() => setReviewsOpen(false)}
+      />
     </Modal>
   );
 }
