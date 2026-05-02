@@ -896,10 +896,12 @@ function AppContent() {
     );
   }
 
-  // Hard gate: Apple/Google sign-ins that haven't linked a phone yet are
-  // bounced into the phone-verification flow. They can only finish that or
-  // sign out — the rest of the app stays hidden.
-  if (token && (profile as any)?.needsPhone) {
+  // Hard gate: Apple/Google sign-ins that haven't linked a phone yet, or
+  // haven't supplied a first / last name yet, are bounced into the
+  // verification flow. They can only finish that or sign out — the rest of
+  // the app stays hidden. Same screen handles both flags (PhoneGateScreen
+  // hides the phone block when only needsName is true).
+  if (token && ((profile as any)?.needsPhone || (profile as any)?.needsName)) {
     return <PhoneGateScreen />;
   }
 

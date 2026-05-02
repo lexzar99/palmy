@@ -97,7 +97,10 @@ router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
         phone: null,
         pushToken: null,
         apnsDeviceToken: null,
-        isActive: false,
+        // NOTE: isActive stays true. The admin "delete" action is a
+        // RESET — clears the data and lets the user register fresh next
+        // time they sign in (auth.ts revives the row). Use isActive=false
+        // separately if you actually need to permanently ban someone.
       },
     });
     res.json({ success: true });

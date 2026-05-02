@@ -61,9 +61,37 @@ export default function PhoneGateScreen() {
   const profileName = profile?.name?.trim?.() || "";
   const isPlaceholder = profileName.toLowerCase() === "användare";
   const needsName = !profileFirst && !profileLast && (!profileName || isPlaceholder);
+  // When the user already has a verified phone but no name, this screen
+  // becomes a name-only gate. Skip the SMS step entirely.
+  const nameOnlyMode = !((profile as any)?.needsPhone) && needsName;
   const greetingName = profileFirst || profileLast
     ? [profileFirst, profileLast].filter(Boolean).join(" ")
     : (!isPlaceholder ? profileName : "");
+
+  const saveNameOnly = useCallback(async () => {
+    const first = firstName.trim();
+    const last = lastName.trim();
+    if (!first) { setError("Ange ditt förnamn"); return; }
+    if (!last) { setError("Ange ditt efternamn"); return; }
+    if (!token) { setError("Sessionen tappades"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      await api.patch(
+        "/api/profile",
+        { firstName: first, lastName: last, name: `${first} ${last}` },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const profileRes = await api.get("/api/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setProfile(profileRes.data);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || e?.message || "Kunde inte spara namn");
+    } finally {
+      setLoading(false);
+    }
+  }, [firstName, lastName, token, setProfile]);
 
   const buildPhone = (cc: string, raw: string) =>
     `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
@@ -213,14 +241,58 @@ export default function PhoneGateScreen() {
             </View>
           )}
           <Text style={{ color: palette.text, fontSize: 32, fontWeight: "900", lineHeight: 38, letterSpacing: -0.5, marginBottom: 12 }}>
-            Verifiera ditt{"\n"}
-            <Text style={{ color: palette.gold }}>telefonnummer</Text>
+            {nameOnlyMode ? (
+              <>Vad heter{"\n"}<Text style={{ color: palette.gold }}>du?</Text></>
+            ) : (
+              <>Verifiera ditt{"\n"}<Text style={{ color: palette.gold }}>telefonnummer</Text></>
+            )}
           </Text>
           <Text style={{ color: palette.muted, fontSize: 14, fontWeight: "500", lineHeight: 22, marginBottom: 28 }}>
-            Vi skickar en kod via SMS för att verifiera numret till ditt konto.
+            {nameOnlyMode
+              ? "Apple delade inte ditt namn. Fyll i för- och efternamn så vi kan visa dig korrekt i appen."
+              : "Vi skickar en kod via SMS för att verifiera numret till ditt konto."}
           </Text>
 
-          {step === "phone" && (
+          {step === "phone" && nameOnlyMode && (
+            <View style={{ gap: 12 }}>
+              <TextInput
+                style={{
+                  paddingHorizontal: 16, paddingVertical: 16,
+                  borderRadius: 16, backgroundColor: palette.card,
+                  borderWidth: 1, borderColor: palette.border,
+                  color: palette.text, fontSize: 16, fontWeight: "700",
+                }}
+                placeholder="Förnamn"
+                placeholderTextColor={palette.muted}
+                value={firstName}
+                onChangeText={(t) => { setFirstName(t); setError(""); }}
+                autoCapitalize="words"
+                autoComplete="name-given"
+                textContentType="givenName"
+                returnKeyType="next"
+                autoFocus
+              />
+              <TextInput
+                style={{
+                  paddingHorizontal: 16, paddingVertical: 16,
+                  borderRadius: 16, backgroundColor: palette.card,
+                  borderWidth: 1, borderColor: palette.border,
+                  color: palette.text, fontSize: 16, fontWeight: "700",
+                }}
+                placeholder="Efternamn"
+                placeholderTextColor={palette.muted}
+                value={lastName}
+                onChangeText={(t) => { setLastName(t); setError(""); }}
+                autoCapitalize="words"
+                autoComplete="name-family"
+                textContentType="familyName"
+                returnKeyType="done"
+                onSubmitEditing={saveNameOnly}
+              />
+            </View>
+          )}
+
+          {step === "phone" && !nameOnlyMode && (
             <View style={{ gap: 12 }}>
               {needsName && (
                 <>
@@ -349,7 +421,7 @@ export default function PhoneGateScreen() {
           )}
 
           <Pressable
-            onPress={step === "otp" ? verifyOtp : sendOtp}
+            onPress={nameOnlyMode ? saveNameOnly : (step === "otp" ? verifyOtp : sendOtp)}
             disabled={loading}
             style={{
               backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18,
@@ -361,16 +433,20 @@ export default function PhoneGateScreen() {
               ? <ActivityIndicator color="#000" />
               : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Ionicons name={step === "otp" ? "shield-checkmark-outline" : "send-outline"} size={18} color="#000" />
+                  <Ionicons
+                    name={nameOnlyMode ? "checkmark-circle-outline" : (step === "otp" ? "shield-checkmark-outline" : "send-outline")}
+                    size={18}
+                    color="#000"
+                  />
                   <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>
-                    {step === "otp" ? "Verifiera kod" : "Skicka SMS-kod"}
+                    {nameOnlyMode ? "Spara" : (step === "otp" ? "Verifiera kod" : "Skicka SMS-kod")}
                   </Text>
                 </View>
               )
             }
           </Pressable>
 
-          {step === "otp" && (
+          {!nameOnlyMode && step === "otp" && (
             <Pressable onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }} style={{ alignItems: "center", marginTop: 14, paddingVertical: 8 }}>
               <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Använd ett annat nummer</Text>
             </Pressable>

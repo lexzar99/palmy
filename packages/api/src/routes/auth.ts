@@ -118,16 +118,27 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
     try {
       const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
       if (!error && user) {
-        // Soft-delete check FIRST. If admin deleted this user, their Supabase
-        // JWT is still valid — we have to refuse it ourselves and NOT
-        // recreate the row via upsert below. Returning 401 makes the mobile
-        // axios interceptor clear the local token and force re-login.
+        // Soft-delete revival. Admin-deleted accounts have deletedAt set
+        // and identifying fields nulled out; when the same Apple/Google
+        // user signs in again we treat it as a fresh registration —
+        // clear the tombstone and let the rest of the flow upsert and
+        // re-collect the name/phone. (If you want a true permanent ban,
+        // use isActive=false; that block lives below.)
         const tombstone = await (prisma as any).user.findUnique({
           where: { id: user.id },
-          select: { deletedAt: true },
+          select: { deletedAt: true, isActive: true },
         }).catch(() => null);
+        if (tombstone?.isActive === false) {
+          // Permanent block — admin set isActive=false. Reject without revival.
+          return res.status(401).json({ error: 'Konto avstängt' });
+        }
         if (tombstone?.deletedAt) {
-          return res.status(401).json({ error: 'Konto borttaget' });
+          await (prisma as any).user
+            .update({
+              where: { id: user.id },
+              data: { deletedAt: null, isActive: true, name: '', firstName: null, lastName: null },
+            })
+            .catch(() => null);
         }
         const normalizedPhone = user.phone ? normalizePhone(user.phone) : null;
 
