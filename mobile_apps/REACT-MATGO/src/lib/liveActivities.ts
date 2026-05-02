@@ -272,15 +272,48 @@ export async function endAllOrderActivities(): Promise<void> {
 }
 
 /**
- * Deprecated — no-op kept for backwards compatibility with bg-task imports.
+ * Background-wake LA refresher.
  *
- * The Live Activity is owned exclusively by the backend over the APNs
- * `liveactivity` topic plus the native scheduled auto-end Task in Swift.
- * JS no longer participates in update or end — coupling them caused the
- * "banner stops, LA stops" symptom. JS only calls startOrderActivity once
- * at order placement; everything after is push-driven.
+ * Called from the expo-task-manager background task in
+ * src/lib/backgroundNotifications.ts whenever a `content-available: 1`
+ * APNs alert hits the device. iOS gives JS ~30 s of background runtime —
+ * just enough to GET /api/orders/:id and call native
+ * `LiveActivitiesModule.updateOrderActivity`, which is one of the few
+ * APIs iOS lets you invoke from a backgrounded JS context.
+ *
+ * This is the killed-app / locked-screen fallback for the dedicated
+ * `liveactivity` APNs push, which iOS aggressively throttles when the
+ * user hasn't enabled "Frequent Updates". The two paths are idempotent:
+ * whichever delivers first wins.
+ *
+ * NB: deliberately does NOT end the activity on terminal status. The
+ * dismiss path is owned by the backend's APNs `event:end` push and the
+ * native auto-end Task in Swift — coupling dismissal to JS is what made
+ * the LA freeze when this fetch stalled in the past.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function syncOrderActivityFromServer(_orderId: string): Promise<void> {
-  return;
+export async function syncOrderActivityFromServer(orderId: string): Promise<void> {
+  if (!supported || !orderId) return;
+  try {
+    const res = await api.get(`/api/orders/${orderId}`);
+    const data = res.data ?? {};
+    const status: string | undefined = data.status;
+    const orderType: 'DELIVERY' | 'PICKUP' | undefined =
+      data.orderType || data.type;
+    if (!status) return;
+    const mapped = mapServerStatusToActivity(status, orderType);
+    if (!mapped || mapped.ends) return;
+
+    const etaEndsAtSec =
+      typeof data.etaEndsAt === 'string'
+        ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
+        : null;
+    await updateOrderActivity(orderId, mapped.status, {
+      etaMinutes:
+        typeof data.estimatedTime === 'number' ? data.estimatedTime : undefined,
+      orderType,
+      etaEndsAt: etaEndsAtSec,
+    });
+  } catch (e) {
+    console.warn('[LiveActivities] syncOrderActivityFromServer failed:', e);
+  }
 }

@@ -942,6 +942,43 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Stores the iOS Live Activity push token for an order so the backend can
 // later push status updates straight to the Dynamic Island (works even when
 // the app is killed). Token is hex-encoded and per-activity.
+// GET /api/orders/debug-la-config
+// Reports whether the four APNs env vars Railway needs are set + which host
+// the backend will hit. The full key/team/bundle ids are NOT returned —
+// only presence + length + the first/last 2 chars so we can spot a
+// truncation or extra-quotes bug without leaking the credentials.
+router.get('/debug-la-config', async (_req: Request, res: Response) => {
+  const stripQuotes = (v: string | undefined): string =>
+    (v ?? '').replace(/^["']|["']$/g, '').trim();
+  const keyId = stripQuotes(process.env.APNS_KEY_ID);
+  const teamId = stripQuotes(process.env.APNS_TEAM_ID);
+  const bundleId = stripQuotes(process.env.APNS_BUNDLE_ID);
+  const keyP8 = stripQuotes(process.env.APNS_KEY_P8).replace(/\\n/g, '\n');
+  const previewId = (s: string) => (s.length >= 4 ? `${s.slice(0, 2)}…${s.slice(-2)}` : '<short>');
+  const host =
+    process.env.APNS_PRODUCTION === '1'
+      ? 'api.push.apple.com'
+      : 'api.sandbox.push.apple.com';
+  res.json({
+    apnsHost: host,
+    apnsProductionFlag: process.env.APNS_PRODUCTION === '1',
+    keyId: keyId ? { present: true, len: keyId.length, preview: previewId(keyId) } : { present: false },
+    teamId: teamId ? { present: true, len: teamId.length, preview: previewId(teamId) } : { present: false },
+    bundleId: bundleId ? { present: true, value: bundleId } : { present: false },
+    keyP8: keyP8
+      ? {
+          present: true,
+          len: keyP8.length,
+          looksWrapped:
+            keyP8.includes('-----BEGIN PRIVATE KEY-----') &&
+            keyP8.includes('-----END PRIVATE KEY-----'),
+          hasRealNewlines: keyP8.includes('\n'),
+        }
+      : { present: false },
+    apnsTopic: bundleId ? `${bundleId}.push-type.liveactivity` : null,
+  });
+});
+
 // GET /api/orders/debug-la-tokens
 // Lists the 10 most recent orders that have a Live Activity token registered,
 // so we can pick a fresh order to debug with. No auth — keyed by token

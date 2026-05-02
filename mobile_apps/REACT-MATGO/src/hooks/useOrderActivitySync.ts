@@ -1,25 +1,30 @@
 /**
- * In-app order banner sync. Strictly UI — DOES NOT TOUCH THE LIVE ACTIVITY.
+ * In-app order banner sync — also drives the iOS Live Activity in foreground.
  *
- * The Live Activity is owned exclusively by the backend over the APNs
- * `liveactivity` topic, with a native auto-end Task in Swift as a local
- * fallback for the dismiss timing. JS only calls startOrderActivity once at
- * order placement (CartScreen) and that's it — no update, no end. Coupling
- * the LA to this hook is exactly what made it freeze when the in-app banner
- * fetch stalled, since the hook's terminal-status branch was the dismiss
- * trigger. They are now fully decoupled.
+ * Architecture (belt-and-braces):
+ *   1. Backend pushes APNs `liveactivity` updates whenever admin changes the
+ *      status. That's the path that runs when the app is killed / locked /
+ *      backgrounded > 30 s.
+ *   2. *This hook* additionally calls `updateOrderActivity` from JS whenever
+ *      a socket / poll fetch reports a status change. That's the path that
+ *      runs when the app is alive — and it does NOT depend on iOS Frequent-
+ *      Updates being enabled, on Railway env vars being set correctly, or on
+ *      APNs not being throttled. So the LA always follows the in-app banner
+ *      while the app is open, and APNs handles the killed-app case.
  *
- * What this hook does:
- *   - Mirrors fresh /api/orders/:id snapshots into the Zustand store so the
- *     LiveOrderBanner can render the latest state.
- *   - Schedules the local review notification on DELIVERED so the customer
- *     gets a "Vad tyckte du?" prompt regardless of LA dismissal timing.
+ *   Dismissal stays backend-only (APNs `event: end` + the native auto-end
+ *   Task in Swift). That keeps the dismiss path decoupled from this hook —
+ *   a stalled banner fetch can't freeze the LA the way it used to in
+ *   commit ce3fa6e and earlier.
  */
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { api, SOCKET_URL } from '../lib/api';
-import { mapServerStatusToActivity } from '../lib/liveActivities';
+import {
+  mapServerStatusToActivity,
+  updateOrderActivity,
+} from '../lib/liveActivities';
 import { scheduleReviewNotification } from '../lib/reviewNotification';
 import { useAppStore } from '../store/useAppStore';
 
@@ -51,17 +56,31 @@ export function useOrderActivitySync(orderId: string | null) {
         // Mirror the snapshot into the store so the in-app banner renders.
         setActiveOrderData(data);
 
-        // Banner-only terminal handling. We do NOT touch the Live Activity
-        // here — it dismisses itself via the backend APNs end push and the
-        // native scheduled auto-end Task. Decoupling them means a stalled
-        // banner fetch can never freeze the LA.
         if (status) {
           const mapped = mapServerStatusToActivity(status, orderType);
-          if (mapped?.ends) {
+          if (mapped && mapped.ends) {
+            // Terminal: leave dismissal to the backend APNs `event: end`
+            // push + the native auto-end Task in Swift. Doing
+            // endOrderActivity from JS used to freeze the LA when this fetch
+            // stalled (ce3fa6e regression).
             if (status === 'DELIVERED' || status === 'COMPLETED') {
               void scheduleReviewNotification(orderId, data.restaurantName ?? null);
             }
             setActiveOrder(null);
+          } else if (mapped) {
+            // Foreground LA update: drive the Dynamic Island from JS while
+            // the app is alive. Belt-and-braces with the backend APNs
+            // push — whichever delivers first wins; the second is a no-op
+            // (idempotent state apply).
+            const etaEndsAtSec =
+              typeof data.etaEndsAt === 'string'
+                ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
+                : null;
+            void updateOrderActivity(orderId, mapped.status, {
+              etaMinutes: typeof data.estimatedTime === 'number' ? data.estimatedTime : undefined,
+              orderType,
+              etaEndsAt: etaEndsAtSec,
+            });
           }
         }
       } catch {
