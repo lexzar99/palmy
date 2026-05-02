@@ -230,7 +230,7 @@ router.get('/control-center', async (req, res) => {
         orderBy: { _count: { id: 'desc' } },
         take: 8,
       }),
-      prisma.user.count(),
+      (prisma as any).user.count({ where: { deletedAt: null } }),
     ]);
 
     const restaurantMap = new Map(restaurants.map((restaurant) => [restaurant.id, restaurant]));

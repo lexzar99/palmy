@@ -2016,7 +2016,7 @@ router.get('/system/health', async (req, res) => {
     const [restaurantCount, openRestaurantCount, userCount, pendingOrders, liveOrders, payoutInReview] = await Promise.all([
       prisma.restaurant.count(),
       prisma.restaurant.count({ where: { isOpen: true } }),
-      prisma.user.count(),
+      (prisma as any).user.count({ where: { deletedAt: null } }),
       prisma.order.count({ where: { status: 'PENDING' } }),
       prisma.order.count({ where: { status: { in: ['PENDING', 'ACCEPTED', 'PREPARING', 'READY', 'DELIVERING'] } } }),
       prisma.restaurantPayout.count({ where: { status: { in: ['DRAFT', 'APPROVED', 'HOLD'] } } }),

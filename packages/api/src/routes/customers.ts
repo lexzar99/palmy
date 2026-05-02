@@ -8,7 +8,11 @@ const router = Router();
 // GET /api/customers - List all users with order summary
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
-    const users = await prisma.user.findMany({
+    const users = await (prisma as any).user.findMany({
+      // Hide soft-deleted rows from the admin list — the row stays in the
+      // DB so a re-signed-in customer can be revived (auth.ts handles that),
+      // but the admin shouldn't see them as if they're still around.
+      where: { deletedAt: null },
       include: {
         _count: {
           select: { orders: true }
