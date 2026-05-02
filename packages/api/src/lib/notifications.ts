@@ -1,77 +1,121 @@
-import axios from 'axios';
+import http2 from 'http2';
+import jwt from 'jsonwebtoken';
 import prisma from './prisma';
 
-interface ExpoTicket {
-  status: 'ok' | 'error';
-  id?: string;
-  message?: string;
-  details?: { error?: string };
+const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID ?? 'com.foodgoJalle.app';
+const APNS_HOST = 'https://api.push.apple.com';
+
+let cachedJwt: string | null = null;
+let cachedJwtAt = 0;
+
+function getApnsJwt(): string {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedJwt && now - cachedJwtAt < 1800) return cachedJwt;
+
+  const privateKey = (process.env.APNS_PRIVATE_KEY ?? '').replace(/\\n/g, '\n');
+  cachedJwt = jwt.sign({ iss: process.env.APNS_TEAM_ID }, privateKey, {
+    algorithm: 'ES256',
+    keyid: process.env.APNS_KEY_ID,
+    expiresIn: '1h',
+  });
+  cachedJwtAt = now;
+  return cachedJwt;
 }
 
-interface SendResult {
+export interface SendResult {
   sent: number;
   errors: number;
 }
 
-export async function sendPushNotification(tokens: string[], title: string, body: string, data?: any): Promise<SendResult> {
-  if (tokens.length === 0) return { sent: 0, errors: 0 };
+// Sends to multiple APNs device tokens over a single HTTP/2 session.
+export function sendPushNotification(tokens: string[], title: string, body: string, data?: any): Promise<SendResult> {
+  if (tokens.length === 0) return Promise.resolve({ sent: 0, errors: 0 });
 
-  const messages = tokens.map(token => ({
-    to: token,
-    sound: 'default',
-    title,
-    body,
-    data: data || {},
-    priority: 'high',
-    channelId: 'default',
-  }));
+  return new Promise((resolve) => {
+    const client = http2.connect(APNS_HOST);
+    let pending = tokens.length;
+    let sent = 0;
+    let errors = 0;
 
-  const response = await axios.post('https://exp.host/--/api/v2/push/send', messages, {
-    headers: {
-      'Accept': 'application/json',
-      'Accept-encoding': 'gzip, deflate',
-      'Content-Type': 'application/json',
-    },
-  });
+    const finish = () => {
+      client.close();
+      resolve({ sent, errors });
+    };
 
-  const tickets: ExpoTicket[] = response.data?.data || [];
-  let sent = 0;
-  let errors = 0;
+    client.on('error', (err) => {
+      console.error('❌ APNs session error:', err.message);
+      resolve({ sent, errors: pending });
+    });
 
-  for (const ticket of tickets) {
-    if (ticket.status === 'ok') {
-      sent++;
-    } else {
-      errors++;
-      console.error(`❌ Expo ticket error: ${ticket.message}`, ticket.details);
+    const payload = JSON.stringify({
+      aps: {
+        alert: { title, body },
+        sound: 'default',
+      },
+      ...(data ?? {}),
+    });
+    const payloadBytes = Buffer.byteLength(payload);
+    const jwtToken = getApnsJwt();
+
+    for (const token of tokens) {
+      const req = client.request({
+        ':method': 'POST',
+        ':path': `/3/device/${token}`,
+        'authorization': `bearer ${jwtToken}`,
+        'apns-topic': APNS_BUNDLE_ID,
+        'apns-push-type': 'alert',
+        'apns-priority': '10',
+        'content-type': 'application/json',
+        'content-length': payloadBytes,
+      });
+
+      req.write(payload);
+      req.end();
+
+      let status = 0;
+      let body = '';
+
+      req.on(':response', (headers) => { status = headers[':status'] as number; });
+      req.on('data', (chunk) => { body += chunk; });
+      req.on('end', () => {
+        if (status === 200) {
+          sent++;
+        } else {
+          errors++;
+          try {
+            const parsed = JSON.parse(body) as { reason?: string };
+            console.error(`❌ APNs ${token.slice(0, 8)}…: ${parsed.reason ?? status}`);
+          } catch {
+            console.error(`❌ APNs HTTP ${status} for ${token.slice(0, 8)}…`);
+          }
+        }
+        pending--;
+        if (pending === 0) finish();
+      });
+      req.on('error', (err) => {
+        errors++;
+        console.error('❌ APNs req error:', err.message);
+        pending--;
+        if (pending === 0) finish();
+      });
     }
-  }
-
-  if (errors > 0) {
-    console.warn(`⚠️ Expo Push: ${sent} ok, ${errors} errors out of ${tickets.length} tickets`);
-  }
-
-  return { sent, errors };
+  });
 }
 
 export async function sendToUser(identifier: string, title: string, body: string, data?: any) {
   const user = await prisma.user.findFirst({
     where: {
-      OR: [
-        { id: identifier },
-        { email: identifier },
-        { phone: identifier },
-      ],
+      OR: [{ id: identifier }, { email: identifier }, { phone: identifier }],
       deletedAt: null,
     },
-    select: { pushToken: true, id: true },
+    select: { apnsDeviceToken: true, id: true },
   });
 
-  if (!user?.pushToken || !user.pushToken.startsWith('ExponentPushToken')) {
-    return { success: false, count: 0, errors: 0, error: 'Användaren har ingen push-token registrerad' };
+  if (!user?.apnsDeviceToken) {
+    return { success: false, count: 0, errors: 0, error: 'Användaren har ingen APNs-token registrerad' };
   }
 
-  const result = await sendPushNotification([user.pushToken], title, body, data);
+  const result = await sendPushNotification([user.apnsDeviceToken], title, body, data);
   return { success: result.errors === 0, count: result.sent, errors: result.errors };
 }
 
@@ -79,27 +123,21 @@ export async function sendToCity(city: string, title: string, body: string, data
   const users = await prisma.user.findMany({
     where: {
       city: { contains: city, mode: 'insensitive' },
-      pushToken: { not: null },
+      apnsDeviceToken: { not: null },
       isActive: true,
       deletedAt: null,
     },
-    select: { pushToken: true },
+    select: { apnsDeviceToken: true },
   });
 
-  const tokens = users
-    .map((u) => u.pushToken as string)
-    .filter((t) => t && t.startsWith('ExponentPushToken'));
+  const tokens = users.map((u) => u.apnsDeviceToken as string).filter(Boolean);
 
-  if (tokens.length === 0) {
-    return { success: true, count: 0, errors: 0 };
-  }
+  if (tokens.length === 0) return { success: true, count: 0, errors: 0 };
 
   const chunks: string[][] = [];
-  for (let i = 0; i < tokens.length; i += 100) {
-    chunks.push(tokens.slice(i, i + 100));
-  }
+  for (let i = 0; i < tokens.length; i += 500) chunks.push(tokens.slice(i, i + 500));
 
-  const results = await Promise.all(chunks.map((chunk) => sendPushNotification(chunk, title, body, data)));
+  const results = await Promise.all(chunks.map((c) => sendPushNotification(c, title, body, data)));
   const sent = results.reduce((s, r) => s + r.sent, 0);
   const errors = results.reduce((s, r) => s + r.errors, 0);
   return { success: errors === 0, count: sent, errors, chunks: chunks.length };
@@ -107,28 +145,18 @@ export async function sendToCity(city: string, title: string, body: string, data
 
 export async function sendToAllUsers(title: string, body: string, data?: any) {
   const users = await prisma.user.findMany({
-    where: {
-      pushToken: { not: null },
-      isActive: true,
-      deletedAt: null,
-    },
-    select: { pushToken: true },
+    where: { apnsDeviceToken: { not: null }, isActive: true, deletedAt: null },
+    select: { apnsDeviceToken: true },
   });
 
-  const tokens = users
-    .map(u => u.pushToken as string)
-    .filter(t => t && t.startsWith('ExponentPushToken'));
+  const tokens = users.map((u) => u.apnsDeviceToken as string).filter(Boolean);
 
-  if (tokens.length === 0) {
-    return { success: true, count: 0, errors: 0 };
-  }
+  if (tokens.length === 0) return { success: true, count: 0, errors: 0 };
 
   const chunks: string[][] = [];
-  for (let i = 0; i < tokens.length; i += 100) {
-    chunks.push(tokens.slice(i, i + 100));
-  }
+  for (let i = 0; i < tokens.length; i += 500) chunks.push(tokens.slice(i, i + 500));
 
-  const results = await Promise.all(chunks.map(chunk => sendPushNotification(chunk, title, body, data)));
+  const results = await Promise.all(chunks.map((c) => sendPushNotification(c, title, body, data)));
   const sent = results.reduce((s, r) => s + r.sent, 0);
   const errors = results.reduce((s, r) => s + r.errors, 0);
   return { success: errors === 0, count: sent, errors, chunks: chunks.length };
