@@ -13,7 +13,7 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { AddressCollectionMode, CollectionMode } from "@stripe/stripe-react-native";
+import { AddressCollectionMode, CollectionMode, isPlatformPaySupported } from "@stripe/stripe-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
@@ -803,7 +803,26 @@ export default function CartScreen({
           }
         });
 
+        // Pre-flight: ask Stripe SDK if Apple Pay is actually usable on this
+        // device + with our merchantIdentifier entitlement. If it returns
+        // false, log clearly so we know Stripe is going to filter Apple Pay
+        // out of the sheet — that's why the button doesn't appear.
+        let applePaySupported = false;
+        try {
+          applePaySupported = await isPlatformPaySupported({ applePay: { merchantCountryCode: "SE" } });
+        } catch (probeErr: any) {
+          captureError(probeErr, { stage: "isPlatformPaySupported" });
+        }
+        console.log(`[stripe] isPlatformPaySupported(applePay) → ${applePaySupported}`);
+        if (!applePaySupported) {
+          captureError(new Error("[stripe] Apple Pay not supported on this build/device — sheet will not show the button"), {
+            platform: Platform.OS,
+            note: "Check: (1) Apple Pay capability in Xcode, (2) merchant ID matches entitlement, (3) Apple Pay Payment Processing Cert uploaded to Stripe Dashboard for this merchant ID, (4) device has a card in Wallet, (5) you're on a real device not simulator",
+          });
+        }
+
         let initInfo = await initPaymentSheet(buildSheetConfig(true) as any);
+        console.log("[stripe] initPaymentSheet result:", initInfo.error ? `ERROR ${initInfo.error.code}: ${initInfo.error.message}` : "OK");
 
         // Auto-degrade: if Apple Pay entitlement is missing for some reason,
         // retry without applePay so card payment still works.
