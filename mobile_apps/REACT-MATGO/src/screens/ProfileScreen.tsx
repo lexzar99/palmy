@@ -119,6 +119,12 @@ export default function ProfileScreen({
   const [addPhoneNum, setAddPhoneNum] = useState("");
   const [addPhoneLoading, setAddPhoneLoading] = useState(false);
   const [addPhoneError, setAddPhoneError] = useState("");
+  // Apple-name gate (only fires when /api/profile.needsName === true).
+  const [showAddName, setShowAddName] = useState(false);
+  const [addFirstName, setAddFirstName] = useState("");
+  const [addLastName, setAddLastName] = useState("");
+  const [addNameSaving, setAddNameSaving] = useState(false);
+  const [addNameError, setAddNameError] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(() => cachedData?.editName || profile?.name || "");
@@ -140,16 +146,51 @@ export default function ProfileScreen({
   // backend also rejects OAuth-only users on protected endpoints.
   const handleSocialAuthResult = useCallback((result: { token: string; user: any }) => {
     setSocialLoading(null);
+    setToken(result.token);
+    setProfile(result.user);
+    if (result.user?.needsName) {
+      setShowAddName(true);
+      // Phone collection (if also needed) happens after name in this flow,
+      // so don't open AddPhone yet — handleAddName will route to it.
+      return;
+    }
     if (result.user?.needsPhone) {
-      setToken(result.token);
-      setProfile(result.user);
       setShowAddPhone(true);
       return;
     }
-    setToken(result.token);
-    setProfile(result.user);
     fetchProfileData(result.token);
   }, [setToken, setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAddName = useCallback(async () => {
+    const first = addFirstName.trim();
+    const last = addLastName.trim();
+    if (!first) { setAddNameError("Ange ditt förnamn"); return; }
+    if (!last) { setAddNameError("Ange ditt efternamn"); return; }
+    if (!token) { setAddNameError("Sessionen tappades"); return; }
+    setAddNameError("");
+    setAddNameSaving(true);
+    try {
+      await api.patch(
+        "/api/profile",
+        { firstName: first, lastName: last, name: `${first} ${last}` },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const profileRes = await api.get("/api/profile", { headers: { Authorization: `Bearer ${token}` } });
+      setProfile(profileRes.data);
+      setShowAddName(false);
+      setAddFirstName("");
+      setAddLastName("");
+      if (profileRes.data?.needsPhone) {
+        setShowAddPhone(true);
+      } else {
+        fetchProfileData(token);
+      }
+    } catch (e: any) {
+      setAddNameError(e.response?.data?.error || e.message || "Kunde inte spara namn");
+    } finally {
+      setAddNameSaving(false);
+    }
+  }, [addFirstName, addLastName, token, setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (googleResult) handleSocialAuthResult(googleResult);

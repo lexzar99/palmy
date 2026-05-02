@@ -57,6 +57,7 @@ import {
   WEB_URL,
   api,
   getImageUrl,
+  setUnauthorizedHandler,
 } from "./src/lib/api";
 import {
   APP_AUTH_CALLBACK_URL,
@@ -631,6 +632,21 @@ function AppContent() {
   }, [setActiveOrder]);
 
   const { requestPermission: requestPushPermission, initialNotificationData } = usePushNotifications(token, handleNotificationTap);
+
+  // Wire the axios interceptor's onUnauthorized callback to wipe local auth.
+  // Backend returns 401 when a soft-deleted user (admin removed them) tries
+  // to authenticate, or when the JWT is otherwise dead. This bounces the
+  // user back to the auth screen instead of leaving them in a "logged in
+  // but every API call fails" state.
+  useEffect(() => {
+    const setProfile = useAppStore.getState().setProfile;
+    setUnauthorizedHandler(() => {
+      setToken(null);
+      setProfile(null);
+      setActiveOrder(null);
+    });
+    return () => setUnauthorizedHandler(() => undefined);
+  }, [setToken, setActiveOrder]);
 
   // Keep the iOS Live Activity / Dynamic Island in sync with whatever the
   // backend reports, regardless of which screen the user is currently on.

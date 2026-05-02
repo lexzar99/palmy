@@ -118,6 +118,17 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
     try {
       const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
       if (!error && user) {
+        // Soft-delete check FIRST. If admin deleted this user, their Supabase
+        // JWT is still valid — we have to refuse it ourselves and NOT
+        // recreate the row via upsert below. Returning 401 makes the mobile
+        // axios interceptor clear the local token and force re-login.
+        const tombstone = await (prisma as any).user.findUnique({
+          where: { id: user.id },
+          select: { deletedAt: true },
+        }).catch(() => null);
+        if (tombstone?.deletedAt) {
+          return res.status(401).json({ error: 'Konto borttaget' });
+        }
         const normalizedPhone = user.phone ? normalizePhone(user.phone) : null;
 
         // Check if a local user already exists with this phone under a different ID.
@@ -209,6 +220,15 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
   // ── 2. Fall back to legacy custom JWT ────────────────────────────────────
   try {
     const payload = jwt.verify(token, JWT_SECRET) as any;
+    if (payload?.id) {
+      const tombstone = await (prisma as any).user.findUnique({
+        where: { id: payload.id },
+        select: { deletedAt: true },
+      }).catch(() => null);
+      if (tombstone?.deletedAt) {
+        return res.status(401).json({ error: 'Konto borttaget' });
+      }
+    }
     req.user = payload;
     return next();
   } catch {

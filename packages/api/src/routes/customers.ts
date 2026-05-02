@@ -72,12 +72,33 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   }
 });
 
-// DELETE /api/customers/:id - Delete customer
+// DELETE /api/customers/:id - Soft-delete customer
+//
+// Hard-deleting wouldn't stick: the customer's Supabase JWT (Apple / Google)
+// stays valid, so the next authenticated API call would silently re-create
+// the same row via authenticateUser's upsert and they'd appear "logged in
+// again". Instead we mark deletedAt + scrub identifying columns; the auth
+// middleware checks deletedAt and rejects with 401, the mobile axios
+// interceptor catches that and clears the local token, forcing re-login.
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    await prisma.user.delete({ where: { id: req.params.id } });
+    const id = req.params.id;
+    await prisma.user.update({
+      where: { id },
+      data: {
+        deletedAt: new Date(),
+        // Free up the unique email/phone slots so a future signup with
+        // the same address isn't blocked by the soft-deleted row.
+        email: null,
+        phone: null,
+        pushToken: null,
+        apnsDeviceToken: null,
+        isActive: false,
+      },
+    });
     res.json({ success: true });
   } catch (error) {
+    console.error('Soft-delete customer failed:', error);
     res.status(500).json({ error: 'Kunde inte ta bort kunden' });
   }
 });

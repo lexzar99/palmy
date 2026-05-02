@@ -17,6 +17,29 @@ export const api = axios.create({
   timeout: 15000,
 });
 
+// Lazy-registered handler for unauthorised responses. App.tsx calls
+// `setUnauthorizedHandler` once at mount with a function that clears the
+// auth store. We avoid importing the store directly here so this module
+// stays import-cycle-free with the Zustand setup in store/useAppStore.
+let unauthorizedHandler: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Only log out on UNAUTHENTICATED responses to OUR auth-gated endpoints.
+    // Routes that return 401 because of input validation aren't a session
+    // issue — but our backend uses 401 only when auth is missing/expired/
+    // soft-deleted, so we can treat every 401 as a "the session is dead".
+    if (error?.response?.status === 401 && unauthorizedHandler) {
+      try { unauthorizedHandler(); } catch {}
+    }
+    return Promise.reject(error);
+  },
+);
+
 export function getImageUrl(path?: string | null) {
   if (!path) return "";
   if (path.startsWith("http") || path.startsWith("data:")) return path;

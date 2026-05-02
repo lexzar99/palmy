@@ -323,6 +323,7 @@ model User {
   internalInfo   String?
   pushToken      String?
   apnsDeviceToken String?
+  deletedAt      DateTime?      // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]
