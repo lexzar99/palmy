@@ -941,6 +941,39 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Stores the iOS Live Activity push token for an order so the backend can
 // later push status updates straight to the Dynamic Island (works even when
 // the app is killed). Token is hex-encoded and per-activity.
+// GET /api/orders/debug-la-tokens
+// Lists the 10 most recent orders that have a Live Activity token registered,
+// so we can pick a fresh order to debug with. No auth — keyed by token
+// preview only, full token never exposed.
+router.get('/debug-la-tokens', async (_req: Request, res: Response) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { liveActivityToken: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        status: true,
+        type: true,
+        createdAt: true,
+        liveActivityToken: true,
+      },
+    });
+    res.json({
+      orders: orders.map((o) => ({
+        id: o.id,
+        status: o.status,
+        type: o.type,
+        createdAt: o.createdAt.toISOString(),
+        ageSeconds: Math.floor((Date.now() - o.createdAt.getTime()) / 1000),
+        tokenPreview: o.liveActivityToken!.slice(0, 16) + '…',
+      })),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e?.message ?? String(e) });
+  }
+});
+
 // POST /api/orders/:id/debug-la-push
 // Manually triggers a Live Activity push for an order so we can isolate
 // APNs delivery from the admin status-update flow. Returns the result of
