@@ -21,6 +21,7 @@ import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { placesAutocomplete, placesResolveCoords } from "../lib/places";
 import { captureError } from "../lib/sentry";
 import { STRIPE_PUBLISHABLE_KEY } from "../lib/api";
+import { EXPO_PUBLIC_APPLE_PAY_ENABLED } from "../lib/env";
 import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
@@ -763,10 +764,13 @@ export default function CartScreen({
           );
         }
 
-        const initInfo = await initPaymentSheet({
+        // Build the payment-sheet config. Apple Pay is OPT-IN via env var
+        // because it throws hard if the iOS Apple Pay capability isn't in
+        // the Xcode entitlements. Card / Google Pay always work.
+        const buildSheetConfig = (includeApplePay: boolean) => ({
           merchantDisplayName: 'FoodGo',
           paymentIntentClientSecret: clientSecret,
-          applePay: { merchantCountryCode: 'SE' },
+          ...(includeApplePay ? { applePay: { merchantCountryCode: 'SE' } } : {}),
           googlePay: { merchantCountryCode: 'SE', testEnv: false },
           returnURL: 'foodgo://stripe-redirect',
           appearance: {
@@ -800,21 +804,24 @@ export default function CartScreen({
           }
         });
 
+        let initInfo = await initPaymentSheet(buildSheetConfig(EXPO_PUBLIC_APPLE_PAY_ENABLED) as any);
+
+        // Auto-degrade: if Apple Pay was requested but the iOS entitlement
+        // is missing, retry without applePay so card payment still works.
+        if (initInfo.error
+            && EXPO_PUBLIC_APPLE_PAY_ENABLED
+            && String(initInfo.error.message || "").toLowerCase().includes("merchantidentifier")) {
+          captureError(new Error("[stripe-init] Apple Pay entitlement missing — retrying without Apple Pay"), {
+            stripeErrorMessage: initInfo.error.message,
+          });
+          initInfo = await initPaymentSheet(buildSheetConfig(false) as any);
+        }
+
         if (initInfo.error) {
-          // Detailed Sentry breadcrumb so we can diagnose Apple Pay
-          // entitlement / merchantIdentifier mismatches in production.
           captureError(new Error(`[stripe-init] ${initInfo.error.code}: ${initInfo.error.message}`), {
             stripeErrorCode: initInfo.error.code,
             stripeErrorMessage: initInfo.error.message,
           });
-          // Special-case the merchantIdentifier error so the user sees a
-          // helpful pointer instead of a Stripe-internal string.
-          const msg = String(initInfo.error.message || "");
-          if (msg.toLowerCase().includes("merchantidentifier")) {
-            throw new Error(
-              "Apple Pay är inte korrekt konfigurerad i appen. Försök betala med kort istället, eller starta om appen."
-            );
-          }
           throw new Error(initInfo.error.message || "Betalningsformuläret kunde inte öppnas.");
         }
 
