@@ -23,12 +23,12 @@ export function AppStripeProvider({ children, publishableKey, urlScheme }: { chi
     }
   }, [publishableKey]);
 
+  // merchantIdentifier kvar här så Apple Pay kan slås på i CartScreen
+  // (EXPO_PUBLIC_APPLE_PAY_ENABLED) utan att StripeProvider behöver ändras.
   return (
     <StripeProvider
       publishableKey={publishableKey}
       urlScheme={urlScheme}
-      // Must match app.json ios.plugins["@stripe/stripe-react-native"].merchantIdentifier
-      // AND the merchant ID registered in Apple Developer → Identifiers.
       merchantIdentifier={EXPO_PUBLIC_STRIPE_MERCHANT_ID}
     >
       <>{children}</>
