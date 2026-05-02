@@ -472,44 +472,57 @@ router.patch('/orders/:id/status', async (req, res) => {
           body = "Hoppas det smakade!";
         }
 
-        // Föredra direkt APNs när vi har enhetens token: då kan vi sätta
-        // apns-collapse-id="order-<id>" så iOS *ersätter* den föregående
-        // notisen istället för att lägga ihop en ny per statusstep.
-        if (userToNotify.apnsDeviceToken) {
-          console.log(`[push] Order ${order.id} -> APNs direct (collapse) status=${status}`);
-          await sendApnsAlert({
-            token: userToNotify.apnsDeviceToken,
-            title,
-            body,
-            collapseId: `order-${order.id}`,
-            threadId: `order-${order.id}`,
-            data: { orderId: order.id, status },
-          }).catch(async (e) => {
-            console.warn('[admin] APNs alert failed:', e?.message);
-            // Token rotated / app uninstalled / wrong environment — wipe so
-            // we don't keep banging on a dead token. Client re-registers
-            // automatically next time the user opens the app.
-            if (e instanceof ApnsError && e.invalidToken && existing.userId) {
-              await (prisma as any).user
-                .update({ where: { id: existing.userId }, data: { apnsDeviceToken: null } })
-                .catch(() => null);
-            }
-          });
+        // Notification policy:
+        //   - If a Live Activity is active for this order (liveActivityToken
+        //     present): send ONLY a silent content-available wake. The LA
+        //     itself is the user-visible surface — duplicating it as a
+        //     banner on the Lock Screen is the spam the user complained
+        //     about. Silent wake still drives the JS-side background sync
+        //     as a belt-and-braces fallback for the dedicated LA push.
+        //   - If no Live Activity (older iOS, LA dismissed, Android):
+        //     send one regular alert with apns-collapse-id so each new
+        //     status REPLACES the previous notification instead of
+        //     stacking a fresh one per step.
+        const hasLiveActivity = !!existing.liveActivityToken;
 
-          // Belt-and-braces: also fire a silent (priority 5, content-available)
-          // wake. Different APNs delivery pipeline than the alert push above —
-          // when iOS throttles one, the other often still wakes JS so the
-          // background notification task can call Activity.update().
-          sendApnsSilentWake({
-            token: userToNotify.apnsDeviceToken,
-            data: { orderId: order.id, status, kind: 'la-wake' },
-            collapseId: `order-${order.id}-wake`,
-          }).catch((e) => {
-            console.warn('[admin] silent wake failed:', e?.message);
-          });
+        if (userToNotify.apnsDeviceToken) {
+          if (hasLiveActivity) {
+            console.log(`[push] Order ${order.id} -> silent wake only (LA active) status=${status}`);
+            sendApnsSilentWake({
+              token: userToNotify.apnsDeviceToken,
+              data: { orderId: order.id, status, kind: 'la-wake' },
+              collapseId: `order-${order.id}-wake`,
+            }).catch((e) => {
+              console.warn('[admin] silent wake failed:', e?.message);
+            });
+          } else {
+            console.log(`[push] Order ${order.id} -> APNs alert (no LA, collapse) status=${status}`);
+            await sendApnsAlert({
+              token: userToNotify.apnsDeviceToken,
+              title,
+              body,
+              collapseId: `order-${order.id}`,
+              threadId: `order-${order.id}`,
+              data: { orderId: order.id, status },
+            }).catch(async (e) => {
+              console.warn('[admin] APNs alert failed:', e?.message);
+              if (e instanceof ApnsError && e.invalidToken && existing.userId) {
+                await (prisma as any).user
+                  .update({ where: { id: existing.userId }, data: { apnsDeviceToken: null } })
+                  .catch(() => null);
+              }
+            });
+          }
         } else if (userToNotify.pushToken) {
-          console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);
-          await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });
+          // Expo path (Android, or iOS without raw APNs token). Expo doesn't
+          // support apns-collapse-id, but we still avoid the alert when an
+          // LA is active so iOS users don't get a banner alongside the LA.
+          if (hasLiveActivity) {
+            console.log(`[push] Order ${order.id} -> Expo skipped (LA active) status=${status}`);
+          } else {
+            console.log(`[push] Order ${order.id} -> Expo (no apnsDeviceToken on user) status=${status}`);
+            await sendPushNotification([userToNotify.pushToken], title, body, { orderId: order.id, status });
+          }
         } else {
           console.warn(`[push] Order ${order.id} -> NO push tokens on user, skipping notification`);
         }
