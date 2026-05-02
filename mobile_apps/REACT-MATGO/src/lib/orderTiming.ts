@@ -26,9 +26,19 @@ export const DELIVERY_AUTO_COMPLETE_MS =
 export type AutoDismissInput = {
   status?: string | null;
   deliveringAt?: string | number | Date | null;
-  etaEndsAt?: number | null; // Unix epoch *seconds*
+  // Accepts both Unix epoch *seconds* (number) and ISO 8601 string.
+  // Backend's GET /api/orders/:id returns ISO string today; some local
+  // call-sites compute it as seconds. Both work.
+  etaEndsAt?: number | string | null;
   now?: number;              // override for tests
 };
+
+// Returns the etaEndsAt in milliseconds, or NaN if missing/invalid.
+function etaEndsAtMs(value: AutoDismissInput["etaEndsAt"]): number {
+  if (typeof value === "number") return value * 1000;
+  if (typeof value === "string") return new Date(value).getTime();
+  return NaN;
+}
 
 export type AutoDismissResult =
   | { ready: true }
@@ -55,9 +65,13 @@ export function evaluateOnTheWayDismiss(input: AutoDismissInput): AutoDismissRes
     return { ready: false, msUntilReady: null };
   }
 
-  const windowEdge = deliveringTs + DELIVERY_AUTO_DISMISS_MS;
-  const timerEdge = typeof input.etaEndsAt === "number" ? input.etaEndsAt * 1000 : windowEdge;
-  const dismissAt = Math.max(windowEdge, timerEdge);
+  // etaEndsAt (server-side per-order window from computeDeliveryWindowMs) is
+  // authoritative when present. The local DELIVERY_AUTO_DISMISS_MS constant
+  // is only the fallback when the server didn't supply one.
+  const etaMs = etaEndsAtMs(input.etaEndsAt);
+  const dismissAt = Number.isFinite(etaMs)
+    ? etaMs
+    : deliveringTs + DELIVERY_AUTO_DISMISS_MS;
 
   const ms = dismissAt - now;
   if (ms <= 0) return { ready: true };
@@ -81,11 +95,12 @@ export function evaluateOnTheWayComplete(input: AutoDismissInput): AutoDismissRe
     return { ready: false, msUntilReady: null };
   }
 
-  const windowEdge = deliveringTs + DELIVERY_AUTO_COMPLETE_MS;
-  const timerEdge = typeof input.etaEndsAt === "number"
-    ? input.etaEndsAt * 1000 + DELIVERY_AUTO_COMPLETE_GRACE_MS
-    : windowEdge;
-  const completeAt = Math.max(windowEdge, timerEdge);
+  // Same priority rule as the dismiss helper: etaEndsAt wins when present,
+  // and we just bolt the grace window on top.
+  const etaMs = etaEndsAtMs(input.etaEndsAt);
+  const completeAt = Number.isFinite(etaMs)
+    ? etaMs + DELIVERY_AUTO_COMPLETE_GRACE_MS
+    : deliveringTs + DELIVERY_AUTO_COMPLETE_MS;
 
   const ms = completeAt - now;
   if (ms <= 0) return { ready: true };

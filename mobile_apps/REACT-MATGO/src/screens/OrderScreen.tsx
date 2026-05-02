@@ -118,8 +118,15 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     const etaEndsAt = (order as any)?.etaEndsAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
 
-    const flipAt = typeof etaEndsAt === "number"
+    // Backend may send etaEndsAt as ISO string OR Unix epoch seconds.
+    // Both shapes are accepted; ISO is the current production format.
+    const etaMs = typeof etaEndsAt === "number"
       ? etaEndsAt * 1000
+      : typeof etaEndsAt === "string"
+      ? new Date(etaEndsAt).getTime()
+      : NaN;
+    const flipAt = Number.isFinite(etaMs)
+      ? etaMs
       : new Date(deliveringAt).getTime() + DELIVERY_AUTO_DISMISS_MS;
 
     const flip = () => {
