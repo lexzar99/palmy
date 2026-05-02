@@ -10,6 +10,15 @@ export const EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE
 // and the merchant ID registered in your Apple Developer account.
 export const EXPO_PUBLIC_STRIPE_MERCHANT_ID =
   process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID?.trim() || "merchant.com.foodgoJalle.app";
+// Apple Pay is OPT-IN. Stripe throws "merchantIdentifier is required, but
+// none was found" the moment we ask for Apple Pay if the iOS Apple Pay
+// capability isn't enabled in Xcode (Signing & Capabilities → + Capability →
+// Apple Pay → tick merchant ID). Until that's done, leave this off so card
+// checkout still works. Set to "true" only after the capability is added,
+// the merchant ID is registered in Apple Developer, AND the provisioning
+// profile is regenerated.
+export const EXPO_PUBLIC_APPLE_PAY_ENABLED =
+  process.env.EXPO_PUBLIC_APPLE_PAY_ENABLED?.trim().toLowerCase() === "true";
 export const EXPO_PUBLIC_GEOAPIFY_KEY = process.env.EXPO_PUBLIC_GEOAPIFY_KEY?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
