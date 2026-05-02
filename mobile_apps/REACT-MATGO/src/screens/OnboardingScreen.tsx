@@ -25,7 +25,7 @@ const COUNTRY_CODES = [
 ];
 
 type MainStep = "notifications" | "auth" | "location";
-type AuthStep = "landing" | "phone" | "profile" | "otp" | "appleName";
+type AuthStep = "landing" | "phone" | "profile" | "otp";
 
 // ─── Full-page permission screen ───────────────────────────────────────────────
 function PermissionPage({
@@ -170,9 +170,6 @@ export default function OnboardingScreen({
   const [countryCode, setCountryCode] = useState("+46");
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const [appleFirstName, setAppleFirstName] = useState("");
-  const [appleLastName, setAppleLastName] = useState("");
-  const [appleNameSaving, setAppleNameSaving] = useState(false);
   const [email, setEmail] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
@@ -377,16 +374,8 @@ export default function OnboardingScreen({
 
   useEffect(() => {
     if (!appleResult) return;
-    // Apple may have shipped no name (subsequent sign-ins always do this) —
-    // in that case we MUST collect first+last from the user before letting
-    // them in. We never fall back to a placeholder like "Användare".
-    if (appleResult.user.needsName) {
-      setPendingToken(appleResult.token);
-      setPendingProfile(appleResult.user);
-      setIsGoogleLinking(true);
-      setStep("appleName");
-      return;
-    }
+    // If Apple didn't share the name we let the user through anyway —
+    // they can fill it in later from their profile.
     if (appleResult.user.needsPhone) {
       setPendingToken(appleResult.token);
       setPendingProfile(appleResult.user);
@@ -396,38 +385,6 @@ export default function OnboardingScreen({
       afterAuth(appleResult.token, appleResult.user);
     }
   }, [appleResult]);
-
-  const handleAppleNameSubmit = async () => {
-    const first = appleFirstName.trim();
-    const last = appleLastName.trim();
-    if (!first) { setError("Ange ditt förnamn"); return; }
-    if (!last) { setError("Ange ditt efternamn"); return; }
-    if (!pendingToken) { setError("Sessionen tappades, försök logga in igen"); return; }
-    setError("");
-    setAppleNameSaving(true);
-    try {
-      await api.patch(
-        "/api/profile",
-        { firstName: first, lastName: last, name: `${first} ${last}` },
-        { headers: { Authorization: `Bearer ${pendingToken}` } },
-      );
-      const profileRes = await api.get("/api/profile", {
-        headers: { Authorization: `Bearer ${pendingToken}` },
-      });
-      const fresh = profileRes.data;
-      // After saving the name, decide what's left to collect.
-      if (fresh.needsPhone) {
-        setPendingProfile(fresh);
-        setStep("phone");
-      } else {
-        afterAuth(pendingToken, fresh);
-      }
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message || "Kunde inte spara namn");
-    } finally {
-      setAppleNameSaving(false);
-    }
-  };
 
   useEffect(() => {
     if (appleError && appleError !== "__cancelled__") setError(appleError);
@@ -977,55 +934,6 @@ export default function OnboardingScreen({
                       ? <ActivityIndicator color="#000" />
                       : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{isGoogleLinking ? t('onboarding.phone.verifyBtn') : t('onboarding.phone.continueBtn')}</Text>
                     }
-                  </Pressable>
-                </>
-              )}
-
-              {/* ── APPLE NAME (firstname + lastname after Apple sign-in) ── */}
-              {step === "appleName" && (
-                <>
-                  <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", marginBottom: 4 }}>
-                    Vad heter du?
-                  </Text>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600", marginBottom: 14 }}>
-                    Apple delade inte ditt namn — fyll i för- och efternamn så vi kan visa dig korrekt i appen.
-                  </Text>
-                  <TextInput
-                    style={[styles.input, { paddingVertical: 18 }]}
-                    placeholder="Förnamn"
-                    placeholderTextColor={palette.muted}
-                    autoCapitalize="words"
-                    autoComplete="name-given"
-                    textContentType="givenName"
-                    value={appleFirstName}
-                    onChangeText={(t) => { setAppleFirstName(t); setError(""); }}
-                  />
-                  <TextInput
-                    style={[styles.input, { paddingVertical: 18 }]}
-                    placeholder="Efternamn"
-                    placeholderTextColor={palette.muted}
-                    autoCapitalize="words"
-                    autoComplete="name-family"
-                    textContentType="familyName"
-                    value={appleLastName}
-                    onChangeText={(t) => { setAppleLastName(t); setError(""); }}
-                  />
-                  {!!error && (
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                    </View>
-                  )}
-                  <Pressable
-                    onPress={handleAppleNameSubmit}
-                    disabled={appleNameSaving || !appleFirstName.trim() || !appleLastName.trim()}
-                    style={{
-                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
-                      opacity: appleNameSaving || !appleFirstName.trim() || !appleLastName.trim() ? 0.55 : 1, marginTop: 4,
-                    }}
-                  >
-                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>
-                      {appleNameSaving ? "Sparar…" : "Fortsätt"}
-                    </Text>
                   </Pressable>
                 </>
               )}

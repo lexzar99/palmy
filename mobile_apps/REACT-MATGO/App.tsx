@@ -1056,7 +1056,10 @@ function AppContent() {
                   <RegisterScreen
                     initialPhone={props.route.params?.initialPhone}
                     goBack={goBack}
-                    onRegistered={() => replaceRoute({ name: "profile" })}
+                    onRegistered={() => {
+                      setCurrentRouteName("profile");
+                      replaceRoute({ name: "profile" });
+                    }}
                   />
                 )}
               </Stack.Screen>

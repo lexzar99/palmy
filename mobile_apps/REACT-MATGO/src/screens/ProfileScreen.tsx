@@ -88,6 +88,7 @@ export default function ProfileScreen({
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);
   const clearSession = useAppStore((s) => s.clearSession);
+  const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { ls } = useArabic();
@@ -1208,6 +1209,23 @@ export default function ProfileScreen({
             <Pressable onPress={handleDeleteAccount} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.deleteAccount')}</Text>
               <Ionicons name="trash-outline" size={18} color={palette.danger} />
+            </Pressable>
+          </View>
+
+          {/* DEV: Reset onboarding to test first-launch flow */}
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden", borderWidth: 1, borderColor: "rgba(255,165,0,0.3)" }]}>
+            <Pressable
+              onPress={() => {
+                clearSession();
+                setOnboardingComplete(false);
+              }}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <View>
+                <Text style={{ color: "orange", fontSize: 14, fontWeight: "800" }}>DEV: Rensa & Starta om</Text>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "600", marginTop: 2 }}>Återgår till onboarding-skärmen</Text>
+              </View>
+              <Ionicons name="refresh-outline" size={18} color="orange" />
             </Pressable>
           </View>
         </View>
