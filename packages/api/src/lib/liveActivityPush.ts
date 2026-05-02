@@ -87,6 +87,7 @@ export async function pushLiveActivityUpdate(opts: {
   alertBody?: string;
   staleAfterSeconds?: number;
   dismissalDate?: number; // epoch seconds, only for `event: 'end'`
+  priority?: '5' | '10';   // 10 = immediate (default), 5 = throttle-friendly
 }): Promise<void> {
   if (!isConfigured()) return;
 
@@ -125,7 +126,7 @@ export async function pushLiveActivityUpdate(opts: {
     topic: `${APNS_BUNDLE_ID}.push-type.liveactivity`,
     pushType: 'liveactivity',
     payload: body,
-    priority: '10',
+    priority: opts.priority ?? '10',
   });
 }
 

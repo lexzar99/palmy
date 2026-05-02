@@ -103,7 +103,20 @@ public class LiveActivitiesModule: Module {
             // High relevanceScore on creation makes iOS show the activity expanded briefly.
             // pushType: .token enables push-to-update — APNs can now deliver state
             // updates directly into the Dynamic Island without the app running.
-            let content = ActivityContent(state: state, staleDate: nil, relevanceScore: 100)
+            //
+            // Initial staleDate matters for the "app is killed and every push is
+            // throttled" worst case. Without it the LA stays "fresh" forever in
+            // the widget process and iOS never fades it. Pin it to the initial
+            // ETA when known, or 90 min as a generous upper bound (kitchen +
+            // delivery). When real updates arrive we re-pin staleDate in
+            // updateOrderActivity.
+            let initialStaleDate: Date
+            if let endsAt = etaEndsAt {
+                initialStaleDate = Date(timeIntervalSince1970: endsAt + 60)
+            } else {
+                initialStaleDate = Date().addingTimeInterval(90 * 60)
+            }
+            let content = ActivityContent(state: state, staleDate: initialStaleDate, relevanceScore: 100)
             let activity = try Activity<OrderActivityAttributes>.request(
                 attributes: attrs,
                 content: content,
@@ -111,6 +124,12 @@ public class LiveActivitiesModule: Module {
             )
             self.activities[orderId] = activity
             self.observePushToken(for: activity, orderId: orderId)
+
+            // Schedule the same native auto-end if we're already on_the_way at
+            // creation time (rare — usually transitions to on_the_way later).
+            if status == "on_the_way", let endsAt = etaEndsAt {
+                self.scheduleAutoEnd(orderId: orderId, atEpochSeconds: endsAt + 5)
+            }
             return activity.id
         }
 
