@@ -318,6 +318,8 @@ model User {
   phone          String?        @unique
   password       String?
   name           String
+  firstName      String?
+  lastName       String?
   address        String?
   city           String?
   zip            String?
@@ -334,6 +336,7 @@ model User {
   pushToken      String?
   apnsDeviceToken String?       // Raw iOS APNs device token (hex) for direct push with apns-collapse-id support
   internalInfo   String?
+  deletedAt      DateTime?      // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }

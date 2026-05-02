@@ -83,7 +83,11 @@ router.patch('/:id', authenticate, requireSuperAdmin, async (req, res) => {
 router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const id = req.params.id;
-    await prisma.user.update({
+    // Cast to any because Railway's Docker build can sometimes serve a stale
+    // Prisma client where the freshly-added `deletedAt` field hasn't been
+    // re-generated into the typings yet — the SQL `prisma db push` on start
+    // applies the column regardless, so the runtime write is fine.
+    await (prisma as any).user.update({
       where: { id },
       data: {
         deletedAt: new Date(),
