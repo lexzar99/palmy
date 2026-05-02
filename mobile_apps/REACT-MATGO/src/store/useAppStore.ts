@@ -151,6 +151,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       items: [],
       restaurantId: null,
       restaurantSlug: null,
+      pendingPromoCode: null,
     });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});

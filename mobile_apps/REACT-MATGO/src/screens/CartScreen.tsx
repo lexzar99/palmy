@@ -7,6 +7,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   View,
@@ -514,7 +515,9 @@ export default function CartScreen({
     };
   }, [currentRestaurantId, setProfile, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-apply pending promo code
+  // Auto-apply pending promo code (kept in Zustand so it survives unmounting
+  // CartScreen — fixes the bug where applying a code, navigating away, then
+  // returning to cart wiped the discount).
   useEffect(() => {
     if (!pendingPromoCode || !personalDeals.length) return;
 
@@ -524,8 +527,10 @@ export default function CartScreen({
 
     setSelectedPersonalDeal(match);
     setPromoCode(match.code);
-    setPendingPromoCode(null);
-  }, [pendingPromoCode, personalDeals, setPendingPromoCode]);
+    // NOTE: do NOT clear pendingPromoCode here — keep it set so the next
+    // re-mount can re-resolve. It's cleared only when the user removes the
+    // code or the order is placed (cart cleared via clearCart).
+  }, [pendingPromoCode, personalDeals]);
 
   // Zone check — runs when coords, restaurant, or orderType change
   useEffect(() => {
@@ -593,6 +598,20 @@ export default function CartScreen({
     };
   }, [coords, currentRestaurantId, orderType]);
 
+  // Apply a personal deal both locally and to Zustand so it survives a
+  // mount/unmount cycle (e.g. user navigates away and back to cart).
+  const applyPersonalDeal = useCallback((deal: any) => {
+    setSelectedPersonalDeal(deal);
+    setPromoCode(deal.code || "");
+    if (deal?.code) setPendingPromoCode(deal.code);
+  }, [setPendingPromoCode]);
+
+  const removePersonalDeal = useCallback(() => {
+    setSelectedPersonalDeal(null);
+    setPromoCode("");
+    setPendingPromoCode(null);
+  }, [setPendingPromoCode]);
+
   const handlePromo = useCallback(() => {
     const code = promoCode.trim().toLowerCase();
     // Dev-only: free-order shortcut. Compiled out of release bundles
@@ -603,11 +622,11 @@ export default function CartScreen({
     }
     const match = personalDeals.find((deal) => deal.code?.toLowerCase() === code);
     if (match) {
-      setSelectedPersonalDeal(match);
+      applyPersonalDeal(match);
       return;
     }
     Alert.alert("Promo code", "That code was not valid.");
-  }, [personalDeals, promoCode, total]);
+  }, [personalDeals, promoCode, total, applyPersonalDeal]);
 
   const handleCheckoutPress = async () => {
     if (submitting) return;
@@ -1590,7 +1609,7 @@ export default function CartScreen({
               <Pressable
                 onPress={
                   selectedPersonalDeal
-                    ? () => { setSelectedPersonalDeal(null); setPromoCode(""); }
+                    ? removePersonalDeal
                     : handlePromo
                 }
                 style={{
@@ -1607,9 +1626,9 @@ export default function CartScreen({
             </View>
           </View>
 
-          {/* 6. Tipping Section */}
+          {/* 6. Tipping Section — wider, full-bleed within scroll padding */}
           {orderType === "DELIVERY" && (
-            <View style={[styles.formCard, { paddingVertical: 20 }]}>
+            <View style={[styles.formCard, { paddingVertical: 22, paddingHorizontal: 22, marginHorizontal: -4 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
                 <Ionicons name="heart" size={20} color={palette.gold} />
                 <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5) }}>
@@ -1632,7 +1651,7 @@ export default function CartScreen({
                         borderWidth: 1,
                         borderColor: isActive ? palette.gold : palette.border,
                         borderRadius: 14,
-                        paddingVertical: 12,
+                        paddingVertical: 14,
                         alignItems: "center"
                       }}
                     >
@@ -1643,6 +1662,124 @@ export default function CartScreen({
                   );
                 })}
               </View>
+            </View>
+          )}
+
+          {/* 6b. Personal deals — horizontal scroller. Tap a card to apply. */}
+          {personalDeals.length > 0 && (
+            <View style={{ marginTop: 4, marginHorizontal: -4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10, paddingHorizontal: 4 }}>
+                <Ionicons name="pricetags" size={16} color={palette.gold} />
+                <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5) }}>
+                  Dina rabattkoder
+                </Text>
+                <View style={{ backgroundColor: palette.gold, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 }}>
+                  <Text style={{ color: "#000", fontSize: 10, fontWeight: "900" }}>{personalDeals.length}</Text>
+                </View>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 4, paddingVertical: 4, gap: 10 }}
+              >
+                {personalDeals.map((deal) => {
+                  const isActive = selectedPersonalDeal?.code === deal.code;
+                  const campaign = deal.campaign || {};
+                  const discountLabel = campaign.discountType === "PERCENTAGE"
+                    ? `${campaign.discountValue || 0}%`
+                    : `${Math.round((campaign.discountValue || 0) / 100)} kr`;
+                  const remaining = typeof deal.maxUsages === "number"
+                    ? Math.max(0, deal.maxUsages - (deal.usageCount || 0))
+                    : null;
+                  const validUntil = deal.validUntil ? new Date(deal.validUntil) : null;
+                  const validLabel = validUntil
+                    ? validUntil.toLocaleDateString("sv-SE", { day: "numeric", month: "short" })
+                    : null;
+                  const isUsedUp = remaining !== null && remaining <= 0;
+                  const isExpired = validUntil ? validUntil.getTime() < Date.now() : false;
+                  const disabled = isUsedUp || isExpired || deal.isUsed === true;
+
+                  return (
+                    <ScalePressable
+                      key={deal.id || deal.code}
+                      onPress={() => {
+                        if (disabled) {
+                          Alert.alert(
+                            isExpired ? "Utgången" : isUsedUp ? "Slut" : "Använd",
+                            isExpired ? "Den här koden har gått ut." : isUsedUp ? "Du har använt alla dina försök." : "Du har redan använt den här koden.",
+                          );
+                          return;
+                        }
+                        if (isActive) removePersonalDeal();
+                        else applyPersonalDeal(deal);
+                      }}
+                      style={{
+                        width: 220,
+                        backgroundColor: isActive ? palette.gold : palette.panel,
+                        borderRadius: 18,
+                        borderWidth: 1.5,
+                        borderColor: isActive ? palette.gold : disabled ? palette.border : "rgba(231,178,75,0.35)",
+                        padding: 14,
+                        opacity: disabled ? 0.5 : 1,
+                        shadowColor: isActive ? palette.gold : "transparent",
+                        shadowOpacity: isActive ? 0.4 : 0,
+                        shadowRadius: 12,
+                        shadowOffset: { width: 0, height: 4 },
+                      }}
+                    >
+                      {/* Top row: discount + active check */}
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <Text style={{ color: isActive ? "#000" : palette.gold, fontSize: 24, fontWeight: "900", letterSpacing: -0.5, fontStyle: "italic" }}>
+                          -{discountLabel}
+                        </Text>
+                        {isActive && (
+                          <View style={{ backgroundColor: "#000", borderRadius: 10, padding: 4 }}>
+                            <Ionicons name="checkmark" size={12} color={palette.gold} />
+                          </View>
+                        )}
+                      </View>
+                      {/* Title */}
+                      <Text
+                        numberOfLines={1}
+                        style={{
+                          color: isActive ? "#000" : palette.text,
+                          fontSize: 12, fontWeight: "800",
+                          marginTop: 6,
+                          textTransform: "uppercase", letterSpacing: ls(1),
+                        }}
+                      >
+                        {campaign.title || deal.code}
+                      </Text>
+                      {/* Code chip */}
+                      <View style={{
+                        marginTop: 8, alignSelf: "flex-start",
+                        backgroundColor: isActive ? "rgba(0,0,0,0.15)" : palette.panelMuted,
+                        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3,
+                      }}>
+                        <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: 1 }}>
+                          {deal.code}
+                        </Text>
+                      </View>
+                      {/* Bottom: meta row */}
+                      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: isActive ? "rgba(0,0,0,0.2)" : palette.border }}>
+                        {validLabel && (
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                            <Ionicons name="time-outline" size={10} color={isActive ? "#000" : palette.muted} />
+                            <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "700" }}>
+                              t.o.m {validLabel}
+                            </Text>
+                          </View>
+                        )}
+                        {remaining !== null && (
+                          <Text style={{ color: isActive ? "#000" : palette.muted, fontSize: 10, fontWeight: "700" }}>
+                            {remaining} kvar
+                          </Text>
+                        )}
+                      </View>
+                    </ScalePressable>
+                  );
+                })}
+              </ScrollView>
             </View>
           )}
 
