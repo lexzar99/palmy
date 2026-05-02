@@ -8,163 +8,170 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 const ND = Platform.OS !== "web";
 
-// Premium palette — cream backdrop matches the native iOS/Android splash for
-// a frame-perfect handoff. The native splash shows the icon centred on
-// #FFF8EF; this component picks up at frame 0 so there's no visible swap.
+// Cream backdrop matches the native iOS/Android splash for a frame-perfect
+// handoff — frame 0 of this component is identical to what the OS shows.
 const BG = "#FFF8EF";
 const GOLD = "#E7B24B";
 const GOLD_DEEP = "#C8932E";
 const INK = "#1A0F08";
 
-const WORD = "FoodGo";
+const PARTICLE_COUNT = 10;
+const PARTICLE_RADIUS = Math.min(width * 0.42, 180);
 
 export default function SplashLoader(_props: { message?: string }) {
-  // Icon entrance
+  // Background warm wash — slowly pulses up + down
+  const wash = useRef(new Animated.Value(0)).current;
+
+  // Icon "stamp" entry: drop from above + bounce settle, then breathe
+  const iconY = useRef(new Animated.Value(-40)).current;
   const iconOpacity = useRef(new Animated.Value(0)).current;
-  const iconScale = useRef(new Animated.Value(0.7)).current;
-  const iconRotate = useRef(new Animated.Value(-1)).current; // -10° → 0°
-  const breath = useRef(new Animated.Value(1)).current;
+  const iconScale = useRef(new Animated.Value(1.15)).current;
+  const iconSquishX = useRef(new Animated.Value(1)).current;
+  const iconSquishY = useRef(new Animated.Value(1)).current;
+  const iconBreath = useRef(new Animated.Value(1)).current;
 
-  // Three concentric ripples that loop with staggered phase
-  const ripple1 = useRef(new Animated.Value(0)).current;
-  const ripple2 = useRef(new Animated.Value(0)).current;
-  const ripple3 = useRef(new Animated.Value(0)).current;
-
-  // Soft ambient glow behind icon
-  const glow = useRef(new Animated.Value(0)).current;
-
-  // Letter-by-letter wordmark — one Animated.Value per letter
-  const letters = useMemo(
-    () => WORD.split("").map(() => ({
-      opacity: new Animated.Value(0),
-      y: new Animated.Value(14),
-      scale: new Animated.Value(0.6),
+  // Burst particles fired outward from icon center on entry
+  const particles = useMemo(
+    () => new Array(PARTICLE_COUNT).fill(0).map((_, i) => ({
+      progress: new Animated.Value(0),
+      angle: (i / PARTICLE_COUNT) * Math.PI * 2,
+      size: 4 + (i % 3) * 2, // varied sizes for organic feel
     })),
     []
   );
 
-  // Gold underline that draws from center outward after letters land
-  const underlineScale = useRef(new Animated.Value(0)).current;
-  const underlineOpacity = useRef(new Animated.Value(0)).current;
+  // Wordmark + shimmer
+  const wordOpacity = useRef(new Animated.Value(0)).current;
+  const wordY = useRef(new Animated.Value(20)).current;
+  const shimmerX = useRef(new Animated.Value(-1)).current; // -1 → 1, normalized
+
+  // Tagline appears last
+  const taglineOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Icon: fade + scale + de-rotate, with a tiny back-overshoot
+    // Background warm wash (continuous breathing wash)
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(wash, { toValue: 1, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+        Animated.timing(wash, { toValue: 0, duration: 3200, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+      ])
+    ).start();
+
+    // Icon stamp: drop in, squish on impact, settle
     Animated.parallel([
-      Animated.timing(iconOpacity, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
-      Animated.timing(iconScale, { toValue: 1, duration: 700, easing: Easing.out(Easing.back(1.5)), useNativeDriver: ND }),
-      Animated.timing(iconRotate, { toValue: 0, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
+      Animated.timing(iconOpacity, { toValue: 1, duration: 280, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
+      Animated.timing(iconY, { toValue: 0, duration: 460, easing: Easing.bezier(0.34, 1.56, 0.64, 1), useNativeDriver: ND }),
+      Animated.timing(iconScale, { toValue: 1, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
     ]).start(() => {
-      // Subtle continuous breathing once landed
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(breath, { toValue: 1.04, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
-          Animated.timing(breath, { toValue: 1, duration: 1900, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
-        ])
-      ).start();
-    });
-
-    // Three ripples — each loops independently, staggered start so they
-    // form a continuous wave outward. Pure transforms = native-driven.
-    const startRipple = (val: Animated.Value, delay: number) => {
-      val.setValue(0);
+      // Squish-and-rebound on landing
       Animated.sequence([
-        Animated.delay(delay),
-        Animated.loop(
-          Animated.timing(val, {
-            toValue: 1,
-            duration: 2400,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: ND,
-          })
-        ),
-      ]).start();
-    };
-    startRipple(ripple1, 0);
-    startRipple(ripple2, 800);
-    startRipple(ripple3, 1600);
-
-    // Glow fades in then breathes
-    Animated.sequence([
-      Animated.delay(180),
-      Animated.timing(glow, { toValue: 0.22, duration: 500, useNativeDriver: ND }),
-    ]).start(() => {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glow, { toValue: 0.34, duration: 2200, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
-          Animated.timing(glow, { toValue: 0.16, duration: 2200, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
-        ])
-      ).start();
-    });
-
-    // Letter stagger — each letter gets a 65 ms head start
-    const letterDelay = 380;
-    letters.forEach((letter, i) => {
-      Animated.sequence([
-        Animated.delay(letterDelay + i * 65),
         Animated.parallel([
-          Animated.timing(letter.opacity, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
-          Animated.timing(letter.y, { toValue: 0, duration: 380, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
-          Animated.timing(letter.scale, { toValue: 1, duration: 420, easing: Easing.out(Easing.back(1.6)), useNativeDriver: ND }),
+          Animated.timing(iconSquishX, { toValue: 1.12, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
+          Animated.timing(iconSquishY, { toValue: 0.88, duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
         ]),
-      ]).start();
+        Animated.parallel([
+          Animated.spring(iconSquishX, { toValue: 1, friction: 4, tension: 140, useNativeDriver: ND }),
+          Animated.spring(iconSquishY, { toValue: 1, friction: 4, tension: 140, useNativeDriver: ND }),
+        ]),
+      ]).start(() => {
+        // Continuous gentle breathing
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(iconBreath, { toValue: 1.04, duration: 2000, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+            Animated.timing(iconBreath, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+          ])
+        ).start();
+      });
+
+      // Particle burst fires AFTER icon lands so they appear to come from impact
+      Animated.stagger(20, particles.map((p) =>
+        Animated.timing(p.progress, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: ND,
+        })
+      )).start();
     });
 
-    // Underline draws after the last letter lands
-    const underlineDelay = letterDelay + WORD.length * 65 + 280;
+    // Wordmark slides up after icon settles
     Animated.sequence([
-      Animated.delay(underlineDelay),
+      Animated.delay(550),
       Animated.parallel([
-        Animated.timing(underlineOpacity, { toValue: 1, duration: 220, useNativeDriver: ND }),
-        Animated.timing(underlineScale, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
+        Animated.timing(wordOpacity, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
+        Animated.timing(wordY, { toValue: 0, duration: 480, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
       ]),
+    ]).start(() => {
+      // Shimmer sweep across wordmark (and loop slowly)
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerX, { toValue: 1, duration: 1400, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+          Animated.delay(1800),
+          Animated.timing(shimmerX, { toValue: -1, duration: 0, useNativeDriver: ND }),
+        ])
+      ).start();
+    });
+
+    // Tagline fades in last
+    Animated.sequence([
+      Animated.delay(1100),
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 460, useNativeDriver: ND }),
     ]).start();
   }, []);
 
-  const iconRotateDeg = iconRotate.interpolate({ inputRange: [-1, 0], outputRange: ["-10deg", "0deg"] });
-  const ringMax = Math.min(width * 0.85, 360);
+  const washOpacity = wash.interpolate({ inputRange: [0, 1], outputRange: [0.08, 0.18] });
+  const shimmerTranslate = shimmerX.interpolate({ inputRange: [-1, 1], outputRange: [-160, 160] });
 
   return (
     <View style={styles.container}>
-      {/* Three concentric ripples behind the icon */}
-      {[ripple1, ripple2, ripple3].map((val, i) => {
-        const scale = val.interpolate({ inputRange: [0, 1], outputRange: [0.4, 2.2] });
-        const opacity = val.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.5, 0] });
+      {/* Warm radial wash (subtle, breathing) */}
+      <Animated.View pointerEvents="none" style={[styles.wash, { opacity: washOpacity }]}>
+        <LinearGradient
+          colors={[GOLD, "rgba(231,178,75,0)"]}
+          style={StyleSheet.absoluteFill}
+          start={{ x: 0.5, y: 0.5 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      {/* Burst particles — radiate outward from center */}
+      {particles.map((p, i) => {
+        const tx = p.progress.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(p.angle) * PARTICLE_RADIUS] });
+        const ty = p.progress.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(p.angle) * PARTICLE_RADIUS] });
+        const opacity = p.progress.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 0] });
+        const scale = p.progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 1, 0.4] });
         return (
           <Animated.View
             key={i}
             pointerEvents="none"
             style={{
               position: "absolute",
-              width: ringMax, height: ringMax, borderRadius: ringMax / 2,
-              borderWidth: 1, borderColor: GOLD,
-              opacity, transform: [{ scale }],
+              width: p.size, height: p.size, borderRadius: p.size / 2,
+              backgroundColor: GOLD,
+              opacity,
+              transform: [{ translateX: tx }, { translateY: ty }, { scale }],
+              shadowColor: GOLD, shadowOpacity: 0.7, shadowRadius: 6, shadowOffset: { width: 0, height: 0 },
             }}
           />
         );
       })}
 
-      {/* Soft ambient glow */}
-      <Animated.View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          width: 200, height: 200, borderRadius: 100,
-          backgroundColor: GOLD,
-          opacity: glow,
-          shadowColor: GOLD, shadowOpacity: 1, shadowRadius: 60, shadowOffset: { width: 0, height: 0 },
-        }}
-      />
-
-      {/* Icon — outer = breathing loop, inner = entrance (scale + fade + rotate) */}
-      <Animated.View style={{ transform: [{ scale: breath }] }}>
+      {/* Icon — stamp entry (translateY + scale + squish) then breathing */}
+      <Animated.View style={{ transform: [{ scale: iconBreath }] }}>
         <Animated.View
           style={{
             opacity: iconOpacity,
-            transform: [{ scale: iconScale }, { rotate: iconRotateDeg }],
+            transform: [
+              { translateY: iconY },
+              { scale: iconScale },
+              { scaleX: iconSquishX },
+              { scaleY: iconSquishY },
+            ],
           }}
         >
           <Image
@@ -175,35 +182,44 @@ export default function SplashLoader(_props: { message?: string }) {
         </Animated.View>
       </Animated.View>
 
-      {/* Wordmark — letter-by-letter stagger */}
-      <View style={styles.wordRow}>
-        {letters.map((letter, i) => (
-          <Animated.Text
-            key={i}
-            style={[
-              styles.letter,
-              {
-                opacity: letter.opacity,
-                transform: [{ translateY: letter.y }, { scale: letter.scale }],
-              },
-            ]}
-          >
-            {WORD[i]}
-          </Animated.Text>
-        ))}
-      </View>
-
-      {/* Gold underline that draws outward from center */}
+      {/* Wordmark with looping gold shimmer sweep */}
       <Animated.View
         style={{
-          marginTop: 14,
-          width: 64, height: 3, borderRadius: 1.5,
-          backgroundColor: GOLD,
-          opacity: underlineOpacity,
-          transform: [{ scaleX: underlineScale }],
-          shadowColor: GOLD_DEEP, shadowOpacity: 0.5, shadowRadius: 6, shadowOffset: { width: 0, height: 2 },
+          marginTop: 32,
+          opacity: wordOpacity,
+          transform: [{ translateY: wordY }],
+          overflow: "hidden",
+          borderRadius: 8,
         }}
-      />
+      >
+        <View style={styles.wordWrap}>
+          <Animated.Text style={styles.word}>FoodGo</Animated.Text>
+          {/* Shimmer overlay — a thin angled gold band sliding across */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.shimmerOverlay,
+              { transform: [{ translateX: shimmerTranslate }, { rotate: "20deg" }] },
+            ]}
+          >
+            <LinearGradient
+              colors={[
+                "rgba(231,178,75,0)",
+                "rgba(231,178,75,0.7)",
+                "rgba(231,178,75,0)",
+              ]}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </View>
+      </Animated.View>
+
+      {/* Tagline */}
+      <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+        Maten på vägen
+      </Animated.Text>
     </View>
   );
 }
@@ -215,15 +231,38 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  icon: { width: 130, height: 130 },
-  wordRow: {
-    flexDirection: "row",
-    marginTop: 30,
+  wash: {
+    position: "absolute",
+    width: 420, height: 420, borderRadius: 210,
+    overflow: "hidden",
   },
-  letter: {
-    fontSize: 32,
+  icon: {
+    width: 140, height: 140,
+  },
+  wordWrap: {
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    position: "relative",
+  },
+  word: {
+    fontSize: 36,
     fontWeight: "900",
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
     color: INK,
+  },
+  shimmerOverlay: {
+    position: "absolute",
+    top: -10,
+    left: 0,
+    width: 60,
+    height: 80,
+  },
+  tagline: {
+    marginTop: 16,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 3,
+    textTransform: "uppercase",
+    color: GOLD_DEEP,
   },
 });

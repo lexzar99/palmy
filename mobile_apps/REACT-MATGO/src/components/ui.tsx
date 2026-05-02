@@ -255,9 +255,9 @@ export function RestaurantCard({
       </View>
 
       {/* CARD FOOTER – Metadata */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        {/* Left: star · eta · fee */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+      <View style={{ paddingHorizontal: 16, paddingVertical: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+        {/* Left: star · eta · fee — shrinks first, never pushes the badge off */}
+        <View style={{ flex: 1, flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "nowrap" }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <Ionicons name="star" size={12} color={palette.gold} />
             <Text style={{ color: palette.text, fontSize: 13, fontWeight: "800" }}>
@@ -274,9 +274,9 @@ export function RestaurantCard({
           {!!restaurant.deliveryFee && restaurant.deliveryFee > 0 && (
             <>
               <Text style={{ color: palette.muted, fontSize: 12 }}>•</Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
                 <Ionicons name="bicycle-outline" size={12} color={palette.muted} />
-                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
+                <Text numberOfLines={1} style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
                   {Math.round(restaurant.deliveryFee)} kr
                 </Text>
               </View>
@@ -285,13 +285,14 @@ export function RestaurantCard({
           {(!restaurant.deliveryFee || restaurant.deliveryFee === 0) && (
             <>
               <Text style={{ color: palette.muted, fontSize: 12 }}>•</Text>
-              <Text style={{ color: palette.success, fontSize: 12, fontWeight: "800" }}>Fri leverans</Text>
+              <Text numberOfLines={1} style={{ color: palette.success, fontSize: 12, fontWeight: "800", flexShrink: 1 }}>Gratis</Text>
             </>
           )}
         </View>
 
-        {/* Right: OPEN badge */}
+        {/* Right: OPEN badge — never shrinks */}
         <View style={{
+          flexShrink: 0,
           paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
           backgroundColor: isOutOfZone || restaurant.isOpen === false
             ? "rgba(255,59,48,0.10)"
