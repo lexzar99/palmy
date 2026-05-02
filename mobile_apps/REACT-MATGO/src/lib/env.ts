@@ -5,6 +5,11 @@ export const EXPO_PUBLIC_API_URL = process.env.EXPO_PUBLIC_API_URL?.trim() ?? ""
 export const EXPO_PUBLIC_SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL?.trim() ?? null;
 export const EXPO_PUBLIC_WEB_URL = process.env.EXPO_PUBLIC_WEB_URL?.trim() ?? null;
 export const EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+// Apple Pay merchant identifier — must exactly match the value in
+// app.json (ios.plugins["@stripe/stripe-react-native"].merchantIdentifier)
+// and the merchant ID registered in your Apple Developer account.
+export const EXPO_PUBLIC_STRIPE_MERCHANT_ID =
+  process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID?.trim() || "merchant.com.foodgoJalle.app";
 export const EXPO_PUBLIC_GEOAPIFY_KEY = process.env.EXPO_PUBLIC_GEOAPIFY_KEY?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
