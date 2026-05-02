@@ -584,12 +584,6 @@ export default function OnboardingScreen({
             ctaLabel={t('onboarding.location.cta')}
             ctaLoading={locationLoading}
             onCta={handleAllowLocation}
-            onSkip={() => {
-              if (pendingToken && pendingProfile) finishWithAuth(pendingToken, pendingProfile);
-              else { setOnboardingComplete(true); onComplete(); }
-            }}
-            skipLabel={pendingToken ? "Fortsätt utan plats" : "Fortsätt som gäst"}
-            skipSubLabel={pendingToken ? undefined : "Som gäst kan du beställa snabbt, men du missar erbjudanden och kampanjer"}
           />
         </SafeAreaView>
       </View>
