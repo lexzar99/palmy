@@ -8,15 +8,6 @@ import '../providers/order_provider.dart';
 import 'accept_result_screen.dart';
 import 'order_detail_screen.dart';
 
-/// Stripped-down "take the order" page focused on the action.
-///
-/// No insights, no extra panels — only what's needed to accept:
-///   • who ordered, what they ordered, total
-///   • a big time wheel (20 / 40 default depending on type)
-///   • one prominent accept button
-///
-/// All the diagnostic / extra info lives on the full OrderDetailScreen,
-/// reachable via the (i) icon in the corner.
 class OrderTakeScreen extends StatefulWidget {
   final OrderModel order;
   final DateTime arrivedAt;
@@ -35,12 +26,13 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   late int _selectedMinutes;
   bool _busy = false;
 
-  static const _minuteOptions = [10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90];
+  static const _minuteOptions = [
+    10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90
+  ];
 
   @override
   void initState() {
     super.initState();
-    // Pickup → 20 min default, Delivery → 40 min default.
     _selectedMinutes = widget.order.type == 'PICKUP' ? 20 : 40;
   }
 
@@ -92,29 +84,24 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   children: [
                     _CustomerCard(order: order, accent: accent),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     _ItemsCard(order: order, accent: accent),
                     if (order.note?.isNotEmpty == true ||
                         order.deliveryInstructions?.isNotEmpty == true) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 12),
                       _NoteCard(order: order),
                     ],
-                    const SizedBox(height: 18),
-                    _TimePicker(
-                      options: _minuteOptions,
-                      selected: _selectedMinutes,
-                      accent: accent,
-                      onChanged: (m) => setState(() => _selectedMinutes = m),
-                    ),
-                    const SizedBox(height: 8),
                   ],
                 ),
               ),
-              _AcceptButton(
-                busy: _busy,
-                minutes: _selectedMinutes,
+              // Fixed bottom: time picker + accept button
+              _BottomBar(
+                options: _minuteOptions,
+                selected: _selectedMinutes,
                 accent: accent,
-                onTap: _accept,
+                busy: _busy,
+                onTimeChanged: (m) => setState(() => _selectedMinutes = m),
+                onAccept: _accept,
               ),
             ],
           ),
@@ -133,7 +120,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+      padding: const EdgeInsets.fromLTRB(4, 8, 8, 4),
       child: Row(
         children: [
           IconButton(
@@ -153,29 +140,50 @@ class _Header extends StatelessWidget {
                     letterSpacing: 1.1,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  OrderUi.typeLabel(order.type).toUpperCase(),
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.4,
-                  ),
+                const SizedBox(height: 1),
+                Row(
+                  children: [
+                    Text(
+                      OrderUi.typeLabel(order.type).toUpperCase(),
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
+                      ),
+                    ),
+                    if (order.scheduledFor != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.gold.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Förbeställd',
+                          style: const TextStyle(
+                            color: AppTheme.gold,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
           ),
           IconButton(
-            tooltip: 'Detaljer',
+            tooltip: 'Alla detaljer',
             icon: const Icon(Icons.info_outline_rounded),
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => OrderDetailScreen(order: order),
-                ),
-              );
-            },
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => OrderDetailScreen(order: order),
+              ),
+            ),
           ),
         ],
       ),
@@ -196,20 +204,21 @@ class _CustomerCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.panelColor(context),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: accent.withOpacity(0.18)),
+        border: Border.all(color: accent.withOpacity(0.22)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Text(
                   order.customerName,
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.6,
+                    letterSpacing: -0.4,
                   ),
                 ),
               ),
@@ -217,22 +226,22 @@ class _CustomerCard extends StatelessWidget {
               Text(
                 OrderUi.formatCurrency(order.total),
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 20,
                   fontWeight: FontWeight.w900,
                   color: accent,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.phone_rounded, size: 14, color: accent),
-              const SizedBox(width: 6),
+              Icon(Icons.phone_rounded, size: 13, color: accent),
+              const SizedBox(width: 5),
               Text(
                 order.customerPhone,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: accent,
                 ),
@@ -240,16 +249,13 @@ class _CustomerCard extends StatelessWidget {
             ],
           ),
           if (order.type == 'DELIVERY' && order.deliveryStreet != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.location_on_rounded,
-                  size: 14,
-                  color: AppTheme.mutedColor(context),
-                ),
-                const SizedBox(width: 6),
+                Icon(Icons.location_on_rounded,
+                    size: 13, color: AppTheme.mutedColor(context)),
+                const SizedBox(width: 5),
                 Expanded(
                   child: Text(
                     '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
@@ -279,24 +285,22 @@ class _ItemsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: AppTheme.panelColor(context),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.borderColor(context)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (var i = 0; i < order.items.length; i++) ...[
             _itemRow(context, order.items[i], accent),
             if (i < order.items.length - 1)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Divider(
-                  height: 1,
-                  color: AppTheme.borderColor(context),
-                ),
+              Divider(
+                height: 1,
+                indent: 16,
+                endIndent: 16,
+                color: AppTheme.borderColor(context),
               ),
           ],
         ],
@@ -305,65 +309,120 @@ class _ItemsCard extends StatelessWidget {
   }
 
   Widget _itemRow(BuildContext context, OrderItemModel item, Color accent) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 38,
-          height: 38,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.16),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: Text(
-            '${item.quantity}×',
-            style: TextStyle(
-              color: accent,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Product line
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.productName,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-              ),
-              if (item.selectedExtras.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  item.selectedExtras
-                      .map((e) => e.toString())
-                      .join(' • '),
+                child: Text(
+                  '${item.quantity}×',
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.mutedColor(context),
+                    color: accent,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Text(
+                    item.productName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: Text(
+                  OrderUi.formatCurrency(item.subtotal),
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w800),
+                ),
+              ),
             ],
           ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          OrderUi.formatCurrency(item.subtotal),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-        ),
-      ],
+          // Stacked extras
+          if (item.selectedExtras.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 45),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: item.selectedExtras
+                    .map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 3),
+                        child: Row(
+                          children: [
+                            Icon(Icons.add_rounded,
+                                size: 13,
+                                color: AppTheme.mutedColor(context)),
+                            const SizedBox(width: 4),
+                            Text(
+                              e.toString(),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.mutedColor(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+          ],
+          // Item-level note
+          if (item.note?.isNotEmpty == true) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 45),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppTheme.warning.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: AppTheme.warning.withOpacity(0.35)),
+                ),
+                child: Text(
+                  item.note!,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.warning,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
 
-// ── Note card (only shows when there's something to show) ─────────────────────
+// ── Note card ─────────────────────────────────────────────────────────────────
 class _NoteCard extends StatelessWidget {
   final OrderModel order;
   const _NoteCard({required this.order});
@@ -373,18 +432,15 @@ class _NoteCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppTheme.warning.withOpacity(0.12),
+        color: AppTheme.warning.withOpacity(0.10),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.warning.withOpacity(0.4)),
+        border: Border.all(color: AppTheme.warning.withOpacity(0.38)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.priority_high_rounded,
-            color: AppTheme.warning,
-            size: 18,
-          ),
+          const Icon(Icons.priority_high_rounded,
+              color: AppTheme.warning, size: 18),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -394,18 +450,15 @@ class _NoteCard extends StatelessWidget {
                   Text(
                     order.note!,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                        fontWeight: FontWeight.w800, fontSize: 14),
                   ),
                 if (order.deliveryInstructions?.isNotEmpty == true) ...[
-                  if (order.note?.isNotEmpty == true) const SizedBox(height: 6),
+                  if (order.note?.isNotEmpty == true)
+                    const SizedBox(height: 5),
                   Text(
                     order.deliveryInstructions!,
                     style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                        fontWeight: FontWeight.w700, fontSize: 13),
                   ),
                 ],
               ],
@@ -417,8 +470,131 @@ class _NoteCard extends StatelessWidget {
   }
 }
 
-// ── Time picker ───────────────────────────────────────────────────────────────
-class _TimePicker extends StatelessWidget {
+// ── Bottom bar: time picker + accept button ───────────────────────────────────
+class _BottomBar extends StatelessWidget {
+  final List<int> options;
+  final int selected;
+  final Color accent;
+  final bool busy;
+  final ValueChanged<int> onTimeChanged;
+  final VoidCallback onAccept;
+
+  const _BottomBar({
+    required this.options,
+    required this.selected,
+    required this.accent,
+    required this.busy,
+    required this.onTimeChanged,
+    required this.onAccept,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        border: Border(
+          top: BorderSide(color: AppTheme.borderColor(context)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Label row
+              Row(
+                children: [
+                  Text(
+                    'UPPSKATTAD TID',
+                    style: TextStyle(
+                      color: AppTheme.mutedColor(context),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$selected min',
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Centered time scroller
+              _TimePicker(
+                options: options,
+                selected: selected,
+                accent: accent,
+                onChanged: onTimeChanged,
+              ),
+              const SizedBox(height: 12),
+              // Accept button
+              SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: ElevatedButton(
+                  onPressed: busy ? null : onAccept,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: accent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: busy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_rounded,
+                                color: Colors.white, size: 24),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Ta emot · $selected min',
+                              style: const TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Time picker — StatefulWidget for centered auto-scroll ─────────────────────
+class _TimePicker extends StatefulWidget {
   final List<int> options;
   final int selected;
   final Color accent;
@@ -432,157 +608,103 @@ class _TimePicker extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final initialIndex = options.indexOf(selected);
-    final controller = ScrollController(
-      initialScrollOffset: initialIndex <= 0 ? 0.0 : initialIndex * 70.0,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Row(
-            children: [
-              Text(
-                'TID',
-                style: TextStyle(
-                  color: AppTheme.mutedColor(context),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '$selected min',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          height: 64,
-          child: ListView.separated(
-            controller: controller,
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: options.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) {
-              final m = options[i];
-              final isSel = m == selected;
-              return GestureDetector(
-                onTap: () => onChanged(m),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  width: 62,
-                  decoration: BoxDecoration(
-                    color: isSel ? accent : AppTheme.panelColor(context),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSel ? accent : AppTheme.borderColor(context),
-                      width: isSel ? 2 : 1,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      '$m',
-                      style: TextStyle(
-                        color: isSel
-                            ? Colors.white
-                            : Theme.of(context).textTheme.titleLarge?.color,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
+  State<_TimePicker> createState() => _TimePickerState();
 }
 
-// ── Big accept button ─────────────────────────────────────────────────────────
-class _AcceptButton extends StatelessWidget {
-  final bool busy;
-  final int minutes;
-  final Color accent;
-  final VoidCallback onTap;
+class _TimePickerState extends State<_TimePicker> {
+  late final ScrollController _scroll;
+  static const double _itemW = 62.0;
+  static const double _gap = 8.0;
 
-  const _AcceptButton({
-    required this.busy,
-    required this.minutes,
-    required this.accent,
-    required this.onTap,
-  });
+  @override
+  void initState() {
+    super.initState();
+    _scroll = ScrollController();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _scrollToSelected(animate: false));
+  }
+
+  @override
+  void didUpdateWidget(_TimePicker old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  void _scrollToSelected({bool animate = true}) {
+    if (!_scroll.hasClients) return;
+    final idx = widget.options.indexOf(widget.selected);
+    if (idx < 0) return;
+    final viewport = _scroll.position.viewportDimension;
+    final target =
+        idx * (_itemW + _gap) - viewport / 2 + _itemW / 2;
+    final clamped =
+        target.clamp(0.0, _scroll.position.maxScrollExtent);
+    if (animate) {
+      _scroll.animateTo(clamped,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic);
+    } else {
+      _scroll.jumpTo(clamped);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: SizedBox(
-          width: double.infinity,
-          height: 64,
-          child: ElevatedButton(
-            onPressed: busy ? null : onTap,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accent,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+    return SizedBox(
+      height: 60,
+      child: ListView.separated(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        itemCount: widget.options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: _gap),
+        itemBuilder: (context, i) {
+          final m = widget.options[i];
+          final isSel = m == widget.selected;
+          return GestureDetector(
+            onTap: () => widget.onChanged(m),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: _itemW,
+              decoration: BoxDecoration(
+                color: isSel
+                    ? widget.accent
+                    : AppTheme.panelColor(context).withOpacity(0.0),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isSel
+                      ? widget.accent
+                      : AppTheme.borderColor(context),
+                  width: isSel ? 2 : 1,
+                ),
               ),
-              elevation: 0,
-            ),
-            child: busy
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 3,
-                    ),
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.check_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Ta emot · $minutes min',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 180),
+                  style: TextStyle(
+                    color: isSel
+                        ? Colors.white
+                        : Theme.of(context).textTheme.bodyLarge?.color,
+                    fontSize: isSel ? 22 : 18,
+                    fontWeight:
+                        isSel ? FontWeight.w900 : FontWeight.w700,
                   ),
-          ),
-        ),
+                  child: Text('$m'),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

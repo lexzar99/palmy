@@ -82,26 +82,14 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (mounted) setState(() => _showNewOrderBanner = false);
       });
 
-      // Big blue fullscreen alert — tap to go to take-screen
+      // Big blue fullscreen alert — tap to dismiss and go back to order list
       Navigator.of(context).push(
         PageRouteBuilder(
           opaque: true,
           transitionDuration: const Duration(milliseconds: 320),
           pageBuilder: (_, __, ___) => NewOrderAlertScreen(
             order: newest,
-            onTap: () {
-              Navigator.of(context).pushReplacement(
-                PageRouteBuilder(
-                  transitionDuration: const Duration(milliseconds: 280),
-                  pageBuilder: (_, __, ___) => OrderTakeScreen(
-                    order: newest,
-                    arrivedAt: newest.createdAt,
-                  ),
-                  transitionsBuilder: (_, anim, __, child) =>
-                      FadeTransition(opacity: anim, child: child),
-                ),
-              );
-            },
+            onTap: () => Navigator.of(context).pop(),
           ),
           transitionsBuilder: (_, anim, __, child) =>
               FadeTransition(opacity: anim, child: child),

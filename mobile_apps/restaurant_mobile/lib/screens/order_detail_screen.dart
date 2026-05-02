@@ -687,62 +687,129 @@ class _ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPanel(
-      padding: const EdgeInsets.all(16),
-      tint: AppTheme.info,
-      color: AppTheme.panelColor(context).withOpacity(0.92),
+    final hasExtras = item.selectedExtras.isNotEmpty;
+    final hasNote = item.note?.isNotEmpty == true;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.panelColor(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.borderColor(context)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppPill(
-                label: '${item.quantity}x',
-                color: AppTheme.info,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  item.productName,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                OrderUi.formatCurrency(item.subtotal),
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-          ),
-          if (item.selectedExtras.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text('Tillval', style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: item.selectedExtras
-                  .map(
-                    (extra) => AppPill(
-                      label: extra.toString(),
-                      color: AppTheme.success,
+          // Product header row
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppTheme.info.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text(
+                    '${item.quantity}×',
+                    style: const TextStyle(
+                      color: AppTheme.info,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
                     ),
-                  )
-                  .toList(),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    item.productName,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  OrderUi.formatCurrency(item.subtotal),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Stacked extras
+          if (hasExtras) ...[
+            Divider(
+                height: 1,
+                color: AppTheme.borderColor(context),
+                indent: 14,
+                endIndent: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: item.selectedExtras
+                    .map(
+                      (e) => Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(Icons.add_circle_outline_rounded,
+                                  size: 14, color: AppTheme.success),
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                e.toString(),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppTheme.success,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
             ),
           ],
-          if (item.note?.isNotEmpty == true) ...[
-            const SizedBox(height: 12),
-            AppPanel(
-              padding: const EdgeInsets.all(12),
-              tint: Colors.red,
-              color: Colors.red.withOpacity(0.08),
+          // Item note
+          if (hasNote) ...[
+            Divider(
+                height: 1,
+                color: AppTheme.borderColor(context),
+                indent: 14,
+                endIndent: 14),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.priority_high_rounded, color: Colors.red),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(item.note!)),
+                  const Icon(Icons.priority_high_rounded,
+                      size: 16, color: AppTheme.warning),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      item.note!,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.warning,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
