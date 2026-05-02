@@ -941,6 +941,86 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Stores the iOS Live Activity push token for an order so the backend can
 // later push status updates straight to the Dynamic Island (works even when
 // the app is killed). Token is hex-encoded and per-activity.
+// POST /api/orders/:id/debug-la-push
+// Manually triggers a Live Activity push for an order so we can isolate
+// APNs delivery from the admin status-update flow. Returns the result of
+// the push attempt directly so it's obvious from the HTTP response whether
+// APNs accepted / rejected / threw.
+//
+// Example:
+//   curl -X POST https://api.../api/orders/<orderId>/debug-la-push \
+//     -H 'Content-Type: application/json' \
+//     -d '{"status":"PREPARING"}'
+router.post('/:id/debug-la-push', async (req: Request, res: Response) => {
+  const { pushOrderStatusUpdate, ApnsError } = await import('../lib/liveActivityPush');
+  try {
+    const orderId = req.params.id;
+    const status = (req.body?.status || 'PREPARING') as string;
+    const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        id: true,
+        type: true,
+        liveActivityToken: true,
+        estimatedTime: true,
+        preparingAt: true,
+        deliveringAt: true,
+      },
+    });
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    if (!order.liveActivityToken) {
+      return res.status(400).json({
+        error: 'No liveActivityToken on order',
+        hint: 'Place a fresh order so the iOS Live Activity registers a token, then retry.',
+      });
+    }
+    let etaEndsAt: Date | null = null;
+    if (status === 'PREPARING' && order.preparingAt && order.estimatedTime) {
+      etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000);
+    } else if (status === 'PREPARING' && order.estimatedTime) {
+      etaEndsAt = new Date(Date.now() + order.estimatedTime * 60_000);
+    } else if (status === 'DELIVERING' && order.deliveringAt) {
+      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000);
+    } else if (status === 'DELIVERING') {
+      etaEndsAt = new Date(Date.now() + 20 * 60_000);
+    }
+    console.log(`[debug-la-push] order=${orderId} status=${status} token=${order.liveActivityToken.slice(0, 16)}…`);
+    try {
+      await pushOrderStatusUpdate({
+        token: order.liveActivityToken,
+        serverStatus: status,
+        orderType: order.type,
+        etaMinutes: order.estimatedTime ?? null,
+        etaEndsAt,
+      });
+      console.log(`[debug-la-push] ✅ order=${orderId} status=${status}`);
+      return res.json({
+        success: true,
+        orderId,
+        status,
+        tokenPreview: order.liveActivityToken.slice(0, 16) + '…',
+        etaEndsAt: etaEndsAt?.toISOString() ?? null,
+      });
+    } catch (e: any) {
+      const isApns = e instanceof ApnsError;
+      console.warn(`[debug-la-push] ❌ order=${orderId}:`, e?.message, isApns ? `(reason=${e.reason}, status=${e.status})` : '');
+      return res.status(500).json({
+        success: false,
+        orderId,
+        status,
+        tokenPreview: order.liveActivityToken.slice(0, 16) + '…',
+        error: e?.message ?? String(e),
+        apns: isApns ? { status: e.status, reason: e.reason, invalidToken: e.invalidToken } : null,
+      });
+    }
+  } catch (e: any) {
+    console.error('[debug-la-push] unexpected error:', e);
+    return res.status(500).json({ error: e?.message ?? String(e) });
+  }
+});
+
 router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
   try {
     const { token } = req.body ?? {};
