@@ -28,10 +28,37 @@ import crypto from 'node:crypto';
 // 403 BadEnvironmentKeyInToken. Strip leading/trailing quotes defensively.
 const stripQuotes = (v: string | undefined): string =>
   (v ?? '').replace(/^["']|["']$/g, '').trim();
+
+/**
+ * Re-build a PKCS#8 PEM from whatever Railway / dotenv / Vercel actually
+ * stored. Handles every mangling we've seen in the wild:
+ *   - Surrounding double or single quotes
+ *   - Literal "\n" escape sequences instead of real newlines
+ *   - Windows-style \r\n
+ *   - Base64 body re-wrapped at non-64 widths by the hosting provider's
+ *     editor (which makes OpenSSL 3.x throw "DECODER routines::unsupported")
+ *   - Stray BOM / zero-width / tab characters from copy-paste
+ *
+ * Strategy: extract the base64 body between BEGIN/END markers, strip ALL
+ * whitespace inside it, then re-emit a canonical PEM with strict 64-char
+ * line wrapping. OpenSSL 3.x accepts that without complaint.
+ */
+function normalizeP8Pem(raw: string | undefined): string {
+  let s = stripQuotes(raw);
+  if (!s) return '';
+  s = s.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\r/g, '');
+  s = s.replace(/^﻿/, ''); // strip BOM if present
+  const m = s.match(/-----BEGIN PRIVATE KEY-----([\s\S]*?)-----END PRIVATE KEY-----/);
+  if (!m) return s; // no markers — return as-is so caller can detect missing config
+  const body = m[1].replace(/[\s​-‍⁠﻿]+/g, ''); // strip all whitespace + zero-width chars
+  const wrapped = body.match(/.{1,64}/g)?.join('\n') ?? body;
+  return `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----\n`;
+}
+
 const APNS_KEY_ID = stripQuotes(process.env.APNS_KEY_ID);
 const APNS_TEAM_ID = stripQuotes(process.env.APNS_TEAM_ID);
 const APNS_BUNDLE_ID = stripQuotes(process.env.APNS_BUNDLE_ID);
-const APNS_KEY_P8 = stripQuotes(process.env.APNS_KEY_P8).replace(/\\n/g, '\n');
+const APNS_KEY_P8 = normalizeP8Pem(process.env.APNS_KEY_P8);
 const APNS_HOST_PRODUCTION = 'https://api.push.apple.com';
 const APNS_HOST_SANDBOX = 'https://api.sandbox.push.apple.com';
 const APNS_HOST = process.env.APNS_PRODUCTION === '1'
@@ -66,21 +93,50 @@ export function isApnsConfigured(): boolean {
 /** Boot-time banner so the absence of APNs env vars is impossible to miss. */
 export function logApnsBootStatus(): void {
   const configured = isApnsConfigured();
-  if (configured) {
+  if (!configured) {
+    console.error(
+      '[APNs] ❌ NOT CONFIGURED — Live Activity push (the killed-app path) will NOT work. ' +
+      'Required Railway env vars: APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_KEY_P8. ' +
+      `Currently: keyId=${APNS_KEY_ID ? 'set' : 'MISSING'} teamId=${APNS_TEAM_ID ? 'set' : 'MISSING'} ` +
+      `bundleId=${APNS_BUNDLE_ID ? 'set' : 'MISSING'} keyP8=${APNS_KEY_P8 ? 'set' : 'MISSING'}`
+    );
+    return;
+  }
+  // Smoke-test the .p8: try to sign one JWT. If OpenSSL chokes on the key
+  // (the "DECODER routines::unsupported" symptom from a Railway-mangled
+  // PEM), we'd rather find out at boot than per-request once a customer
+  // places an order.
+  let keyValid = false;
+  let keyError = '';
+  try {
+    const header = { alg: 'ES256', kid: APNS_KEY_ID, typ: 'JWT' };
+    const payload = { iss: APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) };
+    const enc = (obj: object) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+    const signingInput = `${enc(header)}.${enc(payload)}`;
+    const signer = crypto.createSign('SHA256');
+    signer.update(signingInput);
+    signer.end();
+    signer.sign({ key: APNS_KEY_P8, dsaEncoding: 'ieee-p1363' });
+    keyValid = true;
+  } catch (e: any) {
+    keyError = e?.message ?? String(e);
+  }
+  if (keyValid) {
     console.log(
       `[APNs] ✅ configured for ${process.env.APNS_PRODUCTION === '1' ? 'PRODUCTION' : 'SANDBOX'} ` +
       `bundle=${APNS_BUNDLE_ID} keyId=${APNS_KEY_ID.slice(0, 2)}…${APNS_KEY_ID.slice(-2)} ` +
       `teamId=${APNS_TEAM_ID.slice(0, 2)}…${APNS_TEAM_ID.slice(-2)} ` +
-      `keyP8.len=${APNS_KEY_P8.length} keyP8.wrapped=${APNS_KEY_P8.includes('-----BEGIN PRIVATE KEY-----')}`
+      `keyP8.len=${APNS_KEY_P8.length} signTest=ok`
     );
-    return;
+  } else {
+    console.error(
+      `[APNs] ❌ KEY UNPARSEABLE — env vars are set but the .p8 PEM cannot be loaded by OpenSSL. ` +
+      `Error: ${keyError}. ` +
+      `Most likely Railway re-wrapped the base64 body or stripped a newline. Try editing ` +
+      `APNS_KEY_P8 in the Railway Raw Editor and pasting the .p8 file contents EXACTLY (no quotes ` +
+      `added, real newlines preserved between every base64 line).`
+    );
   }
-  console.error(
-    '[APNs] ❌ NOT CONFIGURED — Live Activity push (the killed-app path) will NOT work. ' +
-    'Required Railway env vars: APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID, APNS_KEY_P8. ' +
-    `Currently: keyId=${APNS_KEY_ID ? 'set' : 'MISSING'} teamId=${APNS_TEAM_ID ? 'set' : 'MISSING'} ` +
-    `bundleId=${APNS_BUNDLE_ID ? 'set' : 'MISSING'} keyP8=${APNS_KEY_P8 ? 'set' : 'MISSING'}`
-  );
 }
 
 // APNs JWT — valid for up to 1h. We cache and refresh just before expiry to
