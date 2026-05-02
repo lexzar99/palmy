@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { palette } from "../constants/theme";
-import { EXPO_PUBLIC_GEOAPIFY_KEY } from "../lib/env";
+import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
 
 interface ZipAutocompleteProps {
   value: string;
@@ -10,15 +10,14 @@ interface ZipAutocompleteProps {
   onSelect: (zip: string, city: string, coords?: { lat: number; lng: number }) => void;
 }
 
-interface Suggestion {
-  properties: {
-    postcode?: string;
-    city?: string;
-    formatted: string;
-  };
-  geometry: {
-    coordinates: [number, number];
-  };
+type Suggestion = PlaceItem & { zip?: string; city?: string };
+
+// Pull "12345 Stockholm" out of a free-text description (handles "123 45" too).
+const SE_POSTAL_RE = /\b(\d{3})\s?(\d{2})\b\s+([\p{L}\s\-']+)/u;
+function parseZipCity(description: string): { zip?: string; city?: string } {
+  const m = description.match(SE_POSTAL_RE);
+  if (!m) return {};
+  return { zip: `${m[1]}${m[2]}`, city: m[3].trim().split(",")[0].trim() };
 }
 
 export default function ZipAutocomplete({
@@ -45,15 +44,12 @@ export default function ZipAutocomplete({
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(text)}&filter=countrycode:se&limit=5&apiKey=${EXPO_PUBLIC_GEOAPIFY_KEY}`
-      );
-      const data = await response.json();
-      // Filter to only show suggestions with postcode
-      const filtered = (data.features || []).filter((f: Suggestion) => f.properties.postcode);
-      setSuggestions(filtered);
-    } catch (err) {
-      console.error("Autocomplete error:", err);
+      const items = await placesAutocomplete(text);
+      const enriched: Suggestion[] = items
+        .map((item) => ({ ...item, ...parseZipCity(item.description) }))
+        .filter((s) => !!s.zip);
+      setSuggestions(enriched);
+    } catch {
       setSuggestions([]);
     } finally {
       setLoading(false);
@@ -68,14 +64,19 @@ export default function ZipAutocomplete({
     debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
   };
 
-  const handleSelect = (suggestion: Suggestion) => {
-    const zip = suggestion.properties.postcode || "";
-    const city = suggestion.properties.city || "";
-    const [lng, lat] = suggestion.geometry.coordinates;
+  const handleSelect = async (suggestion: Suggestion) => {
+    const zip = suggestion.zip || "";
+    const city = suggestion.city || "";
     onChangeText(zip);
-    onSelect(zip, city, { lat, lng });
     setSuggestions([]);
     setShowSuggestions(false);
+    setLoading(true);
+    try {
+      const coords = await placesResolveCoords(suggestion);
+      onSelect(zip, city, coords ?? undefined);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -95,15 +96,15 @@ export default function ZipAutocomplete({
 
       {showSuggestions && suggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
-          {suggestions.map((suggestion, index) => (
+          {suggestions.map((suggestion) => (
             <Pressable
-              key={index}
+              key={suggestion.id}
               style={styles.suggestionItem}
               onPress={() => handleSelect(suggestion)}
             >
               <Ionicons name="mail-outline" size={16} color={palette.goldDark} />
               <Text style={styles.suggestionText}>
-                {suggestion.properties.postcode} {suggestion.properties.city}
+                {suggestion.zip} {suggestion.city}
               </Text>
             </Pressable>
           ))}

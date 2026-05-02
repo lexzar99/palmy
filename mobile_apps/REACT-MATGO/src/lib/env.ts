@@ -14,7 +14,9 @@ export function validateEnv(): string[] {
   const missing: string[] = [];
   if (!EXPO_PUBLIC_API_URL) missing.push("EXPO_PUBLIC_API_URL");
   if (!EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) missing.push("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-  if (!EXPO_PUBLIC_GEOAPIFY_KEY) missing.push("EXPO_PUBLIC_GEOAPIFY_KEY");
+  // EXPO_PUBLIC_GEOAPIFY_KEY is optional — places lookups go through the
+  // backend (/api/places/*). The key is only used as a client-side fallback
+  // in lib/places.ts when the backend (Google) call returns no results.
   if (!EXPO_PUBLIC_SUPABASE_URL) missing.push("EXPO_PUBLIC_SUPABASE_URL");
   if (!EXPO_PUBLIC_SUPABASE_ANON_KEY) missing.push("EXPO_PUBLIC_SUPABASE_ANON_KEY");
   return missing;
