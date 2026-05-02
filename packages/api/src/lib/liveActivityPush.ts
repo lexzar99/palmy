@@ -25,9 +25,18 @@ const APNS_KEY_ID = process.env.APNS_KEY_ID;
 const APNS_TEAM_ID = process.env.APNS_TEAM_ID;
 const APNS_BUNDLE_ID = process.env.APNS_BUNDLE_ID;
 const APNS_KEY_P8 = (process.env.APNS_KEY_P8 || '').replace(/\\n/g, '\n');
+const APNS_HOST_PRODUCTION = 'https://api.push.apple.com';
+const APNS_HOST_SANDBOX = 'https://api.sandbox.push.apple.com';
 const APNS_HOST = process.env.APNS_PRODUCTION === '1'
-  ? 'https://api.push.apple.com'
-  : 'https://api.sandbox.push.apple.com';
+  ? APNS_HOST_PRODUCTION
+  : APNS_HOST_SANDBOX;
+const APNS_HOST_FALLBACK = APNS_HOST === APNS_HOST_PRODUCTION
+  ? APNS_HOST_SANDBOX
+  : APNS_HOST_PRODUCTION;
+// Per-token cache of which host the push actually got accepted on, so we
+// don't waste a round-trip hitting the wrong environment for every push to
+// a known-good token.
+const tokenHostCache = new Map<string, string>();
 
 let warnedMissing = false;
 function isConfigured(): boolean {
@@ -152,7 +161,7 @@ export class ApnsError extends Error {
   }
 }
 
-function sendApns(opts: {
+async function sendApns(opts: {
   token: string;
   topic: string;
   pushType: 'liveactivity' | 'alert';
@@ -163,10 +172,45 @@ function sendApns(opts: {
   // any positive value tells APNs to retry delivery up to that time.
   expirationSecondsFromNow?: number;
 }): Promise<void> {
+  // Production tokens only work on api.push.apple.com; sandbox tokens only
+  // on api.sandbox.push.apple.com. A mismatched host returns 400
+  // BadDeviceToken / DeviceTokenNotForTopic and the push is silently lost.
+  // We try the configured host first and on those specific errors retry
+  // automatically against the other host — the build environment (Debug
+  // vs Release / TestFlight) determines which one a given device wants,
+  // so a single backend can serve both without manual config flipping.
+  const cached = tokenHostCache.get(opts.token);
+  const primary = cached ?? APNS_HOST;
+  const secondary = primary === APNS_HOST_PRODUCTION ? APNS_HOST_SANDBOX : APNS_HOST_PRODUCTION;
+  try {
+    await sendApnsToHost({ ...opts, host: primary });
+    if (cached !== primary) tokenHostCache.set(opts.token, primary);
+    return;
+  } catch (e) {
+    if (e instanceof ApnsError && (e.reason === 'BadDeviceToken' || e.reason === 'DeviceTokenNotForTopic')) {
+      console.log(`[liveActivityPush] ${primary} rejected token (${e.reason}); retrying ${secondary}`);
+      await sendApnsToHost({ ...opts, host: secondary });
+      tokenHostCache.set(opts.token, secondary);
+      return;
+    }
+    throw e;
+  }
+}
+
+function sendApnsToHost(opts: {
+  host: string;
+  token: string;
+  topic: string;
+  pushType: 'liveactivity' | 'alert';
+  payload: string;
+  priority: '10' | '5';
+  collapseId?: string;
+  expirationSecondsFromNow?: number;
+}): Promise<void> {
   return new Promise((resolve, reject) => {
     let client: http2.ClientHttp2Session | null = null;
     try {
-      client = http2.connect(APNS_HOST);
+      client = http2.connect(opts.host);
     } catch (e) {
       return reject(e);
     }
@@ -180,10 +224,6 @@ function sendApns(opts: {
       reject(err);
     });
 
-    // Default: retry for 1 hour. Earlier we used 0 (deliver-now-or-drop),
-    // which silently dropped LA pushes whenever the device was briefly
-    // off-network — exactly the "stuck on Mottagen" symptom users hit when
-    // the order moved to På väg while the app was in the background.
     const expSeconds = opts.expirationSecondsFromNow ?? 60 * 60;
     const expiration = expSeconds > 0
       ? String(Math.floor(Date.now() / 1000) + expSeconds)
@@ -200,9 +240,6 @@ function sendApns(opts: {
       'content-type': 'application/json',
     };
     if (opts.collapseId) {
-      // iOS replaces any existing on-device notification with the same
-      // collapse-id with this one, so the order status reads as a single
-      // updating notification instead of stacking a new banner per step.
       headers['apns-collapse-id'] = opts.collapseId.slice(0, 64);
     }
     const req = client.request(headers);
@@ -219,7 +256,7 @@ function sendApns(opts: {
         resolve();
       } else {
         const errBody = Buffer.concat(bodyChunks).toString('utf8');
-        console.warn(`[liveActivityPush] APNs ${status}: ${errBody}`);
+        console.warn(`[liveActivityPush] APNs ${opts.host} ${status}: ${errBody}`);
         let reason = 'Unknown';
         try {
           const parsed = JSON.parse(errBody);
