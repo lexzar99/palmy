@@ -17,6 +17,7 @@ import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idem
 import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from '../utils/deliveryZones';
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
+import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -876,14 +877,18 @@ router.get('/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    // For customer-facing view: if order was recently marked as DELIVERING
-    // (stored as DELIVERED in DB), show DELIVERING for 15 minutes, then
-    // switch to DELIVERED. Matches the LA finalizer (libs/liveActivityFinalize)
-    // which auto-flips the LA to "Levererad" at the 15-min mark.
+    // For customer-facing view: while the order is still inside its
+    // DELIVERING window (computed by computeDeliveryWindowMs — currently 30 s
+    // for testing, normally 10–25 min), show DELIVERING; after that the row
+    // already reads DELIVERED and we serve that. Single source of truth so
+    // the customer banner, the LA finaliser, and the LA dispatcher all
+    // agree on the same window.
     let customerStatus = order.status;
     if (order.status === 'DELIVERED' && order.deliveringAt) {
-      const minutesSinceDelivering = (Date.now() - new Date(order.deliveringAt).getTime()) / 60000;
-      if (minutesSinceDelivering < 20) {
+      const deliveringAtDate = new Date(order.deliveringAt);
+      const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
+      const elapsed = Date.now() - deliveringAtDate.getTime();
+      if (elapsed < windowMs) {
         customerStatus = 'DELIVERING';
       }
     }
@@ -895,7 +900,9 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (customerStatus === 'PREPARING' && order.preparingAt && order.estimatedTime) {
       etaEndsAt = new Date(new Date(order.preparingAt).getTime() + order.estimatedTime * 60_000).toISOString();
     } else if (customerStatus === 'DELIVERING' && order.deliveringAt) {
-      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000).toISOString();
+      const deliveringAtDate = new Date(order.deliveringAt);
+      const windowMs = computeDeliveryWindowMs(deliveringAtDate, order.id);
+      etaEndsAt = new Date(deliveringAtDate.getTime() + windowMs).toISOString();
     }
 
     res.json({
@@ -1053,9 +1060,11 @@ router.post('/:id/debug-la-push', async (req: Request, res: Response) => {
     } else if (status === 'PREPARING' && order.estimatedTime) {
       etaEndsAt = new Date(Date.now() + order.estimatedTime * 60_000);
     } else if (status === 'DELIVERING' && order.deliveringAt) {
-      etaEndsAt = new Date(new Date(order.deliveringAt).getTime() + 20 * 60_000);
+      const deliveringAtDate = new Date(order.deliveringAt);
+      etaEndsAt = new Date(deliveringAtDate.getTime() + computeDeliveryWindowMs(deliveringAtDate, order.id));
     } else if (status === 'DELIVERING') {
-      etaEndsAt = new Date(Date.now() + 20 * 60_000);
+      const now = new Date();
+      etaEndsAt = new Date(now.getTime() + computeDeliveryWindowMs(now, order.id));
     }
     console.log(`[debug-la-push] order=${orderId} status=${status} token=${order.liveActivityToken.slice(0, 16)}…`);
     try {

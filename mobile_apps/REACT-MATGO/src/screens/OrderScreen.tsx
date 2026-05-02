@@ -13,6 +13,7 @@ import { api, SOCKET_URL } from "../lib/api";
 import { palette } from "../constants/theme";
 import { ScreenWrap, Header, EmptyPanel, PulseIndicator, SpinningLoader } from "../components/ui";
 import { OrderScreenSkeleton } from "../components/SkeletonLoader";
+import { DELIVERY_AUTO_DISMISS_MS } from "../lib/orderTiming";
 import type { Order } from "../types";
 
 
@@ -101,14 +102,15 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     };
   }, [fetchOrder, id]);
 
-  // Auto-transition from DELIVERING to DELIVERED after 20 minutes
-  // (matches the backend LA finaliser DELIVERED_AT_MS — the LA dismisses
-  // the moment the status flips, no extra courtesy window).
+  // Auto-transition from DELIVERING to DELIVERED after the configured window
+  // (driven by DELIVERY_AUTO_DISMISS_MS — currently 30 s for testing,
+  // normally 10–25 min). Matches the backend computeDeliveryWindowMs and the
+  // LA finaliser so all three flip at the same moment.
   useEffect(() => {
     const deliveringAt = (order as any)?.deliveringAt;
     if (!deliveringAt || order?.status !== "DELIVERING") return;
     const deliveringTime = new Date(deliveringAt).getTime();
-    const msRemaining = (deliveringTime + 20 * 60 * 1000) - Date.now();
+    const msRemaining = (deliveringTime + DELIVERY_AUTO_DISMISS_MS) - Date.now();
     if (msRemaining <= 0) {
       setOrder((prev) => prev ? { ...prev, status: "DELIVERED" } : prev);
       return;
@@ -126,9 +128,8 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
       if (order.status === "DELIVERED" || order.status === "COMPLETED") return;
 
       if (order.status === "DELIVERING" && (order as any).deliveringAt) {
-        // 20-min nedräkning från DELIVERING-tidpunkten
         const deliveringTime = new Date((order as any).deliveringAt).getTime();
-        const msLeft = (deliveringTime + 20 * 60 * 1000) - Date.now();
+        const msLeft = (deliveringTime + DELIVERY_AUTO_DISMISS_MS) - Date.now();
         setMinutesLeft(Math.max(0, Math.ceil(msLeft / 60000)));
       } else if (order.estimatedTime) {
         // Annars, räkna ner estimatedTime från när ordern skapades

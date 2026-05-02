@@ -10,9 +10,13 @@
  * server hasn't supplied an etaEndsAt we fall back to the time-window alone.
  */
 
-export const DELIVERY_AUTO_DISMISS_MS = 20 * 60 * 1000;
+// ⚠️ TEMP TESTING — 30 s window matches the backend's
+// computeDeliveryWindowMs() temp value so the in-app banner, the LA, and
+// the customer-facing GET all auto-flip from DELIVERING → DELIVERED at the
+// same moment. Revert both back to 10–25 min before public release.
+export const DELIVERY_AUTO_DISMISS_MS = 30 * 1000;
 /** Extra grace window before auto-flipping the order to DELIVERED. */
-export const DELIVERY_AUTO_COMPLETE_GRACE_MS = 2 * 60 * 1000;
+export const DELIVERY_AUTO_COMPLETE_GRACE_MS = 5 * 1000;
 /** Total time from `deliveringAt` until we treat the order as completed
  *  client-side (20 + 2 min). Mirrors the visible timer + a courtesy buffer. */
 export const DELIVERY_AUTO_COMPLETE_MS =

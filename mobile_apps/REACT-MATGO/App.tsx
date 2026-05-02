@@ -123,15 +123,18 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Configure notifications. We honour a `silent: true` payload field so the
 // content-available wake-pushes that resync the Live Activity don't ding the
-// user every time the order moves between status states.
+// user every time the order moves between status states. Only the review
+// prompt is allowed to set a badge — every other push is either an LA-wake
+// (silent) or a status banner that the user has already seen as the LA.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = notification?.request?.content?.data as Record<string, any> | undefined;
     const silent = data?.silent === true || data?.silent === "true";
+    const isReviewPrompt = data?.status === 'REVIEW_PROMPT';
     return {
       shouldShowAlert: !silent,
       shouldPlaySound: !silent,
-      shouldSetBadge: true,
+      shouldSetBadge: isReviewPrompt,
       shouldShowBanner: !silent,
       shouldShowList: !silent,
     };
