@@ -33,6 +33,7 @@ class AudioHelper {
 
   static Future<void> startLooping(String assetName) async {
     if (_isLooping) return;
+    _isLooping = true; // Guard immediately to prevent concurrent calls
     try {
       debugPrint('🔊 AudioHelper: Starting loop for audio/$assetName');
       await _loopPlayer.setReleaseMode(ReleaseMode.loop);
@@ -57,8 +58,6 @@ class AudioHelper {
           debugPrint('ℹ️ Mac Sound Bridge not running (ignore if not on Mac)');
         }
       }
-
-      _isLooping = true;
     } catch (e) {
       debugPrint('❌ AudioHelper Error: $e');
       _isLooping = false;

@@ -21,6 +21,7 @@ class OrderProvider with ChangeNotifier {
   bool _isRestaurantOpen = true;
   bool _isOffline = false;
   Timer? _alarmWatchdog;
+  bool _socketInitializing = false;
   String openingTime = '11:00';
   String closingTime = '21:00';
   String _lastKnownHours = '';
@@ -429,11 +430,13 @@ class OrderProvider with ChangeNotifier {
   }
 
   Future<void> initSocket(String restaurantId) async {
+    if (_socketInitializing) return;
     if (_socket != null &&
         _socket!.connected &&
         _restaurantId == restaurantId) {
       return; // Already initialized for this restaurant
     }
+    _socketInitializing = true;
     _restaurantId = restaurantId;
     if (_socket != null) _socket!.dispose();
 
@@ -452,10 +455,15 @@ class OrderProvider with ChangeNotifier {
 
     _socket!.onConnect((_) {
       _isOffline = false;
+      _socketInitializing = false;
       _socket!
           .emit('join:admin', {'restaurantId': restaurantId, 'token': token});
       logger.log('SOCKET CONNECTED: $restaurantId');
       notifyListeners();
+    });
+
+    _socket!.onConnectError((_) {
+      _socketInitializing = false;
     });
 
     _socket!.on('order:new', (data) {

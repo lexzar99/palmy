@@ -5,6 +5,9 @@ import 'constants.dart';
 class ApiClient {
   late Dio dio;
 
+  // Set this once at app startup (e.g. from AuthProvider) to auto-logout on 401
+  static void Function()? onUnauthorized;
+
   ApiClient() {
     dio = Dio(BaseOptions(
       baseUrl: AppConstants.baseUrl,
@@ -29,7 +32,7 @@ class ApiClient {
       },
       onError: (e, handler) {
         if (e.response?.statusCode == 401) {
-          // Could handle logout logic here
+          onUnauthorized?.call();
         }
         return handler.next(e);
       },

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 
+import 'core/api_client.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
@@ -27,6 +28,7 @@ void main() async {
   }
 
   final authProvider = AuthProvider();
+  ApiClient.onUnauthorized = () => authProvider.logout();
   await authProvider.tryAutoLogin();
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
