@@ -26,6 +26,47 @@ private extension Color {
     static let fgOrange = Color(red: 1.00, green: 0.50, blue: 0.10)
     static let fgMint   = Color(red: 0.10, green: 0.95, blue: 0.55)
     static let fgBlue   = Color(red: 0.25, green: 0.65, blue: 1.00)
+    static let fgRed    = Color(red: 0.95, green: 0.30, blue: 0.32)
+}
+
+// ── Terminal-state model ──────────────────────────────────────────────────────
+// Rejected / cancelled / failed orders take over the whole banner with a
+// dedicated red layout instead of a half-rendered progress row. The activity
+// is dismissed shortly after, but for the 8-15 s the user actually sees the
+// banner we want unambiguous "this isn't happening" framing.
+private struct TerminalLook {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let accent: Color
+}
+
+private func terminalLook(for status: String) -> TerminalLook? {
+    switch status {
+    case "rejected":
+        return TerminalLook(
+            icon: "xmark.octagon.fill",
+            title: "Beställningen avvisades",
+            subtitle: "Restaurangen kunde inte ta emot din order",
+            accent: .fgRed
+        )
+    case "cancelled":
+        return TerminalLook(
+            icon: "minus.circle.fill",
+            title: "Beställningen avbruten",
+            subtitle: "Ordern är inte längre aktiv",
+            accent: .fgRed
+        )
+    case "failed":
+        return TerminalLook(
+            icon: "exclamationmark.triangle.fill",
+            title: "Leveransen misslyckades",
+            subtitle: "Kontakta support för hjälp",
+            accent: .fgRed
+        )
+    default:
+        return nil
+    }
 }
 
 // ── Step model ────────────────────────────────────────────────────────────────
@@ -95,48 +136,105 @@ struct OrderExpandedView: View {
 
     var body: some View {
         let state = context.state
-        let stepDefs = steps(for: state.orderType)
-        let stepIdx = clampStep(state.progressStep, count: stepDefs.count)
-        let active = stepDefs[stepIdx]
+        if let terminal = terminalLook(for: state.status) {
+            TerminalView(
+                look: terminal,
+                restaurantName: context.attributes.restaurantName,
+                orderTotal: context.attributes.orderTotal,
+                includeHeader: includeHeader
+            )
+        } else {
+            let stepDefs = steps(for: state.orderType)
+            let stepIdx = clampStep(state.progressStep, count: stepDefs.count)
+            let active = stepDefs[stepIdx]
 
-        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 14) {
+                if includeHeader {
+                    HStack {
+                        Image(systemName: "fork.knife")
+                            .foregroundStyle(active.color)
+                        Text("FoodGo")
+                            .font(.system(size: 16, weight: .black))
+                            .italic()
+                            .foregroundStyle(active.color)
+                        Spacer()
+                        Text(context.attributes.orderTotal)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.fgMuted)
+                    }
+                }
+
+                // Restaurant + status text
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(context.attributes.restaurantName)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.fgText)
+                    HStack(spacing: 6) {
+                        Image(systemName: active.icon)
+                            .font(.system(size: 11))
+                            .foregroundStyle(active.color)
+                        Text(state.statusText)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.fgMuted)
+                            .lineLimit(1)
+                        Spacer()
+                        if active.showsTimer, let endsAt = state.etaEndsAt {
+                            CountdownText(endsAt: endsAt, accent: active.color)
+                        }
+                    }
+                }
+
+                // Progress row
+                StepRow(stepDefs: stepDefs, current: stepIdx)
+            }
+            .padding(includeHeader
+                     ? EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
+                     : EdgeInsets(top: 4, leading: 12, bottom: 12, trailing: 12))
+            .background(Color.fgBg)
+        }
+    }
+}
+
+// ── Terminal banner (rejected / cancelled / failed) ───────────────────────────
+private struct TerminalView: View {
+    let look: TerminalLook
+    let restaurantName: String
+    let orderTotal: String
+    let includeHeader: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
             if includeHeader {
                 HStack {
                     Image(systemName: "fork.knife")
-                        .foregroundStyle(active.color)
+                        .foregroundStyle(look.accent)
                     Text("FoodGo")
                         .font(.system(size: 16, weight: .black))
                         .italic()
-                        .foregroundStyle(active.color)
+                        .foregroundStyle(look.accent)
                     Spacer()
-                    Text(context.attributes.orderTotal)
+                    Text(orderTotal)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(Color.fgMuted)
                 }
             }
-
-            // Restaurant + status text
-            VStack(alignment: .leading, spacing: 3) {
-                Text(context.attributes.restaurantName)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(Color.fgText)
-                HStack(spacing: 6) {
-                    Image(systemName: active.icon)
-                        .font(.system(size: 11))
-                        .foregroundStyle(active.color)
-                    Text(state.statusText)
-                        .font(.system(size: 13))
+            HStack(alignment: .center, spacing: 12) {
+                Image(systemName: look.icon)
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(look.accent)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(look.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.fgText)
+                    Text(restaurantName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(look.accent)
+                    Text(look.subtitle)
+                        .font(.system(size: 12))
                         .foregroundStyle(Color.fgMuted)
-                        .lineLimit(1)
-                    Spacer()
-                    if active.showsTimer, let endsAt = state.etaEndsAt {
-                        CountdownText(endsAt: endsAt, accent: active.color)
-                    }
+                        .lineLimit(2)
                 }
             }
-
-            // Progress row
-            StepRow(stepDefs: stepDefs, current: stepIdx)
         }
         .padding(includeHeader
                  ? EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
@@ -216,24 +314,29 @@ struct OrderWidgetLiveActivity: Widget {
                 .activitySystemActionForegroundColor(Color.fgGold)
 
         } dynamicIsland: { context in
+            let terminal = terminalLook(for: context.state.status)
             let stepDefs = steps(for: context.state.orderType)
             let stepIdx = clampStep(context.state.progressStep, count: stepDefs.count)
             let active = stepDefs[stepIdx]
+            let accent = terminal?.accent ?? active.color
+            let leadingIcon = terminal?.icon ?? active.icon
 
             return DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         Image(systemName: "fork.knife")
-                            .foregroundStyle(active.color)
+                            .foregroundStyle(accent)
                         Text("FoodGo")
                             .font(.system(size: 14, weight: .black))
                             .italic()
-                            .foregroundStyle(active.color)
+                            .foregroundStyle(accent)
                     }
                     .padding(.leading, 8)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if active.showsTimer, let endsAt = context.state.etaEndsAt {
+                    if terminal != nil {
+                        EmptyView()
+                    } else if active.showsTimer, let endsAt = context.state.etaEndsAt {
                         CountdownText(endsAt: endsAt, accent: active.color)
                             .padding(.trailing, 8)
                     } else if let eta = context.state.etaMinutes, stepIdx < stepDefs.count - 1 {
@@ -244,16 +347,20 @@ struct OrderWidgetLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    // Skip the FoodGo header here — it's already in .leading
-                    // and we'd otherwise repeat the logo + order total.
                     OrderExpandedView(context: context, includeHeader: false)
                 }
             } compactLeading: {
-                Image(systemName: active.icon)
-                    .foregroundStyle(active.color)
+                Image(systemName: leadingIcon)
+                    .foregroundStyle(accent)
                     .font(.system(size: 14, weight: .semibold))
             } compactTrailing: {
-                if active.showsTimer, let endsAt = context.state.etaEndsAt, Date(timeIntervalSince1970: endsAt) > Date() {
+                if let terminal = terminal {
+                    Text(terminal.title)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(terminal.accent)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                } else if active.showsTimer, let endsAt = context.state.etaEndsAt, Date(timeIntervalSince1970: endsAt) > Date() {
                     Text(timerInterval: Date()...Date(timeIntervalSince1970: endsAt), countsDown: true)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(active.color)
@@ -267,11 +374,11 @@ struct OrderWidgetLiveActivity: Widget {
                         .minimumScaleFactor(0.8)
                 }
             } minimal: {
-                Image(systemName: active.icon)
-                    .foregroundStyle(active.color)
+                Image(systemName: leadingIcon)
+                    .foregroundStyle(accent)
             }
             .widgetURL(URL(string: "foodgo://order/\(context.attributes.orderId)"))
-            .keylineTint(active.color)
+            .keylineTint(accent)
         }
     }
 }

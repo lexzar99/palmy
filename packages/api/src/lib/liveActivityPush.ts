@@ -253,7 +253,9 @@ const STATUS_META: Record<string, { statusText: string; progressStep: number }> 
   on_the_way:      { statusText: 'Din order är på väg!',                  progressStep: 2 },
   arrived:         { statusText: 'Föraren är framme!',                    progressStep: 2 },
   delivered:       { statusText: 'Levererad',                             progressStep: 2 },
+  rejected:        { statusText: 'Beställningen avvisades av restaurangen', progressStep: 0 },
   cancelled:       { statusText: 'Ordern avbruten',                       progressStep: 0 },
+  failed:          { statusText: 'Leveransen kunde inte slutföras',       progressStep: 0 },
 };
 
 export function mapServerStatusToActivity(
@@ -270,9 +272,9 @@ export function mapServerStatusToActivity(
     case 'OUT_FOR_DELIVERY': return { activityStatus: 'on_the_way',   ends: false };
     case 'DELIVERED':
     case 'COMPLETED':      return { activityStatus: 'delivered',      ends: true };
-    case 'REJECTED':
-    case 'CANCELLED':
-    case 'DELIVERY_FAILED': return { activityStatus: 'cancelled',     ends: true };
+    case 'REJECTED':       return { activityStatus: 'rejected',       ends: true };
+    case 'CANCELLED':      return { activityStatus: 'cancelled',      ends: true };
+    case 'DELIVERY_FAILED': return { activityStatus: 'failed',        ends: true };
     default:               return null;
   }
 }

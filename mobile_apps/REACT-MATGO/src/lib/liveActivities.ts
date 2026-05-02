@@ -262,15 +262,14 @@ export async function endAllOrderActivities(): Promise<void> {
 }
 
 /**
- * Force-resync a single order's LiveActivity from server state.
+ * Foreground / wake-up reconciliation.
  *
- * Used as a fallback when the dedicated LA APNs push gets throttled (e.g. the
- * user hasn't enabled "Frequent Updates" in Settings → FoodGo → Live
- * Activities). The accompanying alert-style push that arrives at the same
- * moment carries `content-available: 1`, which iOS uses to briefly wake JS in
- * the background. From there we hit `/api/orders/:id` and call
- * `Activity.update()` directly, so the Dynamic Island catches up regardless of
- * whether the LA-topic push made it through.
+ * Only fires endOrderActivity when the server reports a terminal status —
+ * never updateOrderActivity. In-flight state changes (PREPARING → READY →
+ * DELIVERING) are delivered to the Live Activity exclusively by the backend
+ * over the APNs `liveactivity` topic. JS-driven Activity.update() calls have
+ * been removed because they don't run when the app is backgrounded or
+ * killed, which is the failure mode that kept biting us.
  */
 export async function syncOrderActivityFromServer(orderId: string): Promise<void> {
   if (!supported || !orderId) return;
@@ -281,26 +280,8 @@ export async function syncOrderActivityFromServer(orderId: string): Promise<void
     const serverStatus: string | undefined = data.status;
     if (!serverStatus) return;
     const mapped = mapServerStatusToActivity(serverStatus, orderType);
-    if (!mapped) return;
-
-    const eta: number | null = data.estimatedTime ?? null;
-    const etaEndsAt: number | null = data.etaEndsAt
-      ? Math.floor(new Date(data.etaEndsAt).getTime() / 1000)
-      : null;
-
-    if (mapped.ends) {
-      // Terminal status: don't push an interim update first — that would
-      // freeze the LA on a "delivered" state and a subsequent end push
-      // gets coalesced/dropped, leaving the banner stuck. The cancel flow
-      // that has always worked just calls endOrderActivity directly and
-      // lets iOS handle the ~8-second dismissal.
+    if (mapped?.ends) {
       await endOrderActivity(orderId);
-    } else {
-      await updateOrderActivity(orderId, mapped.status, {
-        etaMinutes: eta ?? undefined,
-        orderType,
-        etaEndsAt,
-      });
     }
   } catch (e) {
     console.warn("[LiveActivities] syncOrderActivityFromServer failed:", e);
