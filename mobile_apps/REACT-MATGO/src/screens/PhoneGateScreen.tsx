@@ -8,6 +8,7 @@ import {
   ScrollView,
   Platform,
   StatusBar,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -46,20 +47,30 @@ export default function PhoneGateScreen() {
   const [countryCode, setCountryCode] = useState("+46");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [otpPhone, setOtpPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const needsName = !profile?.name || profile.name.trim().toLowerCase() === "användare";
+  // Use Apple-supplied first/last when available; only prompt when nothing
+  // structured is on the profile yet.
+  const profileFirst = (profile as any)?.firstName?.trim?.() || "";
+  const profileLast = (profile as any)?.lastName?.trim?.() || "";
+  const profileName = profile?.name?.trim?.() || "";
+  const isPlaceholder = profileName.toLowerCase() === "användare";
+  const needsName = !profileFirst && !profileLast && (!profileName || isPlaceholder);
+  const greetingName = profileFirst || profileLast
+    ? [profileFirst, profileLast].filter(Boolean).join(" ")
+    : (!isPlaceholder ? profileName : "");
 
   const buildPhone = (cc: string, raw: string) =>
     `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
   const sendOtp = useCallback(async () => {
-    if (needsName && !name.trim()) {
-      setError("Ange ditt namn");
+    if (needsName && (!firstName.trim() || !lastName.trim())) {
+      setError(!firstName.trim() ? "Ange ditt förnamn" : "Ange ditt efternamn");
       return;
     }
     if (!phone.trim() || !token) {
@@ -83,7 +94,7 @@ export default function PhoneGateScreen() {
     } finally {
       setLoading(false);
     }
-  }, [phone, countryCode, token]);
+  }, [phone, countryCode, token, firstName, lastName, needsName]);
 
   const verifyOtp = useCallback(async () => {
     if (!otpCode.trim() || !token) {
@@ -98,28 +109,31 @@ export default function PhoneGateScreen() {
         { phone: otpPhone, code: otpCode },
         { headers: { Authorization: `Bearer ${token}` } },
       );
-      // Save name if provided
-      if (name.trim()) {
+      // Save first/last name if the user just provided them on this screen.
+      const first = firstName.trim();
+      const last = lastName.trim();
+      if (first || last) {
+        const joined = [first, last].filter(Boolean).join(" ");
         await api.patch(
           "/api/profile",
-          { name: name.trim() },
+          {
+            firstName: first || undefined,
+            lastName: last || undefined,
+            name: joined || undefined,
+          },
           { headers: { Authorization: `Bearer ${token}` } },
         ).catch(() => null);
       }
       const profileRes = await api.get("/api/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      // Override "Användare" placeholder if we have a real name
-      if (name.trim() && profileRes.data) {
-        profileRes.data.name = name.trim();
-      }
       setProfile(profileRes.data);
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Felaktig kod");
     } finally {
       setLoading(false);
     }
-  }, [otpCode, otpPhone, token, name, setProfile]);
+  }, [otpCode, otpPhone, token, firstName, lastName, setProfile]);
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut().catch(() => null);
@@ -139,8 +153,13 @@ export default function PhoneGateScreen() {
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       />
       <SafeAreaView style={{ flex: 1, backgroundColor: "transparent" }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 26, paddingTop: topInset, paddingBottom: 48 }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 26, paddingTop: topInset, paddingBottom: 220 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -177,34 +196,67 @@ export default function PhoneGateScreen() {
             </View>
           </View>
 
+          {!!greetingName && (
+            <View style={{
+              flexDirection: "row", alignItems: "center", gap: 10,
+              alignSelf: "flex-start",
+              paddingHorizontal: 14, paddingVertical: 8,
+              borderRadius: 999,
+              backgroundColor: "rgba(231,178,75,0.12)",
+              borderWidth: 1, borderColor: "rgba(231,178,75,0.25)",
+              marginBottom: 14,
+            }}>
+              <Ionicons name="person-circle-outline" size={16} color={palette.gold} />
+              <Text style={{ color: palette.gold, fontSize: 13, fontWeight: "800" }}>
+                {greetingName}
+              </Text>
+            </View>
+          )}
           <Text style={{ color: palette.text, fontSize: 32, fontWeight: "900", lineHeight: 38, letterSpacing: -0.5, marginBottom: 12 }}>
             Verifiera ditt{"\n"}
             <Text style={{ color: palette.gold }}>telefonnummer</Text>
           </Text>
-          <Text style={{ color: palette.muted, fontSize: 14, fontWeight: "500", lineHeight: 22, marginBottom: 6 }}>
-            För att kunna beställa kopplar vi numret till {masked}.
-          </Text>
-          <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "500", lineHeight: 18, marginBottom: 28 }}>
-            Endast ett nummer per konto. Vi skickar en kod via SMS för verifiering.
+          <Text style={{ color: palette.muted, fontSize: 14, fontWeight: "500", lineHeight: 22, marginBottom: 28 }}>
+            Vi skickar en kod via SMS för att verifiera numret till ditt konto.
           </Text>
 
           {step === "phone" && (
             <View style={{ gap: 12 }}>
               {needsName && (
-                <TextInput
-                  style={{
-                    paddingHorizontal: 16, paddingVertical: 16,
-                    borderRadius: 16, backgroundColor: palette.card,
-                    borderWidth: 1, borderColor: palette.border,
-                    color: palette.text, fontSize: 16, fontWeight: "700",
-                  }}
-                  placeholder="Ditt namn"
-                  placeholderTextColor={palette.muted}
-                  value={name}
-                  onChangeText={(t) => { setName(t); setError(""); }}
-                  autoCapitalize="words"
-                  returnKeyType="next"
-                />
+                <>
+                  <TextInput
+                    style={{
+                      paddingHorizontal: 16, paddingVertical: 16,
+                      borderRadius: 16, backgroundColor: palette.card,
+                      borderWidth: 1, borderColor: palette.border,
+                      color: palette.text, fontSize: 16, fontWeight: "700",
+                    }}
+                    placeholder="Förnamn"
+                    placeholderTextColor={palette.muted}
+                    value={firstName}
+                    onChangeText={(t) => { setFirstName(t); setError(""); }}
+                    autoCapitalize="words"
+                    autoComplete="name-given"
+                    textContentType="givenName"
+                    returnKeyType="next"
+                  />
+                  <TextInput
+                    style={{
+                      paddingHorizontal: 16, paddingVertical: 16,
+                      borderRadius: 16, backgroundColor: palette.card,
+                      borderWidth: 1, borderColor: palette.border,
+                      color: palette.text, fontSize: 16, fontWeight: "700",
+                    }}
+                    placeholder="Efternamn"
+                    placeholderTextColor={palette.muted}
+                    value={lastName}
+                    onChangeText={(t) => { setLastName(t); setError(""); }}
+                    autoCapitalize="words"
+                    autoComplete="name-family"
+                    textContentType="familyName"
+                    returnKeyType="next"
+                  />
+                </>
               )}
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
@@ -324,6 +376,7 @@ export default function PhoneGateScreen() {
             </Pressable>
           )}
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
