@@ -117,11 +117,18 @@ public class LiveActivitiesModule: Module {
                 initialStaleDate = Date().addingTimeInterval(90 * 60)
             }
             let content = ActivityContent(state: state, staleDate: initialStaleDate, relevanceScore: 100)
-            let activity = try Activity<OrderActivityAttributes>.request(
-                attributes: attrs,
-                content: content,
-                pushType: .token
-            )
+            let activity: Activity<OrderActivityAttributes>
+            do {
+                activity = try Activity<OrderActivityAttributes>.request(
+                    attributes: attrs,
+                    content: content,
+                    pushType: .token
+                )
+                NSLog("[LA] ✅ Activity created for order=\(orderId), id=\(activity.id), pushType=.token")
+            } catch {
+                NSLog("[LA] ❌ Activity.request failed for order=\(orderId): \(error)")
+                throw error
+            }
             self.activities[orderId] = activity
             self.observePushToken(for: activity, orderId: orderId)
 
@@ -316,23 +323,31 @@ public class LiveActivitiesModule: Module {
 
     @available(iOS 16.2, *)
     private func observePushToken(for activity: Activity<OrderActivityAttributes>, orderId: String) {
-        guard tokenTasks[orderId] == nil else { return }
+        guard tokenTasks[orderId] == nil else {
+            NSLog("[LA] observePushToken: already observing order=\(orderId)")
+            return
+        }
+        NSLog("[LA] observePushToken: subscribing to order=\(orderId)")
         let task = Task { [weak self] in
-            // Emit the initial token if it's already available.
             if let initialData = activity.pushToken {
                 let hex = initialData.map { String(format: "%02x", $0) }.joined()
+                NSLog("[LA] 🔑 INITIAL pushToken for order=\(orderId): \(String(hex.prefix(16)))…")
                 self?.sendEvent("onPushTokenUpdate", [
                     "orderId": orderId,
                     "token": hex
                 ])
+            } else {
+                NSLog("[LA] no initial pushToken yet for order=\(orderId), awaiting updates")
             }
             for await tokenData in activity.pushTokenUpdates {
                 let hex = tokenData.map { String(format: "%02x", $0) }.joined()
+                NSLog("[LA] 🔑 pushTokenUpdate for order=\(orderId): \(String(hex.prefix(16)))…")
                 self?.sendEvent("onPushTokenUpdate", [
                     "orderId": orderId,
                     "token": hex
                 ])
             }
+            NSLog("[LA] pushTokenUpdates stream ENDED for order=\(orderId)")
         }
         tokenTasks[orderId] = task
     }

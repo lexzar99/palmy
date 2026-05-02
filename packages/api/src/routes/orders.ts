@@ -944,18 +944,22 @@ router.get('/:id', async (req: Request, res: Response) => {
 router.post('/:id/live-activity-token', async (req: Request, res: Response) => {
   try {
     const { token } = req.body ?? {};
+    const orderId = req.params.id;
     if (typeof token !== 'string' || token.length < 32 || token.length > 256 || !/^[a-f0-9]+$/i.test(token)) {
+      console.warn(`[live-activity-token] ❌ invalid token for order=${orderId}, len=${(token as any)?.length}`);
       res.status(400).json({ error: 'Ogiltig token' });
       return;
     }
     const updated = await prisma.order.updateMany({
-      where: { id: req.params.id },
+      where: { id: orderId },
       data: { liveActivityToken: token },
     });
     if (updated.count === 0) {
+      console.warn(`[live-activity-token] ❌ order not found: ${orderId}`);
       res.status(404).json({ error: 'Order hittades inte' });
       return;
     }
+    console.log(`[live-activity-token] ✅ saved token for order=${orderId} (token=${token.slice(0, 16)}…)`);
     res.json({ success: true });
   } catch (e) {
     console.error('[live-activity-token] failed:', e);

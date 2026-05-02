@@ -42,8 +42,10 @@ let listenerAttached = false;
 let listenerSubscription: { remove: () => void } | null = null;
 
 async function reportToken(orderId: string, token: string, attempt = 0): Promise<void> {
+  console.log(`[LA] POST /live-activity-token for order=${orderId}, token=${token.slice(0, 16)}… attempt=${attempt}`);
   try {
-    await api.post(`/api/orders/${orderId}/live-activity-token`, { token });
+    const res = await api.post(`/api/orders/${orderId}/live-activity-token`, { token });
+    console.log(`[LA] ✅ token registered for order=${orderId}, status=${res.status}`);
     reportedTokens.set(orderId, token);
     const pending = pendingRetries.get(orderId);
     if (pending) {
@@ -51,20 +53,25 @@ async function reportToken(orderId: string, token: string, attempt = 0): Promise
       pendingRetries.delete(orderId);
     }
   } catch (e: any) {
-    console.warn("[LiveActivities] token POST failed (attempt " + attempt + "):", e?.message);
-    if (attempt >= 4) return; // give up after ~30s total
-    const delay = Math.min(2000 * Math.pow(2, attempt), 16000); // 2s, 4s, 8s, 16s
+    console.warn(`[LA] ❌ token POST failed (attempt ${attempt}) for order=${orderId}:`, e?.response?.status, e?.response?.data, e?.message);
+    if (attempt >= 4) return;
+    const delay = Math.min(2000 * Math.pow(2, attempt), 16000);
     const handle = setTimeout(() => { reportToken(orderId, token, attempt + 1); }, delay);
     pendingRetries.set(orderId, handle);
   }
 }
 
+console.log(`[LA] module loaded — supported=${supported}, LA=${!!LA}`);
+
 if (supported && LA && !listenerAttached) {
   try {
     listenerSubscription = LA.addListener("onPushTokenUpdate", ({ orderId, token }) => {
+      console.log(`[LA] 📨 onPushTokenUpdate event received for order=${orderId}, token=${token?.slice(0, 16)}…`);
       if (!orderId || !token) return;
-      if (reportedTokens.get(orderId) === token) return;
-      // Cancel any in-flight retry for the previous token of this order.
+      if (reportedTokens.get(orderId) === token) {
+        console.log(`[LA] token already reported for order=${orderId}, skipping`);
+        return;
+      }
       const pending = pendingRetries.get(orderId);
       if (pending) {
         clearTimeout(pending);
@@ -73,9 +80,12 @@ if (supported && LA && !listenerAttached) {
       reportToken(orderId, token);
     });
     listenerAttached = true;
+    console.log(`[LA] ✅ onPushTokenUpdate listener attached`);
   } catch (e) {
-    console.warn("[LiveActivities] could not subscribe to token updates:", e);
+    console.warn("[LA] ❌ could not subscribe to token updates:", e);
   }
+} else {
+  console.warn(`[LA] listener NOT attached — supported=${supported}, LA=${!!LA}, listenerAttached=${listenerAttached}`);
 }
 
 // ── Status helpers ─────────────────────────────────────────────────────────────
