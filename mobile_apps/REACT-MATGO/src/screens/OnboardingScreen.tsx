@@ -49,7 +49,7 @@ function PermissionPage({
   ctaLabel: string;
   ctaLoading: boolean;
   onCta: () => void;
-  onSkip: () => void;
+  onSkip?: () => void;
   skipLabel?: string;
   skipSubLabel?: string;
 }) {
@@ -138,12 +138,14 @@ function PermissionPage({
           }
         </Pressable>
 
-        <Pressable onPress={onSkip} style={{ alignItems: 'center', paddingVertical: 10 }}>
-          <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700' }}>{skipLabel || t('onboarding.hoppaOver')}</Text>
-          {!!skipSubLabel && (
-            <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center', paddingHorizontal: 20, lineHeight: 15 }}>{skipSubLabel}</Text>
-          )}
-        </Pressable>
+        {!!onSkip && (
+          <Pressable onPress={onSkip} style={{ alignItems: 'center', paddingVertical: 10 }}>
+            <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700' }}>{skipLabel || t('onboarding.hoppaOver')}</Text>
+            {!!skipSubLabel && (
+              <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center', paddingHorizontal: 20, lineHeight: 15 }}>{skipSubLabel}</Text>
+            )}
+          </Pressable>
+        )}
       </ScrollView>
     </Animated.View>
   );
@@ -532,8 +534,6 @@ export default function OnboardingScreen({
             ctaLabel={t('onboarding.notifications.cta')}
             ctaLoading={notifLoading}
             onCta={handleAllowNotifications}
-            onSkip={goToAuth}
-            skipLabel="Fortsätt utan notiser"
           />
         </SafeAreaView>
       </View>
