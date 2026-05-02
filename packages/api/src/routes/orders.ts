@@ -118,6 +118,7 @@ const CreateOrderSchema = z.object({
 
   // Scheduled order time (ISO string, null = ASAP)
   scheduledFor: z.string().nullable().optional(),
+  pendingPayment: z.boolean().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
   path: ['restaurantId'],
@@ -148,15 +149,16 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     console.log('📦 New Order Request:', JSON.stringify(req.body, null, 2));
     const data = CreateOrderSchema.parse(req.body);
+    const isPendingPayment = data.pendingPayment === true;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
-    
+
     const intentId = data.stripePaymentIntentId?.toUpperCase();
-    const isTestOrder = (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') && 
+    const isTestOrder = (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
                        (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
 
-    // Enforce mandatory payment
+    // Enforce mandatory payment (unless pending-payment flow or test order)
     if (!hasPaymentIntent) {
-      if (!isTestOrder) {
+      if (!isTestOrder && !isPendingPayment) {
         res.status(400).json({ error: 'Betalning krävs för att slutföra ordern' });
         return;
       }
@@ -347,7 +349,9 @@ router.post('/', async (req: Request, res: Response) => {
       confirmedPayment = { id: data.stripePaymentIntentId || 'TEST_PAYMENT', amount: 0 }; 
     } else if (intentId === 'BYPASS') {
       console.log('⏩ Bypassing Stripe verification for request');
-      confirmedPayment = { id: 'BYPASS', amount: -1 }; 
+      confirmedPayment = { id: 'BYPASS', amount: -1 };
+    } else if (isPendingPayment) {
+      confirmedPayment = { id: 'PENDING', amount: -1 };
     }
 
     // Only enforce open status for unpaid/manual flows.
@@ -368,7 +372,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Hämta produkter och beräkna priser
     const productIds = [...new Set(data.items.map((i) => i.productId))];
-    const requireActiveProducts = !confirmedPayment;
+    const requireActiveProducts = !confirmedPayment || isPendingPayment;
     const products = await prisma.product.findMany({
       where: {
         id: { in: productIds },
@@ -668,7 +672,7 @@ router.post('/', async (req: Request, res: Response) => {
     const order: any = await prisma.order.create({
       data: {
         orderNumber: nextNumber,
-        status: 'PENDING',
+        status: isPendingPayment ? 'AWAITING_PAYMENT' : 'PENDING',
         type: data.type,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
@@ -686,9 +690,9 @@ router.post('/', async (req: Request, res: Response) => {
         discountAmount,
         deliveryFee,
         total,
-        stripePaymentIntentId: confirmedPayment.id,
-        paymentStatus: 'PAID',
-        paymentMethod: 'ONLINE',
+        stripePaymentIntentId: isPendingPayment ? null : confirmedPayment.id,
+        paymentStatus: isPendingPayment ? 'PENDING' : 'PAID',
+        paymentMethod: isPendingPayment ? null : 'ONLINE',
         estimatedTime,
         scheduledFor: data.scheduledFor ? new Date(data.scheduledFor) : null,
         userId: authenticatedUserId,
@@ -707,59 +711,63 @@ router.post('/', async (req: Request, res: Response) => {
       },
     });
 
-    // Trigger loyalty/retention rewards (async)
-    triggerLoyaltyRewards(order).catch(console.error);
+    // For pending-payment orders, skip all post-creation side effects until
+    // the Stripe webhook confirms the payment.
+    if (!isPendingPayment) {
+      // Trigger loyalty/retention rewards (async)
+      triggerLoyaltyRewards(order).catch(console.error);
 
-    // Uppdatera rabattkods-räknare (Skip for 'test' mock)
-    if (validatedCode && validatedCode !== 'test' && validatedCode !== 'testa') {
-      await prisma.discountCode.updateMany({
-        where: { code: validatedCode.toUpperCase() },
-        data: { usageCount: { increment: 1 } },
-      });
-    }
-
-    if (appliedDeal) {
-      await prisma.deal.update({
-        where: { id: appliedDeal.id },
-        data: { usageCount: { increment: 1 } },
-      });
-    }
-
-    // Emit till admin via Socket.IO
-    const orderForSocket = {
-      ...order,
-      total: order.total / 100,
-      deliveryFee: order.deliveryFee / 100,
-      discountAmount: order.discountAmount / 100,
-      items: order.items.map((i: any) => ({
-        ...i,
-        basePrice: i.basePrice / 100,
-        subtotal: i.subtotal / 100,
-      })),
-      restaurantName: order.restaurant?.name || 'Okänd restaurang',
-    };
-    // Global room is used by SUPER_ADMIN; per-restaurant room is used by each restaurant panel.
-    getIO().to('admin-room').emit('order:new', orderForSocket);
-    if (order.restaurantId) {
-      getIO().to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
-    }
-
-    // 5. Update personal deal usage (CustomerDeal)
-    if (validatedCode) {
-      const updatedPersonal = await (prisma as any).customerDeal.findFirst({
-        where: { code: validatedCode, phone: data.customerPhone }
-      });
-      
-      if (updatedPersonal) {
-        const newCount = updatedPersonal.usageCount + 1;
-        const max = updatedPersonal.maxUsages || 1;
-        await (prisma as any).customerDeal.update({
-          where: { id: updatedPersonal.id },
-          data: { 
-            usageCount: newCount,
-            isUsed: newCount >= max
-          }
+      // Uppdatera rabattkods-räknare (Skip for 'test' mock)
+      if (validatedCode && validatedCode !== 'test' && validatedCode !== 'testa') {
+        await prisma.discountCode.updateMany({
+          where: { code: validatedCode.toUpperCase() },
+          data: { usageCount: { increment: 1 } },
         });
+      }
+
+      if (appliedDeal) {
+        await prisma.deal.update({
+          where: { id: appliedDeal.id },
+          data: { usageCount: { increment: 1 } },
+        });
+      }
+
+      // Emit till admin via Socket.IO
+      const orderForSocket = {
+        ...order,
+        total: order.total / 100,
+        deliveryFee: order.deliveryFee / 100,
+        discountAmount: order.discountAmount / 100,
+        items: order.items.map((i: any) => ({
+          ...i,
+          basePrice: i.basePrice / 100,
+          subtotal: i.subtotal / 100,
+        })),
+        restaurantName: order.restaurant?.name || 'Okänd restaurang',
+      };
+      // Global room is used by SUPER_ADMIN; per-restaurant room is used by each restaurant panel.
+      getIO().to('admin-room').emit('order:new', orderForSocket);
+      if (order.restaurantId) {
+        getIO().to(`admin-room:${order.restaurantId}`).emit('order:new', orderForSocket);
+      }
+
+      // 5. Update personal deal usage (CustomerDeal)
+      if (validatedCode) {
+        const updatedPersonal = await (prisma as any).customerDeal.findFirst({
+          where: { code: validatedCode, phone: data.customerPhone }
+        });
+
+        if (updatedPersonal) {
+          const newCount = updatedPersonal.usageCount + 1;
+          const max = updatedPersonal.maxUsages || 1;
+          await (prisma as any).customerDeal.update({
+            where: { id: updatedPersonal.id },
+            data: {
+              usageCount: newCount,
+              isUsed: newCount >= max
+            }
+          });
+        }
       }
     }
 

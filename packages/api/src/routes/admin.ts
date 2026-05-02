@@ -241,7 +241,12 @@ router.get('/orders', async (req, res) => {
       if (!rid) return;
       where.restaurantId = rid;
     }
-    if (status) where.status = status;
+    if (status && status !== 'ALL') {
+      where.status = status;
+    } else {
+      // Hide orders awaiting payment confirmation (not yet visible to restaurant)
+      (where as any).NOT = { status: 'AWAITING_PAYMENT' };
+    }
     if (date) {
       const start = new Date(date as string);
       start.setHours(0, 0, 0, 0);

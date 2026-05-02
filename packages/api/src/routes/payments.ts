@@ -32,7 +32,7 @@ router.post('/create-intent', async (req, res) => {
   }
 
   try {
-    const { amount, currency = 'sek', metadata } = req.body;
+    const { amount, currency = 'sek', metadata, orderId } = req.body;
     const parsedAmount = Number(amount);
 
     // Log the exact amount for debugging
@@ -53,6 +53,10 @@ router.post('/create-intent', async (req, res) => {
       return acc;
     }, {});
 
+    if (orderId && typeof orderId === 'string') {
+      normalizedMetadata.orderId = orderId;
+    }
+
     const paymentIntent = await stripe.paymentIntents.create(
       {
         amount: Math.round(safeAmount * 100), // kr till ören
@@ -62,6 +66,14 @@ router.post('/create-intent', async (req, res) => {
       },
       idempotencyKey ? { idempotencyKey: `create-intent:${idempotencyKey}` } : undefined
     );
+
+    // Link the pending order to this payment intent
+    if (orderId && typeof orderId === 'string') {
+      await prisma.order.update({
+        where: { id: orderId },
+        data: { stripePaymentIntentId: paymentIntent.id },
+      }).catch((e) => console.warn('[payments] could not link order to intent:', e?.message));
+    }
 
     const responseBody = {
       clientSecret: paymentIntent.client_secret,
@@ -136,17 +148,64 @@ router.post('/webhook', async (req, res) => {
   switch (event.type) {
     case 'payment_intent.succeeded': {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      
-      // Uppdatera order med betalningsstatus
+      const metaOrderId = paymentIntent.metadata?.orderId;
+
+      // Look up by orderId in metadata first (pending-payment flow), then by intentId
       const order = await prisma.order.findFirst({
-        where: { stripePaymentIntentId: paymentIntent.id },
+        where: metaOrderId
+          ? { OR: [{ id: metaOrderId }, { stripePaymentIntentId: paymentIntent.id }] }
+          : { stripePaymentIntentId: paymentIntent.id },
+        include: { restaurant: { select: { name: true } }, items: true },
       });
 
       if (order) {
-        await prisma.order.update({
+        const isAwaitingPayment = order.status === 'AWAITING_PAYMENT';
+
+        const updatedOrder = await prisma.order.update({
           where: { id: order.id },
-          data: { paymentStatus: 'PAID' },
+          data: {
+            paymentStatus: 'PAID',
+            stripePaymentIntentId: order.stripePaymentIntentId || paymentIntent.id,
+            ...(isAwaitingPayment ? { status: 'PENDING', paymentMethod: 'ONLINE' } : {}),
+          },
+          include: { restaurant: { select: { name: true } }, items: true },
         });
+
+        // For pending-payment orders: now that payment is confirmed, broadcast to restaurant
+        if (isAwaitingPayment) {
+          const orderForSocket = {
+            ...updatedOrder,
+            total: (updatedOrder as any).total / 100,
+            deliveryFee: (updatedOrder as any).deliveryFee / 100,
+            discountAmount: (updatedOrder as any).discountAmount / 100,
+            items: updatedOrder.items.map((i: any) => ({
+              ...i,
+              basePrice: i.basePrice / 100,
+              subtotal: i.subtotal / 100,
+            })),
+            restaurantName: updatedOrder.restaurant?.name || 'Okänd restaurang',
+          };
+          getIO().to('admin-room').emit('order:new', orderForSocket);
+          if (updatedOrder.restaurantId) {
+            getIO().to(`admin-room:${updatedOrder.restaurantId}`).emit('order:new', orderForSocket);
+          }
+
+          // Apply discount code usage increment
+          if (updatedOrder.discountCode && updatedOrder.discountCode !== 'test' && updatedOrder.discountCode !== 'testa') {
+            await prisma.discountCode.updateMany({
+              where: { code: updatedOrder.discountCode.toUpperCase() },
+              data: { usageCount: { increment: 1 } },
+            }).catch(() => {});
+          }
+
+          // Apply deal usage increment
+          if ((updatedOrder as any).appliedDealId) {
+            await prisma.deal.update({
+              where: { id: (updatedOrder as any).appliedDealId },
+              data: { usageCount: { increment: 1 } },
+            }).catch(() => {});
+          }
+        }
 
         // Notifiera admin
         getIO().to('admin-room').emit('order:paid', {
@@ -159,11 +218,19 @@ router.post('/webhook', async (req, res) => {
 
     case 'payment_intent.payment_failed': {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
-      
-      await prisma.order.updateMany({
-        where: { stripePaymentIntentId: paymentIntent.id },
-        data: { paymentStatus: 'FAILED' },
-      });
+      const metaOrderId = paymentIntent.metadata?.orderId;
+
+      if (metaOrderId) {
+        await prisma.order.updateMany({
+          where: { OR: [{ id: metaOrderId }, { stripePaymentIntentId: paymentIntent.id }] },
+          data: { paymentStatus: 'FAILED' },
+        });
+      } else {
+        await prisma.order.updateMany({
+          where: { stripePaymentIntentId: paymentIntent.id },
+          data: { paymentStatus: 'FAILED' },
+        });
+      }
       break;
     }
   }

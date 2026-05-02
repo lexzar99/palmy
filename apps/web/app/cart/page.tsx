@@ -74,6 +74,12 @@ export default function CartPage() {
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  const idempotencyKey = useRef<string>(
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2)
+  );
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
@@ -554,39 +560,61 @@ export default function CartPage() {
     }
   }, [currentRestaurantId]);
 
+  // Stripe redirect recovery: if user returns from Swish/Klarna redirect
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const redirectStatus = params.get("redirect_status");
+    const storedOrderId = localStorage.getItem("pending_order_id");
+
+    if (redirectStatus && storedOrderId) {
+      if (redirectStatus === "succeeded") {
+        clearCart();
+        localStorage.removeItem("pending_order_id");
+        router.replace(`/order/${storedOrderId}`);
+      } else if (redirectStatus === "failed") {
+        localStorage.removeItem("pending_order_id");
+        setError("Betalningen misslyckades. Kontrollera din betalningsinformation och försök igen.");
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, []);
+
+  const buildOrderPayload = (paymentIntentId?: string) => ({
+    type: orderType,
+    customerName: formData.customerName,
+    customerPhone: formData.customerPhone,
+    deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
+    deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
+    note: formData.note || undefined,
+    deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
+    stripePaymentIntentId: paymentIntentId,
+    discountCode: selectedPersonalDeal?.code || undefined,
+    appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
+    restaurantId: useCartStore.getState().restaurantId || undefined,
+    restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
+    lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
+    lng: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })(),
+    scheduledFor: scheduledFor?.toISOString() || undefined,
+    items: items.map((i) => ({
+      productId: i.productId,
+      quantity: i.quantity,
+      selectedExtras: i.extras.map((e) => ({
+        groupId: e.groupId,
+        groupName: e.groupName,
+        extraId: e.extraId,
+        extraName: e.name,
+        priceAddon: e.price,
+      })),
+      note: i.note,
+    })),
+  });
+
+  // Legacy submitOrder used only for test/promo flow (FREE_PROMO)
   const submitOrder = async (paymentIntentId: string) => {
     setLoading(true);
     try {
-      const orderData = {
-        type: orderType,
-        customerName: formData.customerName,
-        customerPhone: formData.customerPhone,
-        deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
-        deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
-        note: formData.note || undefined,
-        deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
-        stripePaymentIntentId: paymentIntentId,
-        discountCode: selectedPersonalDeal?.code || undefined,
-        appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
-        restaurantId: useCartStore.getState().restaurantId || undefined,
-        restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
-        lat: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lat : undefined,
-        lng: localStorage.getItem("platform_coords") ? JSON.parse(localStorage.getItem("platform_coords")!).lng : undefined,
-        scheduledFor: scheduledFor?.toISOString() || undefined,
-        items: items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          selectedExtras: i.extras.map((e) => ({
-            groupId: e.groupId,
-            groupName: e.groupName,
-            extraId: e.extraId,
-            extraName: e.name,
-            priceAddon: e.price,
-          })),
-          note: i.note,
-        })),
-      };
-      const res = await axios.post(`/api/platform/orders`, orderData);
+      const res = await axios.post(`/api/platform/orders`, buildOrderPayload(paymentIntentId));
       clearCart();
       router.push(`/order/${res.data.orderId}`);
     } catch (err: any) {
@@ -595,6 +623,19 @@ export default function CartPage() {
       setLoading(false);
     }
   };
+
+  // Called by StripeCheckout after payment succeeds — navigate to the pre-created order
+  const handlePaymentSuccess = useCallback(async (_paymentIntentId: string) => {
+    const orderId = pendingOrderId || localStorage.getItem("pending_order_id");
+    if (!orderId) {
+      // Fallback: shouldn't happen in normal flow
+      setError("Betalningen lyckades men ordern kunde inte hittas. Kontakta support.");
+      return;
+    }
+    clearCart();
+    localStorage.removeItem("pending_order_id");
+    router.push(`/order/${orderId}`);
+  }, [pendingOrderId, clearCart, router]);
 
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -707,12 +748,32 @@ export default function CartPage() {
         return;
       }
 
-      const res = await axios.post(`${API_URL}/api/payments/create-intent`, { amount: total });
-      setClientSecret(res.data.clientSecret);
+      // Step 1: Create order first (pending payment)
+      const orderRes = await axios.post(`/api/platform/orders`, {
+        ...buildOrderPayload(),
+        pendingPayment: true,
+      }, {
+        headers: { "Idempotency-Key": `order-${idempotencyKey.current}` },
+      });
+      const orderId: string = orderRes.data.orderId;
+
+      // Save to localStorage for crash recovery (e.g. Swish/Klarna redirect)
+      localStorage.setItem("pending_order_id", orderId);
+      setPendingOrderId(orderId);
+
+      // Step 2: Create payment intent linked to this order
+      const intentRes = await axios.post(`${API_URL}/api/payments/create-intent`, {
+        amount: total,
+        orderId,
+      }, {
+        headers: { "Idempotency-Key": `intent-${idempotencyKey.current}` },
+      });
+
+      setClientSecret(intentRes.data.clientSecret);
       setShowPayment(true);
       setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" }), 100);
-    } catch {
-      setError("Betaltjänsten är tillfälligt otillgänglig. Försök igen.");
+    } catch (err: any) {
+      setError(err.response?.data?.error || "Betaltjänsten är tillfälligt otillgänglig. Försök igen.");
     } finally {
       setLoading(false);
     }
@@ -843,7 +904,7 @@ export default function CartPage() {
                      </div>
                      <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                         <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
-                           <StripeCheckout amount={total} onSuccess={submitOrder} />
+                           <StripeCheckout amount={total} onSuccess={handlePaymentSuccess} />
                         </Elements>
                      </div>
                      <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>← Tillbaka till uppgifter</button>

@@ -19,6 +19,7 @@ export interface AdminOrder {
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
+  userId?: string | null;
   deliveryStreet?: string | null;
   deliveryZip?: string | null;
   deliveryCity?: string | null;
@@ -38,6 +39,7 @@ export interface AdminOrder {
   refundedAt?: string | null;
   refundReason?: string | null;
   scheduledFor?: string | null;
+  paymentStatus?: string | null;
 }
 
 export const ordersQueryKey = (status: string) => ["orders", status] as const;

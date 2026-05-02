@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, Wallet } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
 import { deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, updateOrderStatus, type AdminOrder } from "@/modules/orders/api";
+import { CustomerModal } from "@/modules/customers/page";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
 
@@ -19,7 +20,17 @@ function parseExtras(value: AdminOrder["items"][number]["selectedExtras"]) {
   }
 }
 
-function OrderDetailsModal({ orderId, open, onClose }: { orderId: string | null; open: boolean; onClose: () => void }) {
+function OrderDetailsModal({
+  orderId,
+  open,
+  onClose,
+  onViewCustomer,
+}: {
+  orderId: string | null;
+  open: boolean;
+  onClose: () => void;
+  onViewCustomer?: (customerId: string) => void;
+}) {
   const queryClient = useQueryClient();
   const [estimatedTime, setEstimatedTime] = useState<number | "">("");
   const [refundAmount, setRefundAmount] = useState<number | "">("");
@@ -43,14 +54,22 @@ function OrderDetailsModal({ orderId, open, onClose }: { orderId: string | null;
     },
   });
 
+  const [refundSuccess, setRefundSuccess] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
+
   const refundMutation = useMutation({
     mutationFn: () => refundOrder(orderId!, refundAmount === "" ? null : Number(refundAmount), refundReason),
-    onSuccess: async () => {
+    onSuccess: async (data) => {
+      setRefundSuccess(true);
+      setRefundError(null);
       await queryClient.invalidateQueries({ queryKey: ["orders"] });
       await queryClient.invalidateQueries({ queryKey: ["finance"] });
       if (orderId) {
         await queryClient.invalidateQueries({ queryKey: orderDetailQueryKey(orderId) });
       }
+    },
+    onError: (e: any) => {
+      setRefundError(e?.response?.data?.error || "Återbetalning misslyckades");
     },
   });
 
@@ -97,7 +116,18 @@ function OrderDetailsModal({ orderId, open, onClose }: { orderId: string | null;
                 <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Customer</p>
-                    <p className="mt-2 text-lg font-black">{order.customerName}</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <p className="text-lg font-black">{order.customerName}</p>
+                      {order.userId && onViewCustomer ? (
+                        <button
+                          type="button"
+                          onClick={() => onViewCustomer(order.userId!)}
+                          className="flex items-center gap-1 rounded-lg border border-[var(--border-subtle)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--accent-strong)] hover:bg-[rgba(255,255,255,0.05)] transition-colors"
+                        >
+                          <UserRound size={11} /> Profil
+                        </button>
+                      ) : null}
+                    </div>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">{order.customerPhone}</p>
                     {order.customerEmail ? <p className="mt-1 text-sm text-[var(--text-secondary)]">{order.customerEmail}</p> : null}
                   </div>
@@ -183,17 +213,40 @@ function OrderDetailsModal({ orderId, open, onClose }: { orderId: string | null;
                   <Wallet size={16} />
                   <p className="text-[11px] font-black uppercase tracking-[0.18em]">Refund</p>
                 </div>
-                <div className="mt-4 grid gap-4">
-                  <Field label="Refund amount">
-                    <Input type="number" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")} placeholder={String(order.total)} />
-                  </Field>
-                  <Field label="Reason">
-                    <Textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason for refund" />
-                  </Field>
-                  <Button variant="secondary" onClick={() => refundMutation.mutate()} disabled={refundMutation.isPending || Boolean(order.refundedAt)}>
-                    <ReceiptText size={16} /> {order.refundedAt ? "Already refunded" : "Run refund"}
-                  </Button>
-                </div>
+                {order.refundedAt ? (
+                  <div className="mt-4 rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3">
+                    <div className="flex items-center gap-2 text-sm text-[#c4ffeb]">
+                      <CheckCircle2 size={14} /> Återbetald {formatCurrency(order.refundAmount || 0)}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-4">
+                    <Field label="Refund amount (kr)">
+                      <Input type="number" value={refundAmount} onChange={(event) => setRefundAmount(event.target.value ? Number(event.target.value) : "")} placeholder={String(order.total)} />
+                    </Field>
+                    <Field label="Reason">
+                      <Textarea value={refundReason} onChange={(event) => setRefundReason(event.target.value)} placeholder="Reason for refund" />
+                    </Field>
+                    {refundSuccess && (
+                      <div className="rounded-2xl border border-[rgba(48,199,143,0.2)] bg-[rgba(48,199,143,0.08)] px-4 py-3 text-sm text-[#c4ffeb] flex items-center gap-2">
+                        <CheckCircle2 size={14} /> Återbetalning genomförd
+                      </div>
+                    )}
+                    {refundError && (
+                      <div className="rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-sm text-rose-400 flex items-center gap-2">
+                        <AlertCircle size={14} /> {refundError}
+                      </div>
+                    )}
+                    <Button
+                      variant="secondary"
+                      onClick={() => { setRefundSuccess(false); setRefundError(null); refundMutation.mutate(); }}
+                      disabled={refundMutation.isPending}
+                    >
+                      {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}
+                      {refundMutation.isPending ? "Återbetalar…" : "Genomför återbetalning"}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {order.note ? (
@@ -214,6 +267,7 @@ export function OrdersPage() {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
   const [search, setSearch] = useState("");
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
 
   const orders = useQuery({
     queryKey: ordersQueryKey(status),
@@ -298,7 +352,17 @@ export function OrdersPage() {
                       {order.restaurantName ? <Badge tone="info">{order.restaurantName}</Badge> : null}
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-[var(--text-secondary)]">
-                      <span>{order.customerName}</span>
+                      {order.userId ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setActiveCustomerId(order.userId!); }}
+                          className="flex items-center gap-1 hover:text-[var(--accent-strong)] transition-colors font-semibold"
+                        >
+                          <UserRound size={13} /> {order.customerName}
+                        </button>
+                      ) : (
+                        <span>{order.customerName}</span>
+                      )}
                       <span>{order.customerPhone}</span>
                       <span>{order.items.length} items</span>
                     </div>
@@ -314,7 +378,18 @@ export function OrdersPage() {
         )}
       </Surface>
 
-      <OrderDetailsModal orderId={activeOrderId} open={Boolean(activeOrderId)} onClose={() => setActiveOrderId(null)} />
+      <OrderDetailsModal
+        orderId={activeOrderId}
+        open={Boolean(activeOrderId)}
+        onClose={() => setActiveOrderId(null)}
+        onViewCustomer={(customerId) => { setActiveOrderId(null); setActiveCustomerId(customerId); }}
+      />
+
+      <CustomerModal
+        customerId={activeCustomerId}
+        open={Boolean(activeCustomerId)}
+        onClose={() => setActiveCustomerId(null)}
+      />
     </div>
   );
 }

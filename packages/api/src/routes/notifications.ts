@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { sendToAllUsers } from '../lib/notifications';
+import { sendToAllUsers, sendToUser, sendToCity } from '../lib/notifications';
 import { authenticate, isSuperAdmin } from '../middleware/auth';
 import { authenticateUser } from './auth';
 
@@ -77,6 +77,59 @@ router.post('/admin/send-all', authenticate, isSuperAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Felaktig input', details: error.errors });
     }
     console.error('Admin push error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka push-notiser' });
+  }
+});
+
+/**
+ * POST /api/notifications/admin/send-user
+ * Skickar push till en specifik användare (id, email eller telefon)
+ */
+router.post('/admin/send-user', authenticate, isSuperAdmin, async (req, res) => {
+  try {
+    const { identifier, title, body, data } = z.object({
+      identifier: z.string().min(1),
+      title: z.string().min(1),
+      body: z.string().min(1),
+      data: z.record(z.any()).optional(),
+    }).parse(req.body);
+
+    const result = await sendToUser(identifier, title, body, data);
+
+    if (!result.success && result.error) {
+      return res.status(404).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Felaktig input', details: error.errors });
+    }
+    console.error('Admin push (user) error:', error);
+    res.status(500).json({ error: 'Kunde inte skicka push-notis' });
+  }
+});
+
+/**
+ * POST /api/notifications/admin/send-city
+ * Skickar push till alla användare i en stad
+ */
+router.post('/admin/send-city', authenticate, isSuperAdmin, async (req, res) => {
+  try {
+    const { city, title, body, data } = z.object({
+      city: z.string().min(1),
+      title: z.string().min(1),
+      body: z.string().min(1),
+      data: z.record(z.any()).optional(),
+    }).parse(req.body);
+
+    const result = await sendToCity(city, title, body, data);
+    res.json(result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Felaktig input', details: error.errors });
+    }
+    console.error('Admin push (city) error:', error);
     res.status(500).json({ error: 'Kunde inte skicka push-notiser' });
   }
 });

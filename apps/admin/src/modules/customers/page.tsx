@@ -21,7 +21,7 @@ import { formatCurrency, formatDate, formatDateTime, formatNumber, orderStatusLa
 
 type CustomerTab = "info" | "orders" | "deals";
 
-function CustomerModal({ customerId, open, onClose }: { customerId: string | null; open: boolean; onClose: () => void }) {
+export function CustomerModal({ customerId, open, onClose }: { customerId: string | null; open: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<CustomerTab>("info");
   const [profile, setProfile] = useState({ name: "", phone: "", email: "", address: "", city: "", zip: "", isActive: true, isVerified: false, internalInfo: "" });
