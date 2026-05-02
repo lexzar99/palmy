@@ -21,7 +21,6 @@ import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { placesAutocomplete, placesResolveCoords } from "../lib/places";
 import { captureError } from "../lib/sentry";
 import { STRIPE_PUBLISHABLE_KEY } from "../lib/api";
-import { EXPO_PUBLIC_APPLE_PAY_ENABLED } from "../lib/env";
 import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
@@ -804,12 +803,11 @@ export default function CartScreen({
           }
         });
 
-        let initInfo = await initPaymentSheet(buildSheetConfig(EXPO_PUBLIC_APPLE_PAY_ENABLED) as any);
+        let initInfo = await initPaymentSheet(buildSheetConfig(true) as any);
 
-        // Auto-degrade: if Apple Pay was requested but the iOS entitlement
-        // is missing, retry without applePay so card payment still works.
+        // Auto-degrade: if Apple Pay entitlement is missing for some reason,
+        // retry without applePay so card payment still works.
         if (initInfo.error
-            && EXPO_PUBLIC_APPLE_PAY_ENABLED
             && String(initInfo.error.message || "").toLowerCase().includes("merchantidentifier")) {
           captureError(new Error("[stripe-init] Apple Pay entitlement missing — retrying without Apple Pay"), {
             stripeErrorMessage: initInfo.error.message,
