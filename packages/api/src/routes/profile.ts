@@ -22,17 +22,22 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
     // OAuth-only users must complete phone linking before they can use the
     // app. Surface the flag so the client can route them to the gate UI.
     const needsPhone = !!user.oauthProvider && (!user.phone || !user.isVerified);
-    // Whether the client should prompt for first / last name. True when we
-    // have nothing real, OR when the legacy "Användare" placeholder is
-    // still on the row — the user explicitly does NOT want that ever shown.
+    // STRICT: profileComplete iff BOTH firstName AND lastName are stored.
+    // The client gates the "Complete Profile" screen on this exact rule
+    // and NEVER shows it again once it flips true.
+    const first = (user.firstName || '').trim();
+    const last = (user.lastName || '').trim();
+    const profileComplete = !!(first && last);
     const trimmedName = (user.name || '').trim();
     const isPlaceholder = trimmedName.toLowerCase() === 'användare';
-    const hasStructuredName = !!(user.firstName || user.lastName);
-    const needsName = !hasStructuredName && (!trimmedName || isPlaceholder);
+    // Legacy compatibility flag — kept so existing call-sites still work.
+    // New gates should prefer `profileComplete`.
+    const needsName = !profileComplete;
     res.json({
       ...user,
       // Strip the legacy placeholder from the response so no UI ever shows it.
       name: isPlaceholder ? '' : user.name,
+      profileComplete,
       needsPhone,
       needsName,
     });
@@ -80,26 +85,41 @@ router.patch('/', authenticateUser, async (req: any, res: any) => {
       }
     }
 
-    // If firstName/lastName were sent (Apple Sign-In flow), ALSO synthesise
-    // the legacy `name` column so any place that still reads `name` shows
-    // the right thing. The reverse isn't done — a manually-edited `name`
-    // doesn't overwrite the structured first/last fields.
-    const update: Record<string, any> = { ...data };
-    if ((data.firstName !== undefined || data.lastName !== undefined) && data.name === undefined) {
+    // STRICT RULE (Apple Sign-In persistence): never overwrite firstName /
+    // lastName / name with empty values. Trim incoming values and drop the
+    // field entirely if blank — keeps whatever the DB already has.
+    const update: Record<string, any> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (v === undefined) continue;
+      if ((k === 'firstName' || k === 'lastName' || k === 'name') && typeof v === 'string') {
+        const trimmed = v.trim();
+        if (!trimmed) continue;
+        update[k] = trimmed;
+      } else {
+        update[k] = v;
+      }
+    }
+
+    // If firstName/lastName were sent and `name` wasn't, synthesise `name`
+    // from the resulting first+last (post-merge with whatever's in the DB)
+    // so the legacy column stays in sync.
+    if ((update.firstName !== undefined || update.lastName !== undefined) && update.name === undefined) {
       const existing = await (prisma as any).user.findUnique({
         where: { id: req.user.id },
         select: { firstName: true, lastName: true },
       });
-      const nextFirst = data.firstName ?? existing?.firstName ?? '';
-      const nextLast = data.lastName ?? existing?.lastName ?? '';
+      const nextFirst = update.firstName ?? existing?.firstName ?? '';
+      const nextLast = update.lastName ?? existing?.lastName ?? '';
       const joined = joinFullName(nextFirst, nextLast);
       if (joined) update.name = joined;
     }
 
-    await (prisma as any).user.update({
-      where: { id: req.user.id },
-      data: update,
-    });
+    if (Object.keys(update).length > 0) {
+      await (prisma as any).user.update({
+        where: { id: req.user.id },
+        data: update,
+      });
+    }
     res.json({ success: true });
   } catch (error: any) {
     if (error.name === 'ZodError') {

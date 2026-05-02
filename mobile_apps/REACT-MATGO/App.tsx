@@ -896,12 +896,15 @@ function AppContent() {
     );
   }
 
-  // Hard gate: Apple/Google sign-ins that haven't linked a phone yet, or
-  // haven't supplied a first / last name yet, are bounced into the
-  // verification flow. They can only finish that or sign out — the rest of
-  // the app stays hidden. Same screen handles both flags (PhoneGateScreen
-  // hides the phone block when only needsName is true).
-  if (token && ((profile as any)?.needsPhone || (profile as any)?.needsName)) {
+  // Hard gate per the strict Apple Sign-In persistence spec:
+  //   - profileComplete=false  → "Complete Profile" name screen.
+  //   - needsPhone=true        → phone verification screen.
+  // Same screen handles both flags (PhoneGateScreen has nameOnlyMode for
+  // the case where phone is already verified). Profile complete users
+  // pass through to the app and NEVER see the gate again.
+  const profileObj = profile as any;
+  const needsCompleteProfile = profileObj && profileObj.profileComplete === false;
+  if (token && (profileObj?.needsPhone || needsCompleteProfile)) {
     return <PhoneGateScreen />;
   }
 

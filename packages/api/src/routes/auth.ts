@@ -126,7 +126,7 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         // use isActive=false; that block lives below.)
         const tombstone = await (prisma as any).user.findUnique({
           where: { id: user.id },
-          select: { deletedAt: true, isActive: true },
+          select: { deletedAt: true, isActive: true, firstName: true, lastName: true },
         }).catch(() => null);
         if (tombstone?.isActive === false) {
           // Permanent block — admin set isActive=false. Reject without revival.
@@ -140,6 +140,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             })
             .catch(() => null);
         }
+        // Track for logging — we explicitly distinguish "found existing"
+        // vs "creating fresh" per the strict Apple Sign-In spec, so it's
+        // observable when name was vs wasn't received from Apple.
+        const wasExistingUser = !!tombstone && !tombstone.deletedAt;
+        const hadStoredName = !!(tombstone?.firstName || tombstone?.lastName);
         const normalizedPhone = user.phone ? normalizePhone(user.phone) : null;
 
         // Check if a local user already exists with this phone under a different ID.
@@ -171,36 +176,58 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           return next();
         }
 
-        // Normal path — upsert by Supabase UUID. Don't overwrite an existing
-        // real name with the "Användare" placeholder if Supabase metadata
-        // happens to be empty on a refresh (Apple, in particular, only ships
-        // fullName on the first sign-in).
+        // STRICT APPLE SIGN-IN PERSISTENCE (per Apple's spec):
+        //   - Apple ships fullName only on the FIRST authorization.
+        //   - The DB is the single source of truth. Once first/last are
+        //     stored, NEVER overwrite from a later auth response — even if
+        //     by some path Supabase metadata changes, we ignore it.
+        //   - On the create path (genuinely new user), we accept whatever
+        //     Apple sent. If empty, columns stay null and the client gates
+        //     into the "Complete Profile" screen exactly once.
         const meta = user.user_metadata || {};
         const sbFirst =
-          (meta.first_name as string | undefined) ||
-          (meta.given_name as string | undefined) ||
-          null;
+          ((meta.first_name as string | undefined) ||
+            (meta.given_name as string | undefined) ||
+            '').trim() || null;
         const sbLast =
-          (meta.last_name as string | undefined) ||
-          (meta.family_name as string | undefined) ||
-          null;
+          ((meta.last_name as string | undefined) ||
+            (meta.family_name as string | undefined) ||
+            '').trim() || null;
         const sbName =
-          (meta.name as string | undefined) ||
-          (meta.full_name as string | undefined) ||
-          [sbFirst, sbLast].filter(Boolean).join(' ').trim() ||
-          null;
+          ((meta.name as string | undefined) ||
+            (meta.full_name as string | undefined) ||
+            [sbFirst, sbLast].filter(Boolean).join(' ').trim() ||
+            '').trim() || null;
         const sbImage = (meta.avatar_url as string | undefined) || (meta.picture as string | undefined) || null;
+
+        if (wasExistingUser) {
+          if (hadStoredName) {
+            console.log(`[apple-auth] existing user ${user.id} signed in — name already on file, ignoring any Apple metadata`);
+          } else if (sbFirst || sbLast) {
+            console.log(`[apple-auth] existing user ${user.id} signed in — DB had no name, accepting first-login name from Apple metadata`);
+          } else {
+            console.log(`[apple-auth] existing user ${user.id} signed in — no name on file, none in Apple response (client will prompt)`);
+          }
+        } else {
+          if (sbFirst || sbLast) {
+            console.log(`[apple-auth] NEW user ${user.id} created — name received from Apple (${sbFirst ? 'first' : '-'}/${sbLast ? 'last' : '-'})`);
+          } else {
+            console.log(`[apple-auth] NEW user ${user.id} created — Apple did not ship a name (client will prompt)`);
+          }
+        }
+
         await (prisma as any).user.upsert({
           where: { id: user.id },
           update: {
             email: user.email || undefined,
-            name: sbName || undefined,
-            firstName: sbFirst || undefined,
-            lastName: sbLast || undefined,
             image: sbImage || undefined,
             phone: normalizedPhone || undefined,
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at || undefined,
             oauthProvider: user.app_metadata?.provider || undefined,
+            // Names: ONLY fill in if the DB row currently has nothing. This
+            // satisfies "never overwrite stored name from Apple". Prisma
+            // doesn't have a native conditional-update so we backfill via a
+            // separate updateMany below — the upsert leaves them untouched.
           },
           create: {
             id: user.id,
@@ -219,6 +246,23 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             isVerified: !!user.phone_confirmed_at || !!user.email_confirmed_at,
           },
         }).catch(() => null);
+
+        // Backfill names for an EXISTING user only when:
+        //   (a) Apple just shipped a name on this auth, AND
+        //   (b) the DB row currently has no firstName AND no lastName.
+        // updateMany with a conditional WHERE makes this race-safe and
+        // leaves the row alone if the user has already typed a name in the
+        // Complete Profile screen between auth events.
+        if (wasExistingUser && !hadStoredName && (sbFirst || sbLast)) {
+          await (prisma as any).user.updateMany({
+            where: { id: user.id, firstName: null, lastName: null },
+            data: {
+              firstName: sbFirst ?? undefined,
+              lastName: sbLast ?? undefined,
+              name: sbName ?? undefined,
+            },
+          }).catch(() => null);
+        }
 
         req.user = { id: user.id, email: user.email, phone: normalizedPhone, role: 'USER' };
         return next();

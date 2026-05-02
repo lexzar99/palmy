@@ -40,72 +40,79 @@ export function useAppleAuth() {
         if (supabaseError) throw supabaseError;
 
         if (data.session?.access_token) {
-          // Apple only ships the user's full name in `credential.fullName` on
-          // the FIRST sign-in for a given Apple ID. If we miss it here we lose
-          // it forever (subsequent sign-ins return an empty fullName), which
-          // is why every account ended up displayed as "ANVÄNDARE". Build the
-          // best name we can — with either part filled in — and persist
-          // BOTH the structured firstName/lastName AND the joined display
-          // name, both into Supabase metadata and into our DB via PATCH.
-          const { fullName } = credential;
-          const firstName = (fullName?.givenName || '').trim();
-          const lastName = (fullName?.familyName || '').trim();
-          const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
+          // STRICT APPLE SIGN-IN PERSISTENCE
+          // ─────────────────────────────────
+          // Apple ships fullName ONLY on the first authorization (and only
+          // again if the user revokes the app under "Sign in with Apple"
+          // and re-authorizes). The DB is the single source of truth.
+          //
+          //   1. Read what Apple sent us this time (may be undefined).
+          //   2. Fetch our backend profile — that's the authoritative read.
+          //      authenticateUser upserts on first hit; on subsequent hits
+          //      it leaves stored firstName/lastName untouched.
+          //   3. ONLY if backend has no firstName + lastName yet AND Apple
+          //      did ship a name on this auth, PATCH it through. Never
+          //      overwrite stored values; never write empty strings.
+          //   4. Re-fetch the profile to get the canonical state, hand it
+          //      back to the caller. The UI gates on `profileComplete`
+          //      from the backend, NOT on Apple's response.
+          const { fullName, user: appleUserId } = credential;
+          const appleFirst = (fullName?.givenName || '').trim();
+          const appleLast = (fullName?.familyName || '').trim();
+          const appleHasName = !!(appleFirst || appleLast);
+          const token = data.session.access_token;
+          const headers = { Authorization: `Bearer ${token}` };
 
-          if (firstName || lastName) {
+          if (appleHasName) {
+            console.log(`[apple-auth] Apple shipped name on this authorization (apple_user_id=${appleUserId?.slice(0, 8)}…) first=${appleFirst ? 'yes' : 'no'} last=${appleLast ? 'yes' : 'no'}`);
+            // Mirror into Supabase metadata for any other consumer that
+            // might read it. Same idempotency rule applies — Supabase
+            // ignores undefined values.
             await supabase.auth
               .updateUser({
                 data: {
-                  name: displayName,
-                  full_name: displayName,
-                  first_name: firstName,
-                  last_name: lastName,
-                  given_name: firstName,
-                  family_name: lastName,
+                  first_name: appleFirst || undefined,
+                  last_name: appleLast || undefined,
+                  given_name: appleFirst || undefined,
+                  family_name: appleLast || undefined,
                 },
               })
               .catch(() => null);
+          } else {
+            console.log(`[apple-auth] Apple did NOT ship a name on this authorization — relying on stored profile`);
+          }
+
+          // Fetch local user record (creates it on first sign-in via
+          // authenticateUser middleware).
+          let profileRes = await api.get("/api/profile", { headers });
+          const stored = profileRes.data ?? {};
+          const storedFirst = (stored.firstName || '').trim();
+          const storedLast = (stored.lastName || '').trim();
+
+          // Only PATCH if DB has no name at all AND Apple just gave us one.
+          // This is the ONLY moment we ever write a name from the Apple
+          // response. After this, the DB is the single source of truth.
+          if (appleHasName && !storedFirst && !storedLast) {
+            console.log(`[apple-auth] DB had no stored name — saving Apple-supplied name as first-login persist`);
             await api
               .patch(
                 "/api/profile",
                 {
-                  name: displayName || undefined,
-                  firstName: firstName || undefined,
-                  lastName: lastName || undefined,
+                  firstName: appleFirst || undefined,
+                  lastName: appleLast || undefined,
+                  name: [appleFirst, appleLast].filter(Boolean).join(' ') || undefined,
                 },
-                { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+                { headers },
               )
-              .catch(() => null);
+              .catch((e) => console.warn('[apple-auth] first-login name PATCH failed:', e?.response?.status));
+            // Re-fetch so the caller sees the canonical post-PATCH state
+            // (with profileComplete possibly flipped to true).
+            profileRes = await api.get("/api/profile", { headers });
+          } else if (appleHasName) {
+            console.log(`[apple-auth] DB already has a stored name — IGNORING Apple response (single-source-of-truth rule)`);
           }
 
-          // Fetch local user record (creates it on first sign-in).
-          const profileRes = await api.get("/api/profile", {
-            headers: { Authorization: `Bearer ${data.session.access_token}` },
-          });
-
-          // If we have a name from Apple, prefer it over the "Användare"
-          // placeholder the backend stamps when Supabase metadata is empty.
-          if (displayName && profileRes.data) {
-            const current = profileRes.data.name?.trim() || "";
-            if (!current || current.toLowerCase() === "användare") {
-              try {
-                await api.patch(
-                  "/api/profile",
-                  {
-                    name: displayName,
-                    firstName: firstName || undefined,
-                    lastName: lastName || undefined,
-                  },
-                  { headers: { Authorization: `Bearer ${data.session.access_token}` } },
-                );
-                profileRes.data.name = displayName;
-                profileRes.data.firstName = firstName || profileRes.data.firstName;
-                profileRes.data.lastName = lastName || profileRes.data.lastName;
-              } catch {}
-            }
-          }
-
-          setTokenResult({ token: data.session.access_token, user: profileRes.data });
+          setTokenResult({ token, user: profileRes.data });
         } else {
           throw new Error("Ingen session mottogs från Supabase.");
         }

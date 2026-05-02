@@ -60,7 +60,12 @@ export default function PhoneGateScreen() {
   const profileLast = (profile as any)?.lastName?.trim?.() || "";
   const profileName = profile?.name?.trim?.() || "";
   const isPlaceholder = profileName.toLowerCase() === "användare";
-  const needsName = !profileFirst && !profileLast && (!profileName || isPlaceholder);
+  // Single source of truth: backend's profileComplete flag. We still keep
+  // the local fallbacks for older API responses but the new strict rule is
+  // "profile_complete iff first AND last AND non-empty".
+  const profileComplete = (profile as any)?.profileComplete === true
+    || (!!profileFirst && !!profileLast);
+  const needsName = !profileComplete;
   // When the user already has a verified phone but no name, this screen
   // becomes a name-only gate. Skip the SMS step entirely.
   const nameOnlyMode = !((profile as any)?.needsPhone) && needsName;
