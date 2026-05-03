@@ -232,7 +232,7 @@ const getGroupIdsForProduct = (
 // GET /api/admin/orders
 router.get('/orders', async (req, res) => {
   try {
-    const { status, limit = '50', offset = '0', date, restaurantId } = req.query;
+    const { status, limit = '50', offset = '0', date, restaurantId, from, to } = req.query;
 
     const where: Record<string, unknown> = {};
     if (isSuperAdmin(req as AuthRequest)) {
@@ -248,7 +248,15 @@ router.get('/orders', async (req, res) => {
       // Hide orders awaiting payment confirmation (not yet visible to restaurant)
       (where as any).NOT = { status: 'AWAITING_PAYMENT' };
     }
-    if (date) {
+    // Stöd för (a) date=YYYY-MM-DD som tidigare, (b) from/to som ISO-datetime
+    // (inkl. klockslag) för order-historik-sidan i admin. from och to vinner
+    // över date om de är satta.
+    if (from || to) {
+      const range: any = {};
+      if (from) range.gte = new Date(from as string);
+      if (to) range.lte = new Date(to as string);
+      where.createdAt = range;
+    } else if (date) {
       const start = new Date(date as string);
       start.setHours(0, 0, 0, 0);
       const end = new Date(date as string);
@@ -2017,6 +2025,132 @@ router.delete('/staff/:id', authenticate, requireSuperAdmin, async (req: AuthReq
   } catch (error) {
     console.error('Staff delete error:', error);
     res.status(500).json({ error: 'Kunde inte radera teamkontot' });
+  }
+});
+
+// Restaurang-login: kombinerad endpoint som hämtar/uppdaterar email +
+// (valfritt) lösenord för restaurangens AdminUser-konto. Detta används av
+// Login-tabben i restaurang-modalen så superadmin kan ändra credentials
+// som Flutter-restaurang-appen loggar in med. Lösenord: bcrypt-hashas
+// och sparas direkt — admin sätter exakt det de vill, ingen temporary.
+router.get('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, slug: true, name: true, adminEmail: true },
+    });
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
+    const loginEmail = (restaurant.adminEmail || restaurant.slug).toLowerCase();
+    const adminUser = await prisma.adminUser.findUnique({
+      where: { email: loginEmail },
+      select: { id: true, email: true, isActive: true, role: true },
+    });
+    res.json({
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
+      slug: restaurant.slug,
+      // adminEmail = vad som lagras på Restaurant.adminEmail (kan vara null
+      // för gamla restauranger — då används slug som login).
+      adminEmail: restaurant.adminEmail || null,
+      // Effektiv login = det Flutter-appen faktiskt loggar in med.
+      loginEmail,
+      hasAccount: Boolean(adminUser),
+      isActive: adminUser?.isActive ?? false,
+      role: adminUser?.role ?? null,
+    });
+  } catch (error) {
+    console.error('Restaurant login fetch error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta inloggningsuppgifter' });
+  }
+});
+
+router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, slug: true, name: true, adminEmail: true },
+    });
+    if (!restaurant) {
+      return res.status(404).json({ error: 'Restaurang hittades inte' });
+    }
+
+    const previousLogin = (restaurant.adminEmail || restaurant.slug).toLowerCase();
+    const trimmedEmail = (email ?? '').trim().toLowerCase() || null;
+    const nextLogin = (trimmedEmail || restaurant.slug).toLowerCase();
+
+    if (trimmedEmail !== restaurant.adminEmail) {
+      await prisma.restaurant.update({
+        where: { id: restaurant.id },
+        data: { adminEmail: trimmedEmail },
+      });
+    }
+
+    // Om login-emailen ändras: byt email på det befintliga AdminUser-kontot
+    // i samma steg så vi inte tappar lösenordet eller rollen.
+    if (previousLogin !== nextLogin) {
+      await prisma.adminUser.updateMany({
+        where: { email: previousLogin, role: { not: 'SUPER_ADMIN' } },
+        data: { email: nextLogin, name: `${restaurant.name} Admin` },
+      });
+    }
+
+    if (typeof password === 'string' && password.trim().length > 0) {
+      const hashedPassword = await bcrypt.hash(password.trim(), 10);
+      await prisma.adminUser.upsert({
+        where: { email: nextLogin },
+        update: { password: hashedPassword, isActive: true, name: `${restaurant.name} Admin` },
+        create: {
+          email: nextLogin,
+          password: hashedPassword,
+          name: `${restaurant.name} Admin`,
+          role: 'ADMIN',
+          isActive: true,
+        },
+      });
+    }
+
+    const adminUser = await prisma.adminUser.findUnique({
+      where: { email: nextLogin },
+      select: { isActive: true, role: true },
+    });
+
+    res.json({
+      restaurantId: restaurant.id,
+      adminEmail: trimmedEmail,
+      loginEmail: nextLogin,
+      hasAccount: Boolean(adminUser),
+      isActive: adminUser?.isActive ?? false,
+      role: adminUser?.role ?? null,
+    });
+  } catch (error) {
+    console.error('Restaurant login save error:', error);
+    res.status(500).json({ error: 'Kunde inte uppdatera inloggningsuppgifter' });
+  }
+});
+
+// FARLIG: rensar alla ordrar (eller ordrar för en specifik restaurang) ur
+// databasen. Används bara under testning för att starta från noll. Skyddad
+// med superadmin-koll + en explicit confirm-flagga så ingen råkar trycka.
+router.post('/orders/wipe', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { confirm, restaurantId } = req.body as { confirm?: string; restaurantId?: string };
+    if (confirm !== 'WIPE_ALL_ORDERS') {
+      return res.status(400).json({ error: 'Bekräftelse saknas (skicka { confirm: "WIPE_ALL_ORDERS" })' });
+    }
+
+    const where = restaurantId ? { restaurantId } : {};
+    // OrderItem är cascade-kopplat på Order så DELETE Order tar items också.
+    const before = await prisma.order.count({ where });
+    await prisma.order.deleteMany({ where });
+    const after = await prisma.order.count({ where });
+
+    res.json({ success: true, deleted: before - after, before, after, scope: restaurantId ?? 'ALL' });
+  } catch (error: any) {
+    console.error('Wipe orders error:', error);
+    res.status(500).json({ error: error?.message || 'Kunde inte rensa ordrar' });
   }
 });
 

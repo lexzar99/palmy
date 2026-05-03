@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PencilLine, Plus, Search, Store, Trash2, X } from "lucide-react";
-import { createRestaurant, deleteRestaurant, getRestaurantDetail, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload } from "@/modules/restaurants/api";
+import { createRestaurant, deleteRestaurant, getRestaurantDetail, getRestaurantLogin, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, updateRestaurantLogin, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
-type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings";
+type RestaurantTab = "info" | "menu" | "orders" | "hours" | "settings" | "login";
 
 type DayKey = "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
 type Shift = { open: string; close: string };
@@ -73,8 +74,6 @@ type RestaurantFormState = {
   adminEmail: string;
   imageUrl: string;
   heroImageUrl: string;
-  deliveryFee: number;
-  minOrderAmount: number;
   etaOverride: string; // tom sträng = ingen override, annars siffra (clampas 25–55 server-side)
   etaCalculated: number | null; // read-only, från senaste 20 ordrarna
   etaEffective: number; // read-only, det kunden ser
@@ -82,7 +81,6 @@ type RestaurantFormState = {
   isOpen: boolean;
   rating: number;
   ratingCount: number;
-  adminPassword: string;
   internalInfo: string;
   tags: string;
   latitude: string;
@@ -104,8 +102,6 @@ const emptyForm: RestaurantFormState = {
   adminEmail: "",
   imageUrl: "",
   heroImageUrl: "",
-  deliveryFee: 0,
-  minOrderAmount: 0,
   etaOverride: "",
   etaCalculated: null,
   etaEffective: 40,
@@ -113,7 +109,6 @@ const emptyForm: RestaurantFormState = {
   isOpen: true,
   rating: 4.6,
   ratingCount: 0,
-  adminPassword: "",
   internalInfo: "",
   tags: "",
   latitude: "",
@@ -138,8 +133,6 @@ const mapDetailToForm = (detail: RestaurantDetail): RestaurantFormState => ({
   adminEmail: detail.adminEmail || "",
   imageUrl: detail.imageUrl || "",
   heroImageUrl: detail.heroImageUrl || "",
-  deliveryFee: detail.deliveryFee || 0,
-  minOrderAmount: detail.minOrderAmount || 0,
   etaOverride: detail.etaOverrideMinutes != null ? String(detail.etaOverrideMinutes) : "",
   etaCalculated: detail.etaCalculatedMinutes ?? null,
   etaEffective: detail.etaMinutes ?? 40,
@@ -147,7 +140,6 @@ const mapDetailToForm = (detail: RestaurantDetail): RestaurantFormState => ({
   isOpen: detail.manualIsOpen,
   rating: detail.rating || 0,
   ratingCount: detail.ratingCount || 0,
-  adminPassword: "",
   internalInfo: detail.internalInfo || "",
   tags: (detail.tags || []).join(", "),
   latitude: detail.latitude != null ? String(detail.latitude) : "",
@@ -169,8 +161,6 @@ const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => (
   adminEmail: form.adminEmail || undefined,
   imageUrl: form.imageUrl || null,
   heroImageUrl: form.heroImageUrl || null,
-  deliveryFee: Number(form.deliveryFee || 0),
-  minOrderAmount: Number(form.minOrderAmount || 0),
   // etaOverride tom = null (ingen override, dynamisk räknar). Annars siffra som
   // backend clampar till 25–55 min.
   etaOverrideMinutes: form.etaOverride.trim() === "" ? null : Number(form.etaOverride),
@@ -178,7 +168,6 @@ const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => (
   isOpen: form.isOpen,
   rating: Number(form.rating || 0),
   ratingCount: Number(form.ratingCount || 0),
-  adminPassword: form.adminPassword || undefined,
   internalInfo: form.internalInfo || null,
   tags: form.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
   latitude: form.latitude.trim() ? Number(form.latitude) : null,
@@ -295,6 +284,7 @@ function RestaurantEditorModal({
             { value: "orders", label: "Orders" },
             { value: "hours", label: "Hours" },
             { value: "settings", label: "Settings" },
+            { value: "login", label: "Login" },
           ]}
         />
 
@@ -308,8 +298,8 @@ function RestaurantEditorModal({
             <Field label="Zip"><Input value={form.zip} onChange={(event) => setForm((current) => ({ ...current, zip: event.target.value }))} /></Field>
             <Field label="Phone"><Input value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></Field>
             <Field label="Admin email"><Input value={form.adminEmail} onChange={(event) => setForm((current) => ({ ...current, adminEmail: event.target.value }))} /></Field>
-            <Field label="Image URL"><Input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} /></Field>
-            <Field label="Hero image URL"><Input value={form.heroImageUrl} onChange={(event) => setForm((current) => ({ ...current, heroImageUrl: event.target.value }))} /></Field>
+            <ImageUploadField label="Profilbild" value={form.imageUrl} onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))} />
+            <ImageUploadField label="Hero-bild" value={form.heroImageUrl} onChange={(url) => setForm((current) => ({ ...current, heroImageUrl: url }))} />
             <div className="md:col-span-2">
               <Field label="Description"><Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
             </div>
@@ -478,8 +468,13 @@ function RestaurantEditorModal({
 
         {tab === "settings" ? (
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Delivery fee"><Input type="number" value={form.deliveryFee} onChange={(event) => setForm((current) => ({ ...current, deliveryFee: Number(event.target.value) }))} /></Field>
-            <Field label="Minimum order"><Input type="number" value={form.minOrderAmount} onChange={(event) => setForm((current) => ({ ...current, minOrderAmount: Number(event.target.value) }))} /></Field>
+            <div className="md:col-span-2 surface-muted px-5 py-4">
+              <p className="text-sm leading-6 text-[var(--text-secondary)]">
+                <strong>Leveransavgift och minsta ordervärde</strong> har flyttat till{" "}
+                <a href="/zones" className="text-[var(--accent-strong)] underline">Zones-sidan</a>.
+                Restaurang-specifika zoner åsidosätter stadens globala zoner.
+              </p>
+            </div>
             <div className="md:col-span-2">
               <div className="surface-muted px-5 py-4">
                 <div className="flex items-center justify-between gap-3">
@@ -515,7 +510,6 @@ function RestaurantEditorModal({
             <Field label="Rating"><Input type="number" step="0.1" value={form.rating} onChange={(event) => setForm((current) => ({ ...current, rating: Number(event.target.value) }))} /></Field>
             <Field label="Rating count"><Input type="number" value={form.ratingCount} onChange={(event) => setForm((current) => ({ ...current, ratingCount: Number(event.target.value) }))} /></Field>
             <Field label="Free delivery above"><Input type="number" value={form.freeDeliveryAbove} onChange={(event) => setForm((current) => ({ ...current, freeDeliveryAbove: Number(event.target.value) }))} /></Field>
-            <Field label="Admin password"><Input type="password" value={form.adminPassword} onChange={(event) => setForm((current) => ({ ...current, adminPassword: event.target.value }))} /></Field>
             <Field label="Logout code (Flutter)"><Input value={form.logoutCode} onChange={(event) => setForm((current) => ({ ...current, logoutCode: event.target.value }))} placeholder="t.ex. 1234" /></Field>
             <Field label="Latitude"><Input value={form.latitude} onChange={(event) => setForm((current) => ({ ...current, latitude: event.target.value }))} /></Field>
             <Field label="Longitude"><Input value={form.longitude} onChange={(event) => setForm((current) => ({ ...current, longitude: event.target.value }))} /></Field>
@@ -531,8 +525,108 @@ function RestaurantEditorModal({
             </div>
           </div>
         ) : null}
+
+        {tab === "login" ? (
+          restaurant?.id ? (
+            <RestaurantLoginPanel restaurantId={restaurant.id} restaurantSlug={restaurant.slug} />
+          ) : (
+            <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">
+              Spara restaurangen först innan du sätter inloggning. Användarnamnet sätts automatiskt
+              till restaurangens slug om du lämnar email-fältet tomt.
+            </div>
+          )
+        ) : null}
       </div>
     </Modal>
+  );
+}
+
+function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: string; restaurantSlug?: string }) {
+  const queryClient = useQueryClient();
+  const loginQuery = useQuery({
+    queryKey: ["restaurants", "login", restaurantId],
+    queryFn: () => getRestaurantLogin(restaurantId),
+  });
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (loginQuery.data) {
+      setEmail(loginQuery.data.adminEmail || "");
+      setPassword("");
+      setSuccess(false);
+      setError(null);
+    }
+  }, [loginQuery.data]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: () => updateRestaurantLogin(restaurantId, { email: email.trim() || null, password: password.trim() || null }),
+    onSuccess: async () => {
+      setSuccess(true);
+      setError(null);
+      setPassword("");
+      await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
+      await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+    },
+    onError: (e: any) => {
+      setSuccess(false);
+      setError(e?.response?.data?.error || "Kunde inte spara inloggning.");
+    },
+  });
+
+  if (loginQuery.isLoading) {
+    return <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">Hämtar inloggningsuppgifter...</div>;
+  }
+
+  const data = loginQuery.data;
+  const effectiveLogin = (email.trim() || restaurantSlug || "").toLowerCase();
+
+  return (
+    <div className="grid gap-4">
+      <div className="surface-muted px-5 py-4">
+        <p className="text-sm leading-6 text-[var(--text-secondary)]">
+          Detta är inloggningen som <strong>Flutter-restaurang-appen</strong> använder för att ta emot ordrar.
+          Lämnar du e-postfältet tomt används restaurangens slug som användarnamn ({restaurantSlug || "—"}).
+          Lösenord sätter du själv — det hashas och sparas i databasen.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="E-post / användarnamn">
+          <Input
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder={restaurantSlug || "användarnamn"}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </Field>
+        <Field label="Effektiv login (det Flutter använder)">
+          <Input value={effectiveLogin} disabled />
+        </Field>
+        <Field label="Nytt lösenord (lämna tomt för att behålla)">
+          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Sätt nytt lösenord" />
+        </Field>
+        <Field label="Status">
+          <Input value={data?.hasAccount ? (data.isActive ? `Aktivt konto (${data.role || "ADMIN"})` : "Konto inaktivt") : "Inget konto än — sätt lösenord för att skapa"} disabled />
+        </Field>
+      </div>
+
+      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
+      {success ? <p className="text-sm text-emerald-400">Inloggningsuppgifter sparade.</p> : null}
+
+      <div className="flex justify-end">
+        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Spara inloggning
+        </Button>
+      </div>
+    </div>
   );
 }
 

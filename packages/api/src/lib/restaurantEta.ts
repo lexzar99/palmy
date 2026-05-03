@@ -19,21 +19,20 @@ const clampEta = (n: number) => Math.max(ETA_MIN_MINUTES, Math.min(ETA_MAX_MINUT
 /**
  * Effektiv ETA för en restaurang.
  *  - etaOverrideMinutes (admin manuell) vinner alltid om satt
- *  - annars etaCalculatedMinutes (auto från historik)
- *  - annars etaMinutes (legacy "base" som kan ha satts manuellt tidigare)
+ *  - annars etaCalculatedMinutes (auto från historik, null = för få ordrar)
  *  - annars ETA_DEFAULT_MINUTES (40)
  *
- * Resultat alltid clampat till [25, 55].
+ * Vi rör inte det legacy etaMinutes-fältet längre — det fanns bara för att
+ * admin tidigare satte det själv. Nu styr override (manuell) och calculated
+ * (auto) hela värdet. Resultat alltid clampat till [25, 55].
  */
 export function getEffectiveEtaMinutes(restaurant: {
   etaOverrideMinutes?: number | null;
   etaCalculatedMinutes?: number | null;
-  etaMinutes?: number | null;
 }): number {
   const candidate =
     restaurant.etaOverrideMinutes ??
     restaurant.etaCalculatedMinutes ??
-    restaurant.etaMinutes ??
     ETA_DEFAULT_MINUTES;
   return clampEta(candidate);
 }
