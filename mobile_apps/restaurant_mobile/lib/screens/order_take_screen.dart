@@ -120,22 +120,20 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _MinimalHeader(order: order, goldColor: goldColor),
+            _MinimalHeader(order: order, accent: accent),
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 children: [
-                  _CustomerCard(order: order, goldColor: goldColor, isDark: isDark),
+                  _CustomerCard(order: order, accent: accent, isDark: isDark),
                   if (order.note?.isNotEmpty == true ||
                       order.deliveryInstructions?.isNotEmpty == true) ...[
-                    const SizedBox(height: 12),
-                    _NoteCard(order: order, goldColor: goldColor, isDark: isDark),
+                    const SizedBox(height: 10),
+                    _NoteCard(order: order, accent: accent, isDark: isDark),
                   ],
-                  const SizedBox(height: 12),
-                  _TypeRow(type: order.type, accent: accent, isDark: isDark),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   _OrderSection(
-                      order: order, goldColor: goldColor, isDark: isDark),
+                      order: order, accent: accent, isDark: isDark),
                 ],
               ),
             ),
@@ -159,34 +157,69 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
   }
 }
 
-// ── Minimal header ────────────────────────────────────────────────────────────
+// ── Minimal header med stort Order # + typ-pill ─────────────────────────────
 class _MinimalHeader extends StatelessWidget {
   final OrderModel order;
-  final Color goldColor;
-  const _MinimalHeader({required this.order, required this.goldColor});
+  final Color accent;
+  const _MinimalHeader({required this.order, required this.accent});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final isPickup = order.type == 'PICKUP';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+      padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
       child: Row(
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
             icon: Icon(Icons.arrow_back_rounded,
-                color: AppTheme.isDark(context)
-                    ? Colors.white
-                    : AppTheme.ink),
+                color: isDark ? Colors.white : AppTheme.ink),
           ),
           Expanded(
-            child: Text(
-              'Order #${order.orderNumber}',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: AppTheme.mutedColor(context),
-                letterSpacing: 0.2,
-              ),
+            child: Row(
+              children: [
+                Text(
+                  '#${order.orderNumber}',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.4,
+                    color: isDark ? Colors.white : AppTheme.ink,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isPickup
+                            ? Icons.shopping_bag_rounded
+                            : Icons.delivery_dining_rounded,
+                        size: 12,
+                        color: accent,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isPickup ? 'AVHÄMTNING' : 'LEVERANS',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           IconButton(
@@ -207,30 +240,19 @@ class _MinimalHeader extends StatelessWidget {
 // ── Customer card ─────────────────────────────────────────────────────────────
 class _CustomerCard extends StatelessWidget {
   final OrderModel order;
-  final Color goldColor;
+  final Color accent;
   final bool isDark;
   const _CustomerCard(
-      {required this.order, required this.goldColor, required this.isDark});
+      {required this.order, required this.accent, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     return _Card(
       isDark: isDark,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Avatar
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: goldColor.withOpacity(0.14),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.person_rounded, color: goldColor, size: 26),
-          ),
-          const SizedBox(width: 14),
-          // Info
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,38 +260,41 @@ class _CustomerCard extends StatelessWidget {
                 Text(
                   order.customerName,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                    letterSpacing: -0.3,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
                 ),
-                const SizedBox(height: 6),
-                _ContactRow(
-                  icon: Icons.phone_rounded,
-                  text: order.customerPhone,
-                  color: goldColor,
+                const SizedBox(height: 4),
+                Text(
+                  order.customerPhone,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.mutedColor(context),
+                  ),
                 ),
                 if (order.type == 'DELIVERY' &&
                     order.deliveryStreet != null) ...[
-                  const SizedBox(height: 4),
-                  _ContactRow(
-                    icon: Icons.location_on_rounded,
-                    text:
-                        '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
-                            .trim(),
-                    color: goldColor,
+                  const SizedBox(height: 2),
+                  Text(
+                    '${order.deliveryStreet}, ${order.deliveryZip ?? ''} ${order.deliveryCity ?? ''}'
+                        .trim(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.mutedColor(context),
+                    ),
                   ),
                 ],
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Call button
+          const SizedBox(width: 10),
           GestureDetector(
             onTap: () {
-              Clipboard.setData(
-                  ClipboardData(text: order.customerPhone));
+              Clipboard.setData(ClipboardData(text: order.customerPhone));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text('Nummer kopierat: ${order.customerPhone}'),
@@ -278,14 +303,13 @@ class _CustomerCard extends StatelessWidget {
               );
             },
             child: Container(
-              width: 46,
-              height: 46,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                color: goldColor.withOpacity(0.12),
+                color: accent.withOpacity(0.12),
                 shape: BoxShape.circle,
-                border: Border.all(color: goldColor.withOpacity(0.35)),
               ),
-              child: Icon(Icons.phone_rounded, color: goldColor, size: 20),
+              child: Icon(Icons.phone_rounded, color: accent, size: 18),
             ),
           ),
         ],
@@ -294,42 +318,13 @@ class _CustomerCard extends StatelessWidget {
   }
 }
 
-class _ContactRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final Color color;
-  const _ContactRow(
-      {required this.icon, required this.text, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 13, color: color),
-        const SizedBox(width: 5),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.mutedColor(context),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Note card ─────────────────────────────────────────────────────────────────
+// ── Note card – tunn rad med vänster färg-kant ─────────────────────────────
 class _NoteCard extends StatelessWidget {
   final OrderModel order;
-  final Color goldColor;
+  final Color accent;
   final bool isDark;
   const _NoteCard(
-      {required this.order, required this.goldColor, required this.isDark});
+      {required this.order, required this.accent, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -339,160 +334,42 @@ class _NoteCard extends StatelessWidget {
         order.deliveryInstructions!,
     ].join('\n');
 
-    return _Card(
-      isDark: isDark,
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: accent.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border(left: BorderSide(color: accent, width: 3)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.chat_bubble_outline_rounded, color: goldColor, size: 20),
-          const SizedBox(width: 12),
+          Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 16),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NOTERING TILL RESTAURANGEN',
-                  style: TextStyle(
-                    color: goldColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : AppTheme.ink,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Type row (display only) ───────────────────────────────────────────────────
-class _TypeRow extends StatelessWidget {
-  final String type;
-  final Color accent;
-  final bool isDark;
-  const _TypeRow(
-      {required this.type, required this.accent, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    final isPickup = type == 'PICKUP';
-    final bg = isDark ? const Color(0xFF1A2740) : Colors.white;
-    final borderC = isDark
-        ? Colors.white.withOpacity(0.10)
-        : AppTheme.ink.withOpacity(0.10);
-
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderC, width: 1.2),
-      ),
-      child: Row(
-        children: [
-          _TypeTab(
-            label: 'AVHÄMTNING',
-            icon: Icons.shopping_bag_rounded,
-            active: isPickup,
-            accent: accent,
-            isDark: isDark,
-            first: true,
-          ),
-          Container(width: 1, color: borderC),
-          _TypeTab(
-            label: 'LEVERANS',
-            icon: Icons.delivery_dining_rounded,
-            active: !isPickup,
-            accent: accent,
-            isDark: isDark,
-            first: false,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TypeTab extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool active;
-  final Color accent;
-  final bool isDark;
-  final bool first;
-  const _TypeTab({
-    required this.label,
-    required this.icon,
-    required this.active,
-    required this.accent,
-    required this.isDark,
-    required this.first,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        decoration: BoxDecoration(
-          color: active ? accent : Colors.transparent,
-          borderRadius: BorderRadius.horizontal(
-            left: first ? const Radius.circular(13) : Radius.zero,
-            right: first ? Radius.zero : const Radius.circular(13),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: active
-                  ? Colors.white
-                  : (isDark
-                      ? Colors.white.withOpacity(0.40)
-                      : AppTheme.ink.withOpacity(0.35)),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
+            child: Text(
+              text,
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
-                color: active
-                    ? Colors.white
-                    : (isDark
-                        ? Colors.white.withOpacity(0.40)
-                        : AppTheme.ink.withOpacity(0.35)),
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : AppTheme.ink,
+                height: 1.35,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Order section ─────────────────────────────────────────────────────────────
+// ── Order section – ren lista utan tung header ──────────────────────────────
 class _OrderSection extends StatelessWidget {
   final OrderModel order;
-  final Color goldColor;
+  final Color accent;
   final bool isDark;
   const _OrderSection(
-      {required this.order, required this.goldColor, required this.isDark});
+      {required this.order, required this.accent, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -502,51 +379,17 @@ class _OrderSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Row(
-              children: [
-                Icon(Icons.receipt_long_rounded, color: goldColor, size: 18),
-                const SizedBox(width: 8),
-                Text(
-                  'BESTÄLLNING',
-                  style: TextStyle(
-                    color: goldColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.6,
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  'Order #${order.orderNumber}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: goldColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Divider(
-              height: 1,
-              color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : AppTheme.ink.withOpacity(0.07)),
-          // Items
           ...order.items.asMap().entries.map((entry) {
             final i = entry.key;
             final item = entry.value;
             return Column(
               children: [
-                _ItemRow(item: item, goldColor: goldColor, isDark: isDark),
+                _ItemRow(item: item, accent: accent, isDark: isDark),
                 if (i < order.items.length - 1)
                   Divider(
                     height: 1,
-                    indent: 16,
-                    endIndent: 16,
+                    indent: 14,
+                    endIndent: 14,
                     color: isDark
                         ? Colors.white.withOpacity(0.06)
                         : AppTheme.ink.withOpacity(0.06),
@@ -554,21 +397,19 @@ class _OrderSection extends StatelessWidget {
               ],
             );
           }),
-          const SizedBox(height: 4),
-          // Total row
           Divider(
               height: 1,
               color: isDark
                   ? Colors.white.withOpacity(0.08)
                   : AppTheme.ink.withOpacity(0.07)),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
             child: Row(
               children: [
                 Text(
                   'Totalt',
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w900,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
@@ -579,7 +420,7 @@ class _OrderSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w900,
-                    color: goldColor,
+                    color: accent,
                   ),
                 ),
               ],
@@ -593,10 +434,10 @@ class _OrderSection extends StatelessWidget {
 
 class _ItemRow extends StatelessWidget {
   final OrderItemModel item;
-  final Color goldColor;
+  final Color accent;
   final bool isDark;
   const _ItemRow(
-      {required this.item, required this.goldColor, required this.isDark});
+      {required this.item, required this.accent, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -604,24 +445,23 @@ class _ItemRow extends StatelessWidget {
     final hasNote = item.note?.isNotEmpty == true;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Qty badge
           Container(
-            width: 30,
-            height: 30,
+            width: 28,
+            height: 28,
             alignment: Alignment.center,
             margin: const EdgeInsets.only(top: 1),
             decoration: BoxDecoration(
-              color: goldColor.withOpacity(0.12),
+              color: accent.withOpacity(0.12),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              '${item.quantity}x',
+              '${item.quantity}×',
               style: TextStyle(
-                color: goldColor,
+                color: accent,
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
               ),
@@ -632,7 +472,6 @@ class _ItemRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Name + price
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -641,7 +480,7 @@ class _ItemRow extends StatelessWidget {
                         item.productName,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                           letterSpacing: -0.2,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -652,13 +491,12 @@ class _ItemRow extends StatelessWidget {
                       OrderUi.formatCurrency(item.subtotal),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: goldColor,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
                   ],
                 ),
-                // Extras: single line with · separator
                 if (hasExtras) ...[
                   const SizedBox(height: 3),
                   Text(
@@ -666,35 +504,21 @@ class _ItemRow extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.50)
-                          : AppTheme.ink.withOpacity(0.45),
-                      height: 1.4,
+                      color: AppTheme.mutedColor(context),
+                      height: 1.35,
                     ),
                   ),
                 ],
-                // Item note
                 if (hasNote) ...[
-                  const SizedBox(height: 5),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(Icons.edit_outlined,
-                          size: 12,
-                          color: AppTheme.brandGold.withOpacity(0.90)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          'Notering: ${item.note}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppTheme.brandGold.withOpacity(0.90),
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 4),
+                  Text(
+                    '✎  ${item.note}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ],

@@ -115,115 +115,110 @@ class _SleepScreenState extends State<SleepScreen>
                 ),
               ),
 
-              // Main content
+              // Main content – centrerat innehåll i mitten av skärmen
               SafeArea(
-                child: SingleChildScrollView(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: MediaQuery.of(context).size.height,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Klocka + datum
+                        Text(
+                          '$h:$m',
+                          style: const TextStyle(
+                            fontSize: 88,
+                            fontWeight: FontWeight.w200,
+                            color: Colors.white,
+                            letterSpacing: -4,
+                            height: 1.0,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          dateStr,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withOpacity(0.38),
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+
+                        // Status-badge
+                        if (isPaused)
+                          _PauseBadge(
+                              countdown:
+                                  _countdownText(provider.pausedUntil!))
+                        else
+                          _ClosedBadge(),
+
+                        const SizedBox(height: 28),
+
+                        // Förläng-knappar (endast vid pause)
+                        if (isPaused) ...[
+                          Text(
+                            'FÖRLÄNG PAUS',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.40),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.6,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            alignment: WrapAlignment.center,
+                            children: [10, 15, 20, 25, 30]
+                                .map((m) => _ExtendChip(
+                                      minutes: m,
+                                      onTap: () => provider.extendPause(m),
+                                    ))
+                                .toList(),
+                          ),
+                          const SizedBox(height: 22),
+                        ],
+
+                        // Öppna nu
+                        _OpenNowButton(
+                          isPaused: isPaused,
+                          onTap: () async {
+                            if (isPaused) {
+                              await provider.cancelPause();
+                            } else {
+                              await provider.setStatus(true);
+                            }
+                            widget.onWake();
+                          },
+                        ),
+                      ],
                     ),
-                    child: IntrinsicHeight(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Spacer(),
+                  ),
+                ),
+              ),
 
-                            // Stor klocka
-                            Text(
-                              '$h:$m',
-                              style: const TextStyle(
-                                fontSize: 88,
-                                fontWeight: FontWeight.w200,
-                                color: Colors.white,
-                                letterSpacing: -4,
-                                height: 1.0,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              dateStr,
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white.withOpacity(0.38),
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-
-                            // Status-badge (pausad eller stängt)
-                            if (isPaused)
-                              _PauseBadge(
-                                  countdown:
-                                      _countdownText(provider.pausedUntil!))
-                            else
-                              _ClosedBadge(),
-
-                            const SizedBox(height: 32),
-
-                            // Pause: extension knappar
-                            if (isPaused) ...[
-                              Text(
-                                'FÖRLÄNG PAUS',
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.40),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.6,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                alignment: WrapAlignment.center,
-                                children: [10, 15, 20, 25, 30]
-                                    .map((m) => _ExtendChip(
-                                          minutes: m,
-                                          onTap: () =>
-                                              provider.extendPause(m),
-                                        ))
-                                    .toList(),
-                              ),
-                              const SizedBox(height: 24),
-                            ],
-
-                            // Öppna nu / status-byte (alltid synlig)
-                            _OpenNowButton(
-                              isPaused: isPaused,
-                              onTap: () async {
-                                if (isPaused) {
-                                  await provider.cancelPause();
-                                } else {
-                                  await provider.setStatus(true);
-                                }
-                                widget.onWake();
-                              },
-                            ),
-                            const Spacer(),
-
-                            // X-hint
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 20),
-                              child: AnimatedBuilder(
-                                animation: _pulse,
-                                builder: (_, __) => Opacity(
-                                  opacity: 0.20 + _pulse.value * 0.15,
-                                  child: Text(
-                                    'Tryck × i hörnet för att gå tillbaka',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.7),
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+              // X-hint längst ner (absolut positionerad)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: SafeArea(
+                  top: false,
+                  child: AnimatedBuilder(
+                    animation: _pulse,
+                    builder: (_, __) => Opacity(
+                      opacity: 0.20 + _pulse.value * 0.15,
+                      child: Text(
+                        'Tryck × i hörnet för att gå tillbaka',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
