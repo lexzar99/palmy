@@ -7,6 +7,7 @@ import '../models/order_model.dart';
 import '../providers/auth_provider.dart';
 import '../providers/order_provider.dart';
 import '../widgets/order_card.dart';
+import '../main.dart' show triggerSleep;
 import 'new_order_alert_screen.dart';
 import 'order_detail_screen.dart';
 import 'order_take_screen.dart';
@@ -156,8 +157,12 @@ class _DashboardScreenState extends State<DashboardScreen>
               RefreshIndicator(
                 onRefresh: () async => provider.refresh(),
                 color: AppTheme.brandGold,
+                edgeOffset: 0,
+                displacement: 60,
                 child: CustomScrollView(
-                  physics: const ClampingScrollPhysics(),
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ClampingScrollPhysics(),
+                  ),
                   slivers: [
                     // ── Header ──────────────────────────────────────────
                     SliverToBoxAdapter(
@@ -430,28 +435,15 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 8),
               _StatusTile(
                 title: 'Pausa i 30 min',
-                subtitle: 'Tillfällig paus — öppnar automatiskt igen',
-                selected: false,
+                subtitle: 'Tillfällig paus — viloläge med nedräkning',
+                selected: provider.isPaused,
                 color: AppTheme.warning,
                 icon: Icons.pause_circle_outline_rounded,
                 onTap: () async {
                   Navigator.pop(ctx);
-                  await provider.setStatus(false);
-                  // Auto-reopen efter 30 min
-                  Future.delayed(const Duration(minutes: 30), () {
-                    if (!provider.isRestaurantOpen) {
-                      provider.setStatus(true);
-                    }
-                  });
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            'Pausad i 30 min · öppnar automatiskt igen'),
-                        backgroundColor: AppTheme.warning,
-                      ),
-                    );
-                  }
+                  await provider.pauseFor(30);
+                  // Direkt in i viloläget med countdown
+                  triggerSleep();
                 },
               ),
               const SizedBox(height: 8),

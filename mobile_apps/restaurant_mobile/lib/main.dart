@@ -74,7 +74,7 @@ class MatGoBusinessApp extends StatelessWidget {
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 child: auth.isAuthenticated
-                    ? const MainShell(key: ValueKey('main-shell'))
+                    ? MainShell(key: mainShellKey)
                     : const LoginScreen(key: ValueKey('login-screen')),
               ),
             );
@@ -83,6 +83,13 @@ class MatGoBusinessApp extends StatelessWidget {
       },
     );
   }
+}
+
+// Global key så att andra skärmar (t.ex. dashboard) kan trigga sleep direkt.
+final GlobalKey<_MainShellState> mainShellKey = GlobalKey<_MainShellState>();
+
+void triggerSleep() {
+  mainShellKey.currentState?._sleepNow();
 }
 
 class MainShell extends StatefulWidget {
@@ -153,21 +160,26 @@ class _MainShellState extends State<MainShell> {
 
   void _resetSleepTimer() {
     _sleepTimer?.cancel();
-    if (_sleeping) {
-      setState(() => _sleeping = false);
-    }
     _sleepTimer = Timer(_sleepAfter, _maybeSleep);
   }
 
   void _maybeSleep() {
     final orders = Provider.of<OrderProvider>(context, listen: false);
-    // Only sleep when closed and no pending orders
     if (!orders.isRestaurantOpen && orders.pendingOrders.isEmpty && mounted) {
       setState(() => _sleeping = true);
     }
   }
 
+  void _sleepNow() {
+    if (!mounted) return;
+    _sleepTimer?.cancel();
+    setState(() => _sleeping = true);
+  }
+
   void _wake() {
+    if (mounted && _sleeping) {
+      setState(() => _sleeping = false);
+    }
     _resetSleepTimer();
   }
 
@@ -237,7 +249,10 @@ class _MainShellState extends State<MainShell> {
 
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => _resetSleepTimer(),
+      onPointerDown: (_) {
+        // När viloskärmen är synlig får touch INTE wake — endast X-knappen.
+        if (!_sleeping) _resetSleepTimer();
+      },
       child: Stack(
         children: [
           shell,

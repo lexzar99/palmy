@@ -22,6 +22,8 @@ class OrderProvider with ChangeNotifier {
   bool _isOffline = false;
   Timer? _alarmWatchdog;
   bool _socketInitializing = false;
+  DateTime? _pausedUntil;
+  Timer? _pauseTimer;
   String openingTime = '11:00';
   String closingTime = '21:00';
   String _lastKnownHours = '';
@@ -31,6 +33,40 @@ class OrderProvider with ChangeNotifier {
   String get selectedAlarm => _selectedAlarm;
   bool get isRestaurantOpen => _isRestaurantOpen;
   bool get isOffline => _isOffline;
+  DateTime? get pausedUntil => _pausedUntil;
+  bool get isPaused => _pausedUntil != null && _pausedUntil!.isAfter(DateTime.now());
+
+  Future<void> pauseFor(int minutes) async {
+    _pausedUntil = DateTime.now().add(Duration(minutes: minutes));
+    await setStatus(false);
+    _pauseTimer?.cancel();
+    _pauseTimer = Timer(Duration(minutes: minutes), () {
+      _pausedUntil = null;
+      if (!_isRestaurantOpen) setStatus(true);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  Future<void> extendPause(int minutes) async {
+    final base = _pausedUntil ?? DateTime.now();
+    _pausedUntil = base.add(Duration(minutes: minutes));
+    final remaining = _pausedUntil!.difference(DateTime.now());
+    _pauseTimer?.cancel();
+    _pauseTimer = Timer(remaining, () {
+      _pausedUntil = null;
+      if (!_isRestaurantOpen) setStatus(true);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
+
+  Future<void> cancelPause() async {
+    _pauseTimer?.cancel();
+    _pausedUntil = null;
+    if (!_isRestaurantOpen) await setStatus(true);
+    notifyListeners();
+  }
 
   // ORDERS IN LIVE VIEW (Nya och Matlagning)
   List<OrderModel> get pendingOrders =>
@@ -43,12 +79,17 @@ class OrderProvider with ChangeNotifier {
       .where((o) => (['ACCEPTED', 'PREPARING'].contains(o.status)))
       .toList();
 
-  // All non-PENDING orders from today shown as FÖREGÅENDE ORDRAR on dashboard
+  // FÖREGÅENDE ORDRAR på dashboard: ordrar som restaurangen jobbar på eller
+  // nyss avvisade idag. När en order är på väg / klar / levererad → historik.
   List<OrderModel> get recentOrders {
     final now = DateTime.now();
     final startOfToday = DateTime(now.year, now.month, now.day);
+    const moveToHistory = ['DELIVERING', 'DELIVERED', 'COMPLETED', 'READY'];
     return _orders
-        .where((o) => o.status != 'PENDING' && o.createdAt.isAfter(startOfToday))
+        .where((o) =>
+            o.status != 'PENDING' &&
+            !moveToHistory.contains(o.status) &&
+            o.createdAt.isAfter(startOfToday))
         .toList();
   }
 
@@ -621,6 +662,7 @@ class OrderProvider with ChangeNotifier {
   void dispose() {
     _socket?.dispose();
     _alarmWatchdog?.cancel();
+    _pauseTimer?.cancel();
     AudioHelper.stopLooping();
     super.dispose();
   }
