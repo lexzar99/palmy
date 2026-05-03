@@ -548,28 +548,39 @@ function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: 
     queryFn: () => getRestaurantLogin(restaurantId),
   });
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (loginQuery.data) {
-      setEmail(loginQuery.data.adminEmail || "");
-      setPassword("");
+      // Visa det FAKTISKA användarnamnet (admin.email i AdminUser-tabellen),
+      // inte det fuzzy-uträknade fallback-värdet. Om det inte finns något
+      // konto ännu fallas vi tillbaka till slug.
+      setUsername(loginQuery.data.username || loginQuery.data.adminEmail || restaurantSlug || "");
+      // Visa det faktiska lösenordet i klartext om det är sparat.
+      setPassword(loginQuery.data.password || "");
       setSuccess(false);
       setError(null);
     }
-  }, [loginQuery.data]);
+  }, [loginQuery.data, restaurantSlug]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({
-    mutationFn: () => updateRestaurantLogin(restaurantId, { email: email.trim() || null, password: password.trim() || null }),
-    onSuccess: async () => {
+    mutationFn: () => updateRestaurantLogin(restaurantId, {
+      username: username.trim() || null,
+      // Tomt fält = behåll, så vi skickar null. Annars exakt det admin skrev.
+      password: password.trim() || null,
+    }),
+    onSuccess: async (data) => {
       setSuccess(true);
       setError(null);
-      setPassword("");
+      // Synca state med servern så det vi visar stämmer med vad som sparades.
+      setUsername(data.username || "");
+      setPassword(data.password || "");
       await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
       await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
     },
@@ -584,38 +595,59 @@ function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: 
   }
 
   const data = loginQuery.data;
-  const effectiveLogin = (email.trim() || restaurantSlug || "").toLowerCase();
+  const accountStatus = data?.hasAccount
+    ? (data.isActive ? `Aktivt konto (${data.role || "ADMIN"})` : "Konto inaktivt")
+    : "Inget konto — sätt lösenord för att skapa";
 
   return (
     <div className="grid gap-4">
       <div className="surface-muted px-5 py-4">
         <p className="text-sm leading-6 text-[var(--text-secondary)]">
-          Detta är inloggningen som <strong>Flutter-restaurang-appen</strong> använder för att ta emot ordrar.
-          Lämnar du e-postfältet tomt används restaurangens slug som användarnamn ({restaurantSlug || "—"}).
-          Lösenord sätter du själv — det hashas och sparas i databasen.
+          Detta är credentials som <strong>Flutter-restaurang-appen</strong> loggar in med. Användarnamnet
+          är det som lagras på AdminUser-kontot — sätter du det till t.ex. <em>palmyra</em> så loggar Flutter
+          in med exakt &quot;palmyra&quot;.
         </p>
+        {data && data.hasAccount && !data.hasPassword ? (
+          <p className="mt-2 text-sm leading-6 text-amber-300">
+            ⚠ Lösenordet är sparat sedan tidigare i krypterat format och kan inte visas. Sätt ett nytt
+            lösenord nedan för att kunna se det framöver.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Field label="E-post / användarnamn">
+        <Field label="Användarnamn (det Flutter loggar in med)">
           <Input
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
             placeholder={restaurantSlug || "användarnamn"}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
           />
         </Field>
-        <Field label="Effektiv login (det Flutter använder)">
-          <Input value={effectiveLogin} disabled />
-        </Field>
-        <Field label="Nytt lösenord (lämna tomt för att behålla)">
-          <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Sätt nytt lösenord" />
-        </Field>
         <Field label="Status">
-          <Input value={data?.hasAccount ? (data.isActive ? `Aktivt konto (${data.role || "ADMIN"})` : "Konto inaktivt") : "Inget konto än — sätt lösenord för att skapa"} disabled />
+          <Input value={accountStatus} disabled />
         </Field>
+        <div className="md:col-span-2">
+          <Field label="Lösenord (klartext — visas bara för superadmin)">
+            <div className="relative">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={data?.hasPassword ? "" : "Sätt lösenord"}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((current) => !current)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]"
+              >
+                {showPassword ? "Dölj" : "Visa"}
+              </button>
+            </div>
+          </Field>
+        </div>
       </div>
 
       {error ? <p className="text-sm text-rose-400">{error}</p> : null}

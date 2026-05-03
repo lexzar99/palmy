@@ -122,8 +122,12 @@ export interface RestaurantLogin {
   restaurantName: string;
   slug: string;
   adminEmail: string | null;
-  loginEmail: string;
+  // Faktiska användarnamnet i AdminUser-tabellen (det Flutter loggar in med).
+  username: string | null;
+  // Klartext-lösenord om vi har det. null = bcrypt-only (gammalt) eller inget konto.
+  password: string | null;
   hasAccount: boolean;
+  hasPassword: boolean;
   isActive: boolean;
   role: string | null;
 }
@@ -133,7 +137,7 @@ export const getRestaurantLogin = (restaurantId: string) =>
 
 export const updateRestaurantLogin = (
   restaurantId: string,
-  payload: { email?: string | null; password?: string | null },
+  payload: { username?: string | null; password?: string | null },
 ) => apiPut<RestaurantLogin>(`/admin/restaurants/${restaurantId}/login`, payload);
 
 export type { ControlCenterRestaurantSnapshot };
