@@ -291,10 +291,12 @@ function ProfileContent() {
     const exchangeSupabaseForPlatformToken = async (sbSession: any) => {
       if (exchanging) return;
       exchanging = true;
+      console.log("[OAuth] Starting Supabase → platform token exchange");
       try {
         // Om vi redan har en giltig platform-session, hoppa över bytet
         const alreadyAuthed = await getPlatformSessionStatus();
         if (alreadyAuthed) {
+          console.log("[OAuth] Already has platform session, fetching data");
           setHasPlatformSession(true);
           await fetchData();
           return;
@@ -307,8 +309,13 @@ function ProfileContent() {
           meta.email ||
           meta.preferred_username ||
           null;
+        console.log("[OAuth] Supabase user:", {
+          email,
+          provider: sbUser?.app_metadata?.provider,
+          hasUser: !!sbUser,
+        });
         if (!email) {
-          // Apple kan dölja email — finns inte mycket vi kan göra
+          console.warn("[OAuth] No email from Supabase user — cannot exchange");
           setLoading(false);
           return;
         }
@@ -323,6 +330,7 @@ function ProfileContent() {
         const providerId = sbUser?.id || "";
         const image = meta.avatar_url || meta.picture || null;
 
+        console.log("[OAuth] POST /api/auth/oauth-token", { email, provider });
         const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
           email,
           name,
@@ -332,13 +340,22 @@ function ProfileContent() {
         });
 
         const platformToken = res.data?.token;
-        if (!platformToken) throw new Error("no platform token");
+        if (!platformToken) {
+          console.error("[OAuth] Backend returned no token", res.data);
+          throw new Error("no platform token");
+        }
+        console.log("[OAuth] Got platform token, persisting…");
 
         await persistPlatformSession(platformToken);
+        console.log("[OAuth] Platform session persisted, fetching profile");
         setHasPlatformSession(true);
         await fetchData();
-      } catch (err) {
-        console.error("Supabase → platform token exchange failed:", err);
+        console.log("[OAuth] ✓ Login complete");
+      } catch (err: any) {
+        console.error(
+          "[OAuth] Supabase → platform token exchange FAILED:",
+          err?.response?.data || err?.message || err
+        );
         setLoading(false);
       } finally {
         exchanging = false;
@@ -349,6 +366,7 @@ function ProfileContent() {
     // (cookies) ELLER en färsk Supabase-session från callback-sidan
     void (async () => {
       const authenticated = await getPlatformSessionStatus();
+      console.log("[OAuth] Initial mount: hasPlatformSession =", authenticated);
       if (authenticated) {
         setHasPlatformSession(true);
         await fetchData();
@@ -356,6 +374,10 @@ function ProfileContent() {
       }
       // Ingen platform-session — kolla om Supabase har en (efter OAuth-redirect)
       const { data: { session: sbSession } } = await supabase.auth.getSession();
+      console.log(
+        "[OAuth] Initial mount: hasSupabaseSession =",
+        !!sbSession?.access_token,
+      );
       if (sbSession?.access_token) {
         await exchangeSupabaseForPlatformToken(sbSession);
       } else {
@@ -367,6 +389,7 @@ function ProfileContent() {
     // Google-knappen på samma session och kommer tillbaka)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, sbSession) => {
+        console.log("[OAuth] auth state change:", event, "hasSession=", !!sbSession?.access_token);
         if (event === "SIGNED_IN" && sbSession?.access_token) {
           void exchangeSupabaseForPlatformToken(sbSession);
         }
