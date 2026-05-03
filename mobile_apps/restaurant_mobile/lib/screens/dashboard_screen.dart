@@ -738,60 +738,6 @@ class _OfflineBanner extends StatelessWidget {
   }
 }
 
-class _ClosedBanner extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppTheme.danger.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: AppTheme.danger.withOpacity(0.35), width: 1.2),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppTheme.danger.withOpacity(0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.storefront_outlined,
-                color: AppTheme.danger, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Restaurangen är stängd',
-                  style: TextStyle(
-                    color: AppTheme.danger,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ni är utanför era öppettider · Tryck på STÄNGT för att ändra',
-                  style: TextStyle(
-                    color: AppTheme.danger.withOpacity(0.75),
-                    fontWeight: FontWeight.w600,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _StatusTile extends StatelessWidget {
   final String title;

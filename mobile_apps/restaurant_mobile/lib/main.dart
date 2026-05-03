@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:provider/provider.dart';
 
 import 'core/api_client.dart';
+import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/order_provider.dart';
@@ -30,6 +31,13 @@ void main() async {
   final authProvider = AuthProvider();
   ApiClient.onUnauthorized = () => authProvider.logout();
   await authProvider.tryAutoLogin();
+
+  // FCM init – tysta fel om google-services.json saknas (dev-build).
+  try {
+    await PushService.init();
+  } catch (e) {
+    debugPrint('PushService init failed: $e');
+  }
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   final String fullVersion =
@@ -142,6 +150,8 @@ class _MainShellState extends State<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final orders = Provider.of<OrderProvider>(context, listen: false);
+      // Återställ pause-state efter ev. krasch/restart
+      orders.restorePauseState();
       if (auth.isAuthenticated && auth.user?['restaurantId'] != null) {
         orders.initSocket(auth.user!['restaurantId']);
       }

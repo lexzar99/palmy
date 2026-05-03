@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../core/constants.dart';
 import '../core/log_service.dart';
+import '../core/push_service.dart';
+import '../core/secure_token_store.dart';
 
 class AuthProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
@@ -34,7 +36,7 @@ class AuthProvider with ChangeNotifier {
         final data = res.data;
         final prefs = await SharedPreferences.getInstance();
 
-        await prefs.setString(AppConstants.tokenKey, data['token']);
+        await SecureTokenStore.writeToken(data['token']);
         await prefs.setString(AppConstants.adminKey, jsonEncode(data['admin']));
 
         _user = data['admin'];
@@ -78,7 +80,9 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.tokenKey);
+    // Avregistrera FCM-token mot servern först (innan vi rensar JWT)
+    await PushService.unregister();
+    await SecureTokenStore.deleteToken();
     await prefs.remove(AppConstants.adminKey);
     logger.log('LOGOUT: ${_user?['email']}');
     _user = null;
@@ -87,8 +91,11 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> tryAutoLogin() async {
+    // Engångsmigrering från gammal plaintext-lagring → Keystore
+    await SecureTokenStore.migrateFromPrefs();
+
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AppConstants.tokenKey);
+    final token = await SecureTokenStore.readToken();
     final adminStr = prefs.getString(AppConstants.adminKey);
 
     if (token == null || adminStr == null) {
@@ -100,7 +107,7 @@ class AuthProvider with ChangeNotifier {
       final isValid = res.data is Map && res.data['valid'] == true;
 
       if (!isValid) {
-        await prefs.remove(AppConstants.tokenKey);
+        await SecureTokenStore.deleteToken();
         await prefs.remove(AppConstants.adminKey);
         logger.log('AUTO-LOGIN: session invalid, cleared cached credentials');
         _user = null;
@@ -118,7 +125,7 @@ class AuthProvider with ChangeNotifier {
       logger.log(
           'AUTO-LOGIN VERIFY ERROR: ${e.response?.statusCode ?? e.message}');
       if (e.response?.statusCode == 401) {
-        await prefs.remove(AppConstants.tokenKey);
+        await SecureTokenStore.deleteToken();
         await prefs.remove(AppConstants.adminKey);
         _user = null;
         notifyListeners();

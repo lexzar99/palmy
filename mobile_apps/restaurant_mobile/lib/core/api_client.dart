@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'constants.dart';
+import 'secure_token_store.dart';
 
 class ApiClient {
   late Dio dio;
@@ -22,9 +22,7 @@ class ApiClient {
     // Add interceptor for auth token
     dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString(AppConstants.tokenKey);
-
+        final token = await SecureTokenStore.readToken();
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }

@@ -10,6 +10,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import '../core/log_service.dart';
 import '../core/print_service.dart';
+import '../core/secure_token_store.dart';
 
 class OrderProvider with ChangeNotifier {
   final ApiClient _api = ApiClient();
@@ -36,35 +37,73 @@ class OrderProvider with ChangeNotifier {
   DateTime? get pausedUntil => _pausedUntil;
   bool get isPaused => _pausedUntil != null && _pausedUntil!.isAfter(DateTime.now());
 
+  static const _pausedUntilKey = 'paused_until_iso';
+
   Future<void> pauseFor(int minutes) async {
     _pausedUntil = DateTime.now().add(Duration(minutes: minutes));
+    await _persistPause();
     await setStatus(false);
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(Duration(minutes: minutes), () {
-      _pausedUntil = null;
-      if (!_isRestaurantOpen) setStatus(true);
-      notifyListeners();
-    });
+    _scheduleResume();
     notifyListeners();
   }
 
   Future<void> extendPause(int minutes) async {
     final base = _pausedUntil ?? DateTime.now();
     _pausedUntil = base.add(Duration(minutes: minutes));
-    final remaining = _pausedUntil!.difference(DateTime.now());
-    _pauseTimer?.cancel();
-    _pauseTimer = Timer(remaining, () {
-      _pausedUntil = null;
-      if (!_isRestaurantOpen) setStatus(true);
-      notifyListeners();
-    });
+    await _persistPause();
+    _scheduleResume();
     notifyListeners();
   }
 
   Future<void> cancelPause() async {
     _pauseTimer?.cancel();
     _pausedUntil = null;
+    await _persistPause();
     if (!_isRestaurantOpen) await setStatus(true);
+    notifyListeners();
+  }
+
+  Future<void> _persistPause() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_pausedUntil == null) {
+      await prefs.remove(_pausedUntilKey);
+    } else {
+      await prefs.setString(_pausedUntilKey, _pausedUntil!.toIso8601String());
+    }
+  }
+
+  void _scheduleResume() {
+    _pauseTimer?.cancel();
+    if (_pausedUntil == null) return;
+    final remaining = _pausedUntil!.difference(DateTime.now());
+    if (remaining.isNegative) {
+      // Pause hade redan tagit slut (t.ex. efter krasch + restart) → öppna direkt
+      _pausedUntil = null;
+      _persistPause();
+      if (!_isRestaurantOpen) setStatus(true);
+      notifyListeners();
+      return;
+    }
+    _pauseTimer = Timer(remaining, () {
+      _pausedUntil = null;
+      _persistPause();
+      if (!_isRestaurantOpen) setStatus(true);
+      notifyListeners();
+    });
+  }
+
+  /// Anropas vid app-start för att återställa pause-state efter krasch/restart.
+  Future<void> restorePauseState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final iso = prefs.getString(_pausedUntilKey);
+    if (iso == null) return;
+    final until = DateTime.tryParse(iso);
+    if (until == null) {
+      await prefs.remove(_pausedUntilKey);
+      return;
+    }
+    _pausedUntil = until;
+    _scheduleResume();
     notifyListeners();
   }
 
@@ -490,8 +529,7 @@ class OrderProvider with ChangeNotifier {
     _restaurantId = restaurantId;
     if (_socket != null) _socket!.dispose();
 
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString(AppConstants.tokenKey) ?? '';
+    final token = await SecureTokenStore.readToken() ?? '';
 
     _socket = socket_io.io(
         AppConstants.socketUrl,
@@ -499,8 +537,13 @@ class OrderProvider with ChangeNotifier {
             .setTransports(['websocket', 'polling'])
             .setAuth({'token': token})
             .enableAutoConnect()
-            .setReconnectionAttempts(10)
-            .setReconnectionDelay(2000)
+            // Aldrig ge upp – appen ska återansluta så länge nätet kommer
+            // tillbaka. Socket.IO klienten har redan exponential backoff
+            // mellan setReconnectionDelay och setReconnectionDelayMax.
+            .setReconnectionAttempts(1 << 30)
+            .setReconnectionDelay(1000)
+            .setReconnectionDelayMax(30000)
+            .setRandomizationFactor(0.5)
             .build());
 
     _socket!.onConnect((_) {
@@ -509,11 +552,26 @@ class OrderProvider with ChangeNotifier {
       _socket!
           .emit('join:admin', {'restaurantId': restaurantId, 'token': token});
       logger.log('SOCKET CONNECTED: $restaurantId');
+      // Sync ev. ordrar som tappats under offline-perioden
+      fetchOrders(restaurantId);
       notifyListeners();
     });
 
-    _socket!.onConnectError((_) {
+    _socket!.onConnectError((err) {
       _socketInitializing = false;
+      logger.log('SOCKET CONNECT ERROR: $err');
+    });
+
+    _socket!.onReconnectAttempt((attempt) {
+      logger.log('SOCKET RECONNECT attempt #$attempt');
+    });
+
+    _socket!.onReconnectFailed((_) {
+      // Säkerhetsnät: om socket.io ändå skulle ge upp – starta om från noll.
+      logger.log('SOCKET RECONNECT FAILED – startar om socket på nytt');
+      Future.delayed(const Duration(seconds: 5), () {
+        if (_restaurantId != null) initSocket(_restaurantId!);
+      });
     });
 
     _socket!.on('order:new', (data) {
