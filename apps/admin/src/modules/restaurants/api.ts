@@ -117,19 +117,26 @@ export const patchRestaurant = (restaurantId: string, payload: Partial<Restauran
 
 export const deleteRestaurant = (restaurantId: string) => apiDelete<{ success: boolean }>(`/restaurants/${restaurantId}`);
 
+export interface RestaurantLoginAccount {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  // Klartext-lösenord om vi har det sparat. null = endast bcrypt (gammalt
+  // konto) — vi måste få ett nytt lösenord för att kunna visa det igen.
+  password: string | null;
+  hasPassword: boolean;
+}
+
 export interface RestaurantLogin {
   restaurantId: string;
   restaurantName: string;
   slug: string;
   adminEmail: string | null;
-  // Faktiska användarnamnet i AdminUser-tabellen (det Flutter loggar in med).
-  username: string | null;
-  // Klartext-lösenord om vi har det. null = bcrypt-only (gammalt) eller inget konto.
-  password: string | null;
-  hasAccount: boolean;
-  hasPassword: boolean;
-  isActive: boolean;
-  role: string | null;
+  // Lista av AdminUser-konton som matchar restaurangen (slug, namn, email).
+  // Flutter-appen loggar in med ett av dessa — flera kan finnas av legacy-skäl.
+  accounts: RestaurantLoginAccount[];
 }
 
 export const getRestaurantLogin = (restaurantId: string) =>
@@ -137,7 +144,10 @@ export const getRestaurantLogin = (restaurantId: string) =>
 
 export const updateRestaurantLogin = (
   restaurantId: string,
-  payload: { username?: string | null; password?: string | null },
+  payload: { accountId?: string | null; username?: string | null; password?: string | null },
 ) => apiPut<RestaurantLogin>(`/admin/restaurants/${restaurantId}/login`, payload);
+
+export const deleteRestaurantLoginAccount = (restaurantId: string, accountId: string) =>
+  apiDelete<{ success: boolean }>(`/admin/restaurants/${restaurantId}/login/${accountId}`);
 
 export type { ControlCenterRestaurantSnapshot };
