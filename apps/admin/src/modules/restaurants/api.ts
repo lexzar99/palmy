@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost } from "@/shared/api/client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/shared/api/client";
 import type { ControlCenterData, ControlCenterRestaurantSnapshot } from "@/modules/dashboard/api";
 
 export interface RestaurantMenuCategory {
@@ -116,5 +116,24 @@ export const patchRestaurant = (restaurantId: string, payload: Partial<Restauran
   apiPatch<RestaurantDetail>(`/restaurants/${restaurantId}`, payload);
 
 export const deleteRestaurant = (restaurantId: string) => apiDelete<{ success: boolean }>(`/restaurants/${restaurantId}`);
+
+export interface RestaurantLogin {
+  restaurantId: string;
+  restaurantName: string;
+  slug: string;
+  adminEmail: string | null;
+  loginEmail: string;
+  hasAccount: boolean;
+  isActive: boolean;
+  role: string | null;
+}
+
+export const getRestaurantLogin = (restaurantId: string) =>
+  apiGet<RestaurantLogin>(`/admin/restaurants/${restaurantId}/login`);
+
+export const updateRestaurantLogin = (
+  restaurantId: string,
+  payload: { email?: string | null; password?: string | null },
+) => apiPut<RestaurantLogin>(`/admin/restaurants/${restaurantId}/login`, payload);
 
 export type { ControlCenterRestaurantSnapshot };

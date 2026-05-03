@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { createSponsor, deleteSponsor, getSponsors, sponsorsQueryKey, updateSponsor, type SponsorRecord } from "@/modules/sponsors/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 
 function SponsorModal({ open, sponsor, onClose }: { open: boolean; sponsor: SponsorRecord | null; onClose: () => void }) {
@@ -63,7 +64,7 @@ function SponsorModal({ open, sponsor, onClose }: { open: boolean; sponsor: Spon
     <Modal open={open} onClose={onClose} title={sponsor ? sponsor.name : "New sponsor"} footer={<div className="flex items-center justify-between gap-2"><div>{sponsor ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Save</Button></div></div>}>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-        <Field label="Image URL"><Input value={form.imageUrl} onChange={(event) => setForm((current) => ({ ...current, imageUrl: event.target.value }))} /></Field>
+        <ImageUploadField label="Sponsor-bild" value={form.imageUrl} onChange={(url) => setForm((current) => ({ ...current, imageUrl: url }))} />
         <Field label="Status"><Select value={form.isActive ? "active" : "inactive"} onChange={(event) => setForm((current) => ({ ...current, isActive: event.target.value === "active" }))}><option value="active">Active</option><option value="inactive">Inactive</option></Select></Field>
         <Field label="Clickable"><Select value={form.isClickable ? "yes" : "no"} onChange={(event) => setForm((current) => ({ ...current, isClickable: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
         <Field label="Link type"><Select value={form.linkType} onChange={(event) => setForm((current) => ({ ...current, linkType: event.target.value as NonNullable<SponsorRecord["linkType"]> }))}><option value="EXTERNAL">EXTERNAL</option><option value="DEAL">DEAL</option><option value="RESTAURANT">RESTAURANT</option></Select></Field>

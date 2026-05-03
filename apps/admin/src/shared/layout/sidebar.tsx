@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BellRing,
   CircleDollarSign,
+  ClipboardList,
   ContactRound,
   Filter,
   Gift,
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/restaurants", label: "Restaurants", icon: Store },
   { href: "/orders", label: "Orders", icon: Shield },
+  { href: "/order-history", label: "Order-historik", icon: ClipboardList },
   { href: "/menu", label: "Menu", icon: MenuSquare },
   { href: "/categories", label: "Kategorier", icon: Filter },
   { href: "/zones", label: "Zones", icon: Map },
@@ -73,9 +75,6 @@ export function Sidebar() {
           </div>
         </nav>
 
-        <div className="surface px-4 py-4 text-sm leading-7 text-[var(--text-secondary)]">
-          One page per workflow. Editing stays in modals or focused editor surfaces.
-        </div>
       </div>
     </aside>
   );
