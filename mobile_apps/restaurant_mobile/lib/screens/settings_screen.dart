@@ -19,7 +19,7 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _version = 'Laddar...';
+  String _version = '—';
   int _versionTapCount = 0;
   DateTime _lastTapTime = DateTime.now();
 
@@ -32,10 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadVersion() async {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
-
-    setState(() {
-      _version = 'Version ${info.version}+${info.buildNumber}';
-    });
+    setState(() => _version = '${info.version}+${info.buildNumber}');
   }
 
   @override
@@ -43,71 +40,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final orderProvider = Provider.of<OrderProvider>(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final isDark = AppTheme.isDark(context);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
         children: [
-          const AppSectionHeader(
-            eyebrow: 'Kontroll',
-            title: 'Inställningar',
-            subtitle:
-                'Hantera konto, utskrift, tema och support utan att lämna appen.',
-          ),
-          const SizedBox(height: 18),
-          AppPanel(
-            padding: const EdgeInsets.all(20),
+          // ── Title ──────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 14),
             child: Row(
               children: [
-                Container(
-                  width: 64,
-                  height: 64,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppTheme.goldAccent, AppTheme.gold],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(22),
-                  ),
-                  child:
-                      const Icon(Icons.storefront_rounded, color: AppTheme.ink),
-                ),
-                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        authProvider.user?['name'] ?? 'Restaurangkonto',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        (authProvider.user?['role'] ?? 'personal')
-                            .toString()
-                            .toUpperCase(),
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: [
-                          AppPill(
-                            label: orderProvider.isRestaurantOpen
-                                ? 'Öppet'
-                                : 'Stängt',
-                            color: orderProvider.isRestaurantOpen
-                                ? AppTheme.success
-                                : AppTheme.danger,
-                          ),
-                          AppPill(
-                            label: themeProvider.themeName,
-                            color: AppTheme.gold,
-                          ),
-                        ],
+                        'Inställningar',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                          color: isDark ? Colors.white : AppTheme.ink,
+                        ),
                       ),
                     ],
                   ),
@@ -115,99 +71,157 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          const AppSectionHeader(
-            eyebrow: 'Hårdvara',
-            title: 'Utskrift och drift',
-          ),
-          const SizedBox(height: 12),
-          _SettingsTile(
-            icon: Icons.print_rounded,
-            title: 'Skrivarinställningar',
-            subtitle: 'Bluetooth, nätverk, testutskrift och autoutskrift.',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const PrintSettingsScreen()),
+
+          // ── Profile card ────────────────────────────────────────────────
+          AppPanel(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppTheme.goldAccent, AppTheme.gold],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(Icons.storefront_rounded,
+                      color: AppTheme.ink, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        authProvider.user?['name'] ?? 'Restaurangkonto',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: isDark ? Colors.white : AppTheme.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        (authProvider.user?['role'] ?? 'personal')
+                            .toString()
+                            .toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: AppTheme.mutedColor(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                AppPill(
+                  label: orderProvider.isRestaurantOpen ? 'Öppet' : 'Stängt',
+                  color: orderProvider.isRestaurantOpen
+                      ? AppTheme.success
+                      : AppTheme.danger,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          _SettingsTile(
+          const SizedBox(height: 20),
+
+          // ── Hårdvara ────────────────────────────────────────────────────
+          _SectionLabel(label: 'Hårdvara'),
+          const SizedBox(height: 8),
+          _CompactTile(
+            icon: Icons.print_rounded,
+            title: 'Skrivarinställningar',
+            subtitle: 'Bluetooth, nätverk och autoutskrift',
+            onTap: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const PrintSettingsScreen())),
+          ),
+          const SizedBox(height: 8),
+          _CompactTile(
             icon: Icons.desktop_windows_rounded,
             title: 'Desktop-kontroll',
-            subtitle: 'Öppettider, payouts och adminstyrning sköts centralt.',
-            onTap: () {
-              showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Desktop-kontroll'),
-                  content: const Text(
-                    'Öppettider och ekonomi styrs fortsatt centralt i desktop-adminen. Business-appen fokuserar på drift, order och utskrift.',
+            subtitle: 'Öppettider och ekonomi sköts centralt',
+            onTap: () => showDialog<void>(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text('Desktop-kontroll'),
+                content: const Text(
+                  'Öppettider och ekonomi styrs centralt i desktop-adminen. Business-appen fokuserar på drift, order och utskrift.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Stäng'),
                   ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Stäng'),
-                    ),
-                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Tema ────────────────────────────────────────────────────────
+          _SectionLabel(label: 'Tema'),
+          const SizedBox(height: 8),
+          Row(
+            children: ThemePreference.values.map((pref) {
+              final selected = themeProvider.themePreference == pref;
+              final accent = switch (pref) {
+                ThemePreference.midnight => AppTheme.gold,
+                ThemePreference.light => AppTheme.info,
+                ThemePreference.system => AppTheme.success,
+              };
+              return Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: pref != ThemePreference.values.last ? 8 : 0,
+                  ),
+                  child: _CompactThemeCard(
+                    preference: pref,
+                    selected: selected,
+                    accent: accent,
+                    onTap: () => themeProvider.setThemePreference(pref),
+                  ),
                 ),
               );
-            },
+            }).toList(),
           ),
           const SizedBox(height: 20),
-          const AppSectionHeader(
-            eyebrow: 'Tema',
-            title: 'Tema och uttryck',
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: ThemePreference.values
-                .map(
-                  (preference) => SizedBox(
-                    width: 220,
-                    child: _ThemeCard(
-                      preference: preference,
-                      selected: themeProvider.themePreference == preference,
-                      onTap: () => themeProvider.setThemePreference(preference),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 20),
-          const AppSectionHeader(
-            eyebrow: 'Service',
-            title: 'Support och service',
-          ),
-          const SizedBox(height: 12),
-          _SettingsTile(
+
+          // ── Support ─────────────────────────────────────────────────────
+          _SectionLabel(label: 'Support'),
+          const SizedBox(height: 8),
+          _CompactTile(
             icon: Icons.notifications_active_rounded,
             title: 'Skicka test-order',
-            subtitle: 'Simulerar en inkommande order i liveflodet.',
+            subtitle: 'Simulerar en inkommande order',
             onTap: () {
               orderProvider.simulateOrder();
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
-                  content: Text('Test-order skapad. Titta i fliken Ordrar.'),
+                  content: Text('Test-order skapad · se fliken Ordrar'),
                   backgroundColor: AppTheme.success,
                 ),
               );
             },
           ),
-          const SizedBox(height: 12),
-          _SettingsTile(
+          const SizedBox(height: 8),
+          _CompactTile(
             icon: Icons.info_outline_rounded,
             title: 'Appversion',
             subtitle: _version,
             onTap: _handleVersionTap,
             trailing: AppPill(label: 'Beta', color: AppTheme.gold),
           ),
-          const SizedBox(height: 12),
-          _SettingsTile(
+          const SizedBox(height: 8),
+          _CompactTile(
             icon: Icons.logout_rounded,
+            iconColor: AppTheme.danger,
             title: 'Logga ut',
-            subtitle: 'Avsluta sessionen på den här enheten.',
+            subtitle: 'Avsluta sessionen på den här enheten',
             onTap: () => _handleLogout(context, authProvider),
           ),
         ],
@@ -215,7 +229,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _handleLogout(BuildContext context, authProvider) {
+  void _handleLogout(BuildContext context, dynamic authProvider) {
     final logoutCode = authProvider.logoutCode as String?;
     if (logoutCode == null || logoutCode.isEmpty) {
       logger.log('BUTTON: Logout (no code required)');
@@ -225,7 +239,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showLogoutCodeDialog(context, authProvider, logoutCode);
   }
 
-  void _showLogoutCodeDialog(BuildContext context, authProvider, String correctCode) {
+  void _showLogoutCodeDialog(
+      BuildContext context, dynamic authProvider, String correctCode) {
     final controller = TextEditingController();
     showDialog<void>(
       context: context,
@@ -267,12 +282,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _handleVersionTap() {
     final now = DateTime.now();
-    if (now.difference(_lastTapTime).inSeconds > 2) {
-      _versionTapCount = 0;
-    }
+    if (now.difference(_lastTapTime).inSeconds > 2) _versionTapCount = 0;
     _lastTapTime = now;
     _versionTapCount++;
-
     if (_versionTapCount == 5) {
       _versionTapCount = 0;
       _showLogCodeDialog();
@@ -319,15 +331,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _SettingsTile extends StatelessWidget {
+// ── Section label ─────────────────────────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.4,
+        color: AppTheme.mutedColor(context),
+      ),
+    );
+  }
+}
+
+// ── Compact settings tile ─────────────────────────────────────────────────────
+class _CompactTile extends StatelessWidget {
   final IconData icon;
+  final Color? iconColor;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
   final Widget? trailing;
 
-  const _SettingsTile({
+  const _CompactTile({
     required this.icon,
+    this.iconColor,
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -336,101 +370,108 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedIconColor =
+        iconColor ?? Theme.of(context).colorScheme.primary;
     return AppPanel(
       onTap: onTap,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       child: Row(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: AppTheme.faintColor(context),
-              borderRadius: BorderRadius.circular(16),
+              color: resolvedIconColor.withOpacity(0.10),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Theme.of(context).colorScheme.primary),
+            child: Icon(icon, color: resolvedIconColor, size: 18),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 4),
-                Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.mutedColor(context),
+                    )),
               ],
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           trailing ??
-              Icon(
-                Icons.chevron_right_rounded,
-                color: AppTheme.mutedColor(context),
-              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: AppTheme.mutedColor(context), size: 20),
         ],
       ),
     );
   }
 }
 
-class _ThemeCard extends StatelessWidget {
+// ── Compact theme card ─────────────────────────────────────────────────────────
+class _CompactThemeCard extends StatelessWidget {
   final ThemePreference preference;
   final bool selected;
+  final Color accent;
   final VoidCallback onTap;
 
-  const _ThemeCard({
+  const _CompactThemeCard({
     required this.preference,
     required this.selected,
+    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final accent = switch (preference) {
-      ThemePreference.midnight => AppTheme.gold,
-      ThemePreference.light => AppTheme.info,
-      ThemePreference.system => AppTheme.success,
-    };
-
     return AppPanel(
       onTap: onTap,
       tint: accent,
-      color: selected ? accent.withOpacity(0.12) : AppTheme.panelColor(context),
+      color: selected
+          ? accent.withOpacity(0.12)
+          : AppTheme.panelColor(context),
+      padding: const EdgeInsets.all(12),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.14),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(
-                  switch (preference) {
-                    ThemePreference.midnight => Icons.dark_mode_rounded,
-                    ThemePreference.light => Icons.light_mode_rounded,
-                    ThemePreference.system => Icons.phone_android_rounded,
-                  },
-                  color: accent,
-                ),
-              ),
-              const Spacer(),
-              if (selected)
-                Icon(Icons.check_circle_rounded, color: accent)
-              else
-                Icon(Icons.circle_outlined,
-                    color: AppTheme.mutedColor(context)),
-            ],
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.14),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(
+              switch (preference) {
+                ThemePreference.midnight => Icons.dark_mode_rounded,
+                ThemePreference.light => Icons.light_mode_rounded,
+                ThemePreference.system => Icons.phone_android_rounded,
+              },
+              color: accent,
+              size: 18,
+            ),
           ),
-          const SizedBox(height: 14),
-          Text(preference.label,
-              style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 6),
-          Text(preference.description,
-              style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          Text(
+            preference.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: selected
+                  ? accent
+                  : AppTheme.mutedColor(context),
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (selected) ...[
+            const SizedBox(height: 4),
+            Icon(Icons.check_circle_rounded, color: accent, size: 14),
+          ],
         ],
       ),
     );

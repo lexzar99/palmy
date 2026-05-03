@@ -151,9 +151,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             );
           }
 
-          final activeOrders = [...provider.activeOrders]
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
           return Stack(
             children: [
               RefreshIndicator(
@@ -236,25 +233,25 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                     ),
 
-                    // ── PÅGÅENDE ORDER section header ───────────────────
+                    // ── FÖREGÅENDE ORDRAR section header ───────────────
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 28, 20, 6),
-                        child: const _SectionHeaderRow(
-                          title: 'PÅGÅENDE ORDER',
+                        child: _SectionHeaderRow(
+                          title: 'FÖREGÅENDE ORDRAR',
                           countBadge: null,
-                          trailing: null,
+                          trailing: const _FilterButton(),
                         ),
                       ),
                     ),
 
-                    if (activeOrders.isEmpty)
+                    if (provider.recentOrders.isEmpty)
                       const SliverToBoxAdapter(
                         child: Padding(
                           padding: EdgeInsets.fromLTRB(20, 8, 20, 40),
                           child: _EmptyState(
                             icon: Icons.inbox_outlined,
-                            label: 'Inga pågående ordrar',
+                            label: 'Inga ordrar ännu idag',
                           ),
                         ),
                       )
@@ -262,7 +259,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
                         sliver: SliverList.builder(
-                          itemCount: activeOrders.length * 2 - 1,
+                          itemCount: provider.recentOrders.length * 2 - 1,
                           itemBuilder: (context, i) {
                             if (i.isOdd) {
                               return Container(
@@ -271,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 color: dividerColor,
                               );
                             }
-                            final o = activeOrders[i ~/ 2];
+                            final o = provider.recentOrders[i ~/ 2];
                             return OrderListTile(
                               order: o,
                               onTap: () => _openDetail(o),
@@ -545,6 +542,33 @@ class _LinkText extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Icon(Icons.chevron_right_rounded, size: 18, color: color),
+      ],
+    );
+  }
+}
+
+class _FilterButton extends StatelessWidget {
+  const _FilterButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    final color = isDark
+        ? Colors.white.withOpacity(0.55)
+        : const Color(0xFF8E8E93);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.filter_alt_outlined, size: 16, color: color),
+        const SizedBox(width: 4),
+        Text(
+          'Filtrera',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: color,
+          ),
+        ),
       ],
     );
   }

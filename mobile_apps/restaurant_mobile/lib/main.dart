@@ -11,7 +11,6 @@ import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/menu_screen.dart';
-import 'screens/insights_screen.dart';
 import 'providers/theme_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'core/audio_helper.dart';
@@ -100,14 +99,13 @@ class _MainShellState extends State<MainShell> {
   final _pages = const [
     DashboardScreen(),
     HistoryScreen(),
-    InsightsScreen(),
     MenuScreen(),
     SettingsScreen(),
   ];
 
   final _destinations = const [
     _ShellDestination(
-      label: 'Ordrar',
+      label: 'Order',
       icon: Icons.receipt_long_outlined,
       activeIcon: Icons.receipt_long_rounded,
     ),
@@ -117,19 +115,14 @@ class _MainShellState extends State<MainShell> {
       activeIcon: Icons.history_rounded,
     ),
     _ShellDestination(
-      label: 'Insikter',
-      icon: Icons.auto_graph_outlined,
-      activeIcon: Icons.auto_graph_rounded,
-    ),
-    _ShellDestination(
       label: 'Meny',
       icon: Icons.restaurant_menu_outlined,
       activeIcon: Icons.restaurant_menu_rounded,
     ),
     _ShellDestination(
       label: 'Inställningar',
-      icon: Icons.tune_rounded,
-      activeIcon: Icons.tune_rounded,
+      icon: Icons.settings_outlined,
+      activeIcon: Icons.settings_rounded,
     ),
   ];
 

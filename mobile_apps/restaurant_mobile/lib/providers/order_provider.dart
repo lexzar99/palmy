@@ -43,6 +43,15 @@ class OrderProvider with ChangeNotifier {
       .where((o) => (['ACCEPTED', 'PREPARING'].contains(o.status)))
       .toList();
 
+  // All non-PENDING orders from today shown as FÖREGÅENDE ORDRAR on dashboard
+  List<OrderModel> get recentOrders {
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    return _orders
+        .where((o) => o.status != 'PENDING' && o.createdAt.isAfter(startOfToday))
+        .toList();
+  }
+
   // HISTORY TAB FILTERS
   List<OrderModel> get todayHistoryOrders {
     final now = DateTime.now();
