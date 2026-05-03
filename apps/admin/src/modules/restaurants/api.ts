@@ -134,9 +134,9 @@ export interface RestaurantLogin {
   restaurantName: string;
   slug: string;
   adminEmail: string | null;
-  // Lista av AdminUser-konton som matchar restaurangen (slug, namn, email).
-  // Flutter-appen loggar in med ett av dessa — flera kan finnas av legacy-skäl.
-  accounts: RestaurantLoginAccount[];
+  // Det enda inloggningskontot. null = inget finns än, UI visar skapa-form.
+  // Backend auto-rensar dubletter och länkar via Restaurant.adminUserId.
+  account: RestaurantLoginAccount | null;
 }
 
 export const getRestaurantLogin = (restaurantId: string) =>
@@ -144,10 +144,10 @@ export const getRestaurantLogin = (restaurantId: string) =>
 
 export const updateRestaurantLogin = (
   restaurantId: string,
-  payload: { accountId?: string | null; username?: string | null; password?: string | null },
+  payload: { username?: string | null; password?: string | null },
 ) => apiPut<RestaurantLogin>(`/admin/restaurants/${restaurantId}/login`, payload);
 
-export const deleteRestaurantLoginAccount = (restaurantId: string, accountId: string) =>
-  apiDelete<{ success: boolean }>(`/admin/restaurants/${restaurantId}/login/${accountId}`);
+export const deleteRestaurantLogin = (restaurantId: string) =>
+  apiDelete<{ success: boolean }>(`/admin/restaurants/${restaurantId}/login`);
 
 export type { ControlCenterRestaurantSnapshot };
