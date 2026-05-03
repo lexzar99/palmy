@@ -14,11 +14,24 @@ function joinFullName(first: string | null | undefined, last: string | null | un
 
 router.get('/', authenticateUser, async (req: any, res: any) => {
   try {
-    let user = await (prisma as any).user.findUnique({
-      where: { id: req.user.id },
-      select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
-    });
-    if (!user) return res.status(404).json({ error: 'Hittades inte' });
+    if (!req.user?.id) {
+      console.error('[profile GET] No user.id on request');
+      return res.status(401).json({ error: 'Sessionen saknar användar-id' });
+    }
+    let user;
+    try {
+      user = await (prisma as any).user.findUnique({
+        where: { id: req.user.id },
+        select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, address: true, city: true, zip: true, isVerified: true, image: true, oauthProvider: true }
+      });
+    } catch (dbErr: any) {
+      console.error('[profile GET] Prisma findUnique failed:', dbErr?.message || dbErr);
+      return res.status(500).json({ error: 'DB-fel vid profil-hämtning', detail: dbErr?.message });
+    }
+    if (!user) {
+      console.warn(`[profile GET] User not found in DB for id ${req.user.id} — token refererar till borttagen user`);
+      return res.status(404).json({ error: 'Hittades inte', code: 'USER_DELETED' });
+    }
 
     // Auto-migrate legacy users: if firstName/lastName are null but the
     // legacy `name` column has at least two words, split it and persist.
@@ -63,8 +76,9 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
       needsPhone,
       needsName,
     });
-  } catch (error) {
-    res.status(500).json({ error: 'Serverfel' });
+  } catch (error: any) {
+    console.error('[profile GET] Unexpected error:', error?.stack || error?.message || error);
+    res.status(500).json({ error: 'Serverfel', detail: error?.message });
   }
 });
 
