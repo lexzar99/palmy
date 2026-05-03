@@ -8,6 +8,13 @@ plugins {
     id "com.google.gms.google-services"
 }
 
+// Läs release-signing från ../key.properties (committas EJ).
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.matgo.restaurant"
     compileSdk = 35
@@ -32,11 +39,26 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        release {
+            if (keystoreProperties['storeFile']) {
+                storeFile = file("../" + keystoreProperties['storeFile'])
+                storePassword = keystoreProperties['storePassword']
+                keyAlias = keystoreProperties['keyAlias']
+                keyPassword = keystoreProperties['keyPassword']
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.debug
+            // Använd release-keystore om key.properties finns, annars
+            // fallback till debug så CI och dev-builds inte breakar.
+            signingConfig = keystoreProperties['storeFile']
+                ? signingConfigs.release
+                : signingConfigs.debug
+            minifyEnabled = false
+            shrinkResources = false
         }
     }
 }

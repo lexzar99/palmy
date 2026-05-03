@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../core/constants.dart';
+import '../core/foreground_service.dart';
 import '../core/log_service.dart';
 import '../core/push_service.dart';
 import '../core/secure_token_store.dart';
@@ -80,8 +81,8 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    // Avregistrera FCM-token mot servern först (innan vi rensar JWT)
     await PushService.unregister();
+    await AppForegroundService.stop();
     await SecureTokenStore.deleteToken();
     await prefs.remove(AppConstants.adminKey);
     logger.log('LOGOUT: ${_user?['email']}');

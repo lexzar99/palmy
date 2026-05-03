@@ -29,13 +29,25 @@ dependencies:
   network_info_plus: ^5.0.3
   ping_discover_network_forked: ^0.0.1
   package_info_plus: ^8.0.0
+  wakelock_plus: ^1.2.10
+  flutter_foreground_task: ^8.10.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  adaptive_icon_background: "#0E1628"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
   assets:
     - assets/audio/
+    - assets/icon/

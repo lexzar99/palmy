@@ -40,7 +40,10 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
 
   Future<void> _accept() async {
     if (_busy || _rejecting) return;
+    // Omedelbar feedback INNAN nätverksanrop – så snabb dubbel-tap
+    // visuellt syns blockerad. setState först, sen haptic.
     setState(() => _busy = true);
+    HapticFeedback.mediumImpact();
 
     final provider = Provider.of<OrderProvider>(context, listen: false);
     final ok = await provider.updateStatus(
@@ -52,8 +55,16 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     if (!mounted) return;
     if (!ok) {
       setState(() => _busy = false);
+      HapticFeedback.heavyImpact();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kunde inte godkänna order')),
+        SnackBar(
+          backgroundColor: AppTheme.danger,
+          behavior: SnackBarBehavior.floating,
+          content: const Text(
+            'Kunde inte godkänna order — kontrollera nätverk',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          ),
+        ),
       );
       return;
     }
@@ -117,8 +128,13 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? AppTheme.midnight : AppTheme.mist,
-      body: SafeArea(
-        child: Column(
+      body: AbsorbPointer(
+        // Blockera ALLA touch-events (inkl. accept-knappen själv) så fort
+        // ett accept/reject pågår – garanterar att dubbeltap inte triggar
+        // två requests innan setState hunnit re-rendera.
+        absorbing: _busy || _rejecting,
+        child: SafeArea(
+          child: Column(
           children: [
             _MinimalHeader(order: order, accent: accent),
             Expanded(
@@ -151,6 +167,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
               onReject: _reject,
             ),
           ],
+          ),
         ),
       ),
     );

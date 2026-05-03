@@ -3,7 +3,10 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 
+import 'package:wakelock_plus/wakelock_plus.dart';
+
 import 'core/api_client.dart';
+import 'core/foreground_service.dart';
 import 'core/push_service.dart';
 import 'core/theme.dart';
 import 'providers/auth_provider.dart';
@@ -147,13 +150,19 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
+    // Håll skärmen vaken hela tiden appen är öppen – kritiskt för
+    // restaurang-tablet som annars släcker mellan ordrar.
+    WakelockPlus.enable();
+    AppForegroundService.init();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final orders = Provider.of<OrderProvider>(context, listen: false);
-      // Återställ pause-state efter ev. krasch/restart
       orders.restorePauseState();
       if (auth.isAuthenticated && auth.user?['restaurantId'] != null) {
         orders.initSocket(auth.user!['restaurantId']);
+        // Starta persistent notifikation – håller Android från att killa
+        // appen när skärmen är låst eller annan app är förgrund.
+        AppForegroundService.start();
       }
       _resetSleepTimer();
     });
@@ -161,6 +170,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _sleepTimer?.cancel();
     super.dispose();
   }
