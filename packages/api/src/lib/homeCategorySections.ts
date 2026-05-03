@@ -251,6 +251,26 @@ const defaultCategories: Array<{
     },
     schedule: { enabled: false },
   },
+  {
+    // Fri leverans: standard FILTER-mode med freeDeliveryOnly = true plockar
+    // automatiskt upp restauranger som har deliveryFee=0 eller har en
+    // matchande zon med fri leverans. Admin kan när som helst byta till
+    // MANUAL/HYBRID och välja restauranger för hand precis som med de
+    // övriga rails (Pizza fredag, Snabb lunch, Heta listan).
+    title: 'Fri leverans',
+    slug: 'fri-leverans',
+    subtitle: 'Restauranger som kör ut gratis',
+    sortOrder: 50,
+    filterMode: 'FILTER',
+    maxRestaurants: 12,
+    filters: {
+      freeDeliveryOnly: true,
+      openNowOnly: true,
+      sortBy: 'FEATURED',
+      sortDirection: 'DESC',
+    },
+    schedule: { enabled: false },
+  },
 ];
 
 export async function ensureDefaultHomeCategorySections() {
