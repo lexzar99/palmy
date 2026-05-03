@@ -1,0 +1,273 @@
+# Flutter Restaurant App — Levande Referensdokument
+
+> **Uppdateras automatiskt** av Claude efter varje ändring. Läs detta i början av varje session.
+> Senast uppdaterad: 2026-05-02
+
+---
+
+## 1. VAD ÄR APPEN?
+
+**MatGo Business** — en order-taking app för restaurangpersonal.  
+Version: `1.34.7+47`  
+Backend: `https://palmy-production-2021.up.railway.app` (Railway production)  
+Tech stack: Flutter 3.x / Dart 3.5, Provider, Dio, Socket.IO
+
+---
+
+## 2. FILSTRUKTUR
+
+```
+lib/
+├── main.dart                          # Bootstrap, MainShell (PageView + nav)
+├── core/
+│   ├── api_client.dart               # Dio + Bearer token interceptor (10s timeout)
+│   ├── audio_helper.dart             # Alarm/notifikation-ljud (audioplayers)
+│   ├── bluetooth_printer_service_io.dart # BT-skrivare (IO-platform)
+│   ├── bluetooth_printer_service_stub.dart # Stub för web
+│   ├── constants.dart                # baseUrl, tokenKey, adminKey
+│   ├── log_service.dart              # Disk-logger, max 2000 rader
+│   ├── network_print_client_io.dart  # Raw TCP socket → port 9100
+│   ├── network_print_client_stub.dart
+│   ├── network_scanner.dart          # Ping-scanner för nätverksskrivare
+│   ├── order_ui.dart                 # UI-helpers (statusfärger, labels)
+│   ├── print_service.dart            # Unified print dispatch (ESC-POS + PDF)
+│   ├── printing_config_service.dart  # Skrivar-profiler (API + local cache)
+│   └── theme.dart                    # Material 3, dark/light, gold palette
+├── models/
+│   └── order_model.dart              # OrderModel + OrderItemModel
+├── providers/
+│   ├── auth_provider.dart            # Login/logout, token, tryAutoLogin
+│   ├── order_provider.dart           # Monolith: Socket.IO, ordrar, alarm, print
+│   └── theme_provider.dart           # Dark/Light/System preference
+└── screens/
+    ├── login_screen.dart
+    ├── dashboard_screen.dart         # PENDING + AKTIVA ordrar, alert
+    ├── history_screen.dart           # Idag/Igår historik
+    ├── insights_screen.dart          # Omsättning, snittorder, pie chart
+    ├── menu_screen.dart              # Produkt/extra on-off toggle
+    ├── settings_screen.dart          # Konto, tema, print, debug
+    ├── order_detail_screen.dart      # Full orderinfo + statusändring
+    ├── order_take_screen.dart        # Snabb accept + tidshjul
+    ├── accept_result_screen.dart     # Grön/orange feedback
+    ├── new_order_alert_screen.dart   # Blå fullscreen alert
+    ├── print_settings_screen.dart    # Skrivar-konfiguration
+    ├── extras_screen.dart            # Extra-item visibility
+    └── log_screen.dart               # Debug log viewer
+widgets/
+    ├── app_ui.dart                   # AppPanel, AppBackdrop etc.
+    └── order_card.dart               # Pulsande orderkort
+```
+
+---
+
+## 3. API-ENDPOINTS
+
+| Method | URL | Används av |
+|--------|-----|-----------|
+| POST | `/api/account/login` | AuthProvider |
+| POST | `/api/account/verify` | AuthProvider.tryAutoLogin |
+| GET | `/api/admin/orders?restaurantId=&limit=50` | OrderProvider |
+| PATCH | `/api/admin/orders/{id}/status` | OrderProvider |
+| GET | `/api/admin/orders/{id}/receipt-data` | PrintService |
+| PATCH | `/api/restaurants/{id}` | OrderProvider (öppet/stängt) |
+| GET | `/api/restaurants` | OrderProvider (öppettider) |
+| GET | `/api/admin/categories?restaurantId=&includeProducts=true&includeGlobal=auto` | MenuScreen/OrderProvider |
+| PATCH | `/api/admin/products/{id}` | MenuScreen |
+| PATCH | `/api/admin/extras/{id}` | MenuScreen/ExtrasScreen |
+| GET/PUT | `/api/admin/printing-config` | PrintingConfigService |
+
+---
+
+## 4. DATA-FLÖDE
+
+```
+App start
+  └── tryAutoLogin() → GET /api/account/verify
+        └── success → MainShell + initSocket()
+              └── Socket.IO ansluter
+                    ├── order:new → insert + alarm + auto-print
+                    ├── order:updated → uppdatera lokal status
+                    └── settings:updated → öppet/stängt
+
+OrderProvider._orders (List<OrderModel>)
+  ├── pendingOrders       → DashboardScreen "NYA"
+  ├── activeOrders        → DashboardScreen "AKTIVA"
+  ├── todayHistoryOrders  → HistoryScreen (idag)
+  └── yesterdayHistoryOrders → HistoryScreen (igår)
+```
+
+---
+
+## 5. ORDER STATUS-FLÖDE
+
+```
+PENDING → ACCEPTED → PREPARING → READY → DELIVERING → DELIVERED/COMPLETED
+                                         (pickup)     (delivery)
+CANCELLED / REJECTED (från vilket steg som helst)
+```
+
+---
+
+## 6. PRINT-SYSTEM
+
+```
+PrintService.printOrder()
+  1. GET /api/admin/orders/{id}/receipt-data
+  2. Bestäm printer-typ:
+     ├── Bluetooth → ESC-POS bytes → BluetoothPrinterService
+     ├── Network → ESC-POS bytes → NetworkPrintClient (port 9100)
+     └── Fallback → PDF via printing plugin
+  Pappersbredder: 58mm, 80mm, A4
+  Kopior: konfigurerbara per profil
+  AutoPrint: triggas vid order:new om aktiverat
+```
+
+**Element-baserad rendering.** `print_service.dart` har en switch på `element.key`
+som bestämmer vad som faktiskt skrivs ut för varje rad i kvittot. Ordningen,
+synligheten, font-storleken, vikten och uppercase styrs centralt från
+admin-panelens kvittomall-redigerare (`/admin/receipts`) som sparar mallen i
+`ReceiptTemplate`-tabellen (id = `'global'`). Lägger man till en ny `key` i
+`DEFAULT_TEMPLATE_ELEMENTS` (backend `printing.ts`) måste motsvarande `case`
+finnas i båda PDF- och ESC-POS-grenarna här i `print_service.dart`.
+
+Befintliga element: `restaurantName`, `platformName`, `address`, `phone`,
+`headerMsg`, `orderNumber`, `timestamp`, `orderType`, `scheduledFor`,
+`estimatedTime`, `customerName`, `customerPhone`, `customerAddress`,
+`deliveryInstructions`, `note`, `allergens`, `items`, `extras`, `deliveryFee`,
+`discount`, `total`, `paymentMethod`, `thankYou`, `footerMsg`, plus 5 dividers.
+
+---
+
+## 7. ALARM-SYSTEM
+
+```
+Ny order:
+  → AudioHelper.playAudio()
+  → HapticFeedback.heavy()
+  → NewOrderAlertScreen (blå fullscreen)
+
+Watchdog (var 10:e sekund):
+  → Om pendingOrders.isNotEmpty → AudioHelper.startLooping()
+  → Annars → AudioHelper.stopLooping()
+
+Ljud: assets/audio/notification.wav + disconnect.wav
+```
+
+---
+
+## 8. KÄNDA BUGGAR & PROBLEM
+
+### KRITISKA
+
+| # | Bugg | Fil | Beskrivning |
+|---|------|-----|-------------|
+| ~~B1~~ | ~~Audio loop stack-up~~ | **FIXAD 2026-05-02** | `_isLooping=true` sätts nu omedelbart |
+| ~~B2~~ | ~~Socket double-init race condition~~ | **FIXAD 2026-05-02** | `_socketInitializing` guard-flag |
+| ~~B3~~ | ~~401 hanteras inte centralt~~ | **FIXAD 2026-05-02** | `ApiClient.onUnauthorized` callback |
+
+### MELLANNIVÅ
+
+| # | Bugg | Fil | Beskrivning |
+|---|------|-----|-------------|
+| B4 | Tidshjul resettas | `order_take_screen.dart` | Om screen poppas och öppnas igen → default 20/40 min igen, ej persisted |
+| B5 | BT print partial failure | `print_service.dart` | Kopia 1 OK, kopia 2 misslyckas → returnerar false men skriver ut ändå |
+| B6 | PDF font race | `print_service.dart` | Async font-hämtning vid snabba parallella utskrifter |
+| B7 | Restaurant-status stale | `order_provider.dart` | Ingen fallback-poll om socket flaky (kommentar: "rely on server push") |
+| B8 | Animation pop | `order_card.dart` | Puls-animation börjar direkt utan initial delay → visuell "pop" |
+
+### SMÄRRE
+
+| # | Problem | Beskrivning |
+|---|---------|-------------|
+| B9 | Test-order filter brittle | Hardcoded strings: 'test', 'testa', 'test jari' — kan ge false positives |
+| B10 | includeGlobal=auto | Odokumenterat backend-beteende |
+| B11 | SharedPreferences för tokens | Ej krypterat — bör använda flutter_secure_storage |
+| B12 | Ingen staging-miljö | Hardcoded production URL i constants.dart |
+| B13 | Offline-banner utan auto-retry | `_isOffline` sätts men ingen reconnect-logik på klienten |
+
+---
+
+## 9. VAD SOM ÄR BRA
+
+- Real-time Socket.IO integration fungerar robust
+- Flexibelt print-system med Bluetooth + Nätverks + PDF fallback
+- Responsiv layout (mobile/tablet/desktop med NavigationRail)
+- Offline-cache (2 dagars ordrar sparas i SharedPreferences)
+- Tydlig order-statusmaskin
+- Bra färgsystem och dark/light-tema
+- Debug-loggning med LogService + LogScreen är professionell
+- Detaljerade svenska felmeddelanden vid nätverksproblem
+- Emoji-märkta loggar för snabb scanning (📡 📩 🔊 ✅ ❌)
+
+---
+
+## 10. VAD SOM ÄR DÅLIGT / BEHÖVER FÖRBÄTTRAS
+
+### Arkitektur
+- **OrderProvider är en monolit** (~600+ rader) — socket, orders, alarm, print, menu allt i en fil
+- Ingen separation: bör delas i `OrderService`, `SocketManager`, `AlarmService`
+
+### UX-problem
+- Ingen toast/snackbar vid print-fel — användaren vet inte om utskrift misslyckades
+- Ingen retry-knapp vid nätverksfel på dashboard
+- Tidshjulet på OrderTakeScreen resettas vid varje öppning
+- Offline-indikator finns men ingen proaktiv reconnect
+
+### Teknisk skuld
+- Inga widget-tester, inga integration-tester
+- `debugPrint()` överallt i produktionskod
+- Magic numbers överallt (20 min, 40 min, 10 sek, 30 sek)
+- Hardcoded production URL — ingen dev-miljö
+- Tokens i klartext (SharedPreferences)
+
+### Performance
+- OrderProvider laddar 50 ordrar utan pagination
+- Watchdog watchdog kör var 10:e sek alltid, inte bara vid active orders
+- Ingen lazy-loading av historik
+
+---
+
+## 11. MAGISKA SIFFROR (reference)
+
+| Värde | Betydelse |
+|-------|-----------|
+| 20 min | Default estimatedTime för pickup |
+| 40 min | Default estimatedTime för delivery |
+| 30 sek | Tröskel för grön vs orange accept-feedback |
+| 10 sek | Watchdog-interval |
+| +20 min | Överdue-tröskel (estimatedTime + 20) |
+| 2000 | Max log-rader |
+| 50 | Max ordrar per API-request |
+| 9100 | Nätverksskrivare TCP-port |
+| 10 | Socket.IO reconnection attempts |
+| 2000ms | Socket.IO reconnection delay |
+
+---
+
+## 12. ASSETS & KONFIGURATION
+
+```yaml
+# constants.dart
+baseUrl: 'https://palmy-production-2021.up.railway.app'
+tokenKey: 'matgo_token'
+adminKey: 'matgo_admin'
+
+# assets/
+audio/notification.wav   # Ny order alarm (loopar)
+audio/disconnect.wav      # Offline-varning
+```
+
+---
+
+## 13. ÄNDRINGSLOGG
+
+| Datum | Ändring |
+|-------|---------|
+| 2026-05-02 | Initial genomgång, dokument skapat |
+| 2026-05-02 | **fix B1**: `AudioHelper.startLooping` — `_isLooping=true` sätts nu omedelbart (innan await) → inga staplade loopar |
+| 2026-05-02 | **fix B2**: `OrderProvider.initSocket` — `_socketInitializing` guard-flag lagd till → inga dubbla socket-listeners |
+| 2026-05-02 | **fix B3**: `ApiClient.onUnauthorized` callback + koppling i `main.dart` → 401 var som helst i appen triggar auto-logout |
+| 2026-05-02 | **fix alert-nav**: `NewOrderAlertScreen.onTap` poppar nu tillbaka till orderlistan, navigerar inte direkt in i en order |
+| 2026-05-02 | **redesign tid-väljare**: `_TimePicker` är nu `StatefulWidget`, sitter fast längst ner i `OrderTakeScreen` (ej i scroll), centrar vald tid automatiskt |
+| 2026-05-02 | **redesign `_ItemCard`**: extras visas nu staplade rader med `+`-ikon (grönt), notering visas i amber-rad nedanför — bättre på telefon i kök |
+

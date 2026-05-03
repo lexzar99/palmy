@@ -460,6 +460,19 @@ class PrintService {
                 element.uppercase);
           }
           break;
+        case 'estimatedTime':
+          // Utlovad ETA i minuter (kommer från order.estimatedTime, dynamiskt
+          // räknat från restaurangens senaste 20 ordrarnas snitt). Visas inte
+          // för förbeställningar — de har redan scheduledFor som tydlig tid.
+          if (orderInfo['isPreorder'] != true &&
+              orderInfo['estimatedTime'] != null) {
+            widget = _pdfText(
+                'Utlovad tid: ${orderInfo['estimatedTime']} min',
+                style,
+                align,
+                element.uppercase);
+          }
+          break;
         case 'customerName':
           if (_safeValue(customer['name']).isNotEmpty)
             widget = _pdfText('Kund: ${_safeValue(customer['name'])}', style,
@@ -691,6 +704,16 @@ class PrintService {
                 generator,
                 'FORBESTALLD ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'
                     .trim(),
+                element));
+          break;
+        case 'estimatedTime':
+          // ESC-POS-spegling av PDF-grenen: utlovad tid i minuter.
+          // Hoppas över för förbeställningar (scheduledFor täcker det).
+          if (orderInfo['isPreorder'] != true &&
+              orderInfo['estimatedTime'] != null)
+            bytes.addAll(_posText(
+                generator,
+                'UTLOVAD TID: ${orderInfo['estimatedTime']} MIN',
                 element));
           break;
         case 'customerName':
