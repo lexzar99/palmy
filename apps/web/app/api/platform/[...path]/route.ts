@@ -90,3 +90,5 @@ export async function DELETE(request: NextRequest, context: RouteContext<"/api/p
   const { path } = await context.params;
   return proxyRequest(request, path);
 }
+
+// Force redeploy: 1777789352
