@@ -810,41 +810,14 @@ class _BottomBar extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              // +/- time picker
-              Row(
-                children: [
-                  _TimeStepButton(
-                    icon: Icons.remove_rounded,
-                    enabled: options.indexOf(selected) > 0,
-                    isDark: isDark,
-                    onTap: () {
-                      final idx = options.indexOf(selected);
-                      if (idx > 0) onTimeChanged(options[idx - 1]);
-                    },
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        '$selected min',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
-                      ),
-                    ),
-                  ),
-                  _TimeStepButton(
-                    icon: Icons.add_rounded,
-                    enabled: options.indexOf(selected) < options.length - 1,
-                    isDark: isDark,
-                    onTap: () {
-                      final idx = options.indexOf(selected);
-                      if (idx < options.length - 1) onTimeChanged(options[idx + 1]);
-                    },
-                  ),
-                ],
+              const SizedBox(height: 10),
+              // Horizontal scroll pill picker (mix: info-rad ovan + scroll)
+              _TimePicker(
+                options: options,
+                selected: selected,
+                accent: goldColor,
+                isDark: isDark,
+                onChanged: onTimeChanged,
               ),
               const SizedBox(height: 14),
               // NEKA + ACCEPTERA
@@ -950,38 +923,124 @@ class _BottomBar extends StatelessWidget {
   }
 }
 
-// ── Step button for +/- time picker ──────────────────────────────────────────
-class _TimeStepButton extends StatelessWidget {
-  final IconData icon;
-  final bool enabled;
+// ── Horizontal scroll time picker ────────────────────────────────────────────
+class _TimePicker extends StatefulWidget {
+  final List<int> options;
+  final int selected;
+  final Color accent;
   final bool isDark;
-  final VoidCallback onTap;
+  final ValueChanged<int> onChanged;
 
-  const _TimeStepButton({
-    required this.icon,
-    required this.enabled,
+  const _TimePicker({
+    required this.options,
+    required this.selected,
+    required this.accent,
     required this.isDark,
-    required this.onTap,
+    required this.onChanged,
   });
 
   @override
+  State<_TimePicker> createState() => _TimePickerState();
+}
+
+class _TimePickerState extends State<_TimePicker> {
+  late final ScrollController _scroll;
+  static const double _itemW = 58.0;
+  static const double _gap = 8.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scroll = ScrollController();
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _scrollToSelected(animate: false));
+  }
+
+  @override
+  void didUpdateWidget(_TimePicker old) {
+    super.didUpdateWidget(old);
+    if (old.selected != widget.selected) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToSelected());
+    }
+  }
+
+  void _scrollToSelected({bool animate = true}) {
+    if (!_scroll.hasClients) return;
+    final idx = widget.options.indexOf(widget.selected);
+    if (idx < 0) return;
+    final viewport = _scroll.position.viewportDimension;
+    final target = idx * (_itemW + _gap) - viewport / 2 + _itemW / 2;
+    final clamped = target.clamp(0.0, _scroll.position.maxScrollExtent);
+    if (animate) {
+      _scroll.animateTo(clamped,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic);
+    } else {
+      _scroll.jumpTo(clamped);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final fgColor = enabled
-        ? (isDark ? Colors.white : AppTheme.ink)
-        : (isDark ? Colors.white.withOpacity(0.20) : AppTheme.ink.withOpacity(0.20));
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.06) : AppTheme.ink.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: isDark ? Colors.white.withOpacity(0.12) : AppTheme.ink.withOpacity(0.10),
-          ),
-        ),
-        child: Icon(icon, color: fgColor, size: 24),
+    return SizedBox(
+      height: 54,
+      child: ListView.separated(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: widget.options.length,
+        separatorBuilder: (_, __) => const SizedBox(width: _gap),
+        itemBuilder: (context, i) {
+          final m = widget.options[i];
+          final isSel = m == widget.selected;
+          return GestureDetector(
+            onTap: () => widget.onChanged(m),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: _itemW,
+              decoration: BoxDecoration(
+                color: isSel
+                    ? widget.accent
+                    : (widget.isDark
+                        ? Colors.white.withOpacity(0.06)
+                        : AppTheme.ink.withOpacity(0.05)),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: isSel
+                      ? widget.accent
+                      : (widget.isDark
+                          ? Colors.white.withOpacity(0.12)
+                          : AppTheme.ink.withOpacity(0.12)),
+                  width: isSel ? 2 : 1,
+                ),
+              ),
+              child: Center(
+                child: AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 180),
+                  style: TextStyle(
+                    color: isSel
+                        ? Colors.white
+                        : (widget.isDark
+                            ? Colors.white.withOpacity(0.60)
+                            : AppTheme.ink.withOpacity(0.55)),
+                    fontSize: isSel ? 20 : 17,
+                    fontWeight:
+                        isSel ? FontWeight.w900 : FontWeight.w700,
+                  ),
+                  child: Text('$m'),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

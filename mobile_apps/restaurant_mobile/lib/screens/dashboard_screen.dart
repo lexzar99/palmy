@@ -179,6 +179,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       ),
 
+                    if (!provider.isRestaurantOpen)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                          child: _ClosedBanner(),
+                        ),
+                      ),
+
                     // Divider line under header
                     SliverToBoxAdapter(
                       child: Padding(
@@ -312,34 +320,72 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOpen = provider.isRestaurantOpen;
+    final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
+    final statusLabel = isOpen ? 'ÖPPET' : 'STÄNGT';
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: GestureDetector(
-            onLongPress: () => _showStatusPicker(context, provider),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Order',
+                style: TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -1.2,
+                  height: 1.0,
+                  color: isDark ? Colors.white : AppTheme.ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Hantera inkommande ordrar',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.50)
+                      : const Color(0xFF8E8E93),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        // Tappable status badge
+        GestureDetector(
+          onTap: () => _showStatusPicker(context, provider),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: statusColor.withOpacity(0.40), width: 1.2),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Order',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -1.2,
-                    height: 1.0,
-                    color: isDark ? Colors.white : AppTheme.ink,
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: statusColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(width: 6),
                 Text(
-                  'Hantera inkommande ordrar',
+                  statusLabel,
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark
-                        ? Colors.white.withOpacity(0.50)
-                        : const Color(0xFF8E8E93),
+                    color: statusColor,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1.2,
                   ),
                 ),
               ],
@@ -631,6 +677,61 @@ class _OfflineBanner extends StatelessWidget {
               color: AppTheme.danger,
               fontWeight: FontWeight.w800,
               fontSize: 13,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClosedBanner extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppTheme.isDark(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppTheme.danger.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: AppTheme.danger.withOpacity(0.35), width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppTheme.danger.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.storefront_outlined,
+                color: AppTheme.danger, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Restaurangen är stängd',
+                  style: TextStyle(
+                    color: AppTheme.danger,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Ni är utanför era öppettider · Tryck på STÄNGT för att ändra',
+                  style: TextStyle(
+                    color: AppTheme.danger.withOpacity(0.75),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

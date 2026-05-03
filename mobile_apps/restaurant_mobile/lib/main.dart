@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:ui';
 import 'package:provider/provider.dart';
 
@@ -11,6 +12,7 @@ import 'screens/dashboard_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/menu_screen.dart';
+import 'screens/sleep_screen.dart';
 import 'providers/theme_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'core/audio_helper.dart';
@@ -19,7 +21,6 @@ import 'widgets/app_ui.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Try initializing audio configurations
   try {
     await AudioHelper.initConfigs();
   } catch (e) {
@@ -39,8 +40,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => OrderProvider()),
-        ChangeNotifierProvider(
-            create: (_) => ThemeProvider()), // NEW THEME PROVIDER
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: MatGoBusinessApp(version: fullVersion),
     ),
@@ -95,6 +95,10 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   late final PageController _pageController;
+  Timer? _sleepTimer;
+  bool _sleeping = false;
+
+  static const _sleepAfter = Duration(seconds: 30);
 
   final _pages = const [
     DashboardScreen(),
@@ -136,18 +140,39 @@ class _MainShellState extends State<MainShell> {
       if (auth.isAuthenticated && auth.user?['restaurantId'] != null) {
         orders.initSocket(auth.user!['restaurantId']);
       }
+      _resetSleepTimer();
     });
   }
 
   @override
   void dispose() {
+    _sleepTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
 
+  void _resetSleepTimer() {
+    _sleepTimer?.cancel();
+    if (_sleeping) {
+      setState(() => _sleeping = false);
+    }
+    _sleepTimer = Timer(_sleepAfter, _maybeSleep);
+  }
+
+  void _maybeSleep() {
+    final orders = Provider.of<OrderProvider>(context, listen: false);
+    // Only sleep when closed and no pending orders
+    if (!orders.isRestaurantOpen && orders.pendingOrders.isEmpty && mounted) {
+      setState(() => _sleeping = true);
+    }
+  }
+
+  void _wake() {
+    _resetSleepTimer();
+  }
+
   void _selectTab(int index) {
     if (index == _currentIndex) return;
-
     setState(() => _currentIndex = index);
     _pageController.animateToPage(
       index,
@@ -166,7 +191,13 @@ class _MainShellState extends State<MainShell> {
       themeProvider.updateSystemBrightness(mediaQuery.platformBrightness);
     });
 
-    return Scaffold(
+    // Wake up when a new pending order arrives
+    final orderProvider = Provider.of<OrderProvider>(context);
+    if (_sleeping && orderProvider.pendingOrders.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _wake());
+    }
+
+    final shell = Scaffold(
       backgroundColor: Colors.transparent,
       body: AppBackdrop(
         child: SafeArea(
@@ -201,6 +232,20 @@ class _MainShellState extends State<MainShell> {
                   ],
                 ),
         ),
+      ),
+    );
+
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _resetSleepTimer(),
+      child: Stack(
+        children: [
+          shell,
+          if (_sleeping)
+            Positioned.fill(
+              child: SleepScreen(onWake: _wake),
+            ),
+        ],
       ),
     );
   }
