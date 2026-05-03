@@ -288,18 +288,31 @@ function ProfileContent() {
      * för /api/platform/profile. Vi måste BYTA Supabase-token mot platform-
      * token via POST /api/auth/oauth-token.
      */
-    const exchangeSupabaseForPlatformToken = async (sbSession: any) => {
+    const exchangeSupabaseForPlatformToken = async (
+      sbSession: any,
+      forceExchange = false,
+    ) => {
       if (exchanging) return;
       exchanging = true;
-      console.log("[OAuth] Starting Supabase → platform token exchange");
+      console.log("[OAuth] Starting Supabase → platform token exchange (force=", forceExchange, ")");
       try {
-        // Om vi redan har en giltig platform-session, hoppa över bytet
-        const alreadyAuthed = await getPlatformSessionStatus();
-        if (alreadyAuthed) {
-          console.log("[OAuth] Already has platform session, fetching data");
-          setHasPlatformSession(true);
-          await fetchData();
-          return;
+        // Om vi inte tvingar nytt byte: kolla om vi redan har en giltig
+        // platform-session. (Tvingar gör vi vid SIGNED_IN-event eftersom
+        // den gamla cookien kan vara stale från en annan användare.)
+        if (!forceExchange) {
+          const alreadyAuthed = await getPlatformSessionStatus();
+          if (alreadyAuthed) {
+            console.log("[OAuth] Already has platform session, fetching data");
+            setHasPlatformSession(true);
+            try {
+              await fetchData();
+              return;
+            } catch {
+              // fetchData failed (token kanske stale) → fall through till byte
+              console.warn("[OAuth] Stale platform session, forcing exchange");
+              await clearPlatformSession();
+            }
+          }
         }
 
         const sbUser = sbSession.user;
@@ -391,7 +404,9 @@ function ProfileContent() {
       (event, sbSession) => {
         console.log("[OAuth] auth state change:", event, "hasSession=", !!sbSession?.access_token);
         if (event === "SIGNED_IN" && sbSession?.access_token) {
-          void exchangeSupabaseForPlatformToken(sbSession);
+          // Tvinga nytt token-byte vid SIGNED_IN för att inte använda en
+          // stale platform-cookie från en tidigare misslyckad inloggning.
+          void exchangeSupabaseForPlatformToken(sbSession, true);
         }
       }
     );
