@@ -36,6 +36,8 @@ export interface RestaurantDetail {
   minOrderAmount: number;
   etaMinutes: number;
   baseEtaMinutes?: number;
+  etaCalculatedMinutes?: number | null;
+  etaOverrideMinutes?: number | null;
   activeOrdersCount: number;
   isOpen: boolean;
   manualIsOpen: boolean;
@@ -79,6 +81,7 @@ export interface RestaurantFormPayload {
   deliveryFee?: number;
   minOrderAmount?: number;
   etaMinutes?: number;
+  etaOverrideMinutes?: number | null;
   featuredClass?: number;
   isOpen?: boolean;
   rating?: number;

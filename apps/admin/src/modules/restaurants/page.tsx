@@ -75,7 +75,9 @@ type RestaurantFormState = {
   heroImageUrl: string;
   deliveryFee: number;
   minOrderAmount: number;
-  etaMinutes: number;
+  etaOverride: string; // tom sträng = ingen override, annars siffra (clampas 25–55 server-side)
+  etaCalculated: number | null; // read-only, från senaste 20 ordrarna
+  etaEffective: number; // read-only, det kunden ser
   featuredClass: number;
   isOpen: boolean;
   rating: number;
@@ -104,7 +106,9 @@ const emptyForm: RestaurantFormState = {
   heroImageUrl: "",
   deliveryFee: 0,
   minOrderAmount: 0,
-  etaMinutes: 30,
+  etaOverride: "",
+  etaCalculated: null,
+  etaEffective: 40,
   featuredClass: 3,
   isOpen: true,
   rating: 4.6,
@@ -136,7 +140,9 @@ const mapDetailToForm = (detail: RestaurantDetail): RestaurantFormState => ({
   heroImageUrl: detail.heroImageUrl || "",
   deliveryFee: detail.deliveryFee || 0,
   minOrderAmount: detail.minOrderAmount || 0,
-  etaMinutes: detail.baseEtaMinutes || detail.etaMinutes || 30,
+  etaOverride: detail.etaOverrideMinutes != null ? String(detail.etaOverrideMinutes) : "",
+  etaCalculated: detail.etaCalculatedMinutes ?? null,
+  etaEffective: detail.etaMinutes ?? 40,
   featuredClass: detail.featuredClass || 3,
   isOpen: detail.manualIsOpen,
   rating: detail.rating || 0,
@@ -165,7 +171,9 @@ const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => (
   heroImageUrl: form.heroImageUrl || null,
   deliveryFee: Number(form.deliveryFee || 0),
   minOrderAmount: Number(form.minOrderAmount || 0),
-  etaMinutes: Number(form.etaMinutes || 0),
+  // etaOverride tom = null (ingen override, dynamisk räknar). Annars siffra som
+  // backend clampar till 25–55 min.
+  etaOverrideMinutes: form.etaOverride.trim() === "" ? null : Number(form.etaOverride),
   featuredClass: Number(form.featuredClass || 3),
   isOpen: form.isOpen,
   rating: Number(form.rating || 0),
@@ -472,7 +480,37 @@ function RestaurantEditorModal({
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Delivery fee"><Input type="number" value={form.deliveryFee} onChange={(event) => setForm((current) => ({ ...current, deliveryFee: Number(event.target.value) }))} /></Field>
             <Field label="Minimum order"><Input type="number" value={form.minOrderAmount} onChange={(event) => setForm((current) => ({ ...current, minOrderAmount: Number(event.target.value) }))} /></Field>
-            <Field label="ETA minutes"><Input type="number" value={form.etaMinutes} onChange={(event) => setForm((current) => ({ ...current, etaMinutes: Number(event.target.value) }))} /></Field>
+            <div className="md:col-span-2">
+              <div className="surface-muted px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">ETA (leveranstid)</p>
+                  <Badge tone="info">{form.etaEffective} min effektiv</Badge>
+                </div>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Räknas automatiskt ut från snittet av de senaste 20 ordrarnas tid mellan beställning och &quot;på väg&quot;.
+                  Clampad till 25–55 min. Default 40 min om för få ordrar än finns.
+                </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <Field label="Beräknad ETA (auto)">
+                    <Input
+                      type="text"
+                      value={form.etaCalculated != null ? `${form.etaCalculated} min` : "Inte tillräckligt med ordrar (default 40 min)"}
+                      disabled
+                    />
+                  </Field>
+                  <Field label="Manuell override (lämna tom = automatisk)">
+                    <Input
+                      type="number"
+                      min={25}
+                      max={55}
+                      placeholder="t.ex. 35"
+                      value={form.etaOverride}
+                      onChange={(event) => setForm((current) => ({ ...current, etaOverride: event.target.value }))}
+                    />
+                  </Field>
+                </div>
+              </div>
+            </div>
             <Field label="Tier class"><Select value={String(form.featuredClass)} onChange={(event) => setForm((current) => ({ ...current, featuredClass: Number(event.target.value) }))}><option value="1">Gold</option><option value="2">Silver</option><option value="3">Standard</option><option value="0">Hidden</option></Select></Field>
             <Field label="Rating"><Input type="number" step="0.1" value={form.rating} onChange={(event) => setForm((current) => ({ ...current, rating: Number(event.target.value) }))} /></Field>
             <Field label="Rating count"><Input type="number" value={form.ratingCount} onChange={(event) => setForm((current) => ({ ...current, ratingCount: Number(event.target.value) }))} /></Field>

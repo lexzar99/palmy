@@ -34,6 +34,7 @@ const defaultElements: ReceiptElement[] = [
   { key: "timestamp", label: "Timestamp", visible: true, size: 8, weight: "normal", align: "left" },
   { key: "orderType", label: "Order type", visible: true, size: 9, weight: "bold", align: "left" },
   { key: "scheduledFor", label: "Scheduled time", visible: true, size: 9, weight: "bold", align: "left" },
+  { key: "estimatedTime", label: "Utlovad tid (ETA)", visible: true, size: 10, weight: "bold", align: "left" },
   { key: "customerName", label: "Customer name", visible: true, size: 9, weight: "bold", align: "left" },
   { key: "customerPhone", label: "Customer phone", visible: true, size: 8, weight: "normal", align: "left" },
   { key: "customerAddress", label: "Delivery address", visible: true, size: 8, weight: "normal", align: "left" },

@@ -7,6 +7,7 @@ import { authenticate, AuthRequest, resolveAdminSessionFromToken } from '../midd
 import { getIO } from '../lib/socket';
 import { isRestaurantOpen } from '../lib/openingHours';
 import { normalizeDeliveryZones, normalizeMoneyToOre } from '../utils/deliveryZones';
+import { getEffectiveEtaMinutes, ETA_DEFAULT_MINUTES } from '../lib/restaurantEta';
 
 const router = Router();
 
@@ -41,6 +42,10 @@ const restaurantSchema = z.object({
   deliveryFee: z.any().optional(),
   minOrderAmount: z.any().optional(),
   etaMinutes: z.any().optional(),
+  // etaOverrideMinutes: admin-manuell override. Sätt null för att rensa
+  // override och låta dynamiska beräkningen styra. Number = nytt override
+  // i minuter (clampas server-side till 25–55).
+  etaOverrideMinutes: z.any().optional(),
   tags: z.any().optional(),
   featuredClass: z.any().optional(),
   isOpen: z.boolean().optional(),
@@ -62,9 +67,10 @@ const restaurantSchema = z.object({
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
   const activeOrdersCount = (restaurant.orders || []).length;
-  const dynamicEta = restaurant.etaMinutes ?? 35;
-  // Previously we added +10/20 min based on load, but this confused the admin.
-  // Letting the base value be the source of truth.
+  // Effektiv ETA: override > beräknad > legacy etaMinutes > 40, clampad 25–55.
+  // Detta är det värde som visas för kunden. Kunder ser aldrig
+  // "etaCalculatedMinutes" eller "etaOverrideMinutes" råa — bara summan.
+  const dynamicEta = getEffectiveEtaMinutes(restaurant);
 
   return {
     id: restaurant.id,
@@ -83,7 +89,9 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     deliveryFee: fromOre(restaurant.deliveryFee),
     minOrderAmount: fromOre(restaurant.minOrderAmount),
     etaMinutes: dynamicEta,
-    baseEtaMinutes: restaurant.etaMinutes ?? 35, // raw stored value, without dynamic adjustment
+    baseEtaMinutes: restaurant.etaMinutes ?? ETA_DEFAULT_MINUTES, // legacy raw stored value
+    etaCalculatedMinutes: restaurant.etaCalculatedMinutes ?? null, // auto från historik (null = för få ordrar)
+    etaOverrideMinutes: restaurant.etaOverrideMinutes ?? null,     // admin manuell override (null = av)
     activeOrdersCount,
   isOpen: (() => {
     try {
@@ -394,6 +402,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     };
 
     if (payload.etaMinutes !== undefined) data.etaMinutes = toSafeNum(payload.etaMinutes);
+    // Manuell override: number = sätt nytt värde (clampat 25–55), null = rensa override
+    if (payload.etaOverrideMinutes !== undefined) {
+      if (payload.etaOverrideMinutes === null || payload.etaOverrideMinutes === '' || payload.etaOverrideMinutes === 0) {
+        data.etaOverrideMinutes = null;
+      } else {
+        const n = toSafeNum(payload.etaOverrideMinutes);
+        data.etaOverrideMinutes = n != null ? Math.max(25, Math.min(55, Math.round(n))) : null;
+      }
+    }
     if (payload.featuredClass !== undefined) data.featuredClass = toSafeNum(payload.featuredClass);
     if (payload.isOpen !== undefined) data.isOpen = payload.isOpen;
     if (payload.rating !== undefined) data.rating = toSafeNum(payload.rating);
