@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerPlatformAccessToken } from "@/lib/platformSession";
 
 function getRequiredApiUrl() {
-  const value = process.env.API_URL?.trim();
-
-  if (!value) {
-    throw new Error("Missing required server environment variable: API_URL");
-  }
+  // Server-side: API_URL prioriteras. Fallback: NEXT_PUBLIC_API_URL
+  // (alltid satt eftersom client behöver den) → sista fallback prod-Railway
+  // så proxyn aldrig kraschar i 500.
+  const value =
+    process.env.API_URL?.trim() ||
+    process.env.NEXT_PUBLIC_API_URL?.trim() ||
+    "https://palmy-production-2021.up.railway.app";
 
   return value;
 }

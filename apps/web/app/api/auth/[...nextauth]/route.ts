@@ -33,6 +33,21 @@ function getRequiredServerEnv(name: string) {
   return value;
 }
 
+function getApiUrlWithFallback() {
+  return (
+    process.env.API_URL?.trim() ||
+    process.env.NEXT_PUBLIC_API_URL?.trim() ||
+    "https://palmy-production-2021.up.railway.app"
+  );
+}
+
+function getNextAuthSecretWithFallback() {
+  // NEXTAUTH_SECRET MÅSTE vara satt — om den saknas degrades NextAuth
+  // tyst (returnerar tomma sessions från handleAuth catch-block) istället
+  // för att krascha hela auth-systemet.
+  return process.env.NEXTAUTH_SECRET?.trim() || "";
+}
+
 function normalizeOptionalCredential(value: string | undefined) {
   const trimmed = value?.trim();
 
@@ -79,8 +94,13 @@ function isSafeMobileAuthUrl(url: string, baseUrl: string) {
 }
 
 function createAuthHandler() {
-  const API_URL = getRequiredServerEnv("API_URL");
-  const NEXTAUTH_SECRET = getRequiredServerEnv("NEXTAUTH_SECRET");
+  const API_URL = getApiUrlWithFallback();
+  const NEXTAUTH_SECRET = getNextAuthSecretWithFallback();
+  if (!NEXTAUTH_SECRET) {
+    // Utan secret kan vi inte signera JWT-tokens — kasta så handleAuth
+    // catchar och returnerar tomma sessions istället.
+    throw new Error("NEXTAUTH_SECRET saknas i miljövariabler");
+  }
   const googleCredentials = getProviderCredentials("Google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
   const facebookCredentials = getProviderCredentials("Facebook", "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET");
   // Apple kräver Service ID + JWT-baserad client secret (genererad från Apple privata nyckel).
