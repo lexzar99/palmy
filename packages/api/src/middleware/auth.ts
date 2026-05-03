@@ -44,36 +44,37 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
   let restaurant = null;
 
   if (payload.restaurantId) {
-    restaurant = await prisma.restaurant.findUnique({
+    restaurant = await (prisma.restaurant as any).findUnique({
       where: { id: payload.restaurantId },
-      select: { id: true, slug: true, name: true },
+      select: { id: true, slug: true, name: true, logoutCode: true },
     });
   }
 
   if (!restaurant && payload.restaurantSlug) {
-    restaurant = await prisma.restaurant.findFirst({
+    restaurant = await (prisma.restaurant as any).findFirst({
       where: { slug: payload.restaurantSlug },
-      select: { id: true, slug: true, name: true },
+      select: { id: true, slug: true, name: true, logoutCode: true },
     });
   }
 
   if (!restaurant) {
     const loginKey = (admin.email || '').toLowerCase();
-    const restaurants = await prisma.restaurant.findMany({
-      select: { id: true, slug: true, name: true, adminEmail: true },
+    const restaurants = await (prisma.restaurant as any).findMany({
+      select: { id: true, slug: true, name: true, adminEmail: true, logoutCode: true },
     });
     const lookup = buildRestaurantAdminLoginLookup(restaurants);
     const matched = lookup.get(loginKey) || null;
 
     restaurant = matched
-      ? { id: matched.id, slug: matched.slug, name: matched.name }
+      ? { id: matched.id, slug: matched.slug, name: matched.name, logoutCode: matched.logoutCode ?? null }
       : null;
   }
 
   return {
-    restaurantId: restaurant?.id ?? null,
-    restaurantSlug: restaurant?.slug ?? null,
-    restaurantName: restaurant?.name ?? null,
+    restaurantId: (restaurant as any)?.id ?? null,
+    restaurantSlug: (restaurant as any)?.slug ?? null,
+    restaurantName: (restaurant as any)?.name ?? null,
+    logoutCode: (restaurant as any)?.logoutCode ?? null,
   };
 };
 
@@ -99,6 +100,7 @@ export const resolveAdminSessionFromToken = async (token: string) => {
     restaurantId: scope.restaurantId,
     restaurantSlug: scope.restaurantSlug,
     restaurantName: scope.restaurantName,
+    logoutCode: (scope as any).logoutCode ?? null,
   };
 };
 

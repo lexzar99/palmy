@@ -593,15 +593,16 @@ router.post('/login', async (req, res) => {
     let restaurantId: string | null = null;
     let restaurantSlug: string | null = null;
     let restaurantName: string | null = null;
+    let logoutCode: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
-      const restaurant = await prisma.restaurant.findFirst({
+      const restaurant = await (prisma.restaurant as any).findFirst({
         where: {
           OR: [
             { slug: admin.email.toLowerCase() },
             { adminEmail: admin.email.toLowerCase() },
           ],
         },
-        select: { id: true, slug: true, name: true, adminEmail: true },
+        select: { id: true, slug: true, name: true, adminEmail: true, logoutCode: true },
       });
       if (!restaurant) {
         res.status(403).json({ error: 'Kontot är inte kopplat till en restaurang' });
@@ -610,6 +611,7 @@ router.post('/login', async (req, res) => {
       restaurantId = restaurant.id;
       restaurantSlug = restaurant.slug;
       restaurantName = restaurant.name;
+      logoutCode = restaurant.logoutCode ?? null;
     }
 
     const token = jwt.sign(
@@ -620,7 +622,7 @@ router.post('/login', async (req, res) => {
 
     res.json({
       token,
-      admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName },
+      admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName, logoutCode },
     });
   } catch (error) {
     console.error('[auth] Login handler error:', error);

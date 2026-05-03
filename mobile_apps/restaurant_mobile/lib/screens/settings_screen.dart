@@ -208,10 +208,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.logout_rounded,
             title: 'Logga ut',
             subtitle: 'Avsluta sessionen på den här enheten.',
-            onTap: () {
-              logger.log('BUTTON: Logout');
-              authProvider.logout();
+            onTap: () => _handleLogout(context, authProvider),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleLogout(BuildContext context, authProvider) {
+    final logoutCode = authProvider.logoutCode as String?;
+    if (logoutCode == null || logoutCode.isEmpty) {
+      logger.log('BUTTON: Logout (no code required)');
+      authProvider.logout();
+      return;
+    }
+    _showLogoutCodeDialog(context, authProvider, logoutCode);
+  }
+
+  void _showLogoutCodeDialog(BuildContext context, authProvider, String correctCode) {
+    final controller = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ange utloggningskod'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Kod'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Avbryt'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text == correctCode) {
+                Navigator.pop(context);
+                logger.log('BUTTON: Logout (code verified)');
+                authProvider.logout();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Fel kod — utloggning nekad.'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
             },
+            child: const Text('Logga ut'),
           ),
         ],
       ),

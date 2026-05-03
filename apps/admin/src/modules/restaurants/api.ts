@@ -51,6 +51,7 @@ export interface RestaurantDetail {
   freeDeliveryAbove?: number | null;
   deliveryZones?: unknown[];
   menu?: RestaurantMenuCategory[];
+  logoutCode?: string | null;
 }
 
 export interface RestaurantOrderSummary {
@@ -89,6 +90,7 @@ export interface RestaurantFormPayload {
   longitude?: number | null;
   freeDeliveryAbove?: number;
   openingHours?: { regular: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }> };
+  logoutCode?: string | null;
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;

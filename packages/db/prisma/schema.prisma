@@ -275,6 +275,7 @@ model Restaurant {
   city_relation  City?              @relation(fields: [cityId], references: [id])
   deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
   freeDeliveryAbove Int?            // Free delivery if order > this amount in öre (kr*100)
+  logoutCode     String?            // PIN-kod krävs för att logga ut ur Flutter-appen
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]

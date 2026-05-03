@@ -11,11 +11,13 @@ class AuthProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   Map<String, dynamic>? _user;
+  String? _logoutCode;
 
   bool get isLoading => _isLoading;
   String? get error => _error;
   Map<String, dynamic>? get user => _user;
   bool get isAuthenticated => _user != null;
+  String? get logoutCode => _logoutCode;
 
   Future<bool> login(String identifier, String password) async {
     _isLoading = true;
@@ -36,6 +38,7 @@ class AuthProvider with ChangeNotifier {
         await prefs.setString(AppConstants.adminKey, jsonEncode(data['admin']));
 
         _user = data['admin'];
+        _logoutCode = data['admin']?['logoutCode'] as String?;
         logger.log('LOGIN SUCCESS: ${_user?['email'] ?? identifier}');
         _isLoading = false;
         notifyListeners();
@@ -79,6 +82,7 @@ class AuthProvider with ChangeNotifier {
     await prefs.remove(AppConstants.adminKey);
     logger.log('LOGOUT: ${_user?['email']}');
     _user = null;
+    _logoutCode = null;
     notifyListeners();
   }
 
@@ -106,6 +110,7 @@ class AuthProvider with ChangeNotifier {
 
       _user = Map<String, dynamic>.from(
           (res.data['admin'] as Map?) ?? jsonDecode(adminStr));
+      _logoutCode = _user?['logoutCode'] as String?;
       await prefs.setString(AppConstants.adminKey, jsonEncode(_user));
       logger.log('AUTO-LOGIN VERIFIED: ${_user?['email']}');
       notifyListeners();

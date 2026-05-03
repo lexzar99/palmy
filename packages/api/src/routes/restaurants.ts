@@ -54,6 +54,7 @@ const restaurantSchema = z.object({
   deliveryZones: z.any().optional(),
   freeDeliveryAbove: z.any().optional(),
   deliveryRadius: z.number().optional(),
+  logoutCode: z.string().nullable().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
@@ -407,7 +408,9 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     if (payload.freeDeliveryAbove !== undefined) {
       data.freeDeliveryAbove = normalizeMoneyToOre(toSafeNum(payload.freeDeliveryAbove) ?? 0);
     }
-    
+
+    if (payload.logoutCode !== undefined) data.logoutCode = payload.logoutCode || null;
+
     if (payload.deliveryZones !== undefined) {
       const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
@@ -665,7 +668,7 @@ router.get('/:slug', async (req, res) => {
 
     return res.json(
       canViewSensitiveAdminFields
-        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null }
+        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null, logoutCode: restaurant.logoutCode ?? null }
         : formatted
     );
   } catch (error) {
