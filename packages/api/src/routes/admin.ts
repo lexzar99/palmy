@@ -11,6 +11,7 @@ import { formatDealForClient, getDealScopeType, parseDealProductIds, parseDealTa
 import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
+import { recalculateRestaurantEta } from '../lib/restaurantEta';
 
 const router = Router();
 router.use(authenticate);
@@ -394,6 +395,14 @@ router.patch('/orders/:id/status', async (req, res) => {
       },
     });
 
+    // När en order går till DELIVERING får vi en ny datapunkt för
+    // restaurangens dynamiska ETA: tiden från createdAt till deliveringAt.
+    // Räkna om snittet av senaste 20 ordrarna fire-and-forget — felar det
+    // får default-värdet täcka in tills nästa lyckade omräkning.
+    if (isDeliveringTransition && existing.restaurantId) {
+      void recalculateRestaurantEta(existing.restaurantId).catch(() => null);
+    }
+
     // Notifiera kunden via Socket.IO
     // For DELIVERING transition, send DELIVERING status to customer (they'll see "PÅ VÄG")
     // The client will auto-switch to DELIVERED after 10-15 min based on deliveringAt
@@ -700,6 +709,28 @@ router.get('/reports/orders', async (req, res) => {
   } catch (error) {
     console.error('Order report error:', error);
     res.status(500).json({ error: 'Kunde inte skapa utdrag' });
+  }
+});
+
+// Admin: backfilla auto-ETA för alla (eller en) restaurang(er) baserat på
+// historik. Räknar samma sak som status-update-hooken men på alla samtidigt.
+// Kallas en gång efter migration eller manuellt om något ser konstigt ut.
+router.post('/restaurants/recalculate-eta', requireSuperAdmin, async (req, res) => {
+  try {
+    const { restaurantId } = req.body || {};
+    const ids: string[] = restaurantId
+      ? [String(restaurantId)]
+      : (await prisma.restaurant.findMany({ select: { id: true } })).map((r) => r.id);
+
+    const results: { restaurantId: string; eta: number | null }[] = [];
+    for (const id of ids) {
+      const eta = await recalculateRestaurantEta(id);
+      results.push({ restaurantId: id, eta });
+    }
+    res.json({ count: results.length, results });
+  } catch (err: any) {
+    console.error('[admin] recalculate-eta failed', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

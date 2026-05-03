@@ -18,6 +18,7 @@ const DEFAULT_TEMPLATE_ELEMENTS = [
   { key: 'timestamp', label: 'Datum & tid', visible: true, size: 8, weight: 'normal', align: 'left' },
   { key: 'orderType', label: 'Typ (Leverans/Avhämtning)', visible: true, size: 9, weight: 'bold', align: 'left' },
   { key: 'scheduledFor', label: 'Förbeställd tid', visible: true, size: 9, weight: 'bold', align: 'left' },
+  { key: 'estimatedTime', label: 'Utlovad tid (ETA)', visible: true, size: 10, weight: 'bold', align: 'left' },
   { key: 'customerName', label: 'Kundnamn', visible: true, size: 9, weight: 'bold', align: 'left' },
   { key: 'customerPhone', label: 'Kundtelefon', visible: true, size: 8, weight: 'normal', align: 'left' },
   { key: 'customerAddress', label: 'Leveransadress', visible: true, size: 8, weight: 'normal', align: 'left' },
