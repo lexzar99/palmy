@@ -66,7 +66,7 @@ const getRestaurantScope = async (admin: AdminRecord, payload: AdminJwtPayload) 
     const matched = lookup.get(loginKey) || null;
 
     restaurant = matched
-      ? { id: matched.id, slug: matched.slug, name: matched.name, logoutCode: matched.logoutCode ?? null }
+      ? { id: matched.id, slug: matched.slug, name: matched.name, logoutCode: (matched as any).logoutCode ?? null }
       : null;
   }
 
