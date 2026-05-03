@@ -51,14 +51,17 @@ function getProviderCredentials(
   const clientId = normalizeOptionalCredential(process.env[clientIdEnvName]);
   const clientSecret = normalizeOptionalCredential(process.env[clientSecretEnvName]);
 
-  if (!clientId && !clientSecret) {
-    return null;
-  }
-
+  // Hoppa graceful över providern om båda saknas eller om bara en är satt.
+  // Vi kastar inte längre — det krashar hela NextAuth-handler för alla
+  // routes (csrf, session, signin/out) vilket bryter resten av appen.
   if (!clientId || !clientSecret) {
-    throw new Error(
-      `Incomplete ${providerName} OAuth configuration. Set both ${clientIdEnvName} and ${clientSecretEnvName}.`
-    );
+    if (clientId || clientSecret) {
+      console.warn(
+        `[NextAuth] ${providerName} provider deaktiverad: bara en av ` +
+          `${clientIdEnvName} / ${clientSecretEnvName} är satt — sätt båda för att aktivera.`
+      );
+    }
+    return null;
   }
 
   return { clientId, clientSecret };
@@ -185,7 +188,20 @@ async function handleAuth(request: Request, context: RouteContext<"/api/auth/[..
     return handler(request, context);
   } catch (error) {
     console.error("NextAuth configuration error:", error);
-    return Response.json({ error: "Auth configuration missing" }, { status: 500 });
+    // Returnera tom session istället för 500 så att andra delar av appen
+    // (Supabase OAuth, OTP-flow) fortsätter fungera även om NextAuth-config
+    // är trasig (t.ex. saknad APPLE_CLIENT_SECRET).
+    const url = new URL(request.url);
+    if (url.pathname.endsWith("/session")) {
+      return Response.json({}, { status: 200 });
+    }
+    if (url.pathname.endsWith("/csrf")) {
+      return Response.json({ csrfToken: "" }, { status: 200 });
+    }
+    if (url.pathname.endsWith("/_log")) {
+      return new Response(null, { status: 204 });
+    }
+    return Response.json({ error: "Auth provider not configured" }, { status: 503 });
   }
 }
 
