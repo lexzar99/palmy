@@ -2028,57 +2028,68 @@ router.delete('/staff/:id', authenticate, requireSuperAdmin, async (req: AuthReq
   }
 });
 
-// Hjälp: hitta restaurangens AdminUser-rad — söker bredast möjligt så att
-// vi visar det riktiga användarnamnet som Flutter loggar in med, oavsett
-// om det är slug, restaurant.adminEmail, eller någon legacy-variant.
-const findAdminUserForRestaurant = async (restaurant: {
+// Hjälp: hitta ALLA AdminUser-rader som hör till restaurangen. Använder
+// samma logik som auth.ts/resolveAdminByIdentifier — men baklänges. Vi
+// söker via slug, namn, restaurant.adminEmail, fuzzy-normalisering och
+// substring så att även konton som "palmyra-pizzeria", "palmyra-admin",
+// "Palmyra Pizzeria Admin" etc. plockas upp. UI listar sen alla så
+// admin ser exakt den rad Flutter loggar in med.
+const normalizeForMatch = (value: string) =>
+  value
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
+
+const findAdminUsersForRestaurant = async (restaurant: {
   id: string;
   slug: string;
   name: string;
   adminEmail?: string | null;
 }) => {
-  const candidates = [
-    restaurant.adminEmail?.toLowerCase(),
-    restaurant.slug.toLowerCase(),
-    `${restaurant.slug.toLowerCase()}@matgo.se`,
-  ].filter(Boolean) as string[];
-
-  // Direktmatch först (snabbast).
-  for (const email of candidates) {
-    const found = await prisma.adminUser.findUnique({
-      where: { email },
-      select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true },
-    });
-    if (found) return found;
-  }
-
-  // Fallback: fuzzy-matcha alla AdminUser:s email mot slug/namn (täcker
-  // edge-case där t.ex. konto har skapats med "Palmyra Pizzeria Admin"
-  // som email eller liknande sopiga varianter).
   const all = await prisma.adminUser.findMany({
     where: { role: { not: 'SUPER_ADMIN' } },
-    select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true },
+    orderBy: [{ updatedAt: 'desc' }],
+    select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true, updatedAt: true },
   });
-  const slugLower = restaurant.slug.toLowerCase();
-  const nameLower = restaurant.name.toLowerCase();
-  return (
-    all.find((admin) => {
-      const adminEmail = admin.email.toLowerCase();
-      return (
-        adminEmail.includes(slugLower) ||
-        adminEmail.startsWith(`${slugLower}@`) ||
-        admin.name.toLowerCase().startsWith(nameLower)
-      );
-    }) || null
-  );
+
+  const slugNorm = normalizeForMatch(restaurant.slug);
+  const nameNorm = normalizeForMatch(restaurant.name);
+  const adminEmailNorm = restaurant.adminEmail ? normalizeForMatch(restaurant.adminEmail) : '';
+
+  return all.filter((admin) => {
+    const emailNorm = normalizeForMatch(admin.email);
+    const adminNameNorm = normalizeForMatch(admin.name);
+    if (adminEmailNorm && emailNorm === adminEmailNorm) return true;
+    if (emailNorm === slugNorm) return true;
+    if (slugNorm && (emailNorm.includes(slugNorm) || slugNorm.includes(emailNorm))) return true;
+    if (nameNorm && (emailNorm.includes(nameNorm) || nameNorm.includes(emailNorm))) return true;
+    if (nameNorm && adminNameNorm.includes(nameNorm)) return true;
+    return false;
+  });
 };
 
-// Restaurang-login: kombinerad endpoint som hämtar/uppdaterar
-// användarnamn + lösenord för restaurangens AdminUser-konto. Returnerar
-// både det faktiska användarnamnet (admin.email — vad Flutter loggar in
-// med) och klartext-lösenordet om det finns lagrat. Befintliga konton
-// har inget klartext-lösenord (bcrypt är envägs); admin måste sätta nytt
-// för att kunna se det framöver.
+const formatLoginAccount = (admin: {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  passwordPlain: string | null;
+}) => ({
+  id: admin.id,
+  username: admin.email,
+  name: admin.name,
+  role: admin.role,
+  isActive: admin.isActive,
+  password: admin.passwordPlain,
+  hasPassword: Boolean(admin.passwordPlain),
+});
+
+// Restaurang-login: returnerar ALLA AdminUser-konton som matchar
+// restaurangen. UI:t listar dem alla så admin ser exakt vilken rad
+// Flutter loggar in med. PUT-endpointen tar accountId så vi vet vilket
+// konto som ska uppdateras (eller "new" för att skapa nytt).
 router.get('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     const restaurant = await prisma.restaurant.findUnique({
@@ -2089,23 +2100,13 @@ router.get('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    const adminUser = await findAdminUserForRestaurant(restaurant);
-
+    const matched = await findAdminUsersForRestaurant(restaurant);
     res.json({
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
       slug: restaurant.slug,
       adminEmail: restaurant.adminEmail || null,
-      // Det faktiska användarnamnet i AdminUser-tabellen — det Flutter
-      // skickar i identifier-fältet för att logga in.
-      username: adminUser?.email || null,
-      // Klartext om vi har det. null = lösenord är satt men gammalt
-      // (bcrypt) eller inget konto finns.
-      password: adminUser?.passwordPlain || null,
-      hasAccount: Boolean(adminUser),
-      hasPassword: Boolean(adminUser?.passwordPlain),
-      isActive: adminUser?.isActive ?? false,
-      role: adminUser?.role ?? null,
+      accounts: matched.map(formatLoginAccount),
     });
   } catch (error) {
     console.error('Restaurant login fetch error:', error);
@@ -2115,7 +2116,11 @@ router.get('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
 
 router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req, res) => {
   try {
-    const { username, password } = req.body as { username?: string; password?: string };
+    const { accountId, username, password } = req.body as {
+      accountId?: string; // undefined eller "new" = skapa nytt
+      username?: string;
+      password?: string;
+    };
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: req.params.id },
       select: { id: true, slug: true, name: true, adminEmail: true },
@@ -2124,38 +2129,50 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
 
-    const existingAdmin = await findAdminUserForRestaurant(restaurant);
     const trimmedUsername = (username ?? '').trim().toLowerCase() || null;
-    const nextUsername = (trimmedUsername || existingAdmin?.email || restaurant.slug).toLowerCase();
 
-    // Om admin ändrar email på Restaurant-tabellen (UI:t skickar samma
-    // username även dit) — håll det synkat så fuzzy-sökningen fortsätter
-    // att hitta rätt rad.
-    if (trimmedUsername && trimmedUsername !== (restaurant.adminEmail || '').toLowerCase()) {
-      await prisma.restaurant.update({
-        where: { id: restaurant.id },
-        data: { adminEmail: trimmedUsername },
+    if (accountId && accountId !== 'new') {
+      // Uppdatera befintligt konto.
+      const existing = await prisma.adminUser.findUnique({
+        where: { id: accountId },
+        select: { id: true, email: true, role: true },
       });
-    }
-
-    // Byt email på existerande AdminUser om username ändrats.
-    if (existingAdmin && trimmedUsername && trimmedUsername !== existingAdmin.email.toLowerCase()) {
-      await prisma.adminUser.update({
-        where: { id: existingAdmin.id },
-        data: { email: nextUsername, name: `${restaurant.name} Admin` },
-      });
-    }
-
-    // Sätt nytt lösenord — sparar både bcrypt-hash (för login-jämförelse)
-    // och klartext (för admin-vy).
-    if (typeof password === 'string' && password.trim().length > 0) {
+      if (!existing) {
+        return res.status(404).json({ error: 'Kontot hittades inte' });
+      }
+      if (existing.role === 'SUPER_ADMIN') {
+        return res.status(403).json({ error: 'Kan inte ändra superadmin via denna route' });
+      }
+      const data: any = {};
+      if (trimmedUsername && trimmedUsername !== existing.email.toLowerCase()) {
+        data.email = trimmedUsername;
+      }
+      if (typeof password === 'string' && password.trim().length > 0) {
+        const plain = password.trim();
+        data.password = await bcrypt.hash(plain, 10);
+        data.passwordPlain = plain;
+        data.isActive = true;
+      }
+      if (Object.keys(data).length > 0) {
+        await prisma.adminUser.update({ where: { id: existing.id }, data });
+      }
+    } else {
+      // Skapa nytt konto. Username + password krävs.
+      if (!trimmedUsername) {
+        return res.status(400).json({ error: 'Användarnamn krävs för nytt konto' });
+      }
+      if (!password || password.trim().length === 0) {
+        return res.status(400).json({ error: 'Lösenord krävs för nytt konto' });
+      }
+      const exists = await prisma.adminUser.findUnique({ where: { email: trimmedUsername } });
+      if (exists) {
+        return res.status(400).json({ error: 'Användarnamnet finns redan' });
+      }
       const plain = password.trim();
       const hashedPassword = await bcrypt.hash(plain, 10);
-      await prisma.adminUser.upsert({
-        where: { email: nextUsername },
-        update: { password: hashedPassword, passwordPlain: plain, isActive: true, name: `${restaurant.name} Admin` },
-        create: {
-          email: nextUsername,
+      await prisma.adminUser.create({
+        data: {
+          email: trimmedUsername,
           password: hashedPassword,
           passwordPlain: plain,
           name: `${restaurant.name} Admin`,
@@ -2165,26 +2182,39 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
       });
     }
 
-    const updatedAdmin = await findAdminUserForRestaurant({
-      ...restaurant,
-      adminEmail: trimmedUsername ?? restaurant.adminEmail,
-    });
-
+    // Returnera nya listan så UI:t syncar.
+    const matched = await findAdminUsersForRestaurant(restaurant);
     res.json({
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
       slug: restaurant.slug,
-      adminEmail: trimmedUsername ?? restaurant.adminEmail,
-      username: updatedAdmin?.email || null,
-      password: updatedAdmin?.passwordPlain || null,
-      hasAccount: Boolean(updatedAdmin),
-      hasPassword: Boolean(updatedAdmin?.passwordPlain),
-      isActive: updatedAdmin?.isActive ?? false,
-      role: updatedAdmin?.role ?? null,
+      adminEmail: restaurant.adminEmail || null,
+      accounts: matched.map(formatLoginAccount),
     });
   } catch (error) {
     console.error('Restaurant login save error:', error);
     res.status(500).json({ error: 'Kunde inte uppdatera inloggningsuppgifter' });
+  }
+});
+
+// Radera ett restaurang-AdminUser (men aldrig superadmin).
+router.delete('/restaurants/:id/login/:accountId', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const account = await prisma.adminUser.findUnique({
+      where: { id: req.params.accountId },
+      select: { id: true, role: true },
+    });
+    if (!account) {
+      return res.status(404).json({ error: 'Kontot hittades inte' });
+    }
+    if (account.role === 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Kan inte radera superadmin' });
+    }
+    await prisma.adminUser.delete({ where: { id: account.id } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete restaurant login error:', error);
+    res.status(500).json({ error: 'Kunde inte radera kontot' });
   }
 });
 

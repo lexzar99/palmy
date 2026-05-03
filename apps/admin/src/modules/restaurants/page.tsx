@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, PencilLine, Plus, Search, Store, Trash2, X } from "lucide-react";
-import { createRestaurant, deleteRestaurant, getRestaurantDetail, getRestaurantLogin, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, updateRestaurantLogin, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload } from "@/modules/restaurants/api";
+import { createRestaurant, deleteRestaurant, deleteRestaurantLoginAccount, getRestaurantDetail, getRestaurantLogin, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, updateRestaurantLogin, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload, type RestaurantLoginAccount } from "@/modules/restaurants/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
@@ -541,53 +541,180 @@ function RestaurantEditorModal({
   );
 }
 
-function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: string; restaurantSlug?: string }) {
+function LoginAccountRow({
+  restaurantId,
+  account,
+  onChange,
+}: {
+  restaurantId: string;
+  account: RestaurantLoginAccount;
+  onChange: () => void;
+}) {
   const queryClient = useQueryClient();
-  const loginQuery = useQuery({
-    queryKey: ["restaurants", "login", restaurantId],
-    queryFn: () => getRestaurantLogin(restaurantId),
-  });
-
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(account.username);
+  const [password, setPassword] = useState(account.password || "");
   const [showPassword, setShowPassword] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (loginQuery.data) {
-      // Visa det FAKTISKA användarnamnet (admin.email i AdminUser-tabellen),
-      // inte det fuzzy-uträknade fallback-värdet. Om det inte finns något
-      // konto ännu fallas vi tillbaka till slug.
-      setUsername(loginQuery.data.username || loginQuery.data.adminEmail || restaurantSlug || "");
-      // Visa det faktiska lösenordet i klartext om det är sparat.
-      setPassword(loginQuery.data.password || "");
-      setSuccess(false);
-      setError(null);
-    }
-  }, [loginQuery.data, restaurantSlug]);
+    setUsername(account.username);
+    setPassword(account.password || "");
+    setSuccess(false);
+    setError(null);
+  }, [account.id, account.username, account.password]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const saveMutation = useMutation({
-    mutationFn: () => updateRestaurantLogin(restaurantId, {
-      username: username.trim() || null,
-      // Tomt fält = behåll, så vi skickar null. Annars exakt det admin skrev.
-      password: password.trim() || null,
-    }),
-    onSuccess: async (data) => {
+    mutationFn: () =>
+      updateRestaurantLogin(restaurantId, {
+        accountId: account.id,
+        username: username.trim() || null,
+        password: password.trim() || null,
+      }),
+    onSuccess: async () => {
       setSuccess(true);
       setError(null);
-      // Synca state med servern så det vi visar stämmer med vad som sparades.
-      setUsername(data.username || "");
-      setPassword(data.password || "");
       await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
-      await queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+      onChange();
     },
     onError: (e: any) => {
       setSuccess(false);
-      setError(e?.response?.data?.error || "Kunde inte spara inloggning.");
+      setError(e?.response?.data?.error || "Kunde inte spara.");
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteRestaurantLoginAccount(restaurantId, account.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
+      onChange();
+    },
+    onError: (e: any) => {
+      setError(e?.response?.data?.error || "Kunde inte radera kontot.");
+    },
+  });
+
+  return (
+    <div className="surface-muted px-5 py-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-black tracking-[-0.02em]">{account.username}</p>
+          <Badge tone={account.isActive ? "success" : "neutral"}>{account.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+          <Badge tone="info">{account.role}</Badge>
+          {!account.hasPassword ? <Badge tone="warning">Lösenord ej synligt</Badge> : null}
+        </div>
+        <Button
+          variant="danger"
+          onClick={() => {
+            if (confirm(`Radera kontot ${account.username}? Flutter-appen kommer inte längre kunna logga in med detta.`)) {
+              deleteMutation.mutate();
+            }
+          }}
+          disabled={deleteMutation.isPending}
+        >
+          <Trash2 size={14} /> Radera
+        </Button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <Field label="Användarnamn">
+          <Input
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+        </Field>
+        <Field label="Lösenord">
+          <div className="relative">
+            <Input
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder={account.hasPassword ? "" : "Sätt nytt lösenord (gammalt är hashat och kan inte visas)"}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((current) => !current)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]"
+            >
+              {showPassword ? "Dölj" : "Visa"}
+            </button>
+          </div>
+        </Field>
+      </div>
+
+      {error ? <p className="mt-2 text-sm text-rose-400">{error}</p> : null}
+      {success ? <p className="mt-2 text-sm text-emerald-400">Sparat.</p> : null}
+
+      <div className="mt-3 flex justify-end">
+        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+          {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Spara
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function NewLoginAccountForm({ restaurantId, defaultUsername, onChange }: { restaurantId: string; defaultUsername: string; onChange: () => void }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [username, setUsername] = useState(defaultUsername);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const createMutation = useMutation({
+    mutationFn: () => updateRestaurantLogin(restaurantId, { accountId: "new", username: username.trim(), password: password.trim() }),
+    onSuccess: async () => {
+      setOpen(false);
+      setUsername(defaultUsername);
+      setPassword("");
+      setError(null);
+      await queryClient.invalidateQueries({ queryKey: ["restaurants", "login", restaurantId] });
+      onChange();
+    },
+    onError: (e: any) => {
+      setError(e?.response?.data?.error || "Kunde inte skapa kontot.");
+    },
+  });
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        <Plus size={14} /> Lägg till nytt konto
+      </Button>
+    );
+  }
+
+  return (
+    <div className="surface-muted px-5 py-4">
+      <p className="text-sm font-black tracking-[-0.02em]">Nytt inloggningskonto</p>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <Field label="Användarnamn">
+          <Input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="t.ex. palmyra-pizzeria" />
+        </Field>
+        <Field label="Lösenord">
+          <Input type="text" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Sätt lösenord" />
+        </Field>
+      </div>
+      {error ? <p className="mt-2 text-sm text-rose-400">{error}</p> : null}
+      <div className="mt-3 flex justify-end gap-2">
+        <Button onClick={() => { setOpen(false); setError(null); }}>Avbryt</Button>
+        <Button variant="primary" onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !username.trim() || !password.trim()}>
+          {createMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Skapa konto
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: string; restaurantSlug?: string }) {
+  const loginQuery = useQuery({
+    queryKey: ["restaurants", "login", restaurantId],
+    queryFn: () => getRestaurantLogin(restaurantId),
   });
 
   if (loginQuery.isLoading) {
@@ -595,69 +722,42 @@ function RestaurantLoginPanel({ restaurantId, restaurantSlug }: { restaurantId: 
   }
 
   const data = loginQuery.data;
-  const accountStatus = data?.hasAccount
-    ? (data.isActive ? `Aktivt konto (${data.role || "ADMIN"})` : "Konto inaktivt")
-    : "Inget konto — sätt lösenord för att skapa";
+  const accounts = data?.accounts || [];
 
   return (
     <div className="grid gap-4">
       <div className="surface-muted px-5 py-4">
         <p className="text-sm leading-6 text-[var(--text-secondary)]">
-          Detta är credentials som <strong>Flutter-restaurang-appen</strong> loggar in med. Användarnamnet
-          är det som lagras på AdminUser-kontot — sätter du det till t.ex. <em>palmyra</em> så loggar Flutter
-          in med exakt &quot;palmyra&quot;.
+          Här listas alla AdminUser-konton i databasen som matchar restaurangen
+          (slug, namn, eller adminEmail). <strong>Flutter-restaurang-appen</strong> loggar in med ett av
+          dessa användarnamn — exakt som det visas. Lösenord lagras både hashat
+          (för login) och i klartext (för admin-vy) — gamla konton som hashats
+          tidigare visar inte lösenordet förrän du sätter ett nytt.
         </p>
-        {data && data.hasAccount && !data.hasPassword ? (
-          <p className="mt-2 text-sm leading-6 text-amber-300">
-            ⚠ Lösenordet är sparat sedan tidigare i krypterat format och kan inte visas. Sätt ett nytt
-            lösenord nedan för att kunna se det framöver.
-          </p>
-        ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Användarnamn (det Flutter loggar in med)">
-          <Input
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-            placeholder={restaurantSlug || "användarnamn"}
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
-          />
-        </Field>
-        <Field label="Status">
-          <Input value={accountStatus} disabled />
-        </Field>
-        <div className="md:col-span-2">
-          <Field label="Lösenord (klartext — visas bara för superadmin)">
-            <div className="relative">
-              <Input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={data?.hasPassword ? "" : "Sätt lösenord"}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black uppercase tracking-[0.18em] text-[var(--text-secondary)]"
-              >
-                {showPassword ? "Dölj" : "Visa"}
-              </button>
-            </div>
-          </Field>
+      {accounts.length === 0 ? (
+        <div className="surface-muted px-5 py-5 text-sm text-[var(--text-secondary)]">
+          Inga matchande konton hittades. Skapa ett nytt nedan.
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-3">
+          {accounts.map((account) => (
+            <LoginAccountRow
+              key={account.id}
+              restaurantId={restaurantId}
+              account={account}
+              onChange={() => loginQuery.refetch()}
+            />
+          ))}
+        </div>
+      )}
 
-      {error ? <p className="text-sm text-rose-400">{error}</p> : null}
-      {success ? <p className="text-sm text-emerald-400">Inloggningsuppgifter sparade.</p> : null}
-
-      <div className="flex justify-end">
-        <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-          {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Spara inloggning
-        </Button>
-      </div>
+      <NewLoginAccountForm
+        restaurantId={restaurantId}
+        defaultUsername={restaurantSlug ? `${restaurantSlug}-pizzeria` : ""}
+        onChange={() => loginQuery.refetch()}
+      />
     </div>
   );
 }
