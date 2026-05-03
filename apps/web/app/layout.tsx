@@ -5,6 +5,7 @@ import InstallPWA from "@/components/InstallPWA";
 import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
+import LiveOrderBanner from "@/components/LiveOrderBanner";
 
 import CookieConsent from "@/components/CookieConsent";
 
@@ -33,6 +34,7 @@ export default function RootLayout({
         <Providers>
           <ServiceWorkerRegister />
           <main>{children}</main>
+          <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />
           <InstallPWA />

@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl, SOCKET_URL } from '../lib/api';
+import { getRestaurantStatusLabel } from '../lib/pauseStatus';
 import { getRestaurantHeroTopInset } from '../constants/layout';
 import { getScreenCache, setScreenCache } from '../lib/screenCache';
 import { palette, styles } from '../constants/theme';
@@ -385,12 +386,25 @@ export default function RestaurantScreen({
             </View>
 
             <View style={styles.restaurantHeroContentPremium}>
-              <View style={[styles.restaurantHeroStatusPill, restaurant?.isOpen === false ? styles.restaurantHeroStatusPillClosed : styles.restaurantHeroStatusPillOpen]}>
-                <View style={[styles.restaurantHeroStatusDot, restaurant?.isOpen === false ? styles.restaurantHeroStatusDotClosed : styles.restaurantHeroStatusDotOpen]} />
-                <Text style={[styles.restaurantHeroStatusText, restaurant?.isOpen === false ? styles.restaurantHeroStatusTextClosed : styles.restaurantHeroStatusTextOpen]}>
-                  {restaurant?.isOpen === false ? t('restaurant.statusClosed') : t('restaurant.statusOpen')}
-                </Text>
-              </View>
+              {(() => {
+                const status = getRestaurantStatusLabel({
+                  isOpen: restaurant?.isOpen,
+                  pausedUntil: restaurant?.pausedUntil ?? null,
+                });
+                const isPaused = status.tone === "paused";
+                const isClosed = status.tone === "closed";
+                const fallbackLabel = isClosed
+                  ? t('restaurant.statusClosed')
+                  : t('restaurant.statusOpen');
+                return (
+                  <View style={[styles.restaurantHeroStatusPill, isClosed ? styles.restaurantHeroStatusPillClosed : styles.restaurantHeroStatusPillOpen]}>
+                    <View style={[styles.restaurantHeroStatusDot, isClosed ? styles.restaurantHeroStatusDotClosed : styles.restaurantHeroStatusDotOpen]} />
+                    <Text style={[styles.restaurantHeroStatusText, isClosed ? styles.restaurantHeroStatusTextClosed : styles.restaurantHeroStatusTextOpen]}>
+                      {isPaused ? status.label : fallbackLabel}
+                    </Text>
+                  </View>
+                );
+              })()}
 
               <Text style={styles.restaurantHeroTitlePremium}>
                 {restaurantNameParts.primary}{" "}

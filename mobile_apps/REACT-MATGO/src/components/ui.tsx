@@ -290,27 +290,45 @@ export function RestaurantCard({
           )}
         </View>
 
-        {/* Right: OPEN badge — never shrinks */}
-        <View style={{
-          flexShrink: 0,
-          paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
-          backgroundColor: isOutOfZone || restaurant.isOpen === false
-            ? "rgba(255,59,48,0.10)"
-            : "rgba(52,199,89,0.12)",
-        }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+        {/* Right: OPEN/PAUSAD/STÄNGT badge — never shrinks */}
+        {(() => {
+          const pausedUntil = restaurant.pausedUntil ? new Date(restaurant.pausedUntil) : null;
+          const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
+          const isClosed = restaurant.isOpen === false;
+          // Färg-tema per status
+          const tone = isOutOfZone || (!isPaused && isClosed)
+            ? "danger"
+            : isPaused
+              ? "warning"
+              : "success";
+          const colorMap = {
+            danger: { bg: "rgba(255,59,48,0.10)", fg: palette.danger },
+            warning: { bg: "rgba(255,167,73,0.14)", fg: "#FFA749" },
+            success: { bg: "rgba(52,199,89,0.12)", fg: palette.success },
+          };
+          const c = colorMap[tone];
+          const label = isOutOfZone
+            ? "Ej zon"
+            : isPaused
+              ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
+              : isClosed
+                ? "Stängt"
+                : "Öppet";
+          return (
             <View style={{
-              width: 6, height: 6, borderRadius: 3,
-              backgroundColor: isOutOfZone || restaurant.isOpen === false ? palette.danger : palette.success,
-            }} />
-            <Text style={{
-              color: isOutOfZone || restaurant.isOpen === false ? palette.danger : palette.success,
-              fontSize: 10, fontWeight: "900",
+              flexShrink: 0,
+              paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20,
+              backgroundColor: c.bg,
             }}>
-              {isOutOfZone ? "Ej zon" : restaurant.isOpen === false ? "Stängt" : "Öppet"}
-            </Text>
-          </View>
-        </View>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: c.fg }} />
+                <Text style={{ color: c.fg, fontSize: 10, fontWeight: "900" }}>
+                  {label}
+                </Text>
+              </View>
+            </View>
+          );
+        })()}
       </View>
     </ScalePressable>
   );

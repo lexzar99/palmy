@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import { rememberActiveOrder } from "@/components/LiveOrderBanner";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import StripeCheckout from "@/components/StripeCheckout";
@@ -624,6 +625,7 @@ export default function CartPage() {
     try {
       const res = await axios.post(`/api/platform/orders`, buildOrderPayload(paymentIntentId));
       clearCart();
+      rememberActiveOrder(res.data.orderId);
       router.push(`/order/${res.data.orderId}`);
     } catch (err: any) {
       setError(err.response?.data?.error || "Kunde inte slutföra ordern. Kontakta restaurangen.");
@@ -642,6 +644,7 @@ export default function CartPage() {
     }
     clearCart();
     localStorage.removeItem("pending_order_id");
+    rememberActiveOrder(orderId);
     router.push(`/order/${orderId}`);
   }, [pendingOrderId, clearCart, router]);
 

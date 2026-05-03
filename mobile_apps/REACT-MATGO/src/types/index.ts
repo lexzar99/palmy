@@ -31,6 +31,7 @@ export interface Restaurant {
   activeOrdersCount?: number;
   isOpen?: boolean;
   manualIsOpen?: boolean;
+  pausedUntil?: string | null;
   featuredClass?: number;
   tags?: string[];
   openingHours?: {

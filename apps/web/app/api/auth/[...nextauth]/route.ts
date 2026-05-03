@@ -1,6 +1,7 @@
 import NextAuth, { DefaultSession } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import FacebookProvider from "next-auth/providers/facebook";
+import AppleProvider from "next-auth/providers/apple";
 import axios from "axios";
 
 type ProviderCredentials = {
@@ -79,6 +80,9 @@ function createAuthHandler() {
   const NEXTAUTH_SECRET = getRequiredServerEnv("NEXTAUTH_SECRET");
   const googleCredentials = getProviderCredentials("Google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
   const facebookCredentials = getProviderCredentials("Facebook", "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET");
+  // Apple kräver Service ID + JWT-baserad client secret (genererad från Apple privata nyckel).
+  // Sätt APPLE_CLIENT_ID = Service ID, APPLE_CLIENT_SECRET = JWT (giltig 6 mån max).
+  const appleCredentials = getProviderCredentials("Apple", "APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET");
 
   return NextAuth({
     providers: [
@@ -100,6 +104,21 @@ function createAuthHandler() {
             FacebookProvider({
               clientId: facebookCredentials.clientId,
               clientSecret: facebookCredentials.clientSecret,
+            }),
+          ]
+        : []),
+      ...(appleCredentials
+        ? [
+            AppleProvider({
+              clientId: appleCredentials.clientId,
+              clientSecret: appleCredentials.clientSecret,
+              authorization: {
+                params: {
+                  // Apple delar bara namn på första auktorisering – vi vill ha både email + namn.
+                  scope: "name email",
+                  response_mode: "form_post",
+                },
+              },
             }),
           ]
         : []),

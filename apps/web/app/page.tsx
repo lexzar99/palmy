@@ -669,9 +669,6 @@ export default function HomePage() {
                     Kampanjer &amp; partners
                   </p>
                 </div>
-                <Link href="/deals" className="text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-colors">
-                  Alla deals
-                </Link>
               </div>
               <div
                 ref={promoRailRef}
