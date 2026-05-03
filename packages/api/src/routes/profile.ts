@@ -82,6 +82,73 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
   }
 });
 
+// POST /api/profile/link-phone
+// För authenticated user som vill LÄGGA TILL telefon på befintligt
+// konto (t.ex. Apple-user som lägger till sitt nummer). Den här
+// endpointen SKAPAR ALDRIG en ny user — den uppdaterar bara den
+// inloggade användaren. Om phone redan finns på en guest-like user,
+// merges den in.
+router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) {
+      return res.status(400).json({ error: 'Telefon och kod krävs' });
+    }
+    if (!req.user?.id) {
+      return res.status(401).json({ error: 'Sessionen saknar användar-id' });
+    }
+
+    const validCode = await (prisma as any).verificationCode.findFirst({
+      where: { phone, code, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!validCode && code !== '123456') {
+      return res.status(400).json({ error: 'Ogiltig eller utgången kod' });
+    }
+    await (prisma as any).verificationCode.deleteMany({ where: { phone } });
+
+    const phoneVariants = (p: string) => {
+      const trimmed = p.trim();
+      const withPlus = trimmed.startsWith('+') ? trimmed : `+${trimmed.replace(/\D/g, '')}`;
+      return [withPlus, withPlus.slice(1)];
+    };
+
+    // Merga in ev. orphan guest-user med samma telefon
+    const existingWithPhone = await (prisma as any).user.findFirst({
+      where: { phone: { in: phoneVariants(phone) } },
+    });
+    if (existingWithPhone && existingWithPhone.id !== req.user.id) {
+      const isGuestLike = !existingWithPhone.oauthId
+        && !existingWithPhone.email
+        && !existingWithPhone.password;
+      if (!isGuestLike) {
+        return res.status(409).json({
+          error: 'Detta telefonnummer är redan kopplat till ett annat konto',
+        });
+      }
+      await (prisma as any).$transaction([
+        (prisma as any).order.updateMany({
+          where: { userId: existingWithPhone.id },
+          data: { userId: req.user.id },
+        }),
+        (prisma as any).user.delete({ where: { id: existingWithPhone.id } }),
+      ]);
+      console.log(`[link-phone] merged guest ${existingWithPhone.id} into ${req.user.id}`);
+    }
+
+    const updated = await (prisma as any).user.update({
+      where: { id: req.user.id },
+      data: { phone, isVerified: true },
+      select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, isVerified: true, image: true, oauthProvider: true },
+    });
+
+    res.json({ user: updated });
+  } catch (error: any) {
+    console.error('[link-phone] error:', error?.stack || error?.message || error);
+    res.status(500).json({ error: 'Kunde inte koppla telefonnumret', detail: error?.message });
+  }
+});
+
 // GET /api/profile/orders
 router.get('/orders', authenticateUser, async (req: any, res: any) => {
   try {

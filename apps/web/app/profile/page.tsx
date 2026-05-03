@@ -322,21 +322,43 @@ function ProfileContent() {
           meta.email ||
           meta.preferred_username ||
           null;
+        // Apple ger namn ENDAST vid första auktorisering. Plocka allt vi
+        // möjligen får från Supabase user_metadata.
+        const oauthFirst = (
+          meta.first_name ||
+          meta.given_name ||
+          meta.firstName ||
+          ""
+        ).trim();
+        const oauthLast = (
+          meta.last_name ||
+          meta.family_name ||
+          meta.lastName ||
+          ""
+        ).trim();
+        const oauthFullName = (
+          meta.full_name ||
+          meta.name ||
+          [oauthFirst, oauthLast].filter(Boolean).join(" ")
+        ).trim();
+        const oauthHasName = !!(oauthFirst || oauthLast || oauthFullName);
+
         console.log("[OAuth] Supabase user:", {
           email,
           provider: sbUser?.app_metadata?.provider,
           hasUser: !!sbUser,
+          oauthFirst,
+          oauthLast,
+          oauthFullName,
+          oauthHasName,
+          rawMetaKeys: Object.keys(meta),
         });
+
         if (!email) {
           console.warn("[OAuth] No email from Supabase user — cannot exchange");
           setLoading(false);
           return;
         }
-        const name =
-          meta.full_name ||
-          meta.name ||
-          [meta.given_name, meta.family_name].filter(Boolean).join(" ") ||
-          email.split("@")[0];
         const provider =
           (sbUser?.app_metadata?.provider as string | undefined) ||
           "supabase";
@@ -346,7 +368,9 @@ function ProfileContent() {
         console.log("[OAuth] POST /api/auth/oauth-token", { email, provider });
         const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
           email,
-          name,
+          // Skicka tomt namn om OAuth inte gav något — backend lägger
+          // INTE in placeholder då, och gates till "complete profile" istället.
+          name: oauthFullName || "",
           provider,
           providerId,
           image,
@@ -360,6 +384,41 @@ function ProfileContent() {
         console.log("[OAuth] Got platform token, persisting…");
 
         await persistPlatformSession(platformToken);
+
+        // STRICT APPLE SIGN-IN PERSISTENCE (samma logik som RN useAppleAuth):
+        // ───────────────────────────────────────────────────────────────────
+        // Apple skickar fullName ENDAST vid första auktoriseringen. Om OAuth
+        // gav oss namn OCH backend's DB är fortfarande tom (firstName +
+        // lastName båda null) → PATCH:a in det NU. Om DB redan har namn,
+        // rör vi inget (single-source-of-truth).
+        if (oauthHasName) {
+          try {
+            const profileNow = await axios.get("/api/platform/profile");
+            const storedFirst = (profileNow.data?.firstName || "").trim();
+            const storedLast = (profileNow.data?.lastName || "").trim();
+            if (!storedFirst && !storedLast) {
+              console.log(
+                "[OAuth] DB tom + OAuth gav namn → PATCH:ar förnamn/efternamn",
+                { oauthFirst, oauthLast }
+              );
+              await axios.patch("/api/platform/profile", {
+                firstName: oauthFirst || undefined,
+                lastName: oauthLast || undefined,
+                name:
+                  oauthFullName ||
+                  [oauthFirst, oauthLast].filter(Boolean).join(" ") ||
+                  undefined,
+              });
+            } else {
+              console.log(
+                "[OAuth] DB hade redan namn — IGNORERAR OAuth-namnet (single-source-of-truth)"
+              );
+            }
+          } catch (err) {
+            console.warn("[OAuth] Name-persist PATCH failed:", err);
+          }
+        }
+
         console.log("[OAuth] Platform session persisted, fetching profile");
         setHasPlatformSession(true);
         await fetchData();
@@ -444,17 +503,35 @@ function ProfileContent() {
     setIsVerifying(true);
     setLoginError("");
     try {
-      const res = await axios.post(`/api/platform/account/verify-otp`, {
-        phone: otpPhone,
-        code: otpCode,
-      });
-
-      const { token: newToken, user: newUser } = res.data;
-      await persistPlatformSession(newToken);
-      setHasPlatformSession(true);
-      setUser(newUser);
-      fetchData();
-      setShowOtp(false);
+      // KRITISKT: Om användaren REDAN är inloggad (Apple/Google) ska
+      // verifieringen LÄNKA telefonen till befintlig user — INTE skapa
+      // ny via verify-otp (som var anledningen till att Apple-konton
+      // dubblerades med "Gäst 5678"-konton).
+      if (hasPlatformSession && user) {
+        console.log("[OTP] User already logged in → using /api/profile/link-phone (will NOT create new user)");
+        const res = await axios.post(`/api/platform/profile/link-phone`, {
+          phone: otpPhone,
+          code: otpCode,
+        });
+        // link-phone returnerar { user } utan ny token — behåll nuvarande session
+        setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
+        await fetchData();
+        setShowOtp(false);
+        setShowAddPhone(false);
+      } else {
+        // Telefon-only login: skapa/hitta user via phone
+        console.log("[OTP] No active session → using /api/account/verify-otp (may create new user)");
+        const res = await axios.post(`/api/platform/account/verify-otp`, {
+          phone: otpPhone,
+          code: otpCode,
+        });
+        const { token: newToken, user: newUser } = res.data;
+        await persistPlatformSession(newToken);
+        setHasPlatformSession(true);
+        setUser(newUser);
+        await fetchData();
+        setShowOtp(false);
+      }
     } catch (err: any) {
       setLoginError(err.response?.data?.error || "Felaktig kod");
     } finally {
@@ -738,6 +815,71 @@ function ProfileContent() {
             <LogOut size={20} />
           </button>
         </div>
+
+        {/*
+          Apple-användare som saknar namn — Apple skickar fullName ENDAST
+          vid första auktorisering. Om vi missade det (eller appen
+          registrerades med tomt namn) måste användaren avregistrera Apple
+          för MatGo i sina iCloud-inställningar och logga in igen.
+        */}
+        {(user.oauthProvider === "apple" || user.oauthProvider === "supabase") &&
+          (!user.firstName || !user.lastName) && (
+            <div
+              className="mt-4 p-4 rounded-2xl border"
+              style={{
+                backgroundColor: "rgba(234,181,69,0.08)",
+                borderColor: "rgba(234,181,69,0.30)",
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: "rgba(234,181,69,0.20)" }}
+                >
+                  <span className="text-base">👤</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-black uppercase tracking-tight text-gold-700">
+                    Apple delade inte ditt namn
+                  </h3>
+                  <p
+                    className="text-[12px] mt-1 leading-snug"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Apple ger ditt namn endast vid första inloggningen. För att
+                    få in det:
+                  </p>
+                  <ol
+                    className="text-[12px] mt-2 ml-4 list-decimal space-y-1"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    <li>
+                      Öppna{" "}
+                      <a
+                        href="https://appleid.apple.com/account/manage"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-gold-600 underline font-bold"
+                      >
+                        Apple ID-inställningar
+                      </a>
+                    </li>
+                    <li>
+                      Sign-In with Apple → MatGo →{" "}
+                      <strong>Stop using Apple ID</strong>
+                    </li>
+                    <li>Kom tillbaka hit och tryck Apple-knappen igen</li>
+                  </ol>
+                  <p
+                    className="text-[11px] mt-2 italic"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Eller fyll i namnet manuellt i Inställningar-fliken nedan.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Phone missing warning for OAuth users */}
         {!user.phone && (
