@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { usePauseCountdown } from "@/lib/usePauseStatus";
 
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
@@ -17,6 +18,8 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [restaurantOpen, setRestaurantOpen] = useState<boolean | null>(null);
+  const [pausedUntil, setPausedUntil] = useState<string | null>(null);
+  const pause = usePauseCountdown(pausedUntil);
 
   const partnerPortalUrl = mounted
     ? (() => {
@@ -34,6 +37,7 @@ const Navbar = () => {
       try {
         const res = await axios.get(`${API_URL}/api/settings`);
         setRestaurantOpen(Boolean(res.data.isOpen));
+        setPausedUntil(res.data.pausedUntil ?? null);
       } catch (err) {
         console.warn("Failed to load restaurant status:", err);
       }
@@ -46,7 +50,8 @@ const Navbar = () => {
       transports: ["websocket", "polling"],
     });
     socket.on("settings:updated", (data: any) => {
-      setRestaurantOpen(typeof data.isOpen === "boolean" ? data.isOpen : null);
+      if (typeof data.isOpen === "boolean") setRestaurantOpen(data.isOpen);
+      if ("pausedUntil" in data) setPausedUntil(data.pausedUntil ?? null);
     });
 
     const interval = window.setInterval(loadStatus, 15000);
@@ -73,12 +78,20 @@ const Navbar = () => {
   const statusClass =
     restaurantOpen === null
       ? "bg-zinc-100 text-zinc-400 border border-zinc-200"
-      : restaurantOpen
-        ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-        : "bg-rose-500/10 text-rose-600 border border-rose-500/20";
+      : pause.isPaused
+        ? "bg-amber-400/10 text-amber-600 border border-amber-400/30"
+        : restaurantOpen
+          ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+          : "bg-rose-500/10 text-rose-600 border border-rose-500/20";
 
   const statusLabel =
-    restaurantOpen === null ? "STATUS" : restaurantOpen ? "ÖPPET" : "STÄNGT";
+    restaurantOpen === null
+      ? "STATUS"
+      : pause.isPaused
+        ? `PAUSAD · ${pause.resumeTime}`
+        : restaurantOpen
+          ? "ÖPPET"
+          : "STÄNGT";
 
   if (!mounted) return (
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
@@ -193,7 +206,13 @@ const Navbar = () => {
 
               <div className="mt-auto pt-10">
                 <div className={`rounded-2xl px-6 py-5 text-[10px] font-black uppercase tracking-[0.35em] flex items-center justify-center text-center ${statusClass}`}>
-                  {restaurantOpen === null ? "Laddar status..." : restaurantOpen ? "✓ Öppet för beställning" : "✕ Restaurangen är stängd"}
+                  {restaurantOpen === null
+                    ? "Laddar status..."
+                    : pause.isPaused
+                      ? `⏸ Tillfälligt pausad · återöppnar ${pause.resumeTime}`
+                      : restaurantOpen
+                        ? "✓ Öppet för beställning"
+                        : "✕ Restaurangen är stängd"}
                 </div>
               </div>
             </motion.div>

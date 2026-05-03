@@ -89,7 +89,15 @@ export default function CartPage() {
   const [deliveryCheck, setDeliveryCheck] = useState<any>(null);
   const [checkingDelivery, setCheckingDelivery] = useState(false);
 
-  const [restaurantSettings, setRestaurantSettings] = useState({
+  const [restaurantSettings, setRestaurantSettings] = useState<{
+    isOpen: boolean;
+    deliveryFee: number;
+    minOrderAmount: number;
+    estimatedPickupTime: number;
+    estimatedDeliveryTime: number;
+    pausedUntil?: string | null;
+    isPaused?: boolean;
+  }>({
     isOpen: true,
     deliveryFee: 0,
     minOrderAmount: 150,
@@ -662,7 +670,18 @@ export default function CartPage() {
       return;
     }
     if (!restaurantSettings.isOpen) {
-      setError("Restaurangen är stängd just nu.");
+      const pausedUntilDate = restaurantSettings.pausedUntil
+        ? new Date(restaurantSettings.pausedUntil)
+        : null;
+      const isPaused =
+        pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
+      if (isPaused && pausedUntilDate) {
+        const h = pausedUntilDate.getHours().toString().padStart(2, "0");
+        const m = pausedUntilDate.getMinutes().toString().padStart(2, "0");
+        setError(`Restaurangen är pausad — återöppnar ${h}:${m}.`);
+      } else {
+        setError("Restaurangen är stängd just nu.");
+      }
       return;
     }
 

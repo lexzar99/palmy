@@ -18,7 +18,8 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.matgo.restaurant"
     compileSdk = 35
-    ndkVersion = flutter.ndkVersion
+    // Firebase + flera native-paket kräver minst 27.x
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8

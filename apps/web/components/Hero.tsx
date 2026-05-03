@@ -7,14 +7,24 @@ import { motion, AnimatePresence } from "framer-motion";
 import { io as socketIO } from "socket.io-client";
 import { ArrowRight, Sparkles, ShoppingBag, Clock, Phone } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
+import { usePauseCountdown } from "@/lib/usePauseStatus";
 
 const Hero = () => {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<{
+    isOpen: boolean;
+    estimatedPickupTime: number;
+    deliveryFee: number;
+    minOrderAmount: number;
+    pausedUntil?: string | null;
+    isPaused?: boolean;
+  }>({
     isOpen: true,
     estimatedPickupTime: 20,
     deliveryFee: 0,
     minOrderAmount: 150,
   });
+
+  const pause = usePauseCountdown(settings.pausedUntil ?? null);
 
   const showcaseItems = [
     { id: "pizza", src: "/pizza_new.png", alt: "Krispig Pizza", label: "Krispig Pizza" },
@@ -72,14 +82,21 @@ const Hero = () => {
       />
 
       <div className="relative w-full max-w-2xl mx-auto flex flex-col items-center" style={{ zIndex: 2 }}>
-        {/* Status badge */}
+        {/* Status badge — pause åsidosätter både öppet/stängt */}
         <div
-          className={`mb-8 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.35em] ${settings.isOpen
+          className={`mb-8 px-4 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-[0.35em] ${
+            pause.isPaused
+              ? "border-amber-400/40 bg-amber-400/10 text-amber-200"
+              : settings.isOpen
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
               : "border-red-500/30 bg-red-500/10 text-red-300"
-            }`}
+          }`}
         >
-          {settings.isOpen ? "Vi har öppet" : "Vi öppnar snart"}
+          {pause.isPaused
+            ? `Tillfälligt pausad · återöppnar ${pause.resumeTime}`
+            : settings.isOpen
+            ? "Vi har öppet"
+            : "Vi öppnar snart"}
         </div>
 
         {/* Heading */}

@@ -17,17 +17,36 @@ const router = Router();
 // GET /api/settings - Publika inställningar för kundsidan
 router.get('/', async (_req, res) => {
   try {
-    const settings = await prisma.restaurantSettings.findUnique({
-      where: { id: 'settings' },
-    });
+    const [settings, primaryRestaurant] = await Promise.all([
+      prisma.restaurantSettings.findUnique({ where: { id: 'settings' } }),
+      // Hämta första aktiva restaurang för pause-status (single-tenant setup)
+      prisma.restaurant.findFirst({
+        select: { pausedUntil: true, isOpen: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    const pausedUntilDate = primaryRestaurant?.pausedUntil ?? null;
+    const isPaused =
+      pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
 
     if (!settings) {
-      res.json(defaultRestaurantSettings);
+      res.json({
+        ...defaultRestaurantSettings,
+        pausedUntil: pausedUntilDate?.toISOString() ?? null,
+        isPaused,
+      });
       return;
     }
 
+    // Aktiv pause åsidosätter manuellt isOpen-flag.
+    const effectiveIsOpen = isPaused ? false : settings.isOpen;
+
     res.json({
-      isOpen: settings.isOpen,
+      isOpen: effectiveIsOpen,
+      manualIsOpen: settings.isOpen,
+      pausedUntil: pausedUntilDate?.toISOString() ?? null,
+      isPaused,
       deliveryFee: settings.deliveryFee / 100,
       minOrderAmount: settings.minOrderAmount / 100,
       deliveryRadius: settings.deliveryRadius,
@@ -37,7 +56,8 @@ router.get('/', async (_req, res) => {
       phone: settings.phone,
       openingHours: parseOpeningHours(settings.openingHours as string),
     });
-  } catch {
+  } catch (err) {
+    console.error('Settings GET error:', err);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

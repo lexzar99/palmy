@@ -48,6 +48,7 @@ interface Restaurant {
   minOrderAmount?: number;
   etaMinutes?: number;
   isOpen?: boolean;
+  pausedUntil?: string | null;
   featuredClass?: number;
   tags?: string[];
   phone?: string;
@@ -475,10 +476,26 @@ export default function HomePage() {
                   )}
 
                   <div className="absolute top-4 left-4">
-                    <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${r.isOpen !== false ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100" : "bg-rose-500/30 border-rose-500/30 text-rose-100"}`}>
-                      <div className={`w-1 h-1 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-rose-400"}`} />
-                      {r.isOpen !== false ? "Öppet" : "Stängt"}
-                    </div>
+                    {(() => {
+                      const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
+                      const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
+                      const open = r.isOpen !== false && !isPaused;
+                      const cls = isPaused
+                        ? "bg-amber-400/30 border-amber-400/40 text-amber-100"
+                        : open
+                          ? "bg-emerald-500/30 border-emerald-500/30 text-emerald-100"
+                          : "bg-rose-500/30 border-rose-500/30 text-rose-100";
+                      const dot = isPaused ? "bg-amber-300 animate-pulse" : open ? "bg-emerald-400 animate-pulse" : "bg-rose-400";
+                      const label = isPaused
+                        ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
+                        : open ? "Öppet" : "Stängt";
+                      return (
+                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${cls}`}>
+                          <div className={`w-1 h-1 rounded-full ${dot}`} />
+                          {label}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
@@ -633,38 +650,49 @@ export default function HomePage() {
           </div>
         </section>
 
-        {promoCards.length > 0 && (
-          <section className="mb-8">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div>
-                <h2 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
-                  <Sparkles size={14} className="text-gold-500" /> Aktuellt
-                </h2>
-                <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.25em] mt-0.5">
-                  Kampanjer &amp; partners
-                </p>
-              </div>
-              <Link href="/deals" className="text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-colors">
-                Alla deals
-              </Link>
-            </div>
-            <div
-              ref={promoRailRef}
-              onScroll={handlePromoScroll}
-              className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
-              style={{ scrollSnapType: "x mandatory" }}
-            >
-              {promoCards.map((item) => (
-                <div key={item.id} style={{ scrollSnapAlign: "start" }}>
-                  <SponsorCard sponsor={(item as any).sponsor} />
+        {/*
+          Aktuellt + Rea & Rabatter:
+          - Mobil/tablet: stacked (Aktuellt först, Rea & Rabatter under)
+          - Desktop (lg+): 2-kolumn grid – Aktuellt (sponsor cards horisontell scroll, ~4 synliga)
+            tar huvudbredden, Rea & Rabatter är vertikal sidebar till höger.
+          Sponsor-korten behåller sin storlek (260px) — fler syns bara för att containern är bredare.
+        */}
+        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
+          {promoCards.length > 0 ? (
+            <section className="mb-8 lg:mb-0">
+              <div className="flex items-center justify-between mb-3 px-1">
+                <div>
+                  <h2 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                    <Sparkles size={14} className="text-gold-500" /> Aktuellt
+                  </h2>
+                  <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.25em] mt-0.5">
+                    Kampanjer &amp; partners
+                  </p>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <Link href="/deals" className="text-[9px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-colors">
+                  Alla deals
+                </Link>
+              </div>
+              <div
+                ref={promoRailRef}
+                onScroll={handlePromoScroll}
+                className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
+                style={{ scrollSnapType: "x mandatory" }}
+              >
+                {promoCards.map((item) => (
+                  <div key={item.id} style={{ scrollSnapAlign: "start" }}>
+                    <SponsorCard sponsor={(item as any).sponsor} />
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : (
+            <div className="hidden lg:block" />
+          )}
 
-        {/* REA & RABATTER (Liten kategori - fungerar som "avskiljare" nr 1, placerad efter Aktuellt enligt önskemål) */}
-        <DiscountedDishesSection />
+          {/* REA & RABATTER — horisontell rail på mobil/tablet, vertikal sidebar på lg+ */}
+          <DiscountedDishesSection variant="responsive" />
+        </div>
 
         {resolvedHomeCategorySections.length > 0
           ? resolvedHomeCategorySections.map((section) => (
@@ -865,10 +893,32 @@ export default function HomePage() {
 
                             {/* Status badge */}
                             <div className="absolute top-3 left-3">
-                              <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md border ${r.isOpen !== false ? "bg-emerald-500/25 border-emerald-500/30 text-emerald-100" : "bg-zinc-900/80 border-white/10 text-zinc-300"}`}>
-                                <div className={`w-1.5 h-1.5 rounded-full ${r.isOpen !== false ? "bg-emerald-400 animate-pulse" : "bg-zinc-400"}`} />
-                                {isOutOfZone ? "Ej zon" : r.isOpen !== false ? "Öppet" : "Stängt"}
-                              </div>
+                              {(() => {
+                                const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
+                                const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
+                                const open = r.isOpen !== false && !isPaused;
+                                const cls = isOutOfZone
+                                  ? "bg-zinc-900/80 border-white/10 text-zinc-300"
+                                  : isPaused
+                                    ? "bg-amber-400/25 border-amber-400/30 text-amber-100"
+                                    : open
+                                      ? "bg-emerald-500/25 border-emerald-500/30 text-emerald-100"
+                                      : "bg-zinc-900/80 border-white/10 text-zinc-300";
+                                const dot = isPaused
+                                  ? "bg-amber-300 animate-pulse"
+                                  : open ? "bg-emerald-400 animate-pulse" : "bg-zinc-400";
+                                const label = isOutOfZone
+                                  ? "Ej zon"
+                                  : isPaused
+                                    ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
+                                    : open ? "Öppet" : "Stängt";
+                                return (
+                                  <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 backdrop-blur-md border ${cls}`}>
+                                    <div className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                                    {label}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* HEART button */}

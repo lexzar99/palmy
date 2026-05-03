@@ -47,28 +47,84 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
 
   return (
     <motion.div
+      whileHover={isInteractive ? { y: -3 } : undefined}
       whileTap={isInteractive ? { scale: 0.98 } : undefined}
+      transition={{ type: "spring", stiffness: 320, damping: 22 }}
       onClick={handleClick}
-      className={`relative shrink-0 rounded-[1.8rem] overflow-hidden border shadow-xl group ${isInteractive ? 'cursor-pointer' : 'cursor-default'}`}
-      style={{ width: 260, height: 150, borderColor: "rgba(255,248,234,0.08)", backgroundColor: "#171513" }}
+      className={`relative shrink-0 rounded-3xl overflow-hidden group ${
+        isInteractive ? "cursor-pointer" : "cursor-default"
+      }`}
+      style={{
+        width: 260,
+        height: 150,
+        backgroundColor: "#171513",
+        boxShadow:
+          "0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 28px -10px rgba(0,0,0,0.45), 0 4px 10px -4px rgba(234,181,69,0.18)",
+      }}
     >
+      {/* Tunn gradient-ram med gold-tint upptill */}
+      <div
+        className="pointer-events-none absolute inset-0 rounded-3xl"
+        style={{
+          padding: 1,
+          background:
+            "linear-gradient(160deg, rgba(234,181,69,0.55), rgba(255,248,234,0.06) 40%, rgba(255,248,234,0.02))",
+          WebkitMask:
+            "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+          WebkitMaskComposite: "xor",
+          maskComposite: "exclude",
+        }}
+      />
+
       <img
         src={sponsor.imageUrl}
         alt={sponsor.name}
-        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.07]"
       />
+
+      {/* Bottom gradient + content */}
       {showName && (
-        <div className="absolute inset-0 flex flex-col justify-end p-4" style={{ background: "linear-gradient(to top, rgba(28,28,30,0.8), rgba(28,28,30,0.1), transparent)" }}>
+        <div
+          className="absolute inset-0 flex flex-col justify-end p-4"
+          style={{
+            background:
+              "linear-gradient(to top, rgba(15,15,15,0.92) 0%, rgba(15,15,15,0.55) 38%, rgba(15,15,15,0) 70%)",
+          }}
+        >
           <div className="flex items-end justify-between gap-2">
             <div className="min-w-0">
-              <div className="inline-block px-2 py-0.5 rounded-full border mb-1.5" style={{ backgroundColor: "rgba(234,181,69,0.18)", borderColor: "rgba(234,181,69,0.22)" }}>
-                <span className="text-[7px] font-black uppercase tracking-[0.2em] text-gold-400">Partner</span>
+              <div
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border mb-1.5 backdrop-blur-sm"
+                style={{
+                  backgroundColor: "rgba(234,181,69,0.20)",
+                  borderColor: "rgba(234,181,69,0.32)",
+                }}
+              >
+                <span className="w-1 h-1 rounded-full bg-gold-400 animate-pulse" />
+                <span className="text-[7px] font-black uppercase tracking-[0.22em] text-gold-300">
+                  Partner
+                </span>
               </div>
-              <h3 className="text-sm font-black uppercase tracking-tight leading-none italic truncate" style={{ color: "white" }}>{sponsor.name}</h3>
+              <h3
+                className="text-sm font-black uppercase tracking-tight leading-none italic truncate"
+                style={{
+                  color: "white",
+                  textShadow: "0 2px 8px rgba(0,0,0,0.45)",
+                }}
+              >
+                {sponsor.name}
+              </h3>
             </div>
             {isInteractive && (
-              <div className="w-8 h-8 rounded-full bg-gold-500 text-zinc-950 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                {sponsor.linkType === 'EXTERNAL' ? <ExternalLink size={12} /> : <ArrowRight size={14} />}
+              <div
+                className="w-9 h-9 rounded-full bg-gold-500 text-zinc-950 flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-[-8deg]"
+                style={{ boxShadow: "0 6px 14px -4px rgba(234,181,69,0.55)" }}
+              >
+                {sponsor.linkType === "EXTERNAL" ? (
+                  <ExternalLink size={13} />
+                ) : (
+                  <ArrowRight size={15} />
+                )}
               </div>
             )}
           </div>
