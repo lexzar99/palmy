@@ -100,35 +100,60 @@ function SocialButton({
   icon: React.ReactNode;
 }) {
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleClick = async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const supabase = createSupabaseBrowserClient();
+      const options: { redirectTo: string; scopes?: string } = {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      };
+      // Apple kräver explicita scopes för att få email + namn
+      if (provider === "apple") {
+        options.scopes = "name email";
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          // Callback URL registered in Supabase Dashboard > Auth > URL Configuration
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
+        options,
       });
       if (error) throw error;
-      // Browser redirects to Google — no further action needed here
-    } catch {
+    } catch (err: any) {
+      const raw = (err?.message || "").toLowerCase();
+      if (raw.includes("missing oauth secret") || raw.includes("unsupported provider")) {
+        setErrorMsg(
+          provider === "apple"
+            ? "Apple Sign-In är inte färdig­konfigurerad i Supabase ännu. Kontrollera Service ID + Secret Key."
+            : `${label} är inte aktiverad i Supabase ännu.`,
+        );
+      } else {
+        setErrorMsg(err?.message || "Kunde inte starta inloggning.");
+      }
       setLoading(false);
     }
   };
 
   return (
-    <button
-      onClick={handleClick}
-      disabled={loading}
-      className="flex items-center justify-center gap-2.5 py-4 rounded-2xl text-[11px] font-black uppercase transition-all active:scale-95 disabled:opacity-50"
-      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-secondary)" }}
-    >
-      {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
-      {loading ? "Laddar..." : label}
-    </button>
+    <div className="flex flex-col gap-1">
+      <button
+        onClick={handleClick}
+        disabled={loading}
+        className="flex items-center justify-center gap-2.5 py-4 rounded-2xl text-[11px] font-black uppercase transition-all active:scale-95 disabled:opacity-50"
+        style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+      >
+        {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
+        {loading ? "Laddar..." : label}
+      </button>
+      {errorMsg && (
+        <p
+          className="text-[9px] font-bold leading-tight px-1 mt-1 text-center"
+          style={{ color: "#dc2626" }}
+        >
+          {errorMsg}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -464,10 +489,19 @@ function ProfileContent() {
           {/* Divider */}
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/5" />
+              <div
+                className="w-full border-t"
+                style={{ borderColor: "var(--border-muted)" }}
+              />
             </div>
             <div className="relative flex justify-center">
-              <span className="px-4 text-[10px] font-black uppercase tracking-widest text-zinc-600" style={{ backgroundColor: "#171513" }}>
+              <span
+                className="px-4 text-[10px] font-black uppercase tracking-widest"
+                style={{
+                  backgroundColor: "var(--bg-primary)",
+                  color: "var(--text-secondary)",
+                }}
+              >
                 Eller med socialt konto
               </span>
             </div>
