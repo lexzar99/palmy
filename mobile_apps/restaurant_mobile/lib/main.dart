@@ -101,7 +101,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
-  late final PageController _pageController;
   Timer? _sleepTimer;
   bool _sleeping = false;
 
@@ -140,7 +139,6 @@ class _MainShellState extends State<MainShell> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthProvider>(context, listen: false);
       final orders = Provider.of<OrderProvider>(context, listen: false);
@@ -154,7 +152,6 @@ class _MainShellState extends State<MainShell> {
   @override
   void dispose() {
     _sleepTimer?.cancel();
-    _pageController.dispose();
     super.dispose();
   }
 
@@ -186,11 +183,6 @@ class _MainShellState extends State<MainShell> {
   void _selectTab(int index) {
     if (index == _currentIndex) return;
     setState(() => _currentIndex = index);
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
-    );
   }
 
   @override
@@ -266,10 +258,11 @@ class _MainShellState extends State<MainShell> {
   }
 
   Widget _buildViewport() {
-    return PageView(
-      controller: _pageController,
-      physics: const NeverScrollableScrollPhysics(),
-      onPageChanged: (index) => setState(() => _currentIndex = index),
+    // IndexedStack istället för PageView – garanterar att nav-index alltid
+    // matchar visad sida (PageController kunde tappa sig vid theme-rebuild
+    // och hoppa till sida 0 medan navbar låg kvar på Settings).
+    return IndexedStack(
+      index: _currentIndex,
       children: _pages,
     );
   }

@@ -242,10 +242,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(20, 28, 20, 6),
-                        child: _SectionHeaderRow(
+                        child: const _SectionHeaderRow(
                           title: 'FÖREGÅENDE ORDRAR',
                           countBadge: null,
-                          trailing: const _FilterButton(),
+                          trailing: null,
                         ),
                       ),
                     ),
@@ -486,36 +486,53 @@ class _StatusButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Round icon (X for stängd, check for öppet)
-          Container(
-            width: 44,
-            height: 44,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.10),
-              shape: BoxShape.circle,
-              border: Border.all(color: color.withOpacity(0.30), width: 1.4),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: color.withOpacity(0.35), width: 1.4),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.18),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
-            child: Icon(
-              isOpen ? Icons.check_rounded : Icons.close_rounded,
-              color: color,
-              size: 22,
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Levande pulserande dot
+            Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.55),
+                    blurRadius: 6,
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.0,
+            const SizedBox(width: 9),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Icon(Icons.expand_more_rounded, color: color, size: 16),
+          ],
+        ),
       ),
     );
   }
@@ -651,33 +668,6 @@ class _LinkText extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         Icon(Icons.chevron_right_rounded, size: 18, color: color),
-      ],
-    );
-  }
-}
-
-class _FilterButton extends StatelessWidget {
-  const _FilterButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = AppTheme.isDark(context);
-    final color = isDark
-        ? Colors.white.withOpacity(0.55)
-        : const Color(0xFF8E8E93);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.filter_alt_outlined, size: 16, color: color),
-        const SizedBox(width: 4),
-        Text(
-          'Filtrera',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: color,
-          ),
-        ),
       ],
     );
   }
