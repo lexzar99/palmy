@@ -277,6 +277,7 @@ model Restaurant {
   featuredClass  Int          @default(3)
   internalInfo   String?
   adminEmail     String?
+  logoutCode     String?
   latitude       Float?
   longitude      Float?
   deliveryRadius Float              @default(5.0)

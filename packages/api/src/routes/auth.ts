@@ -595,7 +595,7 @@ router.post('/login', async (req, res) => {
     let restaurantName: string | null = null;
     let logoutCode: string | null = null;
     if (admin.role !== 'SUPER_ADMIN') {
-      const restaurant = await (prisma.restaurant as any).findFirst({
+      const restaurant = await prisma.restaurant.findFirst({
         where: {
           OR: [
             { slug: admin.email.toLowerCase() },

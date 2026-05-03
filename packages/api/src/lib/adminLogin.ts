@@ -3,6 +3,7 @@ type RestaurantAdminIdentity = {
   name: string;
   slug: string;
   adminEmail?: string | null;
+  logoutCode?: string | null;
 };
 
 export const normalizeAdminLoginAlias = (value: string) =>
@@ -24,12 +25,12 @@ export const getRestaurantAdminLogin = (restaurant: {
 };
 
 export const buildRestaurantAdminLoginLookup = <T extends RestaurantAdminIdentity>(restaurants: T[]) => {
-  const restaurantByLogin = new Map<string, { id: string; name: string; slug: string }>();
+  const restaurantByLogin = new Map<string, { id: string; name: string; slug: string; logoutCode?: string | null }>();
 
   for (const restaurant of restaurants) {
     const slugLogin = String(restaurant.slug || '').trim().toLowerCase();
     const primaryLogin = getRestaurantAdminLogin(restaurant);
-    const identity = { id: restaurant.id, name: restaurant.name, slug: restaurant.slug };
+    const identity = { id: restaurant.id, name: restaurant.name, slug: restaurant.slug, logoutCode: restaurant.logoutCode ?? null };
 
     if (slugLogin) {
       restaurantByLogin.set(slugLogin, identity);

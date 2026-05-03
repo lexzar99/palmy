@@ -668,7 +668,7 @@ router.get('/:slug', async (req, res) => {
 
     return res.json(
       canViewSensitiveAdminFields
-        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null, logoutCode: (restaurant as any).logoutCode ?? null }
+        ? { ...formatted, adminEmail: restaurant.adminEmail ?? null, logoutCode: restaurant.logoutCode ?? null }
         : formatted
     );
   } catch (error) {
