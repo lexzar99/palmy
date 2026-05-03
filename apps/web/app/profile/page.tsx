@@ -280,22 +280,95 @@ function ProfileContent() {
   // ─── Supabase Auth session ───────────────────────────────────────────────
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
+    let exchanging = false;
 
-    void getPlatformSessionStatus().then((authenticated) => {
+    /**
+     * När Supabase säger att vi är inloggade (Google/Apple/Facebook OAuth) har
+     * vi BARA en Supabase-session — inte vårt platform-JWT som backend kräver
+     * för /api/platform/profile. Vi måste BYTA Supabase-token mot platform-
+     * token via POST /api/auth/oauth-token.
+     */
+    const exchangeSupabaseForPlatformToken = async (sbSession: any) => {
+      if (exchanging) return;
+      exchanging = true;
+      try {
+        // Om vi redan har en giltig platform-session, hoppa över bytet
+        const alreadyAuthed = await getPlatformSessionStatus();
+        if (alreadyAuthed) {
+          setHasPlatformSession(true);
+          await fetchData();
+          return;
+        }
+
+        const sbUser = sbSession.user;
+        const meta = sbUser?.user_metadata || {};
+        const email =
+          sbUser?.email ||
+          meta.email ||
+          meta.preferred_username ||
+          null;
+        if (!email) {
+          // Apple kan dölja email — finns inte mycket vi kan göra
+          setLoading(false);
+          return;
+        }
+        const name =
+          meta.full_name ||
+          meta.name ||
+          [meta.given_name, meta.family_name].filter(Boolean).join(" ") ||
+          email.split("@")[0];
+        const provider =
+          (sbUser?.app_metadata?.provider as string | undefined) ||
+          "supabase";
+        const providerId = sbUser?.id || "";
+        const image = meta.avatar_url || meta.picture || null;
+
+        const res = await axios.post(`${API_URL}/api/auth/oauth-token`, {
+          email,
+          name,
+          provider,
+          providerId,
+          image,
+        });
+
+        const platformToken = res.data?.token;
+        if (!platformToken) throw new Error("no platform token");
+
+        await persistPlatformSession(platformToken);
+        setHasPlatformSession(true);
+        await fetchData();
+      } catch (err) {
+        console.error("Supabase → platform token exchange failed:", err);
+        setLoading(false);
+      } finally {
+        exchanging = false;
+      }
+    };
+
+    // Initial mount: vi kan ha en kvar-liggande platform-session från tidigare
+    // (cookies) ELLER en färsk Supabase-session från callback-sidan
+    void (async () => {
+      const authenticated = await getPlatformSessionStatus();
       if (authenticated) {
         setHasPlatformSession(true);
-        void fetchData();
+        await fetchData();
+        return;
+      }
+      // Ingen platform-session — kolla om Supabase har en (efter OAuth-redirect)
+      const { data: { session: sbSession } } = await supabase.auth.getSession();
+      if (sbSession?.access_token) {
+        await exchangeSupabaseForPlatformToken(sbSession);
       } else {
         setLoading(false);
       }
-    });
+    })();
 
-    // Subscribe to auth state changes (e.g. after OAuth redirect)
+    // Lyssna på framtida auth-state-changes (t.ex. när användaren klickar
+    // Google-knappen på samma session och kommer tillbaka)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, sbSession) => {
-        if (sbSession?.access_token) {
-          setHasPlatformSession(true);
-          void fetchData();
+      (event, sbSession) => {
+        if (event === "SIGNED_IN" && sbSession?.access_token) {
+          void exchangeSupabaseForPlatformToken(sbSession);
         }
       }
     );
