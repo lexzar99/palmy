@@ -179,14 +179,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ),
                       ),
 
-                    if (!provider.isRestaurantOpen)
-                      SliverToBoxAdapter(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                          child: _ClosedBanner(),
-                        ),
-                      ),
-
                     // Divider line under header
                     SliverToBoxAdapter(
                       child: Padding(
@@ -322,17 +314,21 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOpen = provider.isRestaurantOpen;
     final statusColor = isOpen ? AppTheme.success : AppTheme.danger;
-    final statusLabel = isOpen ? 'ÖPPET' : 'STÄNGT';
+    final statusLabel = isOpen ? 'ÖPPET' : 'STÄNGD';
+    final title = isOpen ? 'Order' : 'Stängd';
+    final subtitle = isOpen
+        ? 'Hantera inkommande ordrar'
+        : 'Ni är utanför era öppettider.';
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Order',
+                title,
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
@@ -343,7 +339,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Hantera inkommande ordrar',
+                subtitle,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -356,43 +352,14 @@ class _Header extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        // Tappable status badge
-        GestureDetector(
+        // Big circular STÄNGD/ÖPPET status button (matchar mockup)
+        _StatusButton(
+          isOpen: isOpen,
+          label: statusLabel,
+          color: statusColor,
           onTap: () => _showStatusPicker(context, provider),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: statusColor.withOpacity(0.40), width: 1.2),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: statusColor,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  statusLabel,
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         _BellButton(
           hasPending: hasPending,
           isDark: isDark,
@@ -423,6 +390,30 @@ class _Header extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+                child: Row(
+                  children: [
+                    Text(
+                      'Restaurangstatus',
+                      style: TextStyle(
+                        color: AppTheme.isDark(ctx)
+                            ? Colors.white
+                            : AppTheme.ink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Icon(Icons.close_rounded,
+                          size: 22,
+                          color: AppTheme.mutedColor(ctx)),
+                    ),
+                  ],
+                ),
+              ),
               _StatusTile(
                 title: 'Öppet',
                 subtitle: 'Tar emot beställningar',
@@ -433,6 +424,33 @@ class _Header extends StatelessWidget {
                   Navigator.pop(ctx);
                   if (!provider.isRestaurantOpen) {
                     await provider.setStatus(true);
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              _StatusTile(
+                title: 'Pausa i 30 min',
+                subtitle: 'Tillfällig paus — öppnar automatiskt igen',
+                selected: false,
+                color: AppTheme.warning,
+                icon: Icons.pause_circle_outline_rounded,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await provider.setStatus(false);
+                  // Auto-reopen efter 30 min
+                  Future.delayed(const Duration(minutes: 30), () {
+                    if (!provider.isRestaurantOpen) {
+                      provider.setStatus(true);
+                    }
+                  });
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            'Pausad i 30 min · öppnar automatiskt igen'),
+                        backgroundColor: AppTheme.warning,
+                      ),
+                    );
                   }
                 },
               ),
@@ -453,6 +471,59 @@ class _Header extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _StatusButton extends StatelessWidget {
+  final bool isOpen;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _StatusButton({
+    required this.isOpen,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Round icon (X for stängd, check for öppet)
+          Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.10),
+              shape: BoxShape.circle,
+              border: Border.all(color: color.withOpacity(0.30), width: 1.4),
+            ),
+            child: Icon(
+              isOpen ? Icons.check_rounded : Icons.close_rounded,
+              color: color,
+              size: 22,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.0,
+            ),
+          ),
+        ],
       ),
     );
   }
