@@ -42,7 +42,8 @@ class OrderProvider with ChangeNotifier {
   Future<void> pauseFor(int minutes) async {
     _pausedUntil = DateTime.now().add(Duration(minutes: minutes));
     await _persistPause();
-    await setStatus(false);
+    await _syncPauseToBackend();
+    _isRestaurantOpen = false; // backend har redan satt det
     _scheduleResume();
     notifyListeners();
   }
@@ -51,6 +52,7 @@ class OrderProvider with ChangeNotifier {
     final base = _pausedUntil ?? DateTime.now();
     _pausedUntil = base.add(Duration(minutes: minutes));
     await _persistPause();
+    await _syncPauseToBackend();
     _scheduleResume();
     notifyListeners();
   }
@@ -59,8 +61,23 @@ class OrderProvider with ChangeNotifier {
     _pauseTimer?.cancel();
     _pausedUntil = null;
     await _persistPause();
+    await _syncPauseToBackend();
     if (!_isRestaurantOpen) await setStatus(true);
     notifyListeners();
+  }
+
+  /// Skickar pausedUntil till backend så att kund-appen vet att restaurangen
+  /// är pausad (inte bara stängd). Misslyckas tyst – local pause är ändå
+  /// aktiv och nästa fetchRestaurantStatus synkar.
+  Future<void> _syncPauseToBackend() async {
+    if (_restaurantId == null) return;
+    try {
+      await _api.patch('/api/restaurants/$_restaurantId', {
+        'pausedUntil': _pausedUntil?.toUtc().toIso8601String(),
+      });
+    } catch (e) {
+      logger.log('PAUSE SYNC ERROR: $e');
+    }
   }
 
   Future<void> _persistPause() async {
@@ -357,6 +374,25 @@ class OrderProvider with ChangeNotifier {
           _isRestaurantOpen =
               current['manualIsOpen'] ?? current['isOpen'] ?? true;
 
+          // Backend är källa till sanning för pause – synka in den
+          final pausedIso = current['pausedUntil'];
+          if (pausedIso is String && pausedIso.isNotEmpty) {
+            final until = DateTime.tryParse(pausedIso)?.toLocal();
+            if (until != null && until.isAfter(DateTime.now())) {
+              _pausedUntil = until;
+              await _persistPause();
+              _scheduleResume();
+            } else {
+              _pausedUntil = null;
+              await _persistPause();
+            }
+          } else if (_pausedUntil != null) {
+            // Backend säger no pause men vi har lokal pause – backend vinner
+            _pausedUntil = null;
+            _pauseTimer?.cancel();
+            await _persistPause();
+          }
+
           final Map<String, dynamic> allHours = current['openingHours'] ?? {};
           final hoursString = allHours.toString();
 
@@ -620,6 +656,22 @@ class OrderProvider with ChangeNotifier {
       debugPrint('📩 SOCKET EVENT: settings:updated RECEIVED: $data');
       if (data['restaurantId'] == _restaurantId ||
           data['restaurantId'].toString() == _restaurantId) {
+        // Synka pause-state direkt från socket-payload
+        if (data.containsKey('pausedUntil')) {
+          final iso = data['pausedUntil'];
+          if (iso is String && iso.isNotEmpty) {
+            final until = DateTime.tryParse(iso)?.toLocal();
+            if (until != null && until.isAfter(DateTime.now())) {
+              _pausedUntil = until;
+              _persistPause();
+              _scheduleResume();
+            }
+          } else {
+            _pauseTimer?.cancel();
+            _pausedUntil = null;
+            _persistPause();
+          }
+        }
         if (data.containsKey('isOpen')) {
           _isRestaurantOpen = data['isOpen'];
           notifyListeners();

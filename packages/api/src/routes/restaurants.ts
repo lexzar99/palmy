@@ -55,6 +55,9 @@ const restaurantSchema = z.object({
   freeDeliveryAbove: z.any().optional(),
   deliveryRadius: z.number().optional(),
   logoutCode: z.string().nullable().optional(),
+  // ISO datetime sträng – när restaurangen ska öppna igen efter en paus.
+  // null = ingen pause aktiv. Sätt till null för att avbryta pause.
+  pausedUntil: z.string().datetime().nullable().optional(),
 });
 
 const formatRestaurant = (restaurant: any, includeMenu = false) => {
@@ -84,13 +87,21 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
     activeOrdersCount,
   isOpen: (() => {
     try {
+      // Aktiv pause åsidosätter allt annat
+      const pausedUntil = restaurant.pausedUntil
+        ? new Date(restaurant.pausedUntil)
+        : null;
+      if (pausedUntil && pausedUntil.getTime() > Date.now()) return false;
       return restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
     } catch (e) {
       console.error('Error calculating isOpen:', e);
-      return restaurant.isOpen; // Fallback to manual status
+      return restaurant.isOpen;
     }
   })(),
   manualIsOpen: restaurant.isOpen,
+  pausedUntil: restaurant.pausedUntil
+    ? new Date(restaurant.pausedUntil).toISOString()
+    : null,
   featuredClass: restaurant.featuredClass ?? 3,
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
@@ -411,6 +422,11 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
 
     if (payload.logoutCode !== undefined) data.logoutCode = payload.logoutCode || null;
 
+    // Pause: pausedUntil = ISO datum eller null. Avbruten pause = null.
+    if (payload.pausedUntil !== undefined) {
+      data.pausedUntil = payload.pausedUntil ? new Date(payload.pausedUntil) : null;
+    }
+
     if (payload.deliveryZones !== undefined) {
       const zonesRaw = safeParseAnyJson<any[]>(payload.deliveryZones, []);
       data.deliveryZones = JSON.stringify(normalizeDeliveryZones(zonesRaw));
@@ -473,8 +489,15 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       }
     }
 
-    // The effective isOpen is now just restaurant.isOpen (already includes schedule)
-    const effectiveIsOpen = restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
+    // Aktiv pause åsidosätter både manualIsOpen och schedule.
+    const pausedUntilDate = restaurant.pausedUntil
+      ? new Date(restaurant.pausedUntil)
+      : null;
+    const isPaused =
+      pausedUntilDate !== null && pausedUntilDate.getTime() > Date.now();
+    const effectiveIsOpen = isPaused
+      ? false
+      : restaurant.isOpen && isRestaurantOpen(restaurant.openingHours);
 
     // Sync global RestaurantSettings so Hero.tsx / Navbar.tsx polling stays correct
     if (payload.openingHours !== undefined || payload.isOpen !== undefined || payload.deliveryFee !== undefined) {
@@ -504,6 +527,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
       slug: restaurant.slug,
       isOpen: effectiveIsOpen,
       manualIsOpen: restaurant.isOpen,
+      pausedUntil: pausedUntilDate?.toISOString() ?? null,
+      isPaused,
       deliveryFee: fromOre(restaurant.deliveryFee),
       minOrderAmount: fromOre(restaurant.minOrderAmount),
       etaMinutes: restaurant.etaMinutes,

@@ -278,6 +278,7 @@ model Restaurant {
   internalInfo   String?
   adminEmail     String?
   logoutCode     String?
+  pausedUntil    DateTime?
   latitude       Float?
   longitude      Float?
   deliveryRadius Float              @default(5.0)

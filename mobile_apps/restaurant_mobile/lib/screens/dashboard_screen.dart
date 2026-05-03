@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/log_service.dart';
+import '../core/print_service.dart';
 import '../core/theme.dart';
 import '../models/order_model.dart';
 import '../providers/auth_provider.dart';
@@ -11,6 +13,7 @@ import '../main.dart' show triggerSleep;
 import 'new_order_alert_screen.dart';
 import 'order_detail_screen.dart';
 import 'order_take_screen.dart';
+import 'print_settings_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,6 +29,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _showNewOrderBanner = false;
   bool _alertScreenOpen = false;
   String? _initialPendingFingerprint;
+  StreamSubscription<PrintFailure>? _printErrorSub;
 
   @override
   void initState() {
@@ -35,12 +39,62 @@ class _DashboardScreenState extends State<DashboardScreen>
       duration: const Duration(milliseconds: 480),
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOrders());
+    _printErrorSub = PrintService.errors.listen(_handlePrintFailure);
   }
 
   @override
   void dispose() {
     _bannerCtrl.dispose();
+    _printErrorSub?.cancel();
     super.dispose();
+  }
+
+  void _handlePrintFailure(PrintFailure failure) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        backgroundColor: AppTheme.danger,
+        duration: const Duration(seconds: 6),
+        behavior: SnackBarBehavior.floating,
+        content: Row(
+          children: [
+            const Icon(Icons.print_disabled_rounded, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Order #${failure.orderNumber} ej utskriven',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14),
+                  ),
+                  Text(
+                    failure.reason,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: SnackBarAction(
+          label: 'FIXA',
+          textColor: Colors.white,
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const PrintSettingsScreen()),
+          ),
+        ),
+      ),
+    );
   }
 
   void _loadOrders() {

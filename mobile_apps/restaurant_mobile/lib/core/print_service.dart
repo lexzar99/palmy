@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -7,13 +8,27 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import '../models/order_model.dart';
 import 'api_client.dart';
 import 'bluetooth_printer_service.dart';
+import 'log_service.dart';
 import 'network_print_client.dart';
 import 'printing_config_service.dart';
+
+/// Event som publiceras när ett auto-print misslyckas. UI:t (DashboardScreen)
+/// lyssnar på [PrintService.errors] och visar en SnackBar.
+class PrintFailure {
+  final String orderNumber;
+  final String reason;
+  PrintFailure({required this.orderNumber, required this.reason});
+}
 
 class PrintService {
   static final ApiClient _api = ApiClient();
   static final PrintingConfigService _printingConfigService =
       PrintingConfigService();
+
+  /// Broadcast-stream som UI lyssnar på för att visa toast vid auto-print fail.
+  static final StreamController<PrintFailure> _errorController =
+      StreamController<PrintFailure>.broadcast();
+  static Stream<PrintFailure> get errors => _errorController.stream;
 
   static String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
@@ -30,33 +45,80 @@ class PrintService {
     return uppercase ? normalized.toUpperCase() : normalized;
   }
 
-  static Future<void> printReceipt(OrderModel order,
+  /// Returnerar null vid succé eller skip, annars en kort felbeskrivning.
+  /// Vid auto-print skickas dessutom felet till [errors]-streamen så UI:t
+  /// kan visa toast.
+  static Future<String?> printReceipt(OrderModel order,
       {bool respectAutoPrint = false}) async {
-    final config = await _printingConfigService.fetchConfig();
+    PrintingConfig? config;
+    try {
+      config = await _printingConfigService.fetchConfig();
+    } catch (e) {
+      logger.log('PRINT: kunde inte hämta config: $e');
+    }
     final printer = config?.defaultPrinter ??
         await _printingConfigService.loadLocalPrinter();
 
     if (respectAutoPrint && !(printer?.autoPrint ?? false)) {
-      return;
+      return null; // auto-print avstängd → tyst skip
     }
 
-    final receiptData = await _fetchReceiptData(order.id);
-    final template =
-        receiptData != null && receiptData['template'] is Map<String, dynamic>
-            ? ReceiptTemplateSettings.fromJson(receiptData['template'])
-            : await _printingConfigService.fetchTemplate();
-    final issue = await _dispatchPrint(
-      order: order,
-      receiptData: receiptData,
-      template: template,
-      printer: printer,
-      allowPdfFallback: !respectAutoPrint,
-      printJobName: 'Order_${order.orderNumber}',
+    if (printer == null) {
+      const reason = 'Ingen skrivare konfigurerad';
+      _emitFailure(order, reason, isAuto: respectAutoPrint);
+      return reason;
+    }
+
+    try {
+      final receiptData = await _fetchReceiptData(order.id);
+      final template = receiptData != null &&
+              receiptData['template'] is Map<String, dynamic>
+          ? ReceiptTemplateSettings.fromJson(receiptData['template'])
+          : await _printingConfigService.fetchTemplate();
+      final issue = await _dispatchPrint(
+        order: order,
+        receiptData: receiptData,
+        template: template,
+        printer: printer,
+        allowPdfFallback: !respectAutoPrint,
+        printJobName: 'Order_${order.orderNumber}',
+      );
+
+      if (issue != null) {
+        logger.log('PRINT FAIL #${order.orderNumber}: $issue');
+        _emitFailure(order, issue, isAuto: respectAutoPrint);
+        return issue;
+      }
+      return null;
+    } catch (e) {
+      final reason = _humanizeError(e);
+      logger.log('PRINT EXCEPTION #${order.orderNumber}: $e');
+      _emitFailure(order, reason, isAuto: respectAutoPrint);
+      return reason;
+    }
+  }
+
+  static void _emitFailure(OrderModel order, String reason,
+      {required bool isAuto}) {
+    if (!isAuto) return; // manuella prints har redan UI-feedback via knapp
+    if (_errorController.isClosed) return;
+    _errorController.add(
+      PrintFailure(orderNumber: order.orderNumber, reason: reason),
     );
+  }
 
-    if (issue != null) {
-      debugPrint('Receipt print issue: $issue');
+  static String _humanizeError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('socket') ||
+        msg.contains('network') ||
+        msg.contains('connection refused') ||
+        msg.contains('timed out')) {
+      return 'Skrivare ej nåbar (nätverk/Bluetooth)';
     }
+    if (msg.contains('bluetooth') || msg.contains('not paired')) {
+      return 'Bluetooth-skrivare ej parad eller avstängd';
+    }
+    return 'Kunde inte skriva ut kvitto';
   }
 
   static Future<String?> printTestTicket({PrinterProfile? printer}) async {
