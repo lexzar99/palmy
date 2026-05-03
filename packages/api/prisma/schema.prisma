@@ -294,6 +294,11 @@ model Restaurant {
   city_relation  City?              @relation(fields: [cityId], references: [id])
   deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
   freeDeliveryAbove Int?            // Free delivery if order > this amount in öre (kr*100)
+  // Direkt FK till AdminUser-kontot som Flutter-restaurang-appen loggar
+  // in med. Sätts automatiskt vid första GET /admin/restaurants/:id/login
+  // baserat på fuzzy-match, eller manuellt när admin skapar/byter konto.
+  // Garanterar 1-till-1 — ingen mer fuzzy-gissning i UI:t.
+  adminUserId    String?            @unique
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]
