@@ -478,7 +478,7 @@ function RestaurantEditorModal({
             <Field label="Rating count"><Input type="number" value={form.ratingCount} onChange={(event) => setForm((current) => ({ ...current, ratingCount: Number(event.target.value) }))} /></Field>
             <Field label="Free delivery above"><Input type="number" value={form.freeDeliveryAbove} onChange={(event) => setForm((current) => ({ ...current, freeDeliveryAbove: Number(event.target.value) }))} /></Field>
             <Field label="Admin password"><Input type="password" value={form.adminPassword} onChange={(event) => setForm((current) => ({ ...current, adminPassword: event.target.value }))} /></Field>
-            <Field label="Logout code (Flutter)" description="PIN-kod som krävs för att logga ut ur restaurangappen. Lämna tomt för att tillåta utloggning utan kod."><Input value={form.logoutCode} onChange={(event) => setForm((current) => ({ ...current, logoutCode: event.target.value }))} placeholder="t.ex. 1234" /></Field>
+            <Field label="Logout code (Flutter)"><Input value={form.logoutCode} onChange={(event) => setForm((current) => ({ ...current, logoutCode: event.target.value }))} placeholder="t.ex. 1234" /></Field>
             <Field label="Latitude"><Input value={form.latitude} onChange={(event) => setForm((current) => ({ ...current, latitude: event.target.value }))} /></Field>
             <Field label="Longitude"><Input value={form.longitude} onChange={(event) => setForm((current) => ({ ...current, longitude: event.target.value }))} /></Field>
             <Field label="Tags"><Input value={form.tags} onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))} placeholder="pizza, halal, lunch" /></Field>
