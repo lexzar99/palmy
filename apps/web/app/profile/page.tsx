@@ -211,6 +211,8 @@ function ProfileContent() {
   const [orders, setOrders] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
   const [claimedDeals, setClaimedDeals] = useState<any[]>([]);
+  const [availableDeals, setAvailableDeals] = useState<any[]>([]);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [hasVisited, setHasVisited] = useState(false);
@@ -286,6 +288,10 @@ function ProfileContent() {
         ...((claimedRes.data?.global || []) as any[]).map((d: any) => ({ ...d, _kind: 'GLOBAL' })),
       ];
       setClaimedDeals(merged);
+      // Available = popup-deals admin har skickat men användaren inte
+      // klämt än. Visas som banners med "Spara erbjudande"-knapp så man
+      // kan claima dem från Profile om man missade popupen vid app-start.
+      setAvailableDeals((claimedRes.data?.available || []) as any[]);
 
       // Fetch saved addresses
       try {
@@ -999,6 +1005,74 @@ function ProfileContent() {
           {/* Deals Tab */}
           {activeTab === "deals" && (
             <motion.div key="deals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+               {/* Tillgängliga (oclaimade) popup-deals — visas som banners
+                   så kunden kan claima senare om man missade popup-flödet
+                   vid app-öppning. */}
+               {availableDeals.length > 0 ? (
+                 <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Tillgängliga erbjudanden</p>
+                   {availableDeals.map((deal: any) => {
+                     const isClaiming = claimingId === deal.id;
+                     return (
+                       <div
+                         key={`avail-${deal.id}`}
+                         className="p-6 rounded-[2.5rem] relative overflow-hidden"
+                         style={{
+                           background: "linear-gradient(135deg, rgba(243,191,87,0.16), rgba(243,191,87,0.06))",
+                           border: "1px solid rgba(243,191,87,0.35)",
+                         }}
+                       >
+                         <div className="flex items-start gap-4">
+                           {deal.imageUrl ? (
+                             // eslint-disable-next-line @next/next/no-img-element
+                             <img src={deal.imageUrl} alt="" className="h-16 w-16 rounded-2xl object-cover shrink-0" />
+                           ) : (
+                             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gold-500/15 text-2xl shrink-0">🎁</div>
+                           )}
+                           <div className="flex-1 min-w-0">
+                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">
+                               Nytt erbjudande
+                             </div>
+                             <h3 className="text-lg font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
+                               {deal.popupHeadline || deal.title}
+                             </h3>
+                             {deal.popupBody || deal.description ? (
+                               <p className="mt-1.5 text-xs font-bold leading-5 text-zinc-500">{deal.popupBody || deal.description}</p>
+                             ) : null}
+                           </div>
+                         </div>
+                         <div className="mt-4 flex items-center justify-between gap-3">
+                           <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                             {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt
+                             {deal.minOrder > 0 ? ` • min ${deal.minOrder} kr` : ""}
+                           </div>
+                           <button
+                             type="button"
+                             disabled={isClaiming}
+                             onClick={async () => {
+                               setClaimingId(deal.id);
+                               try {
+                                 await axios.post(`/api/platform/profile/deals/${deal.id}/claim`);
+                                 // Flytta dealen från available → claimed
+                                 setAvailableDeals((current) => current.filter((d) => d.id !== deal.id));
+                                 setClaimedDeals((current) => [{ ...deal, _kind: "CLAIMED" }, ...current]);
+                               } catch (e: any) {
+                                 alert(e?.response?.data?.error || "Kunde inte spara erbjudandet");
+                               } finally {
+                                 setClaimingId(null);
+                               }
+                             }}
+                             className="px-5 py-3 rounded-2xl bg-gold-500 text-zinc-950 font-black uppercase tracking-widest text-[10px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-60"
+                           >
+                             {isClaiming ? "Sparar..." : (deal.popupCtaLabel || "Spara erbjudande")}
+                           </button>
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
+               ) : null}
+
                {/* Claimade + globala deals (från popup-builder och broadcast) */}
                {claimedDeals.length > 0 ? (
                  <div className="space-y-3">

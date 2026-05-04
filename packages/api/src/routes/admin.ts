@@ -2361,6 +2361,27 @@ router.delete('/restaurants/:id/login', authenticate, requireSuperAdmin, async (
   }
 });
 
+// FARLIG: rensar alla deals ur databasen. Användaren explicit godkänd —
+// används när admin vill börja om med en ren deal-tabell. Skyddad med
+// SUPER_ADMIN + confirm-string så ingen råkar trycka.
+router.post('/deals/wipe', authenticate, requireSuperAdmin, async (req, res) => {
+  try {
+    const { confirm } = req.body as { confirm?: string };
+    if (confirm !== 'WIPE_ALL_DEALS') {
+      return res.status(400).json({ error: 'Bekräftelse saknas (skicka { confirm: "WIPE_ALL_DEALS" })' });
+    }
+    const before = await prisma.deal.count();
+    await prisma.deal.deleteMany({});
+    // Rensa även User.claimedDealIds så Profile-listan inte pekar på
+    // borttagna deals.
+    await (prisma as any).user.updateMany({ data: { claimedDealIds: '[]' } }).catch(() => null);
+    res.json({ success: true, deleted: before });
+  } catch (error: any) {
+    console.error('Wipe deals error:', error);
+    res.status(500).json({ error: error?.message || 'Kunde inte rensa deals' });
+  }
+});
+
 // FARLIG: rensar alla ordrar (eller ordrar för en specifik restaurang) ur
 // databasen. Används bara under testning för att starta från noll. Skyddad
 // med superadmin-koll + explicit confirm + ALLOW_WIPE_ORDERS env-flagga

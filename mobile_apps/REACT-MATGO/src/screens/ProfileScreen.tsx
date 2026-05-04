@@ -110,6 +110,8 @@ export default function ProfileScreen({
   const [deals, setDeals] = useState<PersonalDeal[]>(() => cachedData?.deals || []);
   // Claimade deals (från popup-builder) + globala broadcast-deals.
   const [claimedDeals, setClaimedDeals] = useState<any[]>([]);
+  const [availableDeals, setAvailableDeals] = useState<any[]>([]);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => cachedData?.savedAddresses || []);
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState("+46");
@@ -342,6 +344,7 @@ export default function ProfileScreen({
           ...((claimedRes.data?.claimed || []) as any[]).map((d: any) => ({ ...d, _kind: "CLAIMED" })),
           ...((claimedRes.data?.global || []) as any[]).map((d: any) => ({ ...d, _kind: "GLOBAL" })),
         ]);
+        setAvailableDeals((claimedRes.data?.available || []) as any[]);
         const addresses = (addressRes.data || []) as SavedAddress[];
         setSavedAddresses(addresses);
 
@@ -1052,6 +1055,86 @@ export default function ProfileScreen({
       {/* Deals tab */}
       {activeTab === "deals" && (
         <View style={{ gap: 12 }}>
+          {/* Tillgängliga (oclaimade) popup-deals — claim-banners så
+              kunden kan spara senare om man missat popupen vid app-start. */}
+          {availableDeals.map((deal: any) => {
+            const isClaiming = claimingId === deal.id;
+            return (
+              <View
+                key={`avail-${deal.id}`}
+                style={{
+                  backgroundColor: "rgba(243,191,87,0.12)",
+                  borderRadius: 30,
+                  borderWidth: 1,
+                  borderColor: "rgba(243,191,87,0.36)",
+                  padding: 22,
+                  gap: 14,
+                }}
+              >
+                <View style={{ flexDirection: "row", gap: 14 }}>
+                  {deal.imageUrl ? (
+                    <Image source={{ uri: deal.imageUrl }} style={{ width: 64, height: 64, borderRadius: 18 }} />
+                  ) : (
+                    <View style={{ width: 64, height: 64, borderRadius: 18, backgroundColor: "rgba(243,191,87,0.2)", alignItems: "center", justifyContent: "center" }}>
+                      <Text style={{ fontSize: 28 }}>🎁</Text>
+                    </View>
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                      Nytt erbjudande
+                    </Text>
+                    <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", fontStyle: "italic", marginTop: 4 }}>
+                      {deal.popupHeadline || deal.title}
+                    </Text>
+                    {deal.popupBody || deal.description ? (
+                      <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", lineHeight: 18, marginTop: 4 }}>
+                        {deal.popupBody || deal.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800", flex: 1 }}>
+                    {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt
+                    {deal.minOrder > 0 ? ` • min ${deal.minOrder} kr` : ""}
+                  </Text>
+                  <Pressable
+                    disabled={isClaiming}
+                    onPress={async () => {
+                      if (!token) return;
+                      setClaimingId(deal.id);
+                      try {
+                        await api.post(
+                          `/api/profile/deals/${deal.id}/claim`,
+                          {},
+                          { headers: { Authorization: `Bearer ${token}` } },
+                        );
+                        // Flytta deal från available → claimed lokalt
+                        setAvailableDeals((current) => current.filter((d) => d.id !== deal.id));
+                        setClaimedDeals((current) => [{ ...deal, _kind: "CLAIMED" }, ...current]);
+                      } catch (e: any) {
+                        Alert.alert("Kunde inte spara", e?.response?.data?.error || "Försök igen senare.");
+                      } finally {
+                        setClaimingId(null);
+                      }
+                    }}
+                    style={{
+                      paddingHorizontal: 18,
+                      paddingVertical: 12,
+                      borderRadius: 16,
+                      backgroundColor: palette.gold,
+                      opacity: isClaiming ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: "#11151b", fontSize: 11, fontWeight: "900", letterSpacing: 1 }}>
+                      {isClaiming ? "SPARAR..." : (deal.popupCtaLabel || "SPARA").toUpperCase()}
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            );
+          })}
+
           {/* Claimade + globala deals (från popup-builder broadcasts) */}
           {claimedDeals.map((deal: any) => {
             const isClaimed = deal._kind === "CLAIMED";

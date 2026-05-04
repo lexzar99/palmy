@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import {
   clearLegacyProductDiscount,
   dealsQueryKey,
@@ -14,6 +14,7 @@ import {
   getDealCategories,
   getDealProducts,
   getDealRestaurants,
+  wipeAllDeals,
   type AutomaticDealRecord,
   type DealProductRef,
 } from "@/modules/deals/api";
@@ -163,6 +164,21 @@ export function DealsPage() {
           actions={
             <>
               <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
+              <Button
+                variant="danger"
+                onClick={async () => {
+                  if (!confirm("Radera ALLA deals permanent? Detta nollar också alla användares claimade deals. Kan inte ångras.")) return;
+                  try {
+                    const result = await wipeAllDeals();
+                    alert(`Raderade ${result.deleted} deals.`);
+                    await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
+                  } catch (e: any) {
+                    alert(e?.response?.data?.error || "Kunde inte rensa deals.");
+                  }
+                }}
+              >
+                <AlertTriangle size={16} /> Radera alla
+              </Button>
               {tab === "popup" ? (
                 <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={16} /> Skicka popup för deal</Button>
               ) : (
