@@ -368,6 +368,73 @@ router.delete('/addresses/:id', authenticateUser, async (req: any, res: any) => 
 
 // ─── Reviews & Ratings ──────────────────────────────────────────────────────
 
+// GET /api/profile/claimed-deals
+// Returnerar både claimade Deal-rader (från popupen) och aktiva globala
+// deals som användaren kan använda. Profile-sidan i web/RN visar dem
+// med kod-tags så kunden ser vad de har sparat.
+router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
+  try {
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { claimedDealIds: true, phone: true },
+    });
+    if (!user) return res.json({ claimed: [], global: [] });
+
+    let claimedIds: string[] = [];
+    try {
+      const parsed = JSON.parse(user.claimedDealIds || '[]');
+      if (Array.isArray(parsed)) claimedIds = parsed.filter((id: unknown): id is string => typeof id === 'string');
+    } catch { /* tolerate bad JSON */ }
+
+    const now = new Date();
+    const [claimed, global] = await Promise.all([
+      claimedIds.length > 0
+        ? prisma.deal.findMany({
+            where: {
+              id: { in: claimedIds },
+              isActive: true,
+              OR: [{ validUntil: null }, { validUntil: { gte: now } }],
+            },
+          })
+        : Promise.resolve([]),
+      prisma.deal.findMany({
+        where: {
+          isGlobal: true,
+          isActive: true,
+          OR: [{ validUntil: null }, { validUntil: { gte: now } }],
+        },
+      }),
+    ]);
+
+    const formatDeal = (deal: any) => ({
+      id: deal.id,
+      title: deal.title,
+      description: deal.description,
+      badgeText: deal.badgeText,
+      imageUrl: deal.imageUrl,
+      popupHeadline: deal.popupHeadline,
+      popupBody: deal.popupBody,
+      popupCode: deal.popupCode,
+      discountType: deal.discountType,
+      discountValue: deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE'
+        ? deal.discountValue / 100
+        : deal.discountValue,
+      minOrder: deal.minOrder / 100,
+      validUntil: deal.validUntil,
+      restaurantId: deal.restaurantId,
+      isGlobal: deal.isGlobal,
+    });
+
+    res.json({
+      claimed: claimed.map(formatDeal),
+      global: global.map(formatDeal),
+    });
+  } catch (error) {
+    console.error('Get claimed-deals error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta erbjudanden' });
+  }
+});
+
 // POST /api/profile/deals/:dealId/claim
 // Användaren klickar "Spara erbjudandet" i popup → vi lägger Deal.id i
 // User.claimedDealIds (JSON-array). Idempotent — duplikat ignoreras.

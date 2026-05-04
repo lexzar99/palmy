@@ -106,6 +106,8 @@ export default function ProfileScreen({
 
   const [orders, setOrders] = useState<Order[]>(() => cachedData?.orders || []);
   const [deals, setDeals] = useState<PersonalDeal[]>(() => cachedData?.deals || []);
+  // Claimade deals (från popup-builder) + globala broadcast-deals.
+  const [claimedDeals, setClaimedDeals] = useState<any[]>([]);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => cachedData?.savedAddresses || []);
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState("+46");
@@ -319,19 +321,25 @@ export default function ProfileScreen({
         // and must not nuke activeOrderId / log the user out if they fail
         // (that was clobbering the LiveOrderBanner mid-login).
         const profileRes = await api.get("/api/profile", { headers });
-        const [ordersResR, dealsResR, addressResR] = await Promise.allSettled([
+        const [ordersResR, dealsResR, addressResR, claimedResR] = await Promise.allSettled([
           api.get("/api/profile/orders", { headers }),
           api.get("/api/profile/deals", { headers }),
           api.get("/api/profile/addresses", { headers }),
+          api.get("/api/profile/claimed-deals", { headers }),
         ]);
         const ordersRes = ordersResR.status === "fulfilled" ? ordersResR.value : { data: [] };
         const dealsRes = dealsResR.status === "fulfilled" ? dealsResR.value : { data: [] };
         const addressRes = addressResR.status === "fulfilled" ? addressResR.value : { data: [] };
+        const claimedRes = claimedResR.status === "fulfilled" ? claimedResR.value : { data: { claimed: [], global: [] } };
 
         const nextProfile = (profileRes.data || null) as any;
         setProfile(nextProfile);
         setOrders((ordersRes.data || []) as Order[]);
         setDeals((dealsRes.data || []) as PersonalDeal[]);
+        setClaimedDeals([
+          ...((claimedRes.data?.claimed || []) as any[]).map((d: any) => ({ ...d, _kind: "CLAIMED" })),
+          ...((claimedRes.data?.global || []) as any[]).map((d: any) => ({ ...d, _kind: "GLOBAL" })),
+        ]);
         const addresses = (addressRes.data || []) as SavedAddress[];
         setSavedAddresses(addresses);
 
@@ -1032,12 +1040,58 @@ export default function ProfileScreen({
       {/* Deals tab */}
       {activeTab === "deals" && (
         <View style={{ gap: 12 }}>
-          {!deals.length ? (
+          {/* Claimade + globala deals (från popup-builder broadcasts) */}
+          {claimedDeals.map((deal: any) => {
+            const isClaimed = deal._kind === "CLAIMED";
+            return (
+              <View key={`claimed-${deal.id}`} style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 14 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                      {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                    </Text>
+                    <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic", marginTop: 6 }}>
+                      {deal.popupHeadline || deal.title}
+                    </Text>
+                    {deal.popupBody || deal.description ? (
+                      <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700", lineHeight: 18, marginTop: 6 }}>
+                        {deal.popupBody || deal.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{ width: 42, height: 42, borderRadius: 14, backgroundColor: palette.gold, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="ticket-outline" size={20} color="#000" />
+                  </View>
+                </View>
+                {deal.popupCode ? (
+                  <View style={{ backgroundColor: palette.panelMuted, borderRadius: 16, borderWidth: 1, borderColor: palette.border, paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                    <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>
+                      KOD: {deal.popupCode}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800" }}>
+                    {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt{deal.minOrder > 0 ? ` • min ${deal.minOrder} kr` : ""}
+                  </Text>
+                  {deal.validUntil ? (
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800" }}>
+                      Gäller till: {String(deal.validUntil).slice(0, 10)}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
+
+          {!deals.length && claimedDeals.length === 0 ? (
             <View style={[styles.formCard, { borderRadius: 30, padding: 26, alignItems: "center" }]}>
               <Ionicons name="pricetags-outline" size={34} color={palette.muted} />
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", marginTop: 14 }}>{t('profile.deals.empty')}</Text>
             </View>
-          ) : (
+          ) : null}
+
+          {deals.length > 0 ? (
             deals.map((deal) => (
               <View key={deal.id || deal.code} style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 16 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
@@ -1060,7 +1114,7 @@ export default function ProfileScreen({
                 <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "800" }}>Min. order: {deal.campaign?.minOrder || 0} kr</Text>
               </View>
             ))
-          )}
+          ) : null}
         </View>
       )}
 

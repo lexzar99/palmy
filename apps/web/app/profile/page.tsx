@@ -210,6 +210,7 @@ function ProfileContent() {
   const [user, setUser] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [deals, setDeals] = useState<any[]>([]);
+  const [claimedDeals, setClaimedDeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   const [hasVisited, setHasVisited] = useState(false);
@@ -267,10 +268,11 @@ function ProfileContent() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [profileRes, ordersRes, dealsRes] = await Promise.all([
+      const [profileRes, ordersRes, dealsRes, claimedRes] = await Promise.all([
         axios.get(`/api/platform/profile`),
         axios.get(`/api/platform/profile/orders`),
         axios.get(`/api/platform/profile/deals`),
+        axios.get(`/api/platform/profile/claimed-deals`).catch(() => ({ data: { claimed: [], global: [] } })),
       ]);
       setHasPlatformSession(true);
       setUser(profileRes.data);
@@ -278,6 +280,12 @@ function ProfileContent() {
       setEditEmail(profileRes.data.email || "");
       setOrders(ordersRes.data || []);
       setDeals(dealsRes.data || []);
+      // Sammanställ alla deals — claimade först (av kunden), sen globala (auto-tillgängliga).
+      const merged = [
+        ...((claimedRes.data?.claimed || []) as any[]).map((d: any) => ({ ...d, _kind: 'CLAIMED' })),
+        ...((claimedRes.data?.global || []) as any[]).map((d: any) => ({ ...d, _kind: 'GLOBAL' })),
+      ];
+      setClaimedDeals(merged);
 
       // Fetch saved addresses
       try {
@@ -991,14 +999,64 @@ function ProfileContent() {
           {/* Deals Tab */}
           {activeTab === "deals" && (
             <motion.div key="deals" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
-               {deals.length === 0 ? (
+               {/* Claimade + globala deals (från popup-builder och broadcast) */}
+               {claimedDeals.length > 0 ? (
+                 <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Sparade erbjudanden</p>
+                   {claimedDeals.map((deal: any) => {
+                     const isClaimed = deal._kind === 'CLAIMED';
+                     return (
+                       <div key={`claimed-${deal.id}`} className="p-6 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/15 relative overflow-hidden">
+                         <div className="flex items-start justify-between mb-4 gap-3">
+                           <div className="flex-1">
+                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">
+                               {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                             </div>
+                             <h3 className="text-xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
+                               {deal.popupHeadline || deal.title}
+                             </h3>
+                             {deal.popupBody || deal.description ? (
+                               <p className="mt-2 text-xs font-bold leading-5 text-zinc-500">{deal.popupBody || deal.description}</p>
+                             ) : null}
+                           </div>
+                           <div className="w-10 h-10 bg-gold-500 text-zinc-950 rounded-xl flex items-center justify-center shrink-0">
+                             <Ticket size={18} />
+                           </div>
+                         </div>
+                         {deal.popupCode ? (
+                           <div className="p-3 rounded-2xl bg-zinc-50 border border-zinc-100 flex items-center justify-between mb-3">
+                             <div className="text-[10px] font-black tracking-[0.3em] uppercase text-zinc-400">
+                               KOD: <span className="text-zinc-950 select-all">{deal.popupCode}</span>
+                             </div>
+                             <button
+                               onClick={() => { navigator.clipboard.writeText(deal.popupCode); }}
+                               className="text-[10px] font-black uppercase tracking-widest text-gold-600 hover:text-gold-700 transition-colors"
+                             >
+                               Kopiera
+                             </button>
+                           </div>
+                         ) : null}
+                         <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-400">
+                           <div>{deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt {deal.minOrder > 0 ? `• min ${deal.minOrder} kr` : ""}</div>
+                           <div>Giltig till: {deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
+                         </div>
+                       </div>
+                     );
+                   })}
+                 </div>
+               ) : null}
+
+               {/* Personliga (CustomerDeal-baserade) deals */}
+               {deals.length === 0 && claimedDeals.length === 0 ? (
                  <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                     <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-300"><Tag size={32} /></div>
                     <p className="font-black uppercase tracking-widest text-zinc-400">Inga erbjudanden tillgängliga</p>
                     <p className="text-[10px] uppercase font-bold text-zinc-300 mt-2">Dina framtida belöningar dyker upp här</p>
                  </div>
-               ) : (
-                 deals.map((deal: any) => (
+               ) : deals.length > 0 ? (
+                 <div className="space-y-3">
+                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Personliga koder</p>
+                   {deals.map((deal: any) => (
                    <div key={deal.id} className="p-8 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/10 shadow-sm relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-24 h-24 bg-gold-500/5 blur-2xl group-hover:bg-gold-500/10 transition-all" />
                       <div className="flex items-start justify-between mb-6">
@@ -1026,8 +1084,9 @@ function ProfileContent() {
                          <div>Giltig till: {deal.campaign.validUntil ? new Date(deal.campaign.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
                       </div>
                    </div>
-                 ))
-               )}
+                 ))}
+                 </div>
+               ) : null}
             </motion.div>
           )}
 

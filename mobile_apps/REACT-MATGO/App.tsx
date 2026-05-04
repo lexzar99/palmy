@@ -104,6 +104,7 @@ import PhoneGateScreen from "./src/screens/PhoneGateScreen";
 import ProductModal from "./src/components/ProductModal";
 import SplashLoader from "./src/components/SplashLoader";
 import LiveOrderBanner from "./src/components/LiveOrderBanner";
+import ClaimDealPopup from "./src/components/ClaimDealPopup";
 import BottomTabs from "./src/components/BottomTabs";
 import CityModal from "./src/components/CityModal";
 import RestaurantInfoModal from "./src/components/RestaurantInfoModal";
@@ -1090,6 +1091,9 @@ function AppContent() {
           )}
         </View>
       </SafeAreaView>
+      {/* Claim-popup för broadcast-deals — visas första gången inloggad
+          användare öppnar appen, sen 24h-cooldown via AsyncStorage. */}
+      <ClaimDealPopup />
     </View>
   );
 }
