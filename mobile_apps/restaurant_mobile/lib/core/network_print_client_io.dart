@@ -1,7 +1,7 @@
 import 'dart:io';
 
 class NetworkPrintClient {
-  static Future<bool> sendBytes({
+  static Future<void> sendBytes({
     required String host,
     required int port,
     required List<int> bytes,
@@ -14,10 +14,14 @@ class NetworkPrintClient {
         timeout: const Duration(seconds: 5),
       );
       socket.add(bytes);
-      await socket.flush();
-      await socket.close();
+      try {
+        await socket.flush();
+      } finally {
+        // destroy() stänger omedelbart – en del skrivare stänger
+        // förbindelsen från sin sida direkt efter att de fått data,
+        // vilket annars kastar SocketException på close().
+        socket.destroy();
+      }
     }
-
-    return true;
   }
 }

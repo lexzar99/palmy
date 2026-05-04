@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show SocketException;
 import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -153,16 +154,18 @@ class PrintService {
     final copies = printer?.copies ?? 1;
     final address = (printer?.address ?? '').trim();
 
+    String? lastError;
+
     if (printer != null && paperWidth != 'A4' && address.isNotEmpty) {
       if (_isBluetoothPrinter(printer)) {
-        final printed = await _tryBluetoothPrint(
+        lastError = await _tryBluetoothPrint(
           address: address,
           paperWidth: paperWidth,
           copies: copies,
           receiptData: receiptData,
           template: template,
         );
-        if (printed) {
+        if (lastError == null) {
           await _printingConfigService.heartbeat(
             printerId: printer.id,
             address: address,
@@ -170,14 +173,14 @@ class PrintService {
           return null;
         }
       } else if (_looksLikeNetworkPrinter(address)) {
-        final printed = await _tryNetworkPrint(
+        lastError = await _tryNetworkPrint(
           address: address,
           paperWidth: paperWidth,
           copies: copies,
           receiptData: receiptData,
           template: template,
         );
-        if (printed) {
+        if (lastError == null) {
           await _printingConfigService.heartbeat(
             printerId: printer.id,
             address: address,
@@ -191,10 +194,11 @@ class PrintService {
       if (printer == null || address.isEmpty) {
         return 'Ingen fysisk skrivare är vald för testutskrift.';
       }
-      if (_isBluetoothPrinter(printer)) {
-        return 'Bluetooth-skrivaren svarade inte. Kontrollera parkoppling och behörighet.';
-      }
-      return 'Nätverksskrivaren kunde inte nås. Kontrollera IP-adress och att skrivaren är online.';
+      // Returnera det specifika felet om vi har ett, annars generiskt.
+      return lastError ??
+          (_isBluetoothPrinter(printer!)
+              ? 'Bluetooth-skrivaren svarade inte. Kontrollera parkoppling och behörighet.'
+              : 'Nätverksskrivaren kunde inte nås. Kontrollera IP-adress och att skrivaren är online.');
     }
 
     final pdfBytes = await _buildPdfReceipt(
@@ -226,60 +230,74 @@ class PrintService {
     return null;
   }
 
-  static Future<bool> _tryNetworkPrint({
+  /// Returnerar null vid succé, annars ett specifikt felmeddelande.
+  static Future<String?> _tryNetworkPrint({
     required String address,
     required String paperWidth,
     required int copies,
     required Map<String, dynamic>? receiptData,
     required ReceiptTemplateSettings template,
   }) async {
+    final host = _networkHost(address);
+    final port = _networkPort(address);
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
         paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-
       final bytes = _buildEscPosBytes(generator, receiptData, template);
-      return NetworkPrintClient.sendBytes(
-        host: _networkHost(address),
-        port: _networkPort(address),
+      await NetworkPrintClient.sendBytes(
+        host: host,
+        port: port,
         bytes: bytes,
         copies: copies,
       );
+      return null;
+    } on SocketException catch (e) {
+      debugPrint('Network print SocketException ($host:$port): $e');
+      return 'Skrivare $host:$port – ${e.message}';
     } catch (error) {
-      debugPrint('Network print failed, falling back to PDF: $error');
-      return false;
+      debugPrint('Network print failed ($host:$port): $error');
+      return 'Nätverksskrivare-fel: $error';
     }
   }
 
-  static Future<bool> _tryBluetoothPrint({
+  /// Returnerar null vid succé, annars ett specifikt felmeddelande.
+  static Future<String?> _tryBluetoothPrint({
     required String address,
     required String paperWidth,
     required int copies,
     required Map<String, dynamic>? receiptData,
     required ReceiptTemplateSettings template,
   }) async {
+    // Kolla behörighet/BT-status INNAN vi försöker ansluta.
+    final issue = await BluetoothPrinterService.availabilityIssue();
+    if (issue != null) return issue;
+
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
         paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-
       final oneCopy = _buildEscPosBytes(generator, receiptData, template);
-      // Slå ihop alla kopior till ett enda print-jobb för att undvika
-      // BT-avbrott mellan kopiorna (B5-fix).
+      // Slå ihop alla kopior till ett enda print-jobb (B5-fix).
       final allBytes = <int>[
         for (var i = 0; i < copies; i++) ...oneCopy,
       ];
-      return BluetoothPrinterService.printBytes(
+      final printed = await BluetoothPrinterService.printBytes(
         address: address,
         bytes: allBytes,
       );
+      if (!printed) {
+        return 'Bluetooth-skrivaren ($address) svarade inte. '
+            'Kontrollera att skrivaren är påslagen och parad i Android Bluetooth-inställningarna.';
+      }
+      return null;
     } catch (error) {
       debugPrint('Bluetooth print failed: $error');
-      return false;
+      return 'Bluetooth-fel: $error';
     }
   }
 
