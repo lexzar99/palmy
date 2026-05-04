@@ -771,66 +771,44 @@ class PrintService {
           break;
         case 'items':
           for (final item in items) {
-            bytes.addAll(generator.row([
-              PosColumn(
-                  text:
-                      '${item['qty']}x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}',
-                  width: 9,
-                  styles: _posStyles(element)),
-              PosColumn(
-                  text: '${_safeValue(item['subtotal'])} kr',
-                  width: 3,
-                  styles: _posStyles(element, align: PosAlign.right)),
-            ]));
+            bytes.addAll(_posText(
+                generator,
+                '${item['qty']}x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}   ${_safeValue(item['subtotal'])} kr',
+                element));
 
             if (extrasVisible) {
               for (final extra
                   in (item['extras'] as List? ?? const []).whereType<Map>()) {
                 bytes.addAll(generator.text('+ ${_safeValue(extra['name'])}',
-                    styles: const PosStyles()));
+                    styles: const PosStyles(align: PosAlign.center)));
               }
             }
             if (noteVisible && _safeValue(item['note']).isNotEmpty) {
               bytes.addAll(generator.text('! ${_safeValue(item['note'])}',
-                  styles: const PosStyles(bold: true)));
+                  styles: const PosStyles(align: PosAlign.center, bold: true)));
             }
           }
           break;
         case 'deliveryFee':
           if ((_toNum(totals['deliveryFee']) ?? 0) > 0) {
-            bytes.addAll(generator.row([
-              PosColumn(
-                  text: 'Leverans', width: 8, styles: _posStyles(element)),
-              PosColumn(
-                  text: '${_safeValue(totals['deliveryFee'])} kr',
-                  width: 4,
-                  styles: _posStyles(element, align: PosAlign.right)),
-            ]));
+            bytes.addAll(_posText(generator,
+                'Leverans: ${_safeValue(totals['deliveryFee'])} kr', element));
           }
           break;
         case 'discount':
           if ((_toNum(totals['discount']) ?? 0) > 0) {
             final code = _safeValue(totals['discountCode']);
-            bytes.addAll(generator.row([
-              PosColumn(
-                  text: code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
-                  width: 8,
-                  styles: _posStyles(element)),
-              PosColumn(
-                  text: '-${_safeValue(totals['discount'])} kr',
-                  width: 4,
-                  styles: _posStyles(element, align: PosAlign.right)),
-            ]));
+            bytes.addAll(_posText(
+                generator,
+                code.isNotEmpty
+                    ? 'Rabatt ($code): -${_safeValue(totals['discount'])} kr'
+                    : 'Rabatt: -${_safeValue(totals['discount'])} kr',
+                element));
           }
           break;
         case 'total':
-          bytes.addAll(generator.row([
-            PosColumn(text: 'TOTALT', width: 8, styles: _posStyles(element)),
-            PosColumn(
-                text: '${_safeValue(totals['total'])} kr',
-                width: 4,
-                styles: _posStyles(element, align: PosAlign.right)),
-          ]));
+          bytes.addAll(_posText(generator,
+              'TOTALT: ${_safeValue(totals['total'])} kr', element));
           break;
         case 'paymentMethod':
           if (_safeValue(orderInfo['paymentMethod']).isNotEmpty)
@@ -893,7 +871,7 @@ class PrintService {
       Generator generator, String text, ReceiptTemplateElement element) {
     return generator.text(
       _normalizeText(text, uppercase: element.uppercase),
-      styles: _posStyles(element),
+      styles: _posStyles(element, align: PosAlign.center),
     );
   }
 
