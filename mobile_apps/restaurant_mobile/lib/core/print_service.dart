@@ -724,16 +724,22 @@ class PrintService {
           break;
         case 'estimatedTime':
           if (orderInfo['isPreorder'] != true &&
-              orderInfo['estimatedTime'] != null)
+              orderInfo['estimatedTime'] != null) {
+            bytes.addAll(generator.text('Leveranstid',
+                styles: const PosStyles(align: PosAlign.center)));
             bytes.addAll(_posText(
                 generator,
-                'Leveranstid: ${orderInfo['estimatedTime']} min',
-                element));
+                '${orderInfo['estimatedTime']} min',
+                element)); // size2 via element.size >= 12
+          }
           break;
         case 'customerName':
-          if (_safeValue(customer['name']).isNotEmpty)
+          if (_safeValue(customer['name']).isNotEmpty) {
+            bytes.addAll(generator.text('Kund:',
+                styles: const PosStyles(align: PosAlign.left)));
             bytes.addAll(
                 _posText(generator, _safeValue(customer['name']), element));
+          }
           break;
         case 'customerPhone':
           if (_safeValue(customer['phone']).isNotEmpty)
@@ -747,8 +753,11 @@ class PrintService {
                 .where((value) => _safeValue(value).isNotEmpty)
                 .join(' ')
           ].where((value) => value.isNotEmpty).join(', ');
-          if (customerAddress.isNotEmpty)
+          if (customerAddress.isNotEmpty) {
+            bytes.addAll(generator.text('Adress:',
+                styles: const PosStyles(align: PosAlign.left)));
             bytes.addAll(_posText(generator, customerAddress, element));
+          }
           break;
         case 'deliveryInstructions':
           if (_safeValue(customer['instructions']).isNotEmpty)
@@ -766,45 +775,73 @@ class PrintService {
                 '! ${_safeValue(customer['allergens'])}', element));
           break;
         case 'items':
+          bytes.addAll(generator.text(
+              '${items.length} artikel${items.length > 1 ? 'ar' : ''}',
+              styles: const PosStyles(align: PosAlign.center)));
+          bytes.addAll(generator.hr());
           for (final item in items) {
-            bytes.addAll(_posText(
-                generator,
-                '${item['qty']}x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}   ${_safeValue(item['subtotal'])} kr',
-                element));
-
+            bytes.addAll(generator.row([
+              PosColumn(
+                  text:
+                      '${item['qty']} x ${_normalizeText(_safeValue(item['name']), uppercase: element.uppercase)}',
+                  width: 9,
+                  styles: _posStyles(element)),
+              PosColumn(
+                  text: '${_safeValue(item['subtotal'])} kr',
+                  width: 3,
+                  styles: _posStyles(element, align: PosAlign.right)),
+            ]));
             if (extrasVisible) {
               for (final extra
                   in (item['extras'] as List? ?? const []).whereType<Map>()) {
-                bytes.addAll(generator.text('+ ${_safeValue(extra['name'])}',
-                    styles: const PosStyles(align: PosAlign.center)));
+                bytes.addAll(generator.text('** ${_safeValue(extra['name'])}',
+                    styles: const PosStyles(align: PosAlign.left)));
               }
             }
             if (noteVisible && _safeValue(item['note']).isNotEmpty) {
               bytes.addAll(generator.text('! ${_safeValue(item['note'])}',
-                  styles: const PosStyles(align: PosAlign.center, bold: true)));
+                  styles: const PosStyles(align: PosAlign.left, bold: true)));
             }
           }
           break;
         case 'deliveryFee':
           if ((_toNum(totals['deliveryFee']) ?? 0) > 0) {
-            bytes.addAll(_posText(generator,
-                'Leverans: ${_safeValue(totals['deliveryFee'])} kr', element));
+            bytes.addAll(generator.row([
+              PosColumn(
+                  text: 'Leveransavgift', width: 8, styles: _posStyles(element)),
+              PosColumn(
+                  text: '${_safeValue(totals['deliveryFee'])} kr',
+                  width: 4,
+                  styles: _posStyles(element, align: PosAlign.right)),
+            ]));
           }
           break;
         case 'discount':
           if ((_toNum(totals['discount']) ?? 0) > 0) {
             final code = _safeValue(totals['discountCode']);
-            bytes.addAll(_posText(
-                generator,
-                code.isNotEmpty
-                    ? 'Rabatt ($code): -${_safeValue(totals['discount'])} kr'
-                    : 'Rabatt: -${_safeValue(totals['discount'])} kr',
-                element));
+            bytes.addAll(generator.row([
+              PosColumn(
+                  text: code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
+                  width: 8,
+                  styles: _posStyles(element)),
+              PosColumn(
+                  text: '-${_safeValue(totals['discount'])} kr',
+                  width: 4,
+                  styles: _posStyles(element, align: PosAlign.right)),
+            ]));
           }
           break;
         case 'total':
-          bytes.addAll(_posText(generator,
-              'TOTALT: ${_safeValue(totals['total'])} kr', element));
+          bytes.addAll(generator.row([
+            PosColumn(
+                text: 'Totalt',
+                width: 6,
+                styles: _posStyles(element)), // size2 via element.size=14
+            PosColumn(
+                text: '${_safeValue(totals['total'])} kr',
+                width: 6,
+                styles: _posStyles(element, align: PosAlign.right)),
+          ]));
           break;
         case 'paymentMethod':
           if (_safeValue(orderInfo['paymentMethod']).isNotEmpty)
@@ -867,7 +904,7 @@ class PrintService {
       Generator generator, String text, ReceiptTemplateElement element) {
     return generator.text(
       _normalizeText(text, uppercase: element.uppercase),
-      styles: _posStyles(element, align: PosAlign.center),
+      styles: _posStyles(element),
     );
   }
 

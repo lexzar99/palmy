@@ -24,33 +24,38 @@ import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal,
 import { formatDateTime, formatNumber } from "@/shared/utils/format";
 
 const defaultElements: ReceiptElement[] = [
-  { key: "restaurantName",       label: "Restaurangnamn",        visible: true,  size: 14, weight: "black",  align: "center", uppercase: true  },
+  // ── Header (all centered) ──────────────────────────────────────────────────
+  { key: "restaurantName",       label: "Restaurangnamn",        visible: true,  size: 15, weight: "black",  align: "center", uppercase: true  },
   { key: "platformName",         label: "Plattform",             visible: true,  size: 8,  weight: "normal", align: "center", uppercase: true  },
   { key: "address",              label: "Adress",                visible: true,  size: 8,  weight: "normal", align: "center"                   },
   { key: "phone",                label: "Telefon",               visible: true,  size: 8,  weight: "normal", align: "center"                   },
   { key: "divider1",             label: "Avdelare 1",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
   { key: "headerMsg",            label: "Rubrikmeddelande",      visible: false, size: 9,  weight: "bold",   align: "center", content: ""       },
   { key: "divider2",             label: "Avdelare 2",            visible: false, size: 8,  weight: "normal", align: "center"                   },
-  { key: "orderNumber",          label: "Ordernummer",           visible: true,  size: 12, weight: "black",  align: "center"                   },
-  { key: "timestamp",            label: "Datum/tid",             visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "orderType",            label: "Ordertyp",              visible: true,  size: 11, weight: "black",  align: "center", uppercase: true  },
-  { key: "scheduledFor",         label: "Förbeställd tid",       visible: true,  size: 10, weight: "black",  align: "center"                   },
-  { key: "estimatedTime",        label: "Utlovad tid (ETA)",     visible: true,  size: 9,  weight: "bold",   align: "center"                   },
+  // ── Order info (centered) ──────────────────────────────────────────────────
+  { key: "orderNumber",          label: "Ordernummer",           visible: true,  size: 9,  weight: "normal", align: "center"                   },
+  { key: "timestamp",            label: "Datum/tid",             visible: true,  size: 9,  weight: "normal", align: "center"                   },
+  { key: "orderType",            label: "Ordertyp (box)",        visible: true,  size: 12, weight: "black",  align: "center", uppercase: true  },
+  { key: "scheduledFor",         label: "Förbeställd (box)",     visible: true,  size: 12, weight: "black",  align: "center"                   },
+  { key: "paymentMethod",        label: "Betalmetod (box)",      visible: true,  size: 12, weight: "black",  align: "center"                   },
+  { key: "estimatedTime",        label: "Leveranstid (stor)",    visible: true,  size: 14, weight: "black",  align: "center"                   },
   { key: "divider3",             label: "Avdelare 3",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "customerName",         label: "Kundnamn",              visible: true,  size: 10, weight: "bold",   align: "center"                   },
-  { key: "customerPhone",        label: "Kundtelefon",           visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "customerAddress",      label: "Leveransadress",        visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "deliveryInstructions", label: "Leveransinstruktion",   visible: true,  size: 9,  weight: "bold",   align: "center"                   },
-  { key: "note",                 label: "Ordernotering",         visible: true,  size: 9,  weight: "bold",   align: "center"                   },
-  { key: "allergens",            label: "Allergener",            visible: true,  size: 9,  weight: "bold",   align: "center"                   },
+  // ── Kund (vänster) ────────────────────────────────────────────────────────
+  { key: "customerName",         label: "Kundnamn",              visible: true,  size: 12, weight: "black",  align: "left"                     },
+  { key: "customerPhone",        label: "Kundtelefon",           visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "customerAddress",      label: "Leveransadress",        visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "deliveryInstructions", label: "Leveransinstruktion",   visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "note",                 label: "Ordernotering",         visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "allergens",            label: "Allergener",            visible: true,  size: 9,  weight: "bold",   align: "left"                     },
   { key: "divider4",             label: "Avdelare 4",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "items",                label: "Artiklar",              visible: true,  size: 10, weight: "bold",   align: "center"                   },
-  { key: "extras",               label: "Tillval",               visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  // ── Artiklar (vänster+höger) ───────────────────────────────────────────────
+  { key: "items",                label: "Artiklar",              visible: true,  size: 10, weight: "bold",   align: "left"                     },
+  { key: "extras",               label: "Tillval",               visible: true,  size: 8,  weight: "normal", align: "left"                     },
   { key: "divider5",             label: "Avdelare 5",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
-  { key: "deliveryFee",          label: "Leveransavgift",        visible: true,  size: 9,  weight: "normal", align: "center"                   },
-  { key: "discount",             label: "Rabatt",                visible: true,  size: 9,  weight: "normal", align: "center"                   },
-  { key: "total",                label: "Totalt",                visible: true,  size: 14, weight: "black",  align: "center"                   },
-  { key: "paymentMethod",        label: "Betalmetod",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  // ── Totaler (vänster+höger) ───────────────────────────────────────────────
+  { key: "deliveryFee",          label: "Leveransavgift",        visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "discount",             label: "Rabatt",                visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "total",                label: "Totalt (stor)",         visible: true,  size: 14, weight: "black",  align: "left"                     },
   { key: "divider6",             label: "Avdelare 6",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
   { key: "thankYou",             label: "Tackhälsning",          visible: true,  size: 9,  weight: "bold",   align: "center", content: "Tack för din beställning!" },
   { key: "footerMsg",            label: "Sidfot",                visible: true,  size: 8,  weight: "normal", align: "center", content: "Välkommen åter!"            },
@@ -219,90 +224,114 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
   const restaurantAddr = [s(h.address), [s(h.zip), s(h.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const isDelivery     = s(o.type) === "DELIVERY";
-  const Divider        = () => <div className="border-t border-dashed border-[#bbb] my-2" />;
-  const StatusBox      = ({ children }: { children: React.ReactNode }) => (
-    <div className="inline-block border border-black px-4 py-0.5 my-0.5">
-      <span className="font-black text-[11px] tracking-wide uppercase">{children}</span>
-    </div>
+
+  const HR    = () => <div className="border-t border-black my-2" />;
+  const Badge = ({ children }: { children: React.ReactNode }) => (
+    <span className="inline-block border-2 border-black px-3 py-0.5 font-black text-[12px] tracking-wide">{children}</span>
   );
 
   return (
-    <div className="text-[10.5px] leading-[1.45]" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
-      {/* ── Header ── */}
+    <div className="text-[11px] leading-[1.55]" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+
+      {/* ── Platform + ordernummer (liten rubrik, som foodora #4748) ── */}
+      <div className="text-center mb-1">
+        <p className="text-[10px]">{platformName} #{s(o.number) || "—"}</p>
+        <p className="text-[9px] text-[#555]">Ej kvitto</p>
+      </div>
+
+      <HR />
+
+      {/* ── Restaurang ── */}
       <div className="text-center mb-2">
-        <p className="text-[14px] font-black tracking-wide uppercase">{s(h.restaurantName) || "MatGo"}</p>
-        <p className="text-[8px] tracking-[0.18em] text-[#666] uppercase mt-0.5">{platformName}</p>
-        {restaurantAddr && <p className="text-[8px] text-[#666] mt-0.5">{restaurantAddr}</p>}
-        {s(h.phone) && <p className="text-[8px] text-[#666]">Tel: {s(h.phone)}</p>}
+        <p className="text-[15px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>
+        <p className="text-[10px]">{s(o.date)} {s(o.time)}</p>
+        {restaurantAddr && <p className="text-[9px] text-[#555]">{restaurantAddr}</p>}
+        {s(h.phone) && <p className="text-[9px] text-[#555]">Tel: {s(h.phone)}</p>}
       </div>
 
-      <Divider />
-
-      {/* ── Order ── */}
-      <div className="text-center mb-1.5">
-        <p className="font-black text-[13px]">#{s(o.number) || "—"}</p>
-        <p className="text-[8px] text-[#666]">{s(o.date)} {s(o.time)}</p>
-        <div className="flex flex-col items-center gap-0.5 mt-1">
-          <StatusBox>{isDelivery ? "Utkörning" : "Avhämtning"}</StatusBox>
-          {!!o.isPreorder && <StatusBox>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</StatusBox>}
-          {s(o.paymentMethod) && <StatusBox>{s(o.paymentMethod)}</StatusBox>}
-        </div>
-        {!o.isPreorder && n(o.estimatedTime) > 0 && (
-          <p className="text-[8px] text-[#666] mt-1">Leveranstid: {s(o.estimatedTime)} min</p>
-        )}
-      </div>
-
-      <Divider />
+      <HR />
 
       {/* ── Kund ── */}
-      <div className="text-center mb-1.5">
-        {s(c.name)         && <p className="font-bold">{s(c.name)}</p>}
-        {s(c.phone)        && <p className="text-[8px] text-[#555]">{s(c.phone)}</p>}
-        {customerAddr      && <p className="text-[8px] text-[#555]">{customerAddr}</p>}
+      <div className="mb-2">
+        {s(c.name) && (
+          <>
+            <p className="text-[9px] text-[#555]">Kund:</p>
+            <p className="font-black text-[12px]">{s(c.name)}</p>
+          </>
+        )}
+        {s(c.phone) && <p className="text-[10px]">{s(c.phone)}</p>}
+        {customerAddr && (
+          <>
+            <p className="text-[9px] text-[#555] mt-1">Adress:</p>
+            <p className="font-bold text-[10px]">{customerAddr}</p>
+          </>
+        )}
         {s(c.instructions) && <p className="text-[9px] mt-0.5">{s(c.instructions)}</p>}
         {s(c.note)         && <p className="font-bold text-[9px] mt-0.5">{s(c.note)}</p>}
         {s(c.allergens)    && <p className="font-bold text-[9px] text-red-700 mt-0.5">! {s(c.allergens)}</p>}
       </div>
 
-      <Divider />
-
-      {/* ── Artiklar ── */}
-      <div className="mb-1.5">
-        <p className="text-[8px] text-[#666] text-center mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
-        <div className="space-y-1.5">
-          {items.map((item, i) => (
-            <div key={i} className="text-center">
-              <p className="font-bold">{s(item.qty)}x {s(item.name)}   {s(item.subtotal)} kr</p>
-              {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
-                <p key={ei} className="text-[8px] text-[#666]">
-                  + {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
-                </p>
-              ))}
-              {s(item.note) && <p className="text-[8px] font-bold">! {s(item.note)}</p>}
-            </div>
-          ))}
-        </div>
+      {/* ── Status-badges (Förbetald + betalmetod) ── */}
+      <div className="flex flex-col items-center gap-1.5 mb-2">
+        <Badge>{isDelivery ? "Utkörning" : "Avhämtning"}</Badge>
+        {!!o.isPreorder && <Badge>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</Badge>}
+        {s(o.paymentMethod) && <Badge>{s(o.paymentMethod)}</Badge>}
       </div>
 
-      <Divider />
+      {/* ── Leveranstid (stor) + artikelräknare ── */}
+      {!o.isPreorder && n(o.estimatedTime) > 0 && (
+        <div className="text-center mb-1.5">
+          <p className="text-[10px] text-[#555]">Leveranstid</p>
+          <p className="font-black text-[22px] leading-tight">{s(o.estimatedTime)} min</p>
+        </div>
+      )}
+      <p className="text-center text-[9px] text-[#555] mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
 
-      {/* ── Totalt ── */}
-      <div className="mb-1.5 text-center">
+      <HR />
+
+      {/* ── Artiklar (vänster namn + höger pris, precis som Foodora) ── */}
+      <div className="mb-1.5 space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i}>
+            <div className="flex justify-between items-baseline gap-1">
+              <span className="font-bold flex-1">{s(item.qty)} x {s(item.name)}</span>
+              <span className="font-bold whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+            </div>
+            {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
+              <p key={ei} className="text-[9px] text-[#666] pl-3">
+                ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
+              </p>
+            ))}
+            {s(item.note) && <p className="text-[9px] font-bold pl-3">! {s(item.note)}</p>}
+          </div>
+        ))}
+      </div>
+
+      <HR />
+
+      {/* ── Totaler (vänster+höger, som Foodora) ── */}
+      <div className="mb-2">
         {n(t.deliveryFee) > 0 && (
-          <p className="text-[8px] text-[#555]">Leverans: {s(t.deliveryFee)} kr</p>
+          <div className="flex justify-between text-[10px]">
+            <span>Leveransavgift</span><span>{s(t.deliveryFee)} kr</span>
+          </div>
         )}
         {n(t.discount) > 0 && (
-          <p className="text-[8px] text-[#555]">Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}: −{s(t.discount)} kr</p>
+          <div className="flex justify-between text-[10px]">
+            <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
+            <span>-{s(t.discount)} kr</span>
+          </div>
         )}
-        <div className="border-t border-black pt-1 mt-1">
-          <p className="font-black text-[14px]">TOTALT: {s(t.total)} kr</p>
+        <div className="flex justify-between items-baseline border-t border-black pt-1 mt-1">
+          <span className="font-black text-[16px]">Totalt</span>
+          <span className="font-black text-[16px]">{s(t.total)} kr</span>
         </div>
       </div>
 
-      <Divider />
+      <HR />
 
       {/* ── Sidfot ── */}
-      <div className="text-center text-[8px] text-[#777] space-y-0.5">
+      <div className="text-center text-[9px] text-[#666] space-y-0.5">
         <p className="font-bold">Tack för din beställning!</p>
         <p>Välkommen åter!</p>
       </div>
@@ -415,8 +444,8 @@ export function ReceiptsPage() {
             </Field>
 
             <div className="surface-muted flex justify-center px-4 py-6">
-              {/* 80 mm-rulle simulerad bredd: 1 mm ≈ 3.78 px → 80 mm ≈ 302 px */}
-              <div className="w-[302px] bg-white px-5 py-4 text-black shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+              {/* 72 mm-rulle: 72 × 3.78 ≈ 272 px, marginal px-3 → ~65 mm utskriftsyta */}
+              <div className="w-[272px] bg-white px-3 py-4 text-black shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
                 {!previewOrderId ? (
                   <p className="py-10 text-center text-xs text-[#888]">Välj en order ovan</p>
                 ) : preview.isLoading ? (
