@@ -9,6 +9,11 @@ const router = Router();
 
 /**
  * POST /api/notifications/register
+ *
+ * Deduplicering: en device-token kan aldrig tillhöra mer än en aktiv
+ * user. Innan vi sätter token på inloggade kontot nollar vi samma token
+ * på alla andra users — annars skickas dubblerade notiser till samma
+ * fysiska enhet när användaren loggar ut/in mellan konton.
  */
 router.post('/register', authenticateUser, async (req: any, res) => {
   try {
@@ -18,6 +23,15 @@ router.post('/register', authenticateUser, async (req: any, res) => {
       return res.status(400).json({ error: 'Ogiltig Expo push token' });
     }
 
+    // Steg 1: rensa token från alla andra users så vi inte dubbelräknar
+    // samma fysiska enhet. updateMany är säker — träffar inga rader om
+    // ingen annan har samma token.
+    await prisma.user.updateMany({
+      where: { pushToken: token, id: { not: req.user.id } },
+      data: { pushToken: null },
+    }).catch(() => null);
+
+    // Steg 2: sätt token på inloggade kontot.
     await prisma.user.update({
       where: { id: req.user.id },
       data: { pushToken: token }
@@ -31,6 +45,8 @@ router.post('/register', authenticateUser, async (req: any, res) => {
 
 /**
  * POST /api/notifications/register-device
+ *
+ * Samma deduplicering som /register men för iOS APNs device tokens.
  */
 router.post('/register-device', authenticateUser, async (req: any, res) => {
   try {
@@ -38,13 +54,40 @@ router.post('/register-device', authenticateUser, async (req: any, res) => {
     if (!/^[a-f0-9]{32,256}$/i.test(token)) {
       return res.status(400).json({ error: 'Ogiltig APNs-token' });
     }
+    const normalized = token.toLowerCase();
+
+    // Rensa samma APNs-token från alla andra users (logout-glitch fix).
+    await (prisma as any).user.updateMany({
+      where: { apnsDeviceToken: normalized, id: { not: req.user.id } },
+      data: { apnsDeviceToken: null },
+    }).catch(() => null);
+
     await (prisma as any).user.update({
       where: { id: req.user.id },
-      data: { apnsDeviceToken: token.toLowerCase() }
+      data: { apnsDeviceToken: normalized }
     });
     res.json({ success: true });
   } catch {
     res.status(400).json({ error: 'Kunde inte registrera APNs-token' });
+  }
+});
+
+/**
+ * POST /api/notifications/unregister
+ *
+ * RN/web kallar detta vid logout för att rensa sina tokens från
+ * databasen. Annars skickas notiser till en utloggad enhet tills
+ * någon annan loggar in på samma device.
+ */
+router.post('/unregister', authenticateUser, async (req: any, res) => {
+  try {
+    await (prisma as any).user.update({
+      where: { id: req.user.id },
+      data: { pushToken: null, apnsDeviceToken: null },
+    });
+    res.json({ success: true });
+  } catch {
+    res.status(400).json({ error: 'Kunde inte avregistrera token' });
   }
 });
 

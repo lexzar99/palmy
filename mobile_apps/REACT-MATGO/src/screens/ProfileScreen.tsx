@@ -635,6 +635,16 @@ export default function ProfileScreen({
   );
 
   const handleLogout = useCallback(async () => {
+    // Rensa device-tokens från det utloggade kontot så push-notiser inte
+    // fortsätter komma till denna enhet. Backend nollar pushToken +
+    // apnsDeviceToken på user-raden. Fire-and-forget — om det misslyckas
+    // (offline/timeout) hanteras dubletter ändå nästa gång någon loggar
+    // in på samma enhet (token-deduplicering i /register).
+    if (token) {
+      api
+        .post("/api/notifications/unregister", {}, { headers: getAuthHeaders(token) })
+        .catch(() => null);
+    }
     try {
       await supabase.auth.signOut();
     } catch (e) {
@@ -649,7 +659,7 @@ export default function ProfileScreen({
     setActiveTab("overview");
     setIsEditing(false);
     setLoginError("");
-  }, [clearSession]);
+  }, [clearSession, token]);
 
   const handleUpdateProfile = useCallback(async () => {
     if (!token || !profile) return;
