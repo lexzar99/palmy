@@ -267,16 +267,16 @@ class PrintService {
         profile,
       );
 
-      final bytes = _buildEscPosBytes(generator, receiptData, template);
-      for (var index = 0; index < copies; index += 1) {
-        final printed = await BluetoothPrinterService.printBytes(
-          address: address,
-          bytes: bytes,
-        );
-        if (!printed) return false;
-      }
-
-      return true;
+      final oneCopy = _buildEscPosBytes(generator, receiptData, template);
+      // Slå ihop alla kopior till ett enda print-jobb för att undvika
+      // BT-avbrott mellan kopiorna (B5-fix).
+      final allBytes = <int>[
+        for (var i = 0; i < copies; i++) ...oneCopy,
+      ];
+      return BluetoothPrinterService.printBytes(
+        address: address,
+        bytes: allBytes,
+      );
     } catch (error) {
       debugPrint('Bluetooth print failed: $error');
       return false;
