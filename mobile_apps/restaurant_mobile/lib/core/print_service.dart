@@ -582,15 +582,13 @@ class PrintService {
           );
           break;
         case 'deliveryFee':
-          if ((totals['deliveryFee'] as num?) != null &&
-              (totals['deliveryFee'] as num).toDouble() > 0) {
+          if ((_toNum(totals['deliveryFee']) ?? 0) > 0) {
             widget = _pdfRow(
                 'Leverans', '${_safeValue(totals['deliveryFee'])} kr', style);
           }
           break;
         case 'discount':
-          if ((totals['discount'] as num?) != null &&
-              (totals['discount'] as num).toDouble() > 0) {
+          if ((_toNum(totals['discount']) ?? 0) > 0) {
             final code = _safeValue(totals['discountCode']);
             widget = _pdfRow(
               code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
@@ -799,8 +797,7 @@ class PrintService {
           }
           break;
         case 'deliveryFee':
-          if ((totals['deliveryFee'] as num?) != null &&
-              (totals['deliveryFee'] as num).toDouble() > 0) {
+          if ((_toNum(totals['deliveryFee']) ?? 0) > 0) {
             bytes.addAll(generator.row([
               PosColumn(
                   text: 'Leverans', width: 8, styles: _posStyles(element)),
@@ -812,8 +809,7 @@ class PrintService {
           }
           break;
         case 'discount':
-          if ((totals['discount'] as num?) != null &&
-              (totals['discount'] as num).toDouble() > 0) {
+          if ((_toNum(totals['discount']) ?? 0) > 0) {
             final code = _safeValue(totals['discountCode']);
             bytes.addAll(generator.row([
               PosColumn(
@@ -857,6 +853,13 @@ class PrintService {
     bytes.addAll(generator.feed(2));
     bytes.addAll(generator.cut());
     return bytes;
+  }
+
+  /// Konverterar dynamic → num oavsett om värdet är num eller String.
+  static num? _toNum(dynamic value) {
+    if (value is num) return value;
+    if (value is String) return num.tryParse(value);
+    return null;
   }
 
   static pw.Widget _pdfText(
