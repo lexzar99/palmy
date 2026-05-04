@@ -1513,20 +1513,26 @@ const formatDealForAdmin = (deal: any) => ({
   applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
 });
 
-// Deaktivera deals som krockar med scope för den nya/uppdaterade dealen.
-// Tidigare kastade vi error om man försökte aktivera produkt/kategori-deal
-// medan en restaurangdeal var aktiv. Nu auto-overwriter vi istället —
-// produkt/kategori har högsta prioritet (de är mer specifika), restaurangs-
-// dealen stängs av tyst. Och vice versa: aktiverar man restaurangs-deal
-// stängs alla produkt/kategori-deals för samma restaurang av.
+// Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
+// deal som bytt scope. Pollar inte vid varje PATCH (då skulle ändring av
+// t.ex. discountValue ojämtt deaktivera konkurrent-deals — användaren
+// rapporterade exakt det).
+//
+// Logik:
+//   - Aktiverar PRODUCT/CATEGORY → stäng RESTAURANT-deals för samma rest.
+//   - Aktiverar RESTAURANT → stäng PRODUCT/CATEGORY-deals för samma rest.
+//   - Popup-deals (popupEnabled=true) ignoreras helt — de bor i sin egen
+//     värld och delar inte scope-konkurrens med vanliga deals.
+//   - Andra typer (COMBO, MIN_ORDER) lämnas i fred — egen scope.
 const deactivateConflictingDeals = async (params: {
   restaurantId: string | null;
   isActive: boolean;
   scopeType: ReturnType<typeof getDealScopeType>;
   excludeDealId?: string;
+  isPopup?: boolean;
 }) => {
-  const { restaurantId, isActive, scopeType, excludeDealId } = params;
-  if (!restaurantId || !isActive) return { deactivated: [] as Array<{ id: string; title: string }> };
+  const { restaurantId, isActive, scopeType, excludeDealId, isPopup } = params;
+  if (!restaurantId || !isActive || isPopup) return { deactivated: [] as Array<{ id: string; title: string }> };
   if (scopeType !== 'RESTAURANT' && scopeType !== 'PRODUCT' && scopeType !== 'CATEGORY') {
     return { deactivated: [] };
   }
@@ -1535,15 +1541,13 @@ const deactivateConflictingDeals = async (params: {
     where: {
       restaurantId,
       isActive: true,
+      // Popup-deals deaktiveras aldrig av vanliga deals.
+      popupEnabled: false,
       ...(excludeDealId ? { id: { not: excludeDealId } } : {}),
     },
     select: { id: true, title: true, triggerType: true },
   });
 
-  // Vad ska deaktiveras?
-  //   - Aktiverar PRODUCT eller CATEGORY → stäng alla RESTAURANT-deals
-  //   - Aktiverar RESTAURANT → stäng alla PRODUCT/CATEGORY-deals
-  // Andra typer (COMBO, MIN_ORDER) lämnas i fred — de har egen scope.
   const toDeactivate = existingDeals.filter((deal) => {
     const dealScope = getDealScopeType(deal);
     if (scopeType === 'PRODUCT' || scopeType === 'CATEGORY') {
@@ -1828,6 +1832,7 @@ router.post('/deals', async (req, res) => {
       restaurantId: (normalized.restaurantId as string | null | undefined) || null,
       isActive: normalized.isActive !== false,
       scopeType: getDealScopeType({ triggerType: String(normalized.triggerType || 'NONE') }),
+      isPopup: normalized.popupEnabled === true,
     });
 
     const deal = await prisma.deal.create({
@@ -1847,13 +1852,13 @@ router.patch('/deals/:id', async (req, res) => {
     const { restaurantId, ...data } = req.body;
     const existing = await prisma.deal.findUnique({
       where: { id },
-      select: { id: true, restaurantId: true, isActive: true, triggerType: true },
+      select: { id: true, restaurantId: true, isActive: true, triggerType: true, popupEnabled: true },
     });
 
     if (!existing) {
       return res.status(404).json({ error: 'Dealen hittades inte' });
     }
-    
+
     if (!isSuperAdmin(req as AuthRequest)) {
       const rid = requireRestaurantScope(req as AuthRequest, res);
       if (!rid) return;
@@ -1862,19 +1867,32 @@ router.patch('/deals/:id', async (req, res) => {
       }
     }
 
-    const nextScopeType = getDealScopeType({ triggerType: String((data.triggerType ?? data.scopeType ?? 'NONE')).toUpperCase() });
+    const prevScopeType = getDealScopeType({ triggerType: existing.triggerType });
+    const nextScopeType = getDealScopeType({ triggerType: String((data.triggerType ?? data.scopeType ?? existing.triggerType)).toUpperCase() });
     const effectiveRestaurantId =
       data.restaurantId !== undefined
         ? (data.restaurantId ? String(data.restaurantId) : null)
         : (existing?.restaurantId ?? null);
-    const nextIsActive = data.isActive !== undefined ? Boolean(data.isActive) : existing?.isActive !== false;
+    const wasActive = existing.isActive !== false;
+    const nextIsActive = data.isActive !== undefined ? Boolean(data.isActive) : wasActive;
+    const nextIsPopup = data.popupEnabled !== undefined ? Boolean(data.popupEnabled) : Boolean(existing.popupEnabled);
 
-    await deactivateConflictingDeals({
-      restaurantId: effectiveRestaurantId,
-      isActive: nextIsActive,
-      scopeType: nextScopeType,
-      excludeDealId: id,
-    });
+    // Bara trigga scope-konflikt-rensning när nödvändigt:
+    //   - Dealen aktiveras nu (false → true), eller
+    //   - Dealen byter scope (RESTAURANT ↔ PRODUCT/CATEGORY)
+    // Inte vid små ändringar som discountValue, validUntil, badgeText, osv.
+    // Annars deaktiveras existerande deals oavsiktligt vid rutinredigering.
+    const justActivated = nextIsActive && !wasActive;
+    const scopeChanged = prevScopeType !== nextScopeType;
+    if (justActivated || scopeChanged) {
+      await deactivateConflictingDeals({
+        restaurantId: effectiveRestaurantId,
+        isActive: nextIsActive,
+        scopeType: nextScopeType,
+        excludeDealId: id,
+        isPopup: nextIsPopup,
+      });
+    }
 
     const deal = await prisma.deal.update({
       where: { id },
