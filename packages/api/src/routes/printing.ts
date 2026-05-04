@@ -207,6 +207,12 @@ router.put('/receipt-template', async (req: AuthRequest, res) => {
       },
     });
 
+    // Global template är masterkälla — synca paperWidth på alla printers
+    // så Flutter-appen renderar exakt samma bredd överallt.
+    await prisma.restaurantPrinter.updateMany({
+      data: { paperWidth: body.paperWidth },
+    });
+
     res.json(normalizeTemplate(template));
   } catch (error: any) {
     console.error('Receipt template save error:', error);
@@ -248,11 +254,22 @@ router.get('/config', async (req: AuthRequest, res) => {
       }),
     ]);
 
+    // Global template är alltid masterkälla för pappersbredd och layout —
+    // vi tvingar varje printer att ärva template.paperWidth så alla
+    // restauranger renderar exakt det superadmin satt centralt. Skrivarens
+    // fysiska konfiguration (NETWORK/BLUETOOTH-adress, kopior, autoPrint)
+    // är fortfarande per restaurang.
+    const printersWithEnforcedWidth = printers
+      .map(formatPrinter)
+      .map((printer) => ({ ...printer, paperWidth: template.paperWidth }));
+
+    const defaultPrinter = printersWithEnforcedWidth.find((printer) => printer.isDefault) ?? null;
+
     res.json({
       scope: { restaurantId, isSuperAdmin: isSuperAdmin(req) },
       template,
-      printers: printers.map(formatPrinter),
-      defaultPrinter: printers.find((printer) => printer.isDefault) ? formatPrinter(printers.find((printer) => printer.isDefault)) : null,
+      printers: printersWithEnforcedWidth,
+      defaultPrinter,
     });
   } catch (error) {
     console.error('Printing config error:', error);

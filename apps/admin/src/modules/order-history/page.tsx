@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Download, FileText, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import {
   getOrderHistory,
   orderHistoryQueryKey,
   wipeOrders,
+  ORDER_HISTORY_PAGE_SIZE,
   type OrderHistoryFilters,
 } from "@/modules/order-history/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
@@ -98,6 +99,7 @@ export function OrderHistoryPage() {
   const [toTime, setToTime] = useState("23:59");
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
   const [includeRefunded, setIncludeRefunded] = useState(true);
+  const [page, setPage] = useState(0);
 
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFields, setExportFields] = useState<ExportField[]>(quickFields);
@@ -110,12 +112,16 @@ export function OrderHistoryPage() {
 
   const restaurants = useQuery({ queryKey: ["restaurants", "overview"], queryFn: getRestaurantOverview });
 
+  // Reset till sida 0 när filter byts.
+  useEffect(() => { setPage(0); }, [restaurantId, fromDate, fromTime, toDate, toTime, status]);
+
   const filters: OrderHistoryFilters = useMemo(() => ({
     restaurantId: restaurantId === "ALL" ? undefined : restaurantId,
     from: buildIsoBoundary(fromDate, fromTime, false),
     to: buildIsoBoundary(toDate, toTime, true),
     status,
-  }), [restaurantId, fromDate, fromTime, toDate, toTime, status]);
+    page,
+  }), [restaurantId, fromDate, fromTime, toDate, toTime, status, page]);
 
   const orders = useQuery({
     queryKey: orderHistoryQueryKey(filters),
@@ -333,6 +339,17 @@ export function OrderHistoryPage() {
       </div>
 
       <Surface className="px-6 py-6">
+        {orders.data && orders.data.total > ORDER_HISTORY_PAGE_SIZE ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--text-secondary)]">
+            <p>
+              Visar <strong>{page * ORDER_HISTORY_PAGE_SIZE + 1}–{Math.min((page + 1) * ORDER_HISTORY_PAGE_SIZE, orders.data.total)}</strong> av {orders.data.total} ordrar
+            </p>
+            <div className="flex gap-2">
+              <Button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>← Föregående</Button>
+              <Button onClick={() => setPage((p) => p + 1)} disabled={(page + 1) * ORDER_HISTORY_PAGE_SIZE >= (orders.data?.total || 0)}>Nästa →</Button>
+            </div>
+          </div>
+        ) : null}
         {orders.isLoading ? (
           <div className="surface-muted px-5 py-12 text-center text-sm text-[var(--text-secondary)]">Hämtar ordrar...</div>
         ) : visibleOrders.length === 0 ? (
