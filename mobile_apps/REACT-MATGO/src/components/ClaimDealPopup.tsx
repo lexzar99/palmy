@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   Image,
   ActivityIndicator,
   Alert,
+  AppState,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import { api } from "../lib/api";
 import { useAppStore } from "../store/useAppStore";
 import { palette } from "../constants/theme";
@@ -26,53 +28,102 @@ const DISMISS_KEY = "matgo_claim_dismissed_at";
  *  - "Spara" → POST /api/profile/deals/:id/claim → läggs i claimedDealIds.
  *  - "Inte just nu" → 24h-cooldown via AsyncStorage.
  */
-export default function ClaimDealPopup() {
+export default function ClaimDealPopup({
+  currentRouteName,
+}: {
+  currentRouteName: string;
+}) {
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
   const [deal, setDeal] = useState<any | null>(null);
   const [claiming, setClaiming] = useState(false);
 
-  useEffect(() => {
-    if (!token || !profile?.id) return;
-    let cancelled = false;
-    (async () => {
+  // Popupen visas BARA på home. Är användaren i kassan/order/restaurang
+  // när admin skickar en popup väntar vi tills hen kommer tillbaka.
+  const isHome = currentRouteName === "home";
+
+  const findCandidate = useCallback(
+    async (specificDealId?: string) => {
+      if (!token) return null;
       try {
         const dismissedRaw = await AsyncStorage.getItem(DISMISS_KEY);
         const dismissedAt = Number(dismissedRaw || 0);
-        if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return;
-
+        // Om push-tap pekar på en specifik deal hoppar vi över cooldown —
+        // användaren har explicit tryckt på notisen så hen vill se det.
+        if (!specificDealId && dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) {
+          return null;
+        }
         const headers = { Authorization: `Bearer ${token}` };
         const [allDealsRes, claimedRes] = await Promise.all([
           api.get("/api/deals").catch(() => ({ data: [] as any[] })),
           api.get("/api/profile/claimed-deals", { headers }).catch(() => ({ data: { claimed: [], global: [] } })),
         ]);
-        if (cancelled) return;
-
         const claimedIds = new Set<string>(
           ((claimedRes.data?.claimed || []) as any[]).map((d: any) => d.id),
         );
         const candidates = (allDealsRes.data || []) as any[];
-        // En "äkta" popup-deal har popup-content satt av Popup Builder.
-        // popupEnabled ensam räcker inte (legacy default true på vanliga
-        // deals).
-        const candidate = candidates.find((d: any) => {
-          if (!d?.isActive || claimedIds.has(d.id)) return false;
-          const hasPopupContent = Boolean(
-            (d.popupHeadline && String(d.popupHeadline).trim()) ||
-              (d.popupBody && String(d.popupBody).trim()) ||
-              (d.popupCode && String(d.popupCode).trim()),
-          );
-          return hasPopupContent && d.popupEnabled !== false;
-        });
-        if (candidate) setDeal(candidate);
+        // Om push tappades med specifik dealId, prio den.
+        if (specificDealId) {
+          const exact = candidates.find((d: any) => d?.id === specificDealId && d?.isActive);
+          if (exact) return exact;
+        }
+        return (
+          candidates.find((d: any) => {
+            if (!d?.isActive || claimedIds.has(d.id)) return false;
+            const hasPopupContent = Boolean(
+              (d.popupHeadline && String(d.popupHeadline).trim()) ||
+                (d.popupBody && String(d.popupBody).trim()) ||
+                (d.popupCode && String(d.popupCode).trim()),
+            );
+            return hasPopupContent && d.popupEnabled !== false;
+          }) || null
+        );
       } catch {
-        /* tyst fail */
+        return null;
       }
-    })();
+    },
+    [token],
+  );
+
+  // Initial fetch + när användaren kommer tillbaka till home från annan
+  // skärm. Visar popupen om en aktiv unclaimed-deal finns.
+  useEffect(() => {
+    if (!token || !profile?.id || !isHome) return;
+    let cancelled = false;
+    findCandidate().then((c) => {
+      if (!cancelled && c) setDeal(c);
+    });
     return () => {
       cancelled = true;
     };
-  }, [token, profile?.id]);
+  }, [token, profile?.id, isHome, findCandidate]);
+
+  // Push-tap-handler: när användaren tappar en notis triggas
+  // popupen för den dealId som låg i notification data. Också:
+  // när appen återgår till foreground, refetcha så nya popups
+  // som kommit medan appen var i bakgrunden hittas.
+  useEffect(() => {
+    if (!token) return;
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response?.notification?.request?.content?.data as any;
+      if (data?.kind === "popup-claim" && data?.dealId) {
+        // Vänta lite så Stack hinner navigera tillbaka till home när
+        // användaren tappar notisen.
+        setTimeout(() => {
+          findCandidate(String(data.dealId)).then((c) => c && setDeal(c));
+        }, 400);
+      }
+    });
+    const appStateSub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && isHome && !deal) {
+        findCandidate().then((c) => c && setDeal(c));
+      }
+    });
+    return () => {
+      responseSubscription.remove();
+      appStateSub.remove();
+    };
+  }, [token, isHome, deal, findCandidate]);
 
   const handleClaim = async () => {
     if (!deal || claiming || !token) return;
@@ -216,34 +267,45 @@ export default function ClaimDealPopup() {
             </View>
           ) : null}
 
-          <Pressable
-            onPress={handleClaim}
-            disabled={claiming}
-            style={{
-              marginTop: 18,
-              paddingVertical: 16,
-              borderRadius: 16,
-              backgroundColor: palette.gold,
-              alignItems: "center",
-              opacity: claiming ? 0.6 : 1,
-            }}
-          >
-            {claiming ? (
-              <ActivityIndicator color="#11151b" />
-            ) : (
-              <Text style={{ color: "#11151b", fontSize: 13, fontWeight: "900", letterSpacing: 2 }}>
-                {cta.toUpperCase()}
-              </Text>
-            )}
-          </Pressable>
-          <Pressable
-            onPress={handleDismiss}
-            style={{ marginTop: 8, paddingVertical: 12, alignItems: "center" }}
-          >
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "800", letterSpacing: 1 }}>
-              INTE JUST NU
-            </Text>
-          </Pressable>
+          {deal.popupOkOnly ? (
+            <Pressable
+              onPress={handleDismiss}
+              style={{ marginTop: 18, paddingVertical: 16, borderRadius: 16, backgroundColor: palette.gold, alignItems: "center" }}
+            >
+              <Text style={{ color: "#11151b", fontSize: 13, fontWeight: "900", letterSpacing: 2 }}>OK</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable
+                onPress={handleClaim}
+                disabled={claiming}
+                style={{
+                  marginTop: 18,
+                  paddingVertical: 16,
+                  borderRadius: 16,
+                  backgroundColor: palette.gold,
+                  alignItems: "center",
+                  opacity: claiming ? 0.6 : 1,
+                }}
+              >
+                {claiming ? (
+                  <ActivityIndicator color="#11151b" />
+                ) : (
+                  <Text style={{ color: "#11151b", fontSize: 13, fontWeight: "900", letterSpacing: 2 }}>
+                    {cta.toUpperCase()}
+                  </Text>
+                )}
+              </Pressable>
+              <Pressable
+                onPress={handleDismiss}
+                style={{ marginTop: 8, paddingVertical: 12, alignItems: "center" }}
+              >
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "800", letterSpacing: 1 }}>
+                  INTE JUST NU
+                </Text>
+              </Pressable>
+            </>
+          )}
         </Pressable>
       </Pressable>
     </Modal>

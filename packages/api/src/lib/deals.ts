@@ -8,6 +8,7 @@ type DealLike = {
   popupBody?: string | null;
   popupCtaLabel?: string | null;
   popupCode?: string | null;
+  popupOkOnly?: boolean | null;
   triggerType: string;
   discountType: string;
   discountValue: number;
@@ -322,6 +323,7 @@ export const formatDealForClient = (
   popupBody: deal.popupBody ?? null,
   popupCtaLabel: deal.popupCtaLabel ?? null,
   popupCode: deal.popupCode ?? null,
+  popupOkOnly: deal.popupOkOnly ?? false,
   dealType: getDealKind(deal),
   scopeType: getDealScopeType(deal),
   triggerType: deal.triggerType,

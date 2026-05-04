@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Deal" ADD COLUMN IF NOT EXISTS "popupOkOnly" BOOLEAN NOT NULL DEFAULT false;

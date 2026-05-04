@@ -53,6 +53,47 @@ router.get('/:id/restaurants', async (req, res) => {
       orderBy: [{ featuredClass: 'asc' }, { rating: 'desc' }],
     });
 
+    // Beräkna värdet på den aktuella dealen för en restaurang (i procent
+    // för PERCENTAGE, eller kr-belopp/100 för FIXED). Används för att
+    // jämföra "högre deal vinner" — om en restaurang har en specifik deal
+    // som ger BÄTTRE rabatt än den globala dealen vi tittar på, exkluderar
+    // vi restaurangen ur listan eftersom den globala dealen inte gäller där.
+    const dealMagnitude = (d: { discountType: string; discountValue: number }) => {
+      if (d.discountType === 'PERCENTAGE') return Number(d.discountValue || 0);
+      // FIXED är öre — normalisera till kronor så storleken är jämförbar
+      // med procent-talet (rough heuristic — admin sätter sällan fixed >100kr
+      // OCH percent på samma restaurang).
+      return Number(d.discountValue || 0) / 100;
+    };
+    const currentMagnitude = dealMagnitude(deal);
+
+    // Hämta alla aktiva deals (utöver den vi tittar på) som kan vara
+    // konkurrenter — antingen specifika för restaurangen eller andra
+    // globala. Vi filtrerar restauranger där en konkurrent ger högre värde.
+    const otherDeals = await prisma.deal.findMany({
+      where: {
+        id: { not: deal.id },
+        isActive: true,
+        OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }],
+      },
+      select: { id: true, restaurantId: true, isGlobal: true, applicableRestaurantIds: true, discountType: true, discountValue: true },
+    });
+
+    const restaurantHasBetterDeal = (restaurantId: string): boolean => {
+      for (const other of otherDeals) {
+        if (dealMagnitude(other) <= currentMagnitude) continue;
+        if (other.restaurantId === restaurantId) return true;
+        if (other.isGlobal) return true;
+        try {
+          const list = JSON.parse(other.applicableRestaurantIds || '[]');
+          if (Array.isArray(list) && list.includes(restaurantId)) return true;
+        } catch { /* tolerera bad JSON */ }
+      }
+      return false;
+    };
+
+    const visibleRestaurants = restaurants.filter((r) => !restaurantHasBetterDeal(r.id));
+
     const formatted = formatDealForClient(deal, {
       restaurant: deal.restaurant
         ? { id: deal.restaurant.id, name: deal.restaurant.name, slug: deal.restaurant.slug }
@@ -62,7 +103,7 @@ router.get('/:id/restaurants', async (req, res) => {
 
     res.json({
       deal: formatted,
-      restaurants: restaurants.map((r) => ({
+      restaurants: visibleRestaurants.map((r) => ({
         ...r,
         deliveryFee: (r.deliveryFee || 0) / 100,
       })),

@@ -1106,9 +1106,10 @@ function AppContent() {
           )}
         </View>
       </SafeAreaView>
-      {/* Claim-popup för broadcast-deals — visas första gången inloggad
-          användare öppnar appen, sen 24h-cooldown via AsyncStorage. */}
-      <ClaimDealPopup />
+      {/* Claim-popup för broadcast-deals — visas på home (skickas
+          currentRouteName så popupen pausar på cart/order/restaurant
+          tills användaren kommer tillbaka). */}
+      <ClaimDealPopup currentRouteName={currentRouteName} />
     </View>
   );
 }
