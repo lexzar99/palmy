@@ -16,6 +16,7 @@ import {
   updateReceiptTemplate,
   type PrinterRecord,
   type ReceiptElement,
+  type ReceiptPreviewData,
   type ReceiptTemplate,
 } from "@/modules/receipts/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
@@ -23,35 +24,36 @@ import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal,
 import { formatDateTime, formatNumber } from "@/shared/utils/format";
 
 const defaultElements: ReceiptElement[] = [
-  { key: "restaurantName", label: "Restaurant name", visible: true, size: 14, weight: "black", align: "center", uppercase: true },
-  { key: "platformName", label: "Platform name", visible: true, size: 8, weight: "normal", align: "center", uppercase: true },
-  { key: "address", label: "Address", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "phone", label: "Phone", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "divider1", label: "Divider 1", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "headerMsg", label: "Header message", content: "", visible: true, size: 9, weight: "bold", align: "center" },
-  { key: "divider2", label: "Divider 2", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "orderNumber", label: "Order number", visible: true, size: 10, weight: "bold", align: "left" },
-  { key: "timestamp", label: "Timestamp", visible: true, size: 8, weight: "normal", align: "left" },
-  { key: "orderType", label: "Order type", visible: true, size: 9, weight: "bold", align: "left" },
-  { key: "scheduledFor", label: "Scheduled time", visible: true, size: 9, weight: "bold", align: "left" },
-  { key: "estimatedTime", label: "Utlovad tid (ETA)", visible: true, size: 10, weight: "bold", align: "left" },
-  { key: "customerName", label: "Customer name", visible: true, size: 9, weight: "bold", align: "left" },
-  { key: "customerPhone", label: "Customer phone", visible: true, size: 8, weight: "normal", align: "left" },
-  { key: "customerAddress", label: "Delivery address", visible: true, size: 8, weight: "normal", align: "left" },
-  { key: "deliveryInstructions", label: "Delivery instructions", visible: true, size: 8, weight: "bold", align: "left" },
-  { key: "note", label: "Order note", visible: true, size: 8, weight: "bold", align: "left" },
-  { key: "allergens", label: "Allergens", visible: true, size: 8, weight: "bold", align: "left" },
-  { key: "divider3", label: "Divider 3", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "items", label: "Items", visible: true, size: 10, weight: "bold", align: "left" },
-  { key: "extras", label: "Extras", visible: true, size: 8, weight: "normal", align: "left" },
-  { key: "divider4", label: "Divider 4", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "deliveryFee", label: "Delivery fee", visible: true, size: 9, weight: "normal", align: "left" },
-  { key: "discount", label: "Discount", visible: true, size: 9, weight: "normal", align: "left" },
-  { key: "total", label: "Total", visible: true, size: 12, weight: "black", align: "left" },
-  { key: "paymentMethod", label: "Payment method", visible: true, size: 8, weight: "normal", align: "left" },
-  { key: "divider5", label: "Divider 5", visible: true, size: 8, weight: "normal", align: "center" },
-  { key: "thankYou", label: "Thank you", content: "Thank you for your order!", visible: true, size: 9, weight: "bold", align: "center" },
-  { key: "footerMsg", label: "Footer", content: "Welcome back!", visible: true, size: 8, weight: "normal", align: "center" },
+  { key: "restaurantName",       label: "Restaurangnamn",        visible: true,  size: 14, weight: "black",  align: "center", uppercase: true  },
+  { key: "platformName",         label: "Plattform",             visible: true,  size: 8,  weight: "normal", align: "center", uppercase: true  },
+  { key: "address",              label: "Adress",                visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "phone",                label: "Telefon",               visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "divider1",             label: "Avdelare 1",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "headerMsg",            label: "Rubrikmeddelande",      visible: false, size: 9,  weight: "bold",   align: "center", content: ""       },
+  { key: "divider2",             label: "Avdelare 2",            visible: false, size: 8,  weight: "normal", align: "center"                   },
+  { key: "orderNumber",          label: "Ordernummer",           visible: true,  size: 12, weight: "black",  align: "left"                     },
+  { key: "timestamp",            label: "Datum/tid",             visible: true,  size: 8,  weight: "normal", align: "left"                     },
+  { key: "orderType",            label: "Ordertyp",              visible: true,  size: 11, weight: "black",  align: "left",   uppercase: true  },
+  { key: "scheduledFor",         label: "Förbeställd tid",       visible: true,  size: 10, weight: "black",  align: "left"                     },
+  { key: "estimatedTime",        label: "Utlovad tid (ETA)",     visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "divider3",             label: "Avdelare 3",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "customerName",         label: "Kundnamn",              visible: true,  size: 10, weight: "bold",   align: "left"                     },
+  { key: "customerPhone",        label: "Kundtelefon",           visible: true,  size: 8,  weight: "normal", align: "left"                     },
+  { key: "customerAddress",      label: "Leveransadress",        visible: true,  size: 8,  weight: "normal", align: "left"                     },
+  { key: "deliveryInstructions", label: "Leveransinstruktion",   visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "note",                 label: "Ordernotering",         visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "allergens",            label: "Allergener",            visible: true,  size: 9,  weight: "bold",   align: "left"                     },
+  { key: "divider4",             label: "Avdelare 4",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "items",                label: "Artiklar",              visible: true,  size: 10, weight: "bold",   align: "left"                     },
+  { key: "extras",               label: "Tillval",               visible: true,  size: 8,  weight: "normal", align: "left"                     },
+  { key: "divider5",             label: "Avdelare 5",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "deliveryFee",          label: "Leveransavgift",        visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "discount",             label: "Rabatt",                visible: true,  size: 9,  weight: "normal", align: "left"                     },
+  { key: "total",                label: "Totalt",                visible: true,  size: 14, weight: "black",  align: "left"                     },
+  { key: "paymentMethod",        label: "Betalmetod",            visible: true,  size: 8,  weight: "normal", align: "left"                     },
+  { key: "divider6",             label: "Avdelare 6",            visible: true,  size: 8,  weight: "normal", align: "center"                   },
+  { key: "thankYou",             label: "Tackhälsning",          visible: true,  size: 9,  weight: "bold",   align: "center", content: "Tack för din beställning!" },
+  { key: "footerMsg",            label: "Sidfot",                visible: true,  size: 8,  weight: "normal", align: "center", content: "Välkommen åter!"            },
 ];
 
 const sizeOptions = [7, 8, 9, 10, 11, 12, 14, 16, 18];
@@ -204,6 +206,110 @@ function TemplateModal({ open, template, onClose }: { open: boolean; template: R
   );
 }
 
+function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewData; platformName: string }) {
+  const h = (data.header ?? {}) as Record<string, unknown>;
+  const o = (data.orderInfo ?? {}) as Record<string, unknown>;
+  const c = (data.customer ?? {}) as Record<string, unknown>;
+  const items = (data.items ?? []) as Array<Record<string, unknown>>;
+  const t = (data.totals ?? {}) as Record<string, unknown>;
+
+  const s = (v: unknown) => (v != null && v !== "" ? String(v) : "");
+  const n = (v: unknown) => { const x = parseFloat(String(v ?? 0)); return isNaN(x) ? 0 : x; };
+
+  const restaurantAddr = [s(h.address), [s(h.zip), s(h.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  const isDelivery     = s(o.type) === "DELIVERY";
+  const Divider        = () => <div className="border-t border-dashed border-[#bbb] my-2" />;
+
+  return (
+    <div className="text-[10.5px] leading-[1.45]" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+      {/* ── Header ── */}
+      <div className="text-center mb-2">
+        <p className="text-[14px] font-black tracking-wide uppercase">{s(h.restaurantName) || "MatGo"}</p>
+        <p className="text-[8px] tracking-[0.18em] text-[#666] uppercase mt-0.5">{platformName}</p>
+        {restaurantAddr && <p className="text-[8px] text-[#666] mt-0.5">{restaurantAddr}</p>}
+        {s(h.phone) && <p className="text-[8px] text-[#666]">Tel: {s(h.phone)}</p>}
+      </div>
+
+      <Divider />
+
+      {/* ── Order ── */}
+      <div className="mb-1.5">
+        <p className="font-black text-[13px]">Order #{s(o.number) || "—"}</p>
+        <p className="text-[8px] text-[#666]">{s(o.date)} {s(o.time)}</p>
+        <p className="font-black text-[11px] mt-0.5">{isDelivery ? "UTKÖRNING" : "AVHÄMTNING"}</p>
+        {!!o.isPreorder && (
+          <p className="font-bold text-[9px] mt-0.5">FÖRBESTÄLLD {s(o.scheduledDate)} {s(o.scheduledTime)}</p>
+        )}
+        {!o.isPreorder && n(o.estimatedTime) > 0 && (
+          <p className="text-[8px] text-[#666] mt-0.5">Utlovad tid: {s(o.estimatedTime)} min</p>
+        )}
+      </div>
+
+      <Divider />
+
+      {/* ── Kund ── */}
+      <div className="mb-1.5">
+        {s(c.name)         && <p className="font-bold">{s(c.name)}</p>}
+        {s(c.phone)        && <p className="text-[8px] text-[#555]">{s(c.phone)}</p>}
+        {customerAddr      && <p className="text-[8px] text-[#555]">{customerAddr}</p>}
+        {s(c.instructions) && <p className="font-bold text-[9px] mt-0.5">Inst: {s(c.instructions)}</p>}
+        {s(c.note)         && <p className="font-bold text-[9px] mt-0.5">Not: {s(c.note)}</p>}
+        {s(c.allergens)    && <p className="font-bold text-[9px] text-red-700 mt-0.5">⚠ Allergener: {s(c.allergens)}</p>}
+      </div>
+
+      <Divider />
+
+      {/* ── Artiklar ── */}
+      <div className="mb-1.5 space-y-1.5">
+        {items.map((item, i) => (
+          <div key={i}>
+            <div className="flex justify-between items-baseline gap-1">
+              <span className="font-bold flex-1">{s(item.qty)}x {s(item.name)}</span>
+              <span className="font-bold whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+            </div>
+            {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
+              <p key={ei} className="text-[8px] text-[#666] pl-2">
+                + {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
+              </p>
+            ))}
+            {s(item.note) && <p className="text-[8px] font-bold pl-2">! {s(item.note)}</p>}
+          </div>
+        ))}
+      </div>
+
+      <Divider />
+
+      {/* ── Totalt ── */}
+      <div className="mb-1.5">
+        {n(t.deliveryFee) > 0 && (
+          <div className="flex justify-between text-[8px] text-[#555]">
+            <span>Leverans</span><span>{s(t.deliveryFee)} kr</span>
+          </div>
+        )}
+        {n(t.discount) > 0 && (
+          <div className="flex justify-between text-[8px] text-[#555]">
+            <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
+            <span>−{s(t.discount)} kr</span>
+          </div>
+        )}
+        <div className="flex justify-between items-baseline font-black text-[14px] border-t border-black pt-1 mt-1">
+          <span>TOTALT</span><span>{s(t.total)} kr</span>
+        </div>
+        {s(o.paymentMethod) && <p className="text-[8px] text-[#666] mt-0.5">{s(o.paymentMethod)}</p>}
+      </div>
+
+      <Divider />
+
+      {/* ── Sidfot ── */}
+      <div className="text-center text-[8px] text-[#777] space-y-0.5">
+        <p className="font-bold">Tack för din beställning!</p>
+        <p>Välkommen åter!</p>
+      </div>
+    </div>
+  );
+}
+
 export function ReceiptsPage() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [printerOpen, setPrinterOpen] = useState(false);
@@ -309,37 +415,20 @@ export function ReceiptsPage() {
             </Field>
 
             <div className="surface-muted flex justify-center px-4 py-6">
-              <div className="w-[300px] rounded-[18px] border border-[var(--border-subtle)] bg-[#fffdf8] px-4 py-4 text-[#11151b] shadow-[0_18px_60px_rgba(0,0,0,0.25)]">
-                {preview.isLoading || !preview.data ? (
-                  <div className="flex items-center justify-center py-10 text-sm text-[#555]">Loading preview...</div>
-                ) : (
-                  <div className="space-y-3 text-sm">
-                    <div className="text-center">
-                      <p className="text-lg font-black">{String(preview.data.header?.restaurantName || "MatGo")}</p>
-                      <p className="text-xs uppercase tracking-[0.16em] text-[#666]">{config.data.template.platformName}</p>
-                      <p className="mt-1 text-xs text-[#666]">{String(preview.data.header?.address || "")}</p>
-                    </div>
-                    <div className="border-t border-dashed border-[#bbb] pt-3">
-                      <div className="flex items-center justify-between"><span>Order</span><strong>{String(preview.data.orderInfo?.number || "-")}</strong></div>
-                      <div className="flex items-center justify-between"><span>Type</span><strong>{String(preview.data.orderInfo?.type || "-")}</strong></div>
-                      <div className="flex items-center justify-between"><span>Customer</span><strong>{String(preview.data.customer?.name || "-")}</strong></div>
-                    </div>
-                    <div className="border-t border-dashed border-[#bbb] pt-3">
-                      {(preview.data.items || []).slice(0, 6).map((item, index) => (
-                        <div key={`${String(item.name)}-${index}`} className="flex items-start justify-between gap-3 py-1">
-                          <div>
-                            <p className="font-semibold">{String(item.qty || 1)}x {String(item.name || "Item")}</p>
-                            {Array.isArray(item.extras) && item.extras.length ? <p className="text-xs text-[#666]">{item.extras.map((extra: any) => extra.name).join(", ")}</p> : null}
-                          </div>
-                          <strong>{String(item.subtotal || "")}</strong>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="border-t border-dashed border-[#bbb] pt-3">
-                      <div className="flex items-center justify-between"><span>Total</span><strong>{String(preview.data.totals?.total || "-")} kr</strong></div>
-                      {preview.data.footer ? <p className="mt-3 text-center text-xs text-[#666]">{preview.data.footer}</p> : null}
-                    </div>
+              {/* 80 mm-rulle simulerad bredd: 1 mm ≈ 3.78 px → 80 mm ≈ 302 px */}
+              <div className="w-[302px] bg-white px-5 py-4 text-black shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
+                {!previewOrderId ? (
+                  <p className="py-10 text-center text-xs text-[#888]">Välj en order ovan</p>
+                ) : preview.isLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-10 text-xs text-[#888]">
+                    <Loader2 size={14} className="animate-spin" /> Laddar...
                   </div>
+                ) : preview.isError || !preview.data ? (
+                  <p className="py-10 text-center text-xs text-red-500">
+                    Kunde inte hämta förhandsgranskning.<br />Kontrollera att ordern finns och försök igen.
+                  </p>
+                ) : (
+                  <ReceiptPreviewContent data={preview.data} platformName={config.data.template.platformName} />
                 )}
               </div>
             </div>
