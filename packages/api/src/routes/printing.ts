@@ -60,7 +60,7 @@ const printerSchema = z.object({
   name: z.string().min(2),
   connectionType: z.enum(['NETWORK', 'BLUETOOTH']).default('NETWORK'),
   address: z.string().min(2),
-  paperWidth: z.enum(['58mm', '80mm', 'A4']).default('80mm'),
+  paperWidth: z.enum(['58mm', '72mm', '80mm', 'A4']).default('80mm'),
   copies: z.number().int().min(1).max(5).default(1),
   autoPrint: z.boolean().default(false),
   isDefault: z.boolean().default(false),
@@ -187,7 +187,7 @@ router.put('/receipt-template', async (req: AuthRequest, res) => {
     }
 
     const body = z.object({
-      paperWidth: z.enum(['58mm', '80mm', 'A4']),
+      paperWidth: z.enum(['58mm', '72mm', '80mm', 'A4']),
       platformName: z.string().min(1),
       elements: z.array(templateElementSchema),
     }).parse(req.body);
