@@ -630,6 +630,15 @@ export default function CartScreen({
 
   const handleCheckoutPress = async () => {
     if (submitting) return;
+    // Tvinga inloggning för att beställa. Gäster kan se menyn och fylla
+    // varukorgen men måste logga in via Profile-tabben innan checkout.
+    if (!token || !profile?.id) {
+      Alert.alert(
+        "Logga in för att beställa",
+        "Du kan se menyn och fylla varukorgen som gäst, men för att slutföra beställningen behöver du logga in. Gå till Profil-tabben.",
+      );
+      return;
+    }
     if (!formData.customerName.trim()) {
       Alert.alert(t('cart.validation.noName'), t('cart.validation.noNameHelp'));
       return;

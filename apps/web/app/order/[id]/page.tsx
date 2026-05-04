@@ -107,6 +107,7 @@ const OrderStatusPage = () => {
   const [showReview, setShowReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
+  const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
 
@@ -183,7 +184,7 @@ const OrderStatusPage = () => {
     if (!reviewRating || !orderId) return;
     setReviewSubmitting(true);
     try {
-      await axios.post(`/api/platform/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText });
+      await axios.post(`/api/platform/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText, likedItemIds });
       setReviewDone(true);
       setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
@@ -441,6 +442,35 @@ const OrderStatusPage = () => {
                    className="w-full rounded-2xl py-4 px-5 text-sm outline-none focus:ring-2 focus:ring-gold-500/40 resize-none placeholder:text-zinc-600"
                    style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
                 />
+                {/* Lika rätter — visa beställda items som väljbara taggar.
+                    Toggleas in/ut likedItemIds. Visas på reviews-sidan som
+                    "Gillade: {namn}, {namn}". */}
+                {(order.items || []).length > 0 ? (
+                  <div className="grid gap-2">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Vad gillade du? (valfritt)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {order.items.map((item: any) => {
+                        const id = item.productId || item.id;
+                        const active = likedItemIds.includes(id);
+                        return (
+                          <button
+                            key={id}
+                            type="button"
+                            onClick={() => setLikedItemIds((current) => active ? current.filter((x) => x !== id) : [...current, id])}
+                            className="px-3 py-2 rounded-full text-[11px] font-black uppercase tracking-wider transition-all"
+                            style={{
+                              backgroundColor: active ? "var(--accent-strong, #f3bf57)" : "var(--bg-deep)",
+                              color: active ? "#11151b" : "var(--text-primary)",
+                              border: "1px solid var(--border-muted)",
+                            }}
+                          >
+                            {active ? "♥ " : ""}{item.productName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
                 <button
                   onClick={submitReview}
                   disabled={!reviewRating || reviewSubmitting}

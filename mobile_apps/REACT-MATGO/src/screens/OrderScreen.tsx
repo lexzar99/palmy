@@ -56,6 +56,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
   const [reviewing, setReviewing] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [userReview, setUserReview] = useState("");
+  const [likedItemIds, setLikedItemIds] = useState<string[]>([]);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
   const [minutesLeft, setMinutesLeft] = useState<number | null>(null);
 
@@ -192,7 +193,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     try {
       await api.post(
         `/api/profile/orders/${id}/review`,
-        { rating: userRating, review: userReview || null },
+        { rating: userRating, review: userReview || null, likedItemIds },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setReviewSubmitted(true);
@@ -202,7 +203,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     } finally {
       setReviewing(false);
     }
-  }, [token, userRating, userReview, id, fetchOrder]);
+  }, [token, userRating, userReview, likedItemIds, id, fetchOrder]);
 
   if (loading) {
     return (
@@ -453,8 +454,42 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
               placeholderTextColor={palette.muted}
               multiline
               numberOfLines={3}
-              style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlignVertical: "top", minHeight: 80, backgroundColor: palette.panelMuted, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: palette.border }}
+              style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlignVertical: "top", minHeight: 80, backgroundColor: palette.panelMuted, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: palette.border }}
             />
+            {/* Lika rätter — taggar för items i ordern. Toggleas av/på.
+                Visas på restaurangens reviews-sida som "Gillade: ...". */}
+            {Array.isArray(order.items) && order.items.length > 0 ? (
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: 1, marginBottom: 10, textTransform: "uppercase" }}>
+                  Vad gillade du? (valfritt)
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {order.items.map((item: any) => {
+                    const itemId = item.productId || item.id;
+                    const active = likedItemIds.includes(itemId);
+                    return (
+                      <Pressable
+                        key={itemId}
+                        onPress={() =>
+                          setLikedItemIds((current) =>
+                            active ? current.filter((x) => x !== itemId) : [...current, itemId],
+                          )
+                        }
+                        style={{
+                          paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                          backgroundColor: active ? palette.gold : palette.panelMuted,
+                          borderWidth: 1, borderColor: active ? palette.gold : palette.border,
+                        }}
+                      >
+                        <Text style={{ color: active ? "#000" : palette.text, fontSize: 12, fontWeight: "800" }}>
+                          {active ? "♥ " : ""}{item.productName}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : null}
             <Pressable
               onPress={submitReview}
               disabled={userRating === 0 || reviewing}

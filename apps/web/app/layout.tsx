@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
-import InstallPWA from "@/components/InstallPWA";
 import BottomNav from "@/components/BottomNav";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
@@ -37,7 +36,6 @@ export default function RootLayout({
           <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />
-          <InstallPWA />
         </Providers>
       </body>
     </html>

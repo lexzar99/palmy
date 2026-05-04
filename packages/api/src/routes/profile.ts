@@ -368,15 +368,60 @@ router.delete('/addresses/:id', authenticateUser, async (req: any, res: any) => 
 
 // ─── Reviews & Ratings ──────────────────────────────────────────────────────
 
+// POST /api/profile/deals/:dealId/claim
+// Användaren klickar "Spara erbjudandet" i popup → vi lägger Deal.id i
+// User.claimedDealIds (JSON-array). Idempotent — duplikat ignoreras.
+// GET /api/profile/deals returnerar både globala och claimade.
+router.post('/deals/:dealId/claim', authenticateUser, async (req: any, res: any) => {
+  try {
+    const dealId = req.params.dealId;
+    const deal = await prisma.deal.findUnique({
+      where: { id: dealId },
+      select: { id: true, isActive: true, popupEnabled: true, validUntil: true },
+    });
+    if (!deal) return res.status(404).json({ error: 'Erbjudandet hittades inte' });
+    if (!deal.isActive) return res.status(400).json({ error: 'Erbjudandet är inte aktivt' });
+    if (deal.validUntil && new Date(deal.validUntil) < new Date()) {
+      return res.status(400).json({ error: 'Erbjudandet har gått ut' });
+    }
+
+    const user = await (prisma as any).user.findUnique({
+      where: { id: req.user.id },
+      select: { claimedDealIds: true },
+    });
+    if (!user) return res.status(404).json({ error: 'Användare hittades inte' });
+
+    let claimed: string[] = [];
+    try {
+      const parsed = JSON.parse(user.claimedDealIds || '[]');
+      if (Array.isArray(parsed)) claimed = parsed.filter((id: unknown): id is string => typeof id === 'string');
+    } catch { claimed = []; }
+
+    if (!claimed.includes(dealId)) {
+      claimed.push(dealId);
+      await (prisma as any).user.update({
+        where: { id: req.user.id },
+        data: { claimedDealIds: JSON.stringify(claimed) },
+      });
+    }
+
+    res.json({ success: true, claimedDealIds: claimed });
+  } catch (error) {
+    console.error('Claim deal error:', error);
+    res.status(500).json({ error: 'Kunde inte spara erbjudandet' });
+  }
+});
+
 // POST /api/profile/orders/:id/review
 router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) => {
   try {
-    const { rating, review } = req.body;
+    const { rating, review, likedItemIds } = req.body;
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Betyg måste vara mellan 1-5' });
     }
     const order = await prisma.order.findFirst({
-      where: { id: req.params.id, userId: req.user.id }
+      where: { id: req.params.id, userId: req.user.id },
+      include: { items: { select: { productId: true } } },
     });
     if (!order) return res.status(404).json({ error: 'Order hittades inte' });
     if (!['DELIVERED', 'READY'].includes(order.status)) {
@@ -386,9 +431,20 @@ router.post('/orders/:id/review', authenticateUser, async (req: any, res: any) =
       return res.status(400).json({ error: 'Du har redan betygsatt denna order' });
     }
 
+    // Validera likedItemIds — bara productIds som faktiskt fanns i ordern.
+    const validProductIds = new Set(order.items.map((i: any) => i.productId));
+    const cleanLikedIds = Array.isArray(likedItemIds)
+      ? likedItemIds.filter((id: unknown): id is string => typeof id === 'string' && validProductIds.has(id))
+      : [];
+
     await prisma.order.update({
       where: { id: req.params.id },
-      data: { rating, review: review || null, reviewedAt: new Date() }
+      data: {
+        rating,
+        review: review || null,
+        reviewedAt: new Date(),
+        likedItemIds: JSON.stringify(cleanLikedIds),
+      } as any,
     });
 
     // Update restaurant average rating from real data
