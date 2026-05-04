@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles, Trash2, Link2 } from "lucide-react";
 import { dealsQueryKey, updateAutomaticDeal, type AutomaticDealRecord } from "@/modules/deals/api";
 import { popupDealsQueryKey } from "@/modules/popup-builder/api";
+import { apiPost } from "@/shared/api/client";
 import { Badge, Button, Field, Input, Modal, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 
@@ -17,6 +18,12 @@ type PopupOverlay = {
   popupEnabled: boolean;
 };
 
+type PushSettings = {
+  sendPush: boolean;
+  pushTitle: string;
+  pushBody: string;
+};
+
 const emptyOverlay: PopupOverlay = {
   popupHeadline: "",
   popupBody: "",
@@ -24,6 +31,12 @@ const emptyOverlay: PopupOverlay = {
   popupCode: "",
   imageUrl: "",
   popupEnabled: true,
+};
+
+const emptyPush: PushSettings = {
+  sendPush: true,
+  pushTitle: "",
+  pushBody: "Tryck för att se ditt nya erbjudande →",
 };
 
 // Live-preview — exakt vad kunden ser i webb/RN.
@@ -104,6 +117,8 @@ export function PopupDealModal({
 }) {
   const queryClient = useQueryClient();
   const [overlay, setOverlay] = useState<PopupOverlay>(emptyOverlay);
+  const [push, setPush] = useState<PushSettings>(emptyPush);
+  const [pushSent, setPushSent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -117,30 +132,56 @@ export function PopupDealModal({
       imageUrl: deal.imageUrl || "",
       popupEnabled: deal.popupEnabled !== false,
     });
+    setPush({
+      sendPush: true,
+      pushTitle: (deal as any).popupHeadline || deal.title,
+      pushBody: emptyPush.pushBody,
+    });
     setError(null);
+    setPushSent(null);
   }, [open, deal]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const update = (patch: Partial<PopupOverlay>) => setOverlay((current) => ({ ...current, ...patch }));
+  const updatePush = (patch: Partial<PushSettings>) => setPush((current) => ({ ...current, ...patch }));
 
   const saveMutation = useMutation({
-    mutationFn: () => {
-      if (!deal) return Promise.resolve(null as any);
-      return updateAutomaticDeal(deal.id, {
+    mutationFn: async () => {
+      if (!deal) return null as any;
+      const updated = await updateAutomaticDeal(deal.id, {
         popupHeadline: overlay.popupHeadline.trim() || null,
         popupBody: overlay.popupBody.trim() || null,
         popupCtaLabel: overlay.popupCtaLabel.trim() || null,
         popupCode: overlay.popupCode.trim() || null,
         imageUrl: overlay.imageUrl.trim() || null,
         popupEnabled: overlay.popupEnabled,
-        // Behåll alla andra fält orörda — vi skickar bara popup-overlay.
       });
+
+      // Skicka push-notis till alla aktiva users om admin valt det.
+      // Skickas bara om dealen sparas som aktiv popup — inte vid pause/remove.
+      if (push.sendPush && overlay.popupEnabled && push.pushTitle.trim() && push.pushBody.trim()) {
+        try {
+          const result = await apiPost<{ count: number; success: boolean }>(
+            "/notifications/admin/send-all",
+            {
+              title: push.pushTitle.trim(),
+              body: push.pushBody.trim(),
+              data: { dealId: deal.id, kind: "popup-claim" },
+            },
+          );
+          setPushSent(`Notis skickad till ${result.count} enheter.`);
+        } catch (e: any) {
+          setPushSent(`Notis kunde inte skickas: ${e?.response?.data?.error || e?.message || "okänt fel"}`);
+        }
+      }
+      return updated;
     },
     onSuccess: async () => {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
       await queryClient.invalidateQueries({ queryKey: popupDealsQueryKey });
-      onClose();
+      // Stäng inte direkt om push-status visas — låt admin se kvittensen.
+      if (!push.sendPush) onClose();
     },
     onError: (e: any) => {
       setError(e?.response?.data?.error || "Kunde inte spara popupen.");
@@ -241,6 +282,38 @@ export function PopupDealModal({
             <div className="md:col-span-2">
               <ImageUploadField label="Hero-bild i popupen" value={overlay.imageUrl} onChange={(url) => update({ imageUrl: url })} />
             </div>
+          </div>
+
+          {/* Push-notis vid spara — uppmuntrar kunder att öppna appen och
+              se popupen. Skickas till alla användare med registrerad
+              push-token (RN iOS via APNs, RN Android via Expo). */}
+          <div className="surface-muted px-5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Push-notis vid spara</p>
+              <Button
+                variant={push.sendPush ? "primary" : "secondary"}
+                onClick={() => updatePush({ sendPush: !push.sendPush })}
+              >
+                {push.sendPush ? "Skicka push" : "Hoppa över push"}
+              </Button>
+            </div>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              När popupen sparas skickas en push-notis till alla användare med appen installerad.
+              Notisen lockar dem att öppna appen där popupen sedan visas.
+            </p>
+            {push.sendPush ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <Field label="Notis-rubrik">
+                  <Input value={push.pushTitle} onChange={(e) => updatePush({ pushTitle: e.target.value })} placeholder={(deal as any).popupHeadline || deal.title} />
+                </Field>
+                <Field label="Notis-text">
+                  <Input value={push.pushBody} onChange={(e) => updatePush({ pushBody: e.target.value })} placeholder="Tryck för att se ditt nya erbjudande →" />
+                </Field>
+              </div>
+            ) : null}
+            {pushSent ? (
+              <p className="mt-3 text-sm text-emerald-300">{pushSent}</p>
+            ) : null}
           </div>
 
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
