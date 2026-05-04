@@ -58,6 +58,12 @@ export function ImageUploadField({
     }
   };
 
+  // Förkorta visning av base64-strängar och långa URLs så modalerna inte
+  // fylls med 100k+ tecken text. Cloudinary-URLer är OK att visa direkt.
+  const isBase64 = value.startsWith("data:");
+  const showShortened = isBase64 || value.length > 80;
+  const displayLabel = isBase64 ? "Inline-bild (base64)" : value.length > 80 ? `${value.slice(0, 60)}…${value.slice(-12)}` : value;
+
   return (
     <div className="grid gap-2">
       <span className="field-label">{label}</span>
@@ -66,7 +72,7 @@ export function ImageUploadField({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={value} alt={label} className="h-20 w-20 rounded-xl object-cover" />
           <div className="min-w-0 flex-1">
-            <p className="break-all text-xs text-[var(--text-secondary)]">{value}</p>
+            <p className="break-all text-xs text-[var(--text-secondary)]">{displayLabel}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <Button variant="secondary" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />} Byt bild
@@ -78,7 +84,7 @@ export function ImageUploadField({
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="primary" type="button" onClick={() => inputRef.current?.click()} disabled={uploading}>
             {uploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
             {uploading ? "Laddar upp..." : "Ladda upp bild"}
@@ -86,12 +92,17 @@ export function ImageUploadField({
           <span className="text-xs text-[var(--text-secondary)]">eller klistra in URL nedan (max 5 MB)</span>
         </div>
       )}
-      <Input
-        type="text"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-      />
+      {/* URL-fältet visas bara när vi inte har en base64/lång inline-bild,
+          så användaren inte tappar bort sig i ett ändlöst textfält. För
+          base64 finns Byt/Ta bort-knapparna ovan. */}
+      {!showShortened || !value ? (
+        <Input
+          type="text"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+      ) : null}
       {error ? <p className="text-sm text-rose-400">{error}</p> : null}
       <input
         ref={inputRef}
