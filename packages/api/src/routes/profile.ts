@@ -369,16 +369,19 @@ router.delete('/addresses/:id', authenticateUser, async (req: any, res: any) => 
 // ─── Reviews & Ratings ──────────────────────────────────────────────────────
 
 // GET /api/profile/claimed-deals
-// Returnerar både claimade Deal-rader (från popupen) och aktiva globala
-// deals som användaren kan använda. Profile-sidan i web/RN visar dem
-// med kod-tags så kunden ser vad de har sparat.
+// Returnerar tre buckets för Profile-sidan:
+//   - claimed: deals användaren redan klämt via popup
+//   - available: aktiva popup-deals som ÄNNU INTE claimats (visas som
+//     banners i Profile med "Claim"-knapp så man kan spara senare om man
+//     missade popupen vid app-öppning)
+//   - global: aktiva isGlobal-deals som alltid är tillgängliga
 router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
   try {
     const user = await (prisma as any).user.findUnique({
       where: { id: req.user.id },
       select: { claimedDealIds: true, phone: true },
     });
-    if (!user) return res.json({ claimed: [], global: [] });
+    if (!user) return res.json({ claimed: [], available: [], global: [] });
 
     let claimedIds: string[] = [];
     try {
@@ -387,7 +390,7 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
     } catch { /* tolerate bad JSON */ }
 
     const now = new Date();
-    const [claimed, global] = await Promise.all([
+    const [claimed, popupCandidates, global] = await Promise.all([
       claimedIds.length > 0
         ? prisma.deal.findMany({
             where: {
@@ -397,6 +400,16 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
             },
           })
         : Promise.resolve([]),
+      // Aktiva popup-deals (har popup-content + popupEnabled). Vi
+      // filtrerar bort claimade i koden nedan.
+      prisma.deal.findMany({
+        where: {
+          isActive: true,
+          popupEnabled: true,
+          OR: [{ validUntil: null }, { validUntil: { gte: now } }],
+          NOT: { popupHeadline: null },
+        },
+      }),
       prisma.deal.findMany({
         where: {
           isGlobal: true,
@@ -406,6 +419,11 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
       }),
     ]);
 
+    const claimedSet = new Set(claimedIds);
+    // Available = popup-deals som inte redan finns i claimed eller global
+    // (annars dyker de upp dubbelt i Profile-listan).
+    const available = popupCandidates.filter((d) => !claimedSet.has(d.id));
+
     const formatDeal = (deal: any) => ({
       id: deal.id,
       title: deal.title,
@@ -414,6 +432,7 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
       imageUrl: deal.imageUrl,
       popupHeadline: deal.popupHeadline,
       popupBody: deal.popupBody,
+      popupCtaLabel: deal.popupCtaLabel,
       popupCode: deal.popupCode,
       discountType: deal.discountType,
       discountValue: deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE'
@@ -427,6 +446,7 @@ router.get('/claimed-deals', authenticateUser, async (req: any, res: any) => {
 
     res.json({
       claimed: claimed.map(formatDeal),
+      available: available.map(formatDeal),
       global: global.map(formatDeal),
     });
   } catch (error) {

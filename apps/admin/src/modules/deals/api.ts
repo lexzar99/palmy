@@ -113,6 +113,7 @@ export const getDealProducts = (restaurantId: string) => apiGet<DealProductRef[]
 export const createAutomaticDeal = (payload: Record<string, unknown>) => apiPost<AutomaticDealRecord>("/admin/deals", payload);
 export const updateAutomaticDeal = (dealId: string, payload: Record<string, unknown>) => apiPatch<AutomaticDealRecord>(`/admin/deals/${dealId}`, payload);
 export const deleteAutomaticDeal = (dealId: string) => apiDelete<{ success: boolean }>(`/admin/deals/${dealId}`);
+export const wipeAllDeals = () => apiPost<{ success: boolean; deleted: number }>("/admin/deals/wipe", { confirm: "WIPE_ALL_DEALS" });
 
 export const createDiscountCode = (payload: Record<string, unknown>) => apiPost<DiscountCodeRecord>("/admin/discounts", payload);
 export const updateDiscountCode = (codeId: string, payload: Record<string, unknown>) => apiPatch<DiscountCodeRecord>(`/admin/discounts/${codeId}`, payload);
