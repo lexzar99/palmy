@@ -243,7 +243,7 @@ class PrintService {
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
-        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
+        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80, // 72mm, 80mm → mm80
         profile,
       );
       final bytes = _buildEscPosBytes(generator, receiptData, template);
@@ -278,7 +278,7 @@ class PrintService {
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
-        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
+        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80, // 72mm, 80mm → mm80
         profile,
       );
       final oneCopy = _buildEscPosBytes(generator, receiptData, template);

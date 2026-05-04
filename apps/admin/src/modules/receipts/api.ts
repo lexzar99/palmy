@@ -15,7 +15,7 @@ export interface ReceiptElement {
 }
 
 export interface ReceiptTemplate {
-  paperWidth: "58mm" | "80mm" | "A4";
+  paperWidth: "58mm" | "72mm" | "80mm" | "A4";
   platformName: string;
   elements: ReceiptElement[];
 }
@@ -27,7 +27,7 @@ export interface PrinterRecord {
   name: string;
   connectionType: "NETWORK" | "BLUETOOTH";
   address: string;
-  paperWidth: "58mm" | "80mm" | "A4";
+  paperWidth: "58mm" | "72mm" | "80mm" | "A4";
   copies: number;
   autoPrint: boolean;
   isDefault: boolean;

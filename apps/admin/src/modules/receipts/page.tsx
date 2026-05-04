@@ -140,7 +140,7 @@ function TemplateModal({ open, template, onClose }: { open: boolean; template: R
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!draft) {
-        return { paperWidth: "80mm" as const, platformName: "MatGo", elements: defaultElements };
+        return { paperWidth: "72mm" as const, platformName: "MatGo", elements: defaultElements };
       }
       return updateReceiptTemplate(draft);
     },
@@ -178,7 +178,7 @@ function TemplateModal({ open, template, onClose }: { open: boolean; template: R
           <div className="surface-muted p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Order and visibility</p>
-              <Field label="Paper"><Select value={draft.paperWidth} onChange={(event) => setDraft((current) => current ? { ...current, paperWidth: event.target.value as ReceiptTemplate["paperWidth"] } : current)}><option value="58mm">58mm</option><option value="80mm">80mm</option><option value="A4">A4</option></Select></Field>
+              <Field label="Paper"><Select value={draft.paperWidth} onChange={(event) => setDraft((current) => current ? { ...current, paperWidth: event.target.value as ReceiptTemplate["paperWidth"] } : current)}><option value="58mm">58mm</option><option value="72mm">72mm</option><option value="80mm">80mm</option><option value="A4">A4</option></Select></Field>
             </div>
             <div className="mt-4"><Field label="Platform name"><Input value={draft.platformName} onChange={(event) => setDraft((current) => current ? { ...current, platformName: event.target.value } : current)} /></Field></div>
             <div className="mt-4 grid gap-1">
@@ -225,28 +225,28 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
   const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const isDelivery     = s(o.type) === "DELIVERY";
 
-  const HR    = () => <div className="border-t border-black my-2" />;
+  const HR    = () => <div className="border-t-2 border-black my-2" />;
   const Badge = ({ children }: { children: React.ReactNode }) => (
-    <span className="inline-block border-2 border-black px-3 py-0.5 font-black text-[12px] tracking-wide">{children}</span>
+    <span className="inline-block border-[3px] border-black px-4 py-1 font-black text-[14px] tracking-wide">{children}</span>
   );
 
   return (
-    <div className="text-[11px] leading-[1.55]" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
+    <div className="text-[12px] leading-[1.6] font-medium" style={{ fontFamily: "'Arial Black', 'Arial Bold', Arial, 'Helvetica Neue', Helvetica, sans-serif" }}>
 
-      {/* ── Platform + ordernummer (liten rubrik, som foodora #4748) ── */}
+      {/* ── Platform + ordernummer ── */}
       <div className="text-center mb-1">
-        <p className="text-[10px]">{platformName} #{s(o.number) || "—"}</p>
-        <p className="text-[9px] text-[#555]">Ej kvitto</p>
+        <p className="text-[11px] font-bold">{platformName} #{s(o.number) || "—"}</p>
+        <p className="text-[10px] text-[#555]">Ej kvitto</p>
       </div>
 
       <HR />
 
       {/* ── Restaurang ── */}
       <div className="text-center mb-2">
-        <p className="text-[15px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>
-        <p className="text-[10px]">{s(o.date)} {s(o.time)}</p>
-        {restaurantAddr && <p className="text-[9px] text-[#555]">{restaurantAddr}</p>}
-        {s(h.phone) && <p className="text-[9px] text-[#555]">Tel: {s(h.phone)}</p>}
+        <p className="text-[18px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>
+        <p className="text-[12px] font-bold">{s(o.date)} {s(o.time)}</p>
+        {restaurantAddr && <p className="text-[11px]">{restaurantAddr}</p>}
+        {s(h.phone) && <p className="text-[11px]">Tel: {s(h.phone)}</p>}
       </div>
 
       <HR />
@@ -255,85 +255,85 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
       <div className="mb-2">
         {s(c.name) && (
           <>
-            <p className="text-[9px] text-[#555]">Kund:</p>
-            <p className="font-black text-[12px]">{s(c.name)}</p>
+            <p className="text-[10px] text-[#555] font-bold">Kund:</p>
+            <p className="font-black text-[14px]">{s(c.name)}</p>
           </>
         )}
-        {s(c.phone) && <p className="text-[10px]">{s(c.phone)}</p>}
+        {s(c.phone) && <p className="text-[12px] font-bold">{s(c.phone)}</p>}
         {customerAddr && (
           <>
-            <p className="text-[9px] text-[#555] mt-1">Adress:</p>
-            <p className="font-bold text-[10px]">{customerAddr}</p>
+            <p className="text-[10px] text-[#555] font-bold mt-1">Adress:</p>
+            <p className="font-black text-[12px]">{customerAddr}</p>
           </>
         )}
-        {s(c.instructions) && <p className="text-[9px] mt-0.5">{s(c.instructions)}</p>}
-        {s(c.note)         && <p className="font-bold text-[9px] mt-0.5">{s(c.note)}</p>}
-        {s(c.allergens)    && <p className="font-bold text-[9px] text-red-700 mt-0.5">! {s(c.allergens)}</p>}
+        {s(c.instructions) && <p className="text-[11px] mt-0.5">{s(c.instructions)}</p>}
+        {s(c.note)         && <p className="font-black text-[11px] mt-0.5">{s(c.note)}</p>}
+        {s(c.allergens)    && <p className="font-black text-[11px] text-red-700 mt-0.5">! {s(c.allergens)}</p>}
       </div>
 
-      {/* ── Status-badges (Förbetald + betalmetod) ── */}
-      <div className="flex flex-col items-center gap-1.5 mb-2">
+      {/* ── Status-badges ── */}
+      <div className="flex flex-col items-center gap-2 mb-2">
         <Badge>{isDelivery ? "Utkörning" : "Avhämtning"}</Badge>
         {!!o.isPreorder && <Badge>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</Badge>}
         {s(o.paymentMethod) && <Badge>{s(o.paymentMethod)}</Badge>}
       </div>
 
-      {/* ── Leveranstid (stor) + artikelräknare ── */}
+      {/* ── Leveranstid (jättestor) + artikelräknare ── */}
       {!o.isPreorder && n(o.estimatedTime) > 0 && (
         <div className="text-center mb-1.5">
-          <p className="text-[10px] text-[#555]">Leveranstid</p>
-          <p className="font-black text-[22px] leading-tight">{s(o.estimatedTime)} min</p>
+          <p className="text-[12px] font-bold">Leveranstid</p>
+          <p className="font-black text-[30px] leading-tight">{s(o.estimatedTime)} min</p>
         </div>
       )}
-      <p className="text-center text-[9px] text-[#555] mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
+      <p className="text-center text-[11px] font-bold mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
 
       <HR />
 
-      {/* ── Artiklar (vänster namn + höger pris, precis som Foodora) ── */}
-      <div className="mb-1.5 space-y-1.5">
+      {/* ── Artiklar ── */}
+      <div className="mb-2 space-y-2">
         {items.map((item, i) => (
           <div key={i}>
             <div className="flex justify-between items-baseline gap-1">
-              <span className="font-bold flex-1">{s(item.qty)} x {s(item.name)}</span>
-              <span className="font-bold whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+              <span className="font-black text-[13px] flex-1">{s(item.qty)} x {s(item.name)}</span>
+              <span className="font-black text-[13px] whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
             </div>
             {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
-              <p key={ei} className="text-[9px] text-[#666] pl-3">
+              <p key={ei} className="text-[10px] font-bold text-[#555] pl-3">
                 ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
               </p>
             ))}
-            {s(item.note) && <p className="text-[9px] font-bold pl-3">! {s(item.note)}</p>}
+            {s(item.note) && <p className="text-[10px] font-black pl-3">! {s(item.note)}</p>}
           </div>
         ))}
       </div>
 
       <HR />
 
-      {/* ── Totaler (vänster+höger, som Foodora) ── */}
+      {/* ── Totaler ── */}
       <div className="mb-2">
         {n(t.deliveryFee) > 0 && (
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[12px] font-bold">
             <span>Leveransavgift</span><span>{s(t.deliveryFee)} kr</span>
           </div>
         )}
         {n(t.discount) > 0 && (
-          <div className="flex justify-between text-[10px]">
+          <div className="flex justify-between text-[12px] font-bold">
             <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
             <span>-{s(t.discount)} kr</span>
           </div>
         )}
-        <div className="flex justify-between items-baseline border-t border-black pt-1 mt-1">
-          <span className="font-black text-[16px]">Totalt</span>
-          <span className="font-black text-[16px]">{s(t.total)} kr</span>
+        <div className="flex justify-between items-baseline border-t-2 border-black pt-1 mt-1">
+          <span className="font-black text-[20px]">Totalt</span>
+          <span className="font-black text-[20px]">{s(t.total)} kr</span>
         </div>
       </div>
 
       <HR />
 
       {/* ── Sidfot ── */}
-      <div className="text-center text-[9px] text-[#666] space-y-0.5">
-        <p className="font-bold">Tack för din beställning!</p>
-        <p>Välkommen åter!</p>
+      <div className="text-center text-[11px] font-bold space-y-0.5">
+        <p>Tack för din beställning!</p>
+        <p className="font-medium">Välkommen åter!</p>
       </div>
     </div>
   );
