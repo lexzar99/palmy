@@ -1,13 +1,9 @@
 /**
  * Places Proxy — backend route
  *
- * Used by React Native (Expo), web app, and admin so map keys stay server-side.
- * Google Maps is primary; Geoapify is a transparent fallback when Google fails
- * or returns empty results. Response shape is identical for both providers.
- *
- * Geoapify-sourced predictions encode coords inside the place_id as
- *   "geoapify:<lat>,<lng>"
- * so the geocode endpoint can resolve them without a second network call.
+ * Används av React Native (Expo), web-appen och admin så map-nycklar
+ * stannar server-side. Google Maps är enda källan — ingen Geoapify-fallback
+ * längre.
  *
  * GET /api/places/autocomplete?input=...&sessiontoken=...
  * GET /api/places/geocode?place_id=...&sessiontoken=...
@@ -17,49 +13,12 @@ import rateLimit from 'express-rate-limit';
 
 const router = Router();
 
-const MAPS_KEY = process.env.GOOGLE_MAPS_KEY || '';
-const GEOAPIFY_KEY = process.env.GEOAPIFY_API_KEY || '';
+// Stöder båda env-namnen — GOOGLE_MAPS_API_KEY (det vi använder i index.ts
+// startup-validering) eller GOOGLE_MAPS_KEY (legacy). Sätt ett av dem på
+// Railway, det andra kan tas bort.
+const MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_KEY || '';
 
 type Prediction = { description: string; place_id: string };
-
-async function geoapifyAutocompleteFallback(input: string): Promise<Prediction[]> {
-  if (!GEOAPIFY_KEY) return [];
-  try {
-    const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
-    url.searchParams.set('text', input);
-    url.searchParams.set('filter', 'countrycode:se');
-    url.searchParams.set('limit', '5');
-    url.searchParams.set('apiKey', GEOAPIFY_KEY);
-
-    const response = await fetch(url.toString());
-    const data = (await response.json()) as any;
-    const features = Array.isArray(data?.features) ? data.features : [];
-    return features
-      .map((f: any): Prediction | null => {
-        const formatted = f?.properties?.formatted;
-        const coords = f?.geometry?.coordinates;
-        if (!formatted || !Array.isArray(coords) || coords.length !== 2) return null;
-        const [lng, lat] = coords;
-        return {
-          description: String(formatted),
-          place_id: `geoapify:${Number(lat)},${Number(lng)}`,
-        };
-      })
-      .filter((p: Prediction | null): p is Prediction => p !== null);
-  } catch {
-    return [];
-  }
-}
-
-function decodeGeoapifyPlaceId(place_id: string): { lat: number; lng: number } | null {
-  if (!place_id.startsWith('geoapify:')) return null;
-  const coords = place_id.slice('geoapify:'.length).split(',');
-  if (coords.length !== 2) return null;
-  const lat = Number(coords[0]);
-  const lng = Number(coords[1]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
-}
 
 async function googleAutocomplete(
   input: string,
@@ -135,25 +94,15 @@ async function handleAutocomplete(input: string, sessiontoken: string | undefine
     return res.json({ predictions: [] });
   }
 
-  if (!MAPS_KEY && !GEOAPIFY_KEY) {
-    return res.status(500).json({ error: 'No geocoding provider configured on server' });
+  if (!MAPS_KEY) {
+    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
   }
 
   const google = await googleAutocomplete(input, sessiontoken);
-  if (google && google.length > 0) {
-    return res.json({ predictions: google });
-  }
-
-  const geoapify = await geoapifyAutocompleteFallback(input);
-  if (geoapify.length > 0) {
-    return res.json({ predictions: geoapify });
-  }
-
-  if (google === null && !GEOAPIFY_KEY) {
+  if (google === null) {
     return res.status(500).json({ predictions: [], error: 'Autocomplete failed' });
   }
-
-  return res.json({ predictions: [] });
+  return res.json({ predictions: google });
 }
 
 async function handleGeocode(place_id: string, sessiontoken: string | undefined, res: Response) {
@@ -161,13 +110,8 @@ async function handleGeocode(place_id: string, sessiontoken: string | undefined,
     return res.status(400).json({ error: 'place_id required' });
   }
 
-  const geoapifyCoords = decodeGeoapifyPlaceId(place_id);
-  if (geoapifyCoords) {
-    return res.json({ location: geoapifyCoords });
-  }
-
   if (!MAPS_KEY) {
-    return res.status(500).json({ error: 'Maps API not configured on server' });
+    return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
   }
 
   const loc = await googleGeocode(place_id, sessiontoken);

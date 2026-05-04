@@ -11,7 +11,6 @@ export const EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE
 // entitlements.
 export const EXPO_PUBLIC_STRIPE_MERCHANT_ID =
   process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID?.trim() || "merchant.com.foodgoJalle.app";
-export const EXPO_PUBLIC_GEOAPIFY_KEY = process.env.EXPO_PUBLIC_GEOAPIFY_KEY?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim() ?? "";
 export const EXPO_PUBLIC_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
 export const EXPO_PUBLIC_SENTRY_DSN = process.env.EXPO_PUBLIC_SENTRY_DSN?.trim() ?? "";
@@ -20,9 +19,8 @@ export function validateEnv(): string[] {
   const missing: string[] = [];
   if (!EXPO_PUBLIC_API_URL) missing.push("EXPO_PUBLIC_API_URL");
   if (!EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY) missing.push("EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY");
-  // EXPO_PUBLIC_GEOAPIFY_KEY is optional — places lookups go through the
-  // backend (/api/places/*). The key is only used as a client-side fallback
-  // in lib/places.ts when the backend (Google) call returns no results.
+  // Places-lookups går via backend `/api/places/*` (Google Maps).
+  // GOOGLE_MAPS_API_KEY sätts på backend-sidan (Railway), inget behövs i klienten.
   if (!EXPO_PUBLIC_SUPABASE_URL) missing.push("EXPO_PUBLIC_SUPABASE_URL");
   if (!EXPO_PUBLIC_SUPABASE_ANON_KEY) missing.push("EXPO_PUBLIC_SUPABASE_ANON_KEY");
   return missing;

@@ -3,18 +3,40 @@ import prisma from './prisma';
 // Dynamisk ETA per restaurang.
 // Vi mäter tiden från Order.createdAt till Order.deliveringAt — d.v.s. från
 // det att kunden lade ordern till att restaurangen markerade den "på väg".
-// Snittet av de senaste N ordrarna ger en realistisk ETA som speglar varje
-// restaurangs tempo och belastning. Vi clampar till [25, 55] min så att en
-// outlier-leverans (kurir gick på lunch, glömt bord, etc) inte snedvrider
-// kundens förväntan i någon riktning.
+// Snittet av de senaste 20 ordrarnas leverans-tid ger en realistisk ETA som
+// speglar varje restaurangs tempo och belastning.
+//
+// Räkneschema (per restaurang):
+//   - 0–4 deliverade ordrar: ingen beräkning, default 40 min visas
+//   - 5:e ordern hamnar på DELIVERING: räkna första gången (small batch)
+//   - Därefter: räkna om var 20:e ny order (count == 25, 45, 65, ...)
+//
+// Tillåtna värden: 25, 30, 35, 40, 45, 50, 55. Snittet snappas till
+// närmaste värde i listan så kunden ser snygga steg-värden.
 
 export const ETA_DEFAULT_MINUTES = 40;
-export const ETA_MIN_MINUTES = 25;
-export const ETA_MAX_MINUTES = 55;
+export const ETA_ALLOWED_VALUES = [25, 30, 35, 40, 45, 50, 55] as const;
+export const ETA_MIN_MINUTES = ETA_ALLOWED_VALUES[0];
+export const ETA_MAX_MINUTES = ETA_ALLOWED_VALUES[ETA_ALLOWED_VALUES.length - 1];
 export const ETA_SAMPLE_SIZE = 20;
-export const ETA_MIN_SAMPLES = 5; // Under detta = för få datapunkter, behåll default
+export const ETA_MIN_SAMPLES = 5;
+export const ETA_RECALC_INTERVAL = 20;
 
-const clampEta = (n: number) => Math.max(ETA_MIN_MINUTES, Math.min(ETA_MAX_MINUTES, Math.round(n)));
+// Snap till närmaste tillåtna värde (25, 30, ..., 55). Clampar också så
+// outliers utanför ramen tas in i intervallet innan snap.
+const snapEta = (n: number): number => {
+  const clamped = Math.max(ETA_MIN_MINUTES, Math.min(ETA_MAX_MINUTES, n));
+  let best = ETA_ALLOWED_VALUES[0] as number;
+  let bestDist = Math.abs(clamped - best);
+  for (const value of ETA_ALLOWED_VALUES) {
+    const dist = Math.abs(clamped - value);
+    if (dist < bestDist) {
+      best = value;
+      bestDist = dist;
+    }
+  }
+  return best;
+};
 
 /**
  * Effektiv ETA för en restaurang.
@@ -34,34 +56,59 @@ export function getEffectiveEtaMinutes(restaurant: {
     restaurant.etaOverrideMinutes ??
     restaurant.etaCalculatedMinutes ??
     ETA_DEFAULT_MINUTES;
-  return clampEta(candidate);
+  return snapEta(candidate);
 }
 
 /**
- * Beräknar och uppdaterar etaCalculatedMinutes för en restaurang.
- * Tittar på de senaste ETA_SAMPLE_SIZE ordrarna som hunnit till
- * deliveringAt och tar snittet av (deliveringAt - createdAt) i minuter.
+ * Beräknar och uppdaterar etaCalculatedMinutes för en restaurang —
+ * men bara enligt schemat (efter 5:e ordern, sedan var 20:e). Samtliga
+ * andra DELIVERING-events skippas så vi inte ramar databasen i onödan.
+ *
+ * options.force = true räknar om oavsett, för admin-backfill-knappen.
  *
  * Anropas fire-and-forget från admin.ts varje gång en order går till
- * DELIVERING. Behöver inte vara perfekt synk eller transaktionssäker —
- * nästa DELIVERING-event räknar om värdet ändå.
+ * DELIVERING.
  */
-export async function recalculateRestaurantEta(restaurantId: string): Promise<number | null> {
+export async function recalculateRestaurantEta(
+  restaurantId: string,
+  options: { force?: boolean } = {},
+): Promise<number | null> {
   try {
+    // Räkna ALLA delivery-ordrar med deliveringAt — det avgör om vi ska
+    // räkna nu eller skippa till nästa milstolpe.
+    const totalDelivered = await prisma.order.count({
+      where: { restaurantId, deliveringAt: { not: null }, type: 'DELIVERY' },
+    });
+
+    if (!options.force) {
+      if (totalDelivered < ETA_MIN_SAMPLES) {
+        // Ännu inte 5 deliveringar — håll kvar default (null = visa 40 min).
+        return null;
+      }
+      // 5:e ordern: räkna första gången. Därefter var 20:e order
+      // (count == 25, 45, 65, ...). Så scheman triggar vid:
+      //   count == 5, 25, 45, 65, ...
+      const isFirstMilestone = totalDelivered === ETA_MIN_SAMPLES;
+      const isPeriodicMilestone =
+        totalDelivered > ETA_MIN_SAMPLES &&
+        (totalDelivered - ETA_MIN_SAMPLES) % ETA_RECALC_INTERVAL === 0;
+      if (!isFirstMilestone && !isPeriodicMilestone) {
+        return null;
+      }
+    }
+
+    // Hämta sample baserat på tillgänglig data:
+    //   - Vid 5:e ordern: använd alla 5
+    //   - Senare: använd senaste 20
+    const sampleSize = totalDelivered < ETA_SAMPLE_SIZE ? Math.max(ETA_MIN_SAMPLES, totalDelivered) : ETA_SAMPLE_SIZE;
     const samples = await prisma.order.findMany({
-      where: {
-        restaurantId,
-        deliveringAt: { not: null },
-        type: 'DELIVERY',
-      },
+      where: { restaurantId, deliveringAt: { not: null }, type: 'DELIVERY' },
       orderBy: { deliveringAt: 'desc' },
-      take: ETA_SAMPLE_SIZE,
+      take: sampleSize,
       select: { createdAt: true, deliveringAt: true },
     });
 
-    if (samples.length < ETA_MIN_SAMPLES) {
-      // För få datapunkter — låt etaCalculatedMinutes vara null så
-      // getEffectiveEtaMinutes faller tillbaka till etaMinutes/default 40.
+    if (samples.length < ETA_MIN_SAMPLES && !options.force) {
       return null;
     }
 
@@ -76,12 +123,12 @@ export async function recalculateRestaurantEta(restaurantId: string): Promise<nu
       }
     }
 
-    if (durationsMin.length < ETA_MIN_SAMPLES) {
+    if (durationsMin.length === 0) {
       return null;
     }
 
     const avg = durationsMin.reduce((a, b) => a + b, 0) / durationsMin.length;
-    const next = clampEta(avg);
+    const next = snapEta(avg);
 
     await prisma.restaurant.update({
       where: { id: restaurantId },

@@ -12,6 +12,7 @@ import { normalizeMoneyToOre } from '../utils/deliveryZones';
 import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivityPush';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
+import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
 
 const router = Router();
 router.use(authenticate);
@@ -732,7 +733,7 @@ router.post('/restaurants/recalculate-eta', requireSuperAdmin, async (req, res) 
 
     const results: { restaurantId: string; eta: number | null }[] = [];
     for (const id of ids) {
-      const eta = await recalculateRestaurantEta(id);
+      const eta = await recalculateRestaurantEta(id, { force: true });
       results.push({ restaurantId: id, eta });
     }
     res.json({ count: results.length, results });
@@ -2063,17 +2064,42 @@ const findCandidateAdminUsers = async (restaurant: {
   name: string;
   adminEmail?: string | null;
 }) => {
-  const all = await prisma.adminUser.findMany({
-    where: { role: { not: 'SUPER_ADMIN' } },
-    orderBy: [{ updatedAt: 'desc' }],
-    select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true, updatedAt: true },
-  });
+  // Optimering: använd Prisma `contains` med slug-prefixet för en
+  // grov förfiltrering i SQL innan vi gör fuzzy-match i node. Det undviker
+  // att läsa hela AdminUser-tabellen vid varje GET vid 10000+ konton.
+  const slugCore = restaurant.slug.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const nameFirst = restaurant.name.toLowerCase().split(/\s+/)[0]?.replace(/[^a-z0-9]+/g, '') || '';
 
+  const filters: any[] = [];
+  if (restaurant.adminEmail) {
+    filters.push({ email: { equals: restaurant.adminEmail.toLowerCase() } });
+  }
+  if (slugCore.length >= 3) {
+    filters.push({ email: { contains: slugCore } });
+    filters.push({ name: { contains: restaurant.name, mode: 'insensitive' } });
+  }
+  if (nameFirst.length >= 3 && nameFirst !== slugCore) {
+    filters.push({ email: { contains: nameFirst } });
+  }
+
+  const candidates = filters.length === 0
+    ? []
+    : await prisma.adminUser.findMany({
+        where: {
+          role: { not: 'SUPER_ADMIN' },
+          OR: filters,
+        },
+        orderBy: [{ updatedAt: 'desc' }],
+        select: { id: true, email: true, name: true, role: true, isActive: true, passwordPlain: true, updatedAt: true },
+      });
+
+  // Slutligt fuzzy-filter i node för att fånga edge cases
+  // (substring i bägge riktningar, svenska tecken, etc.).
   const slugNorm = normalizeForMatch(restaurant.slug);
   const nameNorm = normalizeForMatch(restaurant.name);
   const adminEmailNorm = restaurant.adminEmail ? normalizeForMatch(restaurant.adminEmail) : '';
 
-  return all.filter((admin) => {
+  return candidates.filter((admin) => {
     const emailNorm = normalizeForMatch(admin.email);
     const adminNameNorm = normalizeForMatch(admin.name);
     if (adminEmailNorm && emailNorm === adminEmailNorm) return true;
@@ -2083,6 +2109,18 @@ const findCandidateAdminUsers = async (restaurant: {
     if (nameNorm && adminNameNorm.includes(nameNorm)) return true;
     return false;
   });
+};
+
+// Auto-link cooldown: om FK precis blev null pga borttaget konto vill vi
+// inte trigga full fuzzy-match igen direkt vid varje refetch. 30 sek räcker
+// för att Vercel/RN-klienter ska sluta hammra. Memory-only Map räcker.
+const autoLinkCooldown = new Map<string, number>();
+const AUTO_LINK_COOLDOWN_MS = 30_000;
+const shouldRunAutoLink = (restaurantId: string): boolean => {
+  const last = autoLinkCooldown.get(restaurantId);
+  if (last && Date.now() - last < AUTO_LINK_COOLDOWN_MS) return false;
+  autoLinkCooldown.set(restaurantId, Date.now());
+  return true;
 };
 
 // Välj "rätt" konto bland kandidaterna när vi auto-länkar:
@@ -2131,7 +2169,12 @@ const resolveLoginAccount = async (restaurantId: string) => {
     restaurant.adminUserId = null;
   }
 
-  // Steg 2: hitta kandidater och länk/cleanup.
+  // Steg 2: hitta kandidater och länk/cleanup. Rate-limita per restaurang
+  // så massöppning inte triggar O(N) fuzzy-skannings på 30 sek.
+  if (!shouldRunAutoLink(restaurant.id)) {
+    return { restaurant, account: null };
+  }
+
   const candidates = await findCandidateAdminUsers(restaurant);
   if (candidates.length === 0) {
     return { restaurant, account: null };
@@ -2176,8 +2219,10 @@ const formatLoginAccount = (admin: {
   name: admin.name,
   role: admin.role,
   isActive: admin.isActive,
-  password: admin.passwordPlain,
-  hasPassword: Boolean(admin.passwordPlain),
+  // passwordPlain läcks bara ut om ENABLE_PASSWORD_PLAIN=true. I prod kan
+  // man stänga av det helt så bcrypt-hashen är enda lagrade representationen.
+  password: ENABLE_PASSWORD_PLAIN ? admin.passwordPlain : null,
+  hasPassword: ENABLE_PASSWORD_PLAIN ? Boolean(admin.passwordPlain) : false,
 });
 
 // GET: returnerar ENA inloggningskontot. Om inget finns returneras
@@ -2227,7 +2272,9 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
       }
       if (trimmedPassword) {
         data.password = await bcrypt.hash(trimmedPassword, 10);
-        data.passwordPlain = trimmedPassword;
+        // Lagra klartext bara om flaggan är på. Annars sätt null så ev.
+        // gammal klartext från en tidigare miljö rensas.
+        data.passwordPlain = ENABLE_PASSWORD_PLAIN ? trimmedPassword : null;
         data.isActive = true;
       }
       if (Object.keys(data).length > 0) {
@@ -2250,7 +2297,7 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
         data: {
           email: trimmedUsername,
           password: hashed,
-          passwordPlain: trimmedPassword,
+          passwordPlain: ENABLE_PASSWORD_PLAIN ? trimmedPassword : null,
           name: `${restaurant.name} Admin`,
           role: 'ADMIN',
           isActive: true,
@@ -2298,9 +2345,13 @@ router.delete('/restaurants/:id/login', authenticate, requireSuperAdmin, async (
 
 // FARLIG: rensar alla ordrar (eller ordrar för en specifik restaurang) ur
 // databasen. Används bara under testning för att starta från noll. Skyddad
-// med superadmin-koll + en explicit confirm-flagga så ingen råkar trycka.
+// med superadmin-koll + explicit confirm + ALLOW_WIPE_ORDERS env-flagga
+// så funktionen är inaktiv i produktion om man inte sätter den medvetet.
 router.post('/orders/wipe', authenticate, requireSuperAdmin, async (req, res) => {
   try {
+    if (!ALLOW_WIPE_ORDERS) {
+      return res.status(403).json({ error: 'Order-rensning är inaktiverad. Sätt ALLOW_WIPE_ORDERS=true i miljön för att aktivera.' });
+    }
     const { confirm, restaurantId } = req.body as { confirm?: string; restaurantId?: string };
     if (confirm !== 'WIPE_ALL_ORDERS') {
       return res.status(400).json({ error: 'Bekräftelse saknas (skicka { confirm: "WIPE_ALL_ORDERS" })' });

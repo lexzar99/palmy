@@ -38,7 +38,7 @@ import { runDailyCleanup } from './lib/cleanup';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
-import { getAllowedOrigins } from './lib/config';
+import { getAllowedOrigins, ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 import { resolveAdminSessionFromToken } from './middleware/auth';
 
@@ -50,6 +50,27 @@ import { initSocket, getIO } from './lib/socket';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const ADMIN_URL = process.env.ADMIN_URL || 'http://localhost:3001';
+
+// Startup-loggning av miljöberoenden så vi ser direkt om något viktigt
+// saknas. Servern kraschar inte (admin kan jobba runt), men varningen
+// visar exakt vad som behöver konfigureras.
+const cloudinaryConfigured = Boolean(
+  process.env.CLOUDINARY_URL ||
+    (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+);
+if (!cloudinaryConfigured) {
+  console.warn('⚠️  Cloudinary saknas — bilduppladdning returnerar 503 tills CLOUDINARY_URL eller CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET är satt.');
+}
+const googleMapsConfigured = Boolean(process.env.GOOGLE_MAPS_API_KEY);
+if (!googleMapsConfigured) {
+  console.warn('⚠️  GOOGLE_MAPS_API_KEY saknas — /api/places faller tillbaka till Geoapify (om EXPO_PUBLIC_GEOAPIFY_KEY finns).');
+}
+if (ALLOW_WIPE_ORDERS) {
+  console.warn('⚠️  ALLOW_WIPE_ORDERS=true — destruktiv /admin/orders/wipe-endpoint är aktiv. Stäng av i produktion när du inte testar längre.');
+}
+if (!ENABLE_PASSWORD_PLAIN) {
+  console.log('ℹ️  ENABLE_PASSWORD_PLAIN=false — restaurang-login visar inte klartext-lösenord.');
+}
 
 // In development, we want to allow requests from any local network IP (e.g. 192.168.x.x)
 const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];

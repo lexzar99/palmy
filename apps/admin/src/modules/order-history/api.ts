@@ -6,6 +6,9 @@ export interface OrderHistoryFilters {
   from?: string; // ISO datetime, e.g. "2026-05-01T11:00:00Z"
   to?: string;
   status?: string;
+  // Pagination — page är 0-indexerad. pageSize default 200.
+  page?: number;
+  pageSize?: number;
 }
 
 export interface OrderHistoryResponse {
@@ -13,14 +16,17 @@ export interface OrderHistoryResponse {
   total: number;
 }
 
+export const ORDER_HISTORY_PAGE_SIZE = 200;
+
 export const orderHistoryQueryKey = (filters: OrderHistoryFilters) =>
   ["order-history", filters] as const;
 
 export function buildOrderHistoryQuery(filters: OrderHistoryFilters): string {
   const params = new URLSearchParams();
-  // Tar upp till 1000 rader per anrop — räcker för en månads historik på alla
-  // demonstrationsrestauranger. Skala upp via offset om behovet växer.
-  params.set("limit", "1000");
+  const pageSize = filters.pageSize ?? ORDER_HISTORY_PAGE_SIZE;
+  const page = filters.page ?? 0;
+  params.set("limit", String(pageSize));
+  params.set("offset", String(page * pageSize));
   if (filters.restaurantId) params.set("restaurantId", filters.restaurantId);
   if (filters.from) params.set("from", filters.from);
   if (filters.to) params.set("to", filters.to);
