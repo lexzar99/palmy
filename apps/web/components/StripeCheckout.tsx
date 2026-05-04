@@ -79,10 +79,17 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
 
         {/* Stripe Payment Element */}
         <div className="stripe-element-container min-h-[250px]">
-          <PaymentElement 
+          <PaymentElement
             options={{
               layout: 'tabs',
               business: { name: 'MatGo' },
+              // Säkerställ att Apple/Google Pay är synliga om enheten stöder
+              // dem. Stripe filtrerar baserat på Dashboard-konfig + domain
+              // verification, men explicit `wallets` ger bättre fallback.
+              wallets: { applePay: 'auto', googlePay: 'auto' },
+              // Önskad ordning: wallets först (snabbast för användaren),
+              // sen kort, sist Klarna.
+              paymentMethodOrder: ['apple_pay', 'google_pay', 'card', 'klarna'],
             }}
           />
         </div>

@@ -44,15 +44,33 @@ function CountryPicker({
   onChange: (code: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const selected = COUNTRY_CODES.find(c => c.code === value) || COUNTRY_CODES[0];
+  const filtered = search.trim()
+    ? COUNTRY_CODES.filter((c) => `${c.country} ${c.code}`.toLowerCase().includes(search.trim().toLowerCase()))
+    : COUNTRY_CODES;
+
+  // Stäng dropdown vid klick utanför.
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.closest("[data-country-picker]")) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
 
   return (
-    <div className="relative">
+    <div className="relative" data-country-picker>
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-2 rounded-2xl py-4 px-4 font-bold whitespace-nowrap h-full"
         style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
         <span className="text-lg">{selected.flag}</span>
         <span className="text-sm">{selected.code}</span>
@@ -64,24 +82,45 @@ function CountryPicker({
             initial={{ opacity: 0, y: -8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.95 }}
-            className="absolute top-full left-0 mt-2 z-50 bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl w-52"
+            className="absolute top-full left-0 mt-2 z-50 rounded-2xl overflow-hidden shadow-2xl w-72 max-w-[calc(100vw-2rem)]"
+            style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)" }}
+            role="listbox"
           >
-            {COUNTRY_CODES.map(c => (
-              <button
-                key={c.code}
-                type="button"
-                onClick={() => { onChange(c.code); setOpen(false); }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-zinc-100 transition-colors text-left ${value === c.code ? "text-gold-500 font-black" : ""}`}
-                style={{ color: value === c.code ? undefined : "var(--text-primary)" }}
-              >
-                <span className="text-base">{c.flag}</span>
-                <div>
-                  <div className="font-bold text-xs">{c.country}</div>
-                  <div className="text-zinc-400 text-[10px]">{c.code}</div>
-                </div>
-                {value === c.code && <Check size={14} className="ml-auto text-gold-500" />}
-              </button>
-            ))}
+            <div className="px-3 pt-3 pb-2" style={{ borderBottom: "1px solid var(--border-muted)" }}>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Sök land..."
+                autoFocus
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              />
+            </div>
+            <div className="max-h-72 overflow-auto">
+              {filtered.length === 0 ? (
+                <div className="px-4 py-6 text-center text-xs text-zinc-400">Inga matchande länder.</div>
+              ) : (
+                filtered.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => { onChange(c.code); setOpen(false); setSearch(""); }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm transition-colors text-left ${value === c.code ? "font-black" : ""}`}
+                    style={{ color: "var(--text-primary)", backgroundColor: value === c.code ? "var(--bg-secondary)" : "transparent" }}
+                    role="option"
+                    aria-selected={value === c.code}
+                  >
+                    <span className="text-xl">{c.flag}</span>
+                    <div className="flex-1">
+                      <div className="font-bold text-xs">{c.country}</div>
+                      <div className="text-zinc-400 text-[10px]">{c.code}</div>
+                    </div>
+                    {value === c.code && <Check size={14} className="text-gold-500" />}
+                  </button>
+                ))
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -110,9 +149,16 @@ function SocialButton({
       const options: { redirectTo: string; scopes?: string } = {
         redirectTo: `${window.location.origin}/auth/callback`,
       };
-      // Apple kräver explicita scopes för att få email + namn
+      // Explicita scopes per provider så vi får tillbaka strukturerat
+      // namn + email (annars hamnar profilen i "Komplettera namn"-läge).
       if (provider === "apple") {
         options.scopes = "name email";
+      } else if (provider === "facebook") {
+        // Facebook returnerar first_name/last_name som user_metadata om vi ber
+        // om public_profile. email scope krävs för att få användarens mail.
+        options.scopes = "email,public_profile";
+      } else if (provider === "google") {
+        options.scopes = "email profile openid";
       }
       const { error } = await supabase.auth.signInWithOAuth({
         provider,

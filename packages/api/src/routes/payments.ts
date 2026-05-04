@@ -62,7 +62,18 @@ router.post('/create-intent', async (req, res) => {
         amount: Math.round(safeAmount * 100), // kr till ören
         currency,
         metadata: normalizedMetadata,
-        automatic_payment_methods: { enabled: true },
+        // automatic_payment_methods: enabled = Stripe väljer alla godkända
+        // metoder automatiskt (kort, Apple Pay, Google Pay, Klarna, Swish).
+        // allow_redirects: 'always' = tillåter Klarna/Swish (de behöver redirect).
+        // Apple Pay aktiveras OM:
+        //   1. Domain verifierad i Stripe Dashboard (web)
+        //   2. Apple Pay capability + merchant ID i app entitlements (RN)
+        //   3. Apple Pay payment processing cert uppladdad i Stripe Dashboard
+        // Om något saknas filtrerar Stripe bort knappen tyst.
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: 'always',
+        },
       },
       idempotencyKey ? { idempotencyKey: `create-intent:${idempotencyKey}` } : undefined
     );
