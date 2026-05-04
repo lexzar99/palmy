@@ -25,6 +25,7 @@ dependencies:
   printing: ^5.13.2
   pdf: ^3.11.1
   esc_pos_utils_plus: ^2.0.3
+  image: ^4.0.0
   print_bluetooth_thermal: ^1.1.9
   network_info_plus: ^5.0.3
   ping_discover_network_forked: ^0.0.1

@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'dart:io' show SocketException;
+import 'dart:math' show max;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
+import 'package:image/image.dart' as img;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -12,6 +16,103 @@ import 'bluetooth_printer_service.dart';
 import 'log_service.dart';
 import 'network_print_client.dart';
 import 'printing_config_service.dart';
+
+// ── Bitmap receipt painter ────────────────────────────────────────────────────
+// Renders the receipt to a dart:ui Canvas. Pass canvas=null for a measure-only
+// pass (to determine total height before allocating the picture recorder).
+class _RP {
+  final ui.Canvas? _c;
+  final double width;
+  final double margin;
+  double y;
+
+  _RP({ui.Canvas? canvas, required this.width, required this.margin, this.y = 20.0})
+      : _c = canvas;
+
+  double get cw => width - margin * 2;
+
+  void space(double px) => y += px;
+
+  void text(
+    String t, {
+    required double size,
+    FontWeight w = FontWeight.normal,
+    TextAlign align = TextAlign.left,
+    Color color = const Color(0xFF000000),
+  }) {
+    if (t.isEmpty) return;
+    final tp = TextPainter(
+      text: TextSpan(
+          text: t, style: TextStyle(fontSize: size, fontWeight: w, color: color, height: 1.3)),
+      textDirection: TextDirection.ltr,
+      textAlign: align,
+    )..layout(maxWidth: cw);
+    if (_c != null) {
+      double x = margin;
+      if (align == TextAlign.center) x = (width - tp.width) / 2;
+      else if (align == TextAlign.right) x = width - margin - tp.width;
+      tp.paint(_c!, Offset(x, y));
+    }
+    y += tp.height + 4;
+  }
+
+  void hr({double thickness = 2, double vPad = 12}) {
+    y += vPad;
+    if (_c != null) {
+      _c!.drawLine(
+        Offset(margin, y), Offset(width - margin, y),
+        Paint()..color = const Color(0xFF000000)..strokeWidth = thickness,
+      );
+    }
+    y += thickness + vPad;
+  }
+
+  void badge(String t) {
+    if (t.isEmpty) return;
+    const hPad = 24.0;
+    const vPad = 10.0;
+    const fs = 28.0;
+    final tp = TextPainter(
+      text: TextSpan(
+          text: t, style: const TextStyle(fontSize: fs, fontWeight: FontWeight.w900, color: Color(0xFF000000), height: 1.3)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: cw - hPad * 2);
+    final bw = tp.width + hPad * 2;
+    final bh = tp.height + vPad * 2;
+    final bx = (width - bw) / 2;
+    if (_c != null) {
+      _c!.drawRect(
+        Rect.fromLTWH(bx, y, bw, bh),
+        Paint()..color = const Color(0xFF000000)..style = PaintingStyle.stroke..strokeWidth = 3,
+      );
+      tp.paint(_c!, Offset(bx + hPad, y + vPad));
+    }
+    y += bh + 10;
+  }
+
+  void row(
+    String left,
+    String right, {
+    required double size,
+    FontWeight w = FontWeight.bold,
+  }) {
+    final ltp = TextPainter(
+      text: TextSpan(text: left, style: TextStyle(fontSize: size, fontWeight: w, color: const Color(0xFF000000), height: 1.3)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: cw * 0.65);
+    final rtp = TextPainter(
+      text: TextSpan(text: right, style: TextStyle(fontSize: size, fontWeight: w, color: const Color(0xFF000000), height: 1.3)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: cw * 0.35);
+    if (_c != null) {
+      ltp.paint(_c!, Offset(margin, y));
+      rtp.paint(_c!, Offset(width - margin - rtp.width, y));
+    }
+    y += max(ltp.height, rtp.height) + 4;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 /// Event som publiceras när ett auto-print misslyckas. UI:t (DashboardScreen)
 /// lyssnar på [PrintService.errors] och visar en SnackBar.
@@ -243,15 +344,15 @@ class PrintService {
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
-        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80, // 72mm, 80mm → mm80
+        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-      final bytes = _buildEscPosBytes(generator, receiptData, template);
+      final oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
       await NetworkPrintClient.sendBytes(
         host: host,
         port: port,
-        bytes: bytes,
-        copies: copies,
+        bytes: <int>[for (var i = 0; i < copies; i++) ...oneCopy],
+        copies: 1,
       );
       return null;
     } on SocketException catch (e) {
@@ -278,11 +379,10 @@ class PrintService {
     try {
       final profile = await CapabilityProfile.load();
       final generator = Generator(
-        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80, // 72mm, 80mm → mm80
+        paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-      final oneCopy = _buildEscPosBytes(generator, receiptData, template);
-      // Slå ihop alla kopior till ett enda print-jobb (B5-fix).
+      final oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
       final allBytes = <int>[
         for (var i = 0; i < copies; i++) ...oneCopy,
       ];
@@ -634,6 +734,199 @@ class PrintService {
     return widgets;
   }
 
+  // ── Bitmap rendering ────────────────────────────────────────────────────────
+
+  /// Renders the receipt to a bitmap and wraps it in ESC/POS image commands.
+  /// This produces a WYSIWYG printout matching the admin preview exactly.
+  static Future<List<int>> _buildBitmapBytes(
+    Generator generator,
+    Map<String, dynamic>? receiptData,
+    ReceiptTemplateSettings template,
+    String paperWidth,
+  ) async {
+    // 203 DPI: 58mm → 384 dots, 72/80mm → 576 dots
+    final int widthPx = paperWidth == '58mm' ? 384 : 576;
+
+    // Measure pass (canvas = null)
+    final m = _RP(width: widthPx.toDouble(), margin: 28);
+    _drawReceiptBitmap(m, receiptData, template);
+    final int heightPx = (m.y + 60).ceil();
+
+    // Draw pass
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, widthPx.toDouble(), heightPx.toDouble()),
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
+    final d = _RP(canvas: canvas, width: widthPx.toDouble(), margin: 28);
+    _drawReceiptBitmap(d, receiptData, template);
+
+    final picture = recorder.endRecording();
+    final uiImg = await picture.toImage(widthPx, heightPx);
+    final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.rawRgba);
+    if (byteData == null) throw Exception('Bitmap render: toByteData returned null');
+
+    final bitmapImg = img.Image.fromBytes(
+      width: widthPx,
+      height: heightPx,
+      bytes: byteData.buffer,
+      numChannels: 4,
+      order: img.ChannelOrder.rgba,
+    );
+
+    return <int>[
+      ...generator.imageRaster(bitmapImg,
+          align: PosAlign.center,
+          highDensityHorizontal: true,
+          highDensityVertical: true),
+      ...generator.feed(2),
+      ...generator.cut(),
+    ];
+  }
+
+  static void _drawReceiptBitmap(
+    _RP p,
+    Map<String, dynamic>? receiptData,
+    ReceiptTemplateSettings template,
+  ) {
+    final payload = receiptData ?? _fallbackReceiptData(null, template);
+    final h = Map<String, dynamic>.from(payload['header'] as Map? ?? const {});
+    final o = Map<String, dynamic>.from(payload['orderInfo'] as Map? ?? const {});
+    final c = Map<String, dynamic>.from(payload['customer'] as Map? ?? const {});
+    final t = Map<String, dynamic>.from(payload['totals'] as Map? ?? const {});
+    final items = (payload['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    const grey = Color(0xFF666666);
+    const red = Color(0xFFCC0000);
+    final isDelivery = _safeValue(o['type']) == 'DELIVERY';
+
+    // Platform + order number
+    p.text('${template.platformName} #${_safeValue(o['number'])}',
+        size: 22, w: FontWeight.bold, align: TextAlign.center);
+    p.text('Ej kvitto', size: 20, align: TextAlign.center, color: grey);
+    p.hr();
+
+    // Restaurant header
+    final rName = _safeValue(h['restaurantName']);
+    if (rName.isNotEmpty) {
+      p.text(rName.toUpperCase(), size: 44, w: FontWeight.w900, align: TextAlign.center);
+    }
+    p.text('${_safeValue(o['date'])} ${_safeValue(o['time'])}',
+        size: 24, w: FontWeight.bold, align: TextAlign.center);
+    final rAddr = [
+      _safeValue(h['address']),
+      [h['zip'], h['city']].where((v) => _safeValue(v).isNotEmpty).join(' '),
+    ].where((v) => v.isNotEmpty).join(', ');
+    if (rAddr.isNotEmpty) p.text(rAddr, size: 22, align: TextAlign.center);
+    if (_safeValue(h['phone']).isNotEmpty) {
+      p.text('Tel: ${_safeValue(h['phone'])}', size: 22, align: TextAlign.center);
+    }
+    p.hr();
+
+    // Customer
+    if (_safeValue(c['name']).isNotEmpty) {
+      p.text('Kund:', size: 22, color: grey);
+      p.text(_safeValue(c['name']), size: 34, w: FontWeight.w900);
+    }
+    if (_safeValue(c['phone']).isNotEmpty) {
+      p.text(_safeValue(c['phone']), size: 24, w: FontWeight.bold);
+    }
+    final cAddr = [
+      _safeValue(c['street']),
+      [c['zip'], c['city']].where((v) => _safeValue(v).isNotEmpty).join(' '),
+    ].where((v) => v.isNotEmpty).join(', ');
+    if (cAddr.isNotEmpty) {
+      p.space(8);
+      p.text('Adress:', size: 22, color: grey);
+      p.text(cAddr, size: 24, w: FontWeight.w900);
+    }
+    if (_safeValue(c['instructions']).isNotEmpty) {
+      p.text(_safeValue(c['instructions']), size: 22);
+    }
+    if (_safeValue(c['note']).isNotEmpty) {
+      p.text(_safeValue(c['note']), size: 22, w: FontWeight.w900);
+    }
+    final allergensRaw = c['allergens'];
+    final allergensStr = allergensRaw is List
+        ? (allergensRaw as List).map((e) => _safeValue(e)).where((e) => e.isNotEmpty).join(', ')
+        : _safeValue(allergensRaw);
+    if (allergensStr.isNotEmpty) {
+      p.text('! $allergensStr', size: 22, w: FontWeight.w900, color: red);
+    }
+    p.space(12);
+
+    // Status badges
+    p.badge(isDelivery ? 'Utkörning' : 'Avhämtning');
+    if (o['isPreorder'] == true) {
+      p.badge('Förbeställd ${_safeValue(o['scheduledDate'])} ${_safeValue(o['scheduledTime'])}');
+    }
+    if (_safeValue(o['paymentMethod']).isNotEmpty) {
+      p.badge(_safeValue(o['paymentMethod']));
+    }
+
+    // Delivery time (very large)
+    if (o['isPreorder'] != true && o['estimatedTime'] != null) {
+      p.space(8);
+      p.text('Leveranstid', size: 24, align: TextAlign.center);
+      p.text('${o['estimatedTime']} min', size: 64, w: FontWeight.w900, align: TextAlign.center);
+    }
+
+    // Item count
+    p.text(
+      '${items.length} artikel${items.length > 1 ? 'ar' : ''}',
+      size: 22, align: TextAlign.center, color: grey,
+    );
+    p.hr();
+
+    // Items
+    for (final item in items) {
+      p.row(
+        '${item['qty']} x ${_normalizeText(_safeValue(item['name']), uppercase: false)}',
+        '${_safeValue(item['subtotal'])} kr',
+        size: 28,
+      );
+      final extras = item['extras'];
+      if (extras is List) {
+        for (final extra in extras) {
+          final en = extra is Map ? _safeValue(extra['name']) : _safeValue(extra);
+          if (en.isNotEmpty) p.text('** $en', size: 22, color: grey);
+        }
+      }
+      if (_safeValue(item['note']).isNotEmpty) {
+        p.text('! ${_safeValue(item['note'])}', size: 22, w: FontWeight.bold);
+      }
+      p.space(6);
+    }
+    p.hr();
+
+    // Totals
+    if ((_toNum(t['deliveryFee']) ?? 0) > 0) {
+      p.row('Leveransavgift', '${_safeValue(t['deliveryFee'])} kr', size: 24);
+    }
+    if ((_toNum(t['discount']) ?? 0) > 0) {
+      final code = _safeValue(t['discountCode']);
+      p.row(
+        code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
+        '-${_safeValue(t['discount'])} kr',
+        size: 24,
+      );
+    }
+    p.hr(thickness: 3);
+    p.row('Totalt', '${_safeValue(t['total'])} kr', size: 44, w: FontWeight.w900);
+    p.hr();
+
+    // Footer
+    p.space(6);
+    p.text('Tack för din beställning!', size: 22, w: FontWeight.bold, align: TextAlign.center);
+    p.text('Välkommen åter!', size: 20, align: TextAlign.center, color: grey);
+  }
+
+  // ── ESC/POS text (legacy, kept for A4 PDF path) ───────────────────────────
+
   static List<int> _buildEscPosBytes(
     Generator generator,
     Map<String, dynamic>? receiptData,
@@ -770,9 +1063,16 @@ class PrintService {
                 _posText(generator, _safeValue(customer['note']), element));
           break;
         case 'allergens':
-          if (_safeValue(customer['allergens']).isNotEmpty)
-            bytes.addAll(_posText(generator,
-                '! ${_safeValue(customer['allergens'])}', element));
+          final allergensRaw = customer['allergens'];
+          final allergensStr = allergensRaw is List
+              ? (allergensRaw)
+                  .map((e) => _safeValue(e))
+                  .where((e) => e.isNotEmpty)
+                  .join(', ')
+              : _safeValue(allergensRaw);
+          if (allergensStr.isNotEmpty)
+            bytes.addAll(
+                _posText(generator, '! $allergensStr', element));
           break;
         case 'items':
           bytes.addAll(generator.text(

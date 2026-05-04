@@ -67,7 +67,13 @@ const mergeTemplateElements = (template: ReceiptTemplate): ReceiptTemplate => {
   const map = new Map(template.elements.map((element) => [element.key, element]));
   return {
     ...template,
-    elements: defaultElements.map((element) => map.get(element.key) || element),
+    elements: defaultElements.map((def) => {
+      const saved = map.get(def.key);
+      if (!saved) return def;
+      // layout (align/size/weight/uppercase) always from defaults so design stays consistent
+      // only user choices (visible, content) are preserved from the saved template
+      return { ...def, visible: saved.visible, content: saved.content ?? def.content };
+    }),
   };
 };
 
@@ -231,7 +237,7 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
   );
 
   return (
-    <div className="text-[12px] leading-[1.6] font-medium" style={{ fontFamily: "'Arial Black', 'Arial Bold', Arial, 'Helvetica Neue', Helvetica, sans-serif" }}>
+    <div className="text-[12px] leading-[1.6] font-medium" style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" }}>
 
       {/* ── Platform + ordernummer ── */}
       <div className="text-center mb-1">
