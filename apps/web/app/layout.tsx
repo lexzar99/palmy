@@ -7,6 +7,7 @@ import Providers from "./providers";
 import LiveOrderBanner from "@/components/LiveOrderBanner";
 
 import CookieConsent from "@/components/CookieConsent";
+import ClaimDealPopup from "@/components/ClaimDealPopup";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -36,6 +37,7 @@ export default function RootLayout({
           <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />
+          <ClaimDealPopup />
         </Providers>
       </body>
     </html>

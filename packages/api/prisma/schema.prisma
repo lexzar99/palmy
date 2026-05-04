@@ -185,6 +185,14 @@ model Deal {
   description           String?
   imageUrl              String?
   badgeText             String?
+  // Popup-specifika fält. Används av claim-popupen i web/RN. När popupBuilder
+  // skapar en deal sätter admin dessa: vad popupen säger, vilken kod kunden
+  // ser efter claim, och CTA-knappens text. Lämnas tomma blir popup en
+  // standard-rendering av title + description.
+  popupHeadline         String?
+  popupBody             String?
+  popupCtaLabel         String?
+  popupCode             String?
   triggerType           String      @default("NONE")
   discountType          String      @default("PERCENTAGE")
   discountValue         Int

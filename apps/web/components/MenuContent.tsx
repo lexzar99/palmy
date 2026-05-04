@@ -637,7 +637,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         setOrderType={setOrderType}
       />
 
-      <DealSpotlight deals={deals.filter(d => d.popupEnabled)} subtotal={subtotal} productIds={productIds} floating />
+      {/* DealSpotlight på restaurang-sidan borttagen — användaren ska bara
+          se discountade priser direkt i menyn, inte en separat banner. */}
       <FloatingCartButton />
     </div>
   );

@@ -89,8 +89,32 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     }
   };
 
+  // Effektivt pris: använd salePrice/discountPrice om produkten är på deal,
+  // annars ordinarie pris. Detta matchar exakt det pris som visas i menyn
+  // så modalen och listan aldrig divergerar (tidigare bug: list visade
+  // discount men modalen ordinarie pris).
+  //
+  // Prioritet:
+  //   1. product.salePrice (från resolveDisplayPromotionForProduct backend-side)
+  //   2. product.discountPrice (legacy fixed-price-fält)
+  //   3. product.price * (1 - discountPercent/100) om discountActive
+  //   4. product.price (ingen rabatt)
+  const effectiveBasePrice = (() => {
+    if (typeof product.salePrice === "number" && product.salePrice > 0 && product.salePrice < product.price) {
+      return product.salePrice;
+    }
+    if (product.discountActive) {
+      if (typeof product.discountPrice === "number" && product.discountPrice > 0) return product.discountPrice;
+      if (typeof product.discountPercent === "number" && product.discountPercent > 0) {
+        return Math.max(0, product.price - product.price * (product.discountPercent / 100));
+      }
+    }
+    return product.price;
+  })();
+
   const extrasPrice = selectedExtras.reduce((sum, e) => sum + e.price, 0);
-  const totalPrice = (product.price + extrasPrice) * quantity;
+  const totalPrice = (effectiveBasePrice + extrasPrice) * quantity;
+  const hasDiscount = effectiveBasePrice < product.price;
 
   const handleAddToCart = () => {
     for (const group of product.extraGroups || []) {
@@ -121,7 +145,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         productId: product.id,
         restaurantId,
         name: product.name,
-        price: product.price,
+        price: effectiveBasePrice,
         quantity,
         extras: selectedExtras,
         note: note.trim() || undefined,
@@ -132,7 +156,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         restaurantId,
         restaurantSlug,
         name: product.name,
-        price: product.price,
+        price: effectiveBasePrice,
         quantity,
         extras: selectedExtras,
         note: note.trim() || undefined,

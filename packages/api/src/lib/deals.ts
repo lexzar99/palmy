@@ -4,6 +4,10 @@ type DealLike = {
   description: string | null;
   imageUrl?: string | null;
   badgeText: string | null;
+  popupHeadline?: string | null;
+  popupBody?: string | null;
+  popupCtaLabel?: string | null;
+  popupCode?: string | null;
   triggerType: string;
   discountType: string;
   discountValue: number;
@@ -312,7 +316,12 @@ export const formatDealForClient = (
   id: deal.id,
   title: deal.title,
   description: deal.description,
+  imageUrl: deal.imageUrl ?? null,
   badgeText: deal.badgeText,
+  popupHeadline: deal.popupHeadline ?? null,
+  popupBody: deal.popupBody ?? null,
+  popupCtaLabel: deal.popupCtaLabel ?? null,
+  popupCode: deal.popupCode ?? null,
   dealType: getDealKind(deal),
   scopeType: getDealScopeType(deal),
   triggerType: deal.triggerType,
