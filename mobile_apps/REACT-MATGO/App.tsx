@@ -97,6 +97,7 @@ import CartScreen from "./src/screens/CartScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import OrderScreen from "./src/screens/OrderScreen";
+import DealScreen from "./src/screens/DealScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import PhoneGateScreen from "./src/screens/PhoneGateScreen";
 
@@ -1048,6 +1049,7 @@ function AppContent() {
                     openRegister={(initialPhone) => pushRoute({ name: "register", initialPhone } as any)}
                     openOrder={(id) => pushRoute({ name: "order", id } as any)}
                     openCart={() => openRoot("cart")}
+                    openDeal={(id) => pushRoute({ name: "deal", id } as any)}
                   />
                 )}
               </Stack.Screen>
@@ -1076,6 +1078,19 @@ function AppContent() {
                   />
                 )}
               </Stack.Screen>
+
+              <Stack.Screen name="deal">
+                {(props: any) => (
+                  <DealScreen
+                    id={props.route.params?.id}
+                    goBack={() => {
+                      if (navigationRef.isReady() && navigationRef.canGoBack()) goBack();
+                      else openRoot("home");
+                    }}
+                    openRestaurant={(slug) => pushRoute({ name: "restaurant", slug } as any)}
+                  />
+                )}
+              </Stack.Screen>
             </Stack.Navigator>
           </NavigationContainer>
 
@@ -1086,7 +1101,7 @@ function AppContent() {
               onDismiss={() => setActiveOrder(null)}
             />
           )}
-          {!["restaurant", "order", "register"].includes(currentRouteName) && (
+          {!["restaurant", "order", "register", "deal"].includes(currentRouteName) && (
             <BottomTabs active={tabValue as any} onChange={openRoot} />
           )}
         </View>

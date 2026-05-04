@@ -78,10 +78,12 @@ export default function ProfileScreen({
   openRegister,
   openOrder,
   openCart,
+  openDeal,
 }: {
   openRegister: (initialPhone?: string) => void;
   openOrder: (id: string) => void;
   openCart: () => void;
+  openDeal?: (id: string) => void;
 }) {
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
@@ -1053,13 +1055,31 @@ export default function ProfileScreen({
           {/* Claimade + globala deals (från popup-builder broadcasts) */}
           {claimedDeals.map((deal: any) => {
             const isClaimed = deal._kind === "CLAIMED";
+            // Tag som visar typ av deal: Personlig (claimad), Restaurang
+            // (specifik restaurant), Global (alla restauranger).
+            const dealKind = deal.restaurantId
+              ? { label: "RESTAURANG", color: "#5ea6ff", bg: "rgba(94,166,255,0.12)" }
+              : isClaimed
+                ? { label: "PERSONLIG", color: "#c084fc", bg: "rgba(192,132,252,0.14)" }
+                : { label: "GLOBAL", color: "#34d399", bg: "rgba(52,211,153,0.12)" };
             return (
-              <View key={`claimed-${deal.id}`} style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 14 }}>
+              <Pressable
+                key={`claimed-${deal.id}`}
+                onPress={() => openDeal && openDeal(deal.id)}
+                style={{ backgroundColor: "rgba(234,181,69,0.06)", borderRadius: 30, borderWidth: 1, borderColor: "rgba(234,181,69,0.18)", padding: 22, gap: 14 }}
+              >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 14 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
-                      {isClaimed ? "Sparad" : "Tillgänglig för alla"}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                        {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                      </Text>
+                      <View style={{ paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: dealKind.bg }}>
+                        <Text style={{ color: dealKind.color, fontSize: 9, fontWeight: "900", letterSpacing: 1 }}>
+                          {dealKind.label}
+                        </Text>
+                      </View>
+                    </View>
                     <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic", marginTop: 6 }}>
                       {deal.popupHeadline || deal.title}
                     </Text>
@@ -1090,7 +1110,7 @@ export default function ProfileScreen({
                     </Text>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             );
           })}
 

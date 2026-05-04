@@ -9,6 +9,7 @@ export type AppRoute =
   | { name: "profile" }
   | { name: "register"; initialPhone?: string }
   | { name: "order"; id: string }
+  | { name: "deal"; id: string }
   | { name: "discover-filtered"; restaurantIds: string[]; dealId?: string; dealTitle?: string };
 
 export interface Restaurant {
