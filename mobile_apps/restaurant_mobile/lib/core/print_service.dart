@@ -697,7 +697,7 @@ class PrintService {
           break;
         case 'orderNumber':
           bytes.addAll(_posText(
-              generator, 'Order #${_safeValue(orderInfo['number'])}', element));
+              generator, '#${_safeValue(orderInfo['number'])}', element));
           break;
         case 'timestamp':
           bytes.addAll(_posText(
@@ -710,37 +710,35 @@ class PrintService {
           bytes.addAll(_posText(
               generator,
               _safeValue(orderInfo['type']) == 'DELIVERY'
-                  ? 'UTKORNING'
-                  : 'AVHAMTNING',
+                  ? '[ UTKORING ]'
+                  : '[ AVHAMTNING ]',
               element));
           break;
         case 'scheduledFor':
           if (orderInfo['isPreorder'] == true)
             bytes.addAll(_posText(
                 generator,
-                'FORBESTALLD ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'
+                'Forbestalld ${_safeValue(orderInfo['scheduledDate'])} ${_safeValue(orderInfo['scheduledTime'])}'
                     .trim(),
                 element));
           break;
         case 'estimatedTime':
-          // ESC-POS-spegling av PDF-grenen: utlovad tid i minuter.
-          // Hoppas över för förbeställningar (scheduledFor täcker det).
           if (orderInfo['isPreorder'] != true &&
               orderInfo['estimatedTime'] != null)
             bytes.addAll(_posText(
                 generator,
-                'UTLOVAD TID: ${orderInfo['estimatedTime']} MIN',
+                'Leveranstid: ${orderInfo['estimatedTime']} min',
                 element));
           break;
         case 'customerName':
           if (_safeValue(customer['name']).isNotEmpty)
-            bytes.addAll(_posText(
-                generator, 'KUND: ${_safeValue(customer['name'])}', element));
+            bytes.addAll(
+                _posText(generator, _safeValue(customer['name']), element));
           break;
         case 'customerPhone':
           if (_safeValue(customer['phone']).isNotEmpty)
-            bytes.addAll(_posText(generator,
-                'TELEFON: ${_safeValue(customer['phone'])}', element));
+            bytes.addAll(
+                _posText(generator, _safeValue(customer['phone']), element));
           break;
         case 'customerAddress':
           final customerAddress = [
@@ -755,19 +753,17 @@ class PrintService {
         case 'deliveryInstructions':
           if (_safeValue(customer['instructions']).isNotEmpty)
             bytes.addAll(_posText(
-                generator,
-                'INSTRUKTION: ${_safeValue(customer['instructions'])}',
-                element));
+                generator, _safeValue(customer['instructions']), element));
           break;
         case 'note':
           if (_safeValue(customer['note']).isNotEmpty)
-            bytes.addAll(_posText(generator,
-                'NOTERING: ${_safeValue(customer['note'])}', element));
+            bytes.addAll(
+                _posText(generator, _safeValue(customer['note']), element));
           break;
         case 'allergens':
           if (_safeValue(customer['allergens']).isNotEmpty)
             bytes.addAll(_posText(generator,
-                'ALLERGENER: ${_safeValue(customer['allergens'])}', element));
+                '! ${_safeValue(customer['allergens'])}', element));
           break;
         case 'items':
           for (final item in items) {
@@ -814,7 +810,7 @@ class PrintService {
           if (_safeValue(orderInfo['paymentMethod']).isNotEmpty)
             bytes.addAll(_posText(
                 generator,
-                'BETALMETOD: ${_safeValue(orderInfo['paymentMethod'])}',
+                '[ ${_safeValue(orderInfo['paymentMethod'])} ]',
                 element));
           break;
         case 'thankYou':

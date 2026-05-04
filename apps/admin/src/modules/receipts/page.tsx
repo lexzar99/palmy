@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, GripVertical, Loader2, Plus, Printer, Save, Trash2 } from "lucide-react";
 import {
@@ -220,6 +220,11 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
   const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const isDelivery     = s(o.type) === "DELIVERY";
   const Divider        = () => <div className="border-t border-dashed border-[#bbb] my-2" />;
+  const StatusBox      = ({ children }: { children: React.ReactNode }) => (
+    <div className="inline-block border border-black px-4 py-0.5 my-0.5">
+      <span className="font-black text-[11px] tracking-wide uppercase">{children}</span>
+    </div>
+  );
 
   return (
     <div className="text-[10.5px] leading-[1.45]" style={{ fontFamily: "'Courier New', Courier, monospace" }}>
@@ -234,69 +239,64 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
       <Divider />
 
       {/* ── Order ── */}
-      <div className="mb-1.5">
-        <p className="font-black text-[13px]">Order #{s(o.number) || "—"}</p>
+      <div className="text-center mb-1.5">
+        <p className="font-black text-[13px]">#{s(o.number) || "—"}</p>
         <p className="text-[8px] text-[#666]">{s(o.date)} {s(o.time)}</p>
-        <p className="font-black text-[11px] mt-0.5">{isDelivery ? "UTKÖRNING" : "AVHÄMTNING"}</p>
-        {!!o.isPreorder && (
-          <p className="font-bold text-[9px] mt-0.5">FÖRBESTÄLLD {s(o.scheduledDate)} {s(o.scheduledTime)}</p>
-        )}
+        <div className="flex flex-col items-center gap-0.5 mt-1">
+          <StatusBox>{isDelivery ? "Utkörning" : "Avhämtning"}</StatusBox>
+          {!!o.isPreorder && <StatusBox>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</StatusBox>}
+          {s(o.paymentMethod) && <StatusBox>{s(o.paymentMethod)}</StatusBox>}
+        </div>
         {!o.isPreorder && n(o.estimatedTime) > 0 && (
-          <p className="text-[8px] text-[#666] mt-0.5">Utlovad tid: {s(o.estimatedTime)} min</p>
+          <p className="text-[8px] text-[#666] mt-1">Leveranstid: {s(o.estimatedTime)} min</p>
         )}
       </div>
 
       <Divider />
 
       {/* ── Kund ── */}
-      <div className="mb-1.5">
+      <div className="text-center mb-1.5">
         {s(c.name)         && <p className="font-bold">{s(c.name)}</p>}
         {s(c.phone)        && <p className="text-[8px] text-[#555]">{s(c.phone)}</p>}
         {customerAddr      && <p className="text-[8px] text-[#555]">{customerAddr}</p>}
-        {s(c.instructions) && <p className="font-bold text-[9px] mt-0.5">Inst: {s(c.instructions)}</p>}
-        {s(c.note)         && <p className="font-bold text-[9px] mt-0.5">Not: {s(c.note)}</p>}
-        {s(c.allergens)    && <p className="font-bold text-[9px] text-red-700 mt-0.5">⚠ Allergener: {s(c.allergens)}</p>}
+        {s(c.instructions) && <p className="text-[9px] mt-0.5">{s(c.instructions)}</p>}
+        {s(c.note)         && <p className="font-bold text-[9px] mt-0.5">{s(c.note)}</p>}
+        {s(c.allergens)    && <p className="font-bold text-[9px] text-red-700 mt-0.5">! {s(c.allergens)}</p>}
       </div>
 
       <Divider />
 
       {/* ── Artiklar ── */}
-      <div className="mb-1.5 space-y-1.5">
-        {items.map((item, i) => (
-          <div key={i}>
-            <div className="flex justify-between items-baseline gap-1">
-              <span className="font-bold flex-1">{s(item.qty)}x {s(item.name)}</span>
-              <span className="font-bold whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+      <div className="mb-1.5">
+        <p className="text-[8px] text-[#666] text-center mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
+        <div className="space-y-1.5">
+          {items.map((item, i) => (
+            <div key={i} className="text-center">
+              <p className="font-bold">{s(item.qty)}x {s(item.name)}   {s(item.subtotal)} kr</p>
+              {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
+                <p key={ei} className="text-[8px] text-[#666]">
+                  + {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
+                </p>
+              ))}
+              {s(item.note) && <p className="text-[8px] font-bold">! {s(item.note)}</p>}
             </div>
-            {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
-              <p key={ei} className="text-[8px] text-[#666] pl-2">
-                + {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
-              </p>
-            ))}
-            {s(item.note) && <p className="text-[8px] font-bold pl-2">! {s(item.note)}</p>}
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
       <Divider />
 
       {/* ── Totalt ── */}
-      <div className="mb-1.5">
+      <div className="mb-1.5 text-center">
         {n(t.deliveryFee) > 0 && (
-          <div className="flex justify-between text-[8px] text-[#555]">
-            <span>Leverans</span><span>{s(t.deliveryFee)} kr</span>
-          </div>
+          <p className="text-[8px] text-[#555]">Leverans: {s(t.deliveryFee)} kr</p>
         )}
         {n(t.discount) > 0 && (
-          <div className="flex justify-between text-[8px] text-[#555]">
-            <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
-            <span>−{s(t.discount)} kr</span>
-          </div>
+          <p className="text-[8px] text-[#555]">Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}: −{s(t.discount)} kr</p>
         )}
-        <div className="flex justify-between items-baseline font-black text-[14px] border-t border-black pt-1 mt-1">
-          <span>TOTALT</span><span>{s(t.total)} kr</span>
+        <div className="border-t border-black pt-1 mt-1">
+          <p className="font-black text-[14px]">TOTALT: {s(t.total)} kr</p>
         </div>
-        {s(o.paymentMethod) && <p className="text-[8px] text-[#666] mt-0.5">{s(o.paymentMethod)}</p>}
       </div>
 
       <Divider />
