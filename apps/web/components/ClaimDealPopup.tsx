@@ -30,13 +30,20 @@ export default function ClaimDealPopup() {
         const dismissedAt = Number(localStorage.getItem("matgo_claim_dismissed_at") || 0);
         if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return;
 
-        const { data } = await axios.get("/api/platform/profile/deals").catch(() => ({ data: [] }));
+        // Hämta publika deals (inkluderar popup-deals) parallellt med
+        // användarens redan claimade så vi vet vilka som ska visas.
+        const [allRes, claimedRes] = await Promise.all([
+          axios.get("/api/platform/deals").catch(() => ({ data: [] })),
+          axios.get("/api/platform/profile/claimed-deals").catch(() => ({ data: { claimed: [], global: [] } })),
+        ]);
         if (cancelled) return;
 
-        // Hitta första popup-aktiverade dealen som inte redan claimats.
-        const claimedIds: string[] = (data?.claimedDealIds as string[] | undefined) || [];
-        const candidate = (Array.isArray(data) ? data : data?.deals || []).find(
-          (d: any) => d?.popupEnabled && d?.isActive && !claimedIds.includes(d.id),
+        const claimedIds = new Set<string>(
+          ((claimedRes.data?.claimed || []) as any[]).map((d: any) => d.id),
+        );
+        const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data?.deals || []);
+        const candidate = all.find(
+          (d: any) => d?.popupEnabled && d?.isActive && !claimedIds.has(d.id),
         );
         if (candidate) setDeal(candidate);
       } catch {

@@ -56,8 +56,12 @@ export function DealsPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const dealsForRestaurantContext = useMemo(() => {
-    if (!selectedRestaurantId) return automaticDeals.data || [];
-    return (automaticDeals.data || []).filter((deal) => deal.isGlobal || deal.restaurantId === selectedRestaurantId || deal.applicableRestaurantIds?.includes(selectedRestaurantId));
+    // Popup-deals (skapade i Popup Builder) är en separat klass och visas
+    // inte här — annars dubbleras de i UI:t och förvirrar admin om vilken
+    // typ av "deal" man redigerar. Hantera dem på /popup-builder istället.
+    const visible = (automaticDeals.data || []).filter((deal) => !deal.popupEnabled);
+    if (!selectedRestaurantId) return visible;
+    return visible.filter((deal) => deal.isGlobal || deal.restaurantId === selectedRestaurantId || deal.applicableRestaurantIds?.includes(selectedRestaurantId));
   }, [automaticDeals.data, selectedRestaurantId]);
 
   const categoryNameMap = useMemo(() => new Map((categories.data || []).map((category) => [category.id, category.name])), [categories.data]);
