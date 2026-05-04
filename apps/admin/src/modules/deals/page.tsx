@@ -200,7 +200,11 @@ export function DealsPage() {
                     {deal.targetIds.length > 0 ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
                     {deal.targetIds.length > targetLabels.length ? <Badge tone="neutral">+{deal.targetIds.length - targetLabels.length} more</Badge> : null}
                     {deal.scopeType === "MIN_ORDER" ? <Badge tone="neutral">Min order {deal.minOrder} kr</Badge> : null}
-                    {deal.validUntil ? <Badge tone="neutral">Until {formatDate(deal.validUntil)}</Badge> : null}
+                    {deal.validUntil ? (
+                      new Date(deal.validUntil) < new Date()
+                        ? <Badge tone="danger">Utgången {formatDate(deal.validUntil)}</Badge>
+                        : <Badge tone="neutral">Gäller t.o.m. {formatDate(deal.validUntil)}</Badge>
+                    ) : null}
                   </div>
                 </button>
               );
@@ -227,7 +231,11 @@ export function DealsPage() {
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>)}
-                    {deal.validUntil ? <Badge tone="neutral">Until {formatDate(deal.validUntil)}</Badge> : null}
+                    {deal.validUntil ? (
+                      new Date(deal.validUntil) < new Date()
+                        ? <Badge tone="danger">Utgången {formatDate(deal.validUntil)}</Badge>
+                        : <Badge tone="neutral">Gäller t.o.m. {formatDate(deal.validUntil)}</Badge>
+                    ) : null}
                   </div>
                 </button>
               );

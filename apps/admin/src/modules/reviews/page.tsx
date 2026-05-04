@@ -66,17 +66,36 @@ export function ReviewsPage() {
     return <ErrorPanel title="Reviews could not be loaded" description="The review admin endpoint is unavailable." action={<Button onClick={() => void reviews.refetch()}>Retry</Button>} />;
   }
 
+  const totalReviews = reviews.data?.length || 0;
+  const flaggedCount = (reviews.data || []).filter((r) => r.flagged).length;
+  const avgRating = totalReviews > 0
+    ? ((reviews.data || []).reduce((sum, r) => sum + (r.rating || 0), 0) / totalReviews).toFixed(1)
+    : "—";
+
   return (
     <div className="page-stack">
       <Surface className="px-6 py-6">
-        <SectionHeader eyebrow="Reviews" title="Reviews and responses" description="Reply, flag or remove reviews directly from the admin moderation flow." />
+        <SectionHeader eyebrow="Reviews" title="Recensioner" description="Recensioner skapas av kunder från web/app efter levererad order. Du kan svara, flagga eller radera dem här." />
       </Surface>
 
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Totalt</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{totalReviews}</p></div>
+        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Snittbetyg</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{avgRating}</p></div>
+        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Flaggade</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{flaggedCount}</p></div>
+      </div>
+
       <Surface className="px-6 py-6">
-        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search reviews" />
+        <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök recensioner" />
 
         {filteredReviews.length === 0 ? (
-          <div className="mt-6"><EmptyState title="No reviews found" /></div>
+          <div className="mt-6">
+            <EmptyState
+              title={totalReviews === 0 ? "Inga recensioner än" : "Inga matchande recensioner"}
+              description={totalReviews === 0
+                ? "Recensioner skapas när kunder lämnar betyg via web (/order/[id]) eller mobil-appen efter levererad order. När de börjar trilla in dyker de upp här. Kontrollera att du loggat in som SUPER_ADMIN för att se alla restauranger."
+                : "Justera söktermen ovan."}
+            />
+          </div>
         ) : (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
             {filteredReviews.map((review) => (

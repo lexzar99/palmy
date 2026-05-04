@@ -1512,15 +1512,23 @@ const formatDealForAdmin = (deal: any) => ({
   applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
 });
 
-const assertDealScopeCompatibility = async (params: {
+// Deaktivera deals som krockar med scope för den nya/uppdaterade dealen.
+// Tidigare kastade vi error om man försökte aktivera produkt/kategori-deal
+// medan en restaurangdeal var aktiv. Nu auto-overwriter vi istället —
+// produkt/kategori har högsta prioritet (de är mer specifika), restaurangs-
+// dealen stängs av tyst. Och vice versa: aktiverar man restaurangs-deal
+// stängs alla produkt/kategori-deals för samma restaurang av.
+const deactivateConflictingDeals = async (params: {
   restaurantId: string | null;
   isActive: boolean;
   scopeType: ReturnType<typeof getDealScopeType>;
   excludeDealId?: string;
 }) => {
   const { restaurantId, isActive, scopeType, excludeDealId } = params;
-  if (!restaurantId || !isActive) return;
-  if (scopeType !== 'RESTAURANT' && scopeType !== 'PRODUCT' && scopeType !== 'CATEGORY') return;
+  if (!restaurantId || !isActive) return { deactivated: [] as Array<{ id: string; title: string }> };
+  if (scopeType !== 'RESTAURANT' && scopeType !== 'PRODUCT' && scopeType !== 'CATEGORY') {
+    return { deactivated: [] };
+  }
 
   const existingDeals = await prisma.deal.findMany({
     where: {
@@ -1528,26 +1536,34 @@ const assertDealScopeCompatibility = async (params: {
       isActive: true,
       ...(excludeDealId ? { id: { not: excludeDealId } } : {}),
     },
-    select: {
-      id: true,
-      title: true,
-      triggerType: true,
-    },
+    select: { id: true, title: true, triggerType: true },
   });
 
-  const hasRestaurantWide = existingDeals.some((deal) => getDealScopeType(deal) === 'RESTAURANT');
-  const hasItemScoped = existingDeals.some((deal) => {
+  // Vad ska deaktiveras?
+  //   - Aktiverar PRODUCT eller CATEGORY → stäng alla RESTAURANT-deals
+  //   - Aktiverar RESTAURANT → stäng alla PRODUCT/CATEGORY-deals
+  // Andra typer (COMBO, MIN_ORDER) lämnas i fred — de har egen scope.
+  const toDeactivate = existingDeals.filter((deal) => {
     const dealScope = getDealScopeType(deal);
-    return dealScope === 'PRODUCT' || dealScope === 'CATEGORY';
+    if (scopeType === 'PRODUCT' || scopeType === 'CATEGORY') {
+      return dealScope === 'RESTAURANT';
+    }
+    if (scopeType === 'RESTAURANT') {
+      return dealScope === 'PRODUCT' || dealScope === 'CATEGORY';
+    }
+    return false;
   });
 
-  if (scopeType === 'RESTAURANT' && hasItemScoped) {
-    throw new Error('Du kan inte aktivera en restaurangdeal samtidigt som produkt- eller kategorideals är aktiva för samma restaurang.');
+  if (toDeactivate.length > 0) {
+    await prisma.deal.updateMany({
+      where: { id: { in: toDeactivate.map((deal) => deal.id) } },
+      data: { isActive: false },
+    });
   }
 
-  if ((scopeType === 'PRODUCT' || scopeType === 'CATEGORY') && hasRestaurantWide) {
-    throw new Error('Du kan inte aktivera produkt- eller kategorideals samtidigt som en aktiv restaurangdeal finns för samma restaurang.');
-  }
+  return {
+    deactivated: toDeactivate.map((deal) => ({ id: deal.id, title: deal.title })),
+  };
 };
 
 const normalizeDealInputForDb = (body: any) => {
@@ -1807,7 +1823,7 @@ router.post('/deals', async (req, res) => {
       normalized.restaurantId = scopedRestaurantId;
     }
 
-    await assertDealScopeCompatibility({
+    await deactivateConflictingDeals({
       restaurantId: (normalized.restaurantId as string | null | undefined) || null,
       isActive: normalized.isActive !== false,
       scopeType: getDealScopeType({ triggerType: String(normalized.triggerType || 'NONE') }),
@@ -1852,7 +1868,7 @@ router.patch('/deals/:id', async (req, res) => {
         : (existing?.restaurantId ?? null);
     const nextIsActive = data.isActive !== undefined ? Boolean(data.isActive) : existing?.isActive !== false;
 
-    await assertDealScopeCompatibility({
+    await deactivateConflictingDeals({
       restaurantId: effectiveRestaurantId,
       isActive: nextIsActive,
       scopeType: nextScopeType,
