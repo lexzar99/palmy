@@ -18,10 +18,12 @@ import {
   type DealProductRef,
 } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
+import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
+import { getPopupDeals, popupDealsQueryKey, type PopupDealRecord } from "@/modules/popup-builder/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, SectionHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
-type DealsTab = "restaurant" | "product" | "category";
+type DealsTab = "restaurant" | "product" | "category" | "popup";
 
 const scopeLabel: Record<string, string> = {
   RESTAURANT: "Restaurant",
@@ -43,6 +45,9 @@ export function DealsPage() {
   const [pendingLegacyMigration, setPendingLegacyMigration] = useState<DealProductRef | null>(null);
 
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
+  const popupDeals = useQuery({ queryKey: popupDealsQueryKey, queryFn: getPopupDeals });
+  const [popupModalOpen, setPopupModalOpen] = useState(false);
+  const [activePopupDeal, setActivePopupDeal] = useState<PopupDealRecord | null>(null);
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const categories = useQuery({ queryKey: dealCategoriesQueryKey(selectedRestaurantId), queryFn: () => getDealCategories(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
   const products = useQuery({ queryKey: dealProductsQueryKey(selectedRestaurantId), queryFn: () => getDealProducts(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
@@ -154,8 +159,12 @@ export function DealsPage() {
           description="Restaurant, product and category deals. Personal customer codes are managed from the Customers page."
           actions={
             <>
-              <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
-              <Button variant="primary" onClick={openCreate}><Plus size={16} /> New deal</Button>
+              <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); void popupDeals.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
+              {tab === "popup" ? (
+                <Button variant="primary" onClick={() => { setActivePopupDeal(null); setPopupModalOpen(true); }}><Plus size={16} /> Ny popup</Button>
+              ) : (
+                <Button variant="primary" onClick={openCreate}><Plus size={16} /> New deal</Button>
+              )}
             </>
           }
         />
@@ -180,7 +189,54 @@ export function DealsPage() {
           <button type="button" onClick={() => setTab("restaurant")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "restaurant" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Restaurant {activeDealsCount.restaurant > 0 ? `(${activeDealsCount.restaurant})` : ""}</button>
           <button type="button" onClick={() => setTab("product")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "product" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Products {activeDealsCount.product > 0 ? `(${activeDealsCount.product})` : ""}</button>
           <button type="button" onClick={() => setTab("category")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "category" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Categories {activeDealsCount.category > 0 ? `(${activeDealsCount.category})` : ""}</button>
+          <button type="button" onClick={() => setTab("popup")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "popup" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Popup {(popupDeals.data || []).filter((d) => d.isActive).length > 0 ? `(${(popupDeals.data || []).filter((d) => d.isActive).length})` : ""}</button>
         </div>
+
+        {/* Popup-fliken: visar alla popup-deals med edit-on-click. Klick på "Ny popup"
+            ovan öppnar PopupDealModal med live-preview. */}
+        {tab === "popup" ? (
+          <div className="mt-6 grid gap-3 lg:grid-cols-2">
+            {(popupDeals.data || []).length === 0 ? (
+              <EmptyState
+                title="Inga popups ännu"
+                description="Tryck Ny popup ovan för att skapa en. Den visas första gången kunden öppnar appen."
+              />
+            ) : (
+              (popupDeals.data || []).map((deal) => (
+                <button
+                  key={deal.id}
+                  type="button"
+                  onClick={() => { setActivePopupDeal(deal); setPopupModalOpen(true); }}
+                  className="surface-muted px-5 py-5 text-left"
+                >
+                  <div className="flex items-start gap-3">
+                    {deal.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={deal.imageUrl} alt="" className="h-16 w-16 rounded-xl object-cover shrink-0" />
+                    ) : (
+                      <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[rgba(243,191,87,0.12)] text-2xl shrink-0">🎁</div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-lg font-black tracking-[-0.02em]">{deal.popupHeadline || deal.title}</p>
+                        <Badge tone={deal.isActive ? "success" : "danger"}>{deal.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+                        <Badge tone="info">Popup</Badge>
+                        {deal.isGlobal ? <Badge tone="neutral">Alla</Badge> : <Badge tone="neutral">{deal.applicableRestaurantIds?.length || 0} valda</Badge>}
+                        {deal.popupCode ? <Badge tone="warning">Kod: {deal.popupCode}</Badge> : null}
+                      </div>
+                      {deal.popupBody ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.popupBody}</p> : null}
+                      <p className="mt-2 text-xs text-[var(--text-muted)]">
+                        {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt
+                        {deal.minOrder > 0 ? ` • min ${deal.minOrder} kr` : ""}
+                        {deal.validUntil ? ` • t.o.m. ${String(deal.validUntil).slice(0, 10)}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
 
         {tab === "restaurant" || tab === "category" ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
@@ -288,6 +344,13 @@ export function DealsPage() {
           await queryClient.invalidateQueries({ queryKey: ["menu", "products"] });
           setPendingLegacyMigration(null);
         }}
+      />
+
+      <PopupDealModal
+        open={popupModalOpen}
+        onClose={() => { setPopupModalOpen(false); setActivePopupDeal(null); }}
+        initialDeal={activePopupDeal}
+        restaurants={restaurants.data.map((r) => ({ id: r.id, name: r.name }))}
       />
     </div>
   );
