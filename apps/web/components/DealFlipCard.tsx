@@ -46,6 +46,12 @@ export default function DealFlipCard({ deal }: { deal: DealCardData }) {
   };
 
   const handleUse = () => {
+    // Prio 1: navigera till dedikerad deal-sida om vi har deal-id (visar
+    // alla restauranger som har erbjudandet + deal-info i toppen).
+    if (deal.id && typeof window !== "undefined") {
+      window.location.href = `/deals/${deal.id}`;
+      return;
+    }
     if (deal.relatedRestaurantIds?.length && deal.onNavigateToFiltered) {
       deal.onNavigateToFiltered(deal.relatedRestaurantIds, deal.title);
     } else if (deal.onUseNow) {

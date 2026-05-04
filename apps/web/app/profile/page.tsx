@@ -1005,12 +1005,28 @@ function ProfileContent() {
                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 px-2">Sparade erbjudanden</p>
                    {claimedDeals.map((deal: any) => {
                      const isClaimed = deal._kind === 'CLAIMED';
+                     // Tag som visar typ av deal: Personlig (CustomerDeal),
+                     // Restaurang (deal.restaurantId satt) eller Global.
+                     const dealKind: { label: string; tone: string } = deal.restaurantId
+                       ? { label: "Restaurang", tone: "bg-sky-500/10 text-sky-400 border-sky-500/30" }
+                       : isClaimed
+                         ? { label: "Personlig", tone: "bg-purple-500/10 text-purple-400 border-purple-500/30" }
+                         : { label: "Global", tone: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" };
                      return (
-                       <div key={`claimed-${deal.id}`} className="p-6 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/15 relative overflow-hidden">
+                       <Link
+                         href={`/deals/${deal.id}`}
+                         key={`claimed-${deal.id}`}
+                         className="block p-6 rounded-[2.5rem] bg-gold-500/5 border border-gold-500/15 relative overflow-hidden hover:bg-gold-500/8 transition-colors"
+                       >
                          <div className="flex items-start justify-between mb-4 gap-3">
                            <div className="flex-1">
-                             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600 mb-1">
-                               {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                             <div className="flex flex-wrap items-center gap-2 mb-1">
+                               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-gold-600">
+                                 {isClaimed ? "Sparad" : "Tillgänglig för alla"}
+                               </div>
+                               <span className={`px-2 py-0.5 rounded-full border text-[9px] font-black uppercase tracking-wider ${dealKind.tone}`}>
+                                 {dealKind.label}
+                               </span>
                              </div>
                              <h3 className="text-xl font-black italic tracking-tighter uppercase leading-tight" style={{ color: "var(--text-primary)" }}>
                                {deal.popupHeadline || deal.title}
@@ -1040,7 +1056,7 @@ function ProfileContent() {
                            <div>{deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`} rabatt {deal.minOrder > 0 ? `• min ${deal.minOrder} kr` : ""}</div>
                            <div>Giltig till: {deal.validUntil ? new Date(deal.validUntil).toLocaleDateString("sv-SE") : "Oändlig"}</div>
                          </div>
-                       </div>
+                       </Link>
                      );
                    })}
                  </div>
