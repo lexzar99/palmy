@@ -572,7 +572,14 @@ export default function ProfileScreen({
         try {
           const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
             provider: "facebook",
-            options: { redirectTo: SUPABASE_REDIRECT_URL, skipBrowserRedirect: true },
+            options: {
+              redirectTo: SUPABASE_REDIRECT_URL,
+              skipBrowserRedirect: true,
+              // Scopes så Facebook ger first_name/last_name + email i
+              // user_metadata. Backend mappar dessa exakt som Google/Apple,
+              // sen tar PhoneGateScreen vid om telefon saknas.
+              scopes: "email,public_profile",
+            },
           });
           if (oauthErr || !data.url) throw oauthErr ?? new Error("No OAuth URL");
           const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);

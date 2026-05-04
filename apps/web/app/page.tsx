@@ -455,7 +455,7 @@ export default function HomePage() {
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
+                className="group relative block w-[260px] sm:w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
               >
                 {(() => {
                   const activeDeal = getDealForRestaurant(r.id);

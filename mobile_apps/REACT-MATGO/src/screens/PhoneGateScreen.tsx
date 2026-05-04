@@ -9,6 +9,8 @@ import {
   Platform,
   StatusBar,
   KeyboardAvoidingView,
+  Modal,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -368,21 +370,63 @@ export default function PhoneGateScreen() {
                 />
               </View>
 
-              {pickerOpen && (
-                <View style={{ borderRadius: 16, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border, overflow: "hidden" }}>
-                  {COUNTRY_CODES.map((c) => (
-                    <Pressable
-                      key={c.code}
-                      onPress={() => { setCountryCode(c.code); setPickerOpen(false); }}
-                      style={{ paddingHorizontal: 14, paddingVertical: 12, flexDirection: "row", alignItems: "center", gap: 10 }}
-                    >
-                      <Text style={{ fontSize: 18 }}>{c.flag}</Text>
-                      <Text style={{ color: palette.text, fontSize: 14, fontWeight: "700" }}>{c.code}</Text>
-                      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500" }}>{c.name}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+              {/* Native bottom-sheet modal istället för inline ScrollView —
+                  ger riktig dropdown-känsla med backdrop, slide-up och
+                  större träffyta. Stänger via tap utanför eller på country. */}
+              <Modal
+                visible={pickerOpen}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setPickerOpen(false)}
+              >
+                <Pressable
+                  onPress={() => setPickerOpen(false)}
+                  style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" }}
+                >
+                  <Pressable
+                    onPress={(e) => e.stopPropagation()}
+                    style={{
+                      backgroundColor: palette.bg,
+                      borderTopLeftRadius: 28,
+                      borderTopRightRadius: 28,
+                      paddingTop: 14,
+                      paddingBottom: 28,
+                      maxHeight: "70%",
+                    }}
+                  >
+                    <View style={{ alignItems: "center", marginBottom: 10 }}>
+                      <View style={{ width: 44, height: 5, borderRadius: 3, backgroundColor: palette.border }} />
+                    </View>
+                    <Text style={{ paddingHorizontal: 20, fontSize: 18, fontWeight: "900", color: palette.text, marginBottom: 8 }}>
+                      Välj land
+                    </Text>
+                    <FlatList
+                      data={COUNTRY_CODES}
+                      keyExtractor={(item) => item.code}
+                      renderItem={({ item }) => {
+                        const active = item.code === countryCode;
+                        return (
+                          <Pressable
+                            onPress={() => { setCountryCode(item.code); setPickerOpen(false); }}
+                            style={{
+                              paddingHorizontal: 20, paddingVertical: 16,
+                              flexDirection: "row", alignItems: "center", gap: 14,
+                              backgroundColor: active ? palette.panelMuted : "transparent",
+                            }}
+                          >
+                            <Text style={{ fontSize: 28 }}>{item.flag}</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ color: palette.text, fontSize: 16, fontWeight: "800" }}>{item.name}</Text>
+                              <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600", marginTop: 2 }}>{item.code}</Text>
+                            </View>
+                            {active && <Ionicons name="checkmark" size={22} color={palette.gold} />}
+                          </Pressable>
+                        );
+                      }}
+                    />
+                  </Pressable>
+                </Pressable>
+              </Modal>
             </View>
           )}
 
