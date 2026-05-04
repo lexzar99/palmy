@@ -33,11 +33,16 @@ export type PopupDealPayload = Partial<Omit<PopupDealRecord, "id" | "createdAt">
 
 export const popupDealsQueryKey = ["popup-deals", "list"] as const;
 
-// /admin/deals returnerar både popup-deals och vanliga deals — vi filtrerar
-// klient-side på popupEnabled så popup-builder bara visar relevanta rader.
+// /admin/deals returnerar alla deals. Vi identifierar "äkta" popup-deals
+// på närvaro av popupHeadline/popupBody/popupCode — popupEnabled ensamt
+// är inte nog, eftersom legacy-default är true på vanliga deals.
+// Backend returnerar en array (inte { deals: [...] }) så vi hanterar båda.
 export const getPopupDeals = async (): Promise<PopupDealRecord[]> => {
-  const all = await apiGet<{ deals: any[] }>("/admin/deals");
-  return (all.deals || []).filter((d: any) => d.popupEnabled);
+  const raw = await apiGet<any>("/admin/deals");
+  const list: any[] = Array.isArray(raw) ? raw : raw?.deals || [];
+  return list.filter((d: any) =>
+    Boolean(d?.popupHeadline?.trim() || d?.popupBody?.trim() || d?.popupCode?.trim()),
+  );
 };
 
 export const createPopupDeal = (payload: PopupDealPayload) =>

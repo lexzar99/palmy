@@ -19,6 +19,11 @@ export interface AutomaticDealRecord {
   isGlobal: boolean;
   showOnSite: boolean;
   popupEnabled: boolean;
+  imageUrl?: string | null;
+  popupHeadline?: string | null;
+  popupBody?: string | null;
+  popupCtaLabel?: string | null;
+  popupCode?: string | null;
   validUntil?: string | null;
   validFrom?: string | null;
   maxUsages?: number | null;

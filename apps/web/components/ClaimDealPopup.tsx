@@ -42,9 +42,18 @@ export default function ClaimDealPopup() {
           ((claimedRes.data?.claimed || []) as any[]).map((d: any) => d.id),
         );
         const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data?.deals || []);
-        const candidate = all.find(
-          (d: any) => d?.popupEnabled && d?.isActive && !claimedIds.has(d.id),
-        );
+        // En "äkta" popup-deal har popup-content (headline/body/code) satt
+        // av Popup Builder. popupEnabled-flaggan ensam räcker inte eftersom
+        // den är legacy true på många vanliga deals.
+        const candidate = all.find((d: any) => {
+          if (!d?.isActive || claimedIds.has(d.id)) return false;
+          const hasPopupContent = Boolean(
+            (d.popupHeadline && String(d.popupHeadline).trim()) ||
+              (d.popupBody && String(d.popupBody).trim()) ||
+              (d.popupCode && String(d.popupCode).trim()),
+          );
+          return hasPopupContent && d.popupEnabled !== false;
+        });
         if (candidate) setDeal(candidate);
       } catch {
         // Tyst fail — popup är inte kritisk.

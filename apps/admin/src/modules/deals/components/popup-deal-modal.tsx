@@ -2,48 +2,38 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Sparkles, Trash2 } from "lucide-react";
-import {
-  createPopupDeal,
-  deletePopupDeal,
-  popupDealsQueryKey,
-  updatePopupDeal,
-  type PopupDealPayload,
-  type PopupDealRecord,
-} from "@/modules/popup-builder/api";
-import { dealsQueryKey } from "@/modules/deals/api";
-import { Badge, Button, Field, Input, Modal, Select, Textarea } from "@/shared/components/ui";
+import { Loader2, Sparkles, Trash2, Link2 } from "lucide-react";
+import { dealsQueryKey, updateAutomaticDeal, type AutomaticDealRecord } from "@/modules/deals/api";
+import { popupDealsQueryKey } from "@/modules/popup-builder/api";
+import { Badge, Button, Field, Input, Modal, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 
-const emptyDraft: PopupDealPayload = {
-  title: "",
-  description: "",
-  badgeText: "",
-  imageUrl: null,
+type PopupOverlay = {
+  popupHeadline: string;
+  popupBody: string;
+  popupCtaLabel: string;
+  popupCode: string;
+  imageUrl: string;
+  popupEnabled: boolean;
+};
+
+const emptyOverlay: PopupOverlay = {
   popupHeadline: "",
   popupBody: "",
   popupCtaLabel: "Spara erbjudande",
   popupCode: "",
-  discountType: "PERCENTAGE",
-  discountValue: 10,
-  minOrder: 0,
-  isActive: true,
+  imageUrl: "",
   popupEnabled: true,
-  showOnSite: true,
-  isGlobal: true,
-  applicableRestaurantIds: [],
-  validUntil: null,
-  maxUsages: null,
-  scopeType: "RESTAURANT",
 };
 
-// Live preview-komponent — renderar samma popup som kunden ser i webb/RN.
-function PopupPreview({ draft }: { draft: PopupDealPayload }) {
-  const headline = draft.popupHeadline?.trim() || draft.title?.trim() || "Erbjudande";
-  const body = draft.popupBody?.trim() || draft.description?.trim() || "";
-  const cta = draft.popupCtaLabel?.trim() || "Spara erbjudande";
-  const badge = draft.badgeText?.trim() || (draft.discountType === "PERCENTAGE" ? `-${draft.discountValue || 0}%` : "");
-  const code = draft.popupCode?.trim();
+// Live-preview — exakt vad kunden ser i webb/RN.
+function PopupPreview({ deal, overlay }: { deal: AutomaticDealRecord; overlay: PopupOverlay }) {
+  const headline = overlay.popupHeadline.trim() || deal.title;
+  const body = overlay.popupBody.trim() || deal.description || "";
+  const cta = overlay.popupCtaLabel.trim() || "Spara erbjudande";
+  const badge = deal.badgeText || (deal.discountType === "PERCENTAGE" ? `-${deal.discountValue}%` : "");
+  const code = overlay.popupCode.trim();
+  const image = overlay.imageUrl || deal.imageUrl;
 
   return (
     <div className="surface-muted px-5 py-5">
@@ -52,7 +42,6 @@ function PopupPreview({ draft }: { draft: PopupDealPayload }) {
         <Sparkles size={14} className="text-[var(--accent-strong)]" />
       </div>
       <p className="mt-2 text-sm text-[var(--text-secondary)]">Kundens vy första gången appen öppnas:</p>
-
       <div className="mt-4 flex justify-center">
         <div
           className="w-[340px] max-w-full rounded-[28px] p-6 shadow-2xl"
@@ -62,9 +51,9 @@ function PopupPreview({ draft }: { draft: PopupDealPayload }) {
             color: "#fff",
           }}
         >
-          {draft.imageUrl ? (
+          {image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={draft.imageUrl} alt="" className="mb-4 h-40 w-full rounded-2xl object-cover" />
+            <img src={image} alt="" className="mb-4 h-40 w-full rounded-2xl object-cover" />
           ) : (
             <div className="mb-4 flex h-40 w-full items-center justify-center rounded-2xl bg-[rgba(243,191,87,0.1)] text-4xl">🎁</div>
           )}
@@ -75,11 +64,11 @@ function PopupPreview({ draft }: { draft: PopupDealPayload }) {
           ) : null}
           <h3 className="text-2xl font-black tracking-[-0.04em]">{headline}</h3>
           {body ? <p className="mt-3 text-sm leading-6 text-white/80">{body}</p> : null}
-          {draft.minOrder && draft.minOrder > 0 ? (
-            <p className="mt-3 text-xs font-bold uppercase tracking-wider text-white/50">Minsta order {draft.minOrder} kr</p>
+          {deal.minOrder > 0 ? (
+            <p className="mt-3 text-xs font-bold uppercase tracking-wider text-white/50">Minsta order {deal.minOrder} kr</p>
           ) : null}
-          {draft.validUntil ? (
-            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/50">Gäller t.o.m. {String(draft.validUntil).slice(0, 10)}</p>
+          {deal.validUntil ? (
+            <p className="mt-1 text-xs font-bold uppercase tracking-wider text-white/50">Gäller t.o.m. {String(deal.validUntil).slice(0, 10)}</p>
           ) : null}
           {code ? (
             <div className="mt-4 rounded-2xl border border-dashed border-[#f3bf57]/40 bg-[#f3bf57]/10 px-4 py-3 text-center">
@@ -87,81 +76,70 @@ function PopupPreview({ draft }: { draft: PopupDealPayload }) {
               <p className="mt-1 text-lg font-black tracking-wider text-white">{code}</p>
             </div>
           ) : null}
-          <button type="button" className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">
-            {cta}
-          </button>
-          <button type="button" className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">
-            Inte just nu
-          </button>
+          <button type="button" className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">{cta}</button>
+          <button type="button" className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">Inte just nu</button>
         </div>
       </div>
     </div>
   );
 }
 
+/**
+ * Popup-modal: tar en BEFINTLIG deal och lägger på popup-presentation.
+ * Inget nytt deal-objekt skapas — vi sparar bara popupHeadline, popupBody,
+ * popupCtaLabel, popupCode, popupEnabled och imageUrl på samma deal-rad.
+ *
+ * För att radera popupen sätter vi popupEnabled=false och nollar
+ * popup-fälten. Själva dealen lämnas orörd och syns kvar i Restaurant/
+ * Product/Category-fliken.
+ */
 export function PopupDealModal({
   open,
   onClose,
-  initialDeal,
-  restaurants,
+  deal,
 }: {
   open: boolean;
   onClose: () => void;
-  initialDeal: PopupDealRecord | null;
-  restaurants: Array<{ id: string; name: string }>;
+  deal: AutomaticDealRecord | null;
 }) {
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<PopupDealPayload>(emptyDraft);
+  const [overlay, setOverlay] = useState<PopupOverlay>(emptyOverlay);
   const [error, setError] = useState<string | null>(null);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!open) return;
-    if (initialDeal) {
-      setDraft({
-        title: initialDeal.title,
-        description: initialDeal.description || "",
-        badgeText: initialDeal.badgeText || "",
-        imageUrl: initialDeal.imageUrl,
-        popupHeadline: initialDeal.popupHeadline || "",
-        popupBody: initialDeal.popupBody || "",
-        popupCtaLabel: initialDeal.popupCtaLabel || "Spara erbjudande",
-        popupCode: initialDeal.popupCode || "",
-        discountType: initialDeal.discountType,
-        discountValue: initialDeal.discountValue,
-        minOrder: initialDeal.minOrder,
-        isActive: initialDeal.isActive,
-        popupEnabled: true,
-        showOnSite: initialDeal.showOnSite,
-        isGlobal: initialDeal.isGlobal,
-        applicableRestaurantIds: initialDeal.applicableRestaurantIds || [],
-        validUntil: initialDeal.validUntil,
-        maxUsages: initialDeal.maxUsages,
-        scopeType: initialDeal.scopeType,
-      });
-    } else {
-      setDraft(emptyDraft);
-    }
+    if (!open || !deal) return;
+    setOverlay({
+      popupHeadline: (deal as any).popupHeadline || "",
+      popupBody: (deal as any).popupBody || "",
+      popupCtaLabel: (deal as any).popupCtaLabel || "Spara erbjudande",
+      popupCode: (deal as any).popupCode || "",
+      imageUrl: deal.imageUrl || "",
+      popupEnabled: deal.popupEnabled !== false,
+    });
     setError(null);
-  }, [open, initialDeal]);
+  }, [open, deal]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const update = (patch: Partial<PopupDealPayload>) => setDraft((current) => ({ ...current, ...patch }));
-
-  const toggleRestaurant = (id: string) => {
-    const current = draft.applicableRestaurantIds || [];
-    update({
-      applicableRestaurantIds: current.includes(id) ? current.filter((r) => r !== id) : [...current, id],
-      isGlobal: false,
-    });
-  };
+  const update = (patch: Partial<PopupOverlay>) => setOverlay((current) => ({ ...current, ...patch }));
 
   const saveMutation = useMutation({
-    mutationFn: () => (initialDeal ? updatePopupDeal(initialDeal.id, draft) : createPopupDeal(draft)),
+    mutationFn: () => {
+      if (!deal) return Promise.resolve(null as any);
+      return updateAutomaticDeal(deal.id, {
+        popupHeadline: overlay.popupHeadline.trim() || null,
+        popupBody: overlay.popupBody.trim() || null,
+        popupCtaLabel: overlay.popupCtaLabel.trim() || null,
+        popupCode: overlay.popupCode.trim() || null,
+        imageUrl: overlay.imageUrl.trim() || null,
+        popupEnabled: overlay.popupEnabled,
+        // Behåll alla andra fält orörda — vi skickar bara popup-overlay.
+      });
+    },
     onSuccess: async () => {
       setError(null);
-      await queryClient.invalidateQueries({ queryKey: popupDealsQueryKey });
       await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: popupDealsQueryKey });
       onClose();
     },
     onError: (e: any) => {
@@ -169,39 +147,52 @@ export function PopupDealModal({
     },
   });
 
-  const deleteMutation = useMutation({
+  const removeMutation = useMutation({
     mutationFn: () => {
-      if (!initialDeal) return Promise.resolve({ success: true });
-      return deletePopupDeal(initialDeal.id);
+      if (!deal) return Promise.resolve(null as any);
+      // "Radera popup" = ta bort popup-overlay men lämna dealen kvar.
+      return updateAutomaticDeal(deal.id, {
+        popupHeadline: null,
+        popupBody: null,
+        popupCtaLabel: null,
+        popupCode: null,
+        popupEnabled: false,
+      });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: popupDealsQueryKey });
       await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: popupDealsQueryKey });
       onClose();
     },
   });
+
+  if (!deal) return null;
+
+  const hasPopupContent = Boolean(
+    (deal as any).popupHeadline?.trim() || (deal as any).popupBody?.trim() || (deal as any).popupCode?.trim(),
+  );
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title={initialDeal ? `Redigera popup: ${initialDeal.title}` : "Ny popup-deal"}
-      description="Detta erbjudande visas som popup första gången kunden öppnar appen. Live-preview till höger."
+      title={hasPopupContent ? `Redigera popup för ${deal.title}` : `Skicka popup för ${deal.title}`}
+      description="Popupen är kopplad till denna deal. Rabatten/villkoren kommer från själva dealen — här bestämmer du bara hur popupen presenteras för kunden."
       widthClassName="max-w-[1200px]"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            {initialDeal ? (
-              <Button variant="danger" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
-                <Trash2 size={16} /> Radera
+            {hasPopupContent ? (
+              <Button variant="danger" onClick={() => removeMutation.mutate()} disabled={removeMutation.isPending}>
+                <Trash2 size={16} /> Ta bort popup
               </Button>
             ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={onClose}>Stäng</Button>
-            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !draft.title?.trim()}>
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
               {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : null}
-              {initialDeal ? "Uppdatera" : "Skapa popup"}
+              {hasPopupContent ? "Uppdatera popup" : "Skicka popup"}
             </Button>
           </div>
         </div>
@@ -209,112 +200,53 @@ export function PopupDealModal({
     >
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="grid gap-4">
+          <div className="surface-muted px-5 py-4">
+            <div className="flex items-center gap-2">
+              <Link2 size={14} className="text-[var(--accent-strong)]" />
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Kopplad deal</p>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <p className="text-base font-black tracking-[-0.02em]">{deal.title}</p>
+              <Badge tone="info">{deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</Badge>
+              {deal.minOrder > 0 ? <Badge tone="neutral">min {deal.minOrder} kr</Badge> : null}
+              {deal.isGlobal ? <Badge tone="neutral">Alla restauranger</Badge> : <Badge tone="neutral">{deal.restaurant?.name || "1 restaurang"}</Badge>}
+              {deal.validUntil ? <Badge tone="neutral">t.o.m. {String(deal.validUntil).slice(0, 10)}</Badge> : null}
+            </div>
+            <p className="mt-3 text-xs text-[var(--text-secondary)]">
+              För att ändra rabatt, restaurang eller giltighetsdatum — gå till Restaurant/Product/Category-fliken och redigera dealen där.
+            </p>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Titel (intern)">
-              <Input value={draft.title || ""} onChange={(e) => update({ title: e.target.value })} placeholder="t.ex. Höstkampanj 2026" />
-            </Field>
-            <Field label="Badge / liten etikett">
-              <Input value={draft.badgeText || ""} onChange={(e) => update({ badgeText: e.target.value })} placeholder="-20% eller HALAL" />
-            </Field>
             <Field label="Popup-rubrik (det stora som syns)">
-              <Input value={draft.popupHeadline || ""} onChange={(e) => update({ popupHeadline: e.target.value })} placeholder="20% rabatt på hela menyn!" />
+              <Input value={overlay.popupHeadline} onChange={(e) => update({ popupHeadline: e.target.value })} placeholder={deal.title} />
             </Field>
             <Field label="CTA-knappens text">
-              <Input value={draft.popupCtaLabel || ""} onChange={(e) => update({ popupCtaLabel: e.target.value })} placeholder="Spara erbjudande" />
+              <Input value={overlay.popupCtaLabel} onChange={(e) => update({ popupCtaLabel: e.target.value })} placeholder="Spara erbjudande" />
             </Field>
             <div className="md:col-span-2">
               <Field label="Brödtext">
-                <Textarea value={draft.popupBody || ""} onChange={(e) => update({ popupBody: e.target.value })} placeholder="Beskriv villkoren och varför kunden ska klämma den." />
+                <Textarea value={overlay.popupBody} onChange={(e) => update({ popupBody: e.target.value })} placeholder={deal.description || "Beskriv villkoren och varför kunden ska klämma."} />
               </Field>
             </div>
+            <Field label="Kod kunden ser (valfri)">
+              <Input value={overlay.popupCode} onChange={(e) => update({ popupCode: e.target.value })} placeholder="HÖST20" />
+            </Field>
+            <Field label="Aktiv popup">
+              <select className="select" value={overlay.popupEnabled ? "yes" : "no"} onChange={(e) => update({ popupEnabled: e.target.value === "yes" })}>
+                <option value="yes">Visa för kunder</option>
+                <option value="no">Pausa popup</option>
+              </select>
+            </Field>
             <div className="md:col-span-2">
-              <ImageUploadField label="Hero-bild i popupen" value={draft.imageUrl || ""} onChange={(url) => update({ imageUrl: url })} />
+              <ImageUploadField label="Hero-bild i popupen" value={overlay.imageUrl} onChange={(url) => update({ imageUrl: url })} />
             </div>
           </div>
-
-          <div className="surface-muted px-5 py-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Rabatt och villkor</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <Field label="Typ">
-                <Select value={draft.discountType || "PERCENTAGE"} onChange={(e) => update({ discountType: e.target.value as any })}>
-                  <option value="PERCENTAGE">Procent</option>
-                  <option value="FIXED">Fast belopp (kr)</option>
-                </Select>
-              </Field>
-              <Field label="Värde">
-                <Input type="number" value={draft.discountValue || 0} onChange={(e) => update({ discountValue: Number(e.target.value) })} />
-              </Field>
-              <Field label="Minsta ordervärde (kr)">
-                <Input type="number" value={draft.minOrder || 0} onChange={(e) => update({ minOrder: Number(e.target.value) })} />
-              </Field>
-              <Field label="Kod kunden ser">
-                <Input value={draft.popupCode || ""} onChange={(e) => update({ popupCode: e.target.value })} placeholder="HÖST20" />
-              </Field>
-              <Field label="Slutdatum">
-                <Input
-                  type="date"
-                  value={draft.validUntil ? String(draft.validUntil).slice(0, 10) : ""}
-                  onChange={(e) => update({ validUntil: e.target.value || null })}
-                />
-              </Field>
-              <Field label="Max användningar (totalt)">
-                <Input
-                  type="number"
-                  value={draft.maxUsages ?? ""}
-                  onChange={(e) => update({ maxUsages: e.target.value ? Number(e.target.value) : null })}
-                  placeholder="∞"
-                />
-              </Field>
-            </div>
-          </div>
-
-          <div className="surface-muted px-5 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Vilka restauranger gäller?</p>
-              <div className="flex gap-2">
-                <Button variant={draft.isGlobal ? "primary" : "secondary"} onClick={() => update({ isGlobal: true, applicableRestaurantIds: [] })}>
-                  Alla restauranger
-                </Button>
-                <Button variant={!draft.isGlobal ? "primary" : "secondary"} onClick={() => update({ isGlobal: false })}>
-                  Specifika
-                </Button>
-              </div>
-            </div>
-            {!draft.isGlobal ? (
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {restaurants.map((restaurant) => {
-                  const active = (draft.applicableRestaurantIds || []).includes(restaurant.id);
-                  return (
-                    <button
-                      key={restaurant.id}
-                      type="button"
-                      onClick={() => toggleRestaurant(restaurant.id)}
-                      className={`rounded-2xl border px-4 py-3 text-left transition-all ${
-                        active
-                          ? "border-[var(--accent-strong)] bg-[rgba(243,191,87,0.1)]"
-                          : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)]"
-                      }`}
-                    >
-                      <p className="font-black tracking-[-0.02em]">{restaurant.name}</p>
-                      {active ? <Badge tone="success">Vald</Badge> : null}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-          </div>
-
-          <Field label="Status">
-            <Select value={draft.isActive ? "yes" : "no"} onChange={(e) => update({ isActive: e.target.value === "yes" })}>
-              <option value="yes">Aktiv (visas för kunder)</option>
-              <option value="no">Inaktiv (utkast)</option>
-            </Select>
-          </Field>
 
           {error ? <p className="text-sm text-rose-400">{error}</p> : null}
         </div>
 
-        <PopupPreview draft={draft} />
+        <PopupPreview deal={deal} overlay={overlay} />
       </div>
     </Modal>
   );
