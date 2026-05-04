@@ -871,7 +871,8 @@ export default function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
           {/* Cart items list */}
           <div className="lg:col-span-12 xl:col-span-7 space-y-4">
-            {deals.length > 0 && <DealSpotlight deals={deals} subtotal={subtotal} productIds={productIds} />}
+            {/* DealSpotlight i kassan borttagen — rabatterna applas direkt
+                på priserna istället för en separat "deal aktiv"-banner. */}
             <div className="space-y-4">
               {items.map((item) => (
                 <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
