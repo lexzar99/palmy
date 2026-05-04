@@ -35,9 +35,11 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
     if (!isInteractive || !target) return;
     const cleanTarget = target.startsWith('/') ? target.slice(1) : target;
     if (sponsor.linkType === 'DEAL') {
-      router.push(`/search?deal=${cleanTarget}`);
+      // Tar kunden till dedikerad deal-sida som listar alla restauranger
+      // som har erbjudandet, plus deal-info i toppen.
+      router.push(`/deals/${cleanTarget}`);
     } else if (sponsor.linkType === 'RESTAURANT') {
-      router.push(`/restaurants/${cleanTarget}`);
+      router.push(`/r/${cleanTarget}`);
     } else {
       window.open(target, '_blank', 'noopener,noreferrer');
     }
