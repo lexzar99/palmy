@@ -193,6 +193,9 @@ model Deal {
   popupBody             String?
   popupCtaLabel         String?
   popupCode             String?
+  // Popup-typ: false (default) = "Spara erbjudande" + "Inte nu" knappar.
+  // true = bara "OK"-knapp (för informativa popups utan kod att claima).
+  popupOkOnly           Boolean     @default(false)
   triggerType           String      @default("NONE")
   discountType          String      @default("PERCENTAGE")
   discountValue         Int

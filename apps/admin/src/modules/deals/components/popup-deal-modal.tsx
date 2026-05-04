@@ -16,6 +16,7 @@ type PopupOverlay = {
   popupCode: string;
   imageUrl: string;
   popupEnabled: boolean;
+  popupOkOnly: boolean;
 };
 
 type PushSettings = {
@@ -31,6 +32,7 @@ const emptyOverlay: PopupOverlay = {
   popupCode: "",
   imageUrl: "",
   popupEnabled: true,
+  popupOkOnly: false,
 };
 
 const emptyPush: PushSettings = {
@@ -89,8 +91,10 @@ function PopupPreview({ deal, overlay }: { deal: AutomaticDealRecord; overlay: P
               <p className="mt-1 text-lg font-black tracking-wider text-white">{code}</p>
             </div>
           ) : null}
-          <button type="button" className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">{cta}</button>
-          <button type="button" className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">Inte just nu</button>
+          <button type="button" className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b]">{overlay.popupOkOnly ? "OK" : cta}</button>
+          {!overlay.popupOkOnly ? (
+            <button type="button" className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50">Inte just nu</button>
+          ) : null}
         </div>
       </div>
     </div>
@@ -131,6 +135,7 @@ export function PopupDealModal({
       popupCode: (deal as any).popupCode || "",
       imageUrl: deal.imageUrl || "",
       popupEnabled: deal.popupEnabled !== false,
+      popupOkOnly: Boolean((deal as any).popupOkOnly),
     });
     setPush({
       sendPush: true,
@@ -155,6 +160,7 @@ export function PopupDealModal({
         popupCode: overlay.popupCode.trim() || null,
         imageUrl: overlay.imageUrl.trim() || null,
         popupEnabled: overlay.popupEnabled,
+        popupOkOnly: overlay.popupOkOnly,
       });
 
       // Skicka push-notis till alla aktiva users om admin valt det.
@@ -277,6 +283,12 @@ export function PopupDealModal({
               <select className="select" value={overlay.popupEnabled ? "yes" : "no"} onChange={(e) => update({ popupEnabled: e.target.value === "yes" })}>
                 <option value="yes">Visa för kunder</option>
                 <option value="no">Pausa popup</option>
+              </select>
+            </Field>
+            <Field label="Popup-typ">
+              <select className="select" value={overlay.popupOkOnly ? "ok" : "claim"} onChange={(e) => update({ popupOkOnly: e.target.value === "ok" })}>
+                <option value="claim">Spara erbjudande + Inte nu (för deals med kod/rabatt)</option>
+                <option value="ok">Bara OK-knapp (informativ — ingen kod att spara)</option>
               </select>
             </Field>
             <div className="md:col-span-2">

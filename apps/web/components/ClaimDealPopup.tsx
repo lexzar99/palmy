@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
@@ -19,50 +20,71 @@ import { X } from "lucide-react";
  *     vid varje sidladdning. Visas igen efter 24h om kund inte claimat.
  */
 export default function ClaimDealPopup() {
+  const pathname = usePathname();
   const [deal, setDeal] = useState<any | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [claimed, setClaimed] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const dismissedAt = Number(localStorage.getItem("matgo_claim_dismissed_at") || 0);
-        if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return;
+  // Popupen visas bara på hemsidan. Om användaren är inne i kassan/order/
+  // restaurang och något triggar pop refetcha — vänta tills hen kommer
+  // tillbaka till "/" innan vi visar.
+  const isHome = pathname === "/" || pathname === "";
 
-        // Hämta publika deals (inkluderar popup-deals) parallellt med
-        // användarens redan claimade så vi vet vilka som ska visas.
-        const [allRes, claimedRes] = await Promise.all([
-          axios.get("/api/platform/deals").catch(() => ({ data: [] })),
-          axios.get("/api/platform/profile/claimed-deals").catch(() => ({ data: { claimed: [], global: [] } })),
-        ]);
-        if (cancelled) return;
+  const findCandidate = useCallback(async () => {
+    try {
+      const dismissedAt = Number(localStorage.getItem("matgo_claim_dismissed_at") || 0);
+      if (dismissedAt && Date.now() - dismissedAt < 24 * 60 * 60 * 1000) return null;
 
-        const claimedIds = new Set<string>(
-          ((claimedRes.data?.claimed || []) as any[]).map((d: any) => d.id),
+      const [allRes, claimedRes] = await Promise.all([
+        axios.get("/api/platform/deals").catch(() => ({ data: [] })),
+        axios.get("/api/platform/profile/claimed-deals").catch(() => ({ data: { claimed: [], global: [] } })),
+      ]);
+
+      const claimedIds = new Set<string>(
+        ((claimedRes.data?.claimed || []) as any[]).map((d: any) => d.id),
+      );
+      const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data?.deals || []);
+      const candidate = all.find((d: any) => {
+        if (!d?.isActive || claimedIds.has(d.id)) return false;
+        const hasPopupContent = Boolean(
+          (d.popupHeadline && String(d.popupHeadline).trim()) ||
+            (d.popupBody && String(d.popupBody).trim()) ||
+            (d.popupCode && String(d.popupCode).trim()),
         );
-        const all = Array.isArray(allRes.data) ? allRes.data : (allRes.data?.deals || []);
-        // En "äkta" popup-deal har popup-content (headline/body/code) satt
-        // av Popup Builder. popupEnabled-flaggan ensam räcker inte eftersom
-        // den är legacy true på många vanliga deals.
-        const candidate = all.find((d: any) => {
-          if (!d?.isActive || claimedIds.has(d.id)) return false;
-          const hasPopupContent = Boolean(
-            (d.popupHeadline && String(d.popupHeadline).trim()) ||
-              (d.popupBody && String(d.popupBody).trim()) ||
-              (d.popupCode && String(d.popupCode).trim()),
-          );
-          return hasPopupContent && d.popupEnabled !== false;
-        });
-        if (candidate) setDeal(candidate);
-      } catch {
-        // Tyst fail — popup är inte kritisk.
-      }
-    })();
+        return hasPopupContent && d.popupEnabled !== false;
+      });
+      return candidate || null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isHome) return; // Bara visa på hemsidan
+    let cancelled = false;
+    findCandidate().then((c) => {
+      if (!cancelled && c) setDeal(c);
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isHome, findCandidate]);
+
+  // Refetch när fönstret återfår fokus (kund öppnar tab eller switchar
+  // tillbaka till appen) — så att en popup som admin skickade medan
+  // appen var i bakgrunden plockas upp direkt utan att man behöver
+  // ladda om sidan.
+  useEffect(() => {
+    if (!isHome) return;
+    const onFocus = () => {
+      if (!deal) findCandidate().then((c) => c && setDeal(c));
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) onFocus(); });
+    return () => {
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [isHome, deal, findCandidate]);
 
   const handleClaim = async () => {
     if (!deal || claiming) return;
@@ -158,21 +180,33 @@ export default function ClaimDealPopup() {
             </div>
           ) : null}
 
-          <button
-            type="button"
-            onClick={handleClaim}
-            disabled={claiming || claimed}
-            className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98] disabled:opacity-60"
-          >
-            {claimed ? "Sparat ✓" : claiming ? "Sparar..." : ctaLabel}
-          </button>
-          <button
-            type="button"
-            onClick={handleDismiss}
-            className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50 hover:text-white/80 transition-colors"
-          >
-            Inte just nu
-          </button>
+          {deal.popupOkOnly ? (
+            <button
+              type="button"
+              onClick={handleDismiss}
+              className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98]"
+            >
+              OK
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleClaim}
+                disabled={claiming || claimed}
+                className="mt-5 w-full rounded-2xl bg-[#f3bf57] py-4 text-sm font-black uppercase tracking-[0.2em] text-[#11151b] transition-all active:scale-[0.98] disabled:opacity-60"
+              >
+                {claimed ? "Sparat ✓" : claiming ? "Sparar..." : ctaLabel}
+              </button>
+              <button
+                type="button"
+                onClick={handleDismiss}
+                className="mt-2 w-full rounded-2xl py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/50 hover:text-white/80 transition-colors"
+              >
+                Inte just nu
+              </button>
+            </>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
