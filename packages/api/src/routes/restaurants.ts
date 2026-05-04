@@ -727,6 +727,10 @@ router.get('/:slug', async (req, res) => {
 router.get('/:slug/reviews', async (req, res) => {
   try {
     const { slug } = req.params;
+    // sort=top (default) | recent | low. minRating=N filtrerar bort allt under.
+    const sortMode = String(req.query.sort || 'top');
+    const minRating = Math.max(1, Math.min(5, parseInt(String(req.query.minRating || '1'), 10) || 1));
+
     const restaurant = await prisma.restaurant.findFirst({
       where: { OR: [{ slug }, { id: slug }] },
       select: { id: true },
@@ -734,10 +738,20 @@ router.get('/:slug/reviews', async (req, res) => {
     if (!restaurant) {
       return res.status(404).json({ error: 'Restaurang hittades inte' });
     }
+
+    // Sortering. "top" = bästa först (rating desc, sen senast). "recent" = nyast
+    // först. "low" = sämsta först (för transparens).
+    const orderBy =
+      sortMode === 'recent'
+        ? [{ reviewedAt: 'desc' as const }, { createdAt: 'desc' as const }]
+        : sortMode === 'low'
+          ? [{ rating: 'asc' as const }, { reviewedAt: 'desc' as const }]
+          : [{ rating: 'desc' as const }, { reviewedAt: 'desc' as const }];
+
     const reviews = await prisma.order.findMany({
       where: {
         restaurantId: restaurant.id,
-        rating: { not: null },
+        rating: { gte: minRating },
         reviewFlagged: false,
       },
       select: {
@@ -748,30 +762,62 @@ router.get('/:slug/reviews', async (req, res) => {
         reviewReply: true,
         reviewedAt: true,
         createdAt: true,
+        likedItemIds: true,
+        items: {
+          select: { productId: true, productName: true },
+        },
       },
-      orderBy: [{ reviewedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 100,
+      orderBy,
+      take: 200,
     });
-    const summary = reviews.reduce(
-      (acc, r) => {
-        acc.count += 1;
-        acc.sum += r.rating ?? 0;
-        return acc;
-      },
-      { count: 0, sum: 0 },
-    );
-    res.json({
-      averageRating: summary.count ? summary.sum / summary.count : 0,
-      totalCount: summary.count,
-      reviews: reviews.map((r) => ({
+
+    // Bygg en likedItems-array med faktiska namn baserat på orderns items.
+    // likedItemIds är en JSON-array av productId — vi mappar dem till namn
+    // från den ordern så reviewen visar exakt vad kunden gillade.
+    const formatted = reviews.map((r) => {
+      let likedIds: string[] = [];
+      try {
+        const parsed = JSON.parse(r.likedItemIds || '[]');
+        if (Array.isArray(parsed)) likedIds = parsed.filter((v): v is string => typeof v === 'string');
+      } catch { /* tolerate bad JSON */ }
+      const itemMap = new Map((r.items || []).map((i) => [i.productId, i.productName]));
+      const likedItems = likedIds
+        .map((id) => itemMap.get(id))
+        .filter((name): name is string => Boolean(name));
+
+      return {
         id: r.id,
-        // Show first name + last initial for privacy. "Jarir Alshher" → "Jarir A."
         customerName: formatReviewerName(r.customerName),
         rating: r.rating,
         comment: (r.review || '').trim(),
         reply: (r.reviewReply || '').trim(),
+        likedItems,
         createdAt: (r.reviewedAt || r.createdAt).toISOString(),
-      })),
+      };
+    });
+
+    // Summary baserat på ALLA reviews (inte bara filtrerade) så snittet är ärligt.
+    const allReviewsForSummary = await prisma.order.findMany({
+      where: { restaurantId: restaurant.id, rating: { not: null }, reviewFlagged: false },
+      select: { rating: true },
+    });
+    const summary = allReviewsForSummary.reduce(
+      (acc, r) => {
+        acc.count += 1;
+        acc.sum += r.rating ?? 0;
+        const star = r.rating ?? 0;
+        if (star >= 1 && star <= 5) acc.distribution[star] = (acc.distribution[star] || 0) + 1;
+        return acc;
+      },
+      { count: 0, sum: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } as Record<number, number> },
+    );
+
+    res.json({
+      averageRating: summary.count ? summary.sum / summary.count : 0,
+      totalCount: summary.count,
+      distribution: summary.distribution,
+      sort: sortMode,
+      reviews: formatted,
     });
   } catch (error) {
     console.error('Error fetching restaurant reviews', error);
