@@ -50,7 +50,10 @@ const defaultDraft: Draft = {
   targetIds: [],
   isActive: true,
   showOnSite: true,
-  popupEnabled: true,
+  // Default false här. "Popup"-flaggan på vanliga deals är legacy och
+  // styrde tidigare en banner i menyn. Äkta popup-deals (claim-popupen
+  // i webb/RN) byggs via Popup-fliken som sätter popupHeadline/Body/Code.
+  popupEnabled: false,
   maxUsages: "",
   maxUsesPerCustomer: "",
   validUntil: "",
