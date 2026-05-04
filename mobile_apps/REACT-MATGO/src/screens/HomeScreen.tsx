@@ -356,17 +356,17 @@ export default function HomeScreen({
         variant: "public",
         relatedRestaurantIds,
         onNavigateToFilteredRestaurants: () => {
+          // Tar kunden till dedikerad /deals/[id]-spegel i RN — listar
+          // alla restauranger som har erbjudandet plus deal-info i toppen.
           if (pushRoute) {
-            pushRoute({ name: "discover-filtered", restaurantIds: relatedRestaurantIds, dealTitle: deal.title });
+            pushRoute({ name: "deal", id: deal.id });
           }
         },
         onUseNow: () => {
-          if (primaryRestaurant?.slug) {
-            openRestaurant(primaryRestaurant.slug);
-            return;
-          }
           if (pushRoute) {
-            pushRoute({ name: "discover" });
+            pushRoute({ name: "deal", id: deal.id });
+          } else if (primaryRestaurant?.slug) {
+            openRestaurant(primaryRestaurant.slug);
           }
         },
       } satisfies DealFlipCardData;

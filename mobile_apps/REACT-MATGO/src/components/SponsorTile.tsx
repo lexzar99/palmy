@@ -39,7 +39,9 @@ export default function SponsorTile({
 
     if (type === 'DEAL') {
       if (!pushRoute) return Alert.alert('Info', 'Det här erbjudandet kan inte öppnas just nu.');
-      pushRoute({ name: 'discover-filtered', restaurantIds: [cleanTarget], dealTitle: sponsor.name });
+      // Tar kunden till dedikerad deal-sida som listar alla restauranger
+      // som har erbjudandet, plus deal-info i toppen.
+      pushRoute({ name: 'deal', id: cleanTarget });
     } else if (type === 'RESTAURANT') {
       openRestaurant(cleanTarget);
     } else if (type === 'EXTERNAL') {
