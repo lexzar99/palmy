@@ -848,10 +848,14 @@ class PrintService {
     // Build lookup from template elements so every field respects admin settings.
     final elMap = { for (final el in template.elements) el.key: el };
 
+    // Template sizes are web CSS px (8-18). Bitmap canvas is ~512px wide for
+    // 72mm @ 203 DPI, so we scale up to match printed output.
+    const double bitmapScale = 3.0;
+
     TextAlign ea(String key, [String fallback = 'left']) =>
         _toTextAlign(elMap[key]?.align ?? fallback);
     double es(String key, double fallback) =>
-        (elMap[key]?.size ?? fallback).toDouble();
+        ((elMap[key]?.size ?? fallback) * bitmapScale);
     FontWeight ew(String key, [String fallback = 'normal']) =>
         _toFontWeightBitmap(elMap[key]?.weight ?? fallback);
     bool ev(String key) => elMap[key]?.visible != false;
@@ -953,7 +957,7 @@ class PrintService {
       p.space(8);
       p.text('Leveranstid', size: es('estimatedTime', 24), align: ea('estimatedTime', 'center'));
       p.text('${o['estimatedTime']} min',
-          size: es('estimatedTime', 64) + 40, w: FontWeight.w900, align: ea('estimatedTime', 'center'));
+          size: es('estimatedTime', 64), w: FontWeight.w900, align: ea('estimatedTime', 'center'));
     }
 
     // Item count
