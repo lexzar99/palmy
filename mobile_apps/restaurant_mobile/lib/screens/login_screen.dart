@@ -30,21 +30,38 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _testServer() async {
     try {
-      final response = await Dio().get('${AppConstants.baseUrl}/health');
+      final dio = Dio(BaseOptions(
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+      ));
+      final response = await dio.get('${AppConstants.baseUrl}/health');
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Server svarar (${response.statusCode})'),
+          content: Text('Server svarar ✓ (${response.statusCode})'),
           backgroundColor: AppTheme.success,
         ),
       );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final String msg;
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        msg = 'Ingen svar från servern – kontrollera internet (timeout 30 s)';
+      } else if (e.type == DioExceptionType.connectionError) {
+        msg = 'Kunde inte nå servern – kontrollera internet';
+      } else {
+        msg = 'Server ej nåbar (${e.response?.statusCode ?? e.type.name})';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppTheme.danger),
+      );
     } catch (error) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Servertest misslyckades: $error'),
+          content: const Text('Servertest misslyckades – okänt fel'),
           backgroundColor: AppTheme.danger,
         ),
       );

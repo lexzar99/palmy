@@ -57,16 +57,16 @@ class AuthProvider with ChangeNotifier {
         _error = responseError;
       } else if (e.response?.statusCode != null) {
         _error = 'Inloggning misslyckades (HTTP ${e.response?.statusCode})';
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+                 e.type == DioExceptionType.receiveTimeout ||
+                 e.type == DioExceptionType.sendTimeout) {
+        _error = 'Servern svarar inte – kontrollera din internetanslutning och försök igen.';
       } else if (e.type == DioExceptionType.connectionError) {
-        _error =
-            'Kunde inte ansluta till servern (DNS/nätverk). Kontrollera internet.';
+        _error = 'Kunde inte ansluta till servern – kontrollera internet.';
       } else if (e.type == DioExceptionType.badCertificate) {
-        _error =
-            'SSL-certifikatfel. Kontrollera att datum/tid på mobilen är korrekt.';
-      } else if (e.message != null && e.message!.trim().isNotEmpty) {
-        _error = 'Inloggning misslyckades: ${e.message}';
+        _error = 'SSL-certifikatfel. Kontrollera att datum/tid på mobilen är korrekt.';
       } else {
-        _error = 'Inloggning misslyckades';
+        _error = 'Inloggning misslyckades – kontrollera internetanslutningen.';
       }
     } catch (e) {
       _error = 'Ett oväntat fel uppstod';
