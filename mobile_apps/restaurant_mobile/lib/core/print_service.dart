@@ -806,7 +806,7 @@ class PrintService {
       // Left-align so the printer doesn't try to center a potentially wider image
       // on a narrower physical paper, which would shift content off the right edge.
       ...generator.imageRaster(bitmapImg,
-          align: PosAlign.left,
+          align: PosAlign.center,
           highDensityHorizontal: true,
           highDensityVertical: true),
       ...generator.feed(2),

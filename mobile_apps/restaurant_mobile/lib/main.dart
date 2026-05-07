@@ -26,6 +26,17 @@ import 'widgets/app_ui.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Fånga upp alla okantade Dart-fel och logga dem.
+  FlutterError.onError = (details) {
+    debugPrint('FLUTTER ERROR: ${details.exceptionAsString()}');
+    debugPrint(details.stack.toString());
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    debugPrint('PLATFORM ERROR: $error');
+    debugPrint(stack.toString());
+    return true;
+  };
+
   try {
     await AudioHelper.initConfigs();
   } catch (e) {
@@ -36,10 +47,12 @@ void main() async {
   ApiClient.onUnauthorized = () => authProvider.logout();
   await authProvider.tryAutoLogin();
 
-  // FCM init i bakgrunden – blockerar inte app-start.
-  unawaited(PushService.init().catchError((e) {
-    debugPrint('PushService init failed: $e');
-  }));
+  // FCM init i bakgrunden – blockerar inte app-start (och bara Android).
+  if (!kIsWeb) {
+    unawaited(PushService.init().catchError((e) {
+      debugPrint('PushService init failed: $e');
+    }));
+  }
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   final String fullVersion =

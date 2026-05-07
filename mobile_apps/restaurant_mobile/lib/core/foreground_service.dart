@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'log_service.dart';
@@ -18,7 +19,7 @@ class AppForegroundService {
   /// Init notification channel + grundkonfiguration. Måste köras en gång
   /// före [start]. Säkert att anropa flera gånger.
   static void init() {
-    if (kIsWeb || _initialized) return;
+    if (kIsWeb || (!kIsWeb && !Platform.isAndroid) || _initialized) return;
     _initialized = true;
     try {
       FlutterForegroundTask.init(
@@ -48,7 +49,7 @@ class AppForegroundService {
   /// Starta foreground service (visar persistent notifikation).
   /// Anropas efter lyckad inloggning.
   static Future<void> start() async {
-    if (kIsWeb) return;
+    if (kIsWeb || (!kIsWeb && !Platform.isAndroid)) return;
     init();
     try {
       // Be om POST_NOTIFICATIONS permission på Android 13+
@@ -97,7 +98,7 @@ class AppForegroundService {
 
   /// Stoppa service och ta bort notifikation. Anropas vid logout.
   static Future<void> stop() async {
-    if (kIsWeb) return;
+    if (kIsWeb || (!kIsWeb && !Platform.isAndroid)) return;
     try {
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.stopService();
