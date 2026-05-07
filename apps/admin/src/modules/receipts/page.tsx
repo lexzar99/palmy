@@ -304,9 +304,19 @@ export function ReceiptsPage() {
   }, [previewOrderId, previewOrders.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+
   const saveMutation = useMutation({
     mutationFn: () => updateReceiptTemplate(draft!),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey }); },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 3000);
+    },
+    onError: () => {
+      setSaveStatus("error");
+      setTimeout(() => setSaveStatus("idle"), 4000);
+    },
   });
 
   const updateElement = (key: string, patch: Partial<ReceiptElement>) => {
@@ -391,9 +401,17 @@ export function ReceiptsPage() {
             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Template editor</p>
             <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Receipt template</h2>
           </div>
-          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
-            {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save template
-          </Button>
+          <div className="flex items-center gap-3">
+            {saveStatus === "saved" && (
+              <span className="text-sm font-medium text-green-600">✓ Sparat!</span>
+            )}
+            {saveStatus === "error" && (
+              <span className="text-sm font-medium text-red-500">✗ Kunde inte spara</span>
+            )}
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara template
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[300px_1fr]">
