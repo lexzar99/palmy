@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, GripVertical, Loader2, Plus, Printer, Save, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, Plus, Printer, Save } from "lucide-react";
 import {
   createPrinter,
   deletePrinter,
@@ -60,8 +60,6 @@ const defaultElements: ReceiptElement[] = [
   { key: "thankYou",             label: "Tackhälsning",          visible: true,  size: 9,  weight: "bold",   align: "center", content: "Tack för din beställning!" },
   { key: "footerMsg",            label: "Sidfot",                visible: true,  size: 8,  weight: "normal", align: "center", content: "Välkommen åter!"            },
 ];
-
-const sizeOptions = [7, 8, 9, 10, 11, 12, 14, 16, 18];
 
 const mergeTemplateElements = (template: ReceiptTemplate): ReceiptTemplate => {
   const map = new Map(template.elements.map((element) => [element.key, element]));
@@ -126,98 +124,7 @@ function PrinterModal({ open, printer, restaurants, onClose }: { open: boolean; 
   );
 }
 
-function TemplateModal({ open, template, onClose }: { open: boolean; template: ReceiptTemplate | null; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<ReceiptTemplate | null>(template ? mergeTemplateElements(template) : null);
-  const [selectedKey, setSelectedKey] = useState<string | null>(template?.elements[0]?.key || "restaurantName");
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!open) return;
-    if (template) {
-      const next = mergeTemplateElements(template);
-      setDraft(next);
-      setSelectedKey(next.elements[0]?.key || "restaurantName");
-    }
-  }, [open, template]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!draft) {
-        return { paperWidth: "72mm" as const, platformName: "MatGo", elements: defaultElements };
-      }
-      return updateReceiptTemplate(draft);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey });
-      onClose();
-    },
-  });
-
-  const updateElement = <K extends keyof ReceiptElement>(key: string, field: K, value: ReceiptElement[K]) => {
-    setDraft((current) => current ? { ...current, elements: current.elements.map((element) => element.key === key ? { ...element, [field]: value } : element) } : current);
-  };
-
-  const selected = draft?.elements.find((element) => element.key === selectedKey) || null;
-
-  const onDragStart = (index: number) => setDragIndex(index);
-  const onDragOver = (event: React.DragEvent, index: number) => {
-    event.preventDefault();
-    if (!draft || dragIndex == null || dragIndex === index) return;
-    setDraft((current) => {
-      if (!current) return current;
-      const nextElements = [...current.elements];
-      const [moved] = nextElements.splice(dragIndex, 1);
-      nextElements.splice(index, 0, moved);
-      setDragIndex(index);
-      return { ...current, elements: nextElements };
-    });
-  };
-  const onDragEnd = () => setDragIndex(null);
-
-  return (
-    <Modal open={open} onClose={onClose} title="Receipt template" widthClassName="max-w-[1300px]" footer={<div className="flex justify-end gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save template</Button></div>}>
-      {draft ? (
-        <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
-          <div className="surface-muted p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Order and visibility</p>
-              <Field label="Paper"><Select value={draft.paperWidth} onChange={(event) => setDraft((current) => current ? { ...current, paperWidth: event.target.value as ReceiptTemplate["paperWidth"] } : current)}><option value="58mm">58mm</option><option value="72mm">72mm</option><option value="80mm">80mm</option><option value="A4">A4</option></Select></Field>
-            </div>
-            <div className="mt-4"><Field label="Platform name"><Input value={draft.platformName} onChange={(event) => setDraft((current) => current ? { ...current, platformName: event.target.value } : current)} /></Field></div>
-            <div className="mt-4 grid gap-1">
-              {draft.elements.map((element, index) => (
-                <div key={element.key} draggable onDragStart={() => onDragStart(index)} onDragOver={(event) => onDragOver(event, index)} onDragEnd={onDragEnd} onClick={() => setSelectedKey(element.key)} className={`flex cursor-pointer items-center gap-2 rounded-xl border p-2.5 transition-all ${selectedKey === element.key ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.08)]" : "border-transparent hover:bg-[rgba(255,255,255,0.04)]"} ${dragIndex === index ? "opacity-50" : ""}`}>
-                  <GripVertical size={12} className="text-[var(--text-secondary)]/50" />
-                  <span className="flex-1 truncate text-[11px] font-bold">{element.label}</span>
-                  <button type="button" onClick={(event) => { event.stopPropagation(); updateElement(element.key, "visible", !element.visible); }} className="text-[var(--text-secondary)]">{element.visible ? <Eye size={12} /> : <EyeOff size={12} />}</button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="surface-muted p-4">
-            {selected ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Label"><Input value={selected.label} disabled /></Field>
-                <Field label="Visible"><Select value={selected.visible ? "yes" : "no"} onChange={(event) => updateElement(selected.key, "visible", event.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-                <Field label="Size"><Select value={String(selected.size)} onChange={(event) => updateElement(selected.key, "size", Number(event.target.value))}>{sizeOptions.map((size) => <option key={size} value={size}>{size}</option>)}</Select></Field>
-                <Field label="Weight"><Select value={selected.weight} onChange={(event) => updateElement(selected.key, "weight", event.target.value as ReceiptElement["weight"])}><option value="normal">Normal</option><option value="bold">Bold</option><option value="black">Black</option></Select></Field>
-                <Field label="Align"><Select value={selected.align} onChange={(event) => updateElement(selected.key, "align", event.target.value as ReceiptElement["align"])}><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></Select></Field>
-                <Field label="Uppercase"><Select value={selected.uppercase ? "yes" : "no"} onChange={(event) => updateElement(selected.key, "uppercase", event.target.value === "yes")}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
-                {selected.content !== undefined ? <div className="md:col-span-2"><Field label="Custom content"><Textarea value={selected.content || ""} onChange={(event) => updateElement(selected.key, "content", event.target.value)} /></Field></div> : null}
-              </div>
-            ) : <EmptyState title="Select a template element" />}
-          </div>
-        </div>
-      ) : null}
-    </Modal>
-  );
-}
-
-function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewData; platformName: string }) {
+function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; template: ReceiptTemplate }) {
   const h = (data.header ?? {}) as Record<string, unknown>;
   const o = (data.orderInfo ?? {}) as Record<string, unknown>;
   const c = (data.customer ?? {}) as Record<string, unknown>;
@@ -227,12 +134,20 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
   const s = (v: unknown) => (v != null && v !== "" ? String(v) : "");
   const n = (v: unknown) => { const x = parseFloat(String(v ?? 0)); return isNaN(x) ? 0 : x; };
 
+  const vis = (key: string) => template.elements.find((el) => el.key === key)?.visible !== false;
+  const content = (key: string, fallback: string) => template.elements.find((el) => el.key === key)?.content ?? fallback;
+
   const restaurantAddr = [s(h.address), [s(h.zip), s(h.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const isDelivery     = s(o.type) === "DELIVERY";
 
-  const HR    = () => <div className="border-t-2 border-black my-2" />;
-  const Badge = ({ children }: { children: React.ReactNode }) => (
+  const allergensRaw = c.allergens;
+  const allergenStr = Array.isArray(allergensRaw)
+    ? (allergensRaw as unknown[]).map((e) => s(e)).filter(Boolean).join(", ")
+    : s(allergensRaw);
+
+  const HR = () => <div className="border-t-2 border-black my-2" />;
+  const BoxBadge = ({ children }: { children: React.ReactNode }) => (
     <span className="inline-block border-[3px] border-black px-4 py-1 font-black text-[14px] tracking-wide">{children}</span>
   );
 
@@ -240,117 +155,130 @@ function ReceiptPreviewContent({ data, platformName }: { data: ReceiptPreviewDat
     <div className="text-[12px] leading-[1.6] font-medium" style={{ fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif" }}>
 
       {/* ── Platform + ordernummer ── */}
-      <div className="text-center mb-1">
-        <p className="text-[11px] font-bold">{platformName} #{s(o.number) || "—"}</p>
-        <p className="text-[10px] text-[#555]">Ej kvitto</p>
-      </div>
+      {vis("platformName") && (
+        <div className="text-center mb-1">
+          <p className="text-[11px] font-bold">{template.platformName} {vis("orderNumber") ? `#${s(o.number) || "—"}` : ""}</p>
+          <p className="text-[10px] text-[#555]">Ej kvitto</p>
+        </div>
+      )}
 
-      <HR />
+      {vis("divider1") && <HR />}
 
       {/* ── Restaurang ── */}
       <div className="text-center mb-2">
-        <p className="text-[18px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>
-        <p className="text-[12px] font-bold">{s(o.date)} {s(o.time)}</p>
-        {restaurantAddr && <p className="text-[11px]">{restaurantAddr}</p>}
-        {s(h.phone) && <p className="text-[11px]">Tel: {s(h.phone)}</p>}
+        {vis("restaurantName") && <p className="text-[18px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>}
+        {vis("timestamp") && <p className="text-[12px] font-bold">{s(o.date)} {s(o.time)}</p>}
+        {vis("address") && restaurantAddr && <p className="text-[11px]">{restaurantAddr}</p>}
+        {vis("phone") && s(h.phone) && <p className="text-[11px]">Tel: {s(h.phone)}</p>}
       </div>
 
-      <HR />
+      {vis("headerMsg") && content("headerMsg", "") && (
+        <p className="text-center text-[11px] font-bold mb-2">{content("headerMsg", "")}</p>
+      )}
+
+      {vis("divider2") && <HR />}
 
       {/* ── Kund ── */}
       <div className="mb-2">
-        {s(c.name) && (
+        {vis("customerName") && s(c.name) && (
           <>
             <p className="text-[10px] text-[#555] font-bold">Kund:</p>
             <p className="font-black text-[14px]">{s(c.name)}</p>
           </>
         )}
-        {s(c.phone) && <p className="text-[12px] font-bold">{s(c.phone)}</p>}
-        {customerAddr && (
+        {vis("customerPhone") && s(c.phone) && <p className="text-[12px] font-bold">{s(c.phone)}</p>}
+        {vis("customerAddress") && customerAddr && (
           <>
             <p className="text-[10px] text-[#555] font-bold mt-1">Adress:</p>
             <p className="font-black text-[12px]">{customerAddr}</p>
           </>
         )}
-        {s(c.instructions) && <p className="text-[11px] mt-0.5">{s(c.instructions)}</p>}
-        {s(c.note)         && <p className="font-black text-[11px] mt-0.5">{s(c.note)}</p>}
-        {s(c.allergens)    && <p className="font-black text-[11px] text-red-700 mt-0.5">! {s(c.allergens)}</p>}
+        {vis("deliveryInstructions") && s(c.instructions) && <p className="text-[11px] mt-0.5">{s(c.instructions)}</p>}
+        {vis("note") && s(c.note) && <p className="font-black text-[11px] mt-0.5">{s(c.note)}</p>}
+        {vis("allergens") && allergenStr && <p className="font-black text-[11px] text-red-700 mt-0.5">! {allergenStr}</p>}
       </div>
 
       {/* ── Status-badges ── */}
       <div className="flex flex-col items-center gap-2 mb-2">
-        <Badge>{isDelivery ? "Utkörning" : "Avhämtning"}</Badge>
-        {!!o.isPreorder && <Badge>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</Badge>}
-        {s(o.paymentMethod) && <Badge>{s(o.paymentMethod)}</Badge>}
+        {vis("orderType") && <BoxBadge>{isDelivery ? "Utkörning" : "Avhämtning"}</BoxBadge>}
+        {vis("scheduledFor") && !!o.isPreorder && <BoxBadge>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</BoxBadge>}
+        {vis("paymentMethod") && s(o.paymentMethod) && <BoxBadge>{s(o.paymentMethod)}</BoxBadge>}
       </div>
 
       {/* ── Leveranstid (jättestor) + artikelräknare ── */}
-      {!o.isPreorder && n(o.estimatedTime) > 0 && (
+      {vis("estimatedTime") && !o.isPreorder && n(o.estimatedTime) > 0 && (
         <div className="text-center mb-1.5">
           <p className="text-[12px] font-bold">Leveranstid</p>
           <p className="font-black text-[30px] leading-tight">{s(o.estimatedTime)} min</p>
         </div>
       )}
+
+      {vis("divider3") && <HR />}
+
       <p className="text-center text-[11px] font-bold mb-1">{items.length} artikel{items.length !== 1 ? "ar" : ""}</p>
 
-      <HR />
-
       {/* ── Artiklar ── */}
-      <div className="mb-2 space-y-2">
-        {items.map((item, i) => (
-          <div key={i}>
-            <div className="flex justify-between items-baseline gap-1">
-              <span className="font-black text-[13px] flex-1">{s(item.qty)} x {s(item.name)}</span>
-              <span className="font-black text-[13px] whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+      {vis("items") && (
+        <div className="mb-2 space-y-2">
+          {items.map((item, i) => (
+            <div key={i}>
+              <div className="flex justify-between items-baseline gap-1">
+                <span className="font-black text-[13px] flex-1">{s(item.qty)} x {s(item.name)}</span>
+                <span className="font-black text-[13px] whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+              </div>
+              {vis("extras") && (item.extras as Array<unknown> ?? []).map((extra, ei) => (
+                <p key={ei} className="text-[10px] font-bold text-[#555] pl-3">
+                  ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
+                </p>
+              ))}
+              {s(item.note) && <p className="text-[10px] font-black pl-3">! {s(item.note)}</p>}
             </div>
-            {(item.extras as Array<unknown> ?? []).map((extra, ei) => (
-              <p key={ei} className="text-[10px] font-bold text-[#555] pl-3">
-                ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
-              </p>
-            ))}
-            {s(item.note) && <p className="text-[10px] font-black pl-3">! {s(item.note)}</p>}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      <HR />
+      {vis("divider5") && <HR />}
 
       {/* ── Totaler ── */}
       <div className="mb-2">
-        {n(t.deliveryFee) > 0 && (
+        {vis("deliveryFee") && n(t.deliveryFee) > 0 && (
           <div className="flex justify-between text-[12px] font-bold">
             <span>Leveransavgift</span><span>{s(t.deliveryFee)} kr</span>
           </div>
         )}
-        {n(t.discount) > 0 && (
+        {vis("discount") && n(t.discount) > 0 && (
           <div className="flex justify-between text-[12px] font-bold">
             <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
             <span>-{s(t.discount)} kr</span>
           </div>
         )}
-        <div className="flex justify-between items-baseline border-t-2 border-black pt-1 mt-1">
-          <span className="font-black text-[20px]">Totalt</span>
-          <span className="font-black text-[20px]">{s(t.total)} kr</span>
-        </div>
+        {vis("total") && (
+          <div className="flex justify-between items-baseline border-t-2 border-black pt-1 mt-1">
+            <span className="font-black text-[20px]">Totalt</span>
+            <span className="font-black text-[20px]">{s(t.total)} kr</span>
+          </div>
+        )}
       </div>
 
-      <HR />
+      {vis("divider6") && <HR />}
 
       {/* ── Sidfot ── */}
       <div className="text-center text-[11px] font-bold space-y-0.5">
-        <p>Tack för din beställning!</p>
-        <p className="font-medium">Välkommen åter!</p>
+        {vis("thankYou") && <p>{content("thankYou", "Tack för din beställning!")}</p>}
+        {vis("footerMsg") && <p className="font-medium">{content("footerMsg", "Välkommen åter!")}</p>}
       </div>
     </div>
   );
 }
 
 export function ReceiptsPage() {
-  const [templateOpen, setTemplateOpen] = useState(false);
   const [printerOpen, setPrinterOpen] = useState(false);
   const [activePrinter, setActivePrinter] = useState<PrinterRecord | null>(null);
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<ReceiptTemplate | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
+  const queryClient = useQueryClient();
   const config = useQuery({ queryKey: printingConfigQueryKey, queryFn: getPrintingConfig });
   const restaurants = useQuery({ queryKey: ["receipts", "restaurants"], queryFn: getRestaurantOverview });
   const previewOrders = useQuery({ queryKey: receiptPreviewOrdersQueryKey, queryFn: getPreviewOrders });
@@ -358,11 +286,24 @@ export function ReceiptsPage() {
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!previewOrderId && previewOrders.data?.[0]?.id) {
-      setPreviewOrderId(previewOrders.data[0].id);
-    }
+    if (config.data && !draft) setDraft(mergeTemplateElements(config.data.template));
+  }, [config.data, draft]);
+
+  useEffect(() => {
+    if (!previewOrderId && previewOrders.data?.[0]?.id) setPreviewOrderId(previewOrders.data[0].id);
   }, [previewOrderId, previewOrders.data]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const saveMutation = useMutation({
+    mutationFn: () => updateReceiptTemplate(draft!),
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: printingConfigQueryKey }); },
+  });
+
+  const updateElement = (key: string, patch: Partial<ReceiptElement>) => {
+    setDraft((prev) => prev ? { ...prev, elements: prev.elements.map((el) => el.key === key ? { ...el, ...patch } : el) } : prev);
+  };
+
+  const selectedElement = draft?.elements.find((el) => el.key === selectedKey) ?? null;
 
   if (config.isLoading || restaurants.isLoading || previewOrders.isLoading) {
     return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading receipt control...</Surface>;
@@ -372,7 +313,7 @@ export function ReceiptsPage() {
     return <ErrorPanel title="Receipts could not be loaded" description="Printing config, restaurants or preview orders failed to load." action={<Button onClick={() => { void config.refetch(); void restaurants.refetch(); void previewOrders.refetch(); }}>Retry</Button>} />;
   }
 
-  const visibleElementCount = config.data.template.elements.filter((element) => element.visible).length;
+  const effectiveTemplate = draft ?? mergeTemplateElements(config.data.template);
 
   return (
     <div className="page-stack">
@@ -381,7 +322,7 @@ export function ReceiptsPage() {
           eyebrow="Receipts"
           title="Receipt template and printer registry"
           description="Template rules and printer profiles stay backed by the existing printing APIs and explicit receipt data payloads."
-          actions={<><Button variant="secondary" onClick={() => setTemplateOpen(true)}>Edit template</Button><Button variant="primary" onClick={() => { setActivePrinter(null); setPrinterOpen(true); }}><Plus size={16} /> New printer</Button></>}
+          actions={<Button variant="primary" onClick={() => { setActivePrinter(null); setPrinterOpen(true); }}><Plus size={16} /> New printer</Button>}
         />
       </Surface>
 
@@ -389,65 +330,126 @@ export function ReceiptsPage() {
         <MetricCard label="Printers" value={formatNumber(config.data.printers.length)} />
         <MetricCard label="Default printers" value={formatNumber(config.data.printers.filter((printer) => printer.isDefault).length)} />
         <MetricCard label="Auto print" value={formatNumber(config.data.printers.filter((printer) => printer.autoPrint && printer.isActive).length)} />
-        <MetricCard label="Visible template blocks" value={formatNumber(visibleElementCount)} />
+        <MetricCard label="Visible template blocks" value={formatNumber(effectiveTemplate.elements.filter((el) => el.visible).length)} />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.02fr_0.98fr]">
-        <Surface className="px-6 py-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Printer registry</p>
-              <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Central printer profiles</h2>
-            </div>
-            <Badge tone="info">{config.data.template.paperWidth}</Badge>
+      {/* Printer registry */}
+      <Surface className="px-6 py-6">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Printer registry</p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Central printer profiles</h2>
           </div>
+          <Badge tone="info">{config.data.template.paperWidth}</Badge>
+        </div>
 
-          {config.data.printers.length === 0 ? (
-            <div className="mt-6"><EmptyState title="No printers configured" /></div>
-          ) : (
-            <div className="mt-6 grid gap-3">
-              {config.data.printers.map((printer) => (
-                <button key={printer.id} type="button" onClick={() => { setActivePrinter(printer); setPrinterOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-lg font-black tracking-[-0.02em]">{printer.name}</p>
-                        <Badge tone={printer.isActive ? "success" : "danger"}>{printer.isActive ? "Active" : "Inactive"}</Badge>
-                        {printer.isDefault ? <Badge tone="info">Default</Badge> : null}
-                        <Badge tone={printer.status === "ONLINE" ? "success" : printer.status === "STALE" ? "warning" : "neutral"}>{printer.status}</Badge>
-                      </div>
-                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{printer.restaurantName || "No restaurant"} • {printer.address}</p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Badge tone="neutral">{printer.paperWidth}</Badge>
-                        <Badge tone="neutral">{printer.copies} copies</Badge>
-                        <Badge tone="neutral">{printer.receiptMode}</Badge>
-                        <Badge tone="neutral">Auto print {printer.autoPrint ? "on" : "off"}</Badge>
-                      </div>
-                      {printer.notes ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{printer.notes}</p> : null}
+        {config.data.printers.length === 0 ? (
+          <div className="mt-6"><EmptyState title="No printers configured" /></div>
+        ) : (
+          <div className="mt-6 grid gap-3">
+            {config.data.printers.map((printer) => (
+              <button key={printer.id} type="button" onClick={() => { setActivePrinter(printer); setPrinterOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-lg font-black tracking-[-0.02em]">{printer.name}</p>
+                      <Badge tone={printer.isActive ? "success" : "danger"}>{printer.isActive ? "Active" : "Inactive"}</Badge>
+                      {printer.isDefault ? <Badge tone="info">Default</Badge> : null}
+                      <Badge tone={printer.status === "ONLINE" ? "success" : printer.status === "STALE" ? "warning" : "neutral"}>{printer.status}</Badge>
                     </div>
-                    <div className="text-sm text-[var(--text-secondary)]">{printer.lastSeenAt ? `Seen ${formatDateTime(printer.lastSeenAt)}` : "Never seen"}</div>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">{printer.restaurantName || "No restaurant"} • {printer.address}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge tone="neutral">{printer.paperWidth}</Badge>
+                      <Badge tone="neutral">{printer.copies} copies</Badge>
+                      <Badge tone="neutral">{printer.receiptMode}</Badge>
+                      <Badge tone="neutral">Auto print {printer.autoPrint ? "on" : "off"}</Badge>
+                    </div>
+                    {printer.notes ? <p className="mt-3 text-sm text-[var(--text-secondary)]">{printer.notes}</p> : null}
                   </div>
+                  <div className="text-sm text-[var(--text-secondary)]">{printer.lastSeenAt ? `Seen ${formatDateTime(printer.lastSeenAt)}` : "Never seen"}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Surface>
+
+      {/* Template editor + live preview */}
+      <Surface className="px-6 py-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Template editor</p>
+            <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Receipt template</h2>
+          </div>
+          <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
+            {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save template
+          </Button>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[300px_1fr]">
+          {/* Left: element controls */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Paper width">
+                <Select value={draft?.paperWidth ?? "80mm"} onChange={(e) => setDraft((p) => p ? { ...p, paperWidth: e.target.value as ReceiptTemplate["paperWidth"] } : p)}>
+                  <option value="58mm">58 mm</option>
+                  <option value="72mm">72 mm</option>
+                  <option value="80mm">80 mm</option>
+                  <option value="A4">A4</option>
+                </Select>
+              </Field>
+              <Field label="Plattform">
+                <Input value={draft?.platformName ?? ""} onChange={(e) => setDraft((p) => p ? { ...p, platformName: e.target.value } : p)} />
+              </Field>
+            </div>
+
+            <div className="rounded border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
+              {draft?.elements.map((el) => (
+                <button
+                  key={el.key}
+                  type="button"
+                  onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
+                  className={`flex items-center gap-2 w-full px-3 py-2 text-left text-sm transition-colors ${selectedKey === el.key ? "bg-[var(--accent-faint,#f0f4ff)] font-semibold" : "hover:bg-[var(--surface-muted)]"}`}
+                >
+                  <span
+                    role="button"
+                    tabIndex={-1}
+                    onClick={(e) => { e.stopPropagation(); updateElement(el.key, { visible: !el.visible }); }}
+                    className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                  >
+                    {el.visible ? <Eye size={13} /> : <EyeOff size={13} className="opacity-40" />}
+                  </span>
+                  <span className={`flex-1 truncate ${!el.visible ? "line-through opacity-40" : ""}`}>{el.label}</span>
+                  {selectedKey === el.key && el.content !== undefined && (
+                    <span className="text-[10px] text-[var(--text-muted)]">✎</span>
+                  )}
                 </button>
               ))}
             </div>
-          )}
-        </Surface>
 
-        <Surface className="px-6 py-6">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Receipt preview</p>
-              <h2 className="mt-2 text-2xl font-black tracking-[-0.04em]">Template payload preview</h2>
-            </div>
-            <Printer size={18} className="text-[var(--accent-strong)]" />
+            {selectedElement && selectedElement.content !== undefined && (
+              <Field label={`Innehåll: ${selectedElement.label}`}>
+                <Textarea
+                  value={selectedElement.content ?? ""}
+                  onChange={(e) => updateElement(selectedKey!, { content: e.target.value })}
+                  rows={2}
+                />
+              </Field>
+            )}
           </div>
 
-          <div className="mt-5 grid gap-4">
-            <Field label="Preview order">
-              <Select value={previewOrderId || ""} onChange={(event) => setPreviewOrderId(event.target.value)}>
-                {previewOrders.data.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
-              </Select>
-            </Field>
+          {/* Right: live preview */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <Field label="Preview order">
+                  <Select value={previewOrderId || ""} onChange={(e) => setPreviewOrderId(e.target.value)}>
+                    {previewOrders.data.map((order) => <option key={order.id} value={order.id}>{order.orderNumber} • {order.customerName}</option>)}
+                  </Select>
+                </Field>
+              </div>
+              <Printer size={18} className="text-[var(--accent-strong)] mt-5 shrink-0" />
+            </div>
 
             <div className="surface-muted flex justify-center px-4 py-6">
               {/* 72 mm-rulle: 72 × 3.78 ≈ 272 px, marginal px-3 → ~65 mm utskriftsyta */}
@@ -463,15 +465,14 @@ export function ReceiptsPage() {
                     Kunde inte hämta förhandsgranskning.<br />Kontrollera att ordern finns och försök igen.
                   </p>
                 ) : (
-                  <ReceiptPreviewContent data={preview.data} platformName={config.data.template.platformName} />
+                  <ReceiptPreviewContent data={preview.data} template={effectiveTemplate} />
                 )}
               </div>
             </div>
           </div>
-        </Surface>
-      </div>
+        </div>
+      </Surface>
 
-      <TemplateModal open={templateOpen} template={config.data.template} onClose={() => setTemplateOpen(false)} />
       <PrinterModal open={printerOpen} printer={activePrinter} restaurants={restaurants.data.map((restaurant) => ({ id: restaurant.id, name: restaurant.name }))} onClose={() => { setPrinterOpen(false); setActivePrinter(null); }} />
     </div>
   );
