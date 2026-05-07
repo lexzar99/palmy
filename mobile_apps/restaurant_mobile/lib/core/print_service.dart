@@ -814,6 +814,22 @@ class PrintService {
     ];
   }
 
+  static TextAlign _toTextAlign(String align) {
+    switch (align) {
+      case 'center': return TextAlign.center;
+      case 'right':  return TextAlign.right;
+      default:       return TextAlign.left;
+    }
+  }
+
+  static FontWeight _toFontWeightBitmap(String weight) {
+    switch (weight) {
+      case 'black': return FontWeight.w900;
+      case 'bold':  return FontWeight.bold;
+      default:      return FontWeight.normal;
+    }
+  }
+
   static void _drawReceiptBitmap(
     _RP p,
     Map<String, dynamic>? receiptData,
@@ -829,79 +845,115 @@ class PrintService {
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
 
+    // Build lookup from template elements so every field respects admin settings.
+    final elMap = { for (final el in template.elements) el.key: el };
+
+    TextAlign ea(String key, [String fallback = 'left']) =>
+        _toTextAlign(elMap[key]?.align ?? fallback);
+    double es(String key, double fallback) =>
+        (elMap[key]?.size ?? fallback).toDouble();
+    FontWeight ew(String key, [String fallback = 'normal']) =>
+        _toFontWeightBitmap(elMap[key]?.weight ?? fallback);
+    bool ev(String key) => elMap[key]?.visible != false;
+    String eu(String key, String text) =>
+        (elMap[key]?.uppercase == true) ? text.toUpperCase() : text;
+
     const grey = Color(0xFF666666);
     const red = Color(0xFFCC0000);
     final isDelivery = _safeValue(o['type']) == 'DELIVERY';
 
-    // Platform + order number
+    // Platform + order number (always visible header)
     p.text('${template.platformName} #${_safeValue(o['number'])}',
         size: 22, w: FontWeight.bold, align: TextAlign.center);
     p.text('Ej kvitto', size: 20, align: TextAlign.center, color: grey);
     p.hr();
 
-    // Restaurant header
+    // Restaurant name
     final rName = _safeValue(h['restaurantName']);
-    if (rName.isNotEmpty) {
-      p.text(rName.toUpperCase(), size: 44, w: FontWeight.w900, align: TextAlign.center);
+    if (ev('restaurantName') && rName.isNotEmpty) {
+      p.text(eu('restaurantName', rName),
+          size: es('restaurantName', 44), w: ew('restaurantName', 'black'), align: ea('restaurantName', 'center'));
     }
-    p.text('${_safeValue(o['date'])} ${_safeValue(o['time'])}',
-        size: 24, w: FontWeight.bold, align: TextAlign.center);
+    // Timestamp
+    if (ev('timestamp')) {
+      p.text('${_safeValue(o['date'])} ${_safeValue(o['time'])}',
+          size: es('timestamp', 24), w: ew('timestamp', 'bold'), align: ea('timestamp', 'center'));
+    }
+    // Restaurant address
     final rAddr = [
       _safeValue(h['address']),
       [h['zip'], h['city']].where((v) => _safeValue(v).isNotEmpty).join(' '),
     ].where((v) => v.isNotEmpty).join(', ');
-    if (rAddr.isNotEmpty) p.text(rAddr, size: 22, align: TextAlign.center);
-    if (_safeValue(h['phone']).isNotEmpty) {
-      p.text('Tel: ${_safeValue(h['phone'])}', size: 22, align: TextAlign.center);
+    if (ev('address') && rAddr.isNotEmpty) {
+      p.text(rAddr, size: es('address', 22), align: ea('address', 'center'));
+    }
+    // Restaurant phone
+    if (ev('phone') && _safeValue(h['phone']).isNotEmpty) {
+      p.text('Tel: ${_safeValue(h['phone'])}',
+          size: es('phone', 22), align: ea('phone', 'center'));
     }
     p.hr();
 
-    // Customer
-    if (_safeValue(c['name']).isNotEmpty) {
-      p.text('Kund:', size: 22, color: grey);
-      p.text(_safeValue(c['name']), size: 34, w: FontWeight.w900);
+    // Customer name
+    if (ev('customerName') && _safeValue(c['name']).isNotEmpty) {
+      p.text(_safeValue(c['name']),
+          size: es('customerName', 34), w: ew('customerName', 'black'), align: ea('customerName', 'left'));
     }
-    if (_safeValue(c['phone']).isNotEmpty) {
-      p.text(_safeValue(c['phone']), size: 24, w: FontWeight.bold);
+    // Customer phone
+    if (ev('customerPhone') && _safeValue(c['phone']).isNotEmpty) {
+      p.text(_safeValue(c['phone']),
+          size: es('customerPhone', 24), w: ew('customerPhone', 'bold'), align: ea('customerPhone', 'left'));
     }
+    // Customer address
     final cAddr = [
       _safeValue(c['street']),
       [c['zip'], c['city']].where((v) => _safeValue(v).isNotEmpty).join(' '),
     ].where((v) => v.isNotEmpty).join(', ');
-    if (cAddr.isNotEmpty) {
+    if (ev('customerAddress') && cAddr.isNotEmpty) {
       p.space(8);
-      p.text('Adress:', size: 22, color: grey);
-      p.text(cAddr, size: 24, w: FontWeight.w900);
+      p.text(cAddr,
+          size: es('customerAddress', 24), w: ew('customerAddress', 'black'), align: ea('customerAddress', 'left'));
     }
-    if (_safeValue(c['instructions']).isNotEmpty) {
-      p.text(_safeValue(c['instructions']), size: 22);
+    // Delivery instructions
+    if (ev('deliveryInstructions') && _safeValue(c['instructions']).isNotEmpty) {
+      p.text(_safeValue(c['instructions']),
+          size: es('deliveryInstructions', 22), w: ew('deliveryInstructions'), align: ea('deliveryInstructions', 'left'));
     }
-    if (_safeValue(c['note']).isNotEmpty) {
-      p.text(_safeValue(c['note']), size: 22, w: FontWeight.w900);
+    // Order note
+    if (ev('note') && _safeValue(c['note']).isNotEmpty) {
+      p.text(_safeValue(c['note']),
+          size: es('note', 22), w: ew('note', 'bold'), align: ea('note', 'left'));
     }
-    final allergensRaw = c['allergens'];
-    final allergensStr = allergensRaw is List
-        ? (allergensRaw as List).map((e) => _safeValue(e)).where((e) => e.isNotEmpty).join(', ')
-        : _safeValue(allergensRaw);
-    if (allergensStr.isNotEmpty) {
-      p.text('! $allergensStr', size: 22, w: FontWeight.w900, color: red);
+    // Allergens
+    if (ev('allergens')) {
+      final allergensRaw = c['allergens'];
+      final allergensStr = allergensRaw is List
+          ? (allergensRaw as List).map((e) => _safeValue(e)).where((e) => e.isNotEmpty).join(', ')
+          : _safeValue(allergensRaw);
+      if (allergensStr.isNotEmpty) {
+        p.text('! $allergensStr',
+            size: es('allergens', 22), w: ew('allergens', 'black'), color: red, align: ea('allergens', 'left'));
+      }
     }
     p.space(12);
 
-    // Status badges
-    p.badge(isDelivery ? 'Utkörning' : 'Avhämtning');
-    if (o['isPreorder'] == true) {
+    // Order type badge
+    if (ev('orderType')) p.badge(isDelivery ? 'Utkörning' : 'Avhämtning');
+    // Scheduled
+    if (ev('scheduledFor') && o['isPreorder'] == true) {
       p.badge('Förbeställd ${_safeValue(o['scheduledDate'])} ${_safeValue(o['scheduledTime'])}');
     }
-    if (_safeValue(o['paymentMethod']).isNotEmpty) {
+    // Payment method
+    if (ev('paymentMethod') && _safeValue(o['paymentMethod']).isNotEmpty) {
       p.badge(_safeValue(o['paymentMethod']));
     }
 
-    // Delivery time (very large)
-    if (o['isPreorder'] != true && o['estimatedTime'] != null) {
+    // Estimated delivery time
+    if (ev('estimatedTime') && o['isPreorder'] != true && o['estimatedTime'] != null) {
       p.space(8);
-      p.text('Leveranstid', size: 24, align: TextAlign.center);
-      p.text('${o['estimatedTime']} min', size: 64, w: FontWeight.w900, align: TextAlign.center);
+      p.text('Leveranstid', size: es('estimatedTime', 24), align: ea('estimatedTime', 'center'));
+      p.text('${o['estimatedTime']} min',
+          size: es('estimatedTime', 64) + 40, w: FontWeight.w900, align: ea('estimatedTime', 'center'));
     }
 
     // Item count
@@ -912,46 +964,63 @@ class PrintService {
     p.hr();
 
     // Items
-    for (final item in items) {
-      p.row(
-        '${item['qty']} x ${_normalizeText(_safeValue(item['name']), uppercase: false)}',
-        '${_safeValue(item['subtotal'])} kr',
-        size: 28,
-      );
-      final extras = item['extras'];
-      if (extras is List) {
-        for (final extra in extras) {
-          final en = extra is Map ? _safeValue(extra['name']) : _safeValue(extra);
-          if (en.isNotEmpty) p.text('** $en', size: 22, color: grey);
+    if (ev('items')) {
+      for (final item in items) {
+        p.row(
+          '${item['qty']} x ${_normalizeText(_safeValue(item['name']), uppercase: false)}',
+          '${_safeValue(item['subtotal'])} kr',
+          size: es('items', 28),
+        );
+        if (ev('extras')) {
+          final extras = item['extras'];
+          if (extras is List) {
+            for (final extra in extras) {
+              final en = extra is Map ? _safeValue(extra['name']) : _safeValue(extra);
+              if (en.isNotEmpty) p.text('** $en', size: es('extras', 22), color: grey);
+            }
+          }
         }
+        if (_safeValue(item['note']).isNotEmpty) {
+          p.text('! ${_safeValue(item['note'])}', size: es('items', 22), w: FontWeight.bold);
+        }
+        p.space(6);
       }
-      if (_safeValue(item['note']).isNotEmpty) {
-        p.text('! ${_safeValue(item['note'])}', size: 22, w: FontWeight.bold);
-      }
-      p.space(6);
     }
     p.hr();
 
     // Totals
-    if ((_toNum(t['deliveryFee']) ?? 0) > 0) {
-      p.row('Leveransavgift', '${_safeValue(t['deliveryFee'])} kr', size: 24);
+    if (ev('deliveryFee') && (_toNum(t['deliveryFee']) ?? 0) > 0) {
+      p.row('Leveransavgift', '${_safeValue(t['deliveryFee'])} kr', size: es('deliveryFee', 24).toInt().toDouble());
     }
-    if ((_toNum(t['discount']) ?? 0) > 0) {
+    if (ev('discount') && (_toNum(t['discount']) ?? 0) > 0) {
       final code = _safeValue(t['discountCode']);
       p.row(
         code.isNotEmpty ? 'Rabatt ($code)' : 'Rabatt',
         '-${_safeValue(t['discount'])} kr',
-        size: 24,
+        size: es('discount', 24),
       );
     }
     p.hr(thickness: 3);
-    p.row('Totalt', '${_safeValue(t['total'])} kr', size: 44, w: FontWeight.w900);
+    if (ev('total')) {
+      p.row('Totalt', '${_safeValue(t['total'])} kr',
+          size: es('total', 44), w: ew('total', 'black'));
+    }
     p.hr();
 
     // Footer
     p.space(6);
-    p.text('Tack för din beställning!', size: 22, w: FontWeight.bold, align: TextAlign.center);
-    p.text('Välkommen åter!', size: 20, align: TextAlign.center, color: grey);
+    if (ev('thankYou')) {
+      final ty = (elMap['thankYou']?.content?.isNotEmpty == true)
+          ? elMap['thankYou']!.content!
+          : 'Tack för din beställning!';
+      p.text(ty, size: es('thankYou', 22), w: ew('thankYou', 'bold'), align: ea('thankYou', 'center'));
+    }
+    if (ev('footerMsg')) {
+      final fm = (elMap['footerMsg']?.content?.isNotEmpty == true)
+          ? elMap['footerMsg']!.content!
+          : 'Välkommen åter!';
+      p.text(fm, size: es('footerMsg', 20), align: ea('footerMsg', 'center'), color: grey);
+    }
   }
 
   // ── ESC/POS text (legacy, kept for A4 PDF path) ───────────────────────────
