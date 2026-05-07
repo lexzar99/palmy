@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -35,12 +36,10 @@ void main() async {
   ApiClient.onUnauthorized = () => authProvider.logout();
   await authProvider.tryAutoLogin();
 
-  // FCM init – tysta fel om google-services.json saknas (dev-build).
-  try {
-    await PushService.init();
-  } catch (e) {
+  // FCM init i bakgrunden – blockerar inte app-start.
+  unawaited(PushService.init().catchError((e) {
     debugPrint('PushService init failed: $e');
-  }
+  }));
 
   PackageInfo packageInfo = await PackageInfo.fromPlatform();
   final String fullVersion =

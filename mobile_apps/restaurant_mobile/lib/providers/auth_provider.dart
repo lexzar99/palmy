@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -103,6 +104,19 @@ class AuthProvider with ChangeNotifier {
       return;
     }
 
+    // Återställ från cache direkt så appen startar snabbt (iOS watchdog).
+    // Token-validering sker i bakgrunden utan att blockera UI.
+    try {
+      _user = Map<String, dynamic>.from(jsonDecode(adminStr));
+      _logoutCode = _user?['logoutCode'] as String?;
+      notifyListeners();
+    } catch (_) {}
+
+    unawaited(_validateTokenInBackground(token, prefs));
+  }
+
+  Future<void> _validateTokenInBackground(
+      String token, SharedPreferences prefs) async {
     try {
       final res = await _api.post('/api/account/verify', {'token': token});
       final isValid = res.data is Map && res.data['valid'] == true;
@@ -116,8 +130,10 @@ class AuthProvider with ChangeNotifier {
         return;
       }
 
+      final adminStr = prefs.getString(AppConstants.adminKey);
       _user = Map<String, dynamic>.from(
-          (res.data['admin'] as Map?) ?? jsonDecode(adminStr));
+          (res.data['admin'] as Map?) ??
+              (adminStr != null ? jsonDecode(adminStr) : {}));
       _logoutCode = _user?['logoutCode'] as String?;
       await prefs.setString(AppConstants.adminKey, jsonEncode(_user));
       logger.log('AUTO-LOGIN VERIFIED: ${_user?['email']}');
@@ -131,6 +147,7 @@ class AuthProvider with ChangeNotifier {
         _user = null;
         notifyListeners();
       }
+      // Vid nätverksfel behåller vi cached-state — bättre än tvångsutloggning.
     } catch (e) {
       logger.log('AUTO-LOGIN EXCEPTION: $e');
     }
