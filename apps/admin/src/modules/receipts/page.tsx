@@ -413,118 +413,109 @@ export function ReceiptsPage() {
               </Field>
             </div>
 
-            <div className="rounded border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
-              {draft?.elements.map((el, idx) => (
-                <button
-                  key={el.key}
-                  type="button"
-                  onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
-                  className={`flex items-center gap-1 w-full px-2 py-1.5 text-left text-sm transition-colors ${selectedKey === el.key ? "bg-[var(--accent-faint,#f0f4ff)] font-semibold" : "hover:bg-[var(--surface-muted)]"}`}
-                >
-                  {/* reorder */}
-                  <span className="flex flex-col shrink-0">
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (idx === 0) return;
-                        setDraft((p) => {
-                          if (!p) return p;
-                          const els = [...p.elements];
-                          [els[idx - 1], els[idx]] = [els[idx], els[idx - 1]];
-                          return { ...p, elements: els };
-                        });
-                      }}
-                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer leading-none"
-                    ><ArrowUp size={10} /></span>
-                    <span
-                      role="button"
-                      tabIndex={-1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!draft || idx === draft.elements.length - 1) return;
-                        setDraft((p) => {
-                          if (!p) return p;
-                          const els = [...p.elements];
-                          [els[idx], els[idx + 1]] = [els[idx + 1], els[idx]];
-                          return { ...p, elements: els };
-                        });
-                      }}
-                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer leading-none"
-                    ><ArrowDown size={10} /></span>
-                  </span>
-                  {/* visibility */}
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    onClick={(e) => { e.stopPropagation(); updateElement(el.key, { visible: !el.visible }); }}
-                    className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
-                  >
-                    {el.visible ? <Eye size={13} /> : <EyeOff size={13} className="opacity-40" />}
-                  </span>
-                  <span className={`flex-1 truncate ${!el.visible ? "line-through opacity-40" : ""}`}>{el.label}</span>
-                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">{el.size}px</span>
-                </button>
-              ))}
-            </div>
+            <div className="rounded border border-[var(--border)] overflow-hidden divide-y divide-[var(--border)]">
+              {draft?.elements.map((el, idx) => {
+                const isOpen = selectedKey === el.key;
+                return (
+                  <div key={el.key}>
+                    {/* Row */}
+                    <div className={`flex items-center gap-1 px-2 py-2 text-sm ${isOpen ? "bg-[var(--accent-faint,#eef2ff)]" : "hover:bg-[var(--surface-muted)]"}`}>
+                      {/* reorder */}
+                      <span className="flex flex-col shrink-0 gap-0.5">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => setDraft((p) => {
+                            if (!p) return p;
+                            const els = [...p.elements];
+                            [els[idx - 1], els[idx]] = [els[idx], els[idx - 1]];
+                            return { ...p, elements: els };
+                          })}
+                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20"
+                        ><ArrowUp size={10} /></button>
+                        <button
+                          type="button"
+                          disabled={idx === (draft?.elements.length ?? 0) - 1}
+                          onClick={() => setDraft((p) => {
+                            if (!p) return p;
+                            const els = [...p.elements];
+                            [els[idx], els[idx + 1]] = [els[idx + 1], els[idx]];
+                            return { ...p, elements: els };
+                          })}
+                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20"
+                        ><ArrowDown size={10} /></button>
+                      </span>
+                      {/* visibility toggle */}
+                      <button
+                        type="button"
+                        onClick={() => updateElement(el.key, { visible: !el.visible })}
+                        className="shrink-0 px-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      >
+                        {el.visible ? <Eye size={13} /> : <EyeOff size={13} className="opacity-40" />}
+                      </button>
+                      {/* label — clicking expands controls */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
+                        className={`flex-1 text-left truncate font-medium ${!el.visible ? "line-through opacity-40" : ""}`}
+                      >
+                        {el.label}
+                      </button>
+                      <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums mr-1">{el.size}px</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
+                        className="shrink-0 text-[var(--text-muted)] text-[10px]"
+                      >{isOpen ? "▲" : "▼"}</button>
+                    </div>
 
-            {/* Selected element detailed controls */}
-            {selectedElement && (
-              <div className="rounded border border-[var(--border)] p-3 space-y-3 bg-[var(--surface-muted)]">
-                <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">{selectedElement.label}</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <Field label="Storlek">
-                    <Select value={selectedElement.size} onChange={(e) => updateElement(selectedKey!, { size: Number(e.target.value) })}>
-                      {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Justering">
-                    <Select value={selectedElement.align} onChange={(e) => updateElement(selectedKey!, { align: e.target.value as ReceiptElement["align"] })}>
-                      <option value="left">Vänster</option>
-                      <option value="center">Centrerad</option>
-                      <option value="right">Höger</option>
-                    </Select>
-                  </Field>
-                  <Field label="Vikt">
-                    <Select value={selectedElement.weight} onChange={(e) => updateElement(selectedKey!, { weight: e.target.value as ReceiptElement["weight"] })}>
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
-                      <option value="black">Black</option>
-                    </Select>
-                  </Field>
-                </div>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!selectedElement.uppercase}
-                      onChange={(e) => updateElement(selectedKey!, { uppercase: e.target.checked })}
-                    />
-                    Versaler
-                  </label>
-                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedElement.visible}
-                      onChange={(e) => updateElement(selectedKey!, { visible: e.target.checked })}
-                    />
-                    Synlig
-                  </label>
-                </div>
-                {selectedElement.content !== undefined && (
-                  <Field label="Innehåll">
-                    <Textarea
-                      value={selectedElement.content ?? ""}
-                      onChange={(e) => updateElement(selectedKey!, { content: e.target.value })}
-                      rows={2}
-                    />
-                  </Field>
-                )}
-              </div>
-            )}
+                    {/* Inline controls — expands directly under the row */}
+                    {isOpen && (
+                      <div className="px-3 py-3 bg-[var(--surface-muted)] border-t border-[var(--border)] space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          <Field label="Storlek">
+                            <Select value={el.size} onChange={(e) => updateElement(el.key, { size: Number(e.target.value) })}>
+                              {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((sz) => (
+                                <option key={sz} value={sz}>{sz}</option>
+                              ))}
+                            </Select>
+                          </Field>
+                          <Field label="Justering">
+                            <Select value={el.align} onChange={(e) => updateElement(el.key, { align: e.target.value as ReceiptElement["align"] })}>
+                              <option value="left">Vänster</option>
+                              <option value="center">Mitten</option>
+                              <option value="right">Höger</option>
+                            </Select>
+                          </Field>
+                          <Field label="Stil">
+                            <Select value={el.weight} onChange={(e) => updateElement(el.key, { weight: e.target.value as ReceiptElement["weight"] })}>
+                              <option value="normal">Normal</option>
+                              <option value="bold">Bold</option>
+                              <option value="black">Black</option>
+                            </Select>
+                          </Field>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm">
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={!!el.uppercase} onChange={(e) => updateElement(el.key, { uppercase: e.target.checked })} />
+                            Versaler
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={el.visible} onChange={(e) => updateElement(el.key, { visible: e.target.checked })} />
+                            Synlig
+                          </label>
+                        </div>
+                        {el.content !== undefined && (
+                          <Field label="Innehåll">
+                            <Textarea value={el.content ?? ""} onChange={(e) => updateElement(el.key, { content: e.target.value })} rows={2} />
+                          </Field>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Right: live preview */}
