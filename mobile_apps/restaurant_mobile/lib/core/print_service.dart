@@ -142,6 +142,13 @@ class PrintService {
 
   static String _safeValue(dynamic value) => value?.toString() ?? '';
 
+  /// Replaces Swedish-specific characters with ASCII equivalents for ESC/POS
+  /// printers that only support basic Latin (CP437 / US-ASCII).
+  static String _latinize(String s) => s
+      .replaceAll('å', 'a').replaceAll('Å', 'A')
+      .replaceAll('ä', 'a').replaceAll('Ä', 'A')
+      .replaceAll('ö', 'o').replaceAll('Ö', 'O');
+
   static String _normalizeText(String value, {required bool uppercase}) {
     final normalized = value.trim();
     return uppercase ? normalized.toUpperCase() : normalized;
@@ -347,7 +354,13 @@ class PrintService {
         paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-      final oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
+      List<int> oneCopy;
+      try {
+        oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
+      } catch (bitmapErr) {
+        debugPrint('Bitmap render failed, using ESC/POS text fallback: $bitmapErr');
+        oneCopy = _buildEscPosBytes(generator, receiptData, template);
+      }
       await NetworkPrintClient.sendBytes(
         host: host,
         port: port,
@@ -382,7 +395,13 @@ class PrintService {
         paperWidth == '58mm' ? PaperSize.mm58 : PaperSize.mm80,
         profile,
       );
-      final oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
+      List<int> oneCopy;
+      try {
+        oneCopy = await _buildBitmapBytes(generator, receiptData, template, paperWidth);
+      } catch (bitmapErr) {
+        debugPrint('Bitmap render failed, using ESC/POS text fallback: $bitmapErr');
+        oneCopy = _buildEscPosBytes(generator, receiptData, template);
+      }
       final allBytes = <int>[
         for (var i = 0; i < copies; i++) ...oneCopy,
       ];
@@ -744,22 +763,30 @@ class PrintService {
     ReceiptTemplateSettings template,
     String paperWidth,
   ) async {
-    // 203 DPI: 58mm → 384 dots, 72/80mm → 576 dots
-    final int widthPx = paperWidth == '58mm' ? 384 : 576;
+    // 203 DPI printable dots per paper width.
+    // 72 mm gets a narrower canvas (512) to stay within the physical printable
+    // area — many 72 mm printers have a ~8 mm hardware margin that would push
+    // a full-576 px image off the right edge.
+    final int widthPx = paperWidth == '58mm' ? 384
+                      : paperWidth == '72mm' ? 512
+                      :                        576; // 80 mm
 
-    // Measure pass (canvas = null)
-    final m = _RP(width: widthPx.toDouble(), margin: 28);
+    // Small soft margin; the printer itself provides a hardware margin.
+    const double margin = 10.0;
+
+    // Measure pass (canvas = null) to determine total receipt height.
+    final m = _RP(width: widthPx.toDouble(), margin: margin);
     _drawReceiptBitmap(m, receiptData, template);
     final int heightPx = (m.y + 60).ceil();
 
-    // Draw pass
+    // Draw pass — render receipt onto a white canvas.
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     canvas.drawRect(
       Rect.fromLTWH(0, 0, widthPx.toDouble(), heightPx.toDouble()),
       Paint()..color = const Color(0xFFFFFFFF),
     );
-    final d = _RP(canvas: canvas, width: widthPx.toDouble(), margin: 28);
+    final d = _RP(canvas: canvas, width: widthPx.toDouble(), margin: margin);
     _drawReceiptBitmap(d, receiptData, template);
 
     final picture = recorder.endRecording();
@@ -776,8 +803,10 @@ class PrintService {
     );
 
     return <int>[
+      // Left-align so the printer doesn't try to center a potentially wider image
+      // on a narrower physical paper, which would shift content off the right edge.
       ...generator.imageRaster(bitmapImg,
-          align: PosAlign.center,
+          align: PosAlign.left,
           highDensityHorizontal: true,
           highDensityVertical: true),
       ...generator.feed(2),
@@ -1203,7 +1232,7 @@ class PrintService {
   static List<int> _posText(
       Generator generator, String text, ReceiptTemplateElement element) {
     return generator.text(
-      _normalizeText(text, uppercase: element.uppercase),
+      _latinize(_normalizeText(text, uppercase: element.uppercase)),
       styles: _posStyles(element),
     );
   }

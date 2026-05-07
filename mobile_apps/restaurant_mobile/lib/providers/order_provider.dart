@@ -622,7 +622,8 @@ class OrderProvider with ChangeNotifier {
         HapticFeedback.vibrate();
         HapticFeedback.heavyImpact();
 
-        unawaited(PrintService.printReceipt(newOrder, respectAutoPrint: true));
+        // Auto-print happens when the order is accepted (see updateStatus),
+        // not on arrival — so the restaurant controls when the kitchen gets the ticket.
 
         _evaluateAlarms();
         notifyListeners();
@@ -743,6 +744,13 @@ class OrderProvider with ChangeNotifier {
         _updateLocalOrderStatus(orderId, status, estimatedTime);
         logger.log(
             'STATUS UPDATED: Order #$orderId -> $status ($estimatedTime min)');
+        // Auto-print when the restaurant accepts/confirms the order.
+        if (status == 'PREPARING' || status == 'ACCEPTED') {
+          final idx = _orders.indexWhere((o) => o.id == orderId);
+          if (idx != -1) {
+            unawaited(PrintService.printReceipt(_orders[idx], respectAutoPrint: true));
+          }
+        }
         return true;
       }
       return false;
