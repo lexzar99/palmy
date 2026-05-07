@@ -49,7 +49,7 @@ const templateElementSchema = z.object({
   label: z.string(),
   content: z.string().optional().nullable(),
   visible: z.boolean(),
-  size: z.number().int().min(7).max(18),
+  size: z.number().int().min(7).max(72),
   weight: z.enum(['normal', 'bold', 'black']),
   align: z.enum(['left', 'center', 'right']),
   uppercase: z.boolean().optional(),
