@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Loader2, Plus, Printer, Save } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Plus, Printer, Save } from "lucide-react";
 import {
   createPrinter,
   deletePrinter,
@@ -68,9 +68,8 @@ const mergeTemplateElements = (template: ReceiptTemplate): ReceiptTemplate => {
     elements: defaultElements.map((def) => {
       const saved = map.get(def.key);
       if (!saved) return def;
-      // layout (align/size/weight/uppercase) always from defaults so design stays consistent
-      // only user choices (visible, content) are preserved from the saved template
-      return { ...def, visible: saved.visible, content: saved.content ?? def.content };
+      // use all saved properties; fall back to defaults only for fields not present in DB
+      return { ...def, ...saved };
     }),
   };
 };
@@ -134,8 +133,19 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
   const s = (v: unknown) => (v != null && v !== "" ? String(v) : "");
   const n = (v: unknown) => { const x = parseFloat(String(v ?? 0)); return isNaN(x) ? 0 : x; };
 
-  const vis = (key: string) => template.elements.find((el) => el.key === key)?.visible !== false;
-  const content = (key: string, fallback: string) => template.elements.find((el) => el.key === key)?.content ?? fallback;
+  const elMap = new Map(template.elements.map((el) => [el.key, el]));
+  const vis = (key: string) => elMap.get(key)?.visible !== false;
+  const content = (key: string, fallback: string) => elMap.get(key)?.content ?? fallback;
+  const elStyle = (key: string): React.CSSProperties => {
+    const el = elMap.get(key);
+    if (!el) return {};
+    return {
+      fontSize: `${el.size}px`,
+      fontWeight: el.weight === "black" ? 900 : el.weight === "bold" ? 700 : 400,
+      textAlign: el.align,
+      textTransform: el.uppercase ? "uppercase" : undefined,
+    };
+  };
 
   const restaurantAddr = [s(h.address), [s(h.zip), s(h.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const customerAddr   = [s(c.street),  [s(c.zip), s(c.city)].filter(Boolean).join(" ")].filter(Boolean).join(", ");
@@ -147,8 +157,8 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
     : s(allergensRaw);
 
   const HR = () => <div className="border-t-2 border-black my-2" />;
-  const BoxBadge = ({ children }: { children: React.ReactNode }) => (
-    <span className="inline-block border-[3px] border-black px-4 py-1 font-black text-[14px] tracking-wide">{children}</span>
+  const BoxBadge = ({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) => (
+    <span className="inline-block border-[3px] border-black px-4 py-1 tracking-wide" style={{ fontWeight: 900, fontSize: "14px", ...style }}>{children}</span>
   );
 
   return (
@@ -156,8 +166,8 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
 
       {/* ── Platform + ordernummer ── */}
       {vis("platformName") && (
-        <div className="text-center mb-1">
-          <p className="text-[11px] font-bold">{template.platformName} {vis("orderNumber") ? `#${s(o.number) || "—"}` : ""}</p>
+        <div className="mb-1" style={{ textAlign: elMap.get("platformName")?.align ?? "center" }}>
+          <p style={elStyle("platformName")}>{template.platformName} {vis("orderNumber") ? `#${s(o.number) || "—"}` : ""}</p>
           <p className="text-[10px] text-[#555]">Ej kvitto</p>
         </div>
       )}
@@ -165,15 +175,15 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
       {vis("divider1") && <HR />}
 
       {/* ── Restaurang ── */}
-      <div className="text-center mb-2">
-        {vis("restaurantName") && <p className="text-[18px] font-black uppercase tracking-wide">{s(h.restaurantName) || "MatGo"}</p>}
-        {vis("timestamp") && <p className="text-[12px] font-bold">{s(o.date)} {s(o.time)}</p>}
-        {vis("address") && restaurantAddr && <p className="text-[11px]">{restaurantAddr}</p>}
-        {vis("phone") && s(h.phone) && <p className="text-[11px]">Tel: {s(h.phone)}</p>}
+      <div className="mb-2">
+        {vis("restaurantName") && <p style={elStyle("restaurantName")} className="tracking-wide">{s(h.restaurantName) || "MatGo"}</p>}
+        {vis("timestamp") && <p style={elStyle("timestamp")}>{s(o.date)} {s(o.time)}</p>}
+        {vis("address") && restaurantAddr && <p style={elStyle("address")}>{restaurantAddr}</p>}
+        {vis("phone") && s(h.phone) && <p style={elStyle("phone")}>Tel: {s(h.phone)}</p>}
       </div>
 
       {vis("headerMsg") && content("headerMsg", "") && (
-        <p className="text-center text-[11px] font-bold mb-2">{content("headerMsg", "")}</p>
+        <p style={elStyle("headerMsg")} className="mb-2">{content("headerMsg", "")}</p>
       )}
 
       {vis("divider2") && <HR />}
@@ -183,33 +193,33 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
         {vis("customerName") && s(c.name) && (
           <>
             <p className="text-[10px] text-[#555] font-bold">Kund:</p>
-            <p className="font-black text-[14px]">{s(c.name)}</p>
+            <p style={elStyle("customerName")}>{s(c.name)}</p>
           </>
         )}
-        {vis("customerPhone") && s(c.phone) && <p className="text-[12px] font-bold">{s(c.phone)}</p>}
+        {vis("customerPhone") && s(c.phone) && <p style={elStyle("customerPhone")}>{s(c.phone)}</p>}
         {vis("customerAddress") && customerAddr && (
           <>
             <p className="text-[10px] text-[#555] font-bold mt-1">Adress:</p>
-            <p className="font-black text-[12px]">{customerAddr}</p>
+            <p style={elStyle("customerAddress")}>{customerAddr}</p>
           </>
         )}
-        {vis("deliveryInstructions") && s(c.instructions) && <p className="text-[11px] mt-0.5">{s(c.instructions)}</p>}
-        {vis("note") && s(c.note) && <p className="font-black text-[11px] mt-0.5">{s(c.note)}</p>}
-        {vis("allergens") && allergenStr && <p className="font-black text-[11px] text-red-700 mt-0.5">! {allergenStr}</p>}
+        {vis("deliveryInstructions") && s(c.instructions) && <p style={elStyle("deliveryInstructions")} className="mt-0.5">{s(c.instructions)}</p>}
+        {vis("note") && s(c.note) && <p style={elStyle("note")} className="mt-0.5">{s(c.note)}</p>}
+        {vis("allergens") && allergenStr && <p style={elStyle("allergens")} className="text-red-700 mt-0.5">! {allergenStr}</p>}
       </div>
 
       {/* ── Status-badges ── */}
       <div className="flex flex-col items-center gap-2 mb-2">
-        {vis("orderType") && <BoxBadge>{isDelivery ? "Utkörning" : "Avhämtning"}</BoxBadge>}
-        {vis("scheduledFor") && !!o.isPreorder && <BoxBadge>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</BoxBadge>}
-        {vis("paymentMethod") && s(o.paymentMethod) && <BoxBadge>{s(o.paymentMethod)}</BoxBadge>}
+        {vis("orderType") && <BoxBadge style={elStyle("orderType")}>{isDelivery ? "Utkörning" : "Avhämtning"}</BoxBadge>}
+        {vis("scheduledFor") && !!o.isPreorder && <BoxBadge style={elStyle("scheduledFor")}>Förbeställd {s(o.scheduledDate)} {s(o.scheduledTime)}</BoxBadge>}
+        {vis("paymentMethod") && s(o.paymentMethod) && <BoxBadge style={elStyle("paymentMethod")}>{s(o.paymentMethod)}</BoxBadge>}
       </div>
 
       {/* ── Leveranstid (jättestor) + artikelräknare ── */}
       {vis("estimatedTime") && !o.isPreorder && n(o.estimatedTime) > 0 && (
-        <div className="text-center mb-1.5">
+        <div className="mb-1.5" style={{ textAlign: elMap.get("estimatedTime")?.align ?? "center" }}>
           <p className="text-[12px] font-bold">Leveranstid</p>
-          <p className="font-black text-[30px] leading-tight">{s(o.estimatedTime)} min</p>
+          <p style={elStyle("estimatedTime")} className="leading-tight">{s(o.estimatedTime)} min</p>
         </div>
       )}
 
@@ -223,11 +233,11 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
           {items.map((item, i) => (
             <div key={i}>
               <div className="flex justify-between items-baseline gap-1">
-                <span className="font-black text-[13px] flex-1">{s(item.qty)} x {s(item.name)}</span>
-                <span className="font-black text-[13px] whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
+                <span style={elStyle("items")} className="flex-1">{s(item.qty)} x {s(item.name)}</span>
+                <span style={elStyle("items")} className="whitespace-nowrap shrink-0">{s(item.subtotal)} kr</span>
               </div>
               {vis("extras") && (item.extras as Array<unknown> ?? []).map((extra, ei) => (
-                <p key={ei} className="text-[10px] font-bold text-[#555] pl-3">
+                <p key={ei} style={elStyle("extras")} className="text-[#555] pl-3">
                   ** {typeof extra === "string" ? extra : s((extra as Record<string, unknown>).name)}
                 </p>
               ))}
@@ -242,20 +252,20 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
       {/* ── Totaler ── */}
       <div className="mb-2">
         {vis("deliveryFee") && n(t.deliveryFee) > 0 && (
-          <div className="flex justify-between text-[12px] font-bold">
+          <div className="flex justify-between" style={elStyle("deliveryFee")}>
             <span>Leveransavgift</span><span>{s(t.deliveryFee)} kr</span>
           </div>
         )}
         {vis("discount") && n(t.discount) > 0 && (
-          <div className="flex justify-between text-[12px] font-bold">
+          <div className="flex justify-between" style={elStyle("discount")}>
             <span>Rabatt{s(t.discountCode) ? ` (${s(t.discountCode)})` : ""}</span>
             <span>-{s(t.discount)} kr</span>
           </div>
         )}
         {vis("total") && (
           <div className="flex justify-between items-baseline border-t-2 border-black pt-1 mt-1">
-            <span className="font-black text-[20px]">Totalt</span>
-            <span className="font-black text-[20px]">{s(t.total)} kr</span>
+            <span style={elStyle("total")}>Totalt</span>
+            <span style={elStyle("total")}>{s(t.total)} kr</span>
           </div>
         )}
       </div>
@@ -263,9 +273,9 @@ function ReceiptPreviewContent({ data, template }: { data: ReceiptPreviewData; t
       {vis("divider6") && <HR />}
 
       {/* ── Sidfot ── */}
-      <div className="text-center text-[11px] font-bold space-y-0.5">
-        {vis("thankYou") && <p>{content("thankYou", "Tack för din beställning!")}</p>}
-        {vis("footerMsg") && <p className="font-medium">{content("footerMsg", "Välkommen åter!")}</p>}
+      <div className="space-y-0.5">
+        {vis("thankYou") && <p style={elStyle("thankYou")}>{content("thankYou", "Tack för din beställning!")}</p>}
+        {vis("footerMsg") && <p style={elStyle("footerMsg")}>{content("footerMsg", "Välkommen åter!")}</p>}
       </div>
     </div>
   );
@@ -404,37 +414,116 @@ export function ReceiptsPage() {
             </div>
 
             <div className="rounded border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
-              {draft?.elements.map((el) => (
+              {draft?.elements.map((el, idx) => (
                 <button
                   key={el.key}
                   type="button"
                   onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
-                  className={`flex items-center gap-2 w-full px-3 py-2 text-left text-sm transition-colors ${selectedKey === el.key ? "bg-[var(--accent-faint,#f0f4ff)] font-semibold" : "hover:bg-[var(--surface-muted)]"}`}
+                  className={`flex items-center gap-1 w-full px-2 py-1.5 text-left text-sm transition-colors ${selectedKey === el.key ? "bg-[var(--accent-faint,#f0f4ff)] font-semibold" : "hover:bg-[var(--surface-muted)]"}`}
                 >
+                  {/* reorder */}
+                  <span className="flex flex-col shrink-0">
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (idx === 0) return;
+                        setDraft((p) => {
+                          if (!p) return p;
+                          const els = [...p.elements];
+                          [els[idx - 1], els[idx]] = [els[idx], els[idx - 1]];
+                          return { ...p, elements: els };
+                        });
+                      }}
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer leading-none"
+                    ><ArrowUp size={10} /></span>
+                    <span
+                      role="button"
+                      tabIndex={-1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!draft || idx === draft.elements.length - 1) return;
+                        setDraft((p) => {
+                          if (!p) return p;
+                          const els = [...p.elements];
+                          [els[idx], els[idx + 1]] = [els[idx + 1], els[idx]];
+                          return { ...p, elements: els };
+                        });
+                      }}
+                      className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer leading-none"
+                    ><ArrowDown size={10} /></span>
+                  </span>
+                  {/* visibility */}
                   <span
                     role="button"
                     tabIndex={-1}
                     onClick={(e) => { e.stopPropagation(); updateElement(el.key, { visible: !el.visible }); }}
-                    className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+                    className="shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer px-1"
                   >
                     {el.visible ? <Eye size={13} /> : <EyeOff size={13} className="opacity-40" />}
                   </span>
                   <span className={`flex-1 truncate ${!el.visible ? "line-through opacity-40" : ""}`}>{el.label}</span>
-                  {selectedKey === el.key && el.content !== undefined && (
-                    <span className="text-[10px] text-[var(--text-muted)]">✎</span>
-                  )}
+                  <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums">{el.size}px</span>
                 </button>
               ))}
             </div>
 
-            {selectedElement && selectedElement.content !== undefined && (
-              <Field label={`Innehåll: ${selectedElement.label}`}>
-                <Textarea
-                  value={selectedElement.content ?? ""}
-                  onChange={(e) => updateElement(selectedKey!, { content: e.target.value })}
-                  rows={2}
-                />
-              </Field>
+            {/* Selected element detailed controls */}
+            {selectedElement && (
+              <div className="rounded border border-[var(--border)] p-3 space-y-3 bg-[var(--surface-muted)]">
+                <p className="text-[11px] font-black uppercase tracking-wider text-[var(--text-muted)]">{selectedElement.label}</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <Field label="Storlek">
+                    <Select value={selectedElement.size} onChange={(e) => updateElement(selectedKey!, { size: Number(e.target.value) })}>
+                      {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Justering">
+                    <Select value={selectedElement.align} onChange={(e) => updateElement(selectedKey!, { align: e.target.value as ReceiptElement["align"] })}>
+                      <option value="left">Vänster</option>
+                      <option value="center">Centrerad</option>
+                      <option value="right">Höger</option>
+                    </Select>
+                  </Field>
+                  <Field label="Vikt">
+                    <Select value={selectedElement.weight} onChange={(e) => updateElement(selectedKey!, { weight: e.target.value as ReceiptElement["weight"] })}>
+                      <option value="normal">Normal</option>
+                      <option value="bold">Bold</option>
+                      <option value="black">Black</option>
+                    </Select>
+                  </Field>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!selectedElement.uppercase}
+                      onChange={(e) => updateElement(selectedKey!, { uppercase: e.target.checked })}
+                    />
+                    Versaler
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedElement.visible}
+                      onChange={(e) => updateElement(selectedKey!, { visible: e.target.checked })}
+                    />
+                    Synlig
+                  </label>
+                </div>
+                {selectedElement.content !== undefined && (
+                  <Field label="Innehåll">
+                    <Textarea
+                      value={selectedElement.content ?? ""}
+                      onChange={(e) => updateElement(selectedKey!, { content: e.target.value })}
+                      rows={2}
+                    />
+                  </Field>
+                )}
+              </div>
             )}
           </div>
 
