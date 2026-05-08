@@ -139,6 +139,7 @@ export default function LiveOrderBanner() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [order, setOrder] = useState<any | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [etaLeftSecs, setEtaLeftSecs] = useState<number | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -202,8 +203,21 @@ export default function LiveOrderBanner() {
     return () => { cancelled = true; socket.disconnect(); socketRef.current = null; };
   }, [orderId]);
 
+  // Live countdown — updates every second
+  useEffect(() => {
+    if (!order?.estimatedTime || !order?.createdAt) { setEtaLeftSecs(null); return; }
+    if (TERMINAL_STATUSES.has(order.status)) { setEtaLeftSecs(0); return; }
+    const calc = () => {
+      const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
+      const leftMs = Math.max(0, order.estimatedTime * 60 * 1000 - elapsedMs);
+      setEtaLeftSecs(Math.ceil(leftMs / 1000));
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [order?.estimatedTime, order?.createdAt, order?.status]);
+
   const display = useMemo(() => (order ? getStatusDisplay(order.status) : null), [order]);
-  const eta = useMemo(() => (order ? getDynamicETA(order) : ""), [order]);
 
   if (!order || dismissed || !display) return null;
 
@@ -285,7 +299,15 @@ export default function LiveOrderBanner() {
               <div className="flex items-center gap-2 shrink-0">
                 <div className="text-right">
                   <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">ETA</div>
-                  <div className={`text-xl font-black tabular-nums leading-none ${display.color}`}>{eta}</div>
+                  <div className={`text-xl font-black tabular-nums leading-none ${display.color}`}>
+                    {isTerminal
+                      ? "🎉"
+                      : etaLeftSecs === null
+                        ? getDynamicETA(order)
+                        : etaLeftSecs <= 0
+                          ? "Snart!"
+                          : `${Math.floor(etaLeftSecs / 60)}:${(etaLeftSecs % 60).toString().padStart(2, "0")}`}
+                  </div>
                 </div>
                 <ChevronRight
                   size={18}

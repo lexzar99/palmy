@@ -159,13 +159,13 @@ const OrderStatusPage = () => {
     return () => clearTimeout(timer);
   }, [order?.deliveringAt, order?.status]);
 
-  // ETA Countdown
+  // ETA Countdown — in seconds for real-time display
   useEffect(() => {
     if (!order?.estimatedTime || !order?.createdAt) { setEtaLeft(null); return; }
     const calc = () => {
-      const elapsed = (Date.now() - new Date(order.createdAt).getTime()) / 60000;
-      const left = Math.max(0, Math.round(order.estimatedTime - elapsed));
-      setEtaLeft(left);
+      const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
+      const leftMs = Math.max(0, order.estimatedTime * 60 * 1000 - elapsedMs);
+      setEtaLeft(Math.ceil(leftMs / 1000));
     };
     calc();
     const t = setInterval(calc, 1000);
@@ -239,15 +239,19 @@ const OrderStatusPage = () => {
            {order.estimatedTime && !isRejected && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-6 rounded-[2.5rem] flex items-center gap-5 shadow-2xl relative group overflow-hidden">
                  <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                 <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl ${etaLeft !== null && etaLeft <= 5 ? 'bg-emerald-500 shadow-emerald-500/20 animate-pulse' : 'bg-gold-500 shadow-gold-500/20'}`}>
+                 <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl ${etaLeft !== null && etaLeft <= 300 ? 'bg-emerald-500 shadow-emerald-500/20 animate-pulse' : 'bg-gold-500 shadow-gold-500/20'}`}>
                     <Clock size={28} />
                  </div>
                  <div>
                     <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">
                       {etaLeft !== null && etaLeft <= 0 ? 'Bör vara klart!' : 'Klar om ungefär'}
                     </div>
-                    <div className="text-2xl font-black italic" style={{ color: "var(--text-primary)" }}>
-                      {etaLeft !== null ? (etaLeft <= 0 ? 'Snart!' : `~${etaLeft} MIN`) : `${order.estimatedTime} MIN`}
+                    <div className="text-2xl font-black italic tabular-nums" style={{ color: "var(--text-primary)" }}>
+                      {etaLeft === null
+                        ? `${order.estimatedTime} MIN`
+                        : etaLeft <= 0
+                          ? 'Snart!'
+                          : `${Math.floor(etaLeft / 60)}:${(etaLeft % 60).toString().padStart(2, '0')}`}
                     </div>
                  </div>
               </motion.div>

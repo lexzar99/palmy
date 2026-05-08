@@ -751,8 +751,8 @@ router.get('/:slug/reviews', async (req, res) => {
     const reviews = await prisma.order.findMany({
       where: {
         restaurantId: restaurant.id,
-        rating: { gte: minRating },
-        reviewFlagged: false,
+        rating: { not: null, gte: minRating },
+        NOT: { reviewFlagged: true },
       },
       select: {
         id: true,
@@ -798,7 +798,7 @@ router.get('/:slug/reviews', async (req, res) => {
 
     // Summary baserat på ALLA reviews (inte bara filtrerade) så snittet är ärligt.
     const allReviewsForSummary = await prisma.order.findMany({
-      where: { restaurantId: restaurant.id, rating: { not: null }, reviewFlagged: false },
+      where: { restaurantId: restaurant.id, rating: { not: null }, NOT: { reviewFlagged: true } },
       select: { rating: true },
     });
     const summary = allReviewsForSummary.reduce(
