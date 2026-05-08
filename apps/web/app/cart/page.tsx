@@ -106,14 +106,18 @@ export default function CartPage() {
     estimatedDeliveryTime: 35,
   });
 
-  const [formData, setFormData] = useState({
-    customerName: "",
-    customerPhone: "",
-    deliveryStreet: "",
-    deliveryZip: "",
-    deliveryCity: "",
-    deliveryInstructions: "",
-    note: "",
+  const [formData, setFormData] = useState(() => {
+    const savedName = typeof window !== "undefined" ? localStorage.getItem("guest_name") || "" : "";
+    const savedPhone = typeof window !== "undefined" ? localStorage.getItem("guest_phone") || "" : "";
+    return {
+      customerName: savedName,
+      customerPhone: savedPhone,
+      deliveryStreet: "",
+      deliveryZip: "",
+      deliveryCity: "",
+      deliveryInstructions: "",
+      note: "",
+    };
   });
 
   const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
@@ -648,14 +652,17 @@ export default function CartPage() {
     router.push(`/order/${orderId}`);
   }, [pendingOrderId, clearCart, router]);
 
+  // Persist guest name/phone across sessions
+  useEffect(() => {
+    if (user || typeof window === "undefined") return;
+    if (formData.customerName) localStorage.setItem("guest_name", formData.customerName);
+    if (formData.customerPhone) localStorage.setItem("guest_phone", formData.customerPhone);
+  }, [user, formData.customerName, formData.customerPhone]);
+
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!user) {
-      setError("Du måste logga in för att beställa.");
-      return;
-    }
     if (!formData.customerName.trim() || !formData.customerPhone.trim()) {
       setError("Ange namn och telefonnummer.");
       return;
@@ -823,11 +830,11 @@ export default function CartPage() {
   }
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-24 pb-48 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-dot-pattern pt-20 pb-36 px-3 sm:px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-end justify-between mb-12 px-4">
+        <div className="flex items-end justify-between mb-6 lg:mb-10 px-1 sm:px-4">
            <div>
-              <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-3" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
+              <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
               <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em]">Granska dina val och slutför beställning</p>
            </div>
            <Link href="/menu" className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600 transition-colors flex items-center gap-2 mb-2 group">
@@ -843,11 +850,10 @@ export default function CartPage() {
             </div>
             <div className="flex-1 text-center sm:text-left">
               <p className="text-[12px] font-black uppercase tracking-widest text-gold-600 mb-0.5">
-                Lojalitetsprogram
+                Bonusar &amp; Erbjudanden
               </p>
               <p className="text-[11px] font-bold text-zinc-500 leading-relaxed">
-                Logga in för att spara adresser, se orderhistorik och ta del av personliga erbjudanden.
-                Du kan även betala som gäst.
+                Logga in för orderhistorik och personliga erbjudanden. Du beställer precis som vanligt – kontot ger bara extra fördelar.
               </p>
             </div>
             <div className="flex gap-3 shrink-0">
@@ -868,14 +874,14 @@ export default function CartPage() {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start">
           {/* Cart items list */}
           <div className="lg:col-span-12 xl:col-span-7 space-y-4">
             {/* DealSpotlight i kassan borttagen — rabatterna applas direkt
                 på priserna istället för en separat "deal aktiv"-banner. */}
             <div className="space-y-4">
               {items.map((item) => (
-                <motion.div key={item.cartItemId} layout className="p-6 rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                <motion.div key={item.cartItemId} layout className="p-4 sm:p-6 rounded-[1.75rem] sm:rounded-[2.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 transition-all group shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                    <button
                      type="button"
                      onClick={() => handleEditCartItem(item)}
@@ -921,7 +927,7 @@ export default function CartPage() {
           <div className="lg:col-span-12 xl:col-span-5">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret ? (
-                  <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-10 rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                         <CreditCard size={18} /> Betala Tryggt
                      </div>
@@ -933,7 +939,7 @@ export default function CartPage() {
                      <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>← Tillbaka till uppgifter</button>
                   </motion.div>
                 ) : (
-                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-10 rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
+                  <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                       <div className="flex gap-4 p-1.5 rounded-[1.8rem] mb-10" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
                          {(['DELIVERY', 'PICKUP'] as const).map(type => (
                             <button key={type} type="button" onClick={() => setOrderType(type)} className={`flex-1 flex items-center justify-center gap-3 py-4 rounded-[1.4rem] text-[10px] font-black uppercase tracking-widest transition-all ${orderType === type ? 'bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20' : 'text-zinc-500 hover:text-gold-500'}`}>
@@ -1105,11 +1111,11 @@ export default function CartPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Ditt Namn</label>
-                              <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Namn" />
+                              <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} autoComplete="name" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Namn" />
                            </div>
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Telefon</label>
-                              <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Nummer" />
+                              <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} type="tel" autoComplete="tel" inputMode="tel" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="+46 70 000 00 00" />
                            </div>
                         </div>
 
@@ -1247,8 +1253,8 @@ export default function CartPage() {
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
                         {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
                         <div className="flex justify-between items-center mt-6">
-                           <span className="text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
-                           <span className="text-5xl font-black italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
+                           <span className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
+                           <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>
                         </div>
                      </div>
 
@@ -1281,10 +1287,10 @@ export default function CartPage() {
                        </motion.div>
                      )}
 
-                      <button 
-                         onClick={startCheckout} 
+                      <button
+                         onClick={startCheckout}
                          disabled={loading || subtotal < minOrder || !restaurantSettings.isOpen || addressZoneStatus === "error"}
-                        className="w-full mt-10 py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
+                        className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                      >
                         {loading ? <Loader2 className="animate-spin" size={24} /> : subtotal < minOrder ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                      </button>

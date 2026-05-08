@@ -581,26 +581,26 @@ export default function HomePage() {
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between gap-3 mb-3"
+            className="flex items-start justify-between gap-3 mb-3"
           >
-            <div className="min-w-0">
-              <h1 className="text-xl lg:text-2xl font-black tracking-tight leading-none truncate" style={{ color: "var(--text-primary)" }}>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
                 Vad blir det <span className="text-gold-500 italic">idag?</span>
               </h1>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-0.5" style={{ color: "var(--text-secondary)" }}>
                 Hitta snabbt · beställ enkelt
               </p>
             </div>
 
-            <div className="relative p-0.5 glass-panel rounded-full flex items-center shrink-0">
+            <div className="relative p-0.5 glass-panel rounded-full flex items-center shrink-0 mt-0.5">
               <div
                 className="absolute inset-y-0.5 h-auto bg-gold-500 rounded-full transition-all duration-300"
                 style={{ width: 'calc(50% - 2px)', left: orderType === 'DELIVERY' ? '2px' : '50%' }}
               />
-              <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+              <button onClick={() => toggleOrderType("DELIVERY")} className={`relative z-10 flex items-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}>
                 <Truck size={12} /> Leverans
               </button>
-              <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex items-center gap-1.5 px-4 py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
+              <button onClick={() => toggleOrderType("PICKUP")} className={`relative z-10 flex items-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-2 text-[9px] font-black uppercase tracking-widest whitespace-nowrap ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}>
                 <Store size={12} /> Hämtning
               </button>
             </div>

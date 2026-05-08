@@ -14,12 +14,22 @@ const outfit = Outfit({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "MatGo | Beställ från dina favoritrestauranger",
   description: "Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.",
+  applicationName: "MatGo",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MatGo",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
   themeColor: "#18181b",
 };
 

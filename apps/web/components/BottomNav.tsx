@@ -22,7 +22,10 @@ const BottomNav = () => {
   ];
 
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-6">
+    <div
+      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4 sm:px-6"
+      style={{ bottom: "max(1.25rem, calc(0.5rem + env(safe-area-inset-bottom, 0px)))" }}
+    >
       <nav className="backdrop-blur-3xl border rounded-[3rem] p-2 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -32,7 +35,7 @@ const BottomNav = () => {
             <Link
               key={item.href}
               href={item.href}
-              className="relative flex-1 flex flex-col items-center justify-center py-4 px-2 rounded-[2.5rem] transition-colors duration-300"
+              className="relative flex-1 flex flex-col items-center justify-center py-4 px-1 sm:px-2 rounded-[2.5rem] transition-colors duration-300 touch-manipulation"
             >
               <div className="relative z-10 flex flex-col items-center gap-1">
                 <motion.div
@@ -64,7 +67,7 @@ const BottomNav = () => {
                 </AnimatePresence>
 
                 {item.count !== undefined && item.count > 0 && !isActive && (
-                  <span className="absolute -top-1 -right-2 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#121214] shadow-sm">
+                  <span className="absolute -top-1 -right-2 bg-gold-500 text-zinc-950 text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 shadow-sm" style={{ borderColor: "var(--bg-primary)" }}>
                     {item.count}
                   </span>
                 )}
