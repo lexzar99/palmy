@@ -375,9 +375,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
            </div>
         </div>
 
-        {/* Sticky Search & Categories Navigation */}
-        <div className="sticky top-0 z-40 mb-16 space-y-2">
-          {/* Search */}
+        {/* Sticky Search */}
+        <div className="sticky top-0 z-40 mb-2">
           <div className="rounded-[2.5rem] p-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             <div className="relative group">
               <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
@@ -391,9 +390,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               />
             </div>
           </div>
-          {/* Categories – standalone scroll strip, never nested inside a flex sibling */}
-          {categories.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+        </div>
+
+        {/* Sticky Categories — own sticky row so overflow-x:auto is never clipped by a sticky ancestor */}
+        {categories.length > 0 && (
+          <div className="sticky z-39 mb-16" style={{ top: "3.5rem" }}>
+            <div
+              className="flex gap-2 no-scrollbar"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, paddingRight: "1rem" }}
+            >
               {categories.map(cat => (
                 <motion.button
                   key={cat.id}
@@ -417,8 +422,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 </motion.button>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Discounted Products Rail */}
         {(() => {
