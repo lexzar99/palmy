@@ -400,40 +400,49 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         </Link>
 
         {/* Sticky Search & Categories Navigation */}
-        <div className="sticky top-6 z-40 mb-16">
-            <div className="rounded-[2.5rem] p-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-               <div className="relative flex-1 group">
-                  <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
-                  <input 
-                     type="text" 
-                     placeholder="Vad är du sugen på?" 
-                     value={searchTerm} 
-                     onChange={e => setSearchTerm(e.target.value)}
-                     className="w-full border-none rounded-[2rem] py-3 sm:py-4 pl-12 sm:pl-14 pr-4 sm:pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
-                     style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
-                  />
-               </div>
-               <div className="flex gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pr-2 whitespace-nowrap">
-                  {categories.map(cat => (
-                     <motion.button 
-                        key={cat.id} 
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                           setActiveCategory(cat.id);
-                           const element = document.getElementById(cat.id);
-                           if (element) {
-                              const offset = 120;
-                              window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
-                           }
-                        }}
-                        className={`px-4 sm:px-6 py-3 sm:py-4 rounded-[2rem] text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shrink-0 ${activeCategory === cat.id ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20" : "text-zinc-400 hover:text-zinc-600 hover:bg-zinc-50"}`}
-                     >
-                        {cat.name}
-                     </motion.button>
-                  ))}
-               </div>
+        <div className="sticky top-0 z-40 mb-16 space-y-2">
+          {/* Search */}
+          <div className="rounded-[2.5rem] p-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="relative group">
+              <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
+              <input
+                type="text"
+                placeholder="Vad är du sugen på?"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full border-none rounded-[2rem] py-3 sm:py-4 pl-12 sm:pl-14 pr-4 sm:pr-6 text-xs font-bold focus:ring-0 focus:outline-none transition-all placeholder:text-zinc-400"
+                style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-primary)" }}
+              />
             </div>
-         </div>
+          </div>
+          {/* Categories – standalone scroll strip, never nested inside a flex sibling */}
+          {categories.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {categories.map(cat => (
+                <motion.button
+                  key={cat.id}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setActiveCategory(cat.id);
+                    const element = document.getElementById(cat.id);
+                    if (element) {
+                      const offset = 120;
+                      window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                    }
+                  }}
+                  className={`px-5 py-3 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all shrink-0 whitespace-nowrap ${
+                    activeCategory === cat.id
+                      ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
+                      : "text-zinc-400 hover:text-zinc-600"
+                  }`}
+                  style={activeCategory === cat.id ? {} : { backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                >
+                  {cat.name}
+                </motion.button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Discounted Products Rail */}
         {(() => {
