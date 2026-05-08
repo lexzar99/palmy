@@ -56,8 +56,6 @@
     overflow-x: hidden;
     max-width: 100vw;
     scroll-behavior: smooth;
-    /* Safe-area stöd för iPhone notch/Dynamic Island */
-    padding-top: env(safe-area-inset-top);
   }
 
   body {

@@ -40,7 +40,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv">
-      <body className={`${outfit.className} text-zinc-100 bg-zinc-900 min-h-screen antialiased`}>
+      <body className={`${outfit.className} min-h-screen antialiased`}>
         <Providers>
           <ServiceWorkerRegister />
           <main>{children}</main>
