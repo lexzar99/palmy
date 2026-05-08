@@ -160,6 +160,7 @@ export default function LiveOrderBanner() {
   useEffect(() => {
     if (!orderId) { setOrder(null); return; }
     let cancelled = false;
+
     const load = async () => {
       try {
         const res = await axios.get(`${API_URL}/api/orders/${orderId}`);
@@ -180,6 +181,7 @@ export default function LiveOrderBanner() {
       }
     };
     load();
+    const pollInterval = setInterval(load, 15_000);
 
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;
@@ -200,7 +202,7 @@ export default function LiveOrderBanner() {
       }
     });
 
-    return () => { cancelled = true; socket.disconnect(); socketRef.current = null; };
+    return () => { cancelled = true; clearInterval(pollInterval); socket.disconnect(); socketRef.current = null; };
   }, [orderId]);
 
   // Live countdown — updates every second

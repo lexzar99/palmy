@@ -415,10 +415,15 @@ router.patch('/orders/:id/status', async (req, res) => {
     // Notifiera kunden via Socket.IO
     // For DELIVERING transition, send DELIVERING status to customer (they'll see "PÅ VÄG")
     // The client will auto-switch to DELIVERED after 10-15 min based on deliveringAt
+    const preparingAtTs = isPreparingTransition ? new Date() : (order.preparingAt ? new Date(order.preparingAt) : null);
+    const emitEtaEndsAt = (customerStatus === 'PREPARING' && preparingAtTs && order.estimatedTime)
+      ? new Date(preparingAtTs.getTime() + order.estimatedTime * 60_000).toISOString()
+      : undefined;
     getIO().to(`order:${order.id}`).emit('order:status', {
       orderId: order.id,
       status: customerStatus,
       estimatedTime: order.estimatedTime,
+      etaEndsAt: emitEtaEndsAt,
       deliveringAt: isDeliveringTransition ? new Date().toISOString() : undefined,
     });
 
@@ -445,20 +450,12 @@ router.patch('/orders/:id/status', async (req, res) => {
       })
       .catch((e) => console.warn('[admin] LA dispatch threw:', e?.message));
 
-    // Fetcha kundens Push Token via userId eller telefonnummer.
-    // Vi hämtar BÅDE Expo-token (för fallback / Android) och iOS APNs-token
-    // (för direct send med apns-collapse-id så notisen ersätts steg för steg).
-    // Only look up by phone if we have a real phone value — { phone: null }
-    // would match all users without a phone number and send to a random one.
-    const phoneClause = existing.customerPhone ? [{ phone: existing.customerPhone }] : [];
-    const userToNotify = (existing.userId || phoneClause.length > 0)
+    // Hämta push-token bara för inloggade beställningar (userId satt).
+    // Gästbeställningar via webben har inget userId och ska inte trigga
+    // app-notiser — kunden trackar via webbannern istället.
+    const userToNotify = existing.userId
       ? await (prisma as any).user.findFirst({
-          where: {
-            OR: [
-              ...(existing.userId ? [{ id: existing.userId }] : []),
-              ...phoneClause,
-            ],
-          },
+          where: { id: existing.userId },
           select: { pushToken: true, apnsDeviceToken: true }
         })
       : null;
