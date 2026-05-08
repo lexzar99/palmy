@@ -223,16 +223,16 @@ const OrderStatusPage = () => {
   const currentIdx = isCompleted ? steps.length - 1 : steps.indexOf(currentStatus);
 
   return (
-    <div className="min-h-screen bg-dot-pattern pt-24 pb-32 px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen bg-dot-pattern pb-48 px-6" style={{ backgroundColor: "var(--bg-primary)", paddingTop: "max(6rem, calc(env(safe-area-inset-top, 0px) + 1.5rem))" }}>
       <div className="max-w-4xl mx-auto">
-        
+
         {/* Dynamic Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-10 mb-16 px-4">
            <div>
               <div className="inline-flex items-center gap-3 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-600 text-[10px] font-black uppercase tracking-[0.3em] mb-4">
                  <Zap size={12} className="animate-pulse" /> Live Tracking
               </div>
-               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "var(--text-primary)" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
+               <h1 className="text-4xl md:text-6xl font-black uppercase italic tracking-tight leading-snug mb-2 overflow-visible" style={{ color: "var(--text-primary)" }}>Order <span className="text-gold-gradient">#{order.orderNumber}</span></h1>
                <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>Din beställning behandlas i realtid</p>
            </div>
            
