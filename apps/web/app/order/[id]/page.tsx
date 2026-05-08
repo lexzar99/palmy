@@ -162,6 +162,7 @@ const OrderStatusPage = () => {
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
+    if (!order?.status || ['DELIVERED', 'COMPLETED', 'CANCELLED', 'REJECTED'].includes(order.status)) { setEtaLeft(null); return; }
     if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeft(null); return; }
     const calc = () => {
       if (order?.etaEndsAt) {
@@ -250,7 +251,7 @@ const OrderStatusPage = () => {
                <p className="text-[10px] font-black uppercase tracking-[0.4em]" style={{ color: "var(--text-secondary)" }}>Din beställning behandlas i realtid</p>
            </div>
            
-           {order.estimatedTime && !isRejected && (
+           {order.estimatedTime && !isRejected && !isCompleted && (
               <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-panel p-6 rounded-[2.5rem] flex items-center gap-5 shadow-2xl relative group overflow-hidden">
                  <div className="absolute inset-0 bg-gold-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                  <div className={`w-14 h-14 rounded-[1.8rem] flex items-center justify-center text-zinc-950 shadow-xl ${etaLeft !== null && etaLeft <= 300 ? 'bg-emerald-500 shadow-emerald-500/20 animate-pulse' : 'bg-gold-500 shadow-gold-500/20'}`}>
