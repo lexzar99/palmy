@@ -174,9 +174,11 @@ model DiscountCode {
   usageCount            Int       @default(0)
   validFrom             DateTime?
   validUntil            DateTime?
-  applicableCategoryIds String    @default("[]")
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  applicableCategoryIds   String    @default("[]")
+  restaurantId            String?
+  applicableRestaurantIds String    @default("[]")
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 model Deal {
@@ -214,7 +216,11 @@ model Deal {
   updatedAt             DateTime    @updatedAt
   restaurantId          String?
   isGlobal              Boolean     @default(false)
-  applicableRestaurantIds String    @default("[]")
+  applicableRestaurantIds   String    @default("[]")
+  triggerCategoryId         String?
+  triggerQuantity           Int       @default(2)
+  rewardCategoryId          String?
+  bogoExcludedProductIds    String    @default("[]")
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }
 
