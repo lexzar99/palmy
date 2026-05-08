@@ -844,31 +844,17 @@ export default function CartPage() {
 
         {/* Login prompt — soft, not blocking (guest can still order) */}
         {!user && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="rounded-[2.5rem] mb-10 border border-gold-500/20 bg-gold-500/5 backdrop-blur-sm p-6 flex flex-col sm:flex-row items-center gap-6">
-            <div className="w-12 h-12 shrink-0 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center">
-              <UserIcon size={20} className="text-gold-500" />
-            </div>
-            <div className="flex-1 text-center sm:text-left">
-              <p className="text-[12px] font-black uppercase tracking-widest text-gold-600 mb-0.5">
-                Bonusar &amp; Erbjudanden
-              </p>
-              <p className="text-[11px] font-bold text-zinc-500 leading-relaxed">
-                Logga in för orderhistorik och personliga erbjudanden. Du beställer precis som vanligt – kontot ger bara extra fördelar.
-              </p>
-            </div>
-            <div className="flex gap-3 shrink-0">
-              <Link
-                href="/profile"
-                className="px-5 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-lg shadow-gold-500/20 active:scale-95 transition-all"
-              >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl mb-6 border border-gold-500/20 bg-gold-500/5 px-4 py-3 flex items-center gap-3">
+            <UserIcon size={15} className="text-gold-500 shrink-0" />
+            <p className="flex-1 text-[10px] font-bold text-zinc-500 leading-snug">
+              <span className="text-gold-600 font-black">Logga in</span> för orderhistorik &amp; rabatter — du kan beställa utan konto.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <Link href="/profile" className="px-3 py-1.5 bg-gold-500 text-zinc-950 rounded-xl font-black uppercase tracking-widest text-[9px] active:scale-95 transition-all">
                 Logga in
               </Link>
-              <Link
-                href="/register"
-                className="px-5 py-3 border rounded-2xl font-black uppercase tracking-widest text-[9px] hover:bg-zinc-50 active:scale-95 transition-all"
-                style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
-              >
-                Skapa konto
+              <Link href="/register" className="px-3 py-1.5 border rounded-xl font-black uppercase tracking-widest text-[9px] active:scale-95 transition-all" style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}>
+                Konto
               </Link>
             </div>
           </motion.div>
