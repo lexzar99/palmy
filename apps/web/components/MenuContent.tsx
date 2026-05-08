@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { io, Socket } from "socket.io-client";
-import { Search, Loader2, Info, Sparkles, ChevronLeft, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle } from "lucide-react";
+import { Search, Loader2, Info, Sparkles, ChevronLeft, ChevronRight, MapPin, Phone, Clock, Bike, Store, Star, ShoppingBag, X, AlertTriangle } from "lucide-react";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 import ProductModal from "@/components/ProductModal";
 import FloatingCartButton from "@/components/FloatingCartButton";
@@ -282,11 +282,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               </div>
          <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
             <p className="text-[9px] sm:text-[10px] font-black uppercase italic tracking-widest" style={{ color: "var(--text-secondary)" }}>{restaurant.cuisine || "Restaurang"}</p>
-                  <div className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[10px] sm:text-[11px]">
+                  <Link href={`/r/${restaurantSlug || restaurant.slug}/reviews`} className="flex items-center gap-1.5 text-gold-500 font-bold italic text-[10px] sm:text-[11px] hover:opacity-75 transition-opacity">
                      <Star size={12} className="fill-gold-500" />
                      {(restaurant.rating || 4.6).toFixed(1)}
                      <span className="font-black ml-1" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>({restaurant.ratingCount || 120})</span>
-                  </div>
+                     <ChevronRight size={10} className="opacity-40" />
+                  </Link>
               </div>
            </motion.div>
 
@@ -373,6 +374,30 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
               <div className="text-sm font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>{restaurant.minOrderAmount} KR</div>
            </div>
         </div>
+
+        {/* Reviews link row */}
+        <Link
+          href={`/r/${restaurantSlug || restaurant.slug}/reviews`}
+          className="flex items-center justify-between mb-12 sm:mb-16 px-5 py-4 rounded-[2rem] group transition-all hover:border-gold-500/20 active:scale-[0.99]"
+          style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
+        >
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map(s => (
+                <Star key={s} size={13} className={s <= Math.round(restaurant.rating || 4.6) ? "fill-gold-500 text-gold-500" : "text-zinc-300"} />
+              ))}
+            </div>
+            <span className="text-sm font-black italic" style={{ color: "var(--text-primary)" }}>
+              {(restaurant.rating || 4.6).toFixed(1)}
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-widest hidden xs:block" style={{ color: "var(--text-secondary)" }}>
+              {restaurant.ratingCount ? `${restaurant.ratingCount} recensioner` : "Recensioner"}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-gold-500">
+            Se alla <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </div>
+        </Link>
 
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-6 z-40 mb-16">
