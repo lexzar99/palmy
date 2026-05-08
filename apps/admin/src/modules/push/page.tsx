@@ -16,7 +16,7 @@ import {
   type PushLogRecord,
   type PushResult,
 } from "@/modules/push/api";
-import { Badge, Button, Field, Input, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, Field, Input, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatDateTime } from "@/shared/utils/format";
 
 type TargetMode = "all" | "user" | "city";
@@ -158,19 +158,15 @@ export function PushPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Push"
-          title="Push-notiser"
-          description="Välj målgrupp, skriv meddelande och skicka via Apple APNs."
-          actions={
-            <>
-              <Badge tone="info"><Smartphone size={12} /> APNs</Badge>
-              <Badge tone="success">{audience} användare</Badge>
-            </>
-          }
-        />
-      </Surface>
+      <PageHeader
+        title="Push-notiser"
+        actions={
+          <>
+            <Badge tone="info"><Smartphone size={12} /> APNs</Badge>
+            <Badge tone="success">{audience} användare</Badge>
+          </>
+        }
+      />
 
       <Surface className="px-6 py-6">
         <Tabs

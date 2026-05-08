@@ -18,9 +18,8 @@ import {
   ErrorPanel,
   Field,
   Input,
-  MetricCard,
   Modal,
-  SectionHeader,
+  PageHeader,
   Select,
   Surface,
 } from "@/shared/components/ui";
@@ -272,26 +271,22 @@ export function OrderHistoryPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Order-historik"
-          title="Avancerad order-rapport"
-          description="Filtrera per restaurang, period och klockslag. Exportera till CSV (Excel) eller PDF för bokföring och uppföljning."
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => void orders.refetch()}>
-                <RefreshCw size={16} /> Uppdatera
-              </Button>
-              <Button variant="primary" onClick={() => setExportOpen(true)}>
-                <Download size={16} /> Exportera
-              </Button>
-              <Button variant="danger" onClick={() => { setWipeOpen(true); setWipeResult(null); }}>
-                <AlertTriangle size={16} /> Rensa ordrar
-              </Button>
-            </>
-          }
-        />
-      </Surface>
+      <PageHeader
+        title="Order historik"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => void orders.refetch()}>
+              <RefreshCw size={13} /> Uppdatera
+            </Button>
+            <Button variant="primary" onClick={() => setExportOpen(true)}>
+              <Download size={13} /> Exportera
+            </Button>
+            <Button variant="danger" onClick={() => { setWipeOpen(true); setWipeResult(null); }}>
+              <AlertTriangle size={13} /> Rensa ordrar
+            </Button>
+          </>
+        }
+      />
 
       <Surface className="px-6 py-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -330,13 +325,6 @@ export function OrderHistoryPage() {
           </label>
         </div>
       </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Antal ordrar" value={formatNumber(stats.count)} />
-        <MetricCard label="Brutto" value={formatCurrency(stats.grossSales)} detail="Exkl. cancelled/rejected" />
-        <MetricCard label="Återbetalt" value={formatCurrency(stats.refundedTotal)} />
-        <MetricCard label="Netto" value={formatCurrency(stats.netSales)} detail="Brutto − återbetalt" />
-      </div>
 
       <Surface className="px-6 py-6">
         {orders.data && orders.data.total > ORDER_HISTORY_PAGE_SIZE ? (

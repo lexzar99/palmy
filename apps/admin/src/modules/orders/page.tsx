@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
 import { deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, updateOrderStatus, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
 
 const statusOptions = ["ALL", "PENDING", "ACCEPTED", "PREPARING", "READY", "DELIVERED", "CANCELLED"] as const;
@@ -300,31 +300,20 @@ export function OrdersPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Orders"
-          title="Live order stream"
-          description="Realtime updates are backed by socket invalidation and a polling fallback every ten seconds."
-          actions={
-            <>
-              <Badge tone="success">{formatNumber(liveCount)} live</Badge>
-              <Button variant="secondary" onClick={() => void orders.refetch()}>
-                <RefreshCw size={16} /> Refresh
-              </Button>
-            </>
-          }
-        />
-      </Surface>
+      <PageHeader
+        title="Orders"
+        actions={
+          <>
+            <Badge tone="success">{formatNumber(liveCount)} live</Badge>
+            <Button variant="secondary" onClick={() => void orders.refetch()}>
+              <RefreshCw size={14} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Total loaded</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(orders.data.total)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Pending</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(orders.data.orders.filter((order) => order.status === "PENDING").length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Preparing</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(orders.data.orders.filter((order) => order.status === "PREPARING").length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Delivered</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(orders.data.orders.filter((order) => order.status === "DELIVERED").length)}</p></Surface>
-      </div>
-
-      <Surface className="px-6 py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <Surface className="px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-xl">
             <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by order, customer, phone or restaurant" />

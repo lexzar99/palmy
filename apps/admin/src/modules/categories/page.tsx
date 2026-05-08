@@ -23,9 +23,8 @@ import {
   ErrorPanel,
   Field,
   Input,
-  MetricCard,
   Modal,
-  SectionHeader,
+  PageHeader,
   Select,
   Surface,
   Textarea,
@@ -660,28 +659,17 @@ export function CategoriesPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Home rails"
-          title="Kategorier och startsidessektioner"
-          description="Bygg rails för web och appen med samma filterlogik, manuella urval och tidsschema. Förinställda &quot;Pizza fredag&quot; och &quot;Snabb lunch&quot; kommer från backend."
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => void categories.refetch()}>Uppdatera</Button>
-              <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                <Plus size={16} /> Ny kategori
-              </Button>
-            </>
-          }
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Totalt" value={formatNumber(stats.total)} detail="Alla rails" />
-        <MetricCard label="Aktiva" value={formatNumber(stats.active)} detail="Visas publikt" />
-        <MetricCard label="Schemalagda" value={formatNumber(stats.scheduled)} detail="Tidsstyrda rails" />
-        <MetricCard label="Med manual-val" value={formatNumber(stats.manual)} detail="MANUAL eller HYBRID" />
-      </div>
+      <PageHeader
+        title="Kategorier"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => void categories.refetch()}>Uppdatera</Button>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={13} /> Ny kategori
+            </Button>
+          </>
+        }
+      />
 
       <Surface className="px-6 py-6">
         <p className="text-sm text-[var(--text-secondary)]">

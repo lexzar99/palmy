@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquareReply } from "lucide-react";
 import { deleteReview, getReviews, replyToReview, reviewsQueryKey, updateReview, type ReviewRecord } from "@/modules/reviews/api";
-import { Badge, Button, EmptyState, ErrorPanel, Input, Modal, SectionHeader, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Input, Modal, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import { formatDateTime } from "@/shared/utils/format";
 
 function ReplyModal({ review, open, onClose }: { review: ReviewRecord | null; open: boolean; onClose: () => void }) {
@@ -74,15 +74,7 @@ export function ReviewsPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader eyebrow="Reviews" title="Recensioner" description="Recensioner skapas av kunder från web/app efter levererad order. Du kan svara, flagga eller radera dem här." />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Totalt</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{totalReviews}</p></div>
-        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Snittbetyg</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{avgRating}</p></div>
-        <div className="surface px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Flaggade</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{flaggedCount}</p></div>
-      </div>
+      <PageHeader title="Recensioner" />
 
       <Surface className="px-6 py-6">
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Sök recensioner" />

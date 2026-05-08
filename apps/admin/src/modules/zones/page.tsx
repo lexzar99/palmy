@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Loader2, MapPinned, Plus, Save, Settings2, Store, Trash2 } from "lucide-react";
 import ZoneEditor from "@/modules/zones/components/zone-editor";
 import { createCity, deleteCity, getCities, getZoneRestaurants, parseZones, saveCity, serializeZones, zonesCitiesQueryKey, zonesRestaurantsQueryKey, type CityRecord, type CityRestaurantLink, type RestaurantLocationRecord, type ZoneRecord } from "@/modules/zones/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatNumber } from "@/shared/utils/format";
 
 type EnrichedCity = CityRecord & { restaurants: CityRestaurantLink[] };
@@ -239,26 +239,15 @@ export function ZonesPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Zones"
-          title="Cities and delivery zones"
-          description="Zone pricing stays API-driven and cities remain the source of truth for delivery coverage."
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => setNewCityOpen(true)}><Plus size={16} /> New city</Button>
-              <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity || saveMutation.isPending}><Save size={16} /> Save city</Button>
-            </>
-          }
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Cities" value={formatNumber(stats.cities)} />
-        <MetricCard label="Active cities" value={formatNumber(stats.active)} />
-        <MetricCard label="Linked restaurants" value={formatNumber(stats.restaurants)} />
-        <MetricCard label="Zones" value={formatNumber(stats.zones)} />
-      </div>
+      <PageHeader
+        title="Zones"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => setNewCityOpen(true)}><Plus size={13} /> New city</Button>
+            <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!selectedCity || saveMutation.isPending}><Save size={13} /> Save city</Button>
+          </>
+        }
+      />
 
       <div className="grid gap-4 xl:grid-cols-[320px_1fr]">
         <Surface className="px-4 py-4">

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw, Wallet } from "lucide-react";
 import { financePayoutsQueryKey, financeQueueQueryKey, financeReportQueryKey, getFinanceQueue, getPayouts, getRestaurantReport, upsertPayout, type FinanceQueueRow, type PayoutRecord } from "@/modules/finance/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
 type ActiveFinanceRow = FinanceQueueRow & { persisted?: PayoutRecord | null };
@@ -177,21 +177,10 @@ export function FinancePage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Finance"
-          title="Payouts and financial control"
-          description="Payout rows are based on backend calculations and stored as explicit payout records with no hidden UI math."
-          actions={<Badge tone="info">{rows.length} payout rows</Badge>}
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Gross sales" value={formatCurrency(totals.grossSales)} />
-        <MetricCard label="Commission" value={formatCurrency(totals.commission)} />
-        <MetricCard label="Estimated payouts" value={formatCurrency(totals.payouts)} />
-        <MetricCard label="In review" value={formatNumber(totals.inReview)} />
-      </div>
+      <PageHeader
+        title="Finance"
+        actions={<Badge tone="info">{rows.length} payout rows</Badge>}
+      />
 
       <Surface className="px-6 py-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_160px_160px] lg:items-end">

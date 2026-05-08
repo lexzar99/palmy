@@ -20,7 +20,7 @@ import {
 } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
 type DealsTab = "restaurant" | "product" | "category" | "popup";
@@ -156,43 +156,34 @@ export function DealsPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Deals"
-          title="Deals and offers"
-          description="Restaurant, product and category deals. Personal customer codes are managed from the Customers page."
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); }}><RefreshCw size={16} /> Refresh</Button>
-              <Button
-                variant="danger"
-                onClick={async () => {
-                  if (!confirm("Radera ALLA deals permanent? Detta nollar också alla användares claimade deals. Kan inte ångras.")) return;
-                  try {
-                    const result = await wipeAllDeals();
-                    alert(`Raderade ${result.deleted} deals.`);
-                    await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
-                  } catch (e: any) {
-                    alert(e?.response?.data?.error || "Kunde inte rensa deals.");
-                  }
-                }}
-              >
-                <AlertTriangle size={16} /> Radera alla
-              </Button>
-              {tab === "popup" ? (
-                <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={16} /> Skicka popup för deal</Button>
-              ) : (
-                <Button variant="primary" onClick={openCreate}><Plus size={16} /> New deal</Button>
-              )}
-            </>
-          }
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Automatic deals</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.automatic)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active automatic</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(stats.activeAutomatic)}</p></Surface>
-      </div>
+      <PageHeader
+        title="Deals"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => { void automaticDeals.refetch(); }}><RefreshCw size={13} /> Refresh</Button>
+            <Button
+              variant="danger"
+              onClick={async () => {
+                if (!confirm("Radera ALLA deals permanent? Detta nollar också alla användares claimade deals. Kan inte ångras.")) return;
+                try {
+                  const result = await wipeAllDeals();
+                  alert(`Raderade ${result.deleted} deals.`);
+                  await queryClient.invalidateQueries({ queryKey: dealsQueryKey });
+                } catch (e: any) {
+                  alert(e?.response?.data?.error || "Kunde inte rensa deals.");
+                }
+              }}
+            >
+              <AlertTriangle size={13} /> Radera alla
+            </Button>
+            {tab === "popup" ? (
+              <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={13} /> Skicka popup för deal</Button>
+            ) : (
+              <Button variant="primary" onClick={openCreate}><Plus size={13} /> New deal</Button>
+            )}
+          </>
+        }
+      />
 
       <Surface className="px-6 py-6">
         <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:items-end">

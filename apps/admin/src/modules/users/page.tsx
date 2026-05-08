@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Plus, UsersRound } from "lucide-react";
 import { deleteStaff, getStaff, inviteStaff, resetStaffPassword, staffQueryKey, updateStaff, type StaffRecord } from "@/modules/users/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 
 function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRecord | null; onClose: () => void }) {
@@ -98,23 +98,12 @@ export function UsersPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Users"
-          title="Admin users and roles"
-          description="Create team accounts, change access roles and rotate credentials without leaving the admin panel."
-          actions={<Button variant="primary" onClick={() => setInviteOpen(true)}><Plus size={16} /> Invite user</Button>}
-        />
-      </Surface>
+      <PageHeader
+        title="Users"
+        actions={<Button variant="primary" onClick={() => setInviteOpen(true)}><Plus size={13} /> Invite user</Button>}
+      />
 
       {temporaryPassword ? <Surface className="px-6 py-5 text-sm text-[#ffe6bf]">Temporary password for the latest invite: <strong>{temporaryPassword}</strong></Surface> : null}
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Accounts</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(staff.data.length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(staff.data.filter((member) => member.active).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Restaurant scoped</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(staff.data.filter((member) => member.restaurantId).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Super admins</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(staff.data.filter((member) => member.role === "SUPER_ADMIN").length)}</p></Surface>
-      </div>
 
       <Surface className="px-6 py-6">
         {staff.data.length === 0 ? (

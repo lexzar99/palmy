@@ -20,7 +20,7 @@ import {
   type ReceiptTemplate,
 } from "@/modules/receipts/api";
 import { getRestaurantOverview } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatDateTime, formatNumber } from "@/shared/utils/format";
 
 const defaultElements: ReceiptElement[] = [
@@ -337,21 +337,10 @@ export function ReceiptsPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Receipts"
-          title="Receipt template and printer registry"
-          description="Template rules and printer profiles stay backed by the existing printing APIs and explicit receipt data payloads."
-          actions={<Button variant="primary" onClick={() => { setActivePrinter(null); setPrinterOpen(true); }}><Plus size={16} /> New printer</Button>}
-        />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Printers" value={formatNumber(config.data.printers.length)} />
-        <MetricCard label="Default printers" value={formatNumber(config.data.printers.filter((printer) => printer.isDefault).length)} />
-        <MetricCard label="Auto print" value={formatNumber(config.data.printers.filter((printer) => printer.autoPrint && printer.isActive).length)} />
-        <MetricCard label="Visible template blocks" value={formatNumber(effectiveTemplate.elements.filter((el) => el.visible).length)} />
-      </div>
+      <PageHeader
+        title="Receipts"
+        actions={<Button variant="primary" onClick={() => { setActivePrinter(null); setPrinterOpen(true); }}><Plus size={13} /> New printer</Button>}
+      />
 
       {/* Printer registry */}
       <Surface className="px-6 py-6">

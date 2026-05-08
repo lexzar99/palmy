@@ -17,7 +17,7 @@ import {
   type CustomerRecord,
 } from "@/modules/customers/api";
 import { getPushHistoryForCustomer, type PushLogRecord } from "@/modules/push/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatDateTime, formatNumber, orderStatusLabel } from "@/shared/utils/format";
 
 type CustomerTab = "info" | "orders" | "deals" | "push";
@@ -247,16 +247,7 @@ export function CustomersPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader eyebrow="Customers" title="Customer support and deal history" description="Open a customer profile to edit core data, review orders and manage personal offers." />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Customers</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(customers.data.length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Verified</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(customers.data.filter((customer) => customer.isVerified).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(customers.data.filter((customer) => customer.isActive).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Orders</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(customers.data.reduce((sum, customer) => sum + (customer._count?.orders || 0), 0))}</p></Surface>
-      </div>
+      <PageHeader title="Customers" />
 
       <Surface className="px-6 py-6">
         <Field label="Search customers"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, phone, email or city" /></Field>

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Shield } from "lucide-react";
 import { getRestaurantOverview, patchRestaurant, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, MetricCard, Modal, SectionHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, MetricCard, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrency, formatNumber, restaurantTierLabel } from "@/shared/utils/format";
 
 const tierMeta = {
@@ -89,16 +89,7 @@ export function TiersPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader eyebrow="Tier System" title="Restaurant tier classes" description="Preserve the existing tier model while making commission and subscription class changes explicit." />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Gold" value={formatNumber(counts.gold)} />
-        <MetricCard label="Silver" value={formatNumber(counts.silver)} />
-        <MetricCard label="Standard" value={formatNumber(counts.standard)} />
-        <MetricCard label="Hidden" value={formatNumber(counts.hidden)} />
-      </div>
+      <PageHeader title="Tiers" />
 
       <Surface className="px-6 py-6">
         {restaurants.data.length === 0 ? (

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { createSponsor, deleteSponsor, getSponsors, sponsorsQueryKey, updateSponsor, type SponsorRecord } from "@/modules/sponsors/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, SectionHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 
@@ -93,16 +93,10 @@ export function SponsorsPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader eyebrow="Sponsors" title="Sponsor placements" description="Manage homepage sponsors and linked call-to-action content." actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={16} /> New sponsor</Button>} />
-      </Surface>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Sponsors</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(sponsors.data.length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Active</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(sponsors.data.filter((sponsor) => sponsor.isActive).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Clickable</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(sponsors.data.filter((sponsor) => sponsor.isClickable).length)}</p></Surface>
-        <Surface className="px-5 py-5"><p className="text-[11px] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">Named</p><p className="mt-3 text-3xl font-black tracking-[-0.04em]">{formatNumber(sponsors.data.filter((sponsor) => sponsor.showName).length)}</p></Surface>
-      </div>
+      <PageHeader
+        title="Sponsors"
+        actions={<Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={13} /> New sponsor</Button>}
+      />
 
       <Surface className="px-6 py-6">
         {sponsors.data.length === 0 ? (
