@@ -36,6 +36,7 @@ export interface AutomaticDealRecord {
   triggerCategoryId?: string | null;
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
+  bogoExcludedProductIds?: string[];
 }
 
 export interface DiscountCodeRecord {

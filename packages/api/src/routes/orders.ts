@@ -590,7 +590,7 @@ router.post('/', async (req: Request, res: Response) => {
       return {
         productId: oi.productId,
         categoryId: (prod as any)?.categoryId ?? '',
-        priceOre: oi.subtotal / oi.quantity,
+        basePriceOre: prod?.price ?? 0,
         quantity: oi.quantity,
       };
     });

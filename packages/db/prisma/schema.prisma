@@ -193,9 +193,10 @@ model Deal {
   restaurantId          String?
   isGlobal              Boolean     @default(false)
   applicableRestaurantIds String    @default("[]")
-  triggerCategoryId       String?
-  triggerQuantity         Int       @default(2)
-  rewardCategoryId        String?
+  triggerCategoryId         String?
+  triggerQuantity           Int       @default(2)
+  rewardCategoryId          String?
+  bogoExcludedProductIds    String    @default("[]")
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }
 

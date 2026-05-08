@@ -31,6 +31,7 @@ type DealLike = {
   triggerCategoryId?: string | null;
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
+  bogoExcludedProductIds?: string | null;
 };
 
 type ProductPromotionLike = {
@@ -60,7 +61,7 @@ export type ResolvedDisplayPromotion = {
 export type CartItemForBogo = {
   productId: string;
   categoryId: string;
-  priceOre: number;
+  basePriceOre: number;
   quantity: number;
 };
 
@@ -169,24 +170,25 @@ export const evaluateBogoCategoryDeal = (deal: DealLike, cartItems: CartItemForB
 
   const rewardCatId = deal.rewardCategoryId || triggerCatId;
   const needed = deal.triggerQuantity ?? 2;
+  const excludedIds = new Set(parseDealProductIds(deal.bogoExcludedProductIds));
 
-  // Count total trigger-category items (summing quantities)
+  // Count total trigger-category items (excluded products don't count toward trigger)
   const triggerCount = cartItems
-    .filter((item) => item.categoryId === triggerCatId)
+    .filter((item) => item.categoryId === triggerCatId && !excludedIds.has(item.productId))
     .reduce((sum, item) => sum + item.quantity, 0);
 
   if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
 
-  // Find reward items sorted cheapest first
-  const rewardItems = cartItems
-    .filter((item) => item.categoryId === rewardCatId)
-    .flatMap((item) => Array.from({ length: item.quantity }, () => item.priceOre))
+  // Find eligible reward items (same category, not excluded), cheapest base price first
+  const rewardPrices = cartItems
+    .filter((item) => item.categoryId === rewardCatId && !excludedIds.has(item.productId))
+    .flatMap((item) => Array.from({ length: item.quantity }, () => item.basePriceOre))
     .sort((a, b) => a - b);
 
-  if (rewardItems.length === 0) return { eligible: false, discountAmountOre: 0 };
+  if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0 };
 
-  // Give 1 free item (the cheapest)
-  return { eligible: true, discountAmountOre: rewardItems[0] };
+  // Give the cheapest qualifying item free (base price only, extras always paid)
+  return { eligible: true, discountAmountOre: rewardPrices[0] };
 };
 
 export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => {

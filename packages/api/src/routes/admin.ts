@@ -1516,6 +1516,7 @@ const formatDealForAdmin = (deal: any) => ({
   triggerCategoryId: deal.triggerCategoryId ?? null,
   triggerQuantity: deal.triggerQuantity ?? 2,
   rewardCategoryId: deal.rewardCategoryId ?? null,
+  bogoExcludedProductIds: parseJsonArray(deal.bogoExcludedProductIds),
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -1667,6 +1668,13 @@ const normalizeDealInputForDb = (body: any) => {
   }
   if (body.rewardCategoryId !== undefined) {
     next.rewardCategoryId = body.rewardCategoryId || null;
+  }
+
+  if (body.bogoExcludedProductIds !== undefined) {
+    const ids = Array.isArray(body.bogoExcludedProductIds)
+      ? body.bogoExcludedProductIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(body.bogoExcludedProductIds);
+    next.bogoExcludedProductIds = JSON.stringify(ids);
   }
 
   if (body.validFrom !== undefined) {

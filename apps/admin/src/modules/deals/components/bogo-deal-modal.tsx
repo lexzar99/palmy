@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Trash2 } from "lucide-react";
 import {
   createAutomaticDeal,
   dealsQueryKey,
   dealCategoriesQueryKey,
+  dealProductsQueryKey,
   dealRestaurantsQueryKey,
   deleteAutomaticDeal,
   getDealCategories,
+  getDealProducts,
   getDealRestaurants,
   updateAutomaticDeal,
   type AutomaticDealRecord,
@@ -22,6 +24,7 @@ type Draft = {
   triggerCategoryId: string;
   triggerQuantity: number;
   rewardCategoryId: string;
+  bogoExcludedProductIds: string[];
   isActive: boolean;
   validUntil: string;
 };
@@ -32,6 +35,7 @@ const defaultDraft = (): Draft => ({
   triggerCategoryId: "",
   triggerQuantity: 2,
   rewardCategoryId: "",
+  bogoExcludedProductIds: [],
   isActive: true,
   validUntil: "",
 });
@@ -50,11 +54,25 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
 
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const activeRestaurantId = draft.restaurantId || null;
+
   const categories = useQuery({
     queryKey: dealCategoriesQueryKey(activeRestaurantId),
     queryFn: () => getDealCategories(activeRestaurantId!),
     enabled: Boolean(activeRestaurantId),
   });
+
+  const products = useQuery({
+    queryKey: dealProductsQueryKey(activeRestaurantId),
+    queryFn: () => getDealProducts(activeRestaurantId!),
+    enabled: Boolean(activeRestaurantId),
+  });
+
+  // Products that belong to the reward category (or trigger if reward is empty)
+  const rewardCatId = draft.rewardCategoryId || draft.triggerCategoryId;
+  const rewardCategoryProducts = useMemo(
+    () => (products.data ?? []).filter((p) => p.categoryId === rewardCatId),
+    [products.data, rewardCatId]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -65,6 +83,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         triggerCategoryId: deal.triggerCategoryId || "",
         triggerQuantity: deal.triggerQuantity ?? 2,
         rewardCategoryId: deal.rewardCategoryId || "",
+        bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
         isActive: deal.isActive,
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
       });
@@ -76,6 +95,19 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
 
   const set = <K extends keyof Draft>(key: K, val: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: val }));
+
+  const resetCategorySelections = () => {
+    setDraft((prev) => ({ ...prev, triggerCategoryId: "", rewardCategoryId: "", bogoExcludedProductIds: [] }));
+  };
+
+  const toggleExcluded = (productId: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      bogoExcludedProductIds: prev.bogoExcludedProductIds.includes(productId)
+        ? prev.bogoExcludedProductIds.filter((id) => id !== productId)
+        : [...prev.bogoExcludedProductIds, productId],
+    }));
+  };
 
   const saveMutation = useMutation({
     mutationFn: async (d: Draft) => {
@@ -90,6 +122,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         triggerCategoryId: d.triggerCategoryId || null,
         triggerQuantity: d.triggerQuantity,
         rewardCategoryId: d.rewardCategoryId || null,
+        bogoExcludedProductIds: d.bogoExcludedProductIds,
         isActive: d.isActive,
         showOnSite: true,
         popupEnabled: false,
@@ -173,7 +206,10 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         </Field>
 
         <Field label="Restaurang">
-          <Select value={draft.restaurantId} onChange={(e) => { set("restaurantId", e.target.value); set("triggerCategoryId", ""); set("rewardCategoryId", ""); }}>
+          <Select
+            value={draft.restaurantId}
+            onChange={(e) => { set("restaurantId", e.target.value); resetCategorySelections(); }}
+          >
             <option value="">Välj restaurang...</option>
             {(restaurants.data ?? []).map((r) => (
               <option key={r.id} value={r.id}>{r.name}</option>
@@ -184,7 +220,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         <Field label="Utlösarkategori (kunden köper härifrån)">
           <Select
             value={draft.triggerCategoryId}
-            onChange={(e) => set("triggerCategoryId", e.target.value)}
+            onChange={(e) => { set("triggerCategoryId", e.target.value); set("bogoExcludedProductIds", []); }}
             disabled={!draft.restaurantId || categories.isLoading}
           >
             <option value="">Välj kategori...</option>
@@ -194,7 +230,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
           </Select>
         </Field>
 
-        <Field label="Antal som krävs för att utlösa erbjudandet">
+        <Field label="Antal artiklar som krävs för att utlösa erbjudandet">
           <Input
             type="number"
             min="1"
@@ -207,7 +243,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         <Field label="Gratis-kategori (lämna tom = samma som utlösare)">
           <Select
             value={draft.rewardCategoryId}
-            onChange={(e) => set("rewardCategoryId", e.target.value)}
+            onChange={(e) => { set("rewardCategoryId", e.target.value); set("bogoExcludedProductIds", []); }}
             disabled={!draft.restaurantId || categories.isLoading}
           >
             <option value="">Samma kategori som ovan</option>
@@ -216,6 +252,44 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
             ))}
           </Select>
         </Field>
+
+        {rewardCategoryProducts.length > 0 && (
+          <Field label="Uteslut dessa produkter från gratis-erbjudandet">
+            <div className="max-h-44 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-0.5">
+              {rewardCategoryProducts.map((p) => {
+                const excluded = draft.bogoExcludedProductIds.includes(p.id);
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex items-center gap-2 cursor-pointer rounded px-2 py-1.5 text-sm select-none transition-colors ${excluded ? "bg-[rgba(239,68,68,0.08)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={excluded}
+                      onChange={() => toggleExcluded(p.id)}
+                      className="accent-red-500 h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className={excluded ? "line-through text-[var(--text-muted)]" : "text-[var(--text-primary)]"}>
+                      {p.name}
+                    </span>
+                    <span className="ml-auto text-xs text-[var(--text-muted)]">
+                      {(p.price / 100).toFixed(0)} kr
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {draft.bogoExcludedProductIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => set("bogoExcludedProductIds", [])}
+                className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline"
+              >
+                Rensa uteslutningar
+              </button>
+            )}
+          </Field>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <Field label="Giltig till (valfritt)">
@@ -226,7 +300,10 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
             />
           </Field>
           <Field label="Status">
-            <Select value={draft.isActive ? "active" : "inactive"} onChange={(e) => set("isActive", e.target.value === "active")}>
+            <Select
+              value={draft.isActive ? "active" : "inactive"}
+              onChange={(e) => set("isActive", e.target.value === "active")}
+            >
               <option value="active">Aktiv</option>
               <option value="inactive">Inaktiv</option>
             </Select>
@@ -234,7 +311,10 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         </div>
 
         <p className="text-xs text-[var(--text-muted)] rounded-lg bg-[rgba(255,255,255,0.03)] border border-[var(--border-subtle)] px-3 py-2">
-          Kunden köper <strong>{draft.triggerQuantity}</strong> artikel{draft.triggerQuantity !== 1 ? "r" : ""} från utlösarkategorin → den billigaste artikeln i gratis-kategorin läggs till gratis.
+          Kunden köper <strong>{draft.triggerQuantity}</strong> artikel{draft.triggerQuantity !== 1 ? "r" : ""} från utlösarkategorin → den billigaste <em>icke-uteslutna</em> artikeln i gratis-kategorin dras av (endast baspris, extratillval betalas alltid).
+          {draft.bogoExcludedProductIds.length > 0 && (
+            <span className="block mt-1 text-red-400">{draft.bogoExcludedProductIds.length} produkt{draft.bogoExcludedProductIds.length !== 1 ? "er" : ""} utesluten{draft.bogoExcludedProductIds.length !== 1 ? "a" : ""}.</span>
+          )}
         </p>
       </form>
     </Modal>
