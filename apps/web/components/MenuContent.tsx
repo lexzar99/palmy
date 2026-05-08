@@ -501,7 +501,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                  transition={{ delay: catIdx * 0.1 }}
               >
                  <div className="flex items-center justify-between mb-10 px-4">
-                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-none truncate max-w-[200px] lg:max-w-none" style={{ color: "var(--text-primary)" }}>
+                    <h2 className="text-3xl font-black tracking-tight uppercase italic leading-none" style={{ color: "var(--text-primary)" }}>
                        {cat.name}
                     </h2>
                     <div className="h-px bg-zinc-200 flex-1 mx-8 hidden lg:block" />
