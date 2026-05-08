@@ -19,6 +19,7 @@ import {
   type DealProductRef,
 } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
+import { BogoDealModal } from "@/modules/deals/components/bogo-deal-modal";
 import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
@@ -47,6 +48,8 @@ export function DealsPage() {
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
   const [popupModalOpen, setPopupModalOpen] = useState(false);
   const [popupTargetDeal, setPopupTargetDeal] = useState<AutomaticDealRecord | null>(null);
+  const [bogoModalOpen, setBogoModalOpen] = useState(false);
+  const [bogoDeal, setBogoDeal] = useState<AutomaticDealRecord | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const categories = useQuery({ queryKey: dealCategoriesQueryKey(selectedRestaurantId), queryFn: () => getDealCategories(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
@@ -179,7 +182,10 @@ export function DealsPage() {
             {tab === "popup" ? (
               <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={13} /> Skicka popup för deal</Button>
             ) : (
-              <Button variant="primary" onClick={openCreate}><Plus size={13} /> New deal</Button>
+              <>
+                <Button variant="secondary" onClick={() => { setBogoDeal(null); setBogoModalOpen(true); }}><Plus size={13} /> BOGO-deal</Button>
+                <Button variant="primary" onClick={openCreate}><Plus size={13} /> New deal</Button>
+              </>
             )}
           </>
         }
@@ -252,8 +258,9 @@ export function DealsPage() {
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
             {filteredAutomaticDeals.length === 0 ? <EmptyState title={`No ${tab} deals`} /> : filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => categoryNameMap.get(targetId) || productNameMap.get(targetId) || targetId).slice(0, 3);
+              const isBogo = deal.triggerType === "BOGO_CATEGORY";
               return (
-                <button key={deal.id} type="button" onClick={() => { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); }} className="surface-muted px-5 py-5 text-left">
+                <button key={deal.id} type="button" onClick={() => { if (isBogo) { setBogoDeal(deal); setBogoModalOpen(true); } else { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); } }} className="surface-muted px-5 py-5 text-left">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -261,7 +268,7 @@ export function DealsPage() {
                         <Badge tone={deal.isActive ? "success" : "danger"}>{deal.isActive ? "Active" : "Inactive"}</Badge>
                         <Badge tone="info">{scopeLabel[deal.scopeType] || deal.scopeType}</Badge>
                       </div>
-                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.restaurant?.name || (deal.isGlobal ? "All restaurants" : "No restaurant")} • {deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</p>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.restaurant?.name || (deal.isGlobal ? "All restaurants" : "No restaurant")} • {isBogo ? "BOGO — 1 gratis" : deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</p>
                       {deal.description ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.description}</p> : null}
                     </div>
                   </div>
@@ -360,6 +367,13 @@ export function DealsPage() {
         open={popupModalOpen}
         onClose={() => { setPopupModalOpen(false); setPopupTargetDeal(null); }}
         deal={popupTargetDeal}
+      />
+
+      <BogoDealModal
+        open={bogoModalOpen}
+        onClose={() => { setBogoModalOpen(false); setBogoDeal(null); }}
+        deal={bogoDeal}
+        prefillRestaurantId={selectedRestaurantId}
       />
 
       {/* Deal-väljare: när admin trycker "Skicka popup för deal" listar vi

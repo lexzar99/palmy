@@ -35,7 +35,7 @@ type FormState = {
   maxUses: string;
   startsAt: string;
   expiresAt: string;
-  restaurantId: string;
+  applicableRestaurantIds: string[];
   isActive: boolean;
 };
 
@@ -48,7 +48,7 @@ const emptyForm = (): FormState => ({
   maxUses: "",
   startsAt: "",
   expiresAt: "",
-  restaurantId: "",
+  applicableRestaurantIds: [],
   isActive: true,
 });
 
@@ -92,7 +92,11 @@ export function CouponsPage() {
         maxUses: editing.maxUses != null ? String(editing.maxUses) : "",
         startsAt: toIsoDateInput(editing.startsAt),
         expiresAt: toIsoDateInput(editing.expiresAt),
-        restaurantId: editing.restaurantId ?? "",
+        applicableRestaurantIds: editing.applicableRestaurantIds?.length
+          ? editing.applicableRestaurantIds
+          : editing.restaurantId
+            ? [editing.restaurantId]
+            : [],
         isActive: editing.isActive,
       });
     } else {
@@ -113,7 +117,7 @@ export function CouponsPage() {
         maxUsages: f.maxUses ? Number(f.maxUses) : null,
         validFrom: f.startsAt || null,
         validUntil: f.expiresAt || null,
-        restaurantId: f.restaurantId || null,
+        applicableRestaurantIds: f.applicableRestaurantIds,
         isActive: f.isActive,
       };
       if (editing) {
@@ -238,9 +242,11 @@ export function CouponsPage() {
                       {record.minOrderAmount > 0 ? `${formatNumber(record.minOrderAmount)} kr` : "—"}
                     </td>
                     <td className="py-3 pr-4 text-[var(--text-secondary)]">
-                      {record.restaurantId
-                        ? (restaurantMap.get(record.restaurantId) ?? record.restaurantId)
-                        : <span className="text-[var(--text-muted)]">Alla</span>}
+                      {record.applicableRestaurantIds?.length > 0
+                        ? record.applicableRestaurantIds.map((id) => restaurantMap.get(id) ?? id).join(", ")
+                        : record.restaurantId
+                          ? (restaurantMap.get(record.restaurantId) ?? record.restaurantId)
+                          : <span className="text-[var(--text-muted)]">Alla</span>}
                     </td>
                     <td className="py-3 pr-4">
                       <Badge tone={record.isActive ? "success" : "neutral"}>{record.isActive ? "Aktiv" : "Inaktiv"}</Badge>
@@ -376,16 +382,42 @@ export function CouponsPage() {
             </Field>
           </div>
 
-          <Field label="Restaurang">
-            <Select
-              value={form.restaurantId}
-              onChange={(e) => setField("restaurantId", e.target.value)}
-            >
-              <option value="">Alla restauranger</option>
-              {(restaurants.data ?? []).map((r: ControlCenterRestaurantSnapshot) => (
-                <option key={r.id} value={r.id}>{r.name}</option>
-              ))}
-            </Select>
+          <Field label="Restauranger (lämna tomt = gäller alla)">
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-1">
+              {(restaurants.data ?? []).map((r: ControlCenterRestaurantSnapshot) => {
+                const checked = form.applicableRestaurantIds.includes(r.id);
+                return (
+                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] text-sm select-none">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setField(
+                          "applicableRestaurantIds",
+                          checked
+                            ? form.applicableRestaurantIds.filter((id) => id !== r.id)
+                            : [...form.applicableRestaurantIds, r.id]
+                        );
+                      }}
+                      className="accent-emerald-500 h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="text-[var(--text-primary)]">{r.name}</span>
+                  </label>
+                );
+              })}
+              {(restaurants.data ?? []).length === 0 && (
+                <span className="text-xs text-[var(--text-muted)] px-2 py-1">Inga restauranger</span>
+              )}
+            </div>
+            {form.applicableRestaurantIds.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setField("applicableRestaurantIds", [])}
+                className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline"
+              >
+                Rensa val (gäller alla)
+              </button>
+            )}
           </Field>
 
           <Field label="Status">

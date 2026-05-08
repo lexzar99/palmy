@@ -28,6 +28,9 @@ type DealLike = {
   restaurantId?: string | null;
   isGlobal?: boolean;
   applicableRestaurantIds?: string | null;
+  triggerCategoryId?: string | null;
+  triggerQuantity?: number | null;
+  rewardCategoryId?: string | null;
 };
 
 type ProductPromotionLike = {
@@ -54,9 +57,17 @@ export type ResolvedDisplayPromotion = {
   sortOrder: number;
 };
 
+export type CartItemForBogo = {
+  productId: string;
+  categoryId: string;
+  priceOre: number;
+  quantity: number;
+};
+
 export type DealEvaluationContext = {
   subtotalOre: number;
   productIds: string[];
+  cartItems?: CartItemForBogo[];
 };
 
 const oreToKr = (amount: number) => amount / 100;
@@ -87,7 +98,7 @@ export const parseApplicableRestaurantIds = (raw: string | null | undefined) => 
 
 export const getDealScopeType = (deal: Pick<DealLike, 'triggerType'>): DealScopeType => {
   if (deal.triggerType === 'PRODUCT') return 'PRODUCT';
-  if (deal.triggerType === 'CATEGORY') return 'CATEGORY';
+  if (deal.triggerType === 'CATEGORY' || deal.triggerType === 'BOGO_CATEGORY') return 'CATEGORY';
   if (deal.triggerType === 'COMBO') return 'COMBO';
   if (deal.triggerType === 'MIN_ORDER') return 'MIN_ORDER';
   return 'RESTAURANT';
@@ -101,6 +112,7 @@ export const isBasketDeal = (deal: Pick<DealLike, 'triggerType'>) => {
 export const getDealKind = (deal: Pick<DealLike, 'triggerType' | 'discountType'>) => {
   if (deal.triggerType === 'PRODUCT') return 'PRODUCT';
   if (deal.triggerType === 'CATEGORY') return 'CATEGORY';
+  if (deal.triggerType === 'BOGO_CATEGORY') return 'BOGO_CATEGORY';
   if (deal.triggerType === 'COMBO') return 'COMBO';
   if (deal.triggerType === 'MIN_ORDER') return 'MIN_ORDER';
   if (deal.discountType === 'FIXED_PRICE') return 'FIXED_PRICE';
@@ -151,7 +163,42 @@ export const getDealProgress = (deal: DealLike, context: DealEvaluationContext) 
   };
 };
 
+export const evaluateBogoCategoryDeal = (deal: DealLike, cartItems: CartItemForBogo[]): { eligible: boolean; discountAmountOre: number } => {
+  const triggerCatId = deal.triggerCategoryId;
+  if (!triggerCatId) return { eligible: false, discountAmountOre: 0 };
+
+  const rewardCatId = deal.rewardCategoryId || triggerCatId;
+  const needed = deal.triggerQuantity ?? 2;
+
+  // Count total trigger-category items (summing quantities)
+  const triggerCount = cartItems
+    .filter((item) => item.categoryId === triggerCatId)
+    .reduce((sum, item) => sum + item.quantity, 0);
+
+  if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
+
+  // Find reward items sorted cheapest first
+  const rewardItems = cartItems
+    .filter((item) => item.categoryId === rewardCatId)
+    .flatMap((item) => Array.from({ length: item.quantity }, () => item.priceOre))
+    .sort((a, b) => a - b);
+
+  if (rewardItems.length === 0) return { eligible: false, discountAmountOre: 0 };
+
+  // Give 1 free item (the cheapest)
+  return { eligible: true, discountAmountOre: rewardItems[0] };
+};
+
 export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => {
+  if (deal.triggerType === 'BOGO_CATEGORY') {
+    const result = evaluateBogoCategoryDeal(deal, context.cartItems ?? []);
+    return {
+      eligible: result.eligible,
+      discountAmountOre: result.discountAmountOre,
+      progress: { current: 1, goal: 1, percentage: result.eligible ? 100 : 0, remainingLabel: result.eligible ? 'BOGO aktiv' : `Köp ${deal.triggerQuantity ?? 2} från kategorin` },
+    };
+  }
+
   const progress = getDealProgress(deal, context);
   const productSet = new Set(context.productIds);
   const comboProductIds = parseDealProductIds(deal.comboProductIds);

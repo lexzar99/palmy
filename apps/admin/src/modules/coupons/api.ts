@@ -13,6 +13,7 @@ export interface DiscountRecord {
   expiresAt: string | null;
   isActive: boolean;
   restaurantId: string | null;
+  applicableRestaurantIds: string[];
   createdAt: string;
   updatedAt: string;
 }

@@ -10,7 +10,7 @@ import {
   DEFAULT_ESTIMATED_PICKUP_TIME,
   DEFAULT_MIN_ORDER_AMOUNT,
 } from '../lib/restaurantSettings';
-import { evaluateDeal, isDealAvailableNow } from '../lib/deals';
+import { evaluateDeal, isDealAvailableNow, parseApplicableRestaurantIds, type CartItemForBogo } from '../lib/deals';
 import { triggerLoyaltyRewards } from '../lib/loyalty';
 import { JWT_SECRET } from '../lib/config';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
@@ -509,7 +509,16 @@ router.post('/', async (req: Request, res: Response) => {
           const isExpired = (code.validUntil && code.validUntil < now) ||
             (code.maxUsages !== null && code.usageCount >= code.maxUsages);
 
-          if (!isExpired && subtotal >= code.minOrder) {
+          const applicableIds = parseApplicableRestaurantIds((code as any).applicableRestaurantIds);
+          const codeRestaurantId = (code as any).restaurantId;
+          const restaurantAllowed =
+            applicableIds.length > 0
+              ? applicableIds.includes(restaurant.id)
+              : codeRestaurantId
+                ? codeRestaurantId === restaurant.id
+                : true;
+
+          if (!isExpired && subtotal >= code.minOrder && restaurantAllowed) {
             if (code.type === 'PERCENTAGE') {
               manualDiscountAmount = Math.round(subtotal * code.value / 100);
             } else if (code.type === 'FREE_DELIVERY') {
@@ -576,6 +585,16 @@ router.post('/', async (req: Request, res: Response) => {
     let automaticDiscountAmount = 0;
     const productIdsInCart = data.items.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
 
+    const cartItemsForBogo: CartItemForBogo[] = orderItems.map((oi) => {
+      const prod = productMap.get(oi.productId);
+      return {
+        productId: oi.productId,
+        categoryId: (prod as any)?.categoryId ?? '',
+        priceOre: oi.subtotal / oi.quantity,
+        quantity: oi.quantity,
+      };
+    });
+
     for (const deal of activeDeals) {
       if (!isDealAvailableNow(deal, now)) continue;
 
@@ -589,6 +608,7 @@ router.post('/', async (req: Request, res: Response) => {
       const evaluation = evaluateDeal(deal, {
         subtotalOre: subtotal,
         productIds: productIdsInCart,
+        cartItems: cartItemsForBogo,
       });
 
       if (!evaluation.eligible) continue;

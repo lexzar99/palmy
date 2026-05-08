@@ -1513,6 +1513,9 @@ const formatDealForAdmin = (deal: any) => ({
   comboProductIds: parseDealProductIds(deal.comboProductIds),
   targetIds: parseDealTargetIds(deal.comboProductIds),
   applicableRestaurantIds: parseJsonArray(deal.applicableRestaurantIds),
+  triggerCategoryId: deal.triggerCategoryId ?? null,
+  triggerQuantity: deal.triggerQuantity ?? 2,
+  rewardCategoryId: deal.rewardCategoryId ?? null,
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -1589,6 +1592,7 @@ const normalizeDealInputForDb = (body: any) => {
     next.triggerType =
       scopeType === 'PRODUCT' ||
       scopeType === 'CATEGORY' ||
+      scopeType === 'BOGO_CATEGORY' ||
       scopeType === 'COMBO' ||
       scopeType === 'MIN_ORDER'
         ? scopeType
@@ -1653,6 +1657,16 @@ const normalizeDealInputForDb = (body: any) => {
       next.restaurantId = null;
       next.applicableRestaurantIds = JSON.stringify([]);
     }
+  }
+
+  if (body.triggerCategoryId !== undefined) {
+    next.triggerCategoryId = body.triggerCategoryId || null;
+  }
+  if (body.triggerQuantity !== undefined) {
+    next.triggerQuantity = Math.max(1, Number(body.triggerQuantity) || 2);
+  }
+  if (body.rewardCategoryId !== undefined) {
+    next.rewardCategoryId = body.rewardCategoryId || null;
   }
 
   if (body.validFrom !== undefined) {
@@ -1727,6 +1741,7 @@ const formatDiscountCodeForAdmin = (discount: any) => ({
   expiresAt: discount.validUntil,
   isActive: discount.isActive,
   restaurantId: discount.restaurantId || null,
+  applicableRestaurantIds: parseJsonArray(discount.applicableRestaurantIds),
   createdAt: discount.createdAt,
   updatedAt: discount.updatedAt,
 });
@@ -2736,7 +2751,11 @@ router.post('/discounts', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
+    const { code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds } = req.body;
+
+    const parsedRestaurantIds = Array.isArray(applicableRestaurantIds)
+      ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(applicableRestaurantIds);
 
     const discountData: any = {
       code: code.toUpperCase(),
@@ -2747,8 +2766,11 @@ router.post('/discounts', async (req, res) => {
       maxUsages: maxUsages || null,
       validFrom: validFrom ? new Date(validFrom) : null,
       validUntil: validUntil ? new Date(validUntil) : null,
+      applicableRestaurantIds: JSON.stringify(parsedRestaurantIds),
     };
-    if (restaurantId) discountData.restaurantId = restaurantId;
+    if (restaurantId && parsedRestaurantIds.length === 0) discountData.restaurantId = restaurantId;
+    else if (parsedRestaurantIds.length === 1) discountData.restaurantId = parsedRestaurantIds[0];
+    else discountData.restaurantId = null;
 
     const discount = await prisma.discountCode.create({
       data: discountData,
@@ -2769,7 +2791,7 @@ router.patch('/discounts/:id', async (req, res) => {
       return res.status(403).json({ error: 'Kräver super admin-behörighet' });
     }
 
-    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId } = req.body;
+    const { isActive, code, description, type, value, minOrder, maxUsages, validFrom, validUntil, restaurantId, applicableRestaurantIds } = req.body;
     const updateData: any = {};
     if (isActive !== undefined) updateData.isActive = isActive;
     if (code) updateData.code = code.toUpperCase();
@@ -2780,7 +2802,15 @@ router.patch('/discounts/:id', async (req, res) => {
     if (maxUsages !== undefined) updateData.maxUsages = maxUsages || null;
     if (validFrom !== undefined) updateData.validFrom = validFrom ? new Date(validFrom) : null;
     if (validUntil !== undefined) updateData.validUntil = validUntil ? new Date(validUntil) : null;
-    if (restaurantId !== undefined) updateData.restaurantId = restaurantId || null;
+    if (applicableRestaurantIds !== undefined) {
+      const parsed = Array.isArray(applicableRestaurantIds)
+        ? applicableRestaurantIds.filter((v: unknown): v is string => typeof v === 'string')
+        : parseJsonArray(applicableRestaurantIds);
+      updateData.applicableRestaurantIds = JSON.stringify(parsed);
+      updateData.restaurantId = parsed.length === 1 ? parsed[0] : parsed.length === 0 ? (restaurantId || null) : null;
+    } else if (restaurantId !== undefined) {
+      updateData.restaurantId = restaurantId || null;
+    }
 
     const updated = await prisma.discountCode.update({
       where: { id: req.params.id },
