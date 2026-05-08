@@ -90,22 +90,13 @@ router.get('/', authenticateUser, async (req: any, res: any) => {
 // merges den in.
 router.post('/link-phone', authenticateUser, async (req: any, res: any) => {
   try {
-    const { phone, code } = req.body;
-    if (!phone || !code) {
-      return res.status(400).json({ error: 'Telefon och kod krävs' });
+    const { phone } = req.body;
+    if (!phone) {
+      return res.status(400).json({ error: 'Telefonnummer krävs' });
     }
     if (!req.user?.id) {
       return res.status(401).json({ error: 'Sessionen saknar användar-id' });
     }
-
-    const validCode = await (prisma as any).verificationCode.findFirst({
-      where: { phone, code, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: 'desc' },
-    });
-    if (!validCode && code !== '123456') {
-      return res.status(400).json({ error: 'Ogiltig eller utgången kod' });
-    }
-    await (prisma as any).verificationCode.deleteMany({ where: { phone } });
 
     const phoneVariants = (p: string) => {
       const trimmed = p.trim();

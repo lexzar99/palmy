@@ -235,17 +235,12 @@ function ProfileContent() {
   const [newAddrNote, setNewAddrNote] = useState("");
   const [addrSaving, setAddrSaving] = useState(false);
 
-  // Auth (Phone OTP)
-  const [showOtp, setShowOtp] = useState(false);
-  const [otpCode, setOtpCode] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [otpPhone, setOtpPhone] = useState(""); // Stores phone after sending OTP
-  const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
-
-  const [countryCode, setCountryCode] = useState("+46");
-  const [loginPhone, setLoginPhone] = useState("");
+  // Auth (Email + Password)
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
 
   // Edit profile
   const [isEditing, setIsEditing] = useState(false);
@@ -301,12 +296,11 @@ function ProfileContent() {
         console.warn("Failed to load addresses:", err);
       }
       
-      // If user has no phone and we are not in the middle of verifying one, prompt them
+      // If user has no phone, prompt them to add one
       if (!profileRes.data.phone) {
         setShowAddPhone(true);
       } else {
         setShowAddPhone(false);
-        setShowOtp(false);
       }
     } catch {
       void handleLogout();
@@ -539,63 +533,19 @@ function ProfileContent() {
     else localStorage.setItem("platform_has_visited", "true");
   }, []);
 
-  const handleSendOtp = async (e: React.FormEvent, customPhone?: string) => {
-    if (e) e.preventDefault();
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoggingIn(true);
     setLoginError("");
-    const phoneToUse = customPhone || `${countryCode}${loginPhone.replace(/^0/, "")}`;
-    setOtpPhone(phoneToUse);
-
     try {
-      await axios.post(`${API_URL}/api/account/send-otp`, { phone: phoneToUse });
-      setShowOtp(true);
-      if (showAddPhone) setShowAddPhone(false); // If we were in OAuth add-phone
+      const res = await axios.post(`${API_URL}/api/account/login-user`, { identifier: loginEmail, password: loginPassword });
+      await persistPlatformSession(res.data.token);
+      setHasPlatformSession(true);
+      await fetchData();
     } catch (err: any) {
-      setLoginError(err.response?.data?.error || "Kunde inte skicka kod");
-      if (showAddPhone) setAddPhoneError(err.response?.data?.error || "Kunde inte skicka kod");
+      setLoginError(err.response?.data?.error || "Felaktigt lösenord eller e-post");
     } finally {
       setIsLoggingIn(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsVerifying(true);
-    setLoginError("");
-    try {
-      // KRITISKT: Om användaren REDAN är inloggad (Apple/Google) ska
-      // verifieringen LÄNKA telefonen till befintlig user — INTE skapa
-      // ny via verify-otp (som var anledningen till att Apple-konton
-      // dubblerades med "Gäst 5678"-konton).
-      if (hasPlatformSession && user) {
-        console.log("[OTP] User already logged in → using /api/profile/link-phone (will NOT create new user)");
-        const res = await axios.post(`/api/platform/profile/link-phone`, {
-          phone: otpPhone,
-          code: otpCode,
-        });
-        // link-phone returnerar { user } utan ny token — behåll nuvarande session
-        setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
-        await fetchData();
-        setShowOtp(false);
-        setShowAddPhone(false);
-      } else {
-        // Telefon-only login: skapa/hitta user via phone
-        console.log("[OTP] No active session → using /api/account/verify-otp (may create new user)");
-        const res = await axios.post(`/api/platform/account/verify-otp`, {
-          phone: otpPhone,
-          code: otpCode,
-        });
-        const { token: newToken, user: newUser } = res.data;
-        await persistPlatformSession(newToken);
-        setHasPlatformSession(true);
-        setUser(newUser);
-        await fetchData();
-        setShowOtp(false);
-      }
-    } catch (err: any) {
-      setLoginError(err.response?.data?.error || "Felaktig kod");
-    } finally {
-      setIsVerifying(false);
     }
   };
 
@@ -605,10 +555,12 @@ function ProfileContent() {
     setAddPhoneLoading(true);
     setAddPhoneError("");
     try {
-      // Instead of direct add, send OTP
-      await handleSendOtp(e, fullPhone);
+      const res = await axios.post(`/api/platform/profile/link-phone`, { phone: fullPhone });
+      setUser((prev: any) => ({ ...(prev || {}), ...res.data.user }));
+      await fetchData();
+      setShowAddPhone(false);
     } catch (err: any) {
-      setAddPhoneError(err.response?.data?.error || "Kunde inte verifiera nummer");
+      setAddPhoneError(err.response?.data?.error || "Kunde inte spara nummer");
     } finally {
       setAddPhoneLoading(false);
     }
@@ -677,62 +629,43 @@ function ProfileContent() {
             </p>
           </div>
 
-          {/* Phone login / OTP form */}
-          {showOtp ? (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Verifieringskod</label>
-                <input
-                  required
-                  type="text"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="000 000"
-                  className="w-full rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] placeholder:text-zinc-200 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-                  style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                />
-              </div>
-              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
-              <button
-                type="submit"
-                disabled={isVerifying}
-                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Verifiera"}
-              </button>
-              <button type="button" onClick={() => setShowOtp(false)} className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-600 transition-colors">
-                Ändra telefonnummer
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Telefonnummer</label>
-                <div className="flex gap-2">
-                  <CountryPicker value={countryCode} onChange={setCountryCode} />
-                  <input
-                    required
-                    type="tel"
-                    autoComplete="tel"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
-                    placeholder="070 000 00 00"
-                    className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-                    style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                  />
-                </div>
-              </div>
-              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
-              >
-                {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Fortsätt"}
-              </button>
-            </form>
-          )}
+          {/* Email + Password login form */}
+          <form onSubmit={handleEmailLogin} className="space-y-4">
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">E-post</label>
+              <input
+                required
+                type="email"
+                autoComplete="email"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                placeholder="din@email.se"
+                className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-black uppercase tracking-widest text-zinc-600 ml-1 mb-1 block">Lösenord</label>
+              <input
+                required
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              />
+            </div>
+            {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
+            <button
+              type="submit"
+              disabled={isLoggingIn}
+              className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-60"
+            >
+              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Logga in"}
+            </button>
+          </form>
 
           {/* Divider */}
           <div className="relative">
@@ -1526,68 +1459,6 @@ function ProfileContent() {
       </div>
     </div>
     
-    {/* Global OTP Overlay for Verification */}
-    <AnimatePresence>
-      {showOtp && (
-        <motion.div 
-          initial={{ opacity: 0 }} 
-          animate={{ opacity: 1 }} 
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(252,252,249,0.9)" }}
-        >
-          <motion.div 
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 20 }}
-            className="w-full max-w-sm rounded-[2.5rem] p-8 space-y-8 shadow-2xl"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
-          >
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center text-gold-600 mx-auto">
-                <ShieldCheck size={32} />
-              </div>
-              <h2 className="text-2xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Verifiera kod</h2>
-              <p className="text-zinc-400 text-xs">Vi har skickat en kod till {otpPhone}</p>
-            </div>
-
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div>
-                <label className="text-[9px] font-black uppercase tracking-widest text-zinc-400 ml-1 mb-1 block">Engångskod</label>
-                <input
-                  required
-                  type="text"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="000 000"
-                  className="w-full rounded-2xl py-4 px-5 text-center text-2xl font-black tracking-[0.5em] placeholder:text-zinc-100 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
-                  style={{ backgroundColor: "var(--bg-primary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-                />
-              </div>
-              
-              {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
-              
-              <button
-                type="submit"
-                disabled={isVerifying}
-                className="w-full py-5 bg-gold-500 text-zinc-950 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-              >
-                {isVerifying ? <Loader2 className="animate-spin" size={20} /> : "Bekräfta kod"}
-              </button>
-
-              <button 
-                type="button" 
-                onClick={() => setShowOtp(false)}
-                className="w-full text-center text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-colors"
-              >
-                Avbryt
-              </button>
-            </form>
-          </motion.div>
-</motion.div>
-        )}
-    </AnimatePresence>
-
     {/* Delete Account Modal */}
     <ConfirmModal
       isOpen={deleteAccountModalOpen}

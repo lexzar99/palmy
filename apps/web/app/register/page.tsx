@@ -11,9 +11,10 @@ import { persistPlatformSession } from "@/lib/platformSessionClient";
 
 const RegisterPage = () => {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +25,7 @@ const RegisterPage = () => {
     setIsRegistering(true);
     setError("");
     try {
-      const res = await axios.post(`${API_URL}/api/account/register-user`, { name, phone, password, email });
+      const res = await axios.post(`${API_URL}/api/account/register-user`, { firstName, lastName, email, phone: phone || undefined, password });
       await persistPlatformSession(res.data.token);
       setSuccess(true);
       setTimeout(() => router.push("/profile"), 2000);
@@ -62,31 +63,39 @@ const RegisterPage = () => {
           </div>
         ) : (
           <form onSubmit={handleRegister} className="space-y-4">
-             <input 
-               type="text" 
-               placeholder="Fullständigt namn"
+             <input
+               type="text"
+               placeholder="Förnamn"
                required
-               value={name}
-               onChange={(e) => setName(e.target.value)}
+               value={firstName}
+               onChange={(e) => setFirstName(e.target.value)}
                className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
              />
-             <input 
-               type="tel" 
-               placeholder="Telefonnummer"
+             <input
+               type="text"
+               placeholder="Efternamn"
                required
-               value={phone}
-               onChange={(e) => setPhone(e.target.value)}
+               value={lastName}
+               onChange={(e) => setLastName(e.target.value)}
                className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
              />
-             <input 
-               type="email" 
-               placeholder="E-post (frivilligt)"
+             <input
+               type="email"
+               placeholder="E-post"
+               required
                value={email}
                onChange={(e) => setEmail(e.target.value)}
                className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
              />
-             <input 
-               type="password" 
+             <input
+               type="tel"
+               placeholder="Telefon (valfritt)"
+               value={phone}
+               onChange={(e) => setPhone(e.target.value)}
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+             />
+             <input
+               type="password"
                placeholder="Välj lösenord"
                required
                value={password}

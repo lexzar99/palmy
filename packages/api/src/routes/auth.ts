@@ -693,22 +693,23 @@ router.post('/verify', async (req, res) => {
 // POST /api/auth/register-user
 router.post('/register-user', async (req, res) => {
   try {
-    const { name, phone, password, email } = req.body;
-    if (!name || !phone || !password) {
-      return res.status(400).json({ error: 'Namn, telefon och lösenord krävs' });
+    const { firstName, lastName, email, password, phone } = req.body;
+    if (!firstName || !lastName || !email || !password) {
+      return res.status(400).json({ error: 'Förnamn, efternamn, e-post och lösenord krävs' });
     }
     const existing = await (prisma as any).user.findFirst({
-      where: { OR: [{ phone }, { email: email || undefined }] }
+      where: { email }
     });
     if (existing) {
-      return res.status(400).json({ error: 'Telefonnumret eller e-posten används redan' });
+      return res.status(400).json({ error: 'E-postadressen används redan' });
     }
+    const name = `${firstName} ${lastName}`.trim();
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await (prisma as any).user.create({
-      data: { name, phone, email, password: hashedPassword }
+      data: { name, firstName, lastName, email, phone: phone || null, password: hashedPassword }
     });
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone } });
+    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
   }
