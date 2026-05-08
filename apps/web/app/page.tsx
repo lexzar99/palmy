@@ -528,7 +528,7 @@ export default function HomePage() {
                     {(() => {
                       const zi = zoneDeliveryInfo[r.id];
                       const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
-                      const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
+                      const eta = r.etaMinutes ?? 30;
                       return (
                         <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-zinc-400">
                           <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} MIN</span>
@@ -958,7 +958,7 @@ export default function HomePage() {
                               <span style={{ color: "var(--border-muted)" }}>•</span>
                               <span className="flex items-center gap-1">
                                 <Clock size={11} className="text-gold-500/60" />
-                                {(() => { const zi = zoneDeliveryInfo[r.id]; return zi?.etaMinutes ?? r.etaMinutes ?? 30; })()} min
+                                {r.etaMinutes ?? 30} min
                               </span>
                               <span style={{ color: "var(--border-muted)" }}>•</span>
                               <span className="flex items-center gap-1">
