@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Loader2, Plus, Printer, Save } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Plus, Printer, Save } from "lucide-react";
 import {
   createPrinter,
   deletePrinter,
@@ -287,6 +287,7 @@ export function ReceiptsPage() {
   const [previewOrderId, setPreviewOrderId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ReceiptTemplate | null>(null);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
   const config = useQuery({ queryKey: printingConfigQueryKey, queryFn: getPrintingConfig });
@@ -397,6 +398,14 @@ export function ReceiptsPage() {
             {saveStatus === "error" && (
               <span className="text-sm font-medium text-red-500">✗ Kunde inte spara</span>
             )}
+            <Button
+              onClick={() => {
+                if (config.data) setDraft(mergeTemplateElements({ ...config.data.template, elements: defaultElements }));
+              }}
+              disabled={!draft}
+            >
+              Återställ allt
+            </Button>
             <Button variant="primary" onClick={() => saveMutation.mutate()} disabled={!draft || saveMutation.isPending}>
               {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Spara template
             </Button>
@@ -420,109 +429,116 @@ export function ReceiptsPage() {
               </Field>
             </div>
 
-            <div className="rounded border border-[var(--border)] overflow-hidden divide-y divide-[var(--border)]">
-              {draft?.elements.map((el, idx) => {
-                const isOpen = selectedKey === el.key;
-                return (
-                  <div key={el.key}>
-                    {/* Row */}
-                    <div className={`flex items-center gap-1 px-2 py-2 text-sm ${isOpen ? "bg-[var(--accent-faint,#eef2ff)]" : "hover:bg-[var(--surface-muted)]"}`}>
-                      {/* reorder */}
-                      <span className="flex flex-col shrink-0 gap-0.5">
-                        <button
-                          type="button"
-                          disabled={idx === 0}
-                          onClick={() => setDraft((p) => {
-                            if (!p) return p;
-                            const els = [...p.elements];
-                            [els[idx - 1], els[idx]] = [els[idx], els[idx - 1]];
-                            return { ...p, elements: els };
-                          })}
-                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20"
-                        ><ArrowUp size={10} /></button>
-                        <button
-                          type="button"
-                          disabled={idx === (draft?.elements.length ?? 0) - 1}
-                          onClick={() => setDraft((p) => {
-                            if (!p) return p;
-                            const els = [...p.elements];
-                            [els[idx], els[idx + 1]] = [els[idx + 1], els[idx]];
-                            return { ...p, elements: els };
-                          })}
-                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20"
-                        ><ArrowDown size={10} /></button>
-                      </span>
-                      {/* visibility toggle */}
-                      <button
-                        type="button"
-                        onClick={() => updateElement(el.key, { visible: !el.visible })}
-                        className="shrink-0 px-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                      >
-                        {el.visible ? <Eye size={13} /> : <EyeOff size={13} className="opacity-40" />}
-                      </button>
-                      {/* label — clicking expands controls */}
-                      <button
-                        type="button"
-                        onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
-                        className={`flex-1 text-left truncate font-medium ${!el.visible ? "line-through opacity-40" : ""}`}
-                      >
-                        {el.label}
-                      </button>
-                      <span className="shrink-0 text-[10px] text-[var(--text-muted)] tabular-nums mr-1">{el.size}px</span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedKey((k) => k === el.key ? null : el.key)}
-                        className="shrink-0 text-[var(--text-muted)] text-[10px]"
-                      >{isOpen ? "▲" : "▼"}</button>
-                    </div>
+            {(() => {
+              const sections = [
+                { key: "paymentMethod", label: "Betalmetod", elements: ["paymentMethod"] },
+                { key: "estimatedTime", label: "Beräknad tid (leverans)", elements: ["estimatedTime"] },
+                { key: "orderType", label: "Ordertyp", elements: ["orderType", "scheduledFor"] },
+                { key: "direction", label: "Leveransadress", elements: ["customerAddress", "deliveryInstructions"] },
+                { key: "orderDetails", label: "Orderdetaljer", elements: ["orderNumber", "timestamp"] },
+                { key: "clientInfo", label: "Kundinformation", elements: ["customerName", "customerPhone"] },
+                { key: "items", label: "Artiklar", elements: ["items", "extras"] },
+                { key: "notes", label: "Notering / Allergener", elements: ["note", "allergens"] },
+                { key: "totals", label: "Totaler", elements: ["deliveryFee", "discount", "total"] },
+                { key: "footer", label: "Sidfot", elements: ["thankYou", "footerMsg"] },
+                { key: "headerMsg", label: "Rubrikmeddelande", elements: ["headerMsg"] },
+              ];
 
-                    {/* Inline controls — expands directly under the row */}
-                    {isOpen && (
-                      <div className="px-3 py-3 bg-[var(--surface-muted)] border-t border-[var(--border)] space-y-3">
-                        <div className="grid grid-cols-3 gap-2">
-                          <Field label="Storlek">
-                            <Select value={el.size} onChange={(e) => updateElement(el.key, { size: Number(e.target.value) })}>
-                              {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((sz) => (
-                                <option key={sz} value={sz}>{sz}</option>
-                              ))}
-                            </Select>
-                          </Field>
-                          <Field label="Justering">
-                            <Select value={el.align} onChange={(e) => updateElement(el.key, { align: e.target.value as ReceiptElement["align"] })}>
-                              <option value="left">Vänster</option>
-                              <option value="center">Mitten</option>
-                              <option value="right">Höger</option>
-                            </Select>
-                          </Field>
-                          <Field label="Stil">
-                            <Select value={el.weight} onChange={(e) => updateElement(el.key, { weight: e.target.value as ReceiptElement["weight"] })}>
-                              <option value="normal">Normal</option>
-                              <option value="bold">Bold</option>
-                              <option value="black">Black</option>
-                            </Select>
-                          </Field>
+              const contentKeys = new Set(["thankYou", "footerMsg", "headerMsg"]);
+
+              return (
+                <div className="rounded border border-[var(--border)] overflow-hidden divide-y divide-[var(--border)]">
+                  {sections.map((section) => {
+                    const sectionVisible = section.elements.some((key) => {
+                      const el = draft?.elements.find((e) => e.key === key);
+                      return el?.visible === true;
+                    });
+                    const isExpanded = expandedSection === section.key;
+
+                    const toggleSectionVisible = () => {
+                      const newVisible = !sectionVisible;
+                      setDraft((prev) => {
+                        if (!prev) return prev;
+                        return {
+                          ...prev,
+                          elements: prev.elements.map((el) =>
+                            section.elements.includes(el.key) ? { ...el, visible: newVisible } : el
+                          ),
+                        };
+                      });
+                    };
+
+                    return (
+                      <div key={section.key}>
+                        {/* Section header row */}
+                        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-[var(--border)] last:border-b-0">
+                          {/* iOS-style toggle */}
+                          <button
+                            type="button"
+                            onClick={toggleSectionVisible}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ${sectionVisible ? "bg-emerald-500" : "bg-zinc-300"}`}
+                          >
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${sectionVisible ? "translate-x-5" : "translate-x-0"}`} />
+                          </button>
+                          {/* Label */}
+                          <span className="flex-1 text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{section.label}</span>
+                          {/* Expand/collapse */}
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSection((k) => k === section.key ? null : section.key)}
+                            className="text-[var(--text-muted)]"
+                          >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                          </button>
                         </div>
-                        <div className="flex items-center gap-4 text-sm">
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={!!el.uppercase} onChange={(e) => updateElement(el.key, { uppercase: e.target.checked })} />
-                            Versaler
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="checkbox" checked={el.visible} onChange={(e) => updateElement(el.key, { visible: e.target.checked })} />
-                            Synlig
-                          </label>
-                        </div>
-                        {el.content !== undefined && (
-                          <Field label="Innehåll">
-                            <Textarea value={el.content ?? ""} onChange={(e) => updateElement(el.key, { content: e.target.value })} rows={2} />
-                          </Field>
+
+                        {/* Expanded element detail */}
+                        {isExpanded && (
+                          <div className="px-4 py-3 bg-[var(--bg-deep,var(--surface-muted))] space-y-3 border-b border-[var(--border)]">
+                            {section.elements.map((key) => {
+                              const el = draft?.elements.find((e) => e.key === key);
+                              if (!el) return null;
+                              return (
+                                <div key={key} className="space-y-2">
+                                  <div className="flex items-center gap-3">
+                                    <span className="flex-1 text-xs font-medium text-[var(--text-secondary)]">{el.label}</span>
+                                    <Select
+                                      value={el.size}
+                                      onChange={(e) => updateElement(key, { size: Number(e.target.value) })}
+                                    >
+                                      {[7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 30].map((sz) => (
+                                        <option key={sz} value={sz}>{sz} px</option>
+                                      ))}
+                                    </Select>
+                                    <Select
+                                      value={el.align}
+                                      onChange={(e) => updateElement(key, { align: e.target.value as ReceiptElement["align"] })}
+                                    >
+                                      <option value="left">Vänster</option>
+                                      <option value="center">Mitten</option>
+                                      <option value="right">Höger</option>
+                                    </Select>
+                                  </div>
+                                  {contentKeys.has(key) && el.content !== undefined && (
+                                    <Field label="Innehåll">
+                                      <Textarea
+                                        value={el.content ?? ""}
+                                        onChange={(e) => updateElement(key, { content: e.target.value })}
+                                        rows={2}
+                                      />
+                                    </Field>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: live preview */}

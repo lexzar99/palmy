@@ -110,9 +110,11 @@ export default function CartPage() {
   const [formData, setFormData] = useState(() => {
     const savedName = typeof window !== "undefined" ? localStorage.getItem("guest_name") || "" : "";
     const savedPhone = typeof window !== "undefined" ? localStorage.getItem("guest_phone") || "" : "";
+    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("guest_email") || "" : "";
     return {
       customerName: savedName,
       customerPhone: savedPhone,
+      customerEmail: savedEmail,
       deliveryStreet: "",
       deliveryZip: "",
       deliveryCity: "",
@@ -465,28 +467,53 @@ export default function CartPage() {
     }
   }, [currentRestaurantId]);
 
-  const handleApplyPromo = () => {
+  const handleApplyPromo = async () => {
     const code = promoCodeInput.trim().toLowerCase();
     if (code === "test" || code === "testa") {
-      setSelectedPersonalDeal({ 
-        code: code, 
-        campaign: { 
-          discountType: "FIXED", 
-          discountValue: 0, 
-          title: "Testläge (Gratis)", 
-          minOrder: 0 
-        } 
+      setSelectedPersonalDeal({
+        code: code,
+        campaign: {
+          discountType: "FIXED",
+          discountValue: 0,
+          title: "Testläge (Gratis)",
+          minOrder: 0
+        }
       });
       return;
     }
-    
+
     const matched = personalDeals.find(d => d.code.toLowerCase() === code);
     if (matched) {
       setSelectedPersonalDeal(matched);
       return;
     }
 
-    setError("Ogiltig rabattkod.");
+    try {
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const res = await fetch(`${API_URL}/api/discount/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCodeInput.trim(), subtotal }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedPersonalDeal({
+          code: data.code,
+          campaign: {
+            discountType: data.type === "PERCENTAGE" ? "PERCENTAGE" : data.freeDelivery ? "FREE_DELIVERY" : "FIXED",
+            discountValue: data.type === "PERCENTAGE" ? data.value : data.freeDelivery ? 0 : data.value,
+            title: data.description || data.code,
+            minOrder: 0,
+            freeDelivery: data.freeDelivery || false,
+          }
+        });
+      } else {
+        const err = await res.json();
+        setError(err.error || "Ogiltig rabattkod.");
+      }
+    } catch {
+      setError("Ogiltig rabattkod.");
+    }
   };
 
   useEffect(() => {
@@ -607,6 +634,7 @@ export default function CartPage() {
     type: orderType,
     customerName: formData.customerName,
     customerPhone: formData.customerPhone,
+    customerEmail: formData.customerEmail || undefined,
     deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
     deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
     deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
@@ -663,12 +691,13 @@ export default function CartPage() {
     router.push(`/order/${orderId}`);
   }, [pendingOrderId, clearCart, router]);
 
-  // Persist guest name/phone across sessions
+  // Persist guest name/phone/email across sessions
   useEffect(() => {
     if (user || typeof window === "undefined") return;
     if (formData.customerName) localStorage.setItem("guest_name", formData.customerName);
     if (formData.customerPhone) localStorage.setItem("guest_phone", formData.customerPhone);
-  }, [user, formData.customerName, formData.customerPhone]);
+    if (formData.customerEmail) localStorage.setItem("guest_email", formData.customerEmail);
+  }, [user, formData.customerName, formData.customerPhone, formData.customerEmail]);
 
   const startCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1114,6 +1143,10 @@ export default function CartPage() {
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Telefon</label>
                               <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} type="tel" autoComplete="tel" inputMode="tel" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="+46 70 000 00 00" />
                            </div>
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>E-post</label>
+                           <input value={formData.customerEmail} onChange={e => setFormData({...formData, customerEmail: e.target.value})} type="email" autoComplete="email" inputMode="email" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="E-post (valfritt)" />
                         </div>
 
                         {orderType === 'DELIVERY' && (
