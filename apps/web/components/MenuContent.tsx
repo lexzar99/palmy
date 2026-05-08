@@ -392,12 +392,12 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           </div>
         </div>
 
-        {/* Sticky Categories — own sticky row so overflow-x:auto is never clipped by a sticky ancestor */}
+        {/* Sticky Categories — breaks out of parent px-6 so scroll is never clipped */}
         {categories.length > 0 && (
-          <div className="sticky z-39 mb-16" style={{ top: "3.5rem" }}>
+          <div className="sticky z-40 mb-16 -mx-6 lg:-mx-12" style={{ top: "3.5rem" }}>
             <div
-              className="flex gap-2 no-scrollbar"
-              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, paddingRight: "1rem" }}
+              className="flex gap-2 no-scrollbar px-6 lg:px-12"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, paddingRight: "1.5rem" }}
             >
               {categories.map(cat => (
                 <motion.button
@@ -411,7 +411,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                       window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
                     }
                   }}
-                  className={`px-5 py-3 rounded-[2rem] text-[10px] font-black uppercase tracking-widest transition-all shrink-0 whitespace-nowrap ${
+                  className={`px-5 py-3 rounded-[2rem] text-[10px] font-black uppercase tracking-wider transition-all shrink-0 whitespace-nowrap ${
                     activeCategory === cat.id
                       ? "bg-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
                       : "text-zinc-400 hover:text-zinc-600"
