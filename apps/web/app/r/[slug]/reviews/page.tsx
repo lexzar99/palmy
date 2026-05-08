@@ -99,7 +99,7 @@ export default function RestaurantReviewsPage() {
     <div className="min-h-screen pb-24" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 sm:px-6 sm:pt-8">
         <Link
-          href={`/r/${slug}`}
+          href={`/restaurants/${slug}`}
           className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider"
           style={{ color: "var(--text-secondary)" }}
         >

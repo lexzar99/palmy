@@ -1277,4 +1277,65 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/orders/:id/review  (public — works for both guests and logged-in users)
+router.post('/:id/review', async (req: Request, res: Response) => {
+  try {
+    const { rating, review, likedItemIds } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Betyg måste vara mellan 1-5' });
+    }
+    const order = await prisma.order.findFirst({
+      where: { id: req.params.id },
+      include: { items: { select: { productId: true, productName: true } } },
+    });
+    if (!order) return res.status(404).json({ error: 'Order hittades inte' });
+    if (!['DELIVERED', 'READY', 'COMPLETED'].includes(order.status)) {
+      return res.status(400).json({ error: 'Du kan bara betygsätta levererade ordrar' });
+    }
+    if ((order as any).rating) {
+      return res.status(400).json({ error: 'Denna order har redan fått ett betyg' });
+    }
+
+    const validProductIds = new Set((order.items as any[]).map((i) => i.productId));
+    const cleanLikedIds = Array.isArray(likedItemIds)
+      ? likedItemIds.filter((id: unknown): id is string => typeof id === 'string' && validProductIds.has(id))
+      : [];
+
+    // Derive reviewer name: use order's customerName, else "Gäst" + 4 chars from order ID
+    const rawName = (order as any).customerName as string | null;
+    const guestTag = order.id.replace(/-/g, '').slice(-4).toUpperCase();
+    const reviewerName = rawName?.trim() ? rawName.trim() : `Gäst${guestTag}`;
+
+    await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        rating,
+        review: review || null,
+        reviewedAt: new Date(),
+        likedItemIds: JSON.stringify(cleanLikedIds),
+        customerName: reviewerName,
+      } as any,
+    });
+
+    if ((order as any).restaurantId) {
+      const stats = await prisma.order.aggregate({
+        where: { restaurantId: (order as any).restaurantId, rating: { not: null } },
+        _avg: { rating: true },
+        _count: { rating: true },
+      });
+      if (stats._avg.rating != null) {
+        await prisma.restaurant.update({
+          where: { id: (order as any).restaurantId },
+          data: { rating: Math.round(stats._avg.rating * 10) / 10, ratingCount: stats._count.rating },
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Review error:', error);
+    res.status(500).json({ error: 'Kunde inte spara recension' });
+  }
+});
+
 export default router;

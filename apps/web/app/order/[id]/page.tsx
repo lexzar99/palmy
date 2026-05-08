@@ -188,7 +188,7 @@ const OrderStatusPage = () => {
     if (!reviewRating || !orderId) return;
     setReviewSubmitting(true);
     try {
-      await axios.post(`/api/platform/profile/orders/${orderId}/review`, { rating: reviewRating, review: reviewText, likedItemIds });
+      await axios.post(`/api/platform/orders/${orderId}/review`, { rating: reviewRating, review: reviewText, likedItemIds });
       setReviewDone(true);
       setShowReview(false);
       setOrder((prev: any) => prev ? { ...prev, rating: reviewRating } : prev);
@@ -198,6 +198,16 @@ const OrderStatusPage = () => {
       setReviewSubmitting(false);
     }
   };
+
+  // Lock background scroll when review modal is open
+  useEffect(() => {
+    if (showReview) {
+      document.documentElement.style.overflowY = "hidden";
+    } else {
+      document.documentElement.style.overflowY = "";
+    }
+    return () => { document.documentElement.style.overflowY = ""; };
+  }, [showReview]);
 
   if (loading) {
     return (
@@ -428,7 +438,7 @@ const OrderStatusPage = () => {
         {/* Review Modal */}
         <AnimatePresence>
           {showReview && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-6 backdrop-blur-sm" style={{ backgroundColor: "rgba(252,252,249,0.8)" }}>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center px-6 pb-8 sm:pb-0 backdrop-blur-sm" style={{ backgroundColor: "rgba(10,10,10,0.7)" }}>
                <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm p-10 rounded-[3rem] shadow-2xl space-y-8 border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Betygsätt</h2>
