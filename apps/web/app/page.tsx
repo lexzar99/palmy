@@ -318,6 +318,7 @@ export default function HomePage() {
         tone: "purple" as const,
         variant: "public" as const,
         relatedRestaurantIds: related,
+        isGlobal: d.isGlobal ?? false,
         onNavigateToFiltered: (ids: string[], title: string) => setFilteredByDeal({ ids, title }),
       };
     });
