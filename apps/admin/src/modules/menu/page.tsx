@@ -29,9 +29,9 @@ import {
   type ProductRecord,
   type RestaurantRef,
 } from "@/modules/menu/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
-import { formatCurrency, formatNumber } from "@/shared/utils/format";
+import { formatCurrency } from "@/shared/utils/format";
 
 type MenuTab = "categories" | "products" | "extras";
 
@@ -453,39 +453,43 @@ export function MenuPage() {
 
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Menu"
-          title="Categories, products and extras"
-          description="All menu changes stay scoped to one restaurant at a time and all data is pulled from the admin APIs."
-          actions={<Badge tone="info">{selectedRestaurant?.name || "Select restaurant"}</Badge>}
-        />
-      </Surface>
+      <PageHeader
+        title="Menu"
+        actions={
+          <>
+            {tab === "categories" && activeRestaurantId ? (
+              <Button variant="primary" onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}>
+                <Plus size={14} /> Category
+              </Button>
+            ) : null}
+            {tab === "products" && activeRestaurantId ? (
+              <Button variant="primary" onClick={() => { setActiveProduct(null); setProductModalOpen(true); }}>
+                <Plus size={14} /> Product
+              </Button>
+            ) : null}
+            {tab === "extras" && activeRestaurantId ? (
+              <Button variant="primary" onClick={() => { setActiveGroup(null); setGroupModalOpen(true); }}>
+                <Tags size={14} /> Extra group
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Categories" value={formatNumber(categories.data?.length || 0)} />
-        <MetricCard label="Products" value={formatNumber(products.data?.length || 0)} />
-        <MetricCard label="Extra groups" value={formatNumber(groups.data?.length || 0)} />
-        <MetricCard label="Restaurants" value={formatNumber(restaurants.data.length)} />
-      </div>
-
-      <Surface className="px-6 py-6">
-        <div className="grid gap-4 lg:grid-cols-[260px_1fr_auto] lg:items-center">
-          <Field label="Restaurant">
-            <Select value={activeRestaurantId || ""} onChange={(event) => setActiveRestaurantId(event.target.value)}>
-              {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
-            </Select>
-          </Field>
-          <div className="relative">
-            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-11" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter current menu view" />
+      <Surface className="px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <Select value={activeRestaurantId || ""} onChange={(event) => setActiveRestaurantId(event.target.value)} className="w-full lg:w-56">
+            {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
+          </Select>
+          <div className="relative flex-1">
+            <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter..." />
           </div>
           <Tabs value={tab} onChange={setTab} options={[{ value: "categories", label: "Categories" }, { value: "products", label: "Products" }, { value: "extras", label: "Extras" }]} />
         </div>
 
         {tab === "categories" ? (
-          <div className="mt-6 grid gap-3">
-            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}><Plus size={16} /> New category</Button></div>
+          <div className="mt-5 grid gap-2">
             {filteredCategories.length === 0 ? <EmptyState title="No categories found" /> : filteredCategories.map((category) => (
               <button key={category.id} type="button" onClick={() => { setActiveCategory(category); setCategoryModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex items-start justify-between gap-4">
@@ -504,8 +508,7 @@ export function MenuPage() {
         ) : null}
 
         {tab === "products" ? (
-          <div className="mt-6 grid gap-3">
-            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveProduct(null); setProductModalOpen(true); }}><Plus size={16} /> New product</Button></div>
+          <div className="mt-5 grid gap-2">
             {filteredProducts.length === 0 ? <EmptyState title="No products found" /> : filteredProducts.map((product) => (
               <button key={product.id} type="button" onClick={() => { setActiveProduct(product); setProductModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -530,8 +533,7 @@ export function MenuPage() {
         ) : null}
 
         {tab === "extras" ? (
-          <div className="mt-6 grid gap-3">
-            <div className="flex justify-end"><Button variant="primary" onClick={() => { setActiveGroup(null); setGroupModalOpen(true); }}><Tags size={16} /> New extra group</Button></div>
+          <div className="mt-5 grid gap-2">
             {filteredGroups.length === 0 ? <EmptyState title="No extra groups found" /> : filteredGroups.map((group) => (
               <button key={group.id} type="button" onClick={() => { setActiveGroup(group); setGroupModalOpen(true); }} className="surface-muted w-full px-5 py-5 text-left">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

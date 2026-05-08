@@ -7,12 +7,37 @@ export function Surface({ className, children }: { className?: string; children:
   return <section className={cn("surface", className)}>{children}</section>;
 }
 
-export function SectionHeader({ eyebrow, title, description, actions }: { eyebrow?: string; title: string; description?: string; actions?: React.ReactNode }) {
+export function PageHeader({
+  title,
+  actions,
+}: {
+  title: string;
+  actions?: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <div className="page-header">
+      <h1 className="page-title">{title}</h1>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
+  );
+}
+
+export function SectionHeader({
+  eyebrow,
+  title,
+  description,
+  actions,
+}: {
+  eyebrow?: string;
+  title: string;
+  description?: string;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
       <div>
-        {eyebrow ? <span className="eyebrow">{eyebrow}</span> : null}
-        <h1 className="section-title mt-3">{title}</h1>
+        {eyebrow ? <p className="eyebrow mb-1">{eyebrow}</p> : null}
+        <h1 className="section-title">{title}</h1>
         {description ? <p className="section-subtitle">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -20,12 +45,20 @@ export function SectionHeader({ eyebrow, title, description, actions }: { eyebro
   );
 }
 
-export function MetricCard({ label, value, detail }: { label: string; value: React.ReactNode; detail?: React.ReactNode }) {
+export function MetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: React.ReactNode;
+  detail?: React.ReactNode;
+}) {
   return (
     <article className="metric-card">
-      <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)]">{label}</p>
-      <p className="mt-3 text-3xl font-black tracking-[-0.04em] text-[var(--text-primary)]">{value}</p>
-      {detail ? <div className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{detail}</div> : null}
+      <p className="text-[10px] font-700 uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.035em] text-[var(--text-primary)]">{value}</p>
+      {detail ? <div className="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">{detail}</div> : null}
     </article>
   );
 }

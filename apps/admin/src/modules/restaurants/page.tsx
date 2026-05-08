@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, PencilLine, Plus, Search, Store, Trash2, X } from "lucide-react";
+import { Loader2, PencilLine, Plus, RefreshCw, Search, Store, Trash2, X } from "lucide-react";
 import { createRestaurant, deleteRestaurant, deleteRestaurantLogin, getRestaurantDetail, getRestaurantLogin, getRestaurantOrders, getRestaurantOverview, patchRestaurant, restaurantsQueryKey, updateRestaurantLogin, type ControlCenterRestaurantSnapshot, type RestaurantDetail, type RestaurantFormPayload } from "@/modules/restaurants/api";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, SectionHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, MetricCard, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { ImageUploadField } from "@/shared/components/image-upload";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, restaurantTierLabel } from "@/shared/utils/format";
 
@@ -741,45 +741,27 @@ export function RestaurantsPage() {
     );
   }
 
-  const stats = {
-    total: overview.data.length,
-    open: overview.data.filter((restaurant) => restaurant.isOpen).length,
-    attention: overview.data.filter((restaurant) => restaurant.pendingOrders > 0 || !restaurant.hasHours || restaurant.reviewScore < 4.2).length,
-    live: overview.data.reduce((sum, restaurant) => sum + restaurant.liveOrders, 0),
-  };
-
   return (
     <div className="page-stack">
-      <Surface className="px-6 py-6">
-        <SectionHeader
-          eyebrow="Restaurants"
-          title="Restaurant control"
-          description="Every restaurant opens in a focused modal with separate tabs for info, menu, orders and settings."
-          actions={
-            <>
-              <Button variant="secondary" onClick={() => void overview.refetch()}>
-                Refresh
-              </Button>
-              <Button variant="primary" onClick={() => setCreateOpen(true)}>
-                <Plus size={16} /> New restaurant
-              </Button>
-            </>
-          }
-        />
-      </Surface>
+      <PageHeader
+        title="Restaurants"
+        actions={
+          <>
+            <Button variant="secondary" onClick={() => void overview.refetch()}>
+              <RefreshCw size={13} /> Refresh
+            </Button>
+            <Button variant="primary" onClick={() => setCreateOpen(true)}>
+              <Plus size={14} /> Add
+            </Button>
+          </>
+        }
+      />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Restaurants" value={formatNumber(stats.total)} />
-        <MetricCard label="Open now" value={formatNumber(stats.open)} />
-        <MetricCard label="Need attention" value={formatNumber(stats.attention)} />
-        <MetricCard label="Live orders" value={formatNumber(stats.live)} />
-      </div>
-
-      <Surface className="px-6 py-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <Surface className="px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative w-full max-w-xl">
-            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <Input className="pl-11" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by restaurant, city or slug" />
+            <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, city or slug" />
           </div>
           <Tabs
             value={filter}
@@ -793,11 +775,11 @@ export function RestaurantsPage() {
         </div>
 
         {filteredRestaurants.length === 0 ? (
-          <div className="mt-6">
+          <div className="mt-4">
             <EmptyState title="No restaurants match the current filters" />
           </div>
         ) : (
-          <div className="mt-6 table-shell">
+          <div className="mt-4 table-shell">
             <table className="data-table">
               <thead>
                 <tr>
