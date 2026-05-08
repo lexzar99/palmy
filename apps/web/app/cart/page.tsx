@@ -509,6 +509,7 @@ export default function CartPage() {
 
     if (storedAddress) {
       const { street, zip, city, clean } = parseStoredAddress(storedAddress);
+      const cachedQuickAddress = findQuickAddressByText(clean) ?? findQuickAddressByText(storedAddress);
 
       if (clean !== storedAddress) localStorage.setItem("platform_address", clean);
       setAddressInput(clean);
