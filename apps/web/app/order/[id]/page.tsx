@@ -135,6 +135,7 @@ const OrderStatusPage = () => {
           ...prev,
           status: data.status,
           estimatedTime: data.estimatedTime ?? prev.estimatedTime,
+          etaEndsAt: data.etaEndsAt ?? prev?.etaEndsAt,
           deliveringAt: data.deliveringAt ?? prev?.deliveringAt,
         } : prev);
       }
@@ -161,16 +162,19 @@ const OrderStatusPage = () => {
 
   // ETA Countdown — in seconds for real-time display
   useEffect(() => {
-    if (!order?.estimatedTime || !order?.createdAt) { setEtaLeft(null); return; }
+    if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeft(null); return; }
     const calc = () => {
-      const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
-      const leftMs = Math.max(0, order.estimatedTime * 60 * 1000 - elapsedMs);
-      setEtaLeft(Math.ceil(leftMs / 1000));
+      if (order?.etaEndsAt) {
+        const ms = new Date(order.etaEndsAt).getTime() - Date.now();
+        setEtaLeft(Math.max(0, Math.ceil(ms / 1000)));
+      } else if (order?.estimatedTime) {
+        setEtaLeft(order.estimatedTime * 60);
+      }
     };
     calc();
     const t = setInterval(calc, 1000);
     return () => clearInterval(t);
-  }, [order?.estimatedTime, order?.createdAt]);
+  }, [order?.etaEndsAt, order?.estimatedTime]);
 
   // Auto-show review prompt for completed orders
   useEffect(() => {

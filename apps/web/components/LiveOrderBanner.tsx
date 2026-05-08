@@ -205,17 +205,20 @@ export default function LiveOrderBanner() {
 
   // Live countdown — updates every second
   useEffect(() => {
-    if (!order?.estimatedTime || !order?.createdAt) { setEtaLeftSecs(null); return; }
-    if (TERMINAL_STATUSES.has(order.status)) { setEtaLeftSecs(0); return; }
+    if (TERMINAL_STATUSES.has(order?.status)) { setEtaLeftSecs(0); return; }
+    if (!order?.etaEndsAt && !order?.estimatedTime) { setEtaLeftSecs(null); return; }
     const calc = () => {
-      const elapsedMs = Date.now() - new Date(order.createdAt).getTime();
-      const leftMs = Math.max(0, order.estimatedTime * 60 * 1000 - elapsedMs);
-      setEtaLeftSecs(Math.ceil(leftMs / 1000));
+      if (order?.etaEndsAt) {
+        const ms = new Date(order.etaEndsAt).getTime() - Date.now();
+        setEtaLeftSecs(Math.max(0, Math.ceil(ms / 1000)));
+      } else if (order?.estimatedTime) {
+        setEtaLeftSecs(order.estimatedTime * 60);
+      }
     };
     calc();
     const t = setInterval(calc, 1000);
     return () => clearInterval(t);
-  }, [order?.estimatedTime, order?.createdAt, order?.status]);
+  }, [order?.etaEndsAt, order?.estimatedTime, order?.status]);
 
   const display = useMemo(() => (order ? getStatusDisplay(order.status) : null), [order]);
 
