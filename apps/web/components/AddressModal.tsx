@@ -122,6 +122,8 @@ export default function AddressModal({
     setInput(val);
     setSelectedAddress(null);
     setSelectedCoords(null);
+    setSelectedPostalCode(null);
+    setSelectedDeliveryCity(null);
     setError(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPredictions(val), 350);
@@ -187,20 +189,19 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-end justify-center backdrop-blur-md"
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          className="fixed inset-0 z-[200] flex items-start justify-center backdrop-blur-md"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)", paddingTop: "max(1rem, env(safe-area-inset-top, 1rem))" }}
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
-            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            initial={{ y: "-100%", opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: "-100%", opacity: 0 }}
             transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
-            className="w-full max-w-lg rounded-t-[2rem] p-6 shadow-2xl relative overflow-y-auto"
+            className="w-full max-w-lg rounded-b-[2rem] p-6 shadow-2xl relative overflow-y-auto"
             style={{
               backgroundColor: "var(--bg-secondary)",
               border: "1px solid var(--border-muted)",
-              borderBottom: "none",
+              borderTop: "none",
               maxHeight: "90dvh",
-              paddingBottom: "max(1.5rem, calc(env(keyboard-inset-height, 0px) + env(safe-area-inset-bottom, 0px) + 1rem))",
             }}
           >
             {/* Header */}
@@ -264,6 +265,14 @@ export default function AddressModal({
                     </button>
                   )}
                 </div>
+
+                {/* Postal code confirmation after geocode */}
+                {selectedCoords && selectedPostalCode && (
+                  <p className="mt-1.5 text-[10px] font-black px-1 flex items-center gap-1.5 text-emerald-600">
+                    <CheckCircle2 size={11} />
+                    {selectedPostalCode}{selectedDeliveryCity ? ` ${selectedDeliveryCity}` : ""}
+                  </p>
+                )}
 
                 {/* Autocomplete error hint */}
                 {autocompleteError && !loading && (
