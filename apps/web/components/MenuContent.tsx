@@ -610,13 +610,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       <AddressModal
         isOpen={showAddressModal}
         onClose={() => { setShowAddressModal(false); setPendingProduct(null); }}
-        onConfirm={async (newAddress, newOrderType, coords) => {
+        onConfirm={async (newAddress, newOrderType, coords, postalCode, city) => {
           setAddress(newAddress);
           setOrderType(newOrderType);
           if (typeof window !== "undefined") {
             localStorage.setItem("platform_address", newAddress);
             localStorage.setItem("platform_order_type", newOrderType);
-            if (coords) localStorage.setItem("platform_coords", JSON.stringify(coords));
+            if (coords) {
+              localStorage.setItem("platform_coords", JSON.stringify(coords));
+              const { rememberQuickAddress } = await import("@/lib/quickAddresses");
+              rememberQuickAddress({ street: newAddress, latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
+            }
           }
           setShowAddressModal(false);
           // Re-check zone — checkZone returns the result directly (avoids stale state)

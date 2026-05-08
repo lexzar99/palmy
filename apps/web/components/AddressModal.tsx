@@ -24,7 +24,7 @@ interface CityOption {
 interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (address: string, orderType: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }) => void;
+  onConfirm: (address: string, orderType: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }, postalCode?: string, city?: string) => void;
   onFail?: (reason: string) => void;
   orderType: "DELIVERY" | "PICKUP";
   setOrderType: (type: "DELIVERY" | "PICKUP") => void;
@@ -43,6 +43,8 @@ export default function AddressModal({
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
+  const [selectedDeliveryCity, setSelectedDeliveryCity] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autocompleteError, setAutocompleteError] = useState(false);
@@ -139,6 +141,8 @@ export default function AddressModal({
       if (data.location) {
         setSelectedCoords({ lat: data.location.lat, lng: data.location.lng });
         setSelectedAddress(pred.description);
+        setSelectedPostalCode(data.postalCode ?? null);
+        setSelectedDeliveryCity(data.city ?? null);
         sessionToken.current = crypto.randomUUID();
       } else {
         setError("Kunde inte hämta koordinater för adressen.");
@@ -169,7 +173,13 @@ export default function AddressModal({
       setError("Välj en adress från listan för att vi ska kunna kontrollera leveranszonen.");
       return;
     }
-    onConfirm(selectedAddress || input.trim(), "DELIVERY", selectedCoords);
+    onConfirm(
+      selectedAddress || input.trim(),
+      "DELIVERY",
+      selectedCoords,
+      selectedPostalCode ?? undefined,
+      selectedDeliveryCity ?? undefined,
+    );
   };
 
   return (

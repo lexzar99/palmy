@@ -54,7 +54,11 @@ export async function GET(req: NextRequest) {
     if (!data.location) throw new Error("No location in response");
 
     reportUsage(ip);
-    return NextResponse.json({ location: data.location });
+    return NextResponse.json({
+      location: data.location,
+      postalCode: data.postalCode ?? null,
+      city: data.city ?? null,
+    });
   } catch {
     return NextResponse.json({ error: "Geocode misslyckades" }, { status: 500 });
   }

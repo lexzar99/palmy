@@ -259,29 +259,35 @@ export default function CartPage() {
     setPredictions([]);
     setAddressInput(pred.description);
     setAddressLoading(true);
-    
-    const zipMatch = pred.description.match(/\b\d{3}\s?\d{2}\b/);
-    const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-    const street = pred.description.split(",")[0] || pred.description;
 
-    setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zip }));
+    const street = pred.description.split(",")[0] || pred.description;
+    // Optimistic: extract zip from description text while geocode loads
+    const zipMatchFallback = pred.description.match(/\b\d{3}\s?\d{2}\b/);
+    const zipFallback = zipMatchFallback ? zipMatchFallback[0].replace(/\s/g, "") : "";
+    setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zipFallback }));
 
     try {
       const res = await fetch(`/api/places/geocode?place_id=${pred.place_id}&sessiontoken=${sessionToken.current}`);
       const data = await res.json();
       if (data.location) {
         const coords = { lat: data.location.lat, lng: data.location.lng };
+        // Prefer authoritative postalCode/city from Google address_component
+        const zip = data.postalCode || zipFallback;
+        const city = data.city || "";
         localStorage.setItem("platform_coords", JSON.stringify(coords));
         localStorage.setItem("platform_address", pred.description);
+        setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zip, deliveryCity: city }));
         setQuickAddresses(
           rememberQuickAddress({
             street: pred.description,
             latitude: coords.lat,
             longitude: coords.lng,
+            zip,
+            city,
           }),
         );
-        sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID) 
-          ? crypto.randomUUID() 
+        sessionToken.current = (typeof crypto !== 'undefined' && crypto.randomUUID)
+          ? crypto.randomUUID()
           : Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
         checkDeliverySpecific(coords.lat, coords.lng);
       }

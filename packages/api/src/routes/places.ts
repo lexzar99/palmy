@@ -46,25 +46,34 @@ async function googleAutocomplete(
   }
 }
 
+type GeocodeResult = { lat: number; lng: number; postalCode?: string; city?: string };
+
 async function googleGeocode(
   place_id: string,
   sessiontoken: string | undefined
-): Promise<{ lat: number; lng: number } | null> {
+): Promise<GeocodeResult | null> {
   if (!MAPS_KEY) return null;
   try {
     const url = new URL('https://maps.googleapis.com/maps/api/place/details/json');
     url.searchParams.set('place_id', place_id);
-    url.searchParams.set('fields', 'geometry');
+    url.searchParams.set('fields', 'geometry,address_component');
     if (sessiontoken) url.searchParams.set('sessiontoken', sessiontoken);
     url.searchParams.set('key', MAPS_KEY);
 
     const response = await fetch(url.toString());
     const data = (await response.json()) as any;
     const loc = data.result?.geometry?.location;
-    if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
-      return { lat: loc.lat, lng: loc.lng };
-    }
-    return null;
+    if (!loc || typeof loc.lat !== 'number' || typeof loc.lng !== 'number') return null;
+
+    const components: any[] = data.result?.address_components || [];
+    const get = (type: string) => components.find((c: any) => c.types.includes(type))?.long_name;
+
+    return {
+      lat: loc.lat,
+      lng: loc.lng,
+      postalCode: get('postal_code'),
+      city: get('locality') || get('postal_town'),
+    };
   } catch {
     return null;
   }
@@ -114,11 +123,12 @@ async function handleGeocode(place_id: string, sessiontoken: string | undefined,
     return res.status(500).json({ error: 'GOOGLE_MAPS_API_KEY saknas på servern' });
   }
 
-  const loc = await googleGeocode(place_id, sessiontoken);
-  if (!loc) {
+  const result = await googleGeocode(place_id, sessiontoken);
+  if (!result) {
     return res.status(404).json({ error: 'No location found for place_id' });
   }
-  return res.json({ location: loc });
+  const { lat, lng, postalCode, city } = result;
+  return res.json({ location: { lat, lng }, postalCode, city });
 }
 
 router.post('/autocomplete', autocompleteLimiter, async (req: Request, res: Response) => {

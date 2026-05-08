@@ -258,7 +258,7 @@ export default function HomePage() {
     }
   };
 
-  const handleAddressConfirm = async (addr: string, type: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }) => {
+  const handleAddressConfirm = async (addr: string, type: "DELIVERY" | "PICKUP", coords?: { lat: number; lng: number }, postalCode?: string, city?: string) => {
     saveAddress(addr);
     setOrderType(type);
     localStorage.setItem(ORDER_TYPE_KEY, type);
@@ -267,7 +267,7 @@ export default function HomePage() {
 
     if (coords) {
       localStorage.setItem("platform_coords", JSON.stringify(coords));
-      rememberQuickAddress({ street: addr, latitude: coords.lat, longitude: coords.lng });
+      rememberQuickAddress({ street: addr, latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
       if (type === "DELIVERY") {
         await validateZone(coords.lat, coords.lng);
       } else {
