@@ -130,9 +130,18 @@ export default function HomePage() {
       const stored = localStorage.getItem("platform_address");
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
       if (stored) {
-        setAddress(stored);
+        // Normalize legacy format: strip "Sverige", clean zip spacing
+        const parts = stored.split(',').map(p => p.trim());
+        const street = parts[0] || "";
+        const zipMatch = stored.match(/\b\d{3}\s?\d{2}\b/);
+        const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
+        const rawCity = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p) && p !== "");
+        const city = rawCity ? rawCity.replace(/\d+/g, '').trim() : "";
+        const clean = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+        setAddress(clean);
+        localStorage.setItem("platform_address", clean);
         if (storedType !== "PICKUP") {
-          rememberQuickAddress({ street: stored });
+          rememberQuickAddress({ street, zip: zip || undefined, city: city || undefined });
         }
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");

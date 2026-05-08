@@ -507,15 +507,21 @@ export default function CartPage() {
     }
 
     if (storedAddress) {
-      setAddressInput(storedAddress);
       const cachedQuickAddress = findQuickAddressByText(storedAddress);
-      
+
       const parts = storedAddress.split(',').map((p: string) => p.trim());
       const street = parts[0] || "";
       const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
       const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-      const city = parts.length > 1 ? parts[1].replace(/\d+/g, '').trim() : "";
-      
+      // City: prefer second part stripped of digits; skip "Sverige" or similar country names
+      const rawCity = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p) && p !== "");
+      const city = cachedQuickAddress?.city || (rawCity ? rawCity.replace(/\d+/g, '').trim() : "");
+
+      // Normalize display format: "Gatuvägen 2A, 22477 Stad" — strip "Sverige" and clean zip
+      const cleanDisplay = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+      setAddressInput(cleanDisplay);
+      localStorage.setItem("platform_address", cleanDisplay);
+
       // ALWAYS set the address from localStorage
       setFormData(prev => ({
         ...prev,
