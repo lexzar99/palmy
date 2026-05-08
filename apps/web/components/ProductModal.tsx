@@ -31,9 +31,18 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
-    const prev = document.body.style.overflow;
+    const scrollY = window.scrollY;
     document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollY);
+    };
   }, []);
 
   useEffect(() => {
@@ -202,7 +211,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         )}
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem' }}>
+        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem', overscrollBehavior: "contain" }}>
            
            <div className="mb-10">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
