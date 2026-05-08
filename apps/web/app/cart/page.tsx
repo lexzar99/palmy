@@ -42,6 +42,7 @@ import {
   type QuickAddress,
   findQuickAddressByText,
   formatQuickAddress,
+  parseStoredAddress,
   readQuickAddresses,
   rememberQuickAddress,
   writeQuickAddresses,
@@ -507,22 +508,11 @@ export default function CartPage() {
     }
 
     if (storedAddress) {
-      const cachedQuickAddress = findQuickAddressByText(storedAddress);
+      const { street, zip, city, clean } = parseStoredAddress(storedAddress);
 
-      const parts = storedAddress.split(',').map((p: string) => p.trim());
-      const street = parts[0] || "";
-      const zipMatch = storedAddress.match(/\b\d{3}\s?\d{2}\b/);
-      const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-      // City: prefer second part stripped of digits; skip "Sverige" or similar country names
-      const rawCity = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p) && p !== "");
-      const city = cachedQuickAddress?.city || (rawCity ? rawCity.replace(/\d+/g, '').trim() : "");
+      if (clean !== storedAddress) localStorage.setItem("platform_address", clean);
+      setAddressInput(clean);
 
-      // Normalize display format: "Gatuvägen 2A, 22477 Stad" — strip "Sverige" and clean zip
-      const cleanDisplay = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
-      setAddressInput(cleanDisplay);
-      localStorage.setItem("platform_address", cleanDisplay);
-
-      // ALWAYS set the address from localStorage
       setFormData(prev => ({
         ...prev,
         deliveryStreet: street || prev.deliveryStreet,
@@ -564,19 +554,23 @@ export default function CartPage() {
             .then(r => r.json())
             .then(data => {
               if (data.location) {
+                const resolvedZip = (data.postalCode || zip).replace(/\s/g, "");
+                const resolvedCity = data.city || city;
                 localStorage.setItem("platform_coords", JSON.stringify(data.location));
                 setQuickAddresses(
                   rememberQuickAddress({
-                    street: storedAddress,
+                    street,
                     latitude: data.location.lat,
                     longitude: data.location.lng,
+                    zip: resolvedZip || undefined,
+                    city: resolvedCity || undefined,
                   }),
                 );
                 setFormData(prev => ({
                   ...prev,
                   deliveryStreet: street || prev.deliveryStreet,
-                  deliveryZip: zip || prev.deliveryZip,
-                  deliveryCity: city || prev.deliveryCity
+                  deliveryZip: resolvedZip || prev.deliveryZip,
+                  deliveryCity: resolvedCity || prev.deliveryCity
                 }));
                 checkDeliverySpecific(data.location.lat, data.location.lng);
               }

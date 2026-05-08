@@ -34,10 +34,9 @@ export const formatQuickAddress = (address: QuickAddress) => {
     street = street.replace(zip, "").replace(/,\s*,/g, ",").replace(/^,|,$/g, "").trim();
   }
   
-  const parts = [street, zip].filter(Boolean);
-  if (address.city && !street.toLowerCase().includes(address.city.toLowerCase())) {
-    parts.push(address.city);
-  }
+  // Format: "Gatuvägen 2A, 22477 Stad" (zip and city together, no comma between them)
+  const zipCity = [zip, address.city && !street.toLowerCase().includes(address.city.toLowerCase()) ? address.city : ""].filter(Boolean).join(" ");
+  const parts = [street, zipCity].filter(Boolean);
   return parts.join(", ") || address.street;
 };
 
@@ -136,4 +135,23 @@ export const removeQuickAddress = (address: QuickAddress) => {
 export const findQuickAddressByText = (text: string) => {
   const normalized = normalize(text);
   return readQuickAddresses().find((item) => normalize(formatQuickAddress(item)) === normalized);
+};
+
+/** Parse a stored address string into components. Handles both old and new formats. */
+export const parseStoredAddress = (stored: string): { street: string; zip: string; city: string; clean: string } => {
+  const parts = stored.split(",").map(p => p.trim());
+  const street = parts[0] || "";
+  const zipMatch = stored.match(/\b(\d{3})\s?(\d{2})\b/);
+  const zip = zipMatch ? zipMatch[1] + zipMatch[2] : "";
+  // City: find in the segment containing the zip (e.g. "22477 Lund"), or first non-digit, non-Sverige segment
+  let city = "";
+  if (zipMatch) {
+    const zipSegment = parts.find(p => p.includes(zipMatch[0]));
+    if (zipSegment) city = zipSegment.replace(zipMatch[0], "").trim();
+  }
+  if (!city) {
+    city = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p))?.replace(/\d+/g, "").trim() || "";
+  }
+  const clean = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+  return { street, zip, city, clean };
 };

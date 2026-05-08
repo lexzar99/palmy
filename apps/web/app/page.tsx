@@ -30,7 +30,7 @@ import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import FreeDeliverySection from "@/components/FreeDeliverySection";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
-import { formatQuickAddress, rememberQuickAddress } from "@/lib/quickAddresses";
+import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
 
 interface Restaurant {
@@ -130,17 +130,10 @@ export default function HomePage() {
       const stored = localStorage.getItem("platform_address");
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
       if (stored) {
-        // Normalize legacy format: strip "Sverige", clean zip spacing
-        const parts = stored.split(',').map(p => p.trim());
-        const street = parts[0] || "";
-        const zipMatch = stored.match(/\b\d{3}\s?\d{2}\b/);
-        const zip = zipMatch ? zipMatch[0].replace(/\s/g, '') : "";
-        const rawCity = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p) && p !== "");
-        const city = rawCity ? rawCity.replace(/\d+/g, '').trim() : "";
-        const clean = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+        const { street, zip, city, clean } = parseStoredAddress(stored);
         setAddress(clean);
-        localStorage.setItem("platform_address", clean);
-        if (storedType !== "PICKUP") {
+        if (clean !== stored) localStorage.setItem("platform_address", clean);
+        if (storedType !== "PICKUP" && street) {
           rememberQuickAddress({ street, zip: zip || undefined, city: city || undefined });
         }
       }

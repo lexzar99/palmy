@@ -141,10 +141,15 @@ export default function AddressModal({
       if (!res.ok) throw new Error("Geocode failed");
       const data = await res.json();
       if (data.location) {
+        const zip = data.postalCode ?? null;
+        const city = data.city ?? null;
+        const street = pred.description.split(",")[0].trim();
+        const cleanAddr = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
         setSelectedCoords({ lat: data.location.lat, lng: data.location.lng });
-        setSelectedAddress(pred.description);
-        setSelectedPostalCode(data.postalCode ?? null);
-        setSelectedDeliveryCity(data.city ?? null);
+        setSelectedAddress(cleanAddr);
+        setSelectedPostalCode(zip);
+        setSelectedDeliveryCity(city);
+        setInput(cleanAddr);
         sessionToken.current = crypto.randomUUID();
       } else {
         setError("Kunde inte hämta koordinater för adressen.");
@@ -265,14 +270,6 @@ export default function AddressModal({
                     </button>
                   )}
                 </div>
-
-                {/* Postal code confirmation after geocode */}
-                {selectedCoords && selectedPostalCode && (
-                  <p className="mt-1.5 text-[10px] font-black px-1 flex items-center gap-1.5 text-emerald-600">
-                    <CheckCircle2 size={11} />
-                    {selectedPostalCode}{selectedDeliveryCity ? ` ${selectedDeliveryCity}` : ""}
-                  </p>
-                )}
 
                 {/* Autocomplete error hint */}
                 {autocompleteError && !loading && (
