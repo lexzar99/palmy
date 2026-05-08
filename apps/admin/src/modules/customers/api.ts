@@ -12,6 +12,8 @@ export interface CustomerRecord {
   isVerified: boolean;
   internalInfo?: string | null;
   createdAt: string;
+  totalSpent: number;
+  lastOrder: string | null;
   _count?: { orders: number };
 }
 

@@ -226,16 +226,55 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
   );
 }
 
+const PAGE_SIZE = 50;
+
+function exportCsv(rows: CustomerRecord[]) {
+  const escape = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
+  const header = ["Namn", "Email", "Telefon", "Senaste order", "Antal ordrar", "Total spenderat (kr)"].join(",");
+  const lines = rows.map((r) =>
+    [
+      escape(r.name),
+      escape(r.email),
+      escape(r.phone),
+      escape(r.lastOrder ? new Date(r.lastOrder).toLocaleDateString("sv-SE") : ""),
+      String(r._count?.orders ?? 0),
+      r.totalSpent.toFixed(2),
+    ].join(",")
+  );
+  const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `kunder_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function CustomersPage() {
-  const [query, setQuery] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
+  const [emailFilter, setEmailFilter] = useState("");
+  const [phoneFilter, setPhoneFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [activeCustomer, setActiveCustomer] = useState<CustomerRecord | null>(null);
 
   const customers = useQuery({ queryKey: customersQueryKey, queryFn: getCustomers });
 
-  const filteredCustomers = useMemo(() => {
-    const lowerQuery = query.trim().toLowerCase();
-    return (customers.data || []).filter((customer) => !lowerQuery || `${customer.name} ${customer.phone || ""} ${customer.email || ""} ${customer.city || ""}`.toLowerCase().includes(lowerQuery));
-  }, [customers.data, query]);
+  const filtered = useMemo(() => {
+    const name = nameFilter.trim().toLowerCase();
+    const email = emailFilter.trim().toLowerCase();
+    const phone = phoneFilter.trim().toLowerCase();
+    return (customers.data || []).filter((c) =>
+      (!name || (c.name || "").toLowerCase().includes(name)) &&
+      (!email || (c.email || "").toLowerCase().includes(email)) &&
+      (!phone || (c.phone || "").toLowerCase().includes(phone))
+    );
+  }, [customers.data, nameFilter, emailFilter, phoneFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const resetPage = () => setPage(1);
 
   if (customers.isLoading) {
     return <Surface className="px-6 py-12 text-sm text-[var(--text-secondary)]">Loading customers...</Surface>;
@@ -247,43 +286,65 @@ export function CustomersPage() {
 
   return (
     <div className="page-stack">
-      <PageHeader title="Customers" />
+      <PageHeader
+        title="Customers"
+        actions={
+          <Button variant="secondary" onClick={() => exportCsv(filtered)}>
+            Exportera CSV
+          </Button>
+        }
+      />
 
       <Surface className="px-6 py-6">
-        <Field label="Search customers"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, phone, email or city" /></Field>
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <Input value={nameFilter} onChange={(e) => { setNameFilter(e.target.value); resetPage(); }} placeholder="Sök namn…" />
+          <Input value={emailFilter} onChange={(e) => { setEmailFilter(e.target.value); resetPage(); }} placeholder="Sök e-post…" />
+          <Input value={phoneFilter} onChange={(e) => { setPhoneFilter(e.target.value); resetPage(); }} placeholder="Sök telefon…" />
+        </div>
 
-        {filteredCustomers.length === 0 ? (
-          <div className="mt-6"><EmptyState title="No customers found" /></div>
+        {filtered.length === 0 ? (
+          <EmptyState title="Inga kunder hittades" />
         ) : (
-          <div className="mt-6 table-shell">
-            <table className="data-table">
-              <thead>
-                <tr><th>Name</th><th>Phone</th><th>City</th><th>Orders</th><th>Status</th><th /> </tr>
-              </thead>
-              <tbody>
-                {filteredCustomers.map((customer) => (
-                  <tr key={customer.id}>
-                    <td>
-                      <div>
-                        <p className="font-black">{customer.name}</p>
-                        <p className="mt-1 text-sm text-[var(--text-secondary)]">{customer.email || "No email"}</p>
-                      </div>
-                    </td>
-                    <td>{customer.phone || "-"}</td>
-                    <td>{customer.city || "-"}</td>
-                    <td>{formatNumber(customer._count?.orders || 0)}</td>
-                    <td>
-                      <div className="flex flex-wrap gap-2">
-                        <Badge tone={customer.isActive ? "success" : "danger"}>{customer.isActive ? "Active" : "Inactive"}</Badge>
-                        {customer.isVerified ? <Badge tone="info">Verified</Badge> : null}
-                      </div>
-                    </td>
-                    <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveCustomer(customer)}><UserRound size={16} /> Open</Button></div></td>
+          <>
+            <div className="table-shell">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Namn</th>
+                    <th>Email</th>
+                    <th>Telefon</th>
+                    <th>Senaste order</th>
+                    <th>Antal ordrar</th>
+                    <th>Total spenderat</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pageRows.map((customer) => (
+                    <tr key={customer.id}>
+                      <td className="font-black">{customer.name}</td>
+                      <td className="text-[var(--text-secondary)]">{customer.email || "—"}</td>
+                      <td>{customer.phone || "—"}</td>
+                      <td className="text-[var(--text-secondary)]">{customer.lastOrder ? formatDate(customer.lastOrder) : "—"}</td>
+                      <td>{formatNumber(customer._count?.orders || 0)}</td>
+                      <td>{formatCurrency(customer.totalSpent)}</td>
+                      <td><div className="flex justify-end"><Button variant="secondary" onClick={() => setActiveCustomer(customer)}><UserRound size={16} /> Open</Button></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
+                <span>{filtered.length} kunder • sida {safePage} av {totalPages}</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹ Föregående</Button>
+                  <Button variant="secondary" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>Nästa ›</Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </Surface>
 

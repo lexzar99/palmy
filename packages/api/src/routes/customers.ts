@@ -8,19 +8,32 @@ const router = Router();
 // GET /api/customers - List all users with order summary
 router.get('/', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
-    const users = await (prisma as any).user.findMany({
-      // Hide soft-deleted rows from the admin list — the row stays in the
-      // DB so a re-signed-in customer can be revived (auth.ts handles that),
-      // but the admin shouldn't see them as if they're still around.
-      where: { deletedAt: null },
-      include: {
-        _count: {
-          select: { orders: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
-    });
-    res.json(users);
+    const [users, aggregates] = await Promise.all([
+      (prisma as any).user.findMany({
+        where: { deletedAt: null },
+        include: { _count: { select: { orders: true } } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.order.groupBy({
+        by: ['userId'],
+        where: { userId: { not: null } },
+        _sum: { total: true },
+        _max: { createdAt: true },
+      }),
+    ]);
+
+    const aggMap = new Map(
+      aggregates.map((a: any) => [a.userId, { totalSpent: a._sum.total ?? 0, lastOrder: a._max.createdAt ?? null }])
+    );
+
+    res.json(users.map((u: any) => {
+      const agg = aggMap.get(u.id) as { totalSpent: number; lastOrder: string | null } | undefined;
+      return {
+        ...u,
+        totalSpent: agg ? agg.totalSpent / 100 : 0,
+        lastOrder: agg?.lastOrder ?? null,
+      };
+    }));
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte hämta kunder' });
   }
