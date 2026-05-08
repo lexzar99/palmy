@@ -272,14 +272,17 @@ export default function CartPage() {
       if (data.location) {
         const coords = { lat: data.location.lat, lng: data.location.lng };
         // Prefer authoritative postalCode/city from Google address_component
-        const zip = data.postalCode || zipFallback;
+        const zip = (data.postalCode || zipFallback).replace(/\s/g, "");
         const city = data.city || "";
+        // Clean display: "Gatuvägen 2A, 22477 Lund"
+        const displayAddress = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
         localStorage.setItem("platform_coords", JSON.stringify(coords));
-        localStorage.setItem("platform_address", pred.description);
+        localStorage.setItem("platform_address", displayAddress);
+        setAddressInput(displayAddress);
         setFormData(prev => ({ ...prev, deliveryStreet: street, deliveryZip: zip, deliveryCity: city }));
         setQuickAddresses(
           rememberQuickAddress({
-            street: pred.description,
+            street,
             latitude: coords.lat,
             longitude: coords.lng,
             zip,
@@ -605,6 +608,7 @@ export default function CartPage() {
     customerPhone: formData.customerPhone,
     deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
     deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
+    deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
     note: formData.note || undefined,
     deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
     stripePaymentIntentId: paymentIntentId,
