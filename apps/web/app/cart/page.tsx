@@ -526,7 +526,7 @@ export default function CartPage() {
         if (storedCoords) {
           try {
             const { lat, lng } = JSON.parse(storedCoords);
-            setQuickAddresses(rememberQuickAddress({ street: storedAddress, latitude: lat, longitude: lng }));
+            setQuickAddresses(rememberQuickAddress({ street, zip: zip || undefined, city: city || undefined, latitude: lat, longitude: lng }));
             // Run zone check immediately — fetchContext no longer overwrites fee/min
             checkDeliverySpecific(lat, lng);
           } catch (err) {

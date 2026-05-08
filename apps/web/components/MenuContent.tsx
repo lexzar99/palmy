@@ -619,7 +619,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             if (coords) {
               localStorage.setItem("platform_coords", JSON.stringify(coords));
               const { rememberQuickAddress } = await import("@/lib/quickAddresses");
-              rememberQuickAddress({ street: newAddress, latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
+              rememberQuickAddress({ street: newAddress.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
             }
           }
           setShowAddressModal(false);

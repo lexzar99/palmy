@@ -153,7 +153,8 @@ export default function HomePage() {
       if (storedCoords && stored && storedType !== "PICKUP") {
         try {
           const coords = JSON.parse(storedCoords);
-          rememberQuickAddress({ street: stored, latitude: coords.lat, longitude: coords.lng });
+          const parsed = parseStoredAddress(stored);
+          rememberQuickAddress({ street: parsed.street, zip: parsed.zip || undefined, city: parsed.city || undefined, latitude: coords.lat, longitude: coords.lng });
           validateZone(coords.lat, coords.lng);
         } catch (err) {
           console.warn("Failed to parse stored coords:", err);
@@ -266,7 +267,7 @@ export default function HomePage() {
 
     if (coords) {
       localStorage.setItem("platform_coords", JSON.stringify(coords));
-      rememberQuickAddress({ street: addr, latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
+      rememberQuickAddress({ street: addr.split(",")[0].trim(), latitude: coords.lat, longitude: coords.lng, zip: postalCode, city });
       if (type === "DELIVERY") {
         await validateZone(coords.lat, coords.lng);
       } else {

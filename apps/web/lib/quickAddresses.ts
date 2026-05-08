@@ -54,10 +54,14 @@ const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
     );
   }
 
-  // Match on street alone — zip may be absent on one side (different sessions)
+  // Match on street — also handle when city was accidentally included in street field
+  const sa = normalize(a.street);
+  const sb = normalize(b.street);
   return (
     normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b)) ||
-    normalize(a.street) === normalize(b.street)
+    sa === sb ||
+    sa.startsWith(sb + " ") ||
+    sb.startsWith(sa + " ")
   );
 };
 
