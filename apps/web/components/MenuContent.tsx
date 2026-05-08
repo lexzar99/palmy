@@ -375,30 +375,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
            </div>
         </div>
 
-        {/* Reviews link row */}
-        <Link
-          href={`/r/${restaurantSlug || restaurant.slug}/reviews`}
-          className="flex items-center justify-between mb-12 sm:mb-16 px-5 py-4 rounded-[2rem] group transition-all hover:border-gold-500/20 active:scale-[0.99]"
-          style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}
-        >
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map(s => (
-                <Star key={s} size={13} className={s <= Math.round(restaurant.rating || 4.6) ? "fill-gold-500 text-gold-500" : "text-zinc-300"} />
-              ))}
-            </div>
-            <span className="text-sm font-black italic" style={{ color: "var(--text-primary)" }}>
-              {(restaurant.rating || 4.6).toFixed(1)}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-widest hidden xs:block" style={{ color: "var(--text-secondary)" }}>
-              {restaurant.ratingCount ? `${restaurant.ratingCount} recensioner` : "Recensioner"}
-            </span>
-          </div>
-          <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-gold-500">
-            Se alla <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
-          </div>
-        </Link>
-
         {/* Sticky Search & Categories Navigation */}
         <div className="sticky top-0 z-40 mb-16 space-y-2">
           {/* Search */}

@@ -194,16 +194,16 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
            <X size={20} />
         </button>
 
-        {/* Conditional Image Header */}
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '0' : '4rem', overscrollBehavior: "contain" }}>
+
+        {/* Image scrolls with content */}
         {product.imageUrl && (
-        <div className="relative h-56 sm:h-64 shrink-0">
+        <div className="relative h-56 sm:h-64 -mx-8 sm:-mx-10 mb-6">
            <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
            <div className="absolute inset-0 bg-gradient-to-t" style={{ background: "linear-gradient(to top, var(--bg-secondary), rgba(252,252,249,0.4), transparent)" }} />
         </div>
         )}
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem', overscrollBehavior: "contain" }}>
            
            <div className="mb-10">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
