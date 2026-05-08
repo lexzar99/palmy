@@ -177,14 +177,21 @@ export default function AddressModal({
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center backdrop-blur-md px-4 pb-6 sm:pb-0"
-          style={{ backgroundColor: "rgba(0,0,0,0.1)" }}
+          className="fixed inset-0 z-[200] flex items-end justify-center backdrop-blur-md"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
           onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
           <motion.div
-            initial={{ scale: 0.96, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.96, y: 30 }}
-            className="w-full max-w-md rounded-[2rem] p-6 shadow-2xl relative"
-            style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+            initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+            transition={{ type: "spring", bounce: 0.1, duration: 0.4 }}
+            className="w-full max-w-lg rounded-t-[2rem] p-6 shadow-2xl relative overflow-y-auto"
+            style={{
+              backgroundColor: "var(--bg-secondary)",
+              border: "1px solid var(--border-muted)",
+              borderBottom: "none",
+              maxHeight: "90dvh",
+              paddingBottom: "max(1.5rem, calc(env(keyboard-inset-height, 0px) + env(safe-area-inset-bottom, 0px) + 1rem))",
+            }}
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-5">
@@ -350,8 +357,7 @@ export default function AddressModal({
             </p>
 
             <button onClick={handleSubmit}
-              className="w-full flex items-center justify-between px-6 py-4 font-black rounded-2xl transition-all shadow-lg shadow-gold-500/20 group hover:bg-gold-400"
-              style={{ backgroundColor: "var(--gold-500)", color: "var(--bg-primary)" }}>
+              className="w-full flex items-center justify-between px-6 py-4 font-black rounded-2xl transition-all shadow-lg shadow-gold-500/20 group bg-gold-500 hover:bg-gold-400 text-zinc-950">
               <span className="uppercase tracking-widest text-sm">
                 {orderType === "DELIVERY" ? "Visa restauranger" : "Hitta avhämtning"}
               </span>

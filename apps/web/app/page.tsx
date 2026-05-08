@@ -556,7 +556,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pt-[84px] pb-36" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+    <div className="min-h-screen pb-36" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 xl:px-16">
         {/* HEADER */}
         <header className="mb-6 sm:mb-8 relative">
