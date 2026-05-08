@@ -39,7 +39,7 @@ export default function SponsorCard({ sponsor }: { sponsor: SponsorData }) {
       // som har erbjudandet, plus deal-info i toppen.
       router.push(`/deals/${cleanTarget}`);
     } else if (sponsor.linkType === 'RESTAURANT') {
-      router.push(`/r/${cleanTarget}`);
+      router.push(`/restaurants/${cleanTarget}`);
     } else {
       window.open(target, '_blank', 'noopener,noreferrer');
     }

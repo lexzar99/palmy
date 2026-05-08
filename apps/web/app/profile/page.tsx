@@ -743,7 +743,7 @@ function ProfileContent() {
             <div className="w-16 h-16 bg-gold-500/10 rounded-2xl flex items-center justify-center text-gold-500 mx-auto"><Phone size={28} /></div>
             <h2 className="text-2xl font-black uppercase italic tracking-tight">Lägg till telefon</h2>
             <p className="text-zinc-500 text-sm leading-relaxed">
-              Ditt konto är knutet till ditt sociala konto. Lägg till ditt telefonnummer för säkrare inloggning — det kan aldrig ändras.
+              Ditt konto är knutet till ditt sociala konto. Lägg till ditt telefonnummer — det kan uppdateras när som helst.
             </p>
           </div>
           <form onSubmit={handleAddPhone} className="space-y-4">
@@ -756,7 +756,8 @@ function ProfileContent() {
                 value={addPhoneNum}
                 onChange={e => setAddPhoneNum(e.target.value)}
                 placeholder="070 000 00 00"
-                className="flex-1 bg-white/5 border border-white/10 rounded-2xl py-4 px-5 text-white font-bold placeholder:text-zinc-600 outline-none focus:ring-2 focus:ring-gold-500/40"
+                className="flex-1 rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-400 outline-none focus:ring-2 focus:ring-gold-500/40"
+                style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
             </div>
             {addPhoneError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{addPhoneError}</p>}

@@ -69,7 +69,7 @@ const RegisterPage = () => {
                required
                value={firstName}
                onChange={(e) => setFirstName(e.target.value)}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
              />
              <input
                type="text"
@@ -77,7 +77,7 @@ const RegisterPage = () => {
                required
                value={lastName}
                onChange={(e) => setLastName(e.target.value)}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
              />
              <input
                type="email"
@@ -85,14 +85,14 @@ const RegisterPage = () => {
                required
                value={email}
                onChange={(e) => setEmail(e.target.value)}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
              />
              <input
                type="tel"
                placeholder="Telefon (valfritt)"
                value={phone}
                onChange={(e) => setPhone(e.target.value)}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
              />
              <input
                type="password"
@@ -100,7 +100,7 @@ const RegisterPage = () => {
                required
                value={password}
                onChange={(e) => setPassword(e.target.value)}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-700"
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
              />
              
              {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>}
