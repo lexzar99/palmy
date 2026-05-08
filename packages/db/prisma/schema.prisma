@@ -162,6 +162,7 @@ model DiscountCode {
   validFrom             DateTime?
   validUntil            DateTime?
   applicableCategoryIds String    @default("[]")
+  restaurantId          String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 }

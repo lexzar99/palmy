@@ -44,6 +44,19 @@ router.post('/validate', async (req, res) => {
       return;
     }
 
+    if (discount.type === 'FREE_DELIVERY') {
+      res.json({
+        valid: true,
+        code: discount.code,
+        description: discount.description,
+        type: discount.type,
+        value: 0,
+        discountAmount: 0,
+        freeDelivery: true,
+      });
+      return;
+    }
+
     let discountAmountOre = 0;
     if (discount.type === 'PERCENTAGE') {
       discountAmountOre = Math.round(subtotalOre * discount.value / 100);

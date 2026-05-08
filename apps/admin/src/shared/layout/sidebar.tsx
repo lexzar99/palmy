@@ -17,6 +17,7 @@ import {
   Shield,
   Star,
   Store,
+  Tag,
   TicketPercent,
   Users,
 } from "lucide-react";
@@ -36,6 +37,7 @@ const navItems = [
   { href: "/users", label: "Users", icon: Users },
   { href: "/sponsors", label: "Sponsors", icon: TicketPercent },
   { href: "/deals", label: "Deals", icon: Gift },
+  { href: "/coupons", label: "Kupongkoder", icon: Tag },
   { href: "/reviews", label: "Reviews", icon: Star },
   { href: "/push", label: "Push", icon: BellRing },
   { href: "/receipts", label: "Receipts", icon: ReceiptText },

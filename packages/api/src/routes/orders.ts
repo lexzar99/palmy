@@ -512,6 +512,8 @@ router.post('/', async (req: Request, res: Response) => {
           if (!isExpired && subtotal >= code.minOrder) {
             if (code.type === 'PERCENTAGE') {
               manualDiscountAmount = Math.round(subtotal * code.value / 100);
+            } else if (code.type === 'FREE_DELIVERY') {
+              manualDiscountAmount = deliveryFee; // zeroes out the delivery fee
             } else {
               manualDiscountAmount = Math.min(code.value, subtotal);
             }
