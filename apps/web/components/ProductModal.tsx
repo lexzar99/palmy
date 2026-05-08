@@ -31,6 +31,12 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  useEffect(() => {
     if (initialExtras && initialExtras.length > 0) {
       setSelectedExtras(initialExtras);
       return;
@@ -196,7 +202,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         )}
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-40" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem' }}>
+        <div className="flex-1 overflow-y-auto no-scrollbar px-8 sm:px-10 pb-6" style={{ paddingTop: product.imageUrl ? '1rem' : '4rem' }}>
            
            <div className="mb-10">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
@@ -257,7 +263,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
          </div>
 
            {/* Notes */}
-           <div className="space-y-4">
+           <div className="space-y-4 mt-10">
               <h3 className="text-sm font-black uppercase italic tracking-tight" style={{ color: "var(--text-primary)" }}>Önskemål</h3>
               <div className="rounded-[1.8rem] p-1 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
                  <textarea 
@@ -275,8 +281,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
            )}
         </div>
 
-        {/* Footer sticky block */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 sm:p-10 bg-white/90 backdrop-blur-3xl border-t flex flex-col sm:flex-row items-center gap-6" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--border-muted)" }}>
+        {/* Footer */}
+        <div className="shrink-0 p-6 sm:p-8 backdrop-blur-3xl border-t flex flex-col sm:flex-row items-center gap-4" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--border-muted)" }}>
            <div className="flex items-center gap-8 glass-panel p-2 px-8 rounded-[2rem]" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
               <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Minus size={22} /></button>
               <span className="text-2xl font-black w-8 text-center italic" style={{ color: "var(--text-primary)" }}>{quantity}</span>
