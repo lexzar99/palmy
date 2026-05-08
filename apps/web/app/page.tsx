@@ -431,51 +431,52 @@ export default function HomePage() {
   };
 
   const renderFeaturedRail = (title: string, subtitle: string | null | undefined, sectionRestaurants: Restaurant[]) => (
-    <section className="mb-10">
-      <div className="flex items-end justify-between mb-8 px-4">
+    <section className="mb-8">
+      <div className="flex items-end justify-between mb-5 px-1">
         <div>
-          <h2 className="text-gold-gradient text-3xl font-black tracking-tight leading-none italic uppercase">{title}</h2>
-          {!!subtitle && <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.3em] mt-2">{subtitle}</p>}
+          <h2 className="text-gold-gradient text-2xl sm:text-3xl font-black tracking-tight leading-none italic uppercase">{title}</h2>
+          {!!subtitle && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.3em] mt-1.5">{subtitle}</p>}
         </div>
-        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-200 border-b border-gold-500/50 pb-1 hover:text-gold-500 transition-all">Visa Alla</Link>
+        <Link href="/search" className="text-[10px] font-black uppercase tracking-widest text-zinc-400 border-b border-gold-500/40 pb-0.5 hover:text-gold-500 transition-all">Visa Alla</Link>
       </div>
-      <div className="flex lg:grid lg:grid-cols-4 gap-6 overflow-x-auto lg:overflow-visible pb-10 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+      {/* Mobil: horisontell scroll • md+: 2-kolumn grid • lg+: 3-kolumn • xl+: 4-kolumn */}
+      <div className="flex md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-x-auto md:overflow-visible pb-4 md:pb-0 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
         {sectionRestaurants.map((r, i) => {
           const inZone = orderType !== "DELIVERY" || zoneRestaurantIds === null || zoneRestaurantIds.includes(r.id);
           const dimmed = r.isOpen === false || !inZone;
           return (
             <motion.div
               key={`${title}-${r.id}`}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1, type: "spring", stiffness: 300, damping: 25 }}
+              transition={{ delay: i * 0.07, type: "spring", stiffness: 300, damping: 25 }}
               whileTap={{ opacity: 0.7, scale: 0.99 }}
-              className={`transition-opacity duration-300 ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
+              className={`transition-opacity duration-300 shrink-0 md:shrink w-[240px] sm:w-[270px] md:w-auto ${dimmed ? "opacity-75 grayscale-[20%]" : ""}`}
             >
               <Link
                 href={getRestaurantHref(r)}
                 onClick={(e) => handleRestaurantClick(e, r)}
-                className="group relative block w-[260px] sm:w-[300px] lg:w-auto h-full glass-card rounded-[3rem] p-4 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
+                className="group relative block h-full glass-card rounded-[2rem] sm:rounded-[2.5rem] p-3 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
               >
                 {(() => {
                   const activeDeal = getDealForRestaurant(r.id);
                   if (activeDeal) {
                     return (
-                      <div className={`absolute top-10 -left-8 -rotate-45 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-10 py-1.5 shadow-2xl z-20`}>
-                        <p className="text-[8px] font-black uppercase tracking-widest text-center">{activeDeal.rewardLabel}</p>
+                      <div className={`absolute top-8 -left-7 -rotate-45 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-9 py-1.5 shadow-2xl z-20`}>
+                        <p className="text-[7px] font-black uppercase tracking-widest text-center">{activeDeal.rewardLabel}</p>
                       </div>
                     );
                   }
                   return null;
                 })()}
-                <div className="h-44 lg:h-56 w-full rounded-[2.2rem] bg-obsidian/50 relative overflow-hidden mb-6">
+                <div className="h-36 sm:h-44 md:h-40 lg:h-48 w-full rounded-[1.5rem] sm:rounded-[2rem] bg-zinc-100 relative overflow-hidden mb-4">
                   {r.heroImageUrl || r.imageUrl ? (
                     <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-4xl">🍴</div>
+                    <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
                   )}
 
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute top-3 left-3">
                     {(() => {
                       const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
                       const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
@@ -490,7 +491,7 @@ export default function HomePage() {
                         ? `Pausad · ${pausedUntil!.getHours().toString().padStart(2, "0")}:${pausedUntil!.getMinutes().toString().padStart(2, "0")}`
                         : open ? "Öppet" : "Stängt";
                       return (
-                        <div className={`px-4 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${cls}`}>
+                        <div className={`px-3 py-1 rounded-full backdrop-blur-md border flex items-center gap-1.5 text-[8px] font-black uppercase tracking-widest ${cls}`}>
                           <div className={`w-1 h-1 rounded-full ${dot}`} />
                           {label}
                         </div>
@@ -498,17 +499,17 @@ export default function HomePage() {
                     })()}
                   </div>
 
-                  <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+                  <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
-                      className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
+                      className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
                     >
-                      <Info size={16} />
+                      <Info size={14} />
                     </button>
-                    <div className="px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
+                    <div className="px-2.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md flex items-center gap-1 border border-white/10">
                       {r.rating ? (
                         <>
-                          <Star size={12} className="fill-gold-500 text-gold-500" />
+                          <Star size={11} className="fill-gold-500 text-gold-500" />
                           <span className="text-[10px] font-black italic text-zinc-100">{r.rating.toFixed(1)}</span>
                         </>
                       ) : (
@@ -518,24 +519,24 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div className="px-3 pb-4">
-                  <h3 className="text-xl font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-2" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
-                  <p className="text-[9px] font-black uppercase tracking-widest mb-6 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
+                <div className="px-2 pb-3">
+                  <h3 className="text-base sm:text-lg font-black group-hover:text-gold-500 transition-colors uppercase tracking-tight leading-none mb-1.5 truncate" style={{ color: "var(--text-primary)" }}>{r.name}</h3>
+                  <p className="text-[9px] font-black uppercase tracking-widest mb-4 truncate" style={{ color: "var(--text-secondary)" }}>{r.description || r.cuisine}</p>
 
-                  <div className="flex items-center justify-between border-t border-white/5 pt-5">
+                  <div className="flex items-center justify-between border-t pt-3" style={{ borderColor: "var(--border-muted)" }}>
                     {(() => {
                       const zi = zoneDeliveryInfo[r.id];
                       const fee = zi ? zi.deliveryFee : (r.deliveryFee ?? 0);
                       const eta = zi?.etaMinutes ?? r.etaMinutes ?? 30;
                       return (
-                        <div className="flex items-center gap-4 text-[9px] font-black uppercase tracking-wider text-zinc-400">
-                          <span className="flex items-center gap-1.5"><Clock size={12} className="text-gold-500/50" /> {eta} MIN</span>
-                          <span className="flex items-center gap-1.5"><Bike size={12} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
+                        <div className="flex items-center gap-3 text-[9px] font-black uppercase tracking-wider text-zinc-400">
+                          <span className="flex items-center gap-1"><Clock size={11} className="text-gold-500/50" /> {eta} MIN</span>
+                          <span className="flex items-center gap-1"><Bike size={11} className="text-gold-500/50" /> {fee === 0 ? "GRATIS" : `${fee} KR`}</span>
                         </div>
                       );
                     })()}
-                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
-                      <ChevronRight size={18} />
+                    <div className="w-7 h-7 rounded-full bg-white/5 flex items-center justify-center text-zinc-400 group-hover:bg-gold-500 group-hover:text-zinc-950 transition-all">
+                      <ChevronRight size={16} />
                     </div>
                   </div>
                 </div>
@@ -555,10 +556,10 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pt-4 pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      <div className="relative mx-auto max-w-6xl px-4 lg:px-10">
+    <div className="min-h-screen pt-24 pb-36" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 xl:px-16">
         {/* COMPACT HEADER – adresspil i toppen, toggle + sök komprimerad */}
-        <header className="mb-6 relative">
+        <header className="mb-6 sm:mb-8 relative">
           {/* Pull-down address selector – sitter längst upp som en pil man drar ner */}
           <div className="mb-3">
             <AddressPullDown
@@ -621,26 +622,26 @@ export default function HomePage() {
           </Link>
         </header>
 
-        {/* Cuisine Selector (Flyttad upp likt Foodora/UberEats) */}
-        <section className="mb-8">
-          <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
+        {/* Cuisine Selector */}
+        <section className="mb-6 sm:mb-8">
+          <div className="flex sm:justify-start gap-2 sm:gap-3 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
             {cuisineFilters.map((c, i) => (
               <motion.button
                 key={c.label}
-                initial={{ opacity: 0, scale: 0.8 }}
+                initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.1 + i * 0.05 }}
+                transition={{ delay: 0.05 + i * 0.04 }}
                 onClick={() => setActiveCuisine(c.label)}
-                className="flex flex-col items-center gap-2 transition-all active:scale-95 flex-shrink-0 group"
+                className="flex flex-col items-center gap-1.5 transition-all active:scale-95 flex-shrink-0 group touch-manipulation"
               >
-                <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl border transition-all ${
+                <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] flex items-center justify-center text-2xl sm:text-3xl border transition-all ${
                   activeCuisine === c.label
-                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_8px_16px_rgba(234,181,69,0.2)]"
+                    ? "bg-gold-500 text-zinc-950 border-gold-500 shadow-[0_6px_14px_rgba(234,181,69,0.25)]"
                     : "border-[rgba(28,28,30,0.07)] group-hover:border-gold-500/20"
                 }`} style={{ backgroundColor: activeCuisine === c.label ? undefined : "var(--bg-card)", boxShadow: activeCuisine === c.label ? undefined : "var(--card-shadow)" }}>
                   <span className={`${activeCuisine === c.label ? "" : "opacity-90 group-hover:opacity-100"} transition-all`}>{c.emoji}</span>
                 </div>
-                <span className={`text-[9.5px] font-bold uppercase tracking-widest ${
+                <span className={`text-[9px] sm:text-[9.5px] font-bold uppercase tracking-widest ${
                   activeCuisine === c.label ? "text-gold-500" : "group-hover:text-gold-400"
                 }`} style={{ color: activeCuisine === c.label ? undefined : "var(--text-secondary)" }}>
                   {c.label}
@@ -657,15 +658,15 @@ export default function HomePage() {
             tar huvudbredden, Rea & Rabatter är vertikal sidebar till höger.
           Sponsor-korten behåller sin storlek (260px) — fler syns bara för att containern är bredare.
         */}
-        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-6 lg:items-start">
+        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 xl:gap-8 lg:items-start">
           {promoCards.length > 0 ? (
-            <section className="mb-8 lg:mb-0">
+            <section className="mb-6 lg:mb-0">
               <div className="flex items-center justify-between mb-3 px-1">
                 <div>
-                  <h2 className="text-lg font-black uppercase tracking-tight flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-black uppercase tracking-tight flex items-center gap-2" style={{ color: "var(--text-primary)" }}>
                     <Sparkles size={14} className="text-gold-500" /> Aktuellt
                   </h2>
-                  <p className="text-zinc-600 text-[9px] font-black uppercase tracking-[0.25em] mt-0.5">
+                  <p className="text-[9px] font-black uppercase tracking-[0.25em] mt-0.5" style={{ color: "var(--text-secondary)" }}>
                     Kampanjer &amp; partners
                   </p>
                 </div>
@@ -673,7 +674,7 @@ export default function HomePage() {
               <div
                 ref={promoRailRef}
                 onScroll={handlePromoScroll}
-                className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0"
+                className="flex gap-3 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0"
                 style={{ scrollSnapType: "x mandatory" }}
               >
                 {promoCards.map((item) => (
@@ -769,27 +770,28 @@ export default function HomePage() {
         <section>
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
           {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
-            <div className="mb-8 p-4 rounded-[2rem] border border-gold-500/15 bg-gold-500/5 flex flex-col sm:flex-row items-center gap-4">
-              <div className="w-10 h-10 shrink-0 bg-gold-500/10 rounded-2xl border border-gold-500/20 flex items-center justify-center">
-                <span className="text-xl">🎁</span>
-              </div>
-              <p className="text-[11px] font-bold text-zinc-400 text-center sm:text-left flex-1">
-                Ta del av{" "}
-                <span className="text-gold-400 font-black">personliga erbjudanden</span>, spara adresser och följ dina ordrar.{" "}
+            <div className="mb-6 p-4 rounded-[1.5rem] border border-gold-500/15 bg-gold-500/5 flex items-center gap-4">
+              <div className="w-9 h-9 shrink-0 bg-gold-500/10 rounded-xl border border-gold-500/20 flex items-center justify-center text-lg">🎁</div>
+              <p className="text-[11px] font-bold leading-snug flex-1" style={{ color: "var(--text-secondary)" }}>
+                <span className="text-gold-500 font-black">Personliga erbjudanden</span> och orderhistorik.{" "}
                 <a href="/profile" className="text-gold-400 underline font-black hover:text-gold-300">Logga in gratis →</a>
               </p>
             </div>
           )}
 
           <div className="flex items-center justify-between mb-4 px-1">
-            <h2 className="text-lg font-black tracking-[0.15em] uppercase" style={{ color: "var(--text-secondary)" }}>
-              {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine}{" "}
-              <span className="opacity-40 ml-1">/ {filtered.length} st</span>
-            </h2>
+            <div>
+              <h2 className="text-base sm:text-lg font-black tracking-[0.12em] uppercase" style={{ color: "var(--text-primary)" }}>
+                {activeCuisine === "Alla" ? "Alla Restauranger" : activeCuisine}
+              </h2>
+              <p className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                {filtered.length} {filtered.length === 1 ? "restaurang" : "restauranger"}
+              </p>
+            </div>
           </div>
 
-          {/* STICKY QUICK-FILTERS – scrollbara chips ovanför listan */}
-          <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 mb-6">
+          {/* QUICK-FILTERS */}
+          <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-5">
             {([
               { key: "all",   label: "Alla",          icon: "📊" },
               { key: "rated", label: "Betyg 4.0+",     icon: "★" },
@@ -837,7 +839,7 @@ export default function HomePage() {
               <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Här ekar det tomt just nu.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
@@ -879,7 +881,7 @@ export default function HomePage() {
                           )}
 
                           {/* IMAGE */}
-                          <div className="h-44 w-full overflow-hidden relative">
+                          <div className="h-36 sm:h-44 w-full overflow-hidden relative">
                             {r.imageUrl || r.heroImageUrl ? (
                               <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
@@ -1033,16 +1035,16 @@ export default function HomePage() {
         </AnimatePresence>
 
         {/* Promo Footer */}
-        <section className="mt-24 rounded-[3.5rem] bg-gradient-to-r from-gold-500 to-amber-600 p-12 relative overflow-hidden group shadow-2xl shadow-gold-500/10">
+        <section className="mt-12 lg:mt-20 rounded-[2rem] sm:rounded-[2.5rem] lg:rounded-[3.5rem] bg-gradient-to-r from-gold-500 to-amber-600 p-6 sm:p-10 lg:p-12 relative overflow-hidden group shadow-2xl shadow-gold-500/10">
            <div className="absolute right-[-50px] top-[-50px] w-[200px] h-[200px] bg-white/20 rounded-full blur-[80px]" />
-           <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10">
-              <div className="text-center lg:text-left">
-                 <h2 className="text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-4 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
+           <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-6 sm:gap-10">
+              <div className="text-center sm:text-left">
+                 <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black text-zinc-950 uppercase tracking-tighter leading-none mb-3 italic">BÄSTA MATEN <br /> I DIN TELEFON</h2>
                  <p className="text-zinc-950/60 text-[10px] font-black uppercase tracking-[0.2em]">Installera appen för en ännu snabbare upplevelse</p>
               </div>
-              <button 
+              <button
                 onClick={() => window.dispatchEvent(new Event('trigger-pwa-install'))}
-                className="px-10 py-5 bg-zinc-950 text-white rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
+                className="shrink-0 px-8 sm:px-10 py-4 sm:py-5 bg-zinc-950 text-white rounded-2xl sm:rounded-3xl font-black uppercase tracking-[0.3em] text-[10px] shadow-2xl active:scale-95 transition-all group-hover:bg-zinc-900 border border-white/5"
               >
                 Hämta Appen
               </button>

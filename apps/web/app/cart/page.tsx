@@ -831,7 +831,7 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-dot-pattern pt-20 pb-36 px-3 sm:px-6" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex items-end justify-between mb-6 lg:mb-10 px-1 sm:px-4">
            <div>
               <h1 className="text-3xl sm:text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none mb-2" style={{ color: "var(--text-primary)" }}>Din <span className="text-gold-gradient">Kasse</span></h1>
@@ -876,7 +876,7 @@ export default function CartPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-start">
           {/* Cart items list */}
-          <div className="lg:col-span-12 xl:col-span-7 space-y-4">
+          <div className="lg:col-span-7 space-y-4">
             {/* DealSpotlight i kassan borttagen — rabatterna applas direkt
                 på priserna istället för en separat "deal aktiv"-banner. */}
             <div className="space-y-4">
@@ -924,7 +924,7 @@ export default function CartPage() {
           </div>
 
           {/* Form & Payment */}
-          <div className="lg:col-span-12 xl:col-span-5">
+          <div className="lg:col-span-5">
              <AnimatePresence mode="wait">
                {showPayment && clientSecret ? (
                   <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
