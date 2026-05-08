@@ -34,8 +34,9 @@ export const formatQuickAddress = (address: QuickAddress) => {
     street = street.replace(zip, "").replace(/,\s*,/g, ",").replace(/^,|,$/g, "").trim();
   }
   
-  // Format: "Gatuvägen 2A, 22477 Stad" (zip and city together, no comma between them)
-  const zipCity = [zip, address.city && !street.toLowerCase().includes(address.city.toLowerCase()) ? address.city : ""].filter(Boolean).join(" ");
+  const cityPart = address.city && !street.toLowerCase().includes(address.city.toLowerCase()) ? address.city : "";
+  // "22477 Lund" when both present, else whichever exists
+  const zipCity = zip && cityPart ? `${zip} ${cityPart}` : zip || cityPart;
   const parts = [street, zipCity].filter(Boolean);
   return parts.join(", ") || address.street;
 };
@@ -53,9 +54,10 @@ const isSameAddress = (a: QuickAddress, b: QuickAddress) => {
     );
   }
 
+  // Match on street alone — zip may be absent on one side (different sessions)
   return (
     normalize(formatQuickAddress(a)) === normalize(formatQuickAddress(b)) ||
-    (normalize(a.street) === normalize(b.street) && normalize(a.zip) === normalize(b.zip))
+    normalize(a.street) === normalize(b.street)
   );
 };
 
@@ -152,6 +154,7 @@ export const parseStoredAddress = (stored: string): { street: string; zip: strin
   if (!city) {
     city = parts.find((p, i) => i > 0 && !/^sverige$/i.test(p) && !/^\d/.test(p))?.replace(/\d+/g, "").trim() || "";
   }
-  const clean = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+  const zipCity = zip && city ? `${zip} ${city}` : zip || city;
+  const clean = [street, zipCity].filter(Boolean).join(", ");
   return { street, zip, city, clean };
 };

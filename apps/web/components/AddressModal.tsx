@@ -144,7 +144,8 @@ export default function AddressModal({
         const zip = data.postalCode ?? null;
         const city = data.city ?? null;
         const street = pred.description.split(",")[0].trim();
-        const cleanAddr = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+        const zipCity = zip && city ? `${zip} ${city}` : zip || city;
+        const cleanAddr = [street, zipCity].filter(Boolean).join(", ");
         setSelectedCoords({ lat: data.location.lat, lng: data.location.lng });
         setSelectedAddress(cleanAddr);
         setSelectedPostalCode(zip);

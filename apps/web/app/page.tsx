@@ -130,12 +130,9 @@ export default function HomePage() {
       const stored = localStorage.getItem("platform_address");
       const storedType = localStorage.getItem(ORDER_TYPE_KEY);
       if (stored) {
-        const { street, zip, city, clean } = parseStoredAddress(stored);
+        const { clean } = parseStoredAddress(stored);
         setAddress(clean);
         if (clean !== stored) localStorage.setItem("platform_address", clean);
-        if (storedType !== "PICKUP" && street) {
-          rememberQuickAddress({ street, zip: zip || undefined, city: city || undefined });
-        }
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 

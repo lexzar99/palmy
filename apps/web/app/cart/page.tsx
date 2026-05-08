@@ -275,8 +275,8 @@ export default function CartPage() {
         // Prefer authoritative postalCode/city from Google address_component
         const zip = (data.postalCode || zipFallback).replace(/\s/g, "");
         const city = data.city || "";
-        // Clean display: "Gatuvägen 2A, 22477 Lund"
-        const displayAddress = `${street}${zip ? `, ${zip}` : ""}${city ? ` ${city}` : ""}`;
+        const zipCity = zip && city ? `${zip} ${city}` : zip || city;
+        const displayAddress = [street, zipCity].filter(Boolean).join(", ");
         localStorage.setItem("platform_coords", JSON.stringify(coords));
         localStorage.setItem("platform_address", displayAddress);
         setAddressInput(displayAddress);
