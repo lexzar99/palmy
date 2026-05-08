@@ -181,7 +181,7 @@ export default function LiveOrderBanner() {
       }
     };
     load();
-    const pollInterval = setInterval(load, 15_000);
+    const pollInterval = setInterval(load, 5_000);
 
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;

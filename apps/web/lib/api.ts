@@ -21,6 +21,12 @@ export const getSocketUrl = () => {
     return process.env.NEXT_PUBLIC_SOCKET_URL;
   }
 
+  // Same production fallback as getApiUrl — without this the socket would
+  // try to connect to http://matgo-web-pi.vercel.app:4000 (wrong, no HTTPS).
+  if (process.env.NODE_ENV === "production" || (typeof window !== "undefined" && !window.location.hostname.includes("localhost"))) {
+    return "https://palmy-production-2021.up.railway.app";
+  }
+
   if (typeof window !== "undefined") {
     return `http://${window.location.hostname}:4000`;
   }
