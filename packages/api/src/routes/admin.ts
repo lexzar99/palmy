@@ -448,15 +448,20 @@ router.patch('/orders/:id/status', async (req, res) => {
     // Fetcha kundens Push Token via userId eller telefonnummer.
     // Vi hämtar BÅDE Expo-token (för fallback / Android) och iOS APNs-token
     // (för direct send med apns-collapse-id så notisen ersätts steg för steg).
-    const userToNotify = await (prisma as any).user.findFirst({
-      where: {
-        OR: [
-          ...(existing.userId ? [{ id: existing.userId }] : []),
-          { phone: existing.customerPhone }
-        ],
-      },
-      select: { pushToken: true, apnsDeviceToken: true }
-    });
+    // Only look up by phone if we have a real phone value — { phone: null }
+    // would match all users without a phone number and send to a random one.
+    const phoneClause = existing.customerPhone ? [{ phone: existing.customerPhone }] : [];
+    const userToNotify = (existing.userId || phoneClause.length > 0)
+      ? await (prisma as any).user.findFirst({
+          where: {
+            OR: [
+              ...(existing.userId ? [{ id: existing.userId }] : []),
+              ...phoneClause,
+            ],
+          },
+          select: { pushToken: true, apnsDeviceToken: true }
+        })
+      : null;
 
     if (userToNotify && (userToNotify.pushToken || userToNotify.apnsDeviceToken)) {
       const isDelivery = existing.type === "DELIVERY";
