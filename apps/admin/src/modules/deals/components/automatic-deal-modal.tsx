@@ -30,6 +30,7 @@ type Draft = {
   targetIds: string[];
   isActive: boolean;
   showOnSite: boolean;
+  showAsBanner: boolean;
   popupEnabled: boolean;
   maxUsages: string;
   maxUsesPerCustomer: string;
@@ -50,6 +51,7 @@ const defaultDraft: Draft = {
   targetIds: [],
   isActive: true,
   showOnSite: true,
+  showAsBanner: false,
   // Default false här. "Popup"-flaggan på vanliga deals är legacy och
   // styrde tidigare en banner i menyn. Äkta popup-deals (claim-popupen
   // i webb/RN) byggs via Popup-fliken som sätter popupHeadline/Body/Code.
@@ -73,6 +75,7 @@ const mapDealToDraft = (deal: AutomaticDealRecord): Draft => ({
   targetIds: deal.targetIds || deal.comboProductIds || [],
   isActive: deal.isActive,
   showOnSite: deal.showOnSite,
+  showAsBanner: deal.showAsBanner ?? false,
   popupEnabled: deal.popupEnabled,
   maxUsages: deal.maxUsages ? String(deal.maxUsages) : "",
   maxUsesPerCustomer: deal.maxUsesPerCustomer ? String(deal.maxUsesPerCustomer) : "",
@@ -146,6 +149,7 @@ export function AutomaticDealModal({
         isGlobal: draft.isGlobal,
         isActive: draft.isActive,
         showOnSite: draft.showOnSite,
+        showAsBanner: draft.showAsBanner,
         popupEnabled: draft.popupEnabled,
         maxUsages: draft.maxUsages ? Number(draft.maxUsages) : null,
         maxUsesPerCustomer: draft.maxUsesPerCustomer ? Number(draft.maxUsesPerCustomer) : null,
@@ -241,6 +245,7 @@ export function AutomaticDealModal({
             <Field label="Sort order"><Input type="number" value={draft.sortOrder} onChange={(event) => setDraft((current) => ({ ...current, sortOrder: Number(event.target.value) }))} /></Field>
             <Field label="Active"><Select value={draft.isActive ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
             <Field label="Visible on site"><Select value={draft.showOnSite ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, showOnSite: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
+            <Field label="Visa som banner"><Select value={draft.showAsBanner ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, showAsBanner: event.target.value === "yes" }))}><option value="no">Nej</option><option value="yes">Ja — banner på restaurangsidan</option></Select></Field>
             <Field label="Popup enabled"><Select value={draft.popupEnabled ? "yes" : "no"} onChange={(event) => setDraft((current) => ({ ...current, popupEnabled: event.target.value === "yes" }))}><option value="yes">Yes</option><option value="no">No</option></Select></Field>
             <Field label="Max global usages"><Input value={draft.maxUsages} onChange={(event) => setDraft((current) => ({ ...current, maxUsages: event.target.value }))} placeholder="Optional" /></Field>
             <Field label="Max per customer"><Input value={draft.maxUsesPerCustomer} onChange={(event) => setDraft((current) => ({ ...current, maxUsesPerCustomer: event.target.value }))} placeholder="Optional" /></Field>

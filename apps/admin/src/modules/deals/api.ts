@@ -18,6 +18,7 @@ export interface AutomaticDealRecord {
   isActive: boolean;
   isGlobal: boolean;
   showOnSite: boolean;
+  showAsBanner: boolean;
   popupEnabled: boolean;
   imageUrl?: string | null;
   popupHeadline?: string | null;

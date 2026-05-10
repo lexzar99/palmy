@@ -26,6 +26,7 @@ type Draft = {
   rewardCategoryId: string;
   bogoExcludedProductIds: string[];
   isActive: boolean;
+  showAsBanner: boolean;
   validUntil: string;
 };
 
@@ -37,6 +38,7 @@ const defaultDraft = (): Draft => ({
   rewardCategoryId: "",
   bogoExcludedProductIds: [],
   isActive: true,
+  showAsBanner: false,
   validUntil: "",
 });
 
@@ -85,6 +87,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         rewardCategoryId: deal.rewardCategoryId || "",
         bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
         isActive: deal.isActive,
+        showAsBanner: deal.showAsBanner ?? false,
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
       });
     } else {
@@ -125,6 +128,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         bogoExcludedProductIds: d.bogoExcludedProductIds,
         isActive: d.isActive,
         showOnSite: true,
+        showAsBanner: d.showAsBanner,
         popupEnabled: false,
         validUntil: d.validUntil || null,
       };
@@ -306,6 +310,15 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
             >
               <option value="active">Aktiv</option>
               <option value="inactive">Inaktiv</option>
+            </Select>
+          </Field>
+          <Field label="Visa som banner">
+            <Select
+              value={draft.showAsBanner ? "yes" : "no"}
+              onChange={(e) => set("showAsBanner", e.target.value === "yes")}
+            >
+              <option value="no">Nej</option>
+              <option value="yes">Ja — banner på restaurangsidan</option>
             </Select>
           </Field>
         </div>

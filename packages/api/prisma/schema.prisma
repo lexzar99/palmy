@@ -221,6 +221,7 @@ model Deal {
   triggerQuantity           Int       @default(2)
   rewardCategoryId          String?
   bogoExcludedProductIds    String    @default("[]")
+  showAsBanner              Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }
 
@@ -320,6 +321,8 @@ model Restaurant {
   // baserat på fuzzy-match, eller manuellt när admin skapar/byter konto.
   // Garanterar 1-till-1 — ingen mer fuzzy-gissning i UI:t.
   adminUserId    String?            @unique
+  announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
+  vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]

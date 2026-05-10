@@ -60,6 +60,8 @@ const restaurantSchema = z.object({
   freeDeliveryAbove: z.any().optional(),
   deliveryRadius: z.number().optional(),
   logoutCode: z.string().nullable().optional(),
+  announcementText: z.string().nullable().optional(),
+  vatPercent: z.number().nullable().optional(),
   // ISO datetime sträng – när restaurangen ska öppna igen efter en paus.
   // null = ingen pause aktiv. Sätt till null för att avbryta pause.
   pausedUntil: z.string().datetime().nullable().optional(),
@@ -114,6 +116,8 @@ const formatRestaurant = (restaurant: any, includeMenu = false) => {
   tags: parseJson<string[]>(restaurant.tags, []),
   openingHours: parseJson<Record<string, any>>(restaurant.openingHours, {}),
   internalInfo: restaurant.internalInfo,
+  announcementText: restaurant.announcementText ?? null,
+  vatPercent: restaurant.vatPercent ?? null,
   createdAt: restaurant.createdAt,
   updatedAt: restaurant.updatedAt,
   deliveryRadius: restaurant.deliveryRadius ?? 5.0,
@@ -438,6 +442,8 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res) => {
     }
 
     if (payload.logoutCode !== undefined) data.logoutCode = payload.logoutCode || null;
+    if (payload.announcementText !== undefined) data.announcementText = payload.announcementText || null;
+    if (payload.vatPercent !== undefined) data.vatPercent = payload.vatPercent ?? null;
 
     // Pause: pausedUntil = ISO datum eller null. Avbruten pause = null.
     if (payload.pausedUntil !== undefined) {

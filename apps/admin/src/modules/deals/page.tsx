@@ -24,7 +24,7 @@ import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
 
-type DealsTab = "restaurant" | "product" | "category" | "popup";
+type DealsTab = "restaurant" | "product" | "category" | "bogo" | "popup";
 
 const scopeLabel: Record<string, string> = {
   RESTAURANT: "Restaurant",
@@ -83,13 +83,16 @@ export function DealsPage() {
     const lowerQuery = query.trim().toLowerCase();
     const filteredByTab = dealsForRestaurantContext.filter((deal) => {
       if (tab === "restaurant") {
-        return deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER";
+        return (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER") && deal.triggerType !== "BOGO_CATEGORY";
       }
       if (tab === "product") {
         return deal.scopeType === "PRODUCT";
       }
       if (tab === "category") {
-        return deal.scopeType === "CATEGORY";
+        return deal.scopeType === "CATEGORY" && deal.triggerType !== "BOGO_CATEGORY";
+      }
+      if (tab === "bogo") {
+        return deal.triggerType === "BOGO_CATEGORY";
       }
       return false;
     });
@@ -121,15 +124,17 @@ export function DealsPage() {
   };
 
   const activeDealsCount = {
-    restaurant: dealsForRestaurantContext.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER")).length,
+    restaurant: dealsForRestaurantContext.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER") && deal.triggerType !== "BOGO_CATEGORY").length,
     product: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "PRODUCT").length + filteredLegacyProductDiscounts.length,
-    category: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY").length,
+    category: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY" && deal.triggerType !== "BOGO_CATEGORY").length,
+    bogo: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.triggerType === "BOGO_CATEGORY").length,
   };
 
   const openCreate = () => {
     setActiveDeal(null);
     setPendingLegacyMigration(null);
     setDealPrefill(selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined);
+
     setDealModalOpen(true);
   };
 
@@ -181,11 +186,10 @@ export function DealsPage() {
             </Button>
             {tab === "popup" ? (
               <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={13} /> Skicka popup för deal</Button>
+            ) : tab === "bogo" ? (
+              <Button variant="primary" onClick={() => { setBogoDeal(null); setBogoModalOpen(true); }}><Plus size={13} /> Ny BOGO-deal</Button>
             ) : (
-              <>
-                <Button variant="secondary" onClick={() => { setBogoDeal(null); setBogoModalOpen(true); }}><Plus size={13} /> BOGO-deal</Button>
-                <Button variant="primary" onClick={openCreate}><Plus size={13} /> New deal</Button>
-              </>
+              <Button variant="primary" onClick={openCreate}><Plus size={13} /> Ny deal</Button>
             )}
           </>
         }
@@ -202,10 +206,16 @@ export function DealsPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          <button type="button" onClick={() => setTab("restaurant")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "restaurant" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Restaurant {activeDealsCount.restaurant > 0 ? `(${activeDealsCount.restaurant})` : ""}</button>
-          <button type="button" onClick={() => setTab("product")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "product" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Products {activeDealsCount.product > 0 ? `(${activeDealsCount.product})` : ""}</button>
-          <button type="button" onClick={() => setTab("category")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "category" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Categories {activeDealsCount.category > 0 ? `(${activeDealsCount.category})` : ""}</button>
-          <button type="button" onClick={() => setTab("popup")} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${tab === "popup" ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>Popup {(automaticDeals.data || []).filter(isPopupDeal).length > 0 ? `(${(automaticDeals.data || []).filter(isPopupDeal).length})` : ""}</button>
+          {(["restaurant", "product", "category", "bogo", "popup"] as const).map((t) => {
+            const labels: Record<string, string> = { restaurant: "Restaurang", product: "Produkter", category: "Kategorier", bogo: "BOGO", popup: "Popup" };
+            const counts: Record<string, number> = { restaurant: activeDealsCount.restaurant, product: activeDealsCount.product, category: activeDealsCount.category, bogo: activeDealsCount.bogo, popup: (automaticDeals.data || []).filter(isPopupDeal).length };
+            const active = tab === t;
+            return (
+              <button key={t} type="button" onClick={() => setTab(t)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${active ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>
+                {labels[t]} {counts[t] > 0 ? `(${counts[t]})` : ""}
+              </button>
+            );
+          })}
         </div>
 
         {/* Popup-fliken: listar alla deals som har en popup-overlay påsatt.
@@ -254,28 +264,29 @@ export function DealsPage() {
           </div>
         ) : null}
 
-        {tab === "restaurant" || tab === "category" ? (
+        {tab === "restaurant" || tab === "category" || tab === "bogo" ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
-            {filteredAutomaticDeals.length === 0 ? <EmptyState title={`No ${tab} deals`} /> : filteredAutomaticDeals.map((deal) => {
+            {filteredAutomaticDeals.length === 0 ? <EmptyState title={`Inga ${tab === "bogo" ? "BOGO-" : tab === "category" ? "kategori-" : "restaurang-"}deals`} /> : filteredAutomaticDeals.map((deal) => {
               const targetLabels = (deal.targetIds || []).map((targetId) => categoryNameMap.get(targetId) || productNameMap.get(targetId) || targetId).slice(0, 3);
               const isBogo = deal.triggerType === "BOGO_CATEGORY";
               return (
                 <button key={deal.id} type="button" onClick={() => { if (isBogo) { setBogoDeal(deal); setBogoModalOpen(true); } else { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); } }} className="surface-muted px-5 py-5 text-left">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-lg font-black tracking-[-0.02em]">{deal.title}</p>
-                        <Badge tone={deal.isActive ? "success" : "danger"}>{deal.isActive ? "Active" : "Inactive"}</Badge>
-                        <Badge tone="info">{scopeLabel[deal.scopeType] || deal.scopeType}</Badge>
+                        <Badge tone={deal.isActive ? "success" : "danger"}>{deal.isActive ? "Aktiv" : "Inaktiv"}</Badge>
+                        {isBogo ? <Badge tone="info">BOGO</Badge> : <Badge tone="info">{scopeLabel[deal.scopeType] || deal.scopeType}</Badge>}
+                        {(deal as any).showAsBanner ? <Badge tone="warning">Banner</Badge> : null}
                       </div>
-                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.restaurant?.name || (deal.isGlobal ? "All restaurants" : "No restaurant")} • {isBogo ? "BOGO — 1 gratis" : deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</p>
+                      <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.restaurant?.name || (deal.isGlobal ? "Alla restauranger" : "Ingen restaurang")} • {isBogo ? "BOGO — 1 gratis" : deal.discountType === "PERCENTAGE" ? `${deal.discountValue}%` : `${deal.discountValue} kr`}</p>
                       {deal.description ? <p className="mt-2 text-sm text-[var(--text-secondary)]">{deal.description}</p> : null}
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
                     {deal.badgeText ? <Badge tone="warning">{deal.badgeText}</Badge> : null}
                     {deal.targetIds.length > 0 ? targetLabels.map((label) => <Badge key={`${deal.id}-${label}`} tone="neutral">{label}</Badge>) : null}
-                    {deal.targetIds.length > targetLabels.length ? <Badge tone="neutral">+{deal.targetIds.length - targetLabels.length} more</Badge> : null}
+                    {deal.targetIds.length > targetLabels.length ? <Badge tone="neutral">+{deal.targetIds.length - targetLabels.length} till</Badge> : null}
                     {deal.scopeType === "MIN_ORDER" ? <Badge tone="neutral">Min order {deal.minOrder} kr</Badge> : null}
                     {deal.validUntil ? (
                       new Date(deal.validUntil) < new Date()
@@ -353,7 +364,7 @@ export function DealsPage() {
         categories={categories.data || []}
         products={products.data || []}
         initialDeal={activeDeal}
-        prefill={activeDeal ? undefined : dealPrefill || (selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined)}
+        prefill={activeDeal ? undefined : dealPrefill || (selectedRestaurantId ? { restaurantId: selectedRestaurantId, scopeType: tab === "product" ? "PRODUCT" : tab === "category" ? "CATEGORY" : "RESTAURANT" } : undefined) as any}
         onSaved={async () => {
           if (!pendingLegacyMigration) return;
           await clearLegacyProductDiscount(pendingLegacyMigration.id);

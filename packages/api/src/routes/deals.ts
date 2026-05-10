@@ -114,6 +114,44 @@ router.get('/:id/restaurants', async (req, res) => {
   }
 });
 
+// GET /api/deals/banners?slug=xxx — aktiva banner-deals för en restaurangs sida
+router.get('/banners', async (req, res) => {
+  try {
+    let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;
+
+    if (!targetRestaurantId && typeof req.query.slug === 'string' && req.query.slug.trim()) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { slug: req.query.slug.trim() },
+        select: { id: true },
+      });
+      targetRestaurantId = restaurant?.id || null;
+    }
+
+    if (!targetRestaurantId) return res.json([]);
+
+    const deals = await prisma.deal.findMany({
+      where: {
+        isActive: true,
+        showAsBanner: true,
+        OR: [
+          { restaurantId: targetRestaurantId },
+          { applicableRestaurantIds: { contains: `"${targetRestaurantId}"` } },
+        ],
+      },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    res.json(
+      deals
+        .filter((deal) => isDealAvailableNow(deal))
+        .map((deal) => formatDealForClient(deal)),
+    );
+  } catch (error) {
+    console.error('Banner deals error:', error);
+    res.status(500).json({ error: 'Kunde inte hämta banner-deals' });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     let targetRestaurantId = typeof req.query.restaurantId === 'string' ? req.query.restaurantId : null;

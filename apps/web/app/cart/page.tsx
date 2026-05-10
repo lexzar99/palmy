@@ -47,7 +47,7 @@ import {
   rememberQuickAddress,
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
-import { PublicDeal, pickBestDeal } from "@/lib/deals";
+import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
@@ -99,6 +99,7 @@ export default function CartPage() {
     estimatedDeliveryTime: number;
     pausedUntil?: string | null;
     isPaused?: boolean;
+    vatPercent?: number | null;
   }>({
     isOpen: true,
     deliveryFee: 0,
@@ -373,6 +374,20 @@ export default function CartPage() {
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
 
+  // Hitta närmaste inaktiva deal för tröskel-nudge (max 100 kr kvar, inte redan aktiv)
+  const dealNudge = useMemo(() => {
+    if (!deals.length) return null;
+    let closest: { deal: PublicDeal; missing: number } | null = null;
+    for (const deal of deals) {
+      if (deal.minOrder <= 0) continue;
+      const missing = Math.max(deal.minOrder - subtotal, 0);
+      if (missing === 0) continue; // redan aktiv
+      if (missing > 100) continue; // för långt ifrån
+      if (!closest || missing < closest.missing) closest = { deal, missing };
+    }
+    return closest;
+  }, [deals, subtotal]);
+
   const personalDiscount = useMemo(() => {
     if (!selectedPersonalDeal) return 0;
     const { campaign } = selectedPersonalDeal;
@@ -411,6 +426,7 @@ export default function CartPage() {
         setRestaurantSettings((prev) => ({
           ...prev,
           isOpen: restaurantRes.data.isOpen ?? prev.isOpen,
+          vatPercent: restaurantRes.data.vatPercent ?? null,
         }));
       }
 
@@ -1278,10 +1294,41 @@ export default function CartPage() {
                         </div>
                      </div>
 
+                     {/* Deal tröskel-nudge — visas diskret om man är nära en deal */}
+                     {dealNudge && (
+                       <motion.div
+                         initial={{ opacity: 0, y: 6 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         className="mt-6 rounded-2xl border px-4 py-3"
+                         style={{ background: "rgba(234,181,69,0.08)", borderColor: "rgba(234,181,69,0.22)" }}
+                       >
+                         <div className="flex items-center justify-between gap-2 mb-2">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-gold-500">
+                             {dealNudge.missing.toFixed(0)} kr kvar till {formatDealReward(dealNudge.deal)}
+                           </p>
+                           <Tag size={12} className="text-gold-500 shrink-0" />
+                         </div>
+                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                           <motion.div
+                             className="h-full rounded-full bg-gold-500"
+                             initial={{ width: 0 }}
+                             animate={{ width: `${Math.min((subtotal / dealNudge.deal.minOrder) * 100, 100)}%` }}
+                             transition={{ duration: 0.5, ease: "easeOut" }}
+                           />
+                         </div>
+                       </motion.div>
+                     )}
+
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
                         {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
+                        {restaurantSettings.vatPercent ? (
+                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+                            <span>Varav moms ({restaurantSettings.vatPercent}%)</span>
+                            <span>{(total * restaurantSettings.vatPercent / (100 + restaurantSettings.vatPercent)).toFixed(0)} KR</span>
+                          </div>
+                        ) : null}
                         <div className="flex justify-between items-center mt-6">
                            <span className="text-2xl sm:text-3xl font-black italic uppercase tracking-tighter" style={{ color: "var(--text-primary)" }}>TOTALT</span>
                            <span className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-none text-gold-gradient">{total.toFixed(0)} <span className="text-xs opacity-50 not-italic" style={{ color: "var(--text-secondary)" }}>SEK</span></span>

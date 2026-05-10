@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AddressModal from "@/components/AddressModal";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
+import DealBannerStrip from "@/components/DealBannerStrip";
 import { useCartStore } from "@/store/cartStore";
 
 interface MenuContentProps {
@@ -346,6 +347,27 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Infobanner — admin-konfigurerbar text per restaurang */}
+        {restaurant?.announcementText ? (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 px-5 py-4"
+          >
+            <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-500" />
+            <p className="text-[12px] font-bold leading-relaxed text-amber-700 dark:text-amber-400">
+              {restaurant.announcementText}
+            </p>
+          </motion.div>
+        ) : null}
+
+        {/* Aktuella deal-banners för den här restaurangen */}
+        {(restaurantSlug || restaurant?.slug) ? (
+          <div className="mb-5 -mx-4 sm:-mx-6">
+            <DealBannerStrip slug={restaurantSlug || restaurant?.slug} />
+          </div>
+        ) : null}
 
         {/* Previously ordered bar (inloggade kunder) */}
         {restaurant?.id && (

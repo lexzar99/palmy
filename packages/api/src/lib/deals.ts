@@ -16,6 +16,7 @@ type DealLike = {
   comboProductIds: string;
   isActive: boolean;
   showOnSite: boolean;
+  showAsBanner?: boolean;
   popupEnabled: boolean;
   maxUsages: number | null;
   maxUsesPerCustomer: number | null;
@@ -384,6 +385,7 @@ export const formatDealForClient = (
   comboProductNames: extra?.comboProductNames || [],
   isActive: deal.isActive,
   showOnSite: deal.showOnSite,
+  showAsBanner: deal.showAsBanner ?? false,
   popupEnabled: deal.popupEnabled,
   maxUsages: deal.maxUsages,
   maxUsesPerCustomer: deal.maxUsesPerCustomer,

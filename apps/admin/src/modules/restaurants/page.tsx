@@ -88,6 +88,8 @@ type RestaurantFormState = {
   freeDeliveryAbove: number;
   openingHours: HoursForm;
   logoutCode: string;
+  announcementText: string;
+  vatPercent: string;
 };
 
 const emptyForm: RestaurantFormState = {
@@ -116,6 +118,8 @@ const emptyForm: RestaurantFormState = {
   freeDeliveryAbove: 0,
   openingHours: buildDefaultHours(),
   logoutCode: "",
+  announcementText: "",
+  vatPercent: "",
 };
 
 const detailQueryKey = (restaurantId: string | null) => ["restaurants", "detail", restaurantId] as const;
@@ -147,6 +151,8 @@ const mapDetailToForm = (detail: RestaurantDetail): RestaurantFormState => ({
   freeDeliveryAbove: detail.freeDeliveryAbove || 0,
   openingHours: parseHoursFromDetail(detail.openingHours),
   logoutCode: detail.logoutCode || "",
+  announcementText: (detail as any).announcementText || "",
+  vatPercent: (detail as any).vatPercent != null ? String((detail as any).vatPercent) : "",
 });
 
 const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => ({
@@ -175,6 +181,8 @@ const mapFormToPayload = (form: RestaurantFormState): RestaurantFormPayload => (
   freeDeliveryAbove: Number(form.freeDeliveryAbove || 0),
   openingHours: { regular: form.openingHours },
   logoutCode: form.logoutCode.trim() || null,
+  announcementText: form.announcementText.trim() || null,
+  vatPercent: form.vatPercent ? Number(form.vatPercent) : null,
 });
 
 function RestaurantEditorModal({
@@ -523,6 +531,18 @@ function RestaurantEditorModal({
             <div className="md:col-span-2">
               <Field label="Internal info"><Textarea value={form.internalInfo} onChange={(event) => setForm((current) => ({ ...current, internalInfo: event.target.value }))} /></Field>
             </div>
+            <div className="md:col-span-2">
+              <Field label="Infobanner (visas för kunder på restaurangsidan)">
+                <Textarea value={form.announcementText} onChange={(event) => setForm((current) => ({ ...current, announcementText: event.target.value }))} placeholder="Vi har tillfälligt stängt — öppnar igen onsdag 12 juni." />
+              </Field>
+            </div>
+            <Field label="Moms att visa i kassan">
+              <Select value={form.vatPercent} onChange={(event) => setForm((current) => ({ ...current, vatPercent: event.target.value }))}>
+                <option value="">Ingen momsrad</option>
+                <option value="6">6 % moms</option>
+                <option value="12">12 % moms</option>
+              </Select>
+            </Field>
           </div>
         ) : null}
 
