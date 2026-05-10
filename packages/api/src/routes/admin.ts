@@ -1860,6 +1860,19 @@ router.get('/deals', async (req, res) => {
   }
 });
 
+router.get('/deals/:id', async (req, res) => {
+  try {
+    const deal = await prisma.deal.findUnique({
+      where: { id: req.params.id },
+      include: { restaurant: { select: { id: true, name: true, slug: true } } },
+    });
+    if (!deal) return res.status(404).json({ error: 'Deal hittades inte' });
+    res.json(formatDealForAdmin(deal));
+  } catch {
+    res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
 router.post('/deals', async (req, res) => {
   try {
     const { restaurantId, ...rest } = req.body;

@@ -1,27 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, RefreshCw, Pencil, Zap, Tag, Gift } from "lucide-react";
+import { Plus, RefreshCw, Zap, Tag, Gift } from "lucide-react";
 import {
-  clearLegacyProductDiscount,
   dealsQueryKey,
-  dealCategoriesQueryKey,
-  dealProductsQueryKey,
   dealRestaurantsQueryKey,
   getAutomaticDeals,
-  getDealCategories,
-  getDealProducts,
   getDealRestaurants,
-  wipeAllDeals,
   type AutomaticDealRecord,
-  type DealProductRef,
 } from "@/modules/deals/api";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
-import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
-import { BogoDealModal } from "@/modules/deals/components/bogo-deal-modal";
-import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
@@ -55,30 +45,27 @@ const isBogoDeal = (deal: AutomaticDealRecord) => deal.triggerType === "BOGO_CAT
 export function DealsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("bogo");
+  const searchParams = useSearchParams();
+
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const [tab, setTab] = useState<Tab>(tabParam || "bogo");
   const [filterRestaurantId, setFilterRestaurantId] = useState<string | null>(null);
 
-  // Modals
-  const [dealModalOpen, setDealModalOpen] = useState(false);
-  const [activeDeal, setActiveDeal] = useState<AutomaticDealRecord | null>(null);
-  const [dealPrefill, setDealPrefill] = useState<Record<string, unknown> | undefined>(undefined);
-  const [pendingLegacyMigration, setPendingLegacyMigration] = useState<DealProductRef | null>(null);
-  const [bogoModalOpen, setBogoModalOpen] = useState(false);
-  const [bogoDeal, setBogoDeal] = useState<AutomaticDealRecord | null>(null);
-  const [popupModalOpen, setPopupModalOpen] = useState(false);
-  const [popupTargetDeal, setPopupTargetDeal] = useState<AutomaticDealRecord | null>(null);
+  // Kupong modal state
   const [couponModalOpen, setCouponModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState<DiscountRecord | null>(null);
   const [couponForm, setCouponForm] = useState<CouponForm>(emptyCouponForm());
   const [couponError, setCouponError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tabParam && tabParam !== tab) setTab(tabParam);
+  }, [tabParam]);
 
   // Data
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
   const allRestaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
   const discounts = useQuery({ queryKey: discountsQueryKey, queryFn: getDiscounts });
-  const categories = useQuery({ queryKey: dealCategoriesQueryKey(filterRestaurantId), queryFn: () => getDealCategories(filterRestaurantId!), enabled: Boolean(filterRestaurantId) });
-  const products = useQuery({ queryKey: dealProductsQueryKey(filterRestaurantId), queryFn: () => getDealProducts(filterRestaurantId!), enabled: Boolean(filterRestaurantId) });
 
   useEffect(() => { if (!couponModalOpen) setCouponError(null); }, [couponModalOpen]);
 
@@ -153,15 +140,10 @@ export function DealsPage() {
     { id: "kupongkoder", label: "Kupongkoder", icon: <Tag size={16} />, count: (discounts.data || []).filter((d) => d.isActive).length },
   ];
 
-  const handleNewDeal = () => {
-    setActiveDeal(null);
-    setPendingLegacyMigration(null);
-    setDealPrefill(filterRestaurantId ? { restaurantId: filterRestaurantId } : undefined);
-    setDealModalOpen(true);
+  const changeTab = (t: Tab) => {
+    setTab(t);
+    router.replace(`/deals?tab=${t}`, { scroll: false });
   };
-
-  const handleNewBogo = () => { setBogoDeal(null); setBogoModalOpen(true); };
-  const handleNewCoupon = () => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); };
 
   return (
     <div className="page-stack">
@@ -170,15 +152,15 @@ export function DealsPage() {
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={() => void automaticDeals.refetch()}><RefreshCw size={13} /></Button>
-            {tab === "bogo" && <Button variant="primary" onClick={handleNewBogo}><Plus size={14} /> Ny BOGO-deal</Button>}
-            {tab === "kampanjer" && <Button variant="primary" onClick={handleNewDeal}><Plus size={14} /> Ny kampanj</Button>}
-            {tab === "kupongkoder" && <Button variant="primary" onClick={handleNewCoupon}><Plus size={14} /> Ny kupongkod</Button>}
+            {tab === "bogo" && <Button variant="primary" onClick={() => router.push("/deals/bogo/new")}><Plus size={14} /> Ny BOGO-deal</Button>}
+            {tab === "kampanjer" && <Button variant="primary" onClick={() => router.push("/deals/kampanj/new")}><Plus size={14} /> Ny kampanj</Button>}
+            {tab === "kupongkoder" && <Button variant="primary" onClick={() => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); }}><Plus size={14} /> Ny kupongkod</Button>}
           </div>
         }
       />
 
       <Surface className="px-6 py-6">
-        {/* Restaurant filter — optional, quick */}
+        {/* Restaurant filter */}
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <Select
             value={filterRestaurantId || ""}
@@ -189,11 +171,7 @@ export function DealsPage() {
             {restaurants.data.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </Select>
           {filterRestaurantId && (
-            <button
-              type="button"
-              onClick={() => setFilterRestaurantId(null)}
-              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline"
-            >
+            <button type="button" onClick={() => setFilterRestaurantId(null)} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
               Visa alla
             </button>
           )}
@@ -205,7 +183,7 @@ export function DealsPage() {
             <button
               key={id}
               type="button"
-              onClick={() => setTab(id)}
+              onClick={() => changeTab(id)}
               className={`flex items-center gap-2.5 rounded-xl border px-5 py-3 text-sm font-semibold transition-all ${
                 tab === id
                   ? "border-[var(--accent)] bg-[rgba(99,102,241,0.12)] text-[var(--accent)] shadow-sm"
@@ -228,14 +206,14 @@ export function DealsPage() {
           <DealGrid
             deals={bogoDeals}
             emptyTitle="Inga BOGO-deals"
-            emptyDescription="BOGO = köp X, få 1 gratis. Skapa din första deal med knappen ovan."
+            emptyDescription='BOGO = köp X, få 1 gratis. Tryck "Ny BOGO-deal" för att skapa.'
             renderCard={(deal) => (
               <DealCard
                 key={deal.id}
                 deal={deal}
                 typeLabel={bogoTriggerLabel(deal)}
                 valueLine="1 gratis"
-                onClick={() => { setBogoDeal(deal); setBogoModalOpen(true); }}
+                onClick={() => router.push(`/deals/bogo/${deal.id}`)}
               />
             )}
           />
@@ -246,15 +224,14 @@ export function DealsPage() {
           <DealGrid
             deals={kampanjDeals}
             emptyTitle="Inga kampanjer"
-            emptyDescription="Kampanjer ger rabatt på restaurang, produkter eller kategorier. Skapa din första med knappen ovan."
+            emptyDescription='Kampanjer ger rabatt på restaurang, kategori eller produkt. Tryck "Ny kampanj".'
             renderCard={(deal) => {
-              const discountLine = deal.discountType === "PERCENTAGE"
-                ? `-${deal.discountValue}%`
-                : deal.scopeType === "MIN_ORDER"
-                  ? `${deal.discountValue} kr · min ${deal.minOrder} kr`
-                  : `${deal.discountValue} kr`;
-              const typeLabel = isPopupDeal(deal)
-                ? "Popup"
+              const discountLine =
+                deal.discountType === "PERCENTAGE" ? `-${deal.discountValue}%`
+                : deal.scopeType === "MIN_ORDER" ? `${deal.discountValue} kr · min ${deal.minOrder} kr`
+                : `${deal.discountValue} kr`;
+              const typeLabel =
+                isPopupDeal(deal) ? "Popup"
                 : deal.scopeType === "RESTAURANT" ? "Restaurang"
                 : deal.scopeType === "PRODUCT" ? "Produkt"
                 : deal.scopeType === "CATEGORY" ? "Kategori"
@@ -267,10 +244,7 @@ export function DealsPage() {
                   deal={deal}
                   typeLabel={typeLabel}
                   valueLine={discountLine}
-                  onClick={() => {
-                    if (isPopupDeal(deal)) { setPopupTargetDeal(deal); setPopupModalOpen(true); }
-                    else { setDealPrefill(undefined); setPendingLegacyMigration(null); setActiveDeal(deal); setDealModalOpen(true); }
-                  }}
+                  onClick={() => router.push(`/deals/kampanj/${deal.id}`)}
                 />
               );
             }}
@@ -307,8 +281,7 @@ export function DealsPage() {
                         : record.restaurantId
                           ? ((allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === record.restaurantId)?.name ?? record.restaurantId)
                           : "Alla restauranger"}
-                      {record.expiresAt ? ` · Giltig t.o.m. ${formatDate(record.expiresAt)}` : ""}
-                      {record.maxUses != null ? ` · ${formatNumber(record.usedCount)}/${formatNumber(record.maxUses)} använda` : ""}
+                      {record.expiresAt ? ` · t.o.m. ${formatDate(record.expiresAt)}` : ""}
                     </p>
                   </button>
                 ))}
@@ -317,37 +290,6 @@ export function DealsPage() {
           </div>
         )}
       </Surface>
-
-      {/* Modals */}
-      <AutomaticDealModal
-        open={dealModalOpen}
-        onClose={() => { setDealModalOpen(false); setActiveDeal(null); setDealPrefill(undefined); setPendingLegacyMigration(null); }}
-        restaurants={restaurants.data}
-        categories={categories.data || []}
-        products={products.data || []}
-        initialDeal={activeDeal}
-        prefill={activeDeal ? undefined : (dealPrefill as any)}
-        onSaved={async () => {
-          if (!pendingLegacyMigration) return;
-          await clearLegacyProductDiscount(pendingLegacyMigration.id);
-          await queryClient.invalidateQueries({ queryKey: dealProductsQueryKey(filterRestaurantId) });
-          await queryClient.invalidateQueries({ queryKey: ["menu", "products"] });
-          setPendingLegacyMigration(null);
-        }}
-      />
-
-      <BogoDealModal
-        open={bogoModalOpen}
-        onClose={() => { setBogoModalOpen(false); setBogoDeal(null); }}
-        deal={bogoDeal}
-        prefillRestaurantId={filterRestaurantId}
-      />
-
-      <PopupDealModal
-        open={popupModalOpen}
-        onClose={() => { setPopupModalOpen(false); setPopupTargetDeal(null); }}
-        deal={popupTargetDeal}
-      />
 
       {/* Kupong-modal */}
       <Modal
@@ -428,7 +370,7 @@ export function DealsPage() {
 
 function bogoTriggerLabel(deal: AutomaticDealRecord): string {
   if ((deal.bogoTriggerProductIds ?? []).length > 0) return "Produkter";
-  if (deal.bogoMinOrderAmount != null && deal.bogoMinOrderAmount > 0) return `Min ${deal.bogoMinOrderAmount} kr`;
+  if ((deal as any).bogoMinOrderAmount != null && (deal as any).bogoMinOrderAmount > 0) return `Min ${(deal as any).bogoMinOrderAmount} kr`;
   return deal.triggerQuantity != null ? `Köp ${deal.triggerQuantity}` : "BOGO";
 }
 
@@ -469,7 +411,6 @@ function DealCard({ deal, typeLabel, valueLine, onClick }: {
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <Badge tone="info">{typeLabel}</Badge>
         {deal.showAsBanner && <Badge tone="warning">Banner</Badge>}
-        {(deal as any).popupCode && <Badge tone="neutral">Kod: {(deal as any).popupCode}</Badge>}
       </div>
       <p className="mt-2 text-xs text-[var(--text-muted)]">
         {deal.restaurant?.name || (deal.isGlobal ? "Alla restauranger" : "Ingen restaurang")}

@@ -111,6 +111,8 @@ export const dealCategoriesQueryKey = (restaurantId: string | null) => ["deals",
 export const dealProductsQueryKey = (restaurantId: string | null) => ["deals", "products", restaurantId] as const;
 
 export const getAutomaticDeals = () => apiGet<AutomaticDealRecord[]>("/admin/deals");
+export const getDealById = (id: string) => apiGet<AutomaticDealRecord>(`/admin/deals/${id}`);
+export const dealByIdQueryKey = (id: string) => ["deals", "automatic", id] as const;
 export const getDiscountCodes = () => apiGet<DiscountCodeRecord[]>("/admin/discounts");
 export const getPersonalCodes = () => apiGet<PersonalCodeRecord[]>("/admin/customer-deals");
 export const getDealRestaurants = () => apiGet<DealRestaurantRef[]>("/restaurants");
