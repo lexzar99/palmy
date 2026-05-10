@@ -221,7 +221,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     // ── Header ──────────────────────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 22, 20, 0),
+                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
                         child: _Header(
                           provider: provider,
                           isDark: isDark,
@@ -233,7 +233,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     if (provider.isOffline)
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                           child: _OfflineBanner(),
                         ),
                       ),
@@ -249,7 +249,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     // ── NYA ORDER section header ─────────────────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 22, 20, 14),
+                        padding: const EdgeInsets.fromLTRB(16, 22, 16, 14),
                         child: _SectionHeaderRow(
                           title: 'NYA ORDER',
                           countBadge: provider.pendingOrders.isNotEmpty
@@ -271,31 +271,40 @@ class _DashboardScreenState extends State<DashboardScreen>
                                 label: 'Inga nya ordrar',
                               ),
                             )
-                          : SizedBox(
-                              height: 256,
-                              child: ListView.separated(
-                                padding:
-                                    const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                                scrollDirection: Axis.horizontal,
-                                physics: const ClampingScrollPhysics(),
-                                itemCount: provider.pendingOrders.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(width: 12),
-                                itemBuilder: (context, index) {
-                                  final o = provider.pendingOrders[index];
-                                  return NewOrderCard(
-                                    order: o,
-                                    onTap: () => _openTake(o),
-                                  );
-                                },
-                              ),
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final sw = MediaQuery.of(context).size.width;
+                                final cardW = sw < 360
+                                    ? sw - 56.0
+                                    : (sw * 0.56).clamp(200.0, 230.0);
+                                return SizedBox(
+                                  height: 264,
+                                  child: ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 4, 16, 8),
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const ClampingScrollPhysics(),
+                                    itemCount: provider.pendingOrders.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 12),
+                                    itemBuilder: (context, index) {
+                                      final o = provider.pendingOrders[index];
+                                      return NewOrderCard(
+                                        order: o,
+                                        width: cardW,
+                                        onTap: () => _openTake(o),
+                                      );
+                                    },
+                                  ),
+                                );
+                              },
                             ),
                     ),
 
                     // ── FÖREGÅENDE ORDRAR section header ───────────────
                     SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 6),
+                        padding: const EdgeInsets.fromLTRB(16, 28, 16, 6),
                         child: const _SectionHeaderRow(
                           title: 'FÖREGÅENDE ORDRAR',
                           countBadge: null,
@@ -307,7 +316,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     if (provider.recentOrders.isEmpty)
                       const SliverToBoxAdapter(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(20, 8, 20, 40),
+                          padding: EdgeInsets.fromLTRB(16, 8, 16, 40),
                           child: _EmptyState(
                             icon: Icons.inbox_outlined,
                             label: 'Inga ordrar ännu idag',
@@ -316,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       )
                     else
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
                         sliver: SliverList.builder(
                           itemCount: provider.recentOrders.length * 2 - 1,
                           itemBuilder: (context, i) {
@@ -389,9 +398,9 @@ class _Header extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 36,
+                  fontSize: 44,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -1.2,
+                  letterSpacing: -1.8,
                   height: 1.0,
                   color: isDark ? Colors.white : AppTheme.ink,
                 ),
@@ -400,10 +409,10 @@ class _Header extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   color: isDark
-                      ? Colors.white.withOpacity(0.50)
+                      ? Colors.white.withOpacity(0.55)
                       : const Color(0xFF8E8E93),
                 ),
               ),
@@ -667,9 +676,9 @@ class _SectionHeaderRow extends StatelessWidget {
           title,
           style: TextStyle(
             color: isDark ? Colors.white : AppTheme.ink,
-            fontSize: 17,
+            fontSize: 20,
             fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
+            letterSpacing: 0.6,
           ),
         ),
         if (countBadge != null) ...[

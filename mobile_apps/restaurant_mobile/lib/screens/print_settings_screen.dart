@@ -276,6 +276,121 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
     super.dispose();
   }
 
+  void _showManualAddressModal() {
+    final isDark = AppTheme.isDark(context);
+    final ipController = TextEditingController(text: _addressController.text);
+    final nameCtrl = TextEditingController(
+      text: _nameController.text == 'Köksskrivare' ? '' : _nameController.text,
+    );
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, _) => Padding(
+          padding: EdgeInsets.only(
+            left: 12,
+            right: 12,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppTheme.panelColor(context),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withOpacity(0.08)
+                    : Colors.black.withOpacity(0.06),
+              ),
+            ),
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.edit_rounded,
+                          color: Colors.teal, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Manuell IP-adress',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: isDark ? Colors.white : AppTheme.ink,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      icon: Icon(Icons.close_rounded,
+                          color: AppTheme.mutedColor(context)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Namn (valfritt)',
+                    prefixIcon: Icon(Icons.label_outline_rounded),
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: ipController,
+                  autofocus: true,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'IP-adress eller host:port',
+                    prefixIcon: Icon(Icons.print_outlined),
+                    hintText: '192.168.1.100 eller 192.168.1.100:9100',
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) =>
+                      _applyManualAndSave(ctx, ipController.text, nameCtrl.text),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () =>
+                        _applyManualAndSave(ctx, ipController.text, nameCtrl.text),
+                    child: const Text('Anslut och spara'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _applyManualAndSave(BuildContext ctx, String address, String name) {
+    final trimAddr = address.trim();
+    if (trimAddr.isEmpty) return;
+    Navigator.pop(ctx);
+    setState(() {
+      _connectionType = 'NETWORK';
+      _addressController.text = trimAddr;
+      if (name.trim().isNotEmpty) _nameController.text = name.trim();
+    });
+    _saveSettings();
+  }
+
   Future<void> _scanNetworkAndShowModal() async {
     await _startNetworkScan();
     if (!mounted) return;
@@ -659,6 +774,15 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                             color: AppTheme.brandGold,
                             loading: _testing,
                             onTap: _testPrint,
+                          ),
+                          const SizedBox(height: 14),
+                          _buildActionTile(
+                            icon: Icons.edit_rounded,
+                            title: 'Manuell IP-adress',
+                            subtitle: 'Ange IP-adress direkt för nätverksskrivare',
+                            color: Colors.teal,
+                            loading: false,
+                            onTap: _showManualAddressModal,
                           ),
                         ],
                       ),

@@ -26,8 +26,9 @@ String _relTime(DateTime dt) {
 class NewOrderCard extends StatelessWidget {
   final OrderModel order;
   final VoidCallback onTap;
+  final double? width;
 
-  const NewOrderCard({super.key, required this.order, required this.onTap});
+  const NewOrderCard({super.key, required this.order, required this.onTap, this.width});
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,7 @@ class NewOrderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 200,
+        width: width ?? 200,
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
