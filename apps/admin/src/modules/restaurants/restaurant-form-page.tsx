@@ -121,7 +121,7 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   latitude: f.latitude.trim() ? Number(f.latitude) : null,
   longitude: f.longitude.trim() ? Number(f.longitude) : null,
   freeDeliveryAbove: Number(f.freeDeliveryAbove || 0),
-  openingHours: { regular: f.openingHours },
+  openingHours: f.openingHours,
   logoutCode: f.logoutCode.trim() || null,
   announcementText: f.announcementText.trim() || null,
   vatPercent: f.vatPercent ? Number(f.vatPercent) : null,
