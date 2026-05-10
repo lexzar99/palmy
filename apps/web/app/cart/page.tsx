@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
+import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
@@ -85,7 +86,12 @@ export default function CartPage() {
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
-  const [bogoPreview, setBogoPreview] = useState<{ discountKr: number; dealTitle: string } | null>(null);
+  const [bogoPreview, setBogoPreview] = useState<{
+    discountKr: number; dealTitle: string; dealId: string | null;
+    rewardCategoryName: string | null;
+    rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[];
+  } | null>(null);
+  const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -339,6 +345,8 @@ export default function CartPage() {
   const subtotal = getTotal();
   const currentRestaurantId = useCartStore((s) => s.restaurantId);
   const deliveryOverrides = useCartStore((s) => s.deliveryOverrides);
+  const bogoChoice = useCartStore((s) => s.bogoChoice);
+  const setBogoChoice = useCartStore((s) => s.setBogoChoice);
   const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
 
   // Sync delivery fees from global overrides (set by home page zone check or previous cart session)
@@ -642,9 +650,19 @@ export default function CartPage() {
         });
         const data = res.data;
         if (data.discountAmountKr > 0 && data.dealTitle) {
-          setBogoPreview({ discountKr: data.discountAmountKr, dealTitle: data.dealTitle });
+          setBogoPreview({
+            discountKr: data.discountAmountKr,
+            dealTitle: data.dealTitle,
+            dealId: data.dealId ?? null,
+            rewardCategoryName: data.rewardCategoryName ?? null,
+            rewardProducts: data.rewardProducts ?? [],
+          });
+          // Rensa bogoChoice om det gäller en annan deal
+          const existing = useCartStore.getState().bogoChoice;
+          if (existing && existing.dealId !== data.dealId) setBogoChoice(null);
         } else {
           setBogoPreview(null);
+          setBogoChoice(null);
         }
       } catch {
         setBogoPreview(null);
@@ -1321,6 +1339,50 @@ export default function CartPage() {
                         </div>
                      </div>
 
+                     {/* BOGO: påminn om gratisprodukt om ej vald */}
+                     {bogoPreview && !bogoChoice && bogoPreview.rewardProducts.length > 0 && (
+                       <motion.button
+                         type="button"
+                         initial={{ opacity: 0, y: 6 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         onClick={() => setShowBogoPicker(true)}
+                         className="mt-6 w-full rounded-2xl border px-4 py-3.5 text-left transition-all hover:brightness-110 active:scale-[0.99]"
+                         style={{ background: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.25)" }}
+                       >
+                         <div className="flex items-center justify-between gap-2">
+                           <div className="flex items-center gap-2.5">
+                             <span className="text-lg">🎁</span>
+                             <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">BOGO — välj gratisprodukt</p>
+                               <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                 Du har inte valt din gratis{bogoPreview.rewardCategoryName ? ` ${bogoPreview.rewardCategoryName.toLowerCase()}` : " produkt"} →
+                               </p>
+                             </div>
+                           </div>
+                           <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400 shrink-0">Välj →</span>
+                         </div>
+                       </motion.button>
+                     )}
+
+                     {/* BOGO: vald gratisprodukt */}
+                     {bogoChoice && (
+                       <motion.div
+                         initial={{ opacity: 0, y: 6 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         className="mt-6 rounded-2xl border px-4 py-3 flex items-center justify-between gap-2"
+                         style={{ background: "rgba(16,185,129,0.08)", borderColor: "rgba(16,185,129,0.25)" }}
+                       >
+                         <div className="flex items-center gap-2.5">
+                           <span className="text-lg">🎁</span>
+                           <div>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Gratisprodukt vald</p>
+                             <p className="text-xs font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>{bogoChoice.product.name}</p>
+                           </div>
+                         </div>
+                         <button type="button" onClick={() => setBogoChoice(null)} className="text-[10px] font-bold text-emerald-400/60 hover:text-emerald-400 transition-colors shrink-0">Ändra</button>
+                       </motion.div>
+                     )}
+
                      {/* Deal tröskel-nudge — visas diskret om man är nära en deal */}
                      {dealNudge && (
                        <motion.div
@@ -1351,7 +1413,7 @@ export default function CartPage() {
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
                         {bogoPreview && bogoDiscount >= finalDiscount && (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
-                            <span>🎁 {bogoPreview.dealTitle}</span>
+                            <span>🎁 {bogoChoice ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
                             <span>-{bogoDiscount.toFixed(0)} KR</span>
                           </div>
                         )}
@@ -1452,6 +1514,18 @@ export default function CartPage() {
             initialExtras={editingCartItem.item.extras}
             initialNote={editingCartItem.item.note}
             onClose={() => setEditingCartItem(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showBogoPicker && bogoPreview && bogoPreview.rewardProducts.length > 0 && (
+          <BogoPickerModal
+            dealId={bogoPreview.dealId ?? ""}
+            dealTitle={bogoPreview.dealTitle}
+            rewardCategoryName={bogoPreview.rewardCategoryName}
+            products={bogoPreview.rewardProducts}
+            onClose={() => setShowBogoPicker(false)}
           />
         )}
       </AnimatePresence>

@@ -3,8 +3,8 @@ export type PublicDeal = {
   title: string;
   description?: string | null;
   badgeText?: string | null;
-  dealType: "PERCENTAGE" | "FIXED" | "MIN_ORDER" | "COMBO";
-  triggerType: "NONE" | "MIN_ORDER" | "COMBO";
+  dealType: "PERCENTAGE" | "FIXED" | "MIN_ORDER" | "COMBO" | "BOGO_CATEGORY";
+  triggerType: "NONE" | "MIN_ORDER" | "COMBO" | "BOGO_CATEGORY";
   discountType: "PERCENTAGE" | "FIXED";
   discountValue: number;
   minOrder: number;
@@ -17,6 +17,12 @@ export type PublicDeal = {
   maxUsesPerCustomer?: number | null;
   usageCount: number;
   validUntil?: string | null;
+  // BOGO-fält
+  triggerCategoryId?: string | null;
+  rewardCategoryId?: string | null;
+  bogoTriggerProductIds?: string[];
+  triggerQuantity?: number;
+  bogoMinOrderAmountOre?: number | null;
 };
 
 export type DealProgress = {

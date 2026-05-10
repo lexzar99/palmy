@@ -201,7 +201,7 @@ router.get('/', async (req, res) => {
 
     res.json(
       deals
-        .filter((deal) => isDealAvailableNow(deal) && isBasketDeal(deal))
+        .filter((deal) => isDealAvailableNow(deal) && (isBasketDeal(deal) || deal.triggerType === 'BOGO_CATEGORY'))
         .map((deal) =>
           formatDealForClient(deal, {
             comboProductNames: parseDealProductIds(deal.comboProductIds).map((productId) => productNameMap.get(productId) || 'Valfri vara'),
@@ -283,14 +283,45 @@ router.post('/evaluate-cart', async (req, res) => {
       }
     }
 
+    // Hämta reward-produkter om det är en BOGO-deal (för att visa i picker-modal i kassan)
+    let rewardCategoryName: string | null = null;
+    let rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[] = [];
+    if (bestDeal && bestDeal.triggerType === 'BOGO_CATEGORY') {
+      const rewardCatId = bestDeal.rewardCategoryId || bestDeal.triggerCategoryId;
+      if (rewardCatId) {
+        const cat = await prisma.category.findUnique({
+          where: { id: rewardCatId },
+          select: { name: true, products: { where: { isActive: true }, select: { id: true, name: true, price: true, imageUrl: true }, orderBy: { position: 'asc' } } },
+        });
+        if (cat) {
+          rewardCategoryName = cat.name;
+          rewardProducts = cat.products.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl }));
+        }
+      } else {
+        // Inga kategorier — alla produkter i restaurangen
+        const allProds = await prisma.product.findMany({
+          where: { category: { restaurantId }, isActive: true },
+          select: { id: true, name: true, price: true, imageUrl: true },
+          orderBy: { position: 'asc' },
+          take: 50,
+        });
+        rewardProducts = allProds.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl }));
+      }
+    }
+
     res.json({
       discountAmountOre: bestDiscount,
       discountAmountKr: bestDiscount / 100,
       dealTitle: bestDeal?.title ?? null,
+      dealId: bestDeal?.id ?? null,
+      isBogo: bestDeal?.triggerType === 'BOGO_CATEGORY',
+      rewardCategoryId: bestDeal?.rewardCategoryId ?? bestDeal?.triggerCategoryId ?? null,
+      rewardCategoryName,
+      rewardProducts,
     });
   } catch (error) {
     console.error('Cart evaluate error:', error);
-    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null });
+    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [] });
   }
 });
 

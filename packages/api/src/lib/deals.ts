@@ -430,4 +430,10 @@ export const formatDealForClient = (
   applicableRestaurantIds: extra?.applicableRestaurantIds || parseApplicableRestaurantIds(deal.applicableRestaurantIds),
   createdAt: deal.createdAt,
   updatedAt: deal.updatedAt,
+  // BOGO-specifika fält
+  triggerCategoryId: deal.triggerCategoryId ?? null,
+  rewardCategoryId: deal.rewardCategoryId ?? null,
+  bogoTriggerProductIds: parseDealProductIds(deal.bogoTriggerProductIds),
+  triggerQuantity: deal.triggerQuantity ?? 2,
+  bogoMinOrderAmountOre: deal.bogoMinOrderAmountOre ?? null,
 });

@@ -1,0 +1,110 @@
+Launching lib/main.dart on Chrome in debug mode...
+Waiting for connection from debug service on Chrome...             18,2s
+This app is linked to the debug service: ws://127.0.0.1:59159/PbBVfOWbuQ0=/ws
+Debug service listening on ws://127.0.0.1:59159/PbBVfOWbuQ0=/ws
+
+🔥  To hot restart changes while running, press "r" or "R".
+For a more detailed help message, press "h". To quit, press "q".
+
+A Dart VM Service on Chrome is available at: http://127.0.0.1:59159/PbBVfOWbuQ0=
+AudioContext init error: Assertion failed: file:///Users/jalle/.pub-cache/hosted/pub.dev/audioplayers_platform_interface-7.1.0/lib/src/api/audio_context.dart:223:13
+category == AVAudioSessionCategory.playAndRecord ||
+                !options.contains(AVAudioSessionOptions.defaultToSpeaker)
+"You can set the option `defaultToSpeaker` explicitly only if the audio session category is `playAndRecord`."
+The Flutter DevTools debugger and profiler on Chrome is available at: http://127.0.0.1:9109?uri=http://127.0.0.1:59159/PbBVfOWbuQ0=
+animate: true
+[14:10:35] LOGIN SUCCESS: palmyra
+[14:10:35] --- LOG SYSTEM INITIALIZED ---
+📡 FETCHING ORDERS for restaurant: cmnxhfd1z000110wjrhizs4nh
+[14:10:35] SOCKET CONNECTED: cmnxhfd1z000110wjrhizs4nh
+[14:10:35] SUCCESS: Fetched 50 orders. Pending: 0
+📢 Watchdog: Evaluating alarms. Pending: 0
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+📢 Watchdog: Evaluating alarms. Pending: 1
+🔊 AudioHelper: Starting loop for audio/notification.wav
+ℹ️ Mac Sound Bridge not running (ignore if not on Mac)
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+animate: true
+══╡ EXCEPTION CAUGHT BY RENDERING LIBRARY ╞═════════════════════════════════════════════════════════
+The following assertion was thrown during layout:
+A RenderFlex overflowed by 19 pixels on the bottom.
+
+The relevant error-causing widget was:
+  Column
+  Column:file:///Users/jalle/testa/mobile_apps/restaurant_mobile/lib/widgets/order_card.dart:69:20
+
+To inspect this widget in Flutter DevTools, visit:
+http://127.0.0.1:9109/#/inspector?uri=http%3A%2F%2F127.0.0.1%3A59159%2FPbBVfOWbuQ0%3D&inspectorRef=inspector-0
+
+The overflowing RenderFlex has an orientation of Axis.vertical.
+The edge of the RenderFlex that is overflowing has been marked in the rendering with a yellow and
+black striped pattern. This is usually caused by the contents being too big for the RenderFlex.
+Consider applying a flex factor (e.g. using an Expanded widget) to force the children of the
+RenderFlex to fit within the available space instead of being sized to their natural size.
+This is considered an error condition because it indicates that there is content that cannot be
+seen. If the content is legitimately bigger than the available space, consider clipping it with a
+ClipRect widget before putting it in the flex, or using a scrollable container rather than a Flex,
+like a ListView.
+The specific RenderFlex in question is: RenderFlex#449e5 OVERFLOWING:
+  creator: Column ← Padding ← Builder ← Padding-[GlobalKey#52973] ← SizedBox ← Ink ← Listener ←
+    RawGestureDetector ← GestureDetector ← Semantics ← DefaultSelectionStyle ← Builder ← ⋯
+  parentData: offset=Offset(18.0, 18.0) (can use size)
+  constraints: BoxConstraints(w=137.8, h=185.8)
+  size: Size(137.8, 185.8)
+  direction: vertical
+  mainAxisAlignment: start
+  mainAxisSize: max
+  crossAxisAlignment: start
+  textDirection: ltr
+  verticalDirection: down
+◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤◢◤
+════════════════════════════════════════════════════════════════════════════════════════════════════
+📡 FETCHING ORDERS for restaurant: cmnxhfd1z000110wjrhizs4nh
+[14:10:41] SUCCESS: Fetched 51 orders. Pending: 1
+📢 Watchdog: Evaluating alarms. Pending: 1
+📢 Watchdog: Evaluating alarms. Pending: 1
+🔔 AudioHelper: Playing test for notification.wav
+🔔 AudioHelper: Playing test for notification.wav
+Receipt data fetch failed: DioException [bad response]: This exception was thrown because the response has a status code of 404 and RequestOptions.validateStatus was configured to throw for this status code.
+The status code of 404 has the following meaning: "Client error - the request contains bad syntax or cannot be fulfilled"
+Read more about status codes at https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+In order to resolve this exception you typically have either to verify and fix your request code or you have to fix the server code.
+
+DartError: TypeError: "0": type 'String' is not a subtype of type 'num?'
+dart-sdk/lib/_internal/js_dev_runtime/private/ddc_runtime/errors.dart 296:3  throw_
+dart-sdk/lib/_internal/js_shared/lib/rti.dart 1405:3                         _failedAsCheck
+dart-sdk/lib/_internal/js_shared/lib/rti.dart 1395:3                         _generalNullableAsCheckImplementation
+packages/restaurant_mobile/core/print_service.dart 492:38                    _buildPdfWidgets
+packages/restaurant_mobile/core/print_service.dart 278:21                    <fn>
+packages/pdf/src/widgets/page.dart 142:21                                    postProcess
+packages/pdf/src/widgets/document.dart 130:13                                save
+dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 84:54           runBody
+dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 127:5           _async
+packages/pdf/src/widgets/document.dart 127:25                                save
+packages/restaurant_mobile/core/print_service.dart 288:15                    _buildPdfReceipt
+dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 45:50           <fn>
+dart-sdk/lib/async/zone.dart 1661:54                                         runUnary
+dart-sdk/lib/async/future_impl.dart 163:18                                   handleValue
+dart-sdk/lib/async/future_impl.dart 861:44                                   handleValueCallback
+dart-sdk/lib/async/future_impl.dart 890:13                                   _propagateToListeners
+dart-sdk/lib/async/future_impl.dart 666:5                                    [_completeWithValue]
+dart-sdk/lib/async/future_impl.dart 736:7                                    callback
+dart-sdk/lib/async/schedule_microtask.dart 40:11                             _microtaskLoop
+dart-sdk/lib/async/schedule_microtask.dart 49:5                              _startMicrotaskLoop
+dart-sdk/lib/_internal/js_dev_runtime/patch/async_patch.dart 181:7           <fn>
+📢 Watchdog: Evaluating alarms. Pending: 1
+📢 Watchdog: Evaluating alarms. Pending: 0
+📢 Watchdog: Evaluating alarms. Pending: 0
+📢 Watchdog: Evaluating alarms. Pending: 0
+Application finished.

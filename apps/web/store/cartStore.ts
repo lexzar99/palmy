@@ -18,6 +18,13 @@ export interface CartItem {
   note?: string;
 }
 
+export type BogoChoice = {
+  dealId: string;
+  dealTitle: string;
+  product: { id: string; name: string; price: number; imageUrl?: string | null };
+  rewardCategoryName?: string | null;
+};
+
 interface CartStore {
   items: CartItem[];
   restaurantId: string | null;
@@ -25,6 +32,7 @@ interface CartStore {
   lastAddedItemName: string | null;
   lastAddedAt: number;
   deliveryOverrides: Record<string, { deliveryFee: number; minOrderAmount: number }>;
+  bogoChoice: BogoChoice | null;
   addItem: (item: Omit<CartItem, 'cartItemId'> & { restaurantSlug?: string }) => void;
   removeItem: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, amount: number) => void;
@@ -35,6 +43,7 @@ interface CartStore {
   setDeliveryOverrides: (overrides: Record<string, { deliveryFee: number; minOrderAmount: number }>) => void;
   /** Update a single restaurant's delivery override without clearing others */
   updateDeliveryOverride: (restaurantId: string, deliveryFee: number, minOrderAmount: number) => void;
+  setBogoChoice: (choice: BogoChoice | null) => void;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -46,6 +55,7 @@ export const useCartStore = create<CartStore>()(
       lastAddedItemName: null,
       lastAddedAt: 0,
       deliveryOverrides: {},
+      bogoChoice: null,
       addItem: (item) => set((state) => {
         const isDifferentRestaurant = state.items.length > 0 && state.restaurantId !== item.restaurantId;
         const nextRestaurantSlug = item.restaurantSlug ?? state.restaurantSlug ?? null;
@@ -88,7 +98,8 @@ export const useCartStore = create<CartStore>()(
           i.cartItemId === id ? { ...i, ...patch, cartItemId: i.cartItemId } : i
         ),
       })),
-      clearCart: () => set({ items: [], restaurantId: null, restaurantSlug: null, lastAddedItemName: null, lastAddedAt: 0 }),
+      clearCart: () => set({ items: [], restaurantId: null, restaurantSlug: null, lastAddedItemName: null, lastAddedAt: 0, bogoChoice: null }),
+      setBogoChoice: (choice) => set({ bogoChoice: choice }),
       getTotal: () => {
         const items = get().items;
         return items.reduce((total, item) => {
