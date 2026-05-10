@@ -94,6 +94,8 @@ export interface RestaurantFormPayload {
   freeDeliveryAbove?: number;
   openingHours?: { regular: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }> };
   logoutCode?: string | null;
+  announcementText?: string | null;
+  vatPercent?: number | null;
 }
 
 export const restaurantsQueryKey = ["restaurants", "overview"] as const;
