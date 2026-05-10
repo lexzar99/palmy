@@ -1,5 +1,6 @@
 import { BogoFormPage } from "@/modules/deals/bogo-form-page";
 
-export default function EditBogoPage({ params }: { params: { id: string } }) {
-  return <BogoFormPage dealId={params.id} />;
+export default async function EditBogoPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  return <BogoFormPage dealId={id} />;
 }
