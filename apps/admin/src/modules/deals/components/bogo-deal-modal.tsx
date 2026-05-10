@@ -20,6 +20,7 @@ import { Button, Field, Input, Modal, Select } from "@/shared/components/ui";
 
 type Draft = {
   title: string;
+  imageUrl: string;
   restaurantId: string;
   triggerCategoryId: string;
   triggerQuantity: number;
@@ -32,6 +33,7 @@ type Draft = {
 
 const defaultDraft = (): Draft => ({
   title: "",
+  imageUrl: "",
   restaurantId: "",
   triggerCategoryId: "",
   triggerQuantity: 2,
@@ -81,6 +83,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
     if (deal) {
       setDraft({
         title: deal.title,
+        imageUrl: (deal as any).imageUrl || "",
         restaurantId: deal.restaurantId || "",
         triggerCategoryId: deal.triggerCategoryId || "",
         triggerQuantity: deal.triggerQuantity ?? 2,
@@ -91,7 +94,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
       });
     } else {
-      setDraft({ ...defaultDraft(), restaurantId: prefillRestaurantId ?? "" });
+      setDraft({ ...defaultDraft(), restaurantId: prefillRestaurantId ?? "", imageUrl: "" });
     }
     setError(null);
   }, [open, deal, prefillRestaurantId]);
@@ -116,6 +119,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
     mutationFn: async (d: Draft) => {
       const payload = {
         title: d.title,
+        imageUrl: d.imageUrl || null,
         description: `Köp ${d.triggerQuantity} från kategorin och få 1 gratis`,
         scopeType: "BOGO_CATEGORY",
         triggerType: "BOGO_CATEGORY",
@@ -207,6 +211,16 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
             placeholder="Köp 2 pizzor, få 1 gratis"
             autoFocus
           />
+        </Field>
+
+        <Field label="Bannerbild URL (valfritt — visas på restaurangsidan)">
+          <div className="flex gap-2">
+            <Input value={draft.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} placeholder="https://..." />
+            {draft.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={draft.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            ) : null}
+          </div>
         </Field>
 
         <Field label="Restaurang">

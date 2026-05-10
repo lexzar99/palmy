@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw, Pencil } from "lucide-react";
 import {
   clearLegacyProductDiscount,
   dealsQueryKey,
@@ -18,13 +18,34 @@ import {
   type AutomaticDealRecord,
   type DealProductRef,
 } from "@/modules/deals/api";
+import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import { BogoDealModal } from "@/modules/deals/components/bogo-deal-modal";
 import { PopupDealModal } from "@/modules/deals/components/popup-deal-modal";
-import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface } from "@/shared/components/ui";
+import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDate, formatNumber } from "@/shared/utils/format";
+import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
-type DealsTab = "restaurant" | "product" | "category" | "bogo" | "popup";
+type DealsTab = "restaurant" | "product" | "category" | "bogo" | "popup" | "kupongkoder";
+
+type CouponForm = {
+  code: string;
+  description: string;
+  discountType: "percentage" | "fixed" | "free_delivery";
+  discountValue: string;
+  minOrderAmount: string;
+  maxUses: string;
+  startsAt: string;
+  expiresAt: string;
+  applicableRestaurantIds: string[];
+  isActive: boolean;
+};
+
+const emptyCouponForm = (): CouponForm => ({
+  code: "", description: "", discountType: "percentage", discountValue: "",
+  minOrderAmount: "", maxUses: "", startsAt: "", expiresAt: "",
+  applicableRestaurantIds: [], isActive: true,
+});
 
 const scopeLabel: Record<string, string> = {
   RESTAURANT: "Restaurant",
@@ -52,8 +73,77 @@ export function DealsPage() {
   const [bogoDeal, setBogoDeal] = useState<AutomaticDealRecord | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const restaurants = useQuery({ queryKey: dealRestaurantsQueryKey, queryFn: getDealRestaurants });
+  const allRestaurants = useQuery({ queryKey: restaurantsQueryKey, queryFn: getRestaurantOverview });
   const categories = useQuery({ queryKey: dealCategoriesQueryKey(selectedRestaurantId), queryFn: () => getDealCategories(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
   const products = useQuery({ queryKey: dealProductsQueryKey(selectedRestaurantId), queryFn: () => getDealProducts(selectedRestaurantId!), enabled: Boolean(selectedRestaurantId) });
+
+  // --- Kupongkoder state ---
+  const discounts = useQuery({ queryKey: discountsQueryKey, queryFn: getDiscounts });
+  const [couponModalOpen, setCouponModalOpen] = useState(false);
+  const [editingCoupon, setEditingCoupon] = useState<DiscountRecord | null>(null);
+  const [couponForm, setCouponForm] = useState<CouponForm>(emptyCouponForm());
+  const [couponError, setCouponError] = useState<string | null>(null);
+
+  const saveCouponMutation = useMutation({
+    mutationFn: async (f: CouponForm) => {
+      const payload: Record<string, unknown> = {
+        code: f.code.toUpperCase(),
+        description: f.description || null,
+        type: f.discountType === "percentage" ? "PERCENTAGE" : f.discountType === "fixed" ? "FIXED" : "FREE_DELIVERY",
+        value: f.discountType === "free_delivery" ? 0 : Number(f.discountValue) || 0,
+        minOrder: Number(f.minOrderAmount) || 0,
+        maxUsages: f.maxUses ? Number(f.maxUses) : null,
+        validFrom: f.startsAt || null,
+        validUntil: f.expiresAt || null,
+        applicableRestaurantIds: f.applicableRestaurantIds,
+        isActive: f.isActive,
+      };
+      if (editingCoupon) return updateDiscount(editingCoupon.id, payload);
+      return createDiscount(payload);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: discountsQueryKey });
+      setCouponModalOpen(false);
+      setEditingCoupon(null);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      setCouponError(msg ?? "Kunde inte spara kupong.");
+    },
+  });
+
+  const deleteCouponMutation = useMutation({
+    mutationFn: () => deleteDiscount(editingCoupon!.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: discountsQueryKey });
+      setCouponModalOpen(false);
+      setEditingCoupon(null);
+    },
+    onError: () => setCouponError("Kunde inte radera kupong."),
+  });
+
+  const openCreateCoupon = () => { setEditingCoupon(null); setCouponForm(emptyCouponForm()); setCouponModalOpen(true); };
+  const openEditCoupon = (r: DiscountRecord) => {
+    setEditingCoupon(r);
+    setCouponForm({
+      code: r.code,
+      description: r.description ?? "",
+      discountType: r.discountType,
+      discountValue: r.discountType === "free_delivery" ? "" : String(r.discountValue),
+      minOrderAmount: r.minOrderAmount > 0 ? String(r.minOrderAmount) : "",
+      maxUses: r.maxUses != null ? String(r.maxUses) : "",
+      startsAt: r.startsAt ? r.startsAt.slice(0, 10) : "",
+      expiresAt: r.expiresAt ? r.expiresAt.slice(0, 10) : "",
+      applicableRestaurantIds: r.applicableRestaurantIds?.length ? r.applicableRestaurantIds : r.restaurantId ? [r.restaurantId] : [],
+      isActive: r.isActive,
+    });
+    setCouponModalOpen(true);
+  };
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => { if (!couponModalOpen) { setCouponError(null); } }, [couponModalOpen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+  // --- end kupongkoder state ---
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
@@ -188,6 +278,8 @@ export function DealsPage() {
               <Button variant="primary" onClick={() => setPickerOpen(true)}><Plus size={13} /> Skicka popup för deal</Button>
             ) : tab === "bogo" ? (
               <Button variant="primary" onClick={() => { setBogoDeal(null); setBogoModalOpen(true); }}><Plus size={13} /> Ny BOGO-deal</Button>
+            ) : tab === "kupongkoder" ? (
+              <Button variant="primary" onClick={openCreateCoupon}><Plus size={13} /> Ny kupongkod</Button>
             ) : (
               <Button variant="primary" onClick={openCreate}><Plus size={13} /> Ny deal</Button>
             )}
@@ -206,9 +298,9 @@ export function DealsPage() {
         </div>
 
         <div className="mt-5 flex flex-wrap gap-2">
-          {(["restaurant", "product", "category", "bogo", "popup"] as const).map((t) => {
-            const labels: Record<string, string> = { restaurant: "Restaurang", product: "Produkter", category: "Kategorier", bogo: "BOGO", popup: "Popup" };
-            const counts: Record<string, number> = { restaurant: activeDealsCount.restaurant, product: activeDealsCount.product, category: activeDealsCount.category, bogo: activeDealsCount.bogo, popup: (automaticDeals.data || []).filter(isPopupDeal).length };
+          {(["restaurant", "product", "category", "bogo", "popup", "kupongkoder"] as const).map((t) => {
+            const labels: Record<string, string> = { restaurant: "Restaurang", product: "Produkter", category: "Kategorier", bogo: "BOGO", popup: "Popup", kupongkoder: "Kupongkoder" };
+            const counts: Record<string, number> = { restaurant: activeDealsCount.restaurant, product: activeDealsCount.product, category: activeDealsCount.category, bogo: activeDealsCount.bogo, popup: (automaticDeals.data || []).filter(isPopupDeal).length, kupongkoder: (discounts.data || []).filter(d => d.isActive).length };
             const active = tab === t;
             return (
               <button key={t} type="button" onClick={() => setTab(t)} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] ${active ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]"}`}>
@@ -355,7 +447,134 @@ export function DealsPage() {
             })}
           </div>
         ) : null}
+
+        {tab === "kupongkoder" ? (
+          <div className="mt-6">
+            {discounts.isLoading ? (
+              <p className="text-sm text-[var(--text-secondary)] py-8 text-center">Laddar kupongkoder...</p>
+            ) : (discounts.data || []).length === 0 ? (
+              <EmptyState title="Inga kupongkoder" description="Skapa din första kupong med knappen ovan." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border-subtle)] text-left text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)]">
+                      <th className="pb-3 pr-4">Kod</th>
+                      <th className="pb-3 pr-4">Typ</th>
+                      <th className="pb-3 pr-4">Värde</th>
+                      <th className="pb-3 pr-4">Min</th>
+                      <th className="pb-3 pr-4">Restaurang</th>
+                      <th className="pb-3 pr-4">Status</th>
+                      <th className="pb-3 pr-4">Använd</th>
+                      <th className="pb-3 pr-4">Giltig till</th>
+                      <th className="pb-3"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(discounts.data || []).map((record) => (
+                      <tr key={record.id} className="border-b border-[var(--border-subtle)] last:border-0">
+                        <td className="py-3 pr-4 font-mono font-semibold tracking-wide">{record.code}</td>
+                        <td className="py-3 pr-4">
+                          <Badge tone={record.discountType === "percentage" ? "info" : record.discountType === "fixed" ? "warning" : "success"}>
+                            {record.discountType === "percentage" ? "%" : record.discountType === "fixed" ? "Kr" : "Fri lev."}
+                          </Badge>
+                        </td>
+                        <td className="py-3 pr-4 tabular-nums">
+                          {record.discountType === "free_delivery" ? "—" : record.discountType === "percentage" ? `${record.discountValue}%` : `${record.discountValue} kr`}
+                        </td>
+                        <td className="py-3 pr-4 tabular-nums text-[var(--text-secondary)]">{record.minOrderAmount > 0 ? `${record.minOrderAmount} kr` : "—"}</td>
+                        <td className="py-3 pr-4 text-[var(--text-secondary)] text-xs">
+                          {record.applicableRestaurantIds?.length > 0
+                            ? record.applicableRestaurantIds.map((id) => (allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === id)?.name ?? id).join(", ")
+                            : record.restaurantId
+                              ? ((allRestaurants.data || []).find((r: ControlCenterRestaurantSnapshot) => r.id === record.restaurantId)?.name ?? record.restaurantId)
+                              : <span className="text-[var(--text-muted)]">Alla</span>}
+                        </td>
+                        <td className="py-3 pr-4"><Badge tone={record.isActive ? "success" : "neutral"}>{record.isActive ? "Aktiv" : "Inaktiv"}</Badge></td>
+                        <td className="py-3 pr-4 tabular-nums text-[var(--text-secondary)]">{formatNumber(record.usedCount)}{record.maxUses != null ? ` / ${formatNumber(record.maxUses)}` : ""}</td>
+                        <td className="py-3 pr-4 text-[var(--text-muted)] text-xs">{record.expiresAt ? formatDate(record.expiresAt) : "—"}</td>
+                        <td className="py-3"><Button variant="secondary" onClick={() => openEditCoupon(record)}><Pencil size={12} /> Redigera</Button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
       </Surface>
+
+      {/* Kupong-modal */}
+      <Modal
+        open={couponModalOpen}
+        onClose={() => { setCouponModalOpen(false); setEditingCoupon(null); }}
+        title={editingCoupon ? `Redigera ${editingCoupon.code}` : "Ny kupongkod"}
+        footer={
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              {editingCoupon && (
+                <Button variant="danger" onClick={() => { if (!confirm(`Radera ${editingCoupon.code}?`)) return; deleteCouponMutation.mutate(); }} disabled={deleteCouponMutation.isPending}>Radera</Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => { setCouponModalOpen(false); setEditingCoupon(null); }}>Avbryt</Button>
+              <Button variant="primary" onClick={() => {
+                if (!couponForm.code.trim()) { setCouponError("Kod krävs."); return; }
+                if (couponForm.discountType !== "free_delivery" && (!couponForm.discountValue || Number(couponForm.discountValue) <= 0)) { setCouponError("Värde måste vara > 0."); return; }
+                setCouponError(null);
+                saveCouponMutation.mutate(couponForm);
+              }} disabled={saveCouponMutation.isPending}>
+                {saveCouponMutation.isPending ? "Sparar..." : "Spara"}
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="grid gap-4">
+          {couponError && <p className="rounded-lg bg-[rgba(239,68,68,0.1)] px-4 py-3 text-sm text-red-400">{couponError}</p>}
+          <Field label="Kod"><Input value={couponForm.code} onChange={(e) => setCouponForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))} placeholder="SOMMAR25" autoFocus /></Field>
+          <Field label="Beskrivning (valfritt)"><Input value={couponForm.description} onChange={(e) => setCouponForm((p) => ({ ...p, description: e.target.value }))} placeholder="Sommarkampanj 2026" /></Field>
+          <Field label="Typ">
+            <Select value={couponForm.discountType} onChange={(e) => setCouponForm((p) => ({ ...p, discountType: e.target.value as CouponForm["discountType"] }))}>
+              <option value="percentage">Procent</option>
+              <option value="fixed">Fast belopp</option>
+              <option value="free_delivery">Fri leverans</option>
+            </Select>
+          </Field>
+          {couponForm.discountType !== "free_delivery" && (
+            <Field label={couponForm.discountType === "percentage" ? "Värde (%)" : "Värde (kr)"}>
+              <Input type="number" min="0" value={couponForm.discountValue} onChange={(e) => setCouponForm((p) => ({ ...p, discountValue: e.target.value }))} placeholder={couponForm.discountType === "percentage" ? "15" : "50"} />
+            </Field>
+          )}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Min. ordervärde (kr)"><Input type="number" min="0" value={couponForm.minOrderAmount} onChange={(e) => setCouponForm((p) => ({ ...p, minOrderAmount: e.target.value }))} placeholder="0" /></Field>
+            <Field label="Max antal (tom = ∞)"><Input type="number" min="1" value={couponForm.maxUses} onChange={(e) => setCouponForm((p) => ({ ...p, maxUses: e.target.value }))} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Giltig från"><Input type="date" value={couponForm.startsAt} onChange={(e) => setCouponForm((p) => ({ ...p, startsAt: e.target.value }))} /></Field>
+            <Field label="Giltig till"><Input type="date" value={couponForm.expiresAt} onChange={(e) => setCouponForm((p) => ({ ...p, expiresAt: e.target.value }))} /></Field>
+          </div>
+          <Field label="Restauranger (tom = alla)">
+            <div className="max-h-36 overflow-y-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-1">
+              {(allRestaurants.data ?? []).map((r: ControlCenterRestaurantSnapshot) => {
+                const checked = couponForm.applicableRestaurantIds.includes(r.id);
+                return (
+                  <label key={r.id} className="flex items-center gap-2 cursor-pointer px-2 py-1 rounded hover:bg-[rgba(255,255,255,0.04)] text-sm select-none">
+                    <input type="checkbox" checked={checked} onChange={() => setCouponForm((p) => ({ ...p, applicableRestaurantIds: checked ? p.applicableRestaurantIds.filter((id) => id !== r.id) : [...p.applicableRestaurantIds, r.id] }))} className="accent-emerald-500 h-3.5 w-3.5 shrink-0" />
+                    <span className="text-[var(--text-primary)]">{r.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </Field>
+          <Field label="Status">
+            <Select value={couponForm.isActive ? "active" : "inactive"} onChange={(e) => setCouponForm((p) => ({ ...p, isActive: e.target.value === "active" }))}>
+              <option value="active">Aktiv</option>
+              <option value="inactive">Inaktiv</option>
+            </Select>
+          </Field>
+        </div>
+      </Modal>
 
       <AutomaticDealModal
         open={dealModalOpen}

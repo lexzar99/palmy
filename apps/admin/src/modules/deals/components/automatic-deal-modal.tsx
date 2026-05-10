@@ -21,6 +21,7 @@ type Draft = {
   title: string;
   description: string;
   badgeText: string;
+  imageUrl: string;
   restaurantId: string;
   isGlobal: boolean;
   scopeType: DealScopeType;
@@ -42,6 +43,7 @@ const defaultDraft: Draft = {
   title: "",
   description: "",
   badgeText: "",
+  imageUrl: "",
   restaurantId: "",
   isGlobal: false,
   scopeType: "RESTAURANT",
@@ -66,6 +68,7 @@ const mapDealToDraft = (deal: AutomaticDealRecord): Draft => ({
   title: deal.title,
   description: deal.description || "",
   badgeText: deal.badgeText || "",
+  imageUrl: deal.imageUrl || "",
   restaurantId: deal.restaurantId || deal.applicableRestaurantIds?.[0] || "",
   isGlobal: deal.isGlobal,
   scopeType: deal.scopeType,
@@ -140,6 +143,7 @@ export function AutomaticDealModal({
         title: draft.title,
         description: draft.description || null,
         badgeText: draft.badgeText || null,
+        imageUrl: draft.imageUrl || null,
         scopeType: draft.scopeType,
         discountType: draft.discountType,
         discountValue: draft.discountValue,
@@ -258,6 +262,17 @@ export function AutomaticDealModal({
               </>
             ) : null}
             <div className="md:col-span-2"><Field label="Description"><Textarea value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></Field></div>
+            <div className="md:col-span-2">
+              <Field label="Bannerbild URL (visas på restaurangsidan om 'Visa som banner' är på)">
+                <div className="flex gap-2">
+                  <Input value={draft.imageUrl} onChange={(event) => setDraft((current) => ({ ...current, imageUrl: event.target.value }))} placeholder="https://..." />
+                  {draft.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={draft.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  ) : null}
+                </div>
+              </Field>
+            </div>
           </div>
           {error ? <div className="rounded-2xl border border-[rgba(239,107,115,0.2)] bg-[rgba(239,107,115,0.08)] px-4 py-4 text-sm text-[#ffd2d5]">{error}</div> : null}
         </div>

@@ -14,6 +14,7 @@ interface BannerDeal {
   title: string;
   description?: string | null;
   badgeText?: string | null;
+  imageUrl?: string | null;
   discountType: string;
   discountValue: number;
   minOrder: number;
@@ -61,16 +62,21 @@ export default function DealBannerStrip({ slug }: { slug: string }) {
               className="flex shrink-0 items-center gap-3 rounded-2xl border px-4 py-3"
               style={{ background: tone.bg, borderColor: tone.border, minWidth: 220, maxWidth: 300 }}
             >
-              <div
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
-                style={{ background: `${tone.icon}22` }}
-              >
-                {isBogo ? (
-                  <Zap size={16} style={{ color: tone.icon }} />
-                ) : (
-                  <Tag size={16} style={{ color: tone.icon }} />
-                )}
-              </div>
+              {deal.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={deal.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+              ) : (
+                <div
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: `${tone.icon}22` }}
+                >
+                  {isBogo ? (
+                    <Zap size={16} style={{ color: tone.icon }} />
+                  ) : (
+                    <Tag size={16} style={{ color: tone.icon }} />
+                  )}
+                </div>
+              )}
               <div className="min-w-0">
                 {deal.badgeText ? (
                   <p className="mb-0.5 text-[10px] font-black uppercase tracking-widest" style={{ color: tone.text }}>
