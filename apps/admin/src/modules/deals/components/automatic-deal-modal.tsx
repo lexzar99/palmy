@@ -16,6 +16,7 @@ import {
   updateAutomaticDeal,
 } from "@/modules/deals/api";
 import { Badge, Button, Field, Input, Modal, Select, Textarea } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 
 type Draft = {
   title: string;
@@ -263,15 +264,11 @@ export function AutomaticDealModal({
             ) : null}
             <div className="md:col-span-2"><Field label="Description"><Textarea value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} /></Field></div>
             <div className="md:col-span-2">
-              <Field label="Bannerbild URL (visas på restaurangsidan om 'Visa som banner' är på)">
-                <div className="flex gap-2">
-                  <Input value={draft.imageUrl} onChange={(event) => setDraft((current) => ({ ...current, imageUrl: event.target.value }))} placeholder="https://..." />
-                  {draft.imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={draft.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  ) : null}
-                </div>
-              </Field>
+              <ImageUploadField
+                label="Bannerbild (visas på restaurangsidan om 'Visa som banner' är på)"
+                value={draft.imageUrl}
+                onChange={(url) => setDraft((current) => ({ ...current, imageUrl: url }))}
+              />
             </div>
           </div>
           {error ? <div className="rounded-2xl border border-[rgba(239,107,115,0.2)] bg-[rgba(239,107,115,0.08)] px-4 py-4 text-sm text-[#ffd2d5]">{error}</div> : null}

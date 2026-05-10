@@ -17,6 +17,7 @@ import {
   type AutomaticDealRecord,
 } from "@/modules/deals/api";
 import { Button, Field, Input, Modal, Select } from "@/shared/components/ui";
+import { ImageUploadField } from "@/shared/components/image-upload";
 
 type Draft = {
   title: string;
@@ -213,15 +214,11 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
           />
         </Field>
 
-        <Field label="Bannerbild URL (valfritt — visas på restaurangsidan)">
-          <div className="flex gap-2">
-            <Input value={draft.imageUrl} onChange={(e) => set("imageUrl", e.target.value)} placeholder="https://..." />
-            {draft.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={draft.imageUrl} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            ) : null}
-          </div>
-        </Field>
+        <ImageUploadField
+          label="Bannerbild (valfritt — visas på restaurangsidan)"
+          value={draft.imageUrl}
+          onChange={(url) => set("imageUrl", url)}
+        />
 
         <Field label="Restaurang">
           <Select
