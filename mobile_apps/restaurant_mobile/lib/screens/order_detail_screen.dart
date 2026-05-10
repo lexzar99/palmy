@@ -762,37 +762,38 @@ class _ItemCard extends StatelessWidget {
                   final price = e is Map
                       ? ((e['price'] as num?)?.toDouble() ?? 0.0)
                       : 0.0;
-                  final isPaid = price > 0;
+                  final requiredFlag = e is Map ? e['required'] as bool? : null;
+                  final isMandatory = requiredFlag ?? (price == 0);
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 5),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Text(
-                          isPaid ? '++ ' : '-- ',
+                          isMandatory ? '-- ' : '++ ',
                           style: TextStyle(
-                            fontSize: isPaid ? 13 : 14,
+                            fontSize: isMandatory ? 14 : 13,
                             fontWeight: FontWeight.w900,
-                            color: isPaid
-                                ? AppTheme.success
-                                : Theme.of(context).textTheme.bodyLarge?.color,
+                            color: isMandatory
+                                ? Theme.of(context).textTheme.bodyLarge?.color
+                                : AppTheme.success,
                           ),
                         ),
                         Expanded(
                           child: Text(
                             name,
                             style: TextStyle(
-                              fontSize: isPaid ? 13 : 14,
-                              fontWeight: isPaid
-                                  ? FontWeight.w700
-                                  : FontWeight.w800,
-                              color: isPaid
-                                  ? AppTheme.success
-                                  : Theme.of(context).textTheme.bodyLarge?.color,
+                              fontSize: isMandatory ? 14 : 13,
+                              fontWeight: isMandatory
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              color: isMandatory
+                                  ? Theme.of(context).textTheme.bodyLarge?.color
+                                  : AppTheme.success,
                             ),
                           ),
                         ),
-                        if (isPaid)
+                        if (!isMandatory)
                           Text(
                             '+ ${OrderUi.formatCurrency(price)}',
                             style: const TextStyle(

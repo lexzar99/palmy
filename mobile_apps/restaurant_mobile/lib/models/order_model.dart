@@ -176,15 +176,16 @@ class OrderItemModel {
       parsedExtras = extrasRaw;
     }
 
-    // MAP EXTRAS — preserve name + priceAddon
+    // MAP EXTRAS — preserve name, priceAddon, and groupRequired (null = old data)
     final List<Map<String, dynamic>> extraTexts = parsedExtras
         .map((e) {
           if (e is Map) {
             final name = (e['extraName'] ?? e['name'] ?? '').toString();
             final price = (e['priceAddon'] as num?)?.toDouble() ?? 0.0;
-            return <String, dynamic>{'name': name, 'price': price};
+            final required = e['groupRequired'] as bool?;
+            return <String, dynamic>{'name': name, 'price': price, 'required': required};
           }
-          return <String, dynamic>{'name': e.toString(), 'price': 0.0};
+          return <String, dynamic>{'name': e.toString(), 'price': 0.0, 'required': null};
         })
         .where((m) => (m['name'] as String).isNotEmpty)
         .toList();

@@ -694,11 +694,12 @@ class PrintService {
                   if (eName.isEmpty) continue;
                   final ePrice =
                       (extra['price'] as num?)?.toDouble() ?? 0.0;
-                  final isPaid = ePrice > 0;
+                  final reqFlag = extra['required'] as bool?;
+                  final isMandatory = reqFlag ?? (ePrice == 0);
                   final extraStyle = pw.TextStyle(
                       font: regularFont,
                       fontSize: element.size.toDouble() - 1);
-                  if (isPaid) {
+                  if (!isMandatory) {
                     localWidgets.add(
                       pw.Padding(
                         padding: const pw.EdgeInsets.only(left: 10, top: 2),
@@ -706,7 +707,7 @@ class PrintService {
                           mainAxisAlignment:
                               pw.MainAxisAlignment.spaceBetween,
                           children: [
-                            pw.Text('+ $eName', style: extraStyle),
+                            pw.Text('++ $eName', style: extraStyle),
                             pw.Text(
                                 '+${ePrice.toStringAsFixed(0)} kr',
                                 style: extraStyle),
@@ -718,7 +719,7 @@ class PrintService {
                     localWidgets.add(
                       pw.Padding(
                         padding: const pw.EdgeInsets.only(left: 10, top: 2),
-                        child: pw.Text(eName, style: extraStyle),
+                        child: pw.Text('-- $eName', style: extraStyle),
                       ),
                     );
                   }
@@ -1025,11 +1026,13 @@ class PrintService {
               final ePrice = extra is Map
                   ? ((extra['price'] as num?)?.toDouble() ?? 0.0)
                   : 0.0;
-              if (ePrice > 0) {
-                p.row('+ $en', '+${ePrice.toStringAsFixed(0)} kr',
+              final reqFlag = extra is Map ? extra['required'] as bool? : null;
+              final isMandatory = reqFlag ?? (ePrice == 0);
+              if (!isMandatory) {
+                p.row('++ $en', '+${ePrice.toStringAsFixed(0)} kr',
                     size: es('extras', 22));
               } else {
-                p.text('  $en', size: es('extras', 22), color: grey);
+                p.text('-- $en', size: es('extras', 22));
               }
             }
           }
@@ -1251,10 +1254,12 @@ class PrintService {
                 if (eName.isEmpty) continue;
                 final ePrice =
                     (extra['price'] as num?)?.toDouble() ?? 0.0;
-                if (ePrice > 0) {
+                final reqFlag = extra['required'] as bool?;
+                final isMandatory = reqFlag ?? (ePrice == 0);
+                if (!isMandatory) {
                   bytes.addAll(generator.row([
                     PosColumn(
-                        text: '+ $eName',
+                        text: '++ $eName',
                         width: 9,
                         styles: const PosStyles(align: PosAlign.left)),
                     PosColumn(
@@ -1263,7 +1268,7 @@ class PrintService {
                         styles: const PosStyles(align: PosAlign.right)),
                   ]));
                 } else {
-                  bytes.addAll(generator.text('  $eName',
+                  bytes.addAll(generator.text('-- $eName',
                       styles: const PosStyles(align: PosAlign.left)));
                 }
               }
@@ -1448,6 +1453,7 @@ class PrintService {
                     .map((extra) => {
                           'name': (extra['name'] ?? '').toString(),
                           'price': (extra['price'] as num?)?.toDouble() ?? 0.0,
+                          'required': extra['required'],
                         })
                     .toList(),
                 'note': item.note ?? '',

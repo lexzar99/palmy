@@ -448,6 +448,7 @@ router.post('/', async (req: Request, res: Response) => {
           extraId: extra.id,
           extraName: extra.name,
           priceAddon: extra.priceAddon / 100,
+          groupRequired: group.required || group.minSelections > 0,
         };
       });
 
