@@ -136,30 +136,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _CompactTile(
             icon: Icons.print_rounded,
             title: 'Skrivarinställningar',
-            subtitle: 'Bluetooth, nätverk och autoutskrift',
+            subtitle: 'Bluetooth och nätverk',
             onTap: () => Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const PrintSettingsScreen())),
-          ),
-          const SizedBox(height: 8),
-          _CompactTile(
-            icon: Icons.desktop_windows_rounded,
-            title: 'Desktop-kontroll',
-            subtitle: 'Öppettider och ekonomi sköts centralt',
-            onTap: () => showDialog<void>(
-              context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Desktop-kontroll'),
-                content: const Text(
-                  'Öppettider och ekonomi styrs centralt i desktop-adminen. Business-appen fokuserar på drift, order och utskrift.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Stäng'),
-                  ),
-                ],
-              ),
-            ),
           ),
           const SizedBox(height: 20),
 

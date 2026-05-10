@@ -45,7 +45,7 @@ class NewOrderCard extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 168,
+        width: 200,
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(20),
@@ -104,9 +104,9 @@ class NewOrderCard extends StatelessWidget {
                       Text(
                         '#${order.orderNumber}',
                         style: TextStyle(
-                          fontSize: 30,
+                          fontSize: 38,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: -1.0,
+                          letterSpacing: -1.5,
                           height: 1.0,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -116,16 +116,16 @@ class NewOrderCard extends StatelessWidget {
                         isPickup ? 'avhämtning' : 'leverans',
                         style: TextStyle(
                           color: typeColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const Spacer(),
                       Text(
                         _relTime(order.createdAt),
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           color: isDark
                               ? Colors.white.withOpacity(0.40)
                               : const Color(0xFF9AA0A6),
@@ -225,9 +225,9 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     '#${order.orderNumber}',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 22,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
+                      letterSpacing: -0.5,
                       color: isDark ? Colors.white : AppTheme.ink,
                     ),
                   ),
@@ -235,8 +235,8 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     _relTime(order.createdAt),
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: isDark
                           ? Colors.white.withOpacity(0.40)
                           : const Color(0xFF9AA0A6),

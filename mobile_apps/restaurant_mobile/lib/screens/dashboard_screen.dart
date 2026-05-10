@@ -272,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                               ),
                             )
                           : SizedBox(
-                              height: 200,
+                              height: 256,
                               child: ListView.separated(
                                 padding:
                                     const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -400,8 +400,8 @@ class _Header extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
                   color: isDark
                       ? Colors.white.withOpacity(0.50)
                       : const Color(0xFF8E8E93),
@@ -667,9 +667,9 @@ class _SectionHeaderRow extends StatelessWidget {
           title,
           style: TextStyle(
             color: isDark ? Colors.white : AppTheme.ink,
-            fontSize: 14,
+            fontSize: 17,
             fontWeight: FontWeight.w900,
-            letterSpacing: 1.6,
+            letterSpacing: 1.2,
           ),
         ),
         if (countBadge != null) ...[
