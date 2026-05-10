@@ -768,24 +768,27 @@ class _ItemCard extends StatelessWidget {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(top: 1),
-                          child: isPaid
-                              ? const Icon(Icons.add_circle_outline_rounded,
-                                  size: 14, color: AppTheme.success)
-                              : const Icon(Icons.circle,
-                                  size: 5, color: AppTheme.info),
+                        Text(
+                          isPaid ? '++ ' : '-- ',
+                          style: TextStyle(
+                            fontSize: isPaid ? 13 : 14,
+                            fontWeight: FontWeight.w900,
+                            color: isPaid
+                                ? AppTheme.success
+                                : Theme.of(context).textTheme.bodyLarge?.color,
+                          ),
                         ),
-                        const SizedBox(width: 7),
                         Expanded(
                           child: Text(
                             name,
                             style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontSize: isPaid ? 13 : 14,
+                              fontWeight: isPaid
+                                  ? FontWeight.w700
+                                  : FontWeight.w800,
                               color: isPaid
                                   ? AppTheme.success
-                                  : AppTheme.info,
+                                  : Theme.of(context).textTheme.bodyLarge?.color,
                             ),
                           ),
                         ),

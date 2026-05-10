@@ -24,11 +24,11 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen>
     with SingleTickerProviderStateMixin {
-  int _lastPendingCount = 0;
+  final Set<String> _seenPendingIds = {};
+  bool _initializedPending = false;
   late final AnimationController _bannerCtrl;
   bool _showNewOrderBanner = false;
   bool _alertScreenOpen = false;
-  String? _initialPendingFingerprint;
   StreamSubscription<PrintFailure>? _printErrorSub;
 
   @override
@@ -109,16 +109,18 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _maybeFireNewOrderPulse(OrderProvider provider) {
     final pending = provider.pendingOrders;
-    final currentPending = pending.length;
 
-    if (_initialPendingFingerprint == null) {
-      _initialPendingFingerprint = pending.map((o) => o.id).join('|');
-      _lastPendingCount = currentPending;
+    if (!_initializedPending) {
+      _seenPendingIds.addAll(pending.map((o) => o.id));
+      _initializedPending = true;
       return;
     }
 
-    if (currentPending > _lastPendingCount && !_alertScreenOpen && mounted) {
-      final newest = pending.first;
+    final newOrders = pending.where((o) => !_seenPendingIds.contains(o.id)).toList();
+    _seenPendingIds.addAll(pending.map((o) => o.id));
+
+    if (newOrders.isNotEmpty && !_alertScreenOpen && mounted) {
+      final newest = newOrders.first;
       _alertScreenOpen = true;
 
       setState(() => _showNewOrderBanner = true);
@@ -146,7 +148,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         _alertScreenOpen = false;
       });
     }
-    _lastPendingCount = currentPending;
   }
 
   void _openTake(OrderModel order) {

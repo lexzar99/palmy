@@ -549,31 +549,30 @@ class _ItemRow extends StatelessWidget {
                         : 0.0;
                     final isPaid = price > 0;
                     return Padding(
-                      padding: const EdgeInsets.only(top: 1),
+                      padding: const EdgeInsets.only(top: 2),
                       child: Row(
                         children: [
-                          if (isPaid)
-                            Text(
-                              '+ ',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                color: accent,
-                              ),
-                            )
-                          else
-                            const SizedBox(width: 8),
+                          Text(
+                            isPaid ? '++ ' : '-- ',
+                            style: TextStyle(
+                              fontSize: isPaid ? 12 : 13,
+                              fontWeight: FontWeight.w900,
+                              color: isPaid
+                                  ? accent
+                                  : (isDark ? Colors.white : AppTheme.ink),
+                            ),
+                          ),
                           Expanded(
                             child: Text(
                               name,
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: isPaid ? 12 : 13,
                                 fontWeight: isPaid
                                     ? FontWeight.w700
-                                    : FontWeight.w600,
+                                    : FontWeight.w800,
                                 color: isPaid
                                     ? accent
-                                    : AppTheme.mutedColor(context),
+                                    : (isDark ? Colors.white : AppTheme.ink),
                               ),
                             ),
                           ),
