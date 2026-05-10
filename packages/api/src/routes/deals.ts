@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
-import { formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds } from '../lib/deals';
+import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
 
 const router = Router();
 
@@ -219,6 +219,78 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Public deals error:', error);
     res.status(500).json({ error: 'Kunde inte hämta deals' });
+  }
+});
+
+// POST /api/deals/evaluate-cart — server-side BOGO preview for cart UI
+// Body: { restaurantId: string, items: Array<{productId: string, quantity: number}> }
+router.post('/evaluate-cart', async (req, res) => {
+  try {
+    const { restaurantId, items } = req.body as { restaurantId?: string; items?: Array<{ productId: string; quantity: number }> };
+    if (!restaurantId || !Array.isArray(items) || items.length === 0) {
+      return res.json({ discountAmountOre: 0, discountAmountKr: 0, message: null, dealTitle: null });
+    }
+
+    const productIds = items.map((i) => i.productId).filter(Boolean);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, price: true, categoryId: true },
+    });
+    const productMap = new Map(products.map((p) => [p.id, p]));
+
+    const cartItems: CartItemForBogo[] = items.map((item) => {
+      const prod = productMap.get(item.productId);
+      return {
+        productId: item.productId,
+        categoryId: prod?.categoryId ?? '',
+        basePriceOre: prod?.price ?? 0,
+        quantity: item.quantity ?? 1,
+      };
+    });
+
+    const subtotalOre = cartItems.reduce((sum, item) => sum + item.basePriceOre * item.quantity, 0);
+    const productIdsFlat = cartItems.flatMap((item) => Array.from({ length: item.quantity }, () => item.productId));
+
+    const now = new Date();
+    const deals = await prisma.deal.findMany({
+      where: {
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { isGlobal: true },
+              { restaurantId },
+              { applicableRestaurantIds: { contains: `"${restaurantId}"` } },
+            ],
+          },
+        ],
+      },
+    });
+
+    let bestDeal: (typeof deals)[number] | null = null;
+    let bestDiscount = 0;
+
+    for (const deal of deals) {
+      if (!isDealAvailableNow(deal, now)) continue;
+      const evaluation = evaluateDeal(deal, {
+        subtotalOre,
+        productIds: productIdsFlat,
+        cartItems,
+      });
+      if (evaluation.eligible && evaluation.discountAmountOre > bestDiscount) {
+        bestDiscount = evaluation.discountAmountOre;
+        bestDeal = deal;
+      }
+    }
+
+    res.json({
+      discountAmountOre: bestDiscount,
+      discountAmountKr: bestDiscount / 100,
+      dealTitle: bestDeal?.title ?? null,
+    });
+  } catch (error) {
+    console.error('Cart evaluate error:', error);
+    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null });
   }
 });
 

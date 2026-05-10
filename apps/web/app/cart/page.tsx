@@ -85,6 +85,7 @@ export default function CartPage() {
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
+  const [bogoPreview, setBogoPreview] = useState<{ discountKr: number; dealTitle: string } | null>(null);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -399,7 +400,8 @@ export default function CartPage() {
     return campaign.discountValue;
   }, [selectedPersonalDeal, subtotal]);
 
-  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount);
+  const bogoDiscount = bogoPreview?.discountKr ?? 0;
+  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount);
   const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee - finalDiscount);
 
   const fetchContext = useCallback(async () => {
@@ -625,6 +627,31 @@ export default function CartPage() {
       }
     }
   }, [currentRestaurantId]);
+
+  // BOGO-förhandsgranskning: anropa server-side evaluate-cart när varukorgen ändras
+  useEffect(() => {
+    if (!currentRestaurantId || items.length === 0) {
+      setBogoPreview(null);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await axios.post(`${API_URL}/api/deals/evaluate-cart`, {
+          restaurantId: currentRestaurantId,
+          items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        });
+        const data = res.data;
+        if (data.discountAmountKr > 0 && data.dealTitle) {
+          setBogoPreview({ discountKr: data.discountAmountKr, dealTitle: data.dealTitle });
+        } else {
+          setBogoPreview(null);
+        }
+      } catch {
+        setBogoPreview(null);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [items, currentRestaurantId]);
 
   // Stripe redirect recovery: if user returns from Swish/Klarna redirect
   useEffect(() => {
@@ -1322,7 +1349,13 @@ export default function CartPage() {
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
-                        {finalDiscount > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
+                        {bogoPreview && bogoDiscount >= finalDiscount && (
+                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                            <span>🎁 {bogoPreview.dealTitle}</span>
+                            <span>-{bogoDiscount.toFixed(0)} KR</span>
+                          </div>
+                        )}
+                        {finalDiscount > 0 && (!bogoPreview || bogoDiscount < finalDiscount) && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
                         {restaurantSettings.vatPercent ? (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                             <span>Varav moms ({restaurantSettings.vatPercent}%)</span>
