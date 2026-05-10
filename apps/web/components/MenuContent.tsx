@@ -216,6 +216,58 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     return () => { socket.disconnect(); };
   }, [restaurantSlug, restaurantId, fetchData]);
 
+  // Måste definieras FÖRE early returns — Rules of Hooks
+  const checkBogoTrigger = useCallback(() => {
+    const bogoDeal = deals.find((d) => d.triggerType === "BOGO_CATEGORY");
+    if (!bogoDeal) return;
+
+    const currentItems = useCartStore.getState().items;
+    const existingChoice = useCartStore.getState().bogoChoice;
+    if (existingChoice?.dealId === bogoDeal.id) return;
+
+    const needed = bogoDeal.triggerQuantity ?? 2;
+    let triggered = false;
+
+    if (bogoDeal.bogoTriggerProductIds && bogoDeal.bogoTriggerProductIds.length > 0) {
+      const count = currentItems
+        .filter((i) => bogoDeal.bogoTriggerProductIds!.includes(i.productId))
+        .reduce((s, i) => s + i.quantity, 0);
+      triggered = count >= needed;
+    } else if (bogoDeal.triggerCategoryId) {
+      const catProducts = new Set(
+        (categories.find((c) => c.id === bogoDeal.triggerCategoryId)?.products ?? []).map((p: any) => p.id)
+      );
+      const count = currentItems
+        .filter((i) => catProducts.has(i.productId))
+        .reduce((s, i) => s + i.quantity, 0);
+      triggered = count >= needed;
+    } else if (bogoDeal.bogoMinOrderAmountOre) {
+      triggered = useCartStore.getState().getTotal() * 100 >= bogoDeal.bogoMinOrderAmountOre;
+    }
+
+    if (!triggered) return;
+
+    const rewardCatId = bogoDeal.rewardCategoryId || bogoDeal.triggerCategoryId;
+    let rewardProducts: BogoPickerProduct[] = [];
+    let rewardCategoryName: string | null = null;
+    if (rewardCatId) {
+      const cat = categories.find((c) => c.id === rewardCatId);
+      if (cat) {
+        rewardCategoryName = cat.name;
+        rewardProducts = (cat.products ?? []).map((p: any) => ({
+          id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null,
+        }));
+      }
+    } else {
+      rewardProducts = categories.flatMap((c) =>
+        (c.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
+      );
+    }
+
+    if (rewardProducts.length === 0) return;
+    setBogoPicker({ dealId: bogoDeal.id, dealTitle: bogoDeal.title, rewardCategoryName, products: rewardProducts });
+  }, [deals, categories]);
+
   const filteredCategories = categories
     .map((cat) => ({
       ...cat,
@@ -257,60 +309,6 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const restOfTitle = titleParts.slice(1).join(" ");
 
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
-
-  // Kontrollera om en BOGO-deal triggas av nuvarande varukorg och visa picker
-  const checkBogoTrigger = useCallback(() => {
-    const bogoDeal = deals.find((d) => d.triggerType === "BOGO_CATEGORY");
-    if (!bogoDeal) return;
-
-    const currentItems = useCartStore.getState().items;
-    const existingChoice = useCartStore.getState().bogoChoice;
-    if (existingChoice?.dealId === bogoDeal.id) return; // Redan valt
-
-    const needed = bogoDeal.triggerQuantity ?? 2;
-    let triggered = false;
-
-    if (bogoDeal.bogoTriggerProductIds && bogoDeal.bogoTriggerProductIds.length > 0) {
-      const count = currentItems
-        .filter((i) => bogoDeal.bogoTriggerProductIds!.includes(i.productId))
-        .reduce((s, i) => s + i.quantity, 0);
-      triggered = count >= needed;
-    } else if (bogoDeal.triggerCategoryId) {
-      const catProducts = new Set(
-        (categories.find((c) => c.id === bogoDeal.triggerCategoryId)?.products ?? []).map((p: any) => p.id)
-      );
-      const count = currentItems
-        .filter((i) => catProducts.has(i.productId))
-        .reduce((s, i) => s + i.quantity, 0);
-      triggered = count >= needed;
-    } else if (bogoDeal.bogoMinOrderAmountOre) {
-      triggered = useCartStore.getState().getTotal() * 100 >= bogoDeal.bogoMinOrderAmountOre;
-    }
-
-    if (!triggered) return;
-
-    // Hitta reward-produkter från lokala kategoridata
-    const rewardCatId = bogoDeal.rewardCategoryId || bogoDeal.triggerCategoryId;
-    let rewardProducts: BogoPickerProduct[] = [];
-    let rewardCategoryName: string | null = null;
-    if (rewardCatId) {
-      const cat = categories.find((c) => c.id === rewardCatId);
-      if (cat) {
-        rewardCategoryName = cat.name;
-        rewardProducts = (cat.products ?? []).map((p: any) => ({
-          id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null,
-        }));
-      }
-    } else {
-      rewardProducts = categories.flatMap((c) =>
-        (c.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
-      );
-    }
-
-    if (rewardProducts.length === 0) return;
-
-    setBogoPicker({ dealId: bogoDeal.id, dealTitle: bogoDeal.title, rewardCategoryName, products: rewardProducts });
-  }, [deals, categories]);
 
   return (
     <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
