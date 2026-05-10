@@ -248,19 +248,26 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     if (!triggered) return;
 
     const rewardCatId = bogoDeal.rewardCategoryId || bogoDeal.triggerCategoryId;
+    const allowedRewardIds = new Set(bogoDeal.bogoRewardProductIds ?? []);
     let rewardProducts: BogoPickerProduct[] = [];
     let rewardCategoryName: string | null = null;
+
+    const applyWhitelist = (prods: BogoPickerProduct[]) =>
+      allowedRewardIds.size > 0 ? prods.filter((p) => allowedRewardIds.has(p.id)) : prods;
+
     if (rewardCatId) {
       const cat = categories.find((c) => c.id === rewardCatId);
       if (cat) {
         rewardCategoryName = cat.name;
-        rewardProducts = (cat.products ?? []).map((p: any) => ({
-          id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null,
-        }));
+        rewardProducts = applyWhitelist(
+          (cat.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
+        );
       }
     } else {
-      rewardProducts = categories.flatMap((c) =>
-        (c.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
+      rewardProducts = applyWhitelist(
+        categories.flatMap((c) =>
+          (c.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
+        )
       );
     }
 
@@ -669,6 +676,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
           <BogoPickerModal
             dealId={bogoPicker.dealId}
             dealTitle={bogoPicker.dealTitle}
+            restaurantId={restaurant?.id || ""}
             rewardCategoryName={bogoPicker.rewardCategoryName}
             products={bogoPicker.products}
             onClose={() => setBogoPicker(null)}

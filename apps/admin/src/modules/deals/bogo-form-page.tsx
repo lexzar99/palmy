@@ -33,6 +33,7 @@ type Draft = {
   bogoMinOrderAmount: string;
   bogoTriggerProductIds: string[];
   rewardCategoryId: string;
+  bogoRewardProductIds: string[];
   bogoExcludedProductIds: string[];
   bogoMaxRewardPrice: string;
   isActive: boolean;
@@ -50,6 +51,7 @@ const defaultDraft = (): Draft => ({
   bogoMinOrderAmount: "",
   bogoTriggerProductIds: [],
   rewardCategoryId: "",
+  bogoRewardProductIds: [],
   bogoExcludedProductIds: [],
   bogoMaxRewardPrice: "",
   isActive: true,
@@ -112,6 +114,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         bogoMinOrderAmount: (deal as any).bogoMinOrderAmount != null ? String((deal as any).bogoMinOrderAmount) : "",
         bogoTriggerProductIds: (deal as any).bogoTriggerProductIds ?? [],
         rewardCategoryId: deal.rewardCategoryId || "",
+        bogoRewardProductIds: (deal as any).bogoRewardProductIds ?? [],
         bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
         bogoMaxRewardPrice: deal.bogoMaxRewardPrice != null ? String(deal.bogoMaxRewardPrice) : "",
         isActive: deal.isActive,
@@ -141,6 +144,14 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         : [...prev.bogoTriggerProductIds, id],
     }));
 
+  const toggleRewardProduct = (id: string) =>
+    setDraft((prev) => ({
+      ...prev,
+      bogoRewardProductIds: prev.bogoRewardProductIds.includes(id)
+        ? prev.bogoRewardProductIds.filter((x) => x !== id)
+        : [...prev.bogoRewardProductIds, id],
+    }));
+
   const saveMutation = useMutation({
     mutationFn: async (d: Draft) => {
       const payload: Record<string, unknown> = {
@@ -153,6 +164,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         discountValue: 0,
         restaurantId: d.restaurantId || null,
         rewardCategoryId: d.rewardCategoryId || null,
+        bogoRewardProductIds: d.bogoRewardProductIds,
         bogoExcludedProductIds: d.bogoExcludedProductIds,
         bogoMaxRewardPrice: d.bogoMaxRewardPrice ? Number(d.bogoMaxRewardPrice) : null,
         isActive: d.isActive,
@@ -276,6 +288,7 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                     triggerCategoryId: "",
                     rewardCategoryId: "",
                     bogoExcludedProductIds: [],
+                    bogoRewardProductIds: [],
                     bogoTriggerProductIds: [],
                   }));
                 }}
@@ -412,6 +425,29 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                   placeholder="valfritt, t.ex. 15" />
               </Field>
             </div>
+
+            {rewardCategoryProducts.length > 0 && (
+              <Field label="Tillåtna gratis-produkter (whitelist — tom = alla)">
+                <p className="mb-2 text-xs text-[var(--text-muted)]">Bock i de produkter kunden FÅR välja som gratis. Tom lista = alla produkter i kategorin.</p>
+                <div className="max-h-40 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-0.5">
+                  {rewardCategoryProducts.map((p) => {
+                    const allowed = draft.bogoRewardProductIds.includes(p.id);
+                    return (
+                      <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${allowed ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
+                        <input type="checkbox" checked={allowed} onChange={() => toggleRewardProduct(p.id)} className="accent-indigo-500 h-3.5 w-3.5 shrink-0" />
+                        <span className={allowed ? "text-[var(--accent)]" : ""}>{p.name}</span>
+                        <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {draft.bogoRewardProductIds.length > 0 && (
+                  <button type="button" onClick={() => set("bogoRewardProductIds", [])} className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
+                    Rensa whitelist ({draft.bogoRewardProductIds.length} valda)
+                  </button>
+                )}
+              </Field>
+            )}
 
             {rewardCategoryProducts.length > 0 && (
               <Field label="Uteslut produkter från gratis-erbjudandet">

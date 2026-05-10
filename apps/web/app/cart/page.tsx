@@ -1523,6 +1523,7 @@ export default function CartPage() {
           <BogoPickerModal
             dealId={bogoPreview.dealId ?? ""}
             dealTitle={bogoPreview.dealTitle}
+            restaurantId={cartRestaurantId || ""}
             rewardCategoryName={bogoPreview.rewardCategoryName}
             products={bogoPreview.rewardProducts}
             onClose={() => setShowBogoPicker(false)}

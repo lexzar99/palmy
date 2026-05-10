@@ -16,6 +16,7 @@ export interface CartItem {
     price: number;
   }[];
   note?: string;
+  bogoFreeFromDealId?: string; // Satt om raden är en BOGO-gratisvara
 }
 
 export type BogoChoice = {

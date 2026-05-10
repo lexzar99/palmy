@@ -14,15 +14,26 @@ export type BogoPickerProduct = {
 type Props = {
   dealId: string;
   dealTitle: string;
+  restaurantId: string;
   rewardCategoryName?: string | null;
   products: BogoPickerProduct[];
   onClose: () => void;
 };
 
-export default function BogoPickerModal({ dealId, dealTitle, rewardCategoryName, products, onClose }: Props) {
+export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewardCategoryName, products, onClose }: Props) {
   const setBogoChoice = useCartStore((s) => s.setBogoChoice);
+  const addItem = useCartStore((s) => s.addItem);
 
   const handlePick = (p: BogoPickerProduct) => {
+    addItem({
+      productId: p.id,
+      restaurantId,
+      name: p.name,
+      price: 0,
+      quantity: 1,
+      extras: [],
+      bogoFreeFromDealId: dealId,
+    });
     const choice: BogoChoice = {
       dealId,
       dealTitle,
