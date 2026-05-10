@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, ShoppingBag, User, Tag } from "lucide-react";
+import { Home, Compass, ShoppingBag, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCartStore } from "@/store/cartStore";
 
@@ -17,7 +17,6 @@ const BottomNav = () => {
   const navItems = [
     { href: "/", label: "Hem", icon: Home },
     { href: "/discover", label: "Upptäck", icon: Compass },
-    { href: "/deals", label: "Deals", icon: Tag },
     { href: "/cart", label: "Kasse", icon: ShoppingBag, count: itemCount },
     { href: "/profile", label: "Profil", icon: User },
   ];
