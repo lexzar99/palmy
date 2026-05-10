@@ -287,25 +287,40 @@ router.post('/evaluate-cart', async (req, res) => {
     let rewardCategoryName: string | null = null;
     let rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[] = [];
     if (bestDeal && bestDeal.triggerType === 'BOGO_CATEGORY') {
-      const rewardCatId = bestDeal.rewardCategoryId || bestDeal.triggerCategoryId;
-      if (rewardCatId) {
-        const cat = await prisma.category.findUnique({
-          where: { id: rewardCatId },
-          select: { name: true, products: { where: { isActive: true }, select: { id: true, name: true, price: true, imageUrl: true }, orderBy: { position: 'asc' } } },
-        });
-        if (cat) {
-          rewardCategoryName = cat.name;
-          rewardProducts = cat.products.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl }));
-        }
-      } else {
-        // Inga kategorier — alla produkter i restaurangen
-        const allProds = await prisma.product.findMany({
-          where: { category: { restaurantId }, isActive: true },
+      const allowedIds = new Set(parseJsonArray((bestDeal as any).bogoRewardProductIds));
+      // Om whitelist finns → hämta direkt på produkt-ID (ingen kategori-lookup)
+      if (allowedIds.size > 0) {
+        const prods = await prisma.product.findMany({
+          where: { id: { in: [...allowedIds] }, isActive: true },
           select: { id: true, name: true, price: true, imageUrl: true },
           orderBy: { position: 'asc' },
-          take: 50,
         });
-        rewardProducts = allProds.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl }));
+        rewardProducts = prods.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl }));
+      } else {
+        // Fallback: kategoribaserad sökning (gammal logik)
+        const rewardCatId = bestDeal.rewardCategoryId || bestDeal.triggerCategoryId;
+        const excludedIds = new Set(parseJsonArray(bestDeal.bogoExcludedProductIds));
+        const applyExclusions = (prods: { id: string; name: string; price: number; imageUrl: string | null }[]) =>
+          prods.filter((p) => !excludedIds.has(p.id));
+
+        if (rewardCatId) {
+          const cat = await prisma.category.findUnique({
+            where: { id: rewardCatId },
+            select: { name: true, products: { where: { isActive: true }, select: { id: true, name: true, price: true, imageUrl: true }, orderBy: { position: 'asc' } } },
+          });
+          if (cat) {
+            rewardCategoryName = cat.name;
+            rewardProducts = applyExclusions(cat.products.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl })));
+          }
+        } else {
+          const allProds = await prisma.product.findMany({
+            where: { category: { restaurantId }, isActive: true },
+            select: { id: true, name: true, price: true, imageUrl: true },
+            orderBy: { position: 'asc' },
+            take: 50,
+          });
+          rewardProducts = applyExclusions(allProds.map((p) => ({ id: p.id, name: p.name, price: p.price / 100, imageUrl: p.imageUrl })));
+        }
       }
     }
 

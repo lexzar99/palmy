@@ -95,10 +95,11 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
     enabled: Boolean(activeRestaurantId),
   });
 
-  const rewardCatId = draft.rewardCategoryId || draft.triggerCategoryId;
-  const rewardCategoryProducts = useMemo(
-    () => (products.data ?? []).filter((p) => p.categoryId === rewardCatId),
-    [products.data, rewardCatId]
+  const rewardProductOptions = useMemo(
+    () => draft.rewardCategoryId
+      ? (products.data ?? []).filter((p) => p.categoryId === draft.rewardCategoryId)
+      : (products.data ?? []),
+    [products.data, draft.rewardCategoryId]
   );
 
   useEffect(() => {
@@ -404,71 +405,54 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
 
           {/* Reward */}
           <Surface className="px-6 py-6 grid gap-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Belöning — vad är gratis?</p>
-
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Gratis-kategori">
-                <Select
-                  value={draft.rewardCategoryId}
-                  onChange={(e) => { set("rewardCategoryId", e.target.value); set("bogoExcludedProductIds", []); }}
-                  disabled={!draft.restaurantId || categories.isLoading}
-                >
-                  <option value="">
-                    {draft.triggerMode === "category" ? "Samma kategori" : "Fritt val"}
-                  </option>
-                  {catOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </Select>
-              </Field>
-              <Field label="Max gratis-basepris (kr)">
-                <Input type="number" min="1" step="1" value={draft.bogoMaxRewardPrice}
-                  onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
-                  placeholder="valfritt, t.ex. 15" />
-              </Field>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">Belöning — vilka produkter kan väljas gratis?</p>
+              <p className="text-xs text-[var(--text-muted)]">Bocka i exakt de produkter kunden kan välja. Tom lista = hela menyn är valbara.</p>
             </div>
 
-            {rewardCategoryProducts.length > 0 && (
-              <Field label="Tillåtna gratis-produkter (whitelist — tom = alla)">
-                <p className="mb-2 text-xs text-[var(--text-muted)]">Bock i de produkter kunden FÅR välja som gratis. Tom lista = alla produkter i kategorin.</p>
-                <div className="max-h-40 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-0.5">
-                  {rewardCategoryProducts.map((p) => {
-                    const allowed = draft.bogoRewardProductIds.includes(p.id);
-                    return (
-                      <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${allowed ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
-                        <input type="checkbox" checked={allowed} onChange={() => toggleRewardProduct(p.id)} className="accent-indigo-500 h-3.5 w-3.5 shrink-0" />
-                        <span className={allowed ? "text-[var(--accent)]" : ""}>{p.name}</span>
-                        <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {draft.bogoRewardProductIds.length > 0 && (
-                  <button type="button" onClick={() => set("bogoRewardProductIds", [])} className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
-                    Rensa whitelist ({draft.bogoRewardProductIds.length} valda)
-                  </button>
-                )}
-              </Field>
-            )}
+            {!draft.restaurantId ? (
+              <p className="text-xs text-[var(--text-muted)] py-2">Välj restaurang först</p>
+            ) : (
+              <>
+                <Field label="Filtrera produktlistan efter kategori (valfritt)">
+                  <Select
+                    value={draft.rewardCategoryId}
+                    onChange={(e) => { set("rewardCategoryId", e.target.value); set("bogoRewardProductIds", []); }}
+                    disabled={categories.isLoading}
+                  >
+                    <option value="">Alla kategorier</option>
+                    {catOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </Select>
+                </Field>
 
-            {rewardCategoryProducts.length > 0 && (
-              <Field label="Uteslut produkter från gratis-erbjudandet">
-                <div className="max-h-40 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-0.5">
-                  {rewardCategoryProducts.map((p) => {
-                    const excluded = draft.bogoExcludedProductIds.includes(p.id);
-                    return (
-                      <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${excluded ? "bg-[rgba(239,68,68,0.08)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
-                        <input type="checkbox" checked={excluded} onChange={() => toggleExcluded(p.id)} className="accent-red-500 h-3.5 w-3.5 shrink-0" />
-                        <span className={excluded ? "line-through text-[var(--text-muted)]" : ""}>{p.name}</span>
-                        <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {draft.bogoExcludedProductIds.length > 0 && (
-                  <button type="button" onClick={() => set("bogoExcludedProductIds", [])} className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
-                    Rensa ({draft.bogoExcludedProductIds.length})
-                  </button>
-                )}
-              </Field>
+                <Field label="Välj tillåtna gratis-produkter">
+                  <div className="max-h-52 overflow-y-auto rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-2 flex flex-col gap-0.5">
+                    {rewardProductOptions.length === 0 ? (
+                      <p className="px-3 py-4 text-xs text-[var(--text-muted)] text-center">Inga produkter hittades</p>
+                    ) : rewardProductOptions.map((p) => {
+                      const selected = draft.bogoRewardProductIds.includes(p.id);
+                      return (
+                        <label key={p.id} className={`flex items-center gap-2.5 cursor-pointer rounded-lg px-3 py-2 text-sm select-none transition-colors ${selected ? "bg-[rgba(99,102,241,0.12)]" : "hover:bg-[rgba(255,255,255,0.04)]"}`}>
+                          <input type="checkbox" checked={selected} onChange={() => toggleRewardProduct(p.id)} className="accent-indigo-500 h-3.5 w-3.5 shrink-0" />
+                          <span className={selected ? "font-semibold text-[var(--accent)]" : ""}>{p.name}</span>
+                          <span className="ml-auto text-xs text-[var(--text-muted)]">{(p.price / 100).toFixed(0)} kr</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {draft.bogoRewardProductIds.length > 0 && (
+                    <button type="button" onClick={() => set("bogoRewardProductIds", [])} className="mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
+                      Rensa val ({draft.bogoRewardProductIds.length} valda)
+                    </button>
+                  )}
+                </Field>
+
+                <Field label="Max gratis-basepris (kr, valfritt)">
+                  <Input type="number" min="1" step="1" value={draft.bogoMaxRewardPrice}
+                    onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
+                    placeholder="t.ex. 15 — kunden betalar mellanskillnad vid dyrare val" />
+                </Field>
+              </>
             )}
           </Surface>
         </div>
@@ -507,11 +491,13 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
               {draft.triggerMode === "products" && (
                 <p>Kunden köper <strong className="text-[var(--text-primary)]">{draft.triggerQuantity}</strong> av de valda produkterna → billigaste icke-uteslutna artikel dras av.</p>
               )}
+              {draft.bogoRewardProductIds.length > 0 ? (
+                <p className="text-indigo-400"><strong>{draft.bogoRewardProductIds.length}</strong> produkt{draft.bogoRewardProductIds.length !== 1 ? "er" : ""} vald{draft.bogoRewardProductIds.length !== 1 ? "a" : ""} som gratis-alternativ.</p>
+              ) : (
+                <p className="text-[var(--text-muted)] text-xs">Inga gratis-produkter valda — hela menyn är valbar.</p>
+              )}
               {draft.bogoMaxRewardPrice && Number(draft.bogoMaxRewardPrice) > 0 && (
                 <p className="text-amber-400">Max gratis-basepris: <strong>{draft.bogoMaxRewardPrice} kr</strong> — kunden betalar mellanskillnaden för dyrare val.</p>
-              )}
-              {draft.bogoExcludedProductIds.length > 0 && (
-                <p className="text-red-400">{draft.bogoExcludedProductIds.length} produkt{draft.bogoExcludedProductIds.length !== 1 ? "er" : ""} utesluten{draft.bogoExcludedProductIds.length !== 1 ? "a" : ""}.</p>
               )}
               <p className="text-xs text-[var(--text-muted)] mt-1">Extratillval betalas alltid av kunden.</p>
             </div>

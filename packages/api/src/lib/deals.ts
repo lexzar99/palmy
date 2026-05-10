@@ -33,6 +33,7 @@ type DealLike = {
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string | null;
+  bogoRewardProductIds?: string | null;
   bogoMaxRewardPriceOre?: number | null;
   bogoMinOrderAmountOre?: number | null;
   bogoTriggerProductIds?: string | null;
@@ -198,11 +199,13 @@ export const evaluateBogoCategoryDeal = (
   }
 
   // --- Find reward items ---
-  // Reward pool: reward category if set, else trigger category, else any non-excluded item
-  const rewardCatId = deal.rewardCategoryId || deal.triggerCategoryId;
+  const allowedRewardIds = parseDealProductIds(deal.bogoRewardProductIds); // whitelist — tom = alla
+  // Om whitelist är satt används produkterna direkt — ingen kategorifilter behövs
+  const rewardCatId = allowedRewardIds.length > 0 ? null : (deal.rewardCategoryId || deal.triggerCategoryId);
   const rewardPrices = cartItems
     .filter((item) => {
       if (excludedIds.has(item.productId)) return false;
+      if (allowedRewardIds.length > 0 && !allowedRewardIds.includes(item.productId)) return false;
       return rewardCatId ? item.categoryId === rewardCatId : true;
     })
     .flatMap((item) => Array.from({ length: item.quantity }, () => item.basePriceOre))
@@ -434,6 +437,7 @@ export const formatDealForClient = (
   triggerCategoryId: deal.triggerCategoryId ?? null,
   rewardCategoryId: deal.rewardCategoryId ?? null,
   bogoTriggerProductIds: parseDealProductIds(deal.bogoTriggerProductIds),
+  bogoRewardProductIds: parseDealProductIds(deal.bogoRewardProductIds),
   triggerQuantity: deal.triggerQuantity ?? 2,
   bogoMinOrderAmountOre: deal.bogoMinOrderAmountOre ?? null,
 });
