@@ -92,7 +92,7 @@ export interface RestaurantFormPayload {
   latitude?: number | null;
   longitude?: number | null;
   freeDeliveryAbove?: number;
-  openingHours?: { regular: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }> };
+  openingHours?: Record<string, { closed: boolean; shifts: { open: string; close: string }[] }>;
   logoutCode?: string | null;
   announcementText?: string | null;
   vatPercent?: number | null;
