@@ -345,11 +345,8 @@ class _NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = [
-      if (order.note?.isNotEmpty == true) order.note!,
-      if (order.deliveryInstructions?.isNotEmpty == true)
-        order.deliveryInstructions!,
-    ].join('\n');
+    final hasInstruction = order.deliveryInstructions?.isNotEmpty == true;
+    final hasNote = order.note?.isNotEmpty == true;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -358,22 +355,50 @@ class _NoteCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border(left: BorderSide(color: accent, width: 3)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 16),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white : AppTheme.ink,
-                height: 1.35,
-              ),
+          if (hasInstruction) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.directions_walk_rounded, color: accent, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    OrderUi.deliveryInstructionLabel(order.deliveryInstructions),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: isDark ? Colors.white : AppTheme.ink,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
+            if (hasNote) const SizedBox(height: 8),
+          ],
+          if (hasNote)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.chat_bubble_outline_rounded, color: accent, size: 16),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    order.note!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.85)
+                          : AppTheme.ink.withOpacity(0.80),
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -515,16 +540,56 @@ class _ItemRow extends StatelessWidget {
                   ],
                 ),
                 if (hasExtras) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    item.selectedExtras.join(' · '),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.mutedColor(context),
-                      height: 1.35,
-                    ),
-                  ),
+                  const SizedBox(height: 4),
+                  ...item.selectedExtras.map((e) {
+                    final name =
+                        e is Map ? (e['name'] ?? '').toString() : e.toString();
+                    final price = e is Map
+                        ? ((e['price'] as num?)?.toDouble() ?? 0.0)
+                        : 0.0;
+                    final isPaid = price > 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Row(
+                        children: [
+                          if (isPaid)
+                            Text(
+                              '+ ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                              ),
+                            )
+                          else
+                            const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isPaid
+                                    ? FontWeight.w700
+                                    : FontWeight.w600,
+                                color: isPaid
+                                    ? accent
+                                    : AppTheme.mutedColor(context),
+                              ),
+                            ),
+                          ),
+                          if (isPaid)
+                            Text(
+                              OrderUi.formatCurrency(price),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  }),
                 ],
                 if (hasNote) ...[
                   const SizedBox(height: 4),

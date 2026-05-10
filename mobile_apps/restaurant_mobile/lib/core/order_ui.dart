@@ -99,4 +99,24 @@ class OrderUi {
     if (scheduled == null) return '';
     return '${formatDate(scheduled)} kl ${formatTime(scheduled)}';
   }
+
+  static String deliveryInstructionLabel(String? value) {
+    if (value == null || value.isEmpty) return '';
+    switch (value.toUpperCase().trim()) {
+      case 'RING_DOORBELL':
+        return 'Ring på dörren';
+      case 'LEAVE_AT_DOOR':
+        return 'Lämna vid dörren';
+      case 'MEET_OUTSIDE':
+        return 'Möt mig utanför';
+      case 'MEET_AT_DOOR':
+        return 'Möt vid dörren';
+      case 'NO_CONTACT':
+        return 'Kontaktfri leverans';
+      case 'CALL_ON_ARRIVAL':
+        return 'Ring vid ankomst';
+      default:
+        return value;
+    }
+  }
 }

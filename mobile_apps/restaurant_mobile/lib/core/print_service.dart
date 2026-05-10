@@ -142,6 +142,25 @@ class PrintService {
 
   static String _safeValue(dynamic value) => value?.toString() ?? '';
 
+  static String _translateInstruction(String value) {
+    switch (value.toUpperCase().trim()) {
+      case 'RING_DOORBELL':
+        return 'Ring på dörren';
+      case 'LEAVE_AT_DOOR':
+        return 'Lämna vid dörren';
+      case 'MEET_OUTSIDE':
+        return 'Möt mig utanför';
+      case 'MEET_AT_DOOR':
+        return 'Möt vid dörren';
+      case 'NO_CONTACT':
+        return 'Kontaktfri leverans';
+      case 'CALL_ON_ARRIVAL':
+        return 'Ring vid ankomst';
+      default:
+        return value;
+    }
+  }
+
   /// Replaces Swedish-specific characters with ASCII equivalents for ESC/POS
   /// printers that only support basic Latin (CP437 / US-ASCII).
   static String _latinize(String s) => s
@@ -631,12 +650,10 @@ class PrintService {
             widget = _pdfText(customerAddress, style, align, element.uppercase);
           break;
         case 'deliveryInstructions':
-          if (_safeValue(customer['instructions']).isNotEmpty)
+          final rawInstr = _safeValue(customer['instructions']);
+          if (rawInstr.isNotEmpty)
             widget = _pdfText(
-                'Instruktion: ${_safeValue(customer['instructions'])}',
-                style,
-                align,
-                element.uppercase);
+                _translateInstruction(rawInstr), style, align, element.uppercase);
           break;
         case 'note':
           if (_safeValue(customer['note']).isNotEmpty)
@@ -673,15 +690,38 @@ class PrintService {
               if (extrasVisible) {
                 for (final extra
                     in (item['extras'] as List? ?? const []).whereType<Map>()) {
-                  localWidgets.add(
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.only(left: 10, top: 2),
-                      child: pw.Text('+ ${_safeValue(extra['name'])}',
-                          style: pw.TextStyle(
-                              font: regularFont,
-                              fontSize: element.size.toDouble() - 1)),
-                    ),
-                  );
+                  final eName = _safeValue(extra['name']);
+                  if (eName.isEmpty) continue;
+                  final ePrice =
+                      (extra['price'] as num?)?.toDouble() ?? 0.0;
+                  final isPaid = ePrice > 0;
+                  final extraStyle = pw.TextStyle(
+                      font: regularFont,
+                      fontSize: element.size.toDouble() - 1);
+                  if (isPaid) {
+                    localWidgets.add(
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+                        child: pw.Row(
+                          mainAxisAlignment:
+                              pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('+ $eName', style: extraStyle),
+                            pw.Text(
+                                '+${ePrice.toStringAsFixed(0)} kr',
+                                style: extraStyle),
+                          ],
+                        ),
+                      ),
+                    );
+                  } else {
+                    localWidgets.add(
+                      pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 10, top: 2),
+                        child: pw.Text(eName, style: extraStyle),
+                      ),
+                    );
+                  }
                 }
               }
               if (noteVisible && _safeValue(item['note']).isNotEmpty) {
@@ -920,7 +960,7 @@ class PrintService {
     }
     // Delivery instructions
     if (ev('deliveryInstructions') && _safeValue(c['instructions']).isNotEmpty) {
-      p.text(_safeValue(c['instructions']),
+      p.text(_translateInstruction(_safeValue(c['instructions'])),
           size: es('deliveryInstructions', 22), w: ew('deliveryInstructions'), align: ea('deliveryInstructions', 'left'));
     }
     // Order note
@@ -979,8 +1019,18 @@ class PrintService {
           final extras = item['extras'];
           if (extras is List) {
             for (final extra in extras) {
-              final en = extra is Map ? _safeValue(extra['name']) : _safeValue(extra);
-              if (en.isNotEmpty) p.text('** $en', size: es('extras', 22), color: grey);
+              final en =
+                  extra is Map ? _safeValue(extra['name']) : _safeValue(extra);
+              if (en.isEmpty) continue;
+              final ePrice = extra is Map
+                  ? ((extra['price'] as num?)?.toDouble() ?? 0.0)
+                  : 0.0;
+              if (ePrice > 0) {
+                p.row('+ $en', '+${ePrice.toStringAsFixed(0)} kr',
+                    size: es('extras', 22));
+              } else {
+                p.text('  $en', size: es('extras', 22), color: grey);
+              }
             }
           }
         }
@@ -1155,9 +1205,10 @@ class PrintService {
           }
           break;
         case 'deliveryInstructions':
-          if (_safeValue(customer['instructions']).isNotEmpty)
+          final rawPosInstr = _safeValue(customer['instructions']);
+          if (rawPosInstr.isNotEmpty)
             bytes.addAll(_posText(
-                generator, _safeValue(customer['instructions']), element));
+                generator, _translateInstruction(rawPosInstr), element));
           break;
         case 'note':
           if (_safeValue(customer['note']).isNotEmpty)
@@ -1196,8 +1247,25 @@ class PrintService {
             if (extrasVisible) {
               for (final extra
                   in (item['extras'] as List? ?? const []).whereType<Map>()) {
-                bytes.addAll(generator.text('** ${_safeValue(extra['name'])}',
-                    styles: const PosStyles(align: PosAlign.left)));
+                final eName = _safeValue(extra['name']);
+                if (eName.isEmpty) continue;
+                final ePrice =
+                    (extra['price'] as num?)?.toDouble() ?? 0.0;
+                if (ePrice > 0) {
+                  bytes.addAll(generator.row([
+                    PosColumn(
+                        text: '+ $eName',
+                        width: 9,
+                        styles: const PosStyles(align: PosAlign.left)),
+                    PosColumn(
+                        text: '+${ePrice.toStringAsFixed(0)} kr',
+                        width: 3,
+                        styles: const PosStyles(align: PosAlign.right)),
+                  ]));
+                } else {
+                  bytes.addAll(generator.text('  $eName',
+                      styles: const PosStyles(align: PosAlign.left)));
+                }
               }
             }
             if (noteVisible && _safeValue(item['note']).isNotEmpty) {
@@ -1377,7 +1445,10 @@ class PrintService {
                 'qty': item.quantity,
                 'subtotal': item.subtotal.toStringAsFixed(0),
                 'extras': item.selectedExtras
-                    .map((extra) => {'name': extra.toString()})
+                    .map((extra) => {
+                          'name': (extra['name'] ?? '').toString(),
+                          'price': (extra['price'] as num?)?.toDouble() ?? 0.0,
+                        })
                     .toList(),
                 'note': item.note ?? '',
               })
@@ -1418,7 +1489,11 @@ class PrintService {
           quantity: 2,
           subtotal: 180,
           basePrice: 90,
-          selectedExtras: ['Pommes', 'Vitloksdipp'],
+          selectedExtras: [
+            {'name': 'Pommes', 'price': 0.0},
+            {'name': 'Vitlöksdipp', 'price': 0.0},
+            {'name': 'Extra ost', 'price': 15.0},
+          ],
           note: 'Utan lok',
         ),
       ],

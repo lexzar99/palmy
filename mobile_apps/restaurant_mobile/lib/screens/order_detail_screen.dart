@@ -445,9 +445,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                                 true) ...[
                               const SizedBox(height: 12),
                               _InfoRow(
-                                icon: Icons.door_front_door_outlined,
-                                title: 'Leveransinstruktion',
-                                value: order.deliveryInstructions!,
+                                icon: Icons.directions_walk_rounded,
+                                title: 'Leveranssätt',
+                                value: OrderUi.deliveryInstructionLabel(
+                                    order.deliveryInstructions),
                               ),
                             ],
                             if (order.note?.isNotEmpty == true) ...[
@@ -754,34 +755,53 @@ class _ItemCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: item.selectedExtras
-                    .map(
-                      (e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Padding(
-                              padding: EdgeInsets.only(top: 1),
-                              child: Icon(Icons.add_circle_outline_rounded,
-                                  size: 14, color: AppTheme.success),
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                e.toString(),
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppTheme.success,
-                                ),
-                              ),
-                            ),
-                          ],
+                children: item.selectedExtras.map((e) {
+                  final name = e is Map
+                      ? (e['name'] ?? '').toString()
+                      : e.toString();
+                  final price = e is Map
+                      ? ((e['price'] as num?)?.toDouble() ?? 0.0)
+                      : 0.0;
+                  final isPaid = price > 0;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: isPaid
+                              ? const Icon(Icons.add_circle_outline_rounded,
+                                  size: 14, color: AppTheme.success)
+                              : const Icon(Icons.circle,
+                                  size: 5, color: AppTheme.info),
                         ),
-                      ),
-                    )
-                    .toList(),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: isPaid
+                                  ? AppTheme.success
+                                  : AppTheme.info,
+                            ),
+                          ),
+                        ),
+                        if (isPaid)
+                          Text(
+                            '+ ${OrderUi.formatCurrency(price)}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.success,
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                }).toList(),
               ),
             ),
           ],

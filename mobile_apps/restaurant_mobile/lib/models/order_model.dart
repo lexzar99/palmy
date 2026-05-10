@@ -148,7 +148,7 @@ class OrderItemModel {
   final int quantity;
   final double subtotal;
   final double basePrice;
-  final List<dynamic> selectedExtras;
+  final List<Map<String, dynamic>> selectedExtras;
   final String? note;
 
   OrderItemModel({
@@ -176,15 +176,17 @@ class OrderItemModel {
       parsedExtras = extrasRaw;
     }
 
-    // MAP EXTRAS TO TEXT
-    final List<String> extraTexts = parsedExtras
+    // MAP EXTRAS — preserve name + priceAddon
+    final List<Map<String, dynamic>> extraTexts = parsedExtras
         .map((e) {
           if (e is Map) {
-            return (e['extraName'] ?? e['name'] ?? "").toString();
+            final name = (e['extraName'] ?? e['name'] ?? '').toString();
+            final price = (e['priceAddon'] as num?)?.toDouble() ?? 0.0;
+            return <String, dynamic>{'name': name, 'price': price};
           }
-          return e.toString();
+          return <String, dynamic>{'name': e.toString(), 'price': 0.0};
         })
-        .where((s) => s.isNotEmpty)
+        .where((m) => (m['name'] as String).isNotEmpty)
         .toList();
 
     String name = json['productName'] ??
