@@ -48,3 +48,10 @@ Thumbs.db
 **/build/
 
 *.env.bak
+
+# Claude Code internals
+.claude/worktrees/
+.claude/scheduled_tasks.lock
+
+# Temp logs
+tmp/
