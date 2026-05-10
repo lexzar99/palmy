@@ -27,6 +27,7 @@ type Draft = {
   triggerQuantity: number;
   rewardCategoryId: string;
   bogoExcludedProductIds: string[];
+  bogoMaxRewardPrice: string;
   isActive: boolean;
   showAsBanner: boolean;
   validUntil: string;
@@ -40,6 +41,7 @@ const defaultDraft = (): Draft => ({
   triggerQuantity: 2,
   rewardCategoryId: "",
   bogoExcludedProductIds: [],
+  bogoMaxRewardPrice: "",
   isActive: true,
   showAsBanner: true,
   validUntil: "",
@@ -90,6 +92,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         triggerQuantity: deal.triggerQuantity ?? 2,
         rewardCategoryId: deal.rewardCategoryId || "",
         bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
+        bogoMaxRewardPrice: deal.bogoMaxRewardPrice != null ? String(deal.bogoMaxRewardPrice) : "",
         isActive: deal.isActive,
         showAsBanner: deal.showAsBanner ?? false,
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
@@ -131,6 +134,7 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
         triggerQuantity: d.triggerQuantity,
         rewardCategoryId: d.rewardCategoryId || null,
         bogoExcludedProductIds: d.bogoExcludedProductIds,
+        bogoMaxRewardPrice: d.bogoMaxRewardPrice ? Number(d.bogoMaxRewardPrice) : null,
         isActive: d.isActive,
         showOnSite: true,
         showAsBanner: d.showAsBanner,
@@ -245,15 +249,27 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
           </Select>
         </Field>
 
-        <Field label="Antal artiklar som krävs för att utlösa erbjudandet">
-          <Input
-            type="number"
-            min="1"
-            step="1"
-            value={draft.triggerQuantity}
-            onChange={(e) => set("triggerQuantity", Math.max(1, Number(e.target.value)))}
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Antal artiklar som krävs">
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={draft.triggerQuantity}
+              onChange={(e) => set("triggerQuantity", Math.max(1, Number(e.target.value)))}
+            />
+          </Field>
+          <Field label="Max gratis-basepris (kr, valfritt)">
+            <Input
+              type="number"
+              min="1"
+              step="1"
+              value={draft.bogoMaxRewardPrice}
+              onChange={(e) => set("bogoMaxRewardPrice", e.target.value)}
+              placeholder="t.ex. 15"
+            />
+          </Field>
+        </div>
 
         <Field label="Gratis-kategori (lämna tom = samma som utlösare)">
           <Select
@@ -336,6 +352,11 @@ export function BogoDealModal({ open, onClose, deal, prefillRestaurantId }: Prop
 
         <p className="text-xs text-[var(--text-muted)] rounded-lg bg-[rgba(255,255,255,0.03)] border border-[var(--border-subtle)] px-3 py-2">
           Kunden köper <strong>{draft.triggerQuantity}</strong> artikel{draft.triggerQuantity !== 1 ? "r" : ""} från utlösarkategorin → den billigaste <em>icke-uteslutna</em> artikeln i gratis-kategorin dras av (endast baspris, extratillval betalas alltid).
+          {draft.bogoMaxRewardPrice && Number(draft.bogoMaxRewardPrice) > 0 && (
+            <span className="block mt-1 text-amber-400">
+              Max gratis-basepris: <strong>{draft.bogoMaxRewardPrice} kr</strong> — väljer kunden något dyrare betalar de mellanskillnaden.
+            </span>
+          )}
           {draft.bogoExcludedProductIds.length > 0 && (
             <span className="block mt-1 text-red-400">{draft.bogoExcludedProductIds.length} produkt{draft.bogoExcludedProductIds.length !== 1 ? "er" : ""} utesluten{draft.bogoExcludedProductIds.length !== 1 ? "a" : ""}.</span>
           )}

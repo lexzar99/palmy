@@ -33,6 +33,7 @@ type DealLike = {
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string | null;
+  bogoMaxRewardPriceOre?: number | null;
 };
 
 type ProductPromotionLike = {
@@ -188,8 +189,14 @@ export const evaluateBogoCategoryDeal = (deal: DealLike, cartItems: CartItemForB
 
   if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0 };
 
-  // Give the cheapest qualifying item free (base price only, extras always paid)
-  return { eligible: true, discountAmountOre: rewardPrices[0] };
+  // Give the cheapest qualifying item free (base price only, extras always paid).
+  // bogoMaxRewardPriceOre caps the discount — useful when the reward category
+  // contains products at different price points and you only want to cover e.g.
+  // the 33cl drink (15 kr) even if the customer picks the 50cl (25 kr).
+  const rawDiscount = rewardPrices[0];
+  const cap = deal.bogoMaxRewardPriceOre ?? null;
+  const discountAmountOre = cap !== null ? Math.min(rawDiscount, cap) : rawDiscount;
+  return { eligible: true, discountAmountOre };
 };
 
 export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => {

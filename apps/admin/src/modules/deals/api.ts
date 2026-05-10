@@ -38,6 +38,7 @@ export interface AutomaticDealRecord {
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string[];
+  bogoMaxRewardPrice?: number | null;
 }
 
 export interface DiscountCodeRecord {
