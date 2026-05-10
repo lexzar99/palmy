@@ -171,7 +171,12 @@ export function DealsPage() {
 
   const filteredAutomaticDeals = useMemo(() => {
     const lowerQuery = query.trim().toLowerCase();
-    const filteredByTab = dealsForRestaurantContext.filter((deal) => {
+    // BOGO-fliken visar ALLA restaurangers BOGO-deals — restaurangfiltret
+    // gäller bara restaurant/product/category-flikarna.
+    const baseDeals = tab === "bogo"
+      ? (automaticDeals.data || []).filter((deal) => !isPopupDeal(deal))
+      : dealsForRestaurantContext;
+    const filteredByTab = baseDeals.filter((deal) => {
       if (tab === "restaurant") {
         return (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER") && deal.triggerType !== "BOGO_CATEGORY";
       }
@@ -188,7 +193,7 @@ export function DealsPage() {
     });
 
     return filteredByTab.filter((deal) => !lowerQuery || `${deal.title} ${deal.description || ""} ${deal.restaurant?.name || ""}`.toLowerCase().includes(lowerQuery));
-  }, [dealsForRestaurantContext, query, tab]);
+  }, [automaticDeals.data, dealsForRestaurantContext, query, tab]);
 
   const filteredLegacyProductDiscounts = useMemo(() => {
     if (tab !== "product") return [] as DealProductRef[];
@@ -217,7 +222,7 @@ export function DealsPage() {
     restaurant: dealsForRestaurantContext.filter((deal) => deal.isActive && (deal.scopeType === "RESTAURANT" || deal.scopeType === "COMBO" || deal.scopeType === "MIN_ORDER") && deal.triggerType !== "BOGO_CATEGORY").length,
     product: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "PRODUCT").length + filteredLegacyProductDiscounts.length,
     category: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.scopeType === "CATEGORY" && deal.triggerType !== "BOGO_CATEGORY").length,
-    bogo: dealsForRestaurantContext.filter((deal) => deal.isActive && deal.triggerType === "BOGO_CATEGORY").length,
+    bogo: (automaticDeals.data || []).filter((deal) => deal.isActive && deal.triggerType === "BOGO_CATEGORY").length,
   };
 
   const openCreate = () => {

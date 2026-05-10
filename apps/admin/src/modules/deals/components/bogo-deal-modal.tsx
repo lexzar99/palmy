@@ -41,7 +41,7 @@ const defaultDraft = (): Draft => ({
   rewardCategoryId: "",
   bogoExcludedProductIds: [],
   isActive: true,
-  showAsBanner: false,
+  showAsBanner: true,
   validUntil: "",
 });
 
