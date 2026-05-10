@@ -145,13 +145,7 @@ export function DealsPage() {
   /* eslint-enable react-hooks/set-state-in-effect */
   // --- end kupongkoder state ---
 
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (!selectedRestaurantId && restaurants.data?.length) {
-      setSelectedRestaurantId(restaurants.data[0].id);
-    }
-  }, [restaurants.data, selectedRestaurantId]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  /* Ingen autoselect — default är "Alla restauranger" (null) */
 
   // En "äkta popup-deal" är en deal som skapats via Popup-fliken — vi
   // identifierar dem på popupHeadline (som bara popup-builder sätter).
@@ -295,7 +289,8 @@ export function DealsPage() {
       <Surface className="px-6 py-6">
         <div className="grid gap-4 lg:grid-cols-[260px_1fr] lg:items-end">
           <Field label="Restaurant context">
-            <Select value={selectedRestaurantId || ""} onChange={(event) => setSelectedRestaurantId(event.target.value)}>
+            <Select value={selectedRestaurantId || ""} onChange={(event) => setSelectedRestaurantId(event.target.value || null)}>
+              <option value="">Alla restauranger</option>
               {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
             </Select>
           </Field>
