@@ -222,6 +222,8 @@ model Deal {
   rewardCategoryId          String?
   bogoExcludedProductIds    String    @default("[]")
   bogoMaxRewardPriceOre     Int?
+  bogoMinOrderAmountOre     Int?
+  bogoTriggerProductIds     String    @default("[]")
   showAsBanner              Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 }

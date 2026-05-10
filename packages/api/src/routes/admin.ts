@@ -1518,6 +1518,8 @@ const formatDealForAdmin = (deal: any) => ({
   rewardCategoryId: deal.rewardCategoryId ?? null,
   bogoExcludedProductIds: parseJsonArray(deal.bogoExcludedProductIds),
   bogoMaxRewardPrice: deal.bogoMaxRewardPriceOre != null ? deal.bogoMaxRewardPriceOre / 100 : null,
+  bogoMinOrderAmount: deal.bogoMinOrderAmountOre != null ? deal.bogoMinOrderAmountOre / 100 : null,
+  bogoTriggerProductIds: parseJsonArray(deal.bogoTriggerProductIds),
 });
 
 // Deaktivera deals som krockar med scope för en NYAKTIVERAD deal eller en
@@ -1683,6 +1685,20 @@ const normalizeDealInputForDb = (body: any) => {
     next.bogoMaxRewardPriceOre = (body.bogoMaxRewardPrice === null || body.bogoMaxRewardPrice === '' || isNaN(kr) || kr <= 0)
       ? null
       : Math.round(kr * 100);
+  }
+
+  if (body.bogoMinOrderAmount !== undefined) {
+    const kr = Number(body.bogoMinOrderAmount);
+    next.bogoMinOrderAmountOre = (body.bogoMinOrderAmount === null || body.bogoMinOrderAmount === '' || isNaN(kr) || kr <= 0)
+      ? null
+      : Math.round(kr * 100);
+  }
+
+  if (body.bogoTriggerProductIds !== undefined) {
+    const ids = Array.isArray(body.bogoTriggerProductIds)
+      ? body.bogoTriggerProductIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(body.bogoTriggerProductIds);
+    next.bogoTriggerProductIds = JSON.stringify(ids);
   }
 
   if (body.validFrom !== undefined) {

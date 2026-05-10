@@ -34,6 +34,8 @@ type DealLike = {
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string | null;
   bogoMaxRewardPriceOre?: number | null;
+  bogoMinOrderAmountOre?: number | null;
+  bogoTriggerProductIds?: string | null;
 };
 
 type ProductPromotionLike = {
@@ -166,33 +168,50 @@ export const getDealProgress = (deal: DealLike, context: DealEvaluationContext) 
   };
 };
 
-export const evaluateBogoCategoryDeal = (deal: DealLike, cartItems: CartItemForBogo[]): { eligible: boolean; discountAmountOre: number } => {
-  const triggerCatId = deal.triggerCategoryId;
-  if (!triggerCatId) return { eligible: false, discountAmountOre: 0 };
-
-  const rewardCatId = deal.rewardCategoryId || triggerCatId;
-  const needed = deal.triggerQuantity ?? 2;
+export const evaluateBogoCategoryDeal = (
+  deal: DealLike,
+  cartItems: CartItemForBogo[],
+  subtotalOre = 0,
+): { eligible: boolean; discountAmountOre: number } => {
   const excludedIds = new Set(parseDealProductIds(deal.bogoExcludedProductIds));
+  const triggerProductIds = parseDealProductIds(deal.bogoTriggerProductIds);
+  const needed = deal.triggerQuantity ?? 2;
 
-  // Count total trigger-category items (excluded products don't count toward trigger)
-  const triggerCount = cartItems
-    .filter((item) => item.categoryId === triggerCatId && !excludedIds.has(item.productId))
-    .reduce((sum, item) => sum + item.quantity, 0);
+  // --- Determine trigger eligibility ---
+  if (triggerProductIds.length > 0) {
+    // Product-trigger mode: count specific products in cart
+    const triggerCount = cartItems
+      .filter((item) => triggerProductIds.includes(item.productId) && !excludedIds.has(item.productId))
+      .reduce((sum, item) => sum + item.quantity, 0);
+    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
+  } else if (deal.bogoMinOrderAmountOre != null && deal.bogoMinOrderAmountOre > 0) {
+    // Min-order mode: subtotal must reach threshold
+    if (subtotalOre < deal.bogoMinOrderAmountOre) return { eligible: false, discountAmountOre: 0 };
+  } else {
+    // Category-trigger mode (default): count items from trigger category
+    const triggerCatId = deal.triggerCategoryId;
+    if (!triggerCatId) return { eligible: false, discountAmountOre: 0 };
+    const triggerCount = cartItems
+      .filter((item) => item.categoryId === triggerCatId && !excludedIds.has(item.productId))
+      .reduce((sum, item) => sum + item.quantity, 0);
+    if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
+  }
 
-  if (triggerCount < needed) return { eligible: false, discountAmountOre: 0 };
-
-  // Find eligible reward items (same category, not excluded), cheapest base price first
+  // --- Find reward items ---
+  // Reward pool: reward category if set, else trigger category, else any non-excluded item
+  const rewardCatId = deal.rewardCategoryId || deal.triggerCategoryId;
   const rewardPrices = cartItems
-    .filter((item) => item.categoryId === rewardCatId && !excludedIds.has(item.productId))
+    .filter((item) => {
+      if (excludedIds.has(item.productId)) return false;
+      return rewardCatId ? item.categoryId === rewardCatId : true;
+    })
     .flatMap((item) => Array.from({ length: item.quantity }, () => item.basePriceOre))
     .sort((a, b) => a - b);
 
   if (rewardPrices.length === 0) return { eligible: false, discountAmountOre: 0 };
 
-  // Give the cheapest qualifying item free (base price only, extras always paid).
-  // bogoMaxRewardPriceOre caps the discount — useful when the reward category
-  // contains products at different price points and you only want to cover e.g.
-  // the 33cl drink (15 kr) even if the customer picks the 50cl (25 kr).
+  // Cheapest qualifying item is free (base price only, extras always paid).
+  // bogoMaxRewardPriceOre caps the free amount — customer pays the difference for pricier choices.
   const rawDiscount = rewardPrices[0];
   const cap = deal.bogoMaxRewardPriceOre ?? null;
   const discountAmountOre = cap !== null ? Math.min(rawDiscount, cap) : rawDiscount;
@@ -201,11 +220,16 @@ export const evaluateBogoCategoryDeal = (deal: DealLike, cartItems: CartItemForB
 
 export const evaluateDeal = (deal: DealLike, context: DealEvaluationContext) => {
   if (deal.triggerType === 'BOGO_CATEGORY') {
-    const result = evaluateBogoCategoryDeal(deal, context.cartItems ?? []);
+    const result = evaluateBogoCategoryDeal(deal, context.cartItems ?? [], context.subtotalOre);
+    const remainingLabel = result.eligible
+      ? 'BOGO aktiv'
+      : deal.bogoMinOrderAmountOre
+        ? `${oreToKr(deal.bogoMinOrderAmountOre).toFixed(0)} kr kvar till BOGO`
+        : `Köp ${deal.triggerQuantity ?? 2} från kategorin`;
     return {
       eligible: result.eligible,
       discountAmountOre: result.discountAmountOre,
-      progress: { current: 1, goal: 1, percentage: result.eligible ? 100 : 0, remainingLabel: result.eligible ? 'BOGO aktiv' : `Köp ${deal.triggerQuantity ?? 2} från kategorin` },
+      progress: { current: 1, goal: 1, percentage: result.eligible ? 100 : 0, remainingLabel },
     };
   }
 
