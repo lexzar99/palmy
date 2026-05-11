@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, Sun, Moon } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon, User as UserIcon } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTheme } from "@/app/providers";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import axios from "axios";
+import { PLATFORM_SESSION_CHANGED_EVENT } from "@/lib/platformSessionClient";
+
+type SessionUser = {
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+};
 
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
@@ -13,10 +21,40 @@ const Navbar = () => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
     setMounted(true);
+
+    let cancelled = false;
+    const loadUser = async () => {
+      try {
+        const res = await axios.get(`/api/platform/profile`);
+        if (!cancelled && res.data) setUser(res.data);
+      } catch {
+        if (!cancelled) setUser(null);
+      }
+    };
+
+    loadUser();
+
+    // Lyssna på session-events (login/logout i samma flik eller annan flik)
+    const onChange = () => { void loadUser(); };
+    window.addEventListener(PLATFORM_SESSION_CHANGED_EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PLATFORM_SESSION_CHANGED_EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
   }, []);
+
+  // Visningsnamn: först + efternamn om finns, annars name-fältet, annars null
+  const displayName = user
+    ? ((user.firstName?.trim() || "") + " " + (user.lastName?.trim() || "")).trim()
+      || user.name?.trim()
+      || null
+    : null;
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -67,7 +105,14 @@ const Navbar = () => {
           <Link href="/about" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Kontakt</Link>
           <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Mina beställningar</Link>
-          <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">Logga in</Link>
+          {displayName ? (
+            <Link href="/profile" className="flex items-center gap-2 text-gold-500 hover:text-gold-400 transition-colors">
+              <UserIcon size={14} />
+              <span className="truncate max-w-[160px]">{displayName}</span>
+            </Link>
+          ) : (
+            <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">Logga in</Link>
+          )}
         </div>
 
         <div className="flex items-center gap-4 relative z-[100]">
@@ -122,7 +167,8 @@ const Navbar = () => {
                   { name: "Hem", href: "/" },
                   { name: "Upptäck", href: "/discover" },
                   { name: "Mina Beställningar", href: "/orders" },
-                  { name: "Logga in", href: "/profile" },
+                  // Visa namn om inloggad, annars "Logga in"
+                  { name: displayName ?? "Logga in", href: "/profile", isUser: true },
                 ].map((link, i) => (
                   <motion.div
                     key={link.href}
@@ -134,7 +180,7 @@ const Navbar = () => {
                        href={link.href}
                        onClick={() => setIsOpen(false)}
                        className="text-4xl font-black uppercase tracking-tighter italic"
-                       style={{ color: link.name === 'Mina Beställningar' || link.name === 'Logga in' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
+                       style={{ color: link.name === 'Mina Beställningar' || (link as { isUser?: boolean }).isUser ? 'var(--gold-primary)' : 'var(--text-primary)' }}
                     >
                       {link.name}
                     </Link>
