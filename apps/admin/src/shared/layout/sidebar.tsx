@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BellRing,
+  Building2,
   CircleDollarSign,
   ClipboardList,
   ContactRound,
@@ -40,6 +41,7 @@ const navItems = [
   { href: "/push", label: "Push", icon: BellRing },
   { href: "/receipts", label: "Receipts", icon: ReceiptText },
   { href: "/tiers", label: "Tiers", icon: Shield },
+  { href: "/platform-settings", label: "Företag", icon: Building2 },
 ];
 
 export function Sidebar() {

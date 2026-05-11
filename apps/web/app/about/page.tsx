@@ -1,69 +1,78 @@
 import type { Metadata } from "next";
+import { Sparkles, Building2 } from "lucide-react";
+import { API_URL } from "@/lib/api";
 
 export const metadata: Metadata = {
-  title: "Om oss | MatGo Lund",
-  description: "Lär känna MatGo Lund och vår resa sedan 2019.",
+  title: "Om oss | MatGo",
+  description: "MatGo är en online beställningsplattform som kopplar dig till lokala restauranger.",
 };
 
-export default function OmOssPage() {
+type PlatformSettings = {
+  contactAddress?: string | null;
+  aboutBody?: string | null;
+};
+
+async function getPlatformSettings(): Promise<PlatformSettings> {
+  try {
+    const res = await fetch(`${API_URL}/api/settings`, { next: { revalidate: 300 } });
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export default async function OmOssPage() {
+  const settings = await getPlatformSettings();
+  const customBody = settings.aboutBody?.trim();
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-primary)" }}>
-      <div className="pt-32 pb-24 px-6 max-w-5xl mx-auto">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold uppercase tracking-wider mb-8 border border-gold-500/20">
-            Sedan 2019
-          </div>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "var(--text-primary)" }}>
-            Om <span className="text-gold-500">MatGo</span>
-          </h1>
-          <div className="space-y-6 text-lg leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            <p>
-              MatGo Lund är en modern restaurang i hjärtat av Lund. Sedan 2019 har vi byggt upp ett brett utbud av
-              pizza, rullar, tallrikar och kvällsmat med <span style={{ color: "var(--text-primary)" }} className="font-medium">snabb service</span>
-              och ett tydligt fokus på smak.
-            </p>
-            <p>
-              Vi jobbar med ett enkelt mål: maten ska vara god, beställningen ska vara smidig och kunden ska kunna följa
-              allt live utan att behöva ringa och jaga status.
-            </p>
-            <p>
-              Menyn växer hela tiden med allt från klassiska pizzor till crispy chicken, boxar och deals som gör det
-              lättare att beställa lite mer smart.
-            </p>
-          </div>
+    <div className="min-h-screen md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <div className="pt-20 pb-24 px-6 max-w-5xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 text-gold-600 text-xs font-bold uppercase tracking-wider mb-8 border border-gold-500/20">
+          <Sparkles size={12} /> Beställningsplattform
+        </div>
+        <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-8 leading-tight" style={{ color: "var(--text-primary)" }}>
+          Om <span className="text-gold-500">MatGo</span>
+        </h1>
+        <div className="space-y-6 text-lg leading-relaxed max-w-3xl" style={{ color: "var(--text-secondary)" }}>
+          {customBody ? (
+            // Admin-skriven text — splittra på blankrader till stycken
+            customBody.split(/\n\s*\n/).map((paragraph, i) => (
+              <p key={i}>{paragraph}</p>
+            ))
+          ) : (
+            <>
+              <p>
+                MatGo är en <span style={{ color: "var(--text-primary)" }} className="font-medium">online beställningsplattform</span> som kopplar
+                hungriga kunder till lokala restauranger. Vi är inte en restaurang själva — vi hjälper restaurangerna nå dig snabbare
+                och dig att hitta dem enklare.
+              </p>
+              <p>
+                Varje restaurang du ser här har sin egen meny, sina egna deals och sina egna öppettider. Vi sköter beställningen
+                och betalningen så att restaurangerna kan fokusera på maten.
+              </p>
+              <p>
+                Snabb leverans, säker betalning och support när du behöver det. Det är det MatGo är till för.
+              </p>
+            </>
+          )}
+        </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-20">
-            {[
-              { number: "2019", label: "Startår" },
-              { number: "100+", label: "Rätter på menyn" },
-              { number: "4.8/5", label: "Genomsnittligt betyg" },
-            ].map((stat) => (
-              <div key={stat.label} className="p-8 rounded-3xl text-center shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                <div className="text-4xl font-black text-gold-500 mb-2">{stat.number}</div>
-                <div className="text-xs uppercase font-black tracking-widest text-zinc-400">{stat.label}</div>
+        {/* Företagsinfo om admin har lagt in adress */}
+        {settings.contactAddress && (
+          <div className="mt-20 p-10 rounded-[2rem] shadow-sm max-w-3xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-2xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-500">
+                <Building2 size={18} />
               </div>
-            ))}
-          </div>
-
-          <div className="mt-20 p-10 rounded-[2rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6" style={{ color: "var(--text-primary)" }}>Hitta oss</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8" style={{ color: "var(--text-secondary)" }}>
-              <div>
-                <div className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400">Adress</div>
-                <div className="font-bold" style={{ color: "var(--text-primary)" }}>Kiliansgatan 14</div>
-                <div>223 50 Lund</div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase font-black tracking-widest mb-2 text-zinc-400">Öppettider</div>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between"><span>Mån-Tis</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 22:00</span></div>
-                  <div className="flex justify-between"><span>Ons-Lör</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 02:00</span></div>
-                  <div className="flex justify-between"><span>Söndag</span><span className="font-bold" style={{ color: "var(--text-primary)" }}>11:00 – 22:00</span></div>
-                </div>
-              </div>
+              <h2 className="text-2xl font-black uppercase tracking-tight" style={{ color: "var(--text-primary)" }}>Företagsadress</h2>
+            </div>
+            <div className="whitespace-pre-line text-base font-bold" style={{ color: "var(--text-primary)" }}>
+              {settings.contactAddress}
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

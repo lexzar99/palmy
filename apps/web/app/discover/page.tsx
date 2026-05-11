@@ -84,10 +84,10 @@ export default function DiscoverPage() {
   const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
 
   return (
-    <div className="min-h-screen pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      {/* Header & Search */}
-      <div className="pt-16 pb-8 px-6 sticky top-0 z-40 backdrop-blur-md" style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}>
-        <div className="max-w-2xl mx-auto space-y-6">
+    <div className="min-h-screen pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      {/* Header & Search — pt-16 på mobil, pt-8 på desktop eftersom Navbar tar 80px */}
+      <div className="pt-16 md:pt-8 pb-8 px-6 sticky md:static md:top-0 z-40 backdrop-blur-md" style={{ backgroundColor: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)" }}>
+        <div className="max-w-2xl md:max-w-5xl 2xl:max-w-[1400px] mx-auto space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-black uppercase italic tracking-tighter" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">MatGo</span></h1>

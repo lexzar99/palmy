@@ -33,23 +33,19 @@ const Navbar = () => {
   if (!mounted) return (
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="MatGo Logo" className="w-10 h-10" />
-          <span className="text-xl font-black" style={{ color: "var(--text-primary)" }}>MATGO</span>
+          <span className="text-2xl font-black italic tracking-tighter" style={{ color: "var(--text-primary)" }}>
+            MAT<span className="text-gold-500">GO</span>
+          </span>
        </div>
     </nav>
   );
   return (
     <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: isOpen ? "var(--bg-primary)" : "rgba(252,252,249,0.95)", borderColor: "var(--border-muted)" }}>
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="relative w-12 h-12 flex-shrink-0">
-            <img src="/logo.png" alt="MatGo Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
-          </div>
-          <div className="flex flex-col -gap-1">
-            <span className="text-xl font-black tracking-tighter leading-none" style={{ color: "var(--text-primary)" }}>
-              MATGO
-            </span>
-          </div>
+        <Link href="/" className="flex items-center gap-1 group" aria-label="MatGo — startsidan">
+          <span className="text-2xl font-black italic tracking-tighter leading-none transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
+            MAT<span className="text-gold-500">GO</span>
+          </span>
         </Link>
 
         {/* Desktop-links — plattform har ingen "meny" (det är hem), ingen

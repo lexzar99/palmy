@@ -281,6 +281,15 @@ model RestaurantSettings {
   openingHours          String   @default("{}")
   updatedAt             DateTime @updatedAt
   phone                 String?
+
+  // Platform/företags-info — används av kontakt- och om-oss-sidorna på web.
+  // Inget med restauranger att göra (trots tabellnamnet). Egen tabell senare,
+  // men för enkelhetens skull återanvänder vi singleton-raden här.
+  contactPhone          String?
+  contactPhoneHours     String?  // ex: "Mån-Fre 09:00 – 17:00"
+  contactEmail          String?
+  contactAddress        String?  // multiline OK
+  aboutBody             String?  // markdown / plain text för om-oss-sidan
 }
 
 model OrderDraft {

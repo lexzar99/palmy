@@ -55,6 +55,12 @@ router.get('/', async (_req, res) => {
       notificationSound: settings.notificationSound,
       phone: settings.phone,
       openingHours: parseOpeningHours(settings.openingHours as string),
+      // Platform/företags-info för About + Contact-sidor på web
+      contactPhone: (settings as any).contactPhone || null,
+      contactPhoneHours: (settings as any).contactPhoneHours || null,
+      contactEmail: (settings as any).contactEmail || null,
+      contactAddress: (settings as any).contactAddress || null,
+      aboutBody: (settings as any).aboutBody || null,
     });
   } catch (err) {
     console.error('Settings GET error:', err);
@@ -71,7 +77,7 @@ router.patch('/', authenticate, async (req, res) => {
       return;
     }
 
-    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours } = req.body;
+    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody } = req.body;
 
     const data: Record<string, unknown> = {};
     if (isOpen !== undefined) data.isOpen = isOpen;
@@ -82,6 +88,12 @@ router.patch('/', authenticate, async (req, res) => {
     if (estimatedDeliveryTime !== undefined) data.estimatedDeliveryTime = estimatedDeliveryTime;
     if (notificationSound !== undefined) data.notificationSound = notificationSound;
     if (openingHours !== undefined) data.openingHours = JSON.stringify(openingHours);
+    // Platform-fält (nullable strings — tomt = ta bort värdet)
+    if (contactPhone !== undefined) data.contactPhone = contactPhone || null;
+    if (contactPhoneHours !== undefined) data.contactPhoneHours = contactPhoneHours || null;
+    if (contactEmail !== undefined) data.contactEmail = contactEmail || null;
+    if (contactAddress !== undefined) data.contactAddress = contactAddress || null;
+    if (aboutBody !== undefined) data.aboutBody = aboutBody || null;
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },
