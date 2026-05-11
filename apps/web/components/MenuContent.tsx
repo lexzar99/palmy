@@ -59,6 +59,8 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     rewardCategoryName: string | null;
     products: BogoPickerProduct[];
   } | null>(null);
+  // Produkt vald från BOGO-picker → öppnas i ProductModal med gratis-kontext
+  const [bogoProduct, setBogoProduct] = useState<{ product: any; dealId: string; dealTitle: string; rewardCategoryName: string | null } | null>(null);
 
   // Track zone-availability in a ref so the socket handler always reads the latest value
   const zoneAvailableRef = useRef<boolean | null>(null);
@@ -255,20 +257,19 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     const applyWhitelist = (prods: BogoPickerProduct[]) =>
       allowedRewardIds.size > 0 ? prods.filter((p) => allowedRewardIds.has(p.id)) : prods;
 
+    const toPickerProduct = (p: any): BogoPickerProduct => ({
+      id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null,
+      extraGroups: p.extraGroups ?? [],
+    });
+
     if (rewardCatId) {
       const cat = categories.find((c) => c.id === rewardCatId);
       if (cat) {
         rewardCategoryName = cat.name;
-        rewardProducts = applyWhitelist(
-          (cat.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
-        );
+        rewardProducts = applyWhitelist((cat.products ?? []).map(toPickerProduct));
       }
     } else {
-      rewardProducts = applyWhitelist(
-        categories.flatMap((c) =>
-          (c.products ?? []).map((p: any) => ({ id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null }))
-        )
-      );
+      rewardProducts = applyWhitelist(categories.flatMap((c) => (c.products ?? []).map(toPickerProduct)));
     }
 
     if (rewardProducts.length === 0) return;
@@ -680,6 +681,29 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             rewardCategoryName={bogoPicker.rewardCategoryName}
             products={bogoPicker.products}
             onClose={() => setBogoPicker(null)}
+            onSelectProduct={(p) => {
+              setBogoProduct({
+                product: p,
+                dealId: bogoPicker.dealId,
+                dealTitle: bogoPicker.dealTitle,
+                rewardCategoryName: bogoPicker.rewardCategoryName,
+              });
+              setBogoPicker(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {bogoProduct && (
+          <ProductModal
+            product={bogoProduct.product}
+            restaurantId={restaurant?.id || ""}
+            restaurantSlug={restaurantSlug}
+            bogoFreeFromDealId={bogoProduct.dealId}
+            bogoDealTitle={bogoProduct.dealTitle}
+            bogoRewardCategoryName={bogoProduct.rewardCategoryName}
+            onClose={() => setBogoProduct(null)}
           />
         )}
       </AnimatePresence>

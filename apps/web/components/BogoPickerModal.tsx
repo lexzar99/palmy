@@ -9,6 +9,7 @@ export type BogoPickerProduct = {
   name: string;
   price: number;
   imageUrl?: string | null;
+  extraGroups?: any[]; // full product data — finns när pickern öppnas från restaurangsidan
 };
 
 type Props = {
@@ -18,13 +19,21 @@ type Props = {
   rewardCategoryName?: string | null;
   products: BogoPickerProduct[];
   onClose: () => void;
+  /** Om satt anropas denna istället för direkt cart-tillägg — förälder öppnar ProductModal */
+  onSelectProduct?: (product: BogoPickerProduct) => void;
 };
 
-export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewardCategoryName, products, onClose }: Props) {
+export default function BogoPickerModal({ dealId, dealTitle, restaurantId, rewardCategoryName, products, onClose, onSelectProduct }: Props) {
   const setBogoChoice = useCartStore((s) => s.setBogoChoice);
   const addItem = useCartStore((s) => s.addItem);
 
   const handlePick = (p: BogoPickerProduct) => {
+    // Om förälder vill hantera extras-val via ProductModal
+    if (onSelectProduct) {
+      onSelectProduct(p);
+      return;
+    }
+    // Fallback: lägg direkt i korgen utan extras (t.ex. från kassan)
     addItem({
       productId: p.id,
       restaurantId,

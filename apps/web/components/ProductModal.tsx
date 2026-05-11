@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X, Plus, Minus, Check, ShoppingBag, Sparkles } from "lucide-react";
-import { useCartStore } from "@/store/cartStore";
+import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
 
 interface ProductModalProps {
@@ -16,11 +16,16 @@ interface ProductModalProps {
   initialQuantity?: number;
   initialExtras?: any[];
   initialNote?: string;
+  /** BOGO: sätts av BogoPickerModal. Baspriset nollas, extras betalas normalt. */
+  bogoFreeFromDealId?: string;
+  bogoDealTitle?: string;
+  bogoRewardCategoryName?: string | null;
 }
 
-const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote }: ProductModalProps) => {
+const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote, bogoFreeFromDealId, bogoDealTitle, bogoRewardCategoryName }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
+  const setBogoChoice = useCartStore((state) => state.setBogoChoice);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
 
@@ -107,6 +112,8 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   //   3. product.price * (1 - discountPercent/100) om discountActive
   //   4. product.price (ingen rabatt)
   const effectiveBasePrice = (() => {
+    // BOGO-gratisvara — baspris är alltid 0 (extras betalas normalt)
+    if (bogoFreeFromDealId) return 0;
     if (typeof product.salePrice === "number" && product.salePrice > 0 && product.salePrice < product.price) {
       return product.salePrice;
     }
@@ -167,7 +174,17 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         quantity,
         extras: selectedExtras,
         note: note.trim() || undefined,
+        ...(bogoFreeFromDealId ? { bogoFreeFromDealId } : {}),
       });
+      if (bogoFreeFromDealId) {
+        const choice: BogoChoice = {
+          dealId: bogoFreeFromDealId,
+          dealTitle: bogoDealTitle ?? "",
+          rewardCategoryName: bogoRewardCategoryName ?? null,
+          product: { id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl ?? null },
+        };
+        setBogoChoice(choice);
+      }
     }
     onClose();
   };
@@ -206,9 +223,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         )}
            
            <div className="mb-10">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
-                 <Sparkles size={12} /> Specialité
-              </div>
+              {bogoFreeFromDealId ? (
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
+                  🎁 Gratis via {bogoDealTitle || "BOGO"}
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gold-500/10 border border-gold-500/20 text-gold-500 text-[9px] font-black uppercase tracking-[0.2em] mb-4">
+                  <Sparkles size={12} /> Specialité
+                </div>
+              )}
               <h2 className="text-3xl sm:text-4xl font-black uppercase italic tracking-tight leading-none mb-4" style={{ color: "var(--text-primary)" }}>{product.name}</h2>
               <p className="text-xs font-bold uppercase tracking-widest leading-relaxed border-l-2 border-gold-500/50 pl-4" style={{ color: "var(--text-secondary)" }}>{product.description || "Ingen beskrivning tillgänglig."}</p>
            </div>
@@ -290,13 +313,15 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
               <button onClick={() => setQuantity(quantity + 1)} className="p-2 text-zinc-400 hover:text-zinc-800 transition-colors active:scale-75"><Plus size={22} /></button>
            </div>
            
-           <button onClick={handleAddToCart} className="w-full py-6 px-10 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group">
+           <button onClick={handleAddToCart} className={`w-full py-6 px-10 text-zinc-950 rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-between shadow-[0_20px_40px_rgba(231,178,75,0.25)] transition-all active:scale-[0.97] group ${bogoFreeFromDealId ? "bg-emerald-500 hover:bg-emerald-400" : "bg-gold-500 hover:bg-gold-400"}`}>
               <div className="flex items-center gap-3">
                  <ShoppingBag size={20} />
-                 <span>{editCartItemId ? "Spara ändringar" : "Lägg i kasse"}</span>
+                 <span>{editCartItemId ? "Spara ändringar" : bogoFreeFromDealId ? "Välj som gratis" : "Lägg i kasse"}</span>
               </div>
               <div className="flex items-center gap-2 text-xl italic leading-none">
-                 {totalPrice} KR
+                 {bogoFreeFromDealId
+                   ? (extrasPrice > 0 ? `+${extrasPrice} KR EXTRAS` : "GRATIS")
+                   : `${totalPrice} KR`}
               </div>
            </button>
         </div>
