@@ -1517,6 +1517,7 @@ const formatDealForAdmin = (deal: any) => ({
   triggerQuantity: deal.triggerQuantity ?? 2,
   rewardCategoryId: deal.rewardCategoryId ?? null,
   bogoExcludedProductIds: parseJsonArray(deal.bogoExcludedProductIds),
+  bogoRewardProductIds: parseJsonArray((deal as any).bogoRewardProductIds),
   bogoMaxRewardPrice: deal.bogoMaxRewardPriceOre != null ? deal.bogoMaxRewardPriceOre / 100 : null,
   bogoMinOrderAmount: deal.bogoMinOrderAmountOre != null ? deal.bogoMinOrderAmountOre / 100 : null,
   bogoTriggerProductIds: parseJsonArray(deal.bogoTriggerProductIds),
@@ -1699,6 +1700,13 @@ const normalizeDealInputForDb = (body: any) => {
       ? body.bogoTriggerProductIds.filter((v: unknown): v is string => typeof v === 'string')
       : parseJsonArray(body.bogoTriggerProductIds);
     next.bogoTriggerProductIds = JSON.stringify(ids);
+  }
+
+  if (body.bogoRewardProductIds !== undefined) {
+    const ids = Array.isArray(body.bogoRewardProductIds)
+      ? body.bogoRewardProductIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(body.bogoRewardProductIds);
+    next.bogoRewardProductIds = JSON.stringify(ids);
   }
 
   if (body.validFrom !== undefined) {
