@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "nodemon src/index.ts",
+    "postinstall": "prisma generate --schema prisma/schema.prisma",
     "build": "prisma generate --schema prisma/schema.prisma && tsc",
     "start": "prisma db push --schema prisma/schema.prisma --skip-generate --accept-data-loss && node dist/index.js"
   },
