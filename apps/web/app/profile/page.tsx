@@ -221,7 +221,10 @@ function ProfileContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab");
-    if (tab && ["overview", "orders", "settings", "deals", "addresses"].includes(tab)) {
+    // "orders" tas bort som tab — om gammal länk pekar dit, fall till overview
+    if (tab === "orders") {
+      setActiveTab("overview");
+    } else if (tab && ["overview", "settings", "deals", "addresses"].includes(tab)) {
       setActiveTab(tab as any);
     }
   }, [searchParams]);
@@ -871,7 +874,9 @@ function ProfileContent() {
           {[
             { id: "overview", icon: User, label: "Hem" },
             { id: "deals", icon: Sparkles, label: "Deals" },
-            { id: "orders", icon: History, label: "Ordrar" },
+            // "Ordrar"-fliken är borttagen från profilen — finns nu som egen
+            // tab i bottom-nav (/orders) och i top-navbaren, för att undvika
+            // dubbel-navigation och för att fungera utan login.
             { id: "addresses", icon: MapPin, label: "Adresser" },
             { id: "settings", icon: Settings, label: "Inst." },
           ].map((tab) => (

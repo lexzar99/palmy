@@ -634,13 +634,21 @@ export default function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             className="mb-4 md:hidden relative overflow-hidden rounded-3xl px-5 py-5"
             style={{
-              background: "linear-gradient(135deg, rgba(212,167,74,0.14) 0%, rgba(212,167,74,0.03) 65%, transparent 100%)",
-              border: "1px solid rgba(212,167,74,0.18)",
+              // Bas-bakgrund från tema-variabel så dark/light båda får solid bg.
+              // Gold-gradient läggs ovanpå som overlay via :before-pseudo-effekt
+              // (vi använder inline-element istället eftersom inline style inte
+              // stödjer pseudo).
+              backgroundColor: "var(--bg-secondary)",
+              border: "1px solid rgba(212,167,74,0.25)",
             }}
           >
+            {/* Gold-gradient overlay — täcker hela kortet med låg opacitet */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: "linear-gradient(135deg, rgba(212,167,74,0.16) 0%, rgba(212,167,74,0.04) 65%, transparent 100%)",
+            }} />
             {/* Subtle radial glow uppe i högra hörnet */}
             <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full pointer-events-none" style={{
-              background: "radial-gradient(circle, rgba(212,167,74,0.20) 0%, transparent 60%)",
+              background: "radial-gradient(circle, rgba(212,167,74,0.22) 0%, transparent 60%)",
             }} />
 
             {/* Tidsbaserad greeting + restaurant-count */}

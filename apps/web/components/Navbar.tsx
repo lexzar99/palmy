@@ -112,8 +112,6 @@ const Navbar = () => {
                 {[
                   { name: "Hem", href: "/" },
                   { name: "Upptäck", href: "/discover" },
-                  { name: "Om oss", href: "/about" },
-                  { name: "Kontakt", href: "/contact" },
                   { name: "Mina Beställningar", href: "/orders" },
                   { name: "Logga in", href: "/profile" },
                 ].map((link, i) => (
