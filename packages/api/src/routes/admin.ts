@@ -1916,6 +1916,8 @@ router.post('/deals', async (req, res) => {
       isPopup: normalized.popupEnabled === true,
     });
 
+    delete (normalized as any).bogoRewardProductIds;
+
     const deal = await prisma.deal.create({
       data: normalized as any,
     });
@@ -1978,9 +1980,12 @@ router.patch('/deals/:id', async (req, res) => {
       });
     }
 
+    const normalizedData = normalizeDealInputForDb(data);
+    delete (normalizedData as any).bogoRewardProductIds;
+
     const deal = await prisma.deal.update({
       where: { id },
-      data: normalizeDealInputForDb(data),
+      data: normalizedData,
     });
 
     const bogoRewardJson = toBogoRewardJson(data.bogoRewardProductIds);
