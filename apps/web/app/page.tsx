@@ -625,16 +625,51 @@ export default function HomePage() {
 
         {/* HEADER */}
         <header className="mb-6 sm:mb-8 relative">
-          {/* Mobil-titel — på desktop ersätts den av compact hero ovan */}
+          {/* Mobil-titel — på desktop ersätts den av compact hero ovan.
+              Mobile-hero har subtle gold-gradient + tidsbaserad greeting +
+              restaurant-count så hela kortet känns "alive" istället för bara
+              en titel. Logik orörd — bara visuell wrapper. */}
           <motion.div
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-4 md:hidden"
+            className="mb-4 md:hidden relative overflow-hidden rounded-3xl px-5 py-5"
+            style={{
+              background: "linear-gradient(135deg, rgba(212,167,74,0.14) 0%, rgba(212,167,74,0.03) 65%, transparent 100%)",
+              border: "1px solid rgba(212,167,74,0.18)",
+            }}
           >
-            <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
+            {/* Subtle radial glow uppe i högra hörnet */}
+            <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full pointer-events-none" style={{
+              background: "radial-gradient(circle, rgba(212,167,74,0.20) 0%, transparent 60%)",
+            }} />
+
+            {/* Tidsbaserad greeting + restaurant-count */}
+            {(() => {
+              const hour = new Date().getHours();
+              const greeting =
+                hour < 5 ? "GOD NATT" :
+                hour < 11 ? "GOD MORGON" :
+                hour < 17 ? "GOD DAG" :
+                hour < 22 ? "GOD KVÄLL" :
+                "GOD NATT";
+              const openCount = restaurants.filter((r) => r.isOpen !== false).length;
+              return (
+                <div className="flex items-center gap-2 mb-3 relative z-10">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gold-500 shadow-[0_0_8px_rgba(212,167,74,0.8)]" />
+                  <p className="text-[9px] font-black uppercase tracking-[0.25em]" style={{ color: "var(--text-secondary)" }}>
+                    {greeting}
+                    {openCount > 0 && (
+                      <span className="text-gold-500"> · {openCount} öppna nu</span>
+                    )}
+                  </p>
+                </div>
+              );
+            })()}
+
+            <h1 className="relative z-10 text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
               Vad blir det <span className="text-gold-500 italic">idag?</span>
             </h1>
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: "var(--text-secondary)" }}>
+            <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5" style={{ color: "var(--text-secondary)" }}>
               Hitta snabbt · beställ enkelt
             </p>
           </motion.div>
