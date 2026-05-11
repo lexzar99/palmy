@@ -1,34 +1,54 @@
 import bcrypt from 'bcryptjs';
 import { getRestaurantAdminLogin } from './adminLogin';
 import prisma from './prisma';
-import { SUPER_ADMIN_EMAIL } from './config';
+import { SUPER_ADMIN_EMAIL, SUPER_ADMIN_PASSWORD } from './config';
 
 // Ensures the super admin credentials exist.
-// Credentials are read from SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD env vars.
+//
+// Lösen-prioritering:
+//   1. SUPER_ADMIN_PASSWORD_FORCE — om satt, RESETTA lösenordet vid varje
+//      startup. Användbart om man har glömt lösen och vill återställa via deploy.
+//   2. SUPER_ADMIN_PASSWORD — använd som initialt lösen vid CREATE. Rör INTE
+//      befintliga lösen (admin kan ha bytt det i admin-panelen, det respekteras).
+//   3. 'admin123' — sista utvägen om varken finns. Bara för dev/första-boot.
 export async function ensureDefaultSuperAdmin(): Promise<void> {
   const email = SUPER_ADMIN_EMAIL || 'admin';
-  
+
+  const forcePassword = process.env.SUPER_ADMIN_PASSWORD_FORCE;
+  const initialPassword = SUPER_ADMIN_PASSWORD || 'admin123';
+
   const existing = await prisma.adminUser.findUnique({ where: { email } });
-  
-  const forcePassword = process.env.SUPER_ADMIN_PASSWORD_FORCE || 'admin123';
-  const hashedPassword = await bcrypt.hash(forcePassword, 12);
 
   if (existing) {
-    if (process.env.SUPER_ADMIN_PASSWORD_FORCE || email === 'admin') {
+    // Bara resetta lösenordet om SUPER_ADMIN_PASSWORD_FORCE är explicit satt.
+    // Tidigare resettade vi även när email === 'admin' vilket betydde att admin
+    // som bytt lösen i panelen fick det överskrivet på varje deploy.
+    if (forcePassword) {
+      const hashedPassword = await bcrypt.hash(forcePassword, 12);
       await prisma.adminUser.update({
         where: { email },
-        data: { 
-          password: hashedPassword, 
-          role: 'SUPER_ADMIN', 
+        data: {
+          password: hashedPassword,
+          role: 'SUPER_ADMIN',
           isActive: true,
-          name: 'Super Admin'
+          name: existing.name || 'Super Admin',
         },
       });
-      console.log(`🔐 Admin account '${email}' synchronized with password.`);
+      console.log(`🔐 Admin '${email}' lösenord forcat-resettat via SUPER_ADMIN_PASSWORD_FORCE.`);
+    } else {
+      // Säkerställ bara att rollen + active-status är rätt, rör inte lösenordet
+      if (existing.role !== 'SUPER_ADMIN' || !existing.isActive) {
+        await prisma.adminUser.update({
+          where: { email },
+          data: { role: 'SUPER_ADMIN', isActive: true },
+        });
+      }
     }
     return;
   }
 
+  // Kontot finns inte — skapa med initial-lösen
+  const hashedPassword = await bcrypt.hash(initialPassword, 12);
   await prisma.adminUser.create({
     data: {
       email,
@@ -38,7 +58,7 @@ export async function ensureDefaultSuperAdmin(): Promise<void> {
       name: 'Super Admin',
     },
   });
-  console.log(`✨ Created default Super Admin: ${email} / ${forcePassword}`);
+  console.log(`✨ Skapade Super Admin: ${email} (lösen satt från SUPER_ADMIN_PASSWORD eller 'admin123' om saknad)`);
 }
 
 // Ensures each restaurant has a corresponding admin login entry.
