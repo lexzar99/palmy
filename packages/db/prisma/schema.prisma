@@ -24,23 +24,30 @@ model Category {
 }
 
 model Product {
-  id           String              @id @default(cuid())
-  name         String
-  slug         String              @unique
-  description  String?
-  price        Int
-  categoryId   String
-  imageUrl     String?
-  isActive     Boolean             @default(true)
-  isVegan      Boolean             @default(false)
-  isVegetarian Boolean             @default(false)
-  isGlutenFree Boolean             @default(false)
-  position     Int                 @default(0)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-  orderItems   OrderItem[]
-  category     Category            @relation(fields: [categoryId], references: [id])
-  extraGroups  ProductExtraGroup[]
+  id                  String              @id @default(cuid())
+  name                String
+  slug                String              @unique
+  description         String?
+  price               Int
+  categoryId          String
+  imageUrl            String?
+  isActive            Boolean             @default(true)
+  isVegan             Boolean             @default(false)
+  isVegetarian        Boolean             @default(false)
+  isGlutenFree        Boolean             @default(false)
+  position            Int                 @default(0)
+  // Discount / sale fields for "Rea & rabatterat" section on home.
+  // discountPercent overrides discountPrice if both are set.
+  discountPercent     Int?                // 1-95 (%)
+  discountPrice       Int?                // in öre - direct sale price
+  discountImageUrl    String?             // Optional alt image shown in discount rail
+  discountLabel       String?             // e.g. "Dagens deal", "-20%"
+  discountActive      Boolean             @default(false)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  orderItems          OrderItem[]
+  category            Category            @relation(fields: [categoryId], references: [id])
+  extraGroups         ProductExtraGroup[]
 }
 
 model ExtraGroup {
@@ -116,9 +123,15 @@ model Order {
   reviewedAt            DateTime?   // When the review was submitted
   reviewFlagged         Boolean     @default(false)
   reviewReply           String?
+  // JSON-array av OrderItem.productId som kunden "likade" i sin review.
+  // Visas under reviewen på restaurangens reviews-sida som tags. Tomt
+  // array = inga rätter explicit likade.
+  likedItemIds          String      @default("[]")
   reviewRepliedAt       DateTime?
-  preparingAt           DateTime?
-  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer)
+  allergens             String      @default("[]") // Customer allergens captured at order time
+  preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
+  deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
+  scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
   liveActivityToken     String?     // iOS Live Activity push token (per-activity, lets backend push state updates to Dynamic Island)
   createdAt             DateTime    @default(now())
   updatedAt             DateTime    @updatedAt
@@ -132,6 +145,7 @@ model Order {
   @@index([customerPhone])
   @@index([stripePaymentIntentId])
   @@index([userId])
+  @@index([appliedDealId])
 }
 
 model OrderItem {
@@ -174,6 +188,17 @@ model Deal {
   description           String?
   imageUrl              String?
   badgeText             String?
+  // Popup-specifika fält. Används av claim-popupen i web/RN. När popupBuilder
+  // skapar en deal sätter admin dessa: vad popupen säger, vilken kod kunden
+  // ser efter claim, och CTA-knappens text. Lämnas tomma blir popup en
+  // standard-rendering av title + description.
+  popupHeadline         String?
+  popupBody             String?
+  popupCtaLabel         String?
+  popupCode             String?
+  // Popup-typ: false (default) = "Spara erbjudande" + "Inte nu" knappar.
+  // true = bara "OK"-knapp (för informativa popups utan kod att claima).
+  popupOkOnly           Boolean     @default(false)
   triggerType           String      @default("NONE")
   discountType          String      @default("PERCENTAGE")
   discountValue         Int
@@ -192,12 +217,22 @@ model Deal {
   updatedAt             DateTime    @updatedAt
   restaurantId          String?
   isGlobal              Boolean     @default(false)
-  applicableRestaurantIds String    @default("[]")
+  applicableRestaurantIds   String    @default("[]")
   triggerCategoryId         String?
   triggerQuantity           Int       @default(2)
   rewardCategoryId          String?
   bogoExcludedProductIds    String    @default("[]")
+  bogoRewardProductIds      String    @default("[]")
+  bogoExcludedExtraIds      String    @default("[]")    // JSON-array av Extra.id som hindras när BOGO-gratisvara väljs (t.ex. "vitlökssås", "panpizza-storlek")
+  bogoMaxRewardPriceOre     Int?
+  bogoMinOrderAmountOre     Int?
+  bogoTriggerProductIds     String    @default("[]")
+  showAsBanner              Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
+
+  @@index([isActive, restaurantId, validUntil])
+  @@index([isActive, isGlobal])
+  @@index([restaurantId, triggerType])
 }
 
 model HomeCategorySection {
@@ -218,14 +253,20 @@ model HomeCategorySection {
 }
 
 model AdminUser {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      String   @default("STAFF")
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  email         String   @unique
+  password      String
+  // Klartext-spegling av lösenordet — används BARA av admin-panelens
+  // restaurang-login-tab så superadmin kan se vad som faktiskt är satt
+  // (Flutter-appens credentials). Bcrypt är envägs så vi kan inte
+  // återhämta det från `password`. Befintliga konton har null tills
+  // någon sätter ett nytt lösenord.
+  passwordPlain String?
+  name          String
+  role          String   @default("STAFF")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model RestaurantSettings {
@@ -266,6 +307,8 @@ model Restaurant {
   deliveryFee    Int          @default(0)
   minOrderAmount Int          @default(0)
   etaMinutes     Int          @default(30)
+  etaCalculatedMinutes Int?               // Auto-beräknad ETA baserad på senaste 20 ordrarnas createdAt → deliveringAt (clampad 25–55 min). null = för få ordrar än
+  etaOverrideMinutes   Int?               // Manuell admin-override. Om satt åsidosätter etaCalculatedMinutes
   isOpen         Boolean      @default(true)
   tags           String       @default("[]")
   openingHours   String       @default("{}")
@@ -274,6 +317,8 @@ model Restaurant {
   featuredClass  Int          @default(3)
   internalInfo   String?
   adminEmail     String?
+  logoutCode     String?
+  pausedUntil    DateTime?
   latitude       Float?
   longitude      Float?
   deliveryRadius Float              @default(5.0)
@@ -281,7 +326,13 @@ model Restaurant {
   city_relation  City?              @relation(fields: [cityId], references: [id])
   deliveryZones  String             @default("[]")  // JSON: [{name, radiusKm, fee, minOrder, isActive}]
   freeDeliveryAbove Int?            // Free delivery if order > this amount in öre (kr*100)
-  logoutCode     String?            // PIN-kod krävs för att logga ut ur Flutter-appen
+  // Direkt FK till AdminUser-kontot som Flutter-restaurang-appen loggar
+  // in med. Sätts automatiskt vid första GET /admin/restaurants/:id/login
+  // baserat på fuzzy-match, eller manuellt när admin skapar/byter konto.
+  // Garanterar 1-till-1 — ingen mer fuzzy-gissning i UI:t.
+  adminUserId    String?            @unique
+  announcementText String?          // Info-banner på restaurangsidan (t.ex. adressändring, stängt idag)
+  vatPercent     Int?               // Moms i % som visas i kassan (6 eller 12). null = visas inte
   categories     Category[]
   deals          Deal[]
   extraGroups    ExtraGroup[]
@@ -327,13 +378,18 @@ model User {
   oauthProvider  String?
   oauthId        String?
   image          String?
-  internalInfo   String?
-  pushToken      String?
-  apnsDeviceToken String?
-  deletedAt      DateTime?      // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]
+  allergens      String         @default("[]")
+  pushToken      String?
+  apnsDeviceToken String?       // Raw iOS APNs device token (hex) for direct push with apns-collapse-id support
+  internalInfo   String?
+  deletedAt      DateTime?      // Soft-delete marker. authenticateUser rejects with 401 when set, so a deleted customer can't auto-recreate themselves through token validation.
+  // JSON-array av Deal.id som kunden har "claimat" från admin-broadcast
+  // popup. Visas i profile/deals tillsammans med globala deals och
+  // appliceras i checkout om villkoren matchar.
+  claimedDealIds String         @default("[]")
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -483,4 +539,21 @@ model GroupOrderItem {
   note         String?
   subtotal     Int
   createdAt    DateTime   @default(now())
+}
+
+model PushLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  target     String   // "all" | "user" | "city"
+  identifier String?  // userId/email/phone for "user" target
+  city       String?  // city name for "city" target
+  title      String
+  body       String
+  deeplink   String?
+  count      Int      @default(0)
+  success    Boolean  @default(true)
+  error      String?
+  sentBy     String?
+
+  @@index([createdAt])
 }

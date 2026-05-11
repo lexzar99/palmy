@@ -1,8 +1,20 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { evaluateDeal, formatDealForClient, isBasketDeal, isDealAvailableNow, parseDealProductIds, type CartItemForBogo } from '../lib/deals';
 
 const router = Router();
+
+// Rate-limit /evaluate-cart eftersom kunden POSTar för VARJE cart-mutation
+// (lägg till/ta bort/byt antal). 60 anrop/min/IP är generöst för interaktiv
+// användning men stoppar enkla DoS-försök.
+const evaluateCartLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många anrop — vänta en stund och försök igen' },
+});
 
 const parseJsonArray = (raw: string | null | undefined) => {
   if (!raw) return [] as string[];
@@ -224,7 +236,7 @@ router.get('/', async (req, res) => {
 
 // POST /api/deals/evaluate-cart — server-side BOGO preview for cart UI
 // Body: { restaurantId: string, items: Array<{productId: string, quantity: number}> }
-router.post('/evaluate-cart', async (req, res) => {
+router.post('/evaluate-cart', evaluateCartLimiter, async (req, res) => {
   try {
     const { restaurantId, items } = req.body as { restaurantId?: string; items?: Array<{ productId: string; quantity: number }> };
     if (!restaurantId || !Array.isArray(items) || items.length === 0) {
@@ -324,6 +336,10 @@ router.post('/evaluate-cart', async (req, res) => {
       }
     }
 
+    const bogoExcludedExtraIds = bestDeal && bestDeal.triggerType === 'BOGO_CATEGORY'
+      ? parseJsonArray((bestDeal as any).bogoExcludedExtraIds)
+      : [];
+
     res.json({
       discountAmountOre: bestDiscount,
       discountAmountKr: bestDiscount / 100,
@@ -333,10 +349,11 @@ router.post('/evaluate-cart', async (req, res) => {
       rewardCategoryId: bestDeal?.rewardCategoryId ?? bestDeal?.triggerCategoryId ?? null,
       rewardCategoryName,
       rewardProducts,
+      bogoExcludedExtraIds,
     });
   } catch (error) {
     console.error('Cart evaluate error:', error);
-    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [] });
+    res.json({ discountAmountOre: 0, discountAmountKr: 0, dealTitle: null, dealId: null, isBogo: false, rewardCategoryName: null, rewardProducts: [], bogoExcludedExtraIds: [] });
   }
 });
 

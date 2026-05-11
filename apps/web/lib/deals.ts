@@ -22,6 +22,7 @@ export type PublicDeal = {
   rewardCategoryId?: string | null;
   bogoTriggerProductIds?: string[];
   bogoRewardProductIds?: string[];
+  bogoExcludedExtraIds?: string[];
   triggerQuantity?: number;
   bogoMinOrderAmountOre?: number | null;
 };

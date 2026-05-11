@@ -35,9 +35,11 @@ type Draft = {
   rewardCategoryId: string;
   bogoRewardProductIds: string[];
   bogoExcludedProductIds: string[];
+  bogoExcludedExtraIds: string[];
   bogoMaxRewardPrice: string;
   isActive: boolean;
   showAsBanner: boolean;
+  validFrom: string;
   validUntil: string;
 };
 
@@ -53,9 +55,11 @@ const defaultDraft = (): Draft => ({
   rewardCategoryId: "",
   bogoRewardProductIds: [],
   bogoExcludedProductIds: [],
+  bogoExcludedExtraIds: [],
   bogoMaxRewardPrice: "",
   isActive: true,
   showAsBanner: true,
+  validFrom: "",
   validUntil: "",
 });
 
@@ -107,19 +111,21 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
       const deal = existingDeal.data;
       setDraft({
         title: deal.title,
-        imageUrl: (deal as any).imageUrl || "",
+        imageUrl: deal.imageUrl || "",
         restaurantId: deal.restaurantId || "",
         triggerMode: inferTriggerMode(deal),
         triggerCategoryId: deal.triggerCategoryId || "",
         triggerQuantity: deal.triggerQuantity ?? 2,
-        bogoMinOrderAmount: (deal as any).bogoMinOrderAmount != null ? String((deal as any).bogoMinOrderAmount) : "",
-        bogoTriggerProductIds: (deal as any).bogoTriggerProductIds ?? [],
+        bogoMinOrderAmount: deal.bogoMinOrderAmount != null ? String(deal.bogoMinOrderAmount) : "",
+        bogoTriggerProductIds: deal.bogoTriggerProductIds ?? [],
         rewardCategoryId: deal.rewardCategoryId || "",
-        bogoRewardProductIds: (deal as any).bogoRewardProductIds ?? [],
+        bogoRewardProductIds: deal.bogoRewardProductIds ?? [],
         bogoExcludedProductIds: deal.bogoExcludedProductIds ?? [],
+        bogoExcludedExtraIds: deal.bogoExcludedExtraIds ?? [],
         bogoMaxRewardPrice: deal.bogoMaxRewardPrice != null ? String(deal.bogoMaxRewardPrice) : "",
         isActive: deal.isActive,
         showAsBanner: deal.showAsBanner ?? true,
+        validFrom: deal.validFrom ? deal.validFrom.slice(0, 10) : "",
         validUntil: deal.validUntil ? deal.validUntil.slice(0, 10) : "",
       });
       setInitialized(true);
@@ -153,6 +159,43 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         : [...prev.bogoRewardProductIds, id],
     }));
 
+  const toggleExcludedExtra = (id: string) =>
+    setDraft((prev) => ({
+      ...prev,
+      bogoExcludedExtraIds: prev.bogoExcludedExtraIds.includes(id)
+        ? prev.bogoExcludedExtraIds.filter((x) => x !== id)
+        : [...prev.bogoExcludedExtraIds, id],
+    }));
+
+  // Extras-grupper aggregerade från valda reward-produkter (för excluded-extras-UI).
+  // Samma extra-grupp kan dyka upp på flera produkter — vi dedup:ar på extraGroup.id.
+  // Extras utan id (kan hända under create-flöde i menu-modulen) hoppar vi över
+  // eftersom vi behöver id för whitelisting.
+  const rewardExtraGroups = useMemo(() => {
+    const selectedProducts = (products.data ?? []).filter((p) => draft.bogoRewardProductIds.includes(p.id));
+    const groupMap = new Map<string, { id: string; name: string; type: string; extras: { id: string; name: string; priceAddon: number }[]; sourceProducts: Set<string> }>();
+    selectedProducts.forEach((product) => {
+      (product.extraGroups ?? []).forEach((group) => {
+        const existing = groupMap.get(group.id);
+        if (existing) {
+          existing.sourceProducts.add(product.name);
+          return;
+        }
+        const extras = (group.extras ?? [])
+          .filter((e): e is { id: string; name: string; priceAddon: number } & typeof e => typeof e.id === "string" && e.id.length > 0)
+          .map((e) => ({ id: e.id as string, name: e.name, priceAddon: e.priceAddon }));
+        groupMap.set(group.id, {
+          id: group.id,
+          name: group.name,
+          type: group.type,
+          extras,
+          sourceProducts: new Set([product.name]),
+        });
+      });
+    });
+    return [...groupMap.values()].filter((g) => g.extras.length > 0);
+  }, [products.data, draft.bogoRewardProductIds]);
+
   const saveMutation = useMutation({
     mutationFn: async (d: Draft) => {
       const payload: Record<string, unknown> = {
@@ -167,11 +210,13 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
         rewardCategoryId: d.rewardCategoryId || null,
         bogoRewardProductIds: d.bogoRewardProductIds,
         bogoExcludedProductIds: d.bogoExcludedProductIds,
+        bogoExcludedExtraIds: d.bogoExcludedExtraIds,
         bogoMaxRewardPrice: d.bogoMaxRewardPrice ? Number(d.bogoMaxRewardPrice) : null,
         isActive: d.isActive,
         showOnSite: true,
         showAsBanner: d.showAsBanner,
         popupEnabled: false,
+        validFrom: d.validFrom || null,
         validUntil: d.validUntil || null,
       };
 
@@ -220,6 +265,8 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
     if (draft.triggerMode === "category" && !draft.triggerCategoryId) { setError("Välj utlösarkategori."); return; }
     if (draft.triggerMode === "minorder" && !draft.bogoMinOrderAmount) { setError("Ange minimibelopp."); return; }
     if (draft.triggerMode === "products" && draft.bogoTriggerProductIds.length === 0) { setError("Välj minst en utlösarprodukt."); return; }
+    if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil) { setError("Startdatum måste vara före slutdatum."); return; }
+    if (draft.bogoMaxRewardPrice && Number(draft.bogoMaxRewardPrice) < 0) { setError("Max gratis-pris kan inte vara negativt."); return; }
     setError(null);
     saveMutation.mutate(draft);
   };
@@ -455,6 +502,71 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
               </>
             )}
           </Surface>
+
+          {/* Excluded extras — admin kan hindra specifika tillval för gratisvaran */}
+          {draft.bogoRewardProductIds.length > 0 && rewardExtraGroups.length > 0 && (
+            <Surface className="px-6 py-6 grid gap-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">Hindrade tillval för gratisvaran</p>
+                <p className="text-xs text-[var(--text-muted)]">Bocka i tillval som kunden INTE ska kunna välja när hen plockar gratisvaran (t.ex. dyra storlekar som "Familjepizza" eller specifika tillbehör). Tillval som tillåts kostar fortfarande sitt vanliga pris.</p>
+              </div>
+              <div className="grid gap-4">
+                {rewardExtraGroups.map((group) => (
+                  <div key={group.id} className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{group.name}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] mt-0.5">
+                          {group.type === "RADIO" ? "Välj en" : "Välj flera"} · finns på {[...group.sourceProducts].slice(0, 3).join(", ")}
+                          {group.sourceProducts.size > 3 ? ` +${group.sourceProducts.size - 3}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allIds = group.extras.map((e) => e.id);
+                          const allBlocked = allIds.every((id) => draft.bogoExcludedExtraIds.includes(id));
+                          setDraft((prev) => ({
+                            ...prev,
+                            bogoExcludedExtraIds: allBlocked
+                              ? prev.bogoExcludedExtraIds.filter((id) => !allIds.includes(id))
+                              : [...new Set([...prev.bogoExcludedExtraIds, ...allIds])],
+                          }));
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                      >
+                        {group.extras.every((e) => draft.bogoExcludedExtraIds.includes(e.id)) ? "Tillåt alla" : "Hindra alla"}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                      {group.extras.map((extra) => {
+                        const blocked = draft.bogoExcludedExtraIds.includes(extra.id);
+                        return (
+                          <label key={extra.id} className={`flex items-center gap-2 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs select-none transition-colors ${blocked ? "bg-rose-500/10 text-rose-400" : "hover:bg-[rgba(255,255,255,0.04)] text-[var(--text-secondary)]"}`}>
+                            <input
+                              type="checkbox"
+                              checked={blocked}
+                              onChange={() => toggleExcludedExtra(extra.id)}
+                              className="accent-rose-500 h-3.5 w-3.5 shrink-0"
+                            />
+                            <span className={blocked ? "line-through" : ""}>{extra.name}</span>
+                            {extra.priceAddon > 0 && (
+                              <span className="ml-auto text-[10px] text-[var(--text-muted)]">+{extra.priceAddon} kr</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {draft.bogoExcludedExtraIds.length > 0 && (
+                  <button type="button" onClick={() => set("bogoExcludedExtraIds", [])} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline self-start">
+                    Rensa alla blockerade tillval ({draft.bogoExcludedExtraIds.length} blockerade)
+                  </button>
+                )}
+              </div>
+            </Surface>
+          )}
         </div>
 
         {/* Right column - settings */}
@@ -472,6 +584,9 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
                 <option value="yes">Ja — visas på restaurangsidan</option>
                 <option value="no">Nej</option>
               </Select>
+            </Field>
+            <Field label="Giltig från (valfritt)">
+              <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
             </Field>
             <Field label="Giltig till (valfritt)">
               <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
@@ -499,7 +614,10 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
               {draft.bogoMaxRewardPrice && Number(draft.bogoMaxRewardPrice) > 0 && (
                 <p className="text-amber-400">Max gratis-basepris: <strong>{draft.bogoMaxRewardPrice} kr</strong> — kunden betalar mellanskillnaden för dyrare val.</p>
               )}
-              <p className="text-xs text-[var(--text-muted)] mt-1">Extratillval betalas alltid av kunden.</p>
+              {draft.bogoExcludedExtraIds.length > 0 && (
+                <p className="text-rose-400"><strong>{draft.bogoExcludedExtraIds.length}</strong> tillval blockerade för gratisvaran.</p>
+              )}
+              <p className="text-xs text-[var(--text-muted)] mt-1">Extratillval betalas alltid av kunden (utom blockerade som inte kan väljas alls).</p>
             </div>
           </Surface>
         </div>

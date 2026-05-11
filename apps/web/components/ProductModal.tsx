@@ -20,9 +20,11 @@ interface ProductModalProps {
   bogoFreeFromDealId?: string;
   bogoDealTitle?: string;
   bogoRewardCategoryName?: string | null;
+  /** Extras (Extra.id) som admin har blockerat för gratisvaran — filtreras bort innan rendering. */
+  bogoExcludedExtraIds?: string[];
 }
 
-const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote, bogoFreeFromDealId, bogoDealTitle, bogoRewardCategoryName }: ProductModalProps) => {
+const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCartItemId, initialQuantity, initialExtras, initialNote, bogoFreeFromDealId, bogoDealTitle, bogoRewardCategoryName, bogoExcludedExtraIds }: ProductModalProps) => {
   const addItem = useCartStore((state) => state.addItem);
   const updateItem = useCartStore((state) => state.updateItem);
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
@@ -34,6 +36,19 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const [note, setNote] = useState(initialNote ?? "");
   const [selectionError, setSelectionError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  // För BOGO-gratisvara: ta bort tillval som admin har blockerat på dealen
+  // (t.ex. "Familjepizza-storlek" eller "vitlökssås"). Vi filtrerar både på
+  // extra-nivå och tar bort hela grupper som blivit tomma OCH inte krävs.
+  const excludedExtraIdSet = bogoFreeFromDealId && bogoExcludedExtraIds ? new Set(bogoExcludedExtraIds) : null;
+  const filteredExtraGroups = excludedExtraIdSet && excludedExtraIdSet.size > 0
+    ? (product.extraGroups ?? [])
+        .map((group: any) => ({
+          ...group,
+          extras: (group.extras ?? []).filter((extra: any) => !excludedExtraIdSet.has(extra.id)),
+        }))
+        .filter((group: any) => group.extras.length > 0 || group.required)
+    : (product.extraGroups ?? []);
 
   useEffect(() => {
     document.documentElement.style.overflowY = "hidden";
@@ -48,7 +63,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
       return;
     }
     const defaults: any[] = [];
-    product.extraGroups?.forEach((group: any) => {
+    filteredExtraGroups?.forEach((group: any) => {
       group.extras.forEach((extra: any) => {
         if (extra.isDefault) {
           defaults.push({
@@ -63,7 +78,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
     });
     setSelectedExtras(defaults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product]);
+  }, [product, bogoFreeFromDealId]);
 
   const handleToggleExtra = (group: any, extra: any) => {
     setSelectionError(null);
@@ -131,13 +146,17 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const hasDiscount = effectiveBasePrice < product.price;
 
   const handleAddToCart = () => {
-    for (const group of product.extraGroups || []) {
+    for (const group of filteredExtraGroups || []) {
       const selectedInGroup = selectedExtras.filter((extra) => extra.groupId === group.id);
       if (group.required && selectedInGroup.length === 0) {
+        // En obligatorisk grupp kan ha ALLA sina extras blockerade av BOGO.
+        // Då kan kunden inte uppfylla kravet — vi hoppar över valideringen
+        // för att inte fastna i ett ogiltigt tillstånd.
+        if (group.extras.length === 0) continue;
         setSelectionError(`Välj ett alternativ i ${group.name.toLowerCase()}.`);
         return;
       }
-      if (selectedInGroup.length < (group.minSelections || 0)) {
+      if (selectedInGroup.length < (group.minSelections || 0) && group.extras.length > 0) {
         setSelectionError(`${group.name} kräver minst ${group.minSelections} val.`);
         return;
       }
@@ -238,7 +257,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
 
            {/* Extra Groups */}
            <div className="space-y-16">
-              {[...(product.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
+              {[...filteredExtraGroups].sort((a, b) => (a.position || 0) - (b.position || 0)).map((group) => {
                  const selectionCount = selectedExtras.filter((e) => e.groupId === group.id).length;
                  return (
                  <div key={group.id} className="relative">

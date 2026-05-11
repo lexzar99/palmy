@@ -34,6 +34,7 @@ type DealLike = {
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string | null;
   bogoRewardProductIds?: string | null;
+  bogoExcludedExtraIds?: string | null;
   bogoMaxRewardPriceOre?: number | null;
   bogoMinOrderAmountOre?: number | null;
   bogoTriggerProductIds?: string | null;
@@ -438,6 +439,7 @@ export const formatDealForClient = (
   rewardCategoryId: deal.rewardCategoryId ?? null,
   bogoTriggerProductIds: parseDealProductIds(deal.bogoTriggerProductIds),
   bogoRewardProductIds: parseDealProductIds(deal.bogoRewardProductIds),
+  bogoExcludedExtraIds: parseDealProductIds(deal.bogoExcludedExtraIds),
   triggerQuantity: deal.triggerQuantity ?? 2,
   bogoMinOrderAmountOre: deal.bogoMinOrderAmountOre ?? null,
 });

@@ -38,6 +38,8 @@ export interface AutomaticDealRecord {
   triggerQuantity?: number | null;
   rewardCategoryId?: string | null;
   bogoExcludedProductIds?: string[];
+  bogoRewardProductIds?: string[];
+  bogoExcludedExtraIds?: string[];
   bogoMaxRewardPrice?: number | null;
   bogoMinOrderAmount?: number | null;
   bogoTriggerProductIds?: string[];
@@ -90,6 +92,23 @@ export interface DealCategoryRef {
   _count?: { products: number };
 }
 
+export interface DealExtraRef {
+  // id kan saknas vid skapande av produkt-extras (innan submit), men för
+  // BOGO-exclusion behöver vi det. Filtrera bort entries utan id i konsumenten.
+  id?: string;
+  name: string;
+  priceAddon: number;
+  isActive?: boolean;
+}
+
+export interface DealExtraGroupRef {
+  id: string;
+  name: string;
+  type: string;
+  required: boolean;
+  extras: DealExtraRef[];
+}
+
 export interface DealProductRef {
   id: string;
   name: string;
@@ -100,6 +119,7 @@ export interface DealProductRef {
   discountPercent?: number | null;
   discountPrice?: number | null;
   discountLabel?: string | null;
+  extraGroups?: DealExtraGroupRef[];
 }
 
 export const dealsQueryKey = ["deals", "automatic"] as const;

@@ -1517,7 +1517,8 @@ const formatDealForAdmin = (deal: any) => ({
   triggerQuantity: deal.triggerQuantity ?? 2,
   rewardCategoryId: deal.rewardCategoryId ?? null,
   bogoExcludedProductIds: parseJsonArray(deal.bogoExcludedProductIds),
-  bogoRewardProductIds: parseJsonArray((deal as any).bogoRewardProductIds),
+  bogoRewardProductIds: parseJsonArray(deal.bogoRewardProductIds),
+  bogoExcludedExtraIds: parseJsonArray(deal.bogoExcludedExtraIds),
   bogoMaxRewardPrice: deal.bogoMaxRewardPriceOre != null ? deal.bogoMaxRewardPriceOre / 100 : null,
   bogoMinOrderAmount: deal.bogoMinOrderAmountOre != null ? deal.bogoMinOrderAmountOre / 100 : null,
   bogoTriggerProductIds: parseJsonArray(deal.bogoTriggerProductIds),
@@ -1581,16 +1582,95 @@ const deactivateConflictingDeals = async (params: {
   };
 };
 
-const toBogoRewardJson = (raw: unknown): string | null => {
-  if (raw === undefined) return null;
-  const ids = Array.isArray(raw)
-    ? raw.filter((v: unknown): v is string => typeof v === 'string')
-    : parseJsonArray(raw as string | null);
-  return JSON.stringify(ids);
+// Zod-schema för deal-input. Catches > 100% rabatt, negativ värde,
+// validFrom > validUntil mm. innan vi rör databasen.
+const DealInputSchema = z.object({
+  title: z.string().min(1, 'Titel krävs').optional(),
+  discountType: z.enum(['PERCENTAGE', 'FIXED', 'FIXED_PRICE']).optional(),
+  discountValue: z.number().or(z.string().transform((s) => Number(s))).optional(),
+  validFrom: z.union([z.string(), z.date(), z.null()]).optional(),
+  validUntil: z.union([z.string(), z.date(), z.null()]).optional(),
+  bogoMaxRewardPrice: z.union([z.number(), z.string(), z.null()]).optional(),
+  bogoMinOrderAmount: z.union([z.number(), z.string(), z.null()]).optional(),
+  triggerQuantity: z.number().int().min(1).optional(),
+  maxUsages: z.number().int().min(1).nullable().optional(),
+  minOrder: z.number().min(0).optional(),
+}).passthrough();
+
+const validateDealPayload = (body: any): string | null => {
+  const parsed = DealInputSchema.safeParse(body);
+  if (!parsed.success) {
+    return parsed.error.issues[0]?.message || 'Ogiltig data';
+  }
+  const d = parsed.data;
+
+  // discountValue-validering beroende på discountType
+  if (d.discountValue !== undefined && d.discountValue !== null) {
+    const val = Number(d.discountValue);
+    if (!Number.isFinite(val) || val < 0) return 'Rabattvärde måste vara ≥ 0';
+    if (d.discountType === 'PERCENTAGE' && val > 100) return 'Procent-rabatt får inte överstiga 100%';
+    if ((d.discountType === 'FIXED' || d.discountType === 'FIXED_PRICE') && val > 1_000_000)
+      return 'Fast belopp är orimligt högt';
+  }
+
+  // validFrom <= validUntil
+  const vf = d.validFrom ? new Date(d.validFrom as any) : null;
+  const vu = d.validUntil ? new Date(d.validUntil as any) : null;
+  if (vf && vu && Number.isFinite(vf.getTime()) && Number.isFinite(vu.getTime()) && vf > vu) {
+    return 'Startdatum måste vara före slutdatum';
+  }
+
+  // bogoMaxRewardPrice/bogoMinOrderAmount måste vara ≥ 0 om satt
+  for (const key of ['bogoMaxRewardPrice', 'bogoMinOrderAmount'] as const) {
+    const raw = (d as any)[key];
+    if (raw !== undefined && raw !== null && raw !== '') {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) return `${key} måste vara ≥ 0`;
+    }
+  }
+
+  return null;
 };
 
-const setBogoRewardProductIds = async (dealId: string, json: string) => {
-  await prisma.$executeRaw`UPDATE "Deal" SET "bogoRewardProductIds" = ${json} WHERE id = ${dealId}`;
+// Validera att produkt-/extra-IDs faktiskt existerar i DB.
+// Returnerar en fel-sträng vid problem, annars null.
+const validateDealReferences = async (body: any, restaurantId: string | null): Promise<string | null> => {
+  const productIdSet = new Set<string>();
+  for (const key of ['bogoRewardProductIds', 'bogoTriggerProductIds', 'bogoExcludedProductIds', 'targetIds', 'comboProductIds']) {
+    const raw = body[key];
+    const ids = Array.isArray(raw) ? raw : parseJsonArray(raw as string | null);
+    ids.forEach((id) => typeof id === 'string' && id && productIdSet.add(id));
+  }
+  if (productIdSet.size > 0) {
+    const found = await prisma.product.findMany({
+      where: { id: { in: [...productIdSet] } },
+      select: { id: true, category: { select: { restaurantId: true } } },
+    });
+    if (found.length !== productIdSet.size) {
+      return 'En eller flera produkter i listan finns inte';
+    }
+    if (restaurantId) {
+      const wrong = found.find((p) => p.category?.restaurantId && p.category.restaurantId !== restaurantId);
+      if (wrong) return 'Produkter måste tillhöra samma restaurang som dealen';
+    }
+  }
+
+  const extraIdSet = new Set<string>();
+  const excludedExtraIds = Array.isArray(body.bogoExcludedExtraIds)
+    ? body.bogoExcludedExtraIds
+    : parseJsonArray(body.bogoExcludedExtraIds as string | null);
+  excludedExtraIds.forEach((id) => typeof id === 'string' && id && extraIdSet.add(id));
+  if (extraIdSet.size > 0) {
+    const found = await prisma.extra.findMany({
+      where: { id: { in: [...extraIdSet] } },
+      select: { id: true },
+    });
+    if (found.length !== extraIdSet.size) {
+      return 'En eller flera tillval i excluded-listan finns inte';
+    }
+  }
+
+  return null;
 };
 
 const normalizeDealInputForDb = (body: any) => {
@@ -1714,10 +1794,19 @@ const normalizeDealInputForDb = (body: any) => {
     next.bogoTriggerProductIds = JSON.stringify(ids);
   }
 
-  // bogoRewardProductIds hanteras via $executeRaw efter Prisma-anropet
-  // (Prisma-klienten validerar mot sin genererade typ och kastar "Unknown argument"
-  //  om klienten är cachad från före fältet lades till schemat)
-  delete next.bogoRewardProductIds;
+  if (body.bogoRewardProductIds !== undefined) {
+    const ids = Array.isArray(body.bogoRewardProductIds)
+      ? body.bogoRewardProductIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(body.bogoRewardProductIds);
+    next.bogoRewardProductIds = JSON.stringify(ids);
+  }
+
+  if (body.bogoExcludedExtraIds !== undefined) {
+    const ids = Array.isArray(body.bogoExcludedExtraIds)
+      ? body.bogoExcludedExtraIds.filter((v: unknown): v is string => typeof v === 'string')
+      : parseJsonArray(body.bogoExcludedExtraIds);
+    next.bogoExcludedExtraIds = JSON.stringify(ids);
+  }
 
   if (body.validFrom !== undefined) {
     const validFrom =
@@ -1894,16 +1983,26 @@ router.get('/deals/:id', async (req, res) => {
 router.post('/deals', async (req, res) => {
   try {
     const { restaurantId, ...rest } = req.body;
-    
+
     // Permission check: Merchant must have a restaurant, Super Admin can be global (null)
     const scopedRestaurantId = isSuperAdmin(req as AuthRequest)
       ? (restaurantId ? String(restaurantId) : null)
       : requireRestaurantScope(req as AuthRequest, res);
-      
+
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
+    const validationError = validateDealPayload(rest);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    const refError = await validateDealReferences(rest, scopedRestaurantId || null);
+    if (refError) {
+      return res.status(400).json({ error: refError });
+    }
+
     const normalized = normalizeDealInputForDb(rest);
-    
+
     // Ensure the deal is actually linked to the scoped restaurant if not global
     if (scopedRestaurantId) {
       normalized.restaurantId = scopedRestaurantId;
@@ -1916,14 +2015,9 @@ router.post('/deals', async (req, res) => {
       isPopup: normalized.popupEnabled === true,
     });
 
-    delete (normalized as any).bogoRewardProductIds;
-
     const deal = await prisma.deal.create({
       data: normalized as any,
     });
-
-    const bogoRewardJson = toBogoRewardJson(rest.bogoRewardProductIds);
-    if (bogoRewardJson !== null) await setBogoRewardProductIds(deal.id, bogoRewardJson);
 
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
@@ -1980,16 +2074,22 @@ router.patch('/deals/:id', async (req, res) => {
       });
     }
 
+    const validationError = validateDealPayload(data);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
+    }
+
+    const refError = await validateDealReferences(data, effectiveRestaurantId);
+    if (refError) {
+      return res.status(400).json({ error: refError });
+    }
+
     const normalizedData = normalizeDealInputForDb(data);
-    delete (normalizedData as any).bogoRewardProductIds;
 
     const deal = await prisma.deal.update({
       where: { id },
       data: normalizedData,
     });
-
-    const bogoRewardJson = toBogoRewardJson(data.bogoRewardProductIds);
-    if (bogoRewardJson !== null) await setBogoRewardProductIds(id, bogoRewardJson);
 
     res.json(formatDealForAdmin(deal));
   } catch (error) {
@@ -2950,6 +3050,16 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
         status: 'CANCELLED',
       }
     });
+
+    // Dekrementera deal-användning om order hade en deal applicerad — annars
+    // räknas refunderad order felaktigt mot maxUsages och blockerar nya kunder.
+    // Använder updateMany för att inte krascha om dealen tagits bort i mellantiden.
+    if (order.appliedDealId) {
+      await prisma.deal.updateMany({
+        where: { id: order.appliedDealId, usageCount: { gt: 0 } },
+        data: { usageCount: { decrement: 1 } },
+      });
+    }
 
     res.json({ success: true, refundedAmount: refundAmountOre / 100 });
   } catch (error: any) {

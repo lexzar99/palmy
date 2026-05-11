@@ -147,13 +147,21 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   try {
-    console.log('📦 New Order Request:', JSON.stringify(req.body, null, 2));
+    // Logga bara minimum-info i prod — full body innehåller adress/telefon (PII).
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('📦 New Order Request:', JSON.stringify(req.body, null, 2));
+    } else {
+      console.log('📦 New Order Request', { restaurantId: req.body?.restaurantId, type: req.body?.type, itemCount: req.body?.items?.length });
+    }
     const data = CreateOrderSchema.parse(req.body);
     const isPendingPayment = data.pendingPayment === true;
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
 
     const intentId = data.stripePaymentIntentId?.toUpperCase();
-    const isTestOrder = (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
+    // Test-order: endast tillåten utanför production. I prod kommer rabattkoden
+    // "test"/"testa" inte längre att kunna kringgå Stripe-betalning.
+    const isTestOrder = process.env.NODE_ENV !== 'production' &&
+                       (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
                        (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
 
     // Enforce mandatory payment (unless pending-payment flow or test order)
@@ -740,19 +748,26 @@ router.post('/', async (req: Request, res: Response) => {
       // Trigger loyalty/retention rewards (async)
       triggerLoyaltyRewards(order).catch(console.error);
 
-      // Uppdatera rabattkods-räknare (Skip for 'test' mock)
+      // Uppdatera rabattkods-räknare (Skip for 'test' mock).
+      // Atomisk increment med villkor "usageCount < maxUsages" via raw SQL —
+      // två parallella checkouts kan inte båda räknas upp förbi gränsen.
       if (validatedCode && validatedCode !== 'test' && validatedCode !== 'testa') {
-        await prisma.discountCode.updateMany({
-          where: { code: validatedCode.toUpperCase() },
-          data: { usageCount: { increment: 1 } },
-        });
+        await prisma.$executeRaw`
+          UPDATE "DiscountCode"
+          SET "usageCount" = "usageCount" + 1
+          WHERE "code" = ${validatedCode.toUpperCase()}
+            AND ("maxUsages" IS NULL OR "usageCount" < "maxUsages")
+        `;
       }
 
       if (appliedDeal) {
-        await prisma.deal.update({
-          where: { id: appliedDeal.id },
-          data: { usageCount: { increment: 1 } },
-        });
+        // Atomisk increment med samma race-condition-skydd.
+        await prisma.$executeRaw`
+          UPDATE "Deal"
+          SET "usageCount" = "usageCount" + 1
+          WHERE "id" = ${appliedDeal.id}
+            AND ("maxUsages" IS NULL OR "usageCount" < "maxUsages")
+        `;
       }
 
       // Emit till admin via Socket.IO

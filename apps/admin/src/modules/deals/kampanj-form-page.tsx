@@ -39,6 +39,7 @@ type Draft = {
   showOnSite: boolean;
   showAsBanner: boolean;
   maxUsages: string;
+  validFrom: string;
   validUntil: string;
   sortOrder: number;
 };
@@ -59,6 +60,7 @@ const defaultDraft = (): Draft => ({
   showOnSite: true,
   showAsBanner: false,
   maxUsages: "",
+  validFrom: "",
   validUntil: "",
   sortOrder: 0,
 });
@@ -120,6 +122,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         showOnSite: d.showOnSite,
         showAsBanner: d.showAsBanner ?? false,
         maxUsages: d.maxUsages ? String(d.maxUsages) : "",
+        validFrom: d.validFrom ? d.validFrom.slice(0, 10) : "",
         validUntil: d.validUntil ? d.validUntil.slice(0, 10) : "",
         sortOrder: d.sortOrder || 0,
       });
@@ -163,6 +166,7 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
         showAsBanner: d.showAsBanner,
         popupEnabled: false,
         maxUsages: d.maxUsages ? Number(d.maxUsages) : null,
+        validFrom: d.validFrom || null,
         validUntil: d.validUntil || null,
         sortOrder: d.sortOrder,
       };
@@ -191,6 +195,10 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
   const handleSave = () => {
     if (!draft.title.trim()) { setError("Titel krävs."); return; }
     if (!draft.isGlobal && !draft.restaurantId) { setError("Välj restaurang eller aktivera 'Alla restauranger'."); return; }
+    if (!Number.isFinite(draft.discountValue) || draft.discountValue < 0) { setError("Rabattvärde måste vara ≥ 0."); return; }
+    if (draft.discountType === "PERCENTAGE" && draft.discountValue > 100) { setError("Procent-rabatt får inte överstiga 100%."); return; }
+    if (draft.scopeType === "MIN_ORDER" && draft.minOrder <= 0) { setError("Minimiorder måste vara > 0 för min-order-kampanj."); return; }
+    if (draft.validFrom && draft.validUntil && draft.validFrom > draft.validUntil) { setError("Startdatum måste vara före slutdatum."); return; }
     setError(null);
     saveMutation.mutate(draft);
   };
@@ -395,6 +403,9 @@ export function KampanjFormPage({ dealId }: { dealId?: string }) {
             </Field>
             <Field label="Max antal användningar (tom = ∞)">
               <Input type="number" min="1" value={draft.maxUsages} onChange={(e) => set("maxUsages", e.target.value)} placeholder="Obegränsat" />
+            </Field>
+            <Field label="Giltig från (valfritt)">
+              <Input type="date" value={draft.validFrom} onChange={(e) => set("validFrom", e.target.value)} />
             </Field>
             <Field label="Giltig till (valfritt)">
               <Input type="date" value={draft.validUntil} onChange={(e) => set("validUntil", e.target.value)} />

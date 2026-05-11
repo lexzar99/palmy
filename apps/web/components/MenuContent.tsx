@@ -58,9 +58,10 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     dealTitle: string;
     rewardCategoryName: string | null;
     products: BogoPickerProduct[];
+    excludedExtraIds: string[];
   } | null>(null);
   // Produkt vald från BOGO-picker → öppnas i ProductModal med gratis-kontext
-  const [bogoProduct, setBogoProduct] = useState<{ product: any; dealId: string; dealTitle: string; rewardCategoryName: string | null } | null>(null);
+  const [bogoProduct, setBogoProduct] = useState<{ product: any; dealId: string; dealTitle: string; rewardCategoryName: string | null; excludedExtraIds: string[] } | null>(null);
 
   // Track zone-availability in a ref so the socket handler always reads the latest value
   const zoneAvailableRef = useRef<boolean | null>(null);
@@ -273,7 +274,13 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
     }
 
     if (rewardProducts.length === 0) return;
-    setBogoPicker({ dealId: bogoDeal.id, dealTitle: bogoDeal.title, rewardCategoryName, products: rewardProducts });
+    setBogoPicker({
+      dealId: bogoDeal.id,
+      dealTitle: bogoDeal.title,
+      rewardCategoryName,
+      products: rewardProducts,
+      excludedExtraIds: bogoDeal.bogoExcludedExtraIds ?? [],
+    });
   }, [deals, categories]);
 
   const filteredCategories = categories
@@ -687,6 +694,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 dealId: bogoPicker.dealId,
                 dealTitle: bogoPicker.dealTitle,
                 rewardCategoryName: bogoPicker.rewardCategoryName,
+                excludedExtraIds: bogoPicker.excludedExtraIds,
               });
               setBogoPicker(null);
             }}
@@ -703,6 +711,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
             bogoFreeFromDealId={bogoProduct.dealId}
             bogoDealTitle={bogoProduct.dealTitle}
             bogoRewardCategoryName={bogoProduct.rewardCategoryName}
+            bogoExcludedExtraIds={bogoProduct.excludedExtraIds}
             onClose={() => setBogoProduct(null)}
           />
         )}

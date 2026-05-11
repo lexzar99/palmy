@@ -90,6 +90,7 @@ export default function CartPage() {
     discountKr: number; dealTitle: string; dealId: string | null;
     rewardCategoryName: string | null;
     rewardProducts: { id: string; name: string; price: number; imageUrl: string | null }[];
+    bogoExcludedExtraIds: string[];
   } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
@@ -656,6 +657,7 @@ export default function CartPage() {
             dealId: data.dealId ?? null,
             rewardCategoryName: data.rewardCategoryName ?? null,
             rewardProducts: data.rewardProducts ?? [],
+            bogoExcludedExtraIds: Array.isArray(data.bogoExcludedExtraIds) ? data.bogoExcludedExtraIds : [],
           });
           // Rensa bogoChoice om det gäller en annan deal
           const existing = useCartStore.getState().bogoChoice;
