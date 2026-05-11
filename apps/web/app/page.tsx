@@ -594,7 +594,7 @@ export default function HomePage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-5" style={{ borderColor: "rgba(212,167,74,0.3)", backgroundColor: "rgba(212,167,74,0.08)" }}>
                 <Sparkles size={11} className="text-gold-500" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">Mat från Lunds bästa</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">Mat från dem bästa av dem bästa</span>
               </div>
               <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[0.95] mb-3" style={{ color: "var(--text-primary)" }}>
                 Hungrig?<br />

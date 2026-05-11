@@ -76,11 +76,11 @@ export default function SearchPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
-      <div className="mx-auto max-w-2xl px-4 pt-8 pb-32">
-        <header className="mb-8">
+    <div className="min-h-screen md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+      <div className="mx-auto max-w-2xl md:max-w-5xl lg:max-w-6xl 2xl:max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-8 pb-32">
+        <header className="mb-8 md:mb-10">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500 mb-2">Sök i plattformen</p>
-          <h1 className="text-3xl font-black uppercase tracking-tighter mb-6" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">mat</span></h1>
+          <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tighter mb-6" style={{ color: "var(--text-primary)" }}>Upptäck <span className="text-gold-500">mat</span></h1>
           
           <div className="relative group">
             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none group-focus-within:text-gold-500 transition-colors" style={{ color: "rgba(184,170,149,0.3)" }}>
@@ -105,8 +105,9 @@ export default function SearchPage() {
               ))}
             </div>
           ) : query.trim() ? (
-            <div className="space-y-4">
-               <p className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: "rgba(184,170,149,0.4)" }}>Hittade {filtered.length} resultat</p>
+            <div>
+               <p className="text-[10px] font-black uppercase tracking-widest mb-4" style={{ color: "rgba(184,170,149,0.4)" }}>Hittade {filtered.length} resultat</p>
+               <div className={filtered.length > 0 ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : ""}>
                {filtered.length > 0 ? (
                  filtered.map(r => { const inZone = deliverableIds === null || deliverableIds.has(r.id); return (
                     <Link
@@ -163,6 +164,7 @@ export default function SearchPage() {
                    <p className="text-sm font-black uppercase tracking-widest">Inga matchningar för &ldquo;{query}&rdquo;</p>
                  </div>
                )}
+               </div>
             </div>
           ) : (
             <div className="py-12 text-center" style={{ color: "rgba(184,170,149,0.3)" }}>

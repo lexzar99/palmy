@@ -1,15 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ShoppingCart, Menu, X, User, Sun, Moon } from "lucide-react";
+import { ShoppingCart, Menu, X, Sun, Moon } from "lucide-react";
 import { useCartStore } from "@/store/cartStore";
 import { useTheme } from "@/app/providers";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import axios from "axios";
-import { io as socketIO } from "socket.io-client";
-import { API_URL, SOCKET_URL } from "@/lib/api";
-import { usePauseCountdown } from "@/lib/usePauseStatus";
 
 const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
@@ -17,49 +13,9 @@ const Navbar = () => {
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [restaurantOpen, setRestaurantOpen] = useState<boolean | null>(null);
-  const [pausedUntil, setPausedUntil] = useState<string | null>(null);
-  const pause = usePauseCountdown(pausedUntil);
-
-  const partnerPortalUrl = mounted
-    ? (() => {
-        if (process.env.NEXT_PUBLIC_ADMIN_APP_URL) return process.env.NEXT_PUBLIC_ADMIN_APP_URL;
-        const { protocol, hostname, origin } = window.location;
-        const isLocal = hostname.includes("localhost") || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
-        return isLocal ? `${protocol}//${hostname}:3001/login` : `${origin}/admin`;
-      })()
-    : "/admin";
 
   useEffect(() => {
     setMounted(true);
-
-    const loadStatus = async () => {
-      try {
-        const res = await axios.get(`${API_URL}/api/settings`);
-        setRestaurantOpen(Boolean(res.data.isOpen));
-        setPausedUntil(res.data.pausedUntil ?? null);
-      } catch (err) {
-        console.warn("Failed to load restaurant status:", err);
-      }
-    };
-
-    loadStatus();
-
-    const socket = socketIO(SOCKET_URL, {
-      path: "/socket.io",
-      transports: ["websocket", "polling"],
-    });
-    socket.on("settings:updated", (data: any) => {
-      if (typeof data.isOpen === "boolean") setRestaurantOpen(data.isOpen);
-      if ("pausedUntil" in data) setPausedUntil(data.pausedUntil ?? null);
-    });
-
-    const interval = window.setInterval(loadStatus, 15000);
-
-    return () => {
-      window.clearInterval(interval);
-      socket.disconnect();
-    };
   }, []);
 
   // Lock body scroll when mobile menu is open
@@ -74,25 +30,6 @@ const Navbar = () => {
     };
   }, [isOpen]);
 
-
-  const statusClass =
-    restaurantOpen === null
-      ? "bg-zinc-100 text-zinc-400 border border-zinc-200"
-      : pause.isPaused
-        ? "bg-amber-400/10 text-amber-600 border border-amber-400/30"
-        : restaurantOpen
-          ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
-          : "bg-rose-500/10 text-rose-600 border border-rose-500/20";
-
-  const statusLabel =
-    restaurantOpen === null
-      ? "STATUS"
-      : pause.isPaused
-        ? `PAUSAD · ${pause.resumeTime}`
-        : restaurantOpen
-          ? "ÖPPET"
-          : "STÄNGT";
-
   if (!mounted) return (
     <nav className="fixed top-0 left-0 right-0 z-[100]" style={{ background: "var(--bg-primary)", borderBottom: "1px solid var(--border-muted)", height: "72px", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px" }}>
        <div className="flex items-center gap-3">
@@ -103,7 +40,7 @@ const Navbar = () => {
   );
   return (
     <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: isOpen ? "var(--bg-primary)" : "rgba(252,252,249,0.95)", borderColor: "var(--border-muted)" }}>
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3 group">
           <div className="relative w-12 h-12 flex-shrink-0">
             <img src="/logo.png" alt="MatGo Logo" className="w-full h-full object-contain drop-shadow-lg group-hover:scale-110 transition-transform" />
@@ -114,18 +51,17 @@ const Navbar = () => {
             </span>
           </div>
         </Link>
-        
-        {/* Desktops links... */}
+
+        {/* Desktop-links — plattform har ingen "meny" (det är hem), ingen
+            partner-portal (admin nås via egen subdomän), och ingen
+            öppet-status (plattformen är alltid live — restaurang-status
+            visas per restaurang istället). */}
         <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
           <Link href="/" className="hover:text-gold-500 transition-colors">Hem</Link>
-          <Link href="/menu" className="hover:text-gold-500 transition-colors">Meny</Link>
+          <Link href="/discover" className="hover:text-gold-500 transition-colors">Upptäck</Link>
           <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
-          <Link href={partnerPortalUrl} target="_blank" rel="noreferrer" className="hover:text-gold-500 transition-colors">Partnerportal</Link>
-          <Link href="/profile?tab=orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina Beställningar</Link>
-          <div className={`rounded-full px-3 py-1 text-[10px] font-black tracking-[0.25em] ${statusClass}`}>
-            {statusLabel}
-          </div>
+          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina beställningar</Link>
         </div>
 
         <div className="flex items-center gap-4 relative z-[100]">
@@ -178,11 +114,10 @@ const Navbar = () => {
               <div className="flex flex-col gap-8">
                 {[
                   { name: "Hem", href: "/" },
-                  { name: "Meny", href: "/menu" },
+                  { name: "Upptäck", href: "/discover" },
                   { name: "Om oss", href: "/about" },
                   { name: "Kontakt", href: "/contact" },
-                  { name: "Partnerportal", href: partnerPortalUrl },
-                  { name: "Mina Beställningar", href: "/history" },
+                  { name: "Mina Beställningar", href: "/orders" },
                 ].map((link, i) => (
                   <motion.div
                     key={link.href}
@@ -190,30 +125,16 @@ const Navbar = () => {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.05 }}
                   >
-                     <Link 
-                       href={link.href} 
-                       target={link.name === 'Partnerportal' ? '_blank' : undefined}
-                       rel={link.name === 'Partnerportal' ? 'noreferrer' : undefined}
-                       onClick={() => setIsOpen(false)} 
-                       className={`text-4xl font-black uppercase tracking-tighter italic ${link.name === 'Beställningar' ? 'text-gold-500/80 text-2xl mt-4' : ''}`}
+                     <Link
+                       href={link.href}
+                       onClick={() => setIsOpen(false)}
+                       className="text-4xl font-black uppercase tracking-tighter italic"
                        style={{ color: link.name === 'Mina Beställningar' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
                     >
                       {link.name}
                     </Link>
                   </motion.div>
                 ))}
-              </div>
-
-              <div className="mt-auto pt-10">
-                <div className={`rounded-2xl px-6 py-5 text-[10px] font-black uppercase tracking-[0.35em] flex items-center justify-center text-center ${statusClass}`}>
-                  {restaurantOpen === null
-                    ? "Laddar status..."
-                    : pause.isPaused
-                      ? `⏸ Tillfälligt pausad · återöppnar ${pause.resumeTime}`
-                      : restaurantOpen
-                        ? "✓ Öppet för beställning"
-                        : "✕ Restaurangen är stängd"}
-                </div>
               </div>
             </motion.div>
           )}

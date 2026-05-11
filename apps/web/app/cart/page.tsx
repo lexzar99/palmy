@@ -39,6 +39,7 @@ import { Elements } from "@stripe/react-stripe-js";
 import StripeCheckout from "@/components/StripeCheckout";
 import DealSpotlight from "@/components/DealSpotlight";
 import ProductModal from "@/components/ProductModal";
+import { saveOrderToHistory } from "@/lib/orderHistory";
 import {
   type QuickAddress,
   findQuickAddressByText,
@@ -772,11 +773,22 @@ export default function CartPage() {
       setError("Betalningen lyckades men ordern kunde inte hittas. Kontakta support.");
       return;
     }
+    // Spara i lokal order-history så kunden (även icke-inloggad) kan hitta
+    // ordern senare via /orders-sidan. phone används som ownership-bevis
+    // mot backend (GET /api/orders/:id?phone=...).
+    saveOrderToHistory({
+      id: orderId,
+      phone: formData.customerPhone,
+      createdAt: new Date().toISOString(),
+      restaurantName: cartRestaurantSlug ? cartRestaurantSlug : null,
+      restaurantSlug: cartRestaurantSlug ?? null,
+      total: total,
+    });
     clearCart();
     localStorage.removeItem("pending_order_id");
     rememberActiveOrder(orderId);
     router.push(`/order/${orderId}`);
-  }, [pendingOrderId, clearCart, router]);
+  }, [pendingOrderId, clearCart, router, formData.customerPhone, cartRestaurantSlug, total]);
 
   // Persist guest name/phone/email across sessions
   useEffect(() => {
