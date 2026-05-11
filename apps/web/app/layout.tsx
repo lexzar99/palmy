@@ -8,12 +8,13 @@ import Providers from "./providers";
 import LiveOrderBanner from "@/components/LiveOrderBanner";
 
 import CookieConsent from "@/components/CookieConsent";
+import PWAInstallPrompt from "@/components/PWAInstallPrompt";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "MatGo | Beställ från dina favoritrestauranger",
-  description: "Beställ mat från flera lokala restauranger i Lund. Snabb leverans, smidig betalning och ett brett utbud.",
+  description: "Beställ mat från flera lokala restauranger. Snabb leverans, smidig betalning och ett brett utbud.",
   applicationName: "MatGo",
   appleWebApp: {
     capable: true,
@@ -22,6 +23,19 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+  // Open Graph + Twitter — använder app/opengraph-image.tsx auto-generated
+  openGraph: {
+    type: "website",
+    locale: "sv_SE",
+    siteName: "MatGo",
+    title: "MatGo — Mat från dem bästa av dem bästa",
+    description: "Beställningsplattform som kopplar dig till lokala restauranger. Snabb leverans, säker betalning.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MatGo — Mat från dem bästa av dem bästa",
+    description: "Beställ från lokala restauranger. Snabb leverans och säker betalning.",
   },
 };
 
@@ -56,6 +70,7 @@ export default function RootLayout({
           <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />
+          <PWAInstallPrompt />
         </Providers>
       </body>
     </html>

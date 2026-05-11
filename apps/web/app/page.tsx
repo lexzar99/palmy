@@ -32,6 +32,7 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import FreeDeliverySection from "@/components/FreeDeliverySection";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
+import RecentOrderCard from "@/components/RecentOrderCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -705,6 +706,10 @@ export default function HomePage() {
             </p>
           </motion.div>
 
+          {/* Senaste beställning — visas bara om kund har order-historik
+              (inloggad ELLER gäst). Conversion-CTA "fortsätt där du var". */}
+          <RecentOrderCard />
+
           {/* Om oss + Kontakt — mobil-knappar precis under titel-kortet så
               de syns direkt utan att scrolla. Endast mobil — desktop använder
               top-navbarens länkar. */}
@@ -775,7 +780,18 @@ export default function HomePage() {
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.05 + i * 0.04 }}
-                onClick={() => setActiveCuisine(c.label)}
+                onClick={() => {
+                  setActiveCuisine(c.label);
+                  // Smooth-scroll till restaurang-listan så användaren ser
+                  // resultatet direkt utan att scrolla manuellt
+                  setTimeout(() => {
+                    const target = document.getElementById("restaurant-list");
+                    if (target) {
+                      const offset = target.getBoundingClientRect().top + window.scrollY - 80;
+                      window.scrollTo({ top: offset, behavior: "smooth" });
+                    }
+                  }, 80);
+                }}
                 className="flex flex-col items-center gap-1.5 transition-all active:scale-95 flex-shrink-0 group touch-manipulation"
               >
                 <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] flex items-center justify-center text-2xl sm:text-3xl border transition-all ${
@@ -911,7 +927,7 @@ export default function HomePage() {
 
 
         {/* Dynamic List Section */}
-        <section>
+        <section id="restaurant-list" className="scroll-mt-24">
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
           {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
             <div className="mb-6 p-4 rounded-[1.5rem] border border-gold-500/15 bg-gold-500/5 flex items-center gap-4">

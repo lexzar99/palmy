@@ -282,19 +282,30 @@ export default function AddressModal({
                 {/* Predictions */}
                 <AnimatePresence>
                   {predictions.length > 0 && (
-                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+                    <motion.div
+                      initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
                       className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-hidden z-[210] shadow-2xl"
-                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                      {predictions.map(pred => (
-                        <button key={pred.place_id} onClick={() => handleSelect(pred)}
-                          className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none"
-                          style={{ borderColor: "rgba(255,248,234,0.05)" }}>
+                      style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
+                    >
+                      {predictions.map((pred, i) => (
+                        <motion.button
+                          key={pred.place_id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.03, duration: 0.18 }}
+                          onClick={() => handleSelect(pred)}
+                          className="w-full text-left px-5 py-3.5 transition-all flex items-start gap-3 border-b last:border-none hover:bg-gold-500/5"
+                          style={{ borderColor: "rgba(255,248,234,0.05)" }}
+                        >
                           <MapPin size={13} className="text-gold-500 mt-0.5 shrink-0" />
                           <div>
                             <span className="text-[11px] font-bold block" style={{ color: "var(--text-primary)" }}>{pred.description.split(",")[0]}</span>
                             <span className="text-[10px]" style={{ color: "var(--text-secondary)" }}>{pred.description.split(",").slice(1).join(",").trim()}</span>
                           </div>
-                        </button>
+                        </motion.button>
                       ))}
                     </motion.div>
                   )}

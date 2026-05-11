@@ -158,23 +158,38 @@ export default function OrdersPage() {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <div className="py-20 text-center rounded-3xl border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
-            <div className="w-16 h-16 rounded-full mx-auto mb-5 flex items-center justify-center" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
-              <ShoppingBag size={28} className="text-gold-500/50" />
-            </div>
-            <p className="text-lg font-black uppercase tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
-              Inga beställningar än
-            </p>
-            <p className="text-xs font-bold uppercase tracking-widest mb-6" style={{ color: "var(--text-secondary)" }}>
-              Lägg din första beställning så hamnar den här
-            </p>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-gold-400 transition-all active:scale-95"
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="relative py-20 text-center rounded-3xl border overflow-hidden"
+            style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
+          >
+            {/* Decorative gold-glow + floating emoji */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: "radial-gradient(circle at 50% 30%, rgba(212,167,74,0.18) 0%, transparent 55%)",
+            }} />
+            <motion.div
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+              className="relative text-6xl mb-6"
             >
-              <ShoppingBag size={14} /> Utforska restauranger
-            </Link>
-          </div>
+              🍕
+            </motion.div>
+            <div className="relative">
+              <p className="text-2xl font-black uppercase italic tracking-tight mb-2" style={{ color: "var(--text-primary)" }}>
+                Inga beställningar än
+              </p>
+              <p className="text-xs font-bold uppercase tracking-widest mb-8" style={{ color: "var(--text-secondary)" }}>
+                Lägg din första så hamnar den här
+              </p>
+              <Link
+                href="/"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase text-[11px] tracking-widest hover:bg-gold-400 transition-all active:scale-95 shadow-xl shadow-gold-500/20"
+              >
+                <ShoppingBag size={14} /> Utforska restauranger
+              </Link>
+            </div>
+          </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {rows.map((row, i) => {

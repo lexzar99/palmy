@@ -21,6 +21,7 @@ import {
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
+import { useToast } from "@/components/Toast";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -266,6 +267,7 @@ function ProfileContent() {
   const [deleteAccountModalOpen, setDeleteAccountModalOpen] = useState(false);
   const [deleteAddressModalOpen, setDeleteAddressModalOpen] = useState(false);
   const [addressToDelete, setAddressToDelete] = useState<any>(null);
+  const { toast } = useToast();
 
   const fetchData = useCallback(async () => {
     try {
@@ -599,6 +601,7 @@ function ProfileContent() {
         supabase.auth.signOut(),
         signOut({ redirect: false }),
       ]);
+      toast("Du är utloggad", "info");
     } finally {
       setIsLoggingOut(false);
     }
@@ -1230,7 +1233,7 @@ function ProfileContent() {
               <div className="space-y-2">
                 <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-2">Konto-hantering</div>
                 <div className="rounded-[2.5rem] shadow-sm" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
-                  <button 
+                  <button
                     onClick={() => setDeleteAccountModalOpen(true)}
                     className="w-full text-left p-6 flex items-center justify-between group hover:bg-rose-50 transition-all rounded-[2.5rem]"
                   >
@@ -1244,6 +1247,43 @@ function ProfileContent() {
                       </div>
                     </div>
                   </button>
+                </div>
+              </div>
+
+              {/* Juridiskt */}
+              <div className="space-y-2">
+                <div className="px-4 text-[9px] font-black uppercase tracking-[0.4em] mb-2" style={{ color: "var(--text-secondary)" }}>Juridiskt</div>
+                <div className="rounded-[2.5rem] shadow-sm divide-y" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", borderColor: "var(--border-muted)" }}>
+                  <Link
+                    href="/terms"
+                    className="w-full text-left p-6 flex items-center justify-between hover:bg-gold-500/5 transition-all rounded-t-[2.5rem]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center">
+                        <ShieldCheck size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Villkor & användarvillkor</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Hur tjänsten används</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
+                  </Link>
+                  <Link
+                    href="/privacy"
+                    className="w-full text-left p-6 flex items-center justify-between hover:bg-gold-500/5 transition-all rounded-b-[2.5rem]"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-gold-500/10 text-gold-500 flex items-center justify-center">
+                        <Lock size={18} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm" style={{ color: "var(--text-primary)" }}>Integritetspolicy</p>
+                        <p className="text-[10px] font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Så hanterar vi din data</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={18} style={{ color: "var(--text-secondary)" }} />
+                  </Link>
                 </div>
               </div>
             </motion.div>
