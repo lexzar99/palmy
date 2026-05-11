@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { Clock, ChevronRight, ReceiptText, ShoppingBag } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { readOrderHistory, removeOrderFromHistory, type StoredOrderRef } from "@/lib/orderHistory";
+import MobileFooterLinks from "@/components/MobileFooterLinks";
 
 type FetchedOrder = StoredOrderRef & {
   loaded: true;
@@ -48,17 +49,52 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const refs = readOrderHistory();
-    if (refs.length === 0) {
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
 
     const fetchAll = async () => {
-      const results = await Promise.all(
-        refs.map(async (ref): Promise<OrderRow> => {
+      const refs = readOrderHistory();
+
+      // Hämta också från backend om kund är inloggad — fanger orders gjorda
+      // på andra enheter / i RN-appen som inte hamnat i denna browsers localStorage.
+      let backendOrders: Array<{
+        id: string;
+        orderNumber?: string;
+        status?: string;
+        total?: number;
+        createdAt?: string;
+        restaurantName?: string | null;
+        customerPhone?: string;
+      }> = [];
+      try {
+        const res = await axios.get(`/api/platform/profile/orders`, { timeout: 8000 });
+        if (Array.isArray(res.data)) backendOrders = res.data;
+      } catch {
+        // Inte inloggad eller backend down — falla tillbaka på bara localStorage
+      }
+
+      // Merge backend + localStorage: backend-orders har företräde, sen
+      // komplettera med localStorage-only (guest-orders eller orders från
+      // tidigare sessioner innan login).
+      const seenIds = new Set(backendOrders.map((o) => o.id));
+      const backendRows: OrderRow[] = backendOrders.map((o) => ({
+        id: o.id,
+        phone: o.customerPhone || "",
+        createdAt: o.createdAt || new Date().toISOString(),
+        restaurantName: o.restaurantName ?? null,
+        restaurantSlug: null,
+        total: o.total,
+        loaded: true,
+        orderNumber: o.orderNumber,
+        status: o.status,
+        fetchedTotal: o.total,
+      }));
+
+      const localOnlyRefs = refs.filter((r) => !seenIds.has(r.id));
+
+      // Hämta detaljer för localStorage-bara orders via public endpoint med
+      // phone som ownership-bevis
+      const localRows = await Promise.all(
+        localOnlyRefs.map(async (ref): Promise<OrderRow> => {
           try {
             const res = await axios.get(`${API_URL}/api/orders/${ref.id}`, {
               params: { phone: ref.phone },
@@ -82,10 +118,15 @@ export default function OrdersPage() {
           }
         }),
       );
-      if (!cancelled) {
-        setRows(results);
-        setLoading(false);
-      }
+
+      if (cancelled) return;
+
+      // Kombinera + sortera på createdAt desc (senaste först)
+      const combined = [...backendRows, ...localRows].sort((a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      setRows(combined);
+      setLoading(false);
     };
 
     void fetchAll();
@@ -216,6 +257,11 @@ export default function OrdersPage() {
             Beställningar lagras lokalt i webbläsaren. Logga in för att synka mellan enheter.
           </div>
         )}
+
+        {/* Om oss + Kontakt — mobil-knappar */}
+        <div className="mt-10">
+          <MobileFooterLinks />
+        </div>
       </div>
     </div>
   );

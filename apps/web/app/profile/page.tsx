@@ -20,6 +20,7 @@ import {
 } from "@/lib/platformSessionClient";
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
+import MobileFooterLinks from "@/components/MobileFooterLinks";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
 const COUNTRY_CODES = [
@@ -1453,9 +1454,14 @@ function ProfileContent() {
             </motion.form>
           )}
         </AnimatePresence>
+
+        {/* Om oss + Kontakt — mobil-knappar längst ner */}
+        <div className="mt-10">
+          <MobileFooterLinks />
+        </div>
       </div>
     </div>
-    
+
     {/* Delete Account Modal */}
     <ConfirmModal
       isOpen={deleteAccountModalOpen}

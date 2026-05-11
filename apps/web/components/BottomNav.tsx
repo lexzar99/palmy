@@ -42,9 +42,10 @@ const BottomNav = () => {
             >
               <div className="relative z-10 flex flex-col items-center gap-1">
                 <motion.div
-                  animate={{ 
+                  animate={{
                     scale: isActive ? 1.1 : 1,
-                    color: isActive ? "#000000" : "var(--text-secondary)"
+                    color: isActive ? "#000000" : "var(--text-primary)",
+                    opacity: isActive ? 1 : 0.7,
                   }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
