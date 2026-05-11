@@ -1581,6 +1581,18 @@ const deactivateConflictingDeals = async (params: {
   };
 };
 
+const toBogoRewardJson = (raw: unknown): string | null => {
+  if (raw === undefined) return null;
+  const ids = Array.isArray(raw)
+    ? raw.filter((v: unknown): v is string => typeof v === 'string')
+    : parseJsonArray(raw as string | null);
+  return JSON.stringify(ids);
+};
+
+const setBogoRewardProductIds = async (dealId: string, json: string) => {
+  await prisma.$executeRaw`UPDATE "Deal" SET "bogoRewardProductIds" = ${json} WHERE id = ${dealId}`;
+};
+
 const normalizeDealInputForDb = (body: any) => {
   const next: Record<string, unknown> = { ...body };
 
@@ -1702,12 +1714,10 @@ const normalizeDealInputForDb = (body: any) => {
     next.bogoTriggerProductIds = JSON.stringify(ids);
   }
 
-  if (body.bogoRewardProductIds !== undefined) {
-    const ids = Array.isArray(body.bogoRewardProductIds)
-      ? body.bogoRewardProductIds.filter((v: unknown): v is string => typeof v === 'string')
-      : parseJsonArray(body.bogoRewardProductIds);
-    next.bogoRewardProductIds = JSON.stringify(ids);
-  }
+  // bogoRewardProductIds hanteras via $executeRaw efter Prisma-anropet
+  // (Prisma-klienten validerar mot sin genererade typ och kastar "Unknown argument"
+  //  om klienten är cachad från före fältet lades till schemat)
+  delete next.bogoRewardProductIds;
 
   if (body.validFrom !== undefined) {
     const validFrom =
@@ -1910,6 +1920,9 @@ router.post('/deals', async (req, res) => {
       data: normalized as any,
     });
 
+    const bogoRewardJson = toBogoRewardJson(rest.bogoRewardProductIds);
+    if (bogoRewardJson !== null) await setBogoRewardProductIds(deal.id, bogoRewardJson);
+
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);
@@ -1969,6 +1982,10 @@ router.patch('/deals/:id', async (req, res) => {
       where: { id },
       data: normalizeDealInputForDb(data),
     });
+
+    const bogoRewardJson = toBogoRewardJson(data.bogoRewardProductIds);
+    if (bogoRewardJson !== null) await setBogoRewardProductIds(id, bogoRewardJson);
+
     res.json(formatDealForAdmin(deal));
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Serverfel' });
