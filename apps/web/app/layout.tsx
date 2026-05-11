@@ -9,6 +9,8 @@ import LiveOrderBanner from "@/components/LiveOrderBanner";
 
 import CookieConsent from "@/components/CookieConsent";
 import PWAInstallPrompt from "@/components/PWAInstallPrompt";
+import PlatformBanner from "@/components/PlatformBanner";
+import SupportChat from "@/components/SupportChat";
 
 const outfit = Outfit({ subsets: ["latin"] });
 
@@ -57,6 +59,7 @@ export default function RootLayout({
       <body className={`${outfit.className} min-h-screen antialiased`}>
         <Providers>
           <ServiceWorkerRegister />
+          <PlatformBanner />
           {/* Navbar visas bara på desktop (md+) via egen "hidden md:flex"-logik
               inuti komponenten. Den är fixed top-0, så page-content behöver
               pt-20/lg:pt-24 där det är relevant. */}
@@ -71,6 +74,7 @@ export default function RootLayout({
           <BottomNav />
           <CookieConsent />
           <PWAInstallPrompt />
+          <SupportChat />
         </Providers>
       </body>
     </html>

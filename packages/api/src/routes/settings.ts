@@ -63,6 +63,17 @@ router.get('/', async (_req, res) => {
       aboutBody: (settings as any).aboutBody || null,
       // UI-toggles
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
+      // Plattform-banner (visas i web när satt och inte expirerad)
+      banner: (() => {
+        const s = settings as any;
+        if (!s.bannerMessage) return null;
+        if (s.bannerExpiresAt && new Date(s.bannerExpiresAt) < new Date()) return null;
+        return {
+          message: s.bannerMessage,
+          severity: s.bannerSeverity || 'info',
+          expiresAt: s.bannerExpiresAt,
+        };
+      })(),
     });
   } catch (err) {
     console.error('Settings GET error:', err);
@@ -79,7 +90,7 @@ router.patch('/', authenticate, async (req, res) => {
       return;
     }
 
-    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody, showDiscountedRail } = req.body;
+    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody, showDiscountedRail, bannerMessage, bannerSeverity, bannerExpiresAt } = req.body;
 
     const data: Record<string, unknown> = {};
     if (isOpen !== undefined) data.isOpen = isOpen;
@@ -97,6 +108,11 @@ router.patch('/', authenticate, async (req, res) => {
     if (contactAddress !== undefined) data.contactAddress = contactAddress || null;
     if (aboutBody !== undefined) data.aboutBody = aboutBody || null;
     if (showDiscountedRail !== undefined) data.showDiscountedRail = Boolean(showDiscountedRail);
+    if (bannerMessage !== undefined) data.bannerMessage = bannerMessage || null;
+    if (bannerSeverity !== undefined) data.bannerSeverity = bannerSeverity || null;
+    if (bannerExpiresAt !== undefined) {
+      data.bannerExpiresAt = bannerExpiresAt ? new Date(bannerExpiresAt) : null;
+    }
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },

@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { authenticate, requireSuperAdmin, autoRoleGate, AuthRequest } from '../middleware/auth';
+import { audit } from '../lib/auditLog';
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
@@ -3320,6 +3321,346 @@ router.get('/analytics', async (req: any, res: any) => {
     console.error('Analytics error:', error);
     res.status(500).json({ error: 'Kunde inte hämta statistik' });
   }
+});
+
+// ============================================================
+// PLATFORM OPS — endpoints för SUPER_ADMIN crisis/support-flöden
+// ============================================================
+
+// GET /api/admin/customers/search?q=...
+// Server-side söker namn/email/telefon. Returnerar de 50 första träffarna.
+router.get('/customers/search', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (q.length < 2) {
+      return res.json({ users: [] });
+    }
+    const users = await (prisma as any).user.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { firstName: { contains: q, mode: 'insensitive' } },
+          { lastName: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q } },
+        ],
+        deletedAt: null,
+      },
+      select: { id: true, name: true, email: true, phone: true, createdAt: true, isActive: true },
+      take: 50,
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ users });
+  } catch (err) {
+    console.error('[customer-search] error:', err);
+    res.status(500).json({ error: 'Sökning misslyckades' });
+  }
+});
+
+// GET /api/admin/customers/:id/orders — orders för en specifik kund
+router.get('/customers/:id/orders', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { userId: req.params.id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { restaurant: { select: { name: true, slug: true } } },
+    });
+    res.json({
+      orders: orders.map((o) => ({
+        ...o,
+        total: o.total / 100,
+        deliveryFee: o.deliveryFee / 100,
+        discountAmount: o.discountAmount / 100,
+        restaurantName: o.restaurant?.name || null,
+      })),
+    });
+  } catch (err) {
+    console.error('[customer-orders] error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta orders' });
+  }
+});
+
+// GET /api/admin/customers/:id/gdpr-export — full dump av kundens data
+router.get('/customers/:id/gdpr-export', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.params.id;
+    const [user, orders, deals, addresses] = await Promise.all([
+      (prisma as any).user.findUnique({ where: { id: userId } }),
+      prisma.order.findMany({ where: { userId }, include: { items: true } }),
+      (prisma as any).customerDeal.findMany({ where: { userId } }),
+      (prisma as any).savedAddress.findMany({ where: { userId } }),
+    ]);
+
+    if (!user) return res.status(404).json({ error: 'Kund hittades inte' });
+
+    await audit(req, 'GDPR_EXPORT', { resourceType: 'User', resourceId: userId });
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="gdpr-${userId}.json"`);
+    res.json({
+      exportedAt: new Date().toISOString(),
+      user,
+      orders,
+      customerDeals: deals,
+      savedAddresses: addresses,
+    });
+  } catch (err) {
+    console.error('[gdpr-export] error:', err);
+    res.status(500).json({ error: 'Export misslyckades' });
+  }
+});
+
+// POST /api/admin/restaurants/:id/bulk-refund
+// Refunderar alla orders för en restaurang inom date-range. Kris-verktyg
+// (matförgiftning, kvalitetsproblem).
+router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { fromDate, toDate, reason } = req.body as { fromDate?: string; toDate?: string; reason?: string };
+    if (!fromDate || !toDate || !reason) {
+      return res.status(400).json({ error: 'fromDate, toDate och reason krävs' });
+    }
+
+    const from = new Date(fromDate);
+    const to = new Date(toDate);
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || from > to) {
+      return res.status(400).json({ error: 'Ogiltigt datumintervall' });
+    }
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId: req.params.id,
+        createdAt: { gte: from, lte: to },
+        refundedAt: null,
+        paymentStatus: 'PAID',
+        stripePaymentIntentId: { not: null },
+      },
+      select: { id: true, total: true, stripePaymentIntentId: true, appliedDealId: true },
+    });
+
+    const Stripe = require('stripe');
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+
+    const results = await Promise.allSettled(
+      orders.map(async (o) => {
+        if (!o.stripePaymentIntentId || o.stripePaymentIntentId === 'TEST_PAYMENT' || o.stripePaymentIntentId === 'FREE_PROMO' || o.stripePaymentIntentId === 'BYPASS') {
+          return { id: o.id, status: 'skipped', reason: 'no-stripe-intent' };
+        }
+        await stripe.refunds.create({
+          payment_intent: o.stripePaymentIntentId,
+          reason: 'requested_by_customer',
+        });
+        await prisma.order.update({
+          where: { id: o.id },
+          data: {
+            refundAmount: o.total,
+            refundReason: reason,
+            refundedAt: new Date(),
+            status: 'CANCELLED',
+          },
+        });
+        if (o.appliedDealId) {
+          await prisma.deal.updateMany({
+            where: { id: o.appliedDealId, usageCount: { gt: 0 } },
+            data: { usageCount: { decrement: 1 } },
+          });
+        }
+        return { id: o.id, status: 'refunded', amount: o.total / 100 };
+      }),
+    );
+
+    const summary = {
+      total: orders.length,
+      refunded: results.filter((r) => r.status === 'fulfilled' && (r.value as any).status === 'refunded').length,
+      skipped: results.filter((r) => r.status === 'fulfilled' && (r.value as any).status === 'skipped').length,
+      failed: results.filter((r) => r.status === 'rejected').length,
+    };
+
+    await audit(req, 'BULK_REFUND', {
+      resourceType: 'Restaurant',
+      resourceId: req.params.id,
+      changes: { ...summary, reason, fromDate, toDate },
+    });
+
+    res.json({ summary });
+  } catch (err) {
+    console.error('[bulk-refund] error:', err);
+    res.status(500).json({ error: 'Bulk-refund misslyckades' });
+  }
+});
+
+// POST /api/admin/restaurants/:id/deactivate
+// Akut deactivation — sätter isActive=false + isOpen=false, blockerar nya orders.
+// Returnerar datadump för avstämning.
+router.post('/restaurants/:id/deactivate', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { reason } = req.body as { reason?: string };
+    if (!reason) return res.status(400).json({ error: 'Reason krävs' });
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: req.params.id },
+      include: {
+        orders: { take: 100, orderBy: { createdAt: 'desc' } },
+        deals: true,
+      },
+    });
+    if (!restaurant) return res.status(404).json({ error: 'Restaurang hittades inte' });
+
+    await prisma.restaurant.update({
+      where: { id: req.params.id },
+      data: { isOpen: false } as any,
+    });
+    // Sätt alla aktiva deals inactive
+    await prisma.deal.updateMany({
+      where: { restaurantId: req.params.id, isActive: true },
+      data: { isActive: false },
+    });
+
+    await audit(req, 'RESTAURANT_DEACTIVATE', {
+      resourceType: 'Restaurant',
+      resourceId: req.params.id,
+      changes: { reason, name: restaurant.name },
+    });
+
+    res.json({
+      success: true,
+      datadump: {
+        restaurant,
+        deactivatedAt: new Date().toISOString(),
+        reason,
+      },
+    });
+  } catch (err) {
+    console.error('[deactivate] error:', err);
+    res.status(500).json({ error: 'Deactivation misslyckades' });
+  }
+});
+
+// POST /api/admin/emergency-close-all
+// Kris-knapp: pausar ALLA restauranger samtidigt.
+router.post('/emergency-close-all', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { reason } = req.body as { reason?: string };
+    const result = await prisma.restaurant.updateMany({
+      where: { isOpen: true },
+      data: { isOpen: false },
+    });
+    await audit(req, 'EMERGENCY_CLOSE_ALL', {
+      resourceType: 'Platform',
+      changes: { reason: reason || 'no reason given', restaurantsClosed: result.count },
+    });
+    res.json({ success: true, closedCount: result.count });
+  } catch (err) {
+    console.error('[emergency-close-all] error:', err);
+    res.status(500).json({ error: 'Crisis-close misslyckades' });
+  }
+});
+
+// POST /api/admin/emergency-open-all — återställ efter close-all
+router.post('/emergency-open-all', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const result = await prisma.restaurant.updateMany({
+      where: { isOpen: false },
+      data: { isOpen: true },
+    });
+    await audit(req, 'EMERGENCY_OPEN_ALL', {
+      resourceType: 'Platform',
+      changes: { restaurantsOpened: result.count },
+    });
+    res.json({ success: true, openedCount: result.count });
+  } catch (err) {
+    res.status(500).json({ error: 'Re-open misslyckades' });
+  }
+});
+
+// GET /api/admin/audit-log?limit=100&offset=0
+router.get('/audit-log', authenticate, requireSuperAdmin, async (req: AuthRequest, res) => {
+  try {
+    const limit = Math.min(Math.max(parseInt(String(req.query.limit || '100'), 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(String(req.query.offset || '0'), 10) || 0, 0);
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.auditLog.count(),
+    ]);
+    res.json({
+      logs: logs.map((l) => ({
+        ...l,
+        changes: l.changes ? safeJsonParse(l.changes) : null,
+      })),
+      total,
+    });
+  } catch (err) {
+    console.error('[audit-log] error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta audit-log' });
+  }
+});
+
+const safeJsonParse = (raw: string): unknown => {
+  try { return JSON.parse(raw); } catch { return raw; }
+};
+
+// GET /api/admin/health/services — kollar Stripe/Twilio/APNs/Redis/DB
+router.get('/health/services', authenticate, requireSuperAdmin, async (_req, res) => {
+  const services: Record<string, { status: 'up' | 'down' | 'unconfigured'; latencyMs?: number; error?: string }> = {};
+
+  // DB
+  try {
+    const start = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    services.database = { status: 'up', latencyMs: Date.now() - start };
+  } catch (err: any) {
+    services.database = { status: 'down', error: err?.message };
+  }
+
+  // Stripe
+  if (process.env.STRIPE_SECRET_KEY) {
+    try {
+      const Stripe = require('stripe');
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const start = Date.now();
+      await stripe.balance.retrieve();
+      services.stripe = { status: 'up', latencyMs: Date.now() - start };
+    } catch (err: any) {
+      services.stripe = { status: 'down', error: err?.message };
+    }
+  } else {
+    services.stripe = { status: 'unconfigured' };
+  }
+
+  // Stripe webhook secret
+  services.stripeWebhook = process.env.STRIPE_WEBHOOK_SECRET && process.env.STRIPE_WEBHOOK_SECRET.startsWith('whsec_')
+    ? { status: 'up' }
+    : { status: 'unconfigured', error: 'STRIPE_WEBHOOK_SECRET saknas eller är placeholder' };
+
+  // Twilio
+  services.twilio = (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN)
+    ? { status: 'up' }
+    : { status: 'unconfigured' };
+
+  // APNs
+  services.apns = (process.env.APNS_KEY_ID && process.env.APNS_TEAM_ID && process.env.APNS_BUNDLE_ID && process.env.APNS_KEY_P8)
+    ? { status: 'up' }
+    : { status: 'unconfigured' };
+
+  // Redis
+  services.redis = process.env.REDIS_URL ? { status: 'up' } : { status: 'unconfigured' };
+
+  // Supabase
+  services.supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? { status: 'up' }
+    : { status: 'unconfigured' };
+
+  // Cloudinary
+  services.cloudinary = (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)
+    ? { status: 'up' }
+    : { status: 'unconfigured' };
+
+  res.json({ services, checkedAt: new Date().toISOString() });
 });
 
 export default router;

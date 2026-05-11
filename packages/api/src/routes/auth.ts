@@ -6,7 +6,9 @@ import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
 import supabaseAdmin from '../lib/supabase';
-import { resolveAdminSessionFromToken } from '../middleware/auth';
+import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
+import { generateSecret, generateURI, verifySync } from 'otplib';
+import QRCode from 'qrcode';
 
 const router = Router();
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
@@ -398,6 +400,21 @@ router.post('/login', async (req, res) => {
       return;
     }
 
+    // 2FA-kontroll om aktiverat på kontot
+    if ((admin as { totpEnabled?: boolean }).totpEnabled) {
+      const { totp: providedTotp } = req.body as { totp?: string };
+      if (!providedTotp) {
+        // Returnera 200 med totpRequired-flag så klienten kan visa kod-input
+        res.status(200).json({ totpRequired: true });
+        return;
+      }
+      const valid = verifySync({ token: providedTotp, secret: (admin as { totpSecret?: string }).totpSecret || '' });
+      if (!valid) {
+        res.status(401).json({ error: 'Ogiltig 2FA-kod' });
+        return;
+      }
+    }
+
     let restaurantId: string | null = null;
     let restaurantSlug: string | null = null;
     let restaurantName: string | null = null;
@@ -457,6 +474,99 @@ router.post('/login', async (req, res) => {
 router.post('/logout', async (_req, res) => {
   res.clearCookie('admin_token', { path: '/' });
   res.json({ success: true });
+});
+
+// ============================================================
+// 2FA / TOTP — för admin-konton (Google Authenticator-kompatibelt)
+// ============================================================
+
+// POST /api/auth/2fa/setup — start setup. Genererar secret + QR-kod.
+// Användare scanar QR i Google Authenticator, kallar sedan /verify med
+// en kod för att aktivera.
+router.post('/2fa/setup', authenticate, async (req: any, res) => {
+  try {
+
+    const adminId = req.admin?.id;
+    if (!adminId) return res.status(401).json({ error: 'Inte autentiserad' });
+
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({ label: req.admin?.email || 'admin', issuer: 'MatGo Admin', secret });
+    const qrDataUrl = await QRCode.toDataURL(otpauthUrl);
+
+    // Spara secret men sätt INTE enabled=true förrän user verifierar
+    await prisma.adminUser.update({
+      where: { id: adminId },
+      data: { totpSecret: secret, totpEnabled: false } as any,
+    });
+
+    res.json({ secret, qrDataUrl, otpauthUrl });
+  } catch (err) {
+    console.error('[2fa setup] error:', err);
+    res.status(500).json({ error: '2FA-setup misslyckades' });
+  }
+});
+
+// POST /api/auth/2fa/verify — bekräfta kod + aktivera 2FA
+router.post('/2fa/verify', authenticate, async (req: any, res) => {
+  try {
+    const { totp } = req.body as { totp?: string };
+    if (!totp) return res.status(400).json({ error: 'Kod krävs' });
+
+    const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
+    if (!admin || !(admin as any).totpSecret) {
+      return res.status(400).json({ error: 'Ingen 2FA-setup pågående. Anropa /2fa/setup först.' });
+    }
+
+    const valid = verifySync({ token: totp, secret: (admin as any).totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Ogiltig kod' });
+
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { totpEnabled: true } as any,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[2fa verify] error:', err);
+    res.status(500).json({ error: '2FA-verify misslyckades' });
+  }
+});
+
+// POST /api/auth/2fa/disable — stäng av 2FA. Kräver aktuell kod för att inte
+// kunna deaktiveras av en angripare som tagit session-cookien.
+router.post('/2fa/disable', authenticate, async (req: any, res) => {
+  try {
+    const { totp } = req.body as { totp?: string };
+    if (!totp) return res.status(400).json({ error: 'Kod krävs för att stänga av 2FA' });
+
+    const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
+    if (!admin || !(admin as any).totpEnabled || !(admin as any).totpSecret) {
+      return res.status(400).json({ error: '2FA är inte aktiverat' });
+    }
+
+    const valid = verifySync({ token: totp, secret: (admin as any).totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Ogiltig kod' });
+
+    await prisma.adminUser.update({
+      where: { id: admin.id },
+      data: { totpEnabled: false, totpSecret: null } as any,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[2fa disable] error:', err);
+    res.status(500).json({ error: '2FA-disable misslyckades' });
+  }
+});
+
+// GET /api/auth/2fa/status — kollar om 2FA är på för nuvarande user
+router.get('/2fa/status', authenticate, async (req: any, res) => {
+  try {
+    const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
+    res.json({ enabled: Boolean((admin as any)?.totpEnabled) });
+  } catch {
+    res.json({ enabled: false });
+  }
 });
 
 // GET /api/auth/check-admin/:slug - Check if admin account exists for a restaurant

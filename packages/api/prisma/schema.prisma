@@ -265,8 +265,31 @@ model AdminUser {
   name          String
   role          String   @default("STAFF")
   isActive      Boolean  @default(true)
+  // TOTP (2FA) — speakeasy-genererat base32-secret. När totpEnabled=true
+  // krävs en kod vid login. Lagras encrypted-at-rest av Postgres.
+  totpSecret    String?
+  totpEnabled   Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+// Audit-log — varje mutation från admin loggas hit. Används för support
+// (vem ändrade vad), forensics (vid intrång) och compliance.
+model AuditLog {
+  id           String   @id @default(cuid())
+  adminId      String?  // Null om endpoint är publik eller webhook
+  adminEmail   String?  // Snapshot — kvarstår om admin-kontot raderas
+  action       String   // ORDER_REFUND, RESTAURANT_DEACTIVATE, etc.
+  resourceType String   // Order, Restaurant, Customer, etc.
+  resourceId   String?
+  changes      String?  // JSON-string av {before, after}
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
 }
 
 model RestaurantSettings {
@@ -293,6 +316,12 @@ model RestaurantSettings {
 
   // Platform-wide UI-toggles
   showDiscountedRail    Boolean  @default(true)  // Rea & Rabatter-sektion på hem-sidan
+
+  // Plattform-banner: visas högst upp i web när satt. Används för
+  // "Underhåll pågår 13-14", "Vi har problem med betalningar just nu", etc.
+  bannerMessage         String?
+  bannerSeverity        String?  // "info" | "warning" | "critical"
+  bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
 }
 
 model OrderDraft {

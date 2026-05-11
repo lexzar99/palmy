@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
+  AlertTriangle,
   BellRing,
   Building2,
   CircleDollarSign,
@@ -10,11 +12,13 @@ import {
   ContactRound,
   Filter,
   Gift,
+  History,
   LayoutDashboard,
   LogOut,
   Map,
   MenuSquare,
   ReceiptText,
+  Search,
   Shield,
   Star,
   Store,
@@ -42,6 +46,11 @@ const navItems = [
   { href: "/receipts", label: "Receipts", icon: ReceiptText },
   { href: "/tiers", label: "Tiers", icon: Shield },
   { href: "/platform-settings", label: "Företag", icon: Building2 },
+  { href: "/customer-search", label: "Sök kund", icon: Search },
+  { href: "/crisis", label: "Krisverktyg", icon: AlertTriangle },
+  { href: "/audit-log", label: "Audit-log", icon: History },
+  { href: "/health", label: "Hälsa", icon: Activity },
+  { href: "/2fa", label: "2FA", icon: Shield },
 ];
 
 export function Sidebar() {

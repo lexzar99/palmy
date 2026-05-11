@@ -5,7 +5,8 @@ import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X } from "lucide-react";
+import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
+import { openSupportChatWithOrder } from "@/components/SupportChat";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 
@@ -443,6 +444,16 @@ const OrderStatusPage = () => {
                    <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-widest">Spara ordernumret #{order.orderNumber} för referens vid kontakt.</p>
                 </div>
               )}
+
+              {/* Kontakta support — finns oavsett status, pre-fyllt med order-info */}
+              <button
+                onClick={() => openSupportChatWithOrder(order.orderNumber, order.id)}
+                className="w-full mt-4 p-6 rounded-[2rem] flex items-center justify-center gap-3 transition-all hover:border-gold-500/40 active:scale-95"
+                style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+              >
+                <MessageSquare size={18} className="text-gold-500" />
+                <span className="text-[11px] font-black uppercase tracking-widest">Kontakta support om denna order</span>
+              </button>
            </div>
         </div>
 
