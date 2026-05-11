@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import { requestLogger } from './middleware/requestLogger';
 import { logger } from './lib/logger';
 import compression from 'compression';
@@ -145,6 +146,8 @@ app.use(requestLogger);
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Cookie-parser — för admin_token (HttpOnly) som middleware/auth.ts läser
+app.use(cookieParser());
 
 // Static files
 app.use(express.static('public'));
@@ -169,13 +172,6 @@ const orderLimiter = rateLimit({
   skip: (req) => ['GET', 'HEAD', 'OPTIONS'].includes(req.method),
 });
 
-const otpLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 3,
-  keyGenerator: (req) => (req.body.phone || req.ip) as string,
-  message: { error: 'För många SMS-förfrågningar. Vänta 10 minuter.' },
-});
-
 const adminLoginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 8,
@@ -195,7 +191,6 @@ const sessionVerifyLimiter = rateLimit({
   message: { error: 'För många sessionskontroller. Vänta en stund och försök igen.' },
 });
 
-app.use('/api/account/send-otp', otpLimiter);
 app.use('/api/orders', orderLimiter);
 app.use('/api/account/login', adminLoginLimiter);
 app.use('/api/auth/login', adminLoginLimiter);

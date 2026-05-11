@@ -7,9 +7,15 @@ export const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  // withCredentials = skicka cookies (admin_token HttpOnly) med alla requests.
+  // Krävs för cookie-baserad auth efter migration från localStorage.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
+  // Skickar fortfarande Bearer-token om en gammal session finns kvar i
+  // localStorage. När alla klienter migrerat går detta ta bort — backend
+  // läser cookie först ändå.
   const token = getStoredToken();
   if (token) {
     config.headers = config.headers || {};

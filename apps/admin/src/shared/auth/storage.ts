@@ -35,4 +35,12 @@ export const clearStoredAdminSession = () => {
   if (typeof window === "undefined") return;
   localStorage.removeItem(ADMIN_TOKEN_KEY);
   localStorage.removeItem(ADMIN_SESSION_KEY);
+  // Rensa även HttpOnly cookie via /auth/logout-endpoint. Fire-and-forget —
+  // även om servern inte svarar är localStorage redan rensad och nästa request
+  // 401:ar utan auth.
+  try {
+    void fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  } catch {
+    // ignored — bästa effort
+  }
 };

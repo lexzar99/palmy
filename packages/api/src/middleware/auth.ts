@@ -109,14 +109,18 @@ export const authenticate = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
+  // Prioritet: HttpOnly cookie först (säker mot XSS), sedan Authorization
+  // header som fallback för bakåt-kompatibilitet med klienter som ännu inte
+  // migrerats till cookie-baserad auth.
+  const cookieToken = (req as any).cookies?.admin_token as string | undefined;
   const authHeader = req.headers.authorization;
+  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
+  const token = cookieToken || headerToken;
 
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (!token) {
     res.status(401).json({ error: 'Ingen autentiseringstoken' });
     return;
   }
-
-  const token = authHeader.split(' ')[1];
 
   try {
     const admin = await resolveAdminSessionFromToken(token);

@@ -94,16 +94,13 @@ async function resolveAdminByIdentifier(loginId: string) {
  * Unified auth middleware — verifies Supabase JWTs (primary) with a
  * fallback to the legacy custom JWT for a smooth transition period.
  */
-// Routes that an OAuth-only user (Google/Apple but no phone yet) must still
-// be allowed to hit so they can complete the phone-linking flow. Anything
-// outside this list is blocked by `requireVerifiedPhone` until they link.
+// Routes som en OAuth-only user (Google/Apple men ingen telefon) får träffa.
+// OTP-flödet är borttaget — telefonnummer samlas vid checkout som kontakt-info
+// men kräver ingen separat verifiering.
 const PHONE_LINKING_ALLOWED_PATHS = new Set<string>([
   '/api/profile',
   '/api/auth/me',
   '/api/auth/lookup-phone',
-  '/api/auth/send-otp',
-  '/api/auth/verify-otp',
-  '/api/auth/link-phone',
 ]);
 
 export const authenticateUser = async (req: any, res: any, next: any) => {
@@ -322,67 +319,10 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
   next();
 };
 
-// Test numbers — always accept code 111111, skip Twilio SMS entirely
-const TEST_PHONES: Record<string, string> = {
-  '+46728357970':  '111111',
-  '46728357970':   '111111',
-  '+46712345678':  '111111',
-  '46712345678':   '111111',
-  '+46722345678':  '111111',
-  '46722345678':   '111111',
-};
-
-// POST /api/auth/send-otp
-router.post('/send-otp', async (req, res) => {
-  try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
-
-    // Test numbers bypass everything — no DB write, no Twilio call
-    if (TEST_PHONES[phone] !== undefined) {
-      console.log(`🧪 Test-nummer ${phone} — ingen SMS skickas`);
-      return res.json({ success: true, message: 'Kod skickad' });
-    }
-
-    // Generate 6-digit code
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    // Save to DB
-    await (prisma as any).verificationCode.create({
-      data: { phone, code, expiresAt }
-    });
-
-    // Send SMS via Twilio — prefer Messaging Service SID over plain from-number
-    if (twilioClient && (TWILIO_MESSAGING_SID || TWILIO_PHONE)) {
-      const msgParams: Record<string, string> = {
-        body: `Din verifieringskod för MatGo är: ${code}`,
-        to: phone,
-      };
-      if (TWILIO_MESSAGING_SID) {
-        msgParams.messagingServiceSid = TWILIO_MESSAGING_SID;
-      } else {
-        msgParams.from = TWILIO_PHONE!;
-      }
-      await twilioClient.messages.create(msgParams as any);
-      console.log(`✅ SMS skickat till ${phone}`);
-      res.json({ success: true, message: 'Kod skickad' });
-    } else {
-      console.warn(`⚠️ Twilio ej konfigurerat — ange TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN och TWILIO_MESSAGING_SERVICE_SID i .env`);
-      console.log(`🔑 DEV-kod för ${phone}: ${code}`);
-      const isDev = process.env.NODE_ENV !== 'production';
-      res.json({
-        success: true,
-        message: isDev ? `SMS ej skickat (Twilio ej konfigurerat). DEV-kod: ${code}` : 'Kod skickad',
-        ...(isDev && { devCode: code }),
-      });
-    }
-  } catch (error: any) {
-    const detail = error?.message || String(error);
-    console.error('Send OTP error:', detail);
-    res.status(500).json({ error: `Kunde inte skicka SMS: ${detail}` });
-  }
-});
+// OTP-flödet (POST /api/auth/send-otp + POST /api/auth/verify-otp) är
+// borttaget per design. Telefonnummer samlas vid checkout som kontakt-info
+// men kräver ingen SMS-verifiering. Användare loggar in via Supabase OAuth
+// (Google/Apple) eller registreras via /api/auth/register-user (email+lösen).
 
 // POST /api/auth/lookup-phone
 router.post('/lookup-phone', async (req, res) => {
@@ -404,138 +344,6 @@ router.post('/lookup-phone', async (req, res) => {
   } catch (error) {
     console.error('Lookup phone error:', error);
     res.status(500).json({ error: 'Kunde inte kontrollera telefonnummer' });
-  }
-});
-
-// Test numbers that always pass regardless of sent code (dev + staging use)
-// POST /api/auth/verify-otp
-router.post('/verify-otp', async (req, res) => {
-  try {
-    const { phone, code, name, email } = req.body;
-    if (!phone || !code) return res.status(400).json({ error: 'Telefon och kod krävs' });
-
-    // Check code
-    const validCode = await (prisma as any).verificationCode.findFirst({
-      where: { phone, code, expiresAt: { gt: new Date() } },
-      orderBy: { createdAt: 'desc' }
-    });
-
-    const isTestPhone = TEST_PHONES[phone] === code;
-
-    if (!validCode && !isTestPhone && code !== '123456') { // Allow 123456 for testing if needed
-      return res.status(400).json({ error: 'Ogiltig eller utgången kod' });
-    }
-
-    // Delete used codes
-    await (prisma as any).verificationCode.deleteMany({ where: { phone } });
-
-    // Handle User creation/login/update
-    let user = null;
-
-    // Check if we are currently authenticated (e.g. via Google OAuth)
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      let currentUserId: string | null = null;
-      const token = authHeader.split(' ')[1];
-      try {
-        if (supabaseAdmin) {
-          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
-          if (sbUser) {
-            currentUserId = sbUser.id;
-          }
-        }
-
-        if (!currentUserId) {
-          const payload = jwt.verify(token, JWT_SECRET) as any;
-          currentUserId = payload.id;
-        }
-      } catch (e) {
-        console.error('Token extraction failed in verify-otp:', e);
-      }
-
-      if (currentUserId) {
-        try {
-          // Before updating, check if this phone is already taken by another account
-          const existingWithPhone = await (prisma as any).user.findFirst({
-            where: { phone: { in: phoneVariants(phone) } },
-          });
-
-          if (existingWithPhone && existingWithPhone.id !== currentUserId) {
-            const isGuestLike = !existingWithPhone.oauthId
-              && !existingWithPhone.email
-              && !existingWithPhone.password;
-
-            if (!isGuestLike) {
-              return res.status(400).json({
-                error: 'Detta telefonnummer är redan kopplat till ett annat fullständigt konto',
-              });
-            }
-
-            // Merge the guest-like phone-only record into the OAuth user
-            // before deleting it, otherwise the FK on Order.userId would
-            // either block the delete or leave orphan rows. Done as a single
-            // transaction so a partial failure can't strand half-merged data.
-            await (prisma as any).$transaction([
-              (prisma as any).order.updateMany({
-                where: { userId: existingWithPhone.id },
-                data: { userId: currentUserId },
-              }),
-              (prisma as any).user.delete({ where: { id: existingWithPhone.id } }),
-            ]);
-          }
-
-          // Final guard against the unique-phone constraint racing.
-          user = await (prisma as any).user.update({
-            where: { id: currentUserId },
-            data: { phone, isVerified: true },
-          });
-        } catch (e: any) {
-          console.error('Link phone error:', e);
-          return res.status(500).json({
-            error: 'Kunde inte koppla telefonnumret. Försök igen.',
-          });
-        }
-      }
-    }
-
-    if (!user) {
-      // Phone-only login/registration
-      user = await (prisma as any).user.findUnique({ where: { phone } });
-      if (!user) {
-        const normalizedEmail = typeof email === 'string' && email.trim() ? email.trim().toLowerCase() : null;
-
-        if (normalizedEmail) {
-          const existingWithEmail = await (prisma as any).user.findFirst({
-            where: { email: normalizedEmail },
-            select: { id: true },
-          });
-
-          if (existingWithEmail) {
-            return res.status(400).json({ error: 'E-postadressen används redan av ett annat konto' });
-          }
-        }
-
-        user = await (prisma as any).user.create({
-          data: {
-            phone,
-            name: name || `Gäst ${phone.slice(-4)}`,
-            email: normalizedEmail,
-            isVerified: true,
-          }
-        });
-      } else {
-        user = await (prisma as any).user.update({
-          where: { id: user.id },
-          data: { isVerified: true }
-        });
-      }
-    }
-
-    const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, isVerified: true } });
-  } catch (error) {
-    console.error('Verify OTP error:', error);
-    res.status(500).json({ error: 'Kunde inte verifiera' });
   }
 });
 
@@ -620,6 +428,20 @@ router.post('/login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // HttpOnly cookie — primär auth-metod. Frontend slipper röra token-värdet.
+    // SameSite: 'lax' så cookie följer med cross-site GET (Vercel preview, etc.)
+    // men inte cross-site POST — bra default för admin-flöde.
+    res.cookie('admin_token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+
+    // Returnerar fortfarande token i body för bakåt-kompatibilitet med
+    // klienter som lagrar via localStorage. Migrerings-period — kan tas bort
+    // när alla klienter migrerade till cookie-baserad auth.
     res.json({
       token,
       admin: { id: admin.id, email: admin.email, name: admin.name, role: admin.role, restaurantId, restaurantSlug, restaurantName, logoutCode },
@@ -628,6 +450,13 @@ router.post('/login', async (req, res) => {
     console.error('[auth] Login handler error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
+});
+
+// POST /api/auth/logout - Clearar admin-cookie. Klient ska också rensa
+// eventuell localStorage-token efter detta anrop.
+router.post('/logout', async (_req, res) => {
+  res.clearCookie('admin_token', { path: '/' });
+  res.json({ success: true });
 });
 
 // GET /api/auth/check-admin/:slug - Check if admin account exists for a restaurant
