@@ -523,23 +523,38 @@ router.post('/verify', async (req, res) => {
 router.post('/register-user', async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone } = req.body;
-    if (!firstName || !lastName || !email || !password) {
-      return res.status(400).json({ error: 'Förnamn, efternamn, e-post och lösenord krävs' });
+    if (!firstName || !lastName || !email || !password || !phone) {
+      return res.status(400).json({ error: 'Förnamn, efternamn, e-post, telefon och lösenord krävs' });
     }
-    const existing = await (prisma as any).user.findFirst({
-      where: { email }
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Email unik
+    const existingEmail = await (prisma as any).user.findFirst({
+      where: { email: normalizedEmail }
     });
-    if (existing) {
-      return res.status(400).json({ error: 'E-postadressen används redan' });
+    if (existingEmail) {
+      return res.status(400).json({ error: 'E-postadressen används redan av ett annat konto' });
     }
+
+    // Telefon unik — kolla alla varianter (+46/46/etc) så vi inte tillåter
+    // dubblett genom format-trick
+    const phoneVariantList = phoneVariants(phone);
+    const existingPhone = await (prisma as any).user.findFirst({
+      where: { phone: { in: phoneVariantList } }
+    });
+    if (existingPhone) {
+      return res.status(400).json({ error: 'Telefonnumret används redan. Använd ett annat nummer eller logga in.' });
+    }
+
     const name = `${firstName} ${lastName}`.trim();
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await (prisma as any).user.create({
-      data: { name, firstName, lastName, email, phone: phone || null, password: hashedPassword }
+      data: { name, firstName, lastName, email: normalizedEmail, phone, password: hashedPassword }
     });
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email } });
   } catch (error) {
+    console.error('[register-user] error:', error);
     res.status(500).json({ error: 'Serverfel' });
   }
 });

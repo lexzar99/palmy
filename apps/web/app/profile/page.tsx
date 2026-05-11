@@ -625,7 +625,7 @@ function ProfileContent() {
               <span className="text-gold-500">{hasVisited ? "Tillbaka" : "Konto"}</span>
             </h1>
             <p className="text-zinc-400 text-[11px] font-bold uppercase tracking-widest">
-              {hasVisited ? "Logga in med telefon eller social" : "Gå med — gratis och tar 30 sek"}
+              {hasVisited ? "Logga in med din e-post" : "Gå med — gratis och tar 30 sek"}
             </p>
           </div>
 
@@ -667,60 +667,11 @@ function ProfileContent() {
             </button>
           </form>
 
-          {/* Divider */}
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div
-                className="w-full border-t"
-                style={{ borderColor: "var(--border-muted)" }}
-              />
-            </div>
-            <div className="relative flex justify-center">
-              <span
-                className="px-4 text-[10px] font-black uppercase tracking-widest"
-                style={{
-                  backgroundColor: "var(--bg-primary)",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                Eller med socialt konto
-              </span>
-            </div>
-          </div>
-
-          {/* Social buttons — real OAuth via Supabase */}
-          <div className="grid grid-cols-3 gap-3">
-            <SocialButton
-              provider="apple"
-              label="Apple"
-              icon={
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-                </svg>
-              }
-            />
-            <SocialButton
-              provider="google"
-              label="Google"
-              icon={
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#EA4335" d="M5.27 9.76A7.08 7.08 0 0 1 12 5c1.69 0 3.21.6 4.4 1.59L19.9 3.1A11.94 11.94 0 0 0 12 0C8.16 0 4.82 2 2.86 5.01l2.41 2.75z"/>
-                  <path fill="#34A853" d="M16.04 18.01A7.07 7.07 0 0 1 12 19.1c-2.93 0-5.44-1.78-6.6-4.34l-2.84 2.19A11.96 11.96 0 0 0 12 24c3.24 0 6.17-1.17 8.4-3.09l-4.36-2.9z"/>
-                  <path fill="#4A90D9" d="M19.1 12.2c0-.73-.07-1.36-.18-2H12v4.01h4.04a3.7 3.7 0 0 1-1.53 2.36l4.36 2.9c2.61-2.41 3.23-5.96.23-7.27z"/>
-                  <path fill="#FBBC05" d="M5.4 14.76A7.16 7.16 0 0 1 5 12c0-.95.19-1.86.41-2.24L2.86 7.01A11.9 11.9 0 0 0 0 12c0 1.7.37 3.31.97 4.77l4.43-2z"/>
-                </svg>
-              }
-            />
-            <SocialButton
-              provider="facebook"
-              label="Facebook"
-              icon={
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#1877F2" d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.389 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.268h3.328l-.532 3.49h-2.796V24C19.61 23.094 24 18.1 24 12.073z"/>
-                </svg>
-              }
-            />
-          </div>
+          {/*
+            OAuth-knappar (Apple/Google/Facebook) är temporärt dolda — de
+            kommer tillbaka när Apple/Google-konton är konfigurerade i Supabase.
+            Tills dess är email+lösen primär metod.
+          */}
 
           {/* Register link */}
           <p className="text-center text-[11px] font-bold uppercase tracking-widest text-zinc-600">

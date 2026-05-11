@@ -37,8 +37,8 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen pt-24 pb-32 px-6 flex flex-col items-center" style={{ backgroundColor: "#171513" }}>
-      <Link href="/profile" className="absolute top-8 left-8 text-zinc-500 hover:text-white transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]">
+    <div className="min-h-screen md:pt-20 pt-24 pb-32 px-6 flex flex-col items-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <Link href="/profile" className="absolute top-8 left-8 transition-all flex items-center gap-2 font-black uppercase tracking-widest text-[10px]" style={{ color: "var(--text-secondary)" }}>
         <ArrowLeft size={16} /> Tillbaka
       </Link>
 
@@ -89,7 +89,8 @@ const RegisterPage = () => {
              />
              <input
                type="tel"
-               placeholder="Telefon (valfritt)"
+               placeholder="Telefonnummer (+46 70 000 00 00)"
+               required
                value={phone}
                onChange={(e) => setPhone(e.target.value)}
                className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"

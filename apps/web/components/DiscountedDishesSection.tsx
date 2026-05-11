@@ -45,9 +45,21 @@ export default function DiscountedDishesSection({ variant = "rail" }: Props = {}
   const router = useRouter();
   const [dishes, setDishes] = useState<DiscountedDish[]>([]);
   const [loading, setLoading] = useState(true);
+  // Admin-toggle: om showDiscountedRail = false i platform-settings, dölj helt
+  const [enabled, setEnabled] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
+    // Hämta settings först (eller parallellt med dishes) — om disabled, ladda inte produkter
+    axios
+      .get(`${API_URL}/api/settings`)
+      .then((r) => {
+        if (!cancelled && r.data?.showDiscountedRail === false) {
+          setEnabled(false);
+        }
+      })
+      .catch(() => { /* default = enabled */ });
+
     axios
       .get(`${API_URL}/api/menu/discounted`, { params: { scope: "PRODUCT", v: "20260428" } })
       .then((r) => {
@@ -66,6 +78,7 @@ export default function DiscountedDishesSection({ variant = "rail" }: Props = {}
     };
   }, []);
 
+  if (!enabled) return null;
   if (!loading && dishes.length === 0) return null;
 
   const getImg = (p?: string | null) => {

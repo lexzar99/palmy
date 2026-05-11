@@ -40,7 +40,7 @@ const Navbar = () => {
     </nav>
   );
   return (
-    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: isOpen ? "var(--bg-primary)" : "rgba(252,252,249,0.95)", borderColor: "var(--border-muted)" }}>
+    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-muted)" }}>
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-1 group" aria-label="MatGo — startsidan">
           <span className="text-2xl font-black italic tracking-tighter leading-none transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
@@ -58,6 +58,7 @@ const Navbar = () => {
           <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
           <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
           <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina beställningar</Link>
+          <Link href="/profile" className="hover:text-gold-500 transition-colors text-gold-500">Logga in</Link>
         </div>
 
         <div className="flex items-center gap-4 relative z-[100]">
@@ -114,6 +115,7 @@ const Navbar = () => {
                   { name: "Om oss", href: "/about" },
                   { name: "Kontakt", href: "/contact" },
                   { name: "Mina Beställningar", href: "/orders" },
+                  { name: "Logga in", href: "/profile" },
                 ].map((link, i) => (
                   <motion.div
                     key={link.href}
@@ -125,7 +127,7 @@ const Navbar = () => {
                        href={link.href}
                        onClick={() => setIsOpen(false)}
                        className="text-4xl font-black uppercase tracking-tighter italic"
-                       style={{ color: link.name === 'Mina Beställningar' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
+                       style={{ color: link.name === 'Mina Beställningar' || link.name === 'Logga in' ? 'var(--gold-primary)' : 'var(--text-primary)' }}
                     >
                       {link.name}
                     </Link>

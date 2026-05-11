@@ -61,6 +61,8 @@ router.get('/', async (_req, res) => {
       contactEmail: (settings as any).contactEmail || null,
       contactAddress: (settings as any).contactAddress || null,
       aboutBody: (settings as any).aboutBody || null,
+      // UI-toggles
+      showDiscountedRail: (settings as any).showDiscountedRail ?? true,
     });
   } catch (err) {
     console.error('Settings GET error:', err);
@@ -77,7 +79,7 @@ router.patch('/', authenticate, async (req, res) => {
       return;
     }
 
-    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody } = req.body;
+    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody, showDiscountedRail } = req.body;
 
     const data: Record<string, unknown> = {};
     if (isOpen !== undefined) data.isOpen = isOpen;
@@ -94,6 +96,7 @@ router.patch('/', authenticate, async (req, res) => {
     if (contactEmail !== undefined) data.contactEmail = contactEmail || null;
     if (contactAddress !== undefined) data.contactAddress = contactAddress || null;
     if (aboutBody !== undefined) data.aboutBody = aboutBody || null;
+    if (showDiscountedRail !== undefined) data.showDiscountedRail = Boolean(showDiscountedRail);
 
     const settings = await prisma.restaurantSettings.upsert({
       where: { id: 'settings' },

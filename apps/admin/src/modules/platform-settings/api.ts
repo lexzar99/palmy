@@ -6,6 +6,7 @@ export interface PlatformSettings {
   contactEmail?: string | null;
   contactAddress?: string | null;
   aboutBody?: string | null;
+  showDiscountedRail?: boolean;
 }
 
 export const platformSettingsQueryKey = ["platform-settings"] as const;

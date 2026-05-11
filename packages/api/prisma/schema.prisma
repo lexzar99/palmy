@@ -290,6 +290,9 @@ model RestaurantSettings {
   contactEmail          String?
   contactAddress        String?  // multiline OK
   aboutBody             String?  // markdown / plain text för om-oss-sidan
+
+  // Platform-wide UI-toggles
+  showDiscountedRail    Boolean  @default(true)  // Rea & Rabatter-sektion på hem-sidan
 }
 
 model OrderDraft {
