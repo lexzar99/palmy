@@ -92,7 +92,15 @@ function OrderDetailsModal({
       description={order ? `${order.restaurantName || "Unknown restaurant"} • ${formatDateTime(order.createdAt)}` : undefined}
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="danger" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending || !order}>
+          <Button
+            variant="danger"
+            onClick={() => {
+              if (!order) return;
+              const msg = `Radera order ${order.orderNumber} permanent?\n\nDetta kan INTE ångras. Order-historik försvinner från systemet.`;
+              if (window.confirm(msg)) deleteMutation.mutate();
+            }}
+            disabled={deleteMutation.isPending || !order}
+          >
             <Trash2 size={16} /> Delete
           </Button>
           <div className="flex flex-wrap items-center gap-2">
@@ -239,7 +247,14 @@ function OrderDetailsModal({
                     )}
                     <Button
                       variant="secondary"
-                      onClick={() => { setRefundSuccess(false); setRefundError(null); refundMutation.mutate(); }}
+                      onClick={() => {
+                        const amount = refundAmount ? Number(refundAmount) : order.total;
+                        const msg = `Återbetala ${amount} kr för order ${order.orderNumber}?\n\nPengarna går tillbaka till kundens Stripe-betalning. Detta kan inte ångras direkt — manuell justering krävs annars.`;
+                        if (!window.confirm(msg)) return;
+                        setRefundSuccess(false);
+                        setRefundError(null);
+                        refundMutation.mutate();
+                      }}
                       disabled={refundMutation.isPending}
                     >
                       {refundMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <ReceiptText size={16} />}

@@ -185,9 +185,15 @@ export function FinancePage() {
       <Surface className="px-6 py-6">
         <div className="grid gap-4 lg:grid-cols-[1fr_160px_160px] lg:items-end">
           <Field label="Search"><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search restaurant or city" /></Field>
-          <Field label="Period start"><Input type="date" value={periodStart} onChange={(event) => setPeriodStart(event.target.value)} /></Field>
-          <Field label="Period end"><Input type="date" value={periodEnd} onChange={(event) => setPeriodEnd(event.target.value)} /></Field>
+          <Field label="Period start"><Input type="date" value={periodStart} max={periodEnd} onChange={(event) => setPeriodStart(event.target.value)} /></Field>
+          <Field label="Period end"><Input type="date" value={periodEnd} min={periodStart} max={new Date().toISOString().slice(0, 10)} onChange={(event) => setPeriodEnd(event.target.value)} /></Field>
         </div>
+
+        {periodStart > periodEnd && (
+          <div className="mt-4 rounded-2xl border border-[rgba(239,68,68,0.2)] bg-[rgba(239,68,68,0.08)] px-4 py-3 text-sm text-rose-400">
+            Periodens startdatum måste vara före slutdatumet.
+          </div>
+        )}
 
         {filteredRows.length === 0 ? (
           <div className="mt-6"><EmptyState title="No payout rows found" /></div>

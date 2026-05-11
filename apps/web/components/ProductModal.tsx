@@ -226,7 +226,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
       >
         
-        <button onClick={onClose} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
+        <button onClick={onClose} aria-label="Stäng" className="absolute top-5 right-5 w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-all z-20 shadow-sm">
            <X size={20} />
         </button>
 

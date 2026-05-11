@@ -229,19 +229,27 @@ export function CustomerModal({ customerId, open, onClose }: { customerId: strin
 const PAGE_SIZE = 50;
 
 function exportCsv(rows: CustomerRecord[]) {
-  const escape = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
-  const header = ["Namn", "Email", "Telefon", "Senaste order", "Antal ordrar", "Total spenderat (kr)"].join(",");
+  // Quote ALLA fält (inklusive numeriska) så Excel inte vrider "08-12345" → 812345
+  // eller tolkar långa telefonnummer som scientific notation.
+  const escape = (v: string | number | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const header = ["Namn", "Email", "Telefon", "Senaste order", "Antal ordrar", "Total spenderat (kr)"]
+    .map(escape)
+    .join(",");
   const lines = rows.map((r) =>
     [
       escape(r.name),
       escape(r.email),
       escape(r.phone),
       escape(r.lastOrder ? new Date(r.lastOrder).toLocaleDateString("sv-SE") : ""),
-      String(r._count?.orders ?? 0),
-      r.totalSpent.toFixed(2),
+      escape(r._count?.orders ?? 0),
+      // Använd komma som decimaltecken eftersom svensk Excel lokal förväntar det
+      escape(r.totalSpent.toFixed(2).replace(".", ",")),
     ].join(",")
   );
-  const blob = new Blob(["﻿" + [header, ...lines].join("\n")], { type: "text/csv;charset=utf-8;" });
+  // BOM (﻿) signalerar UTF-8 till Excel så Åke/Ström/övriga åäö renderas rätt.
+  // CRLF (\r\n) är standard för CSV — vissa Excel-versioner missar rader med bara \n.
+  const csv = "﻿" + [header, ...lines].join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

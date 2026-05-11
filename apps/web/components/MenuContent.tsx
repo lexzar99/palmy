@@ -401,7 +401,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                 <p className="text-[12px] font-black uppercase tracking-widest text-rose-600 mb-1">
                   Levererar inte till din adress
                 </p>
-                <p className="text-[11px] font-bold text-rose-600/70 leading-relaxed">
+                <p className="text-[11px] font-bold text-rose-600/70 leading-relaxed break-words">
                   {address
                     ? `Den här restaurangen levererar tyvärr inte till "${address}".`
                     : "Den här restaurangen levererar tyvärr inte till din adress."}{" "}

@@ -38,7 +38,7 @@ const emptyCouponForm = (): CouponForm => ({
 });
 
 const isPopupDeal = (deal: AutomaticDealRecord) =>
-  Boolean((deal as any)?.popupHeadline?.trim() || (deal as any)?.popupBody?.trim() || (deal as any)?.popupCode?.trim());
+  Boolean(deal.popupHeadline?.trim() || deal.popupBody?.trim() || deal.popupCode?.trim());
 
 const isBogoDeal = (deal: AutomaticDealRecord) => deal.triggerType === "BOGO_CATEGORY";
 

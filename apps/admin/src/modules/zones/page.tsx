@@ -286,7 +286,13 @@ export function ZonesPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</Button>
-                  <Button variant="danger" onClick={() => { if (window.confirm(`Delete ${selectedCity.name}?`)) deleteMutation.mutate(); }}><Trash2 size={16} /> Delete</Button>
+                  <Button variant="danger" onClick={() => {
+                    const count = selectedCity.restaurants.length;
+                    const msg = count > 0
+                      ? `Radera ${selectedCity.name}?\n\n⚠️  ${count} restaurang${count !== 1 ? "er" : ""} länkad${count !== 1 ? "a" : ""} till denna stad får sin city-koppling rensad och slutar synas i stads-baserade flöden tills de länkas till en annan stad.\n\nFortsätt?`
+                      : `Radera ${selectedCity.name}?\n\nInga restauranger är länkade — säker borttagning.`;
+                    if (window.confirm(msg)) deleteMutation.mutate();
+                  }}><Trash2 size={16} /> Delete</Button>
                 </div>
               </div>
             </Surface>
