@@ -236,7 +236,7 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
               ["isVegetarian", "Vegetarian"],
               ["isGlutenFree", "Gluten free"],
             ].map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setForm((current) => ({ ...current, [key]: !current[key as keyof typeof current] }))} className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.16em] ${form[key as keyof typeof form] ? "border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)]"}`}>{label}</button>
+              <button key={key} type="button" onClick={() => setForm((current) => ({ ...current, [key]: !current[key as keyof typeof current] }))} className={`rounded-lg border px-3.5 py-2 text-[12px] font-semibold transition-colors ${form[key as keyof typeof form] ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]"}`}>{label}</button>
             ))}
           </div>
         </div>

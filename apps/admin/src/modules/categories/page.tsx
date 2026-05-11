@@ -576,10 +576,10 @@ function CategoryEditorModal({
                       key={restaurant.id}
                       type="button"
                       onClick={() => toggleRestaurant(restaurant.id)}
-                      className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
+                      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors ${
                         active
-                          ? "border-[var(--accent-strong)] bg-[rgba(243,191,87,0.08)]"
-                          : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.02)] hover:border-[var(--accent-strong)]"
+                          ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                          : "border-[var(--border-subtle)] bg-transparent hover:border-[var(--border-strong)]"
                       }`}
                     >
                       <div>
@@ -701,7 +701,7 @@ export function CategoriesPage() {
                 <div key={section.id} className="surface-muted px-5 py-5">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(243,191,87,0.12)] text-[var(--accent-strong)]">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]">
                         <Filter size={18} />
                       </div>
                       <div>

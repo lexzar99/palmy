@@ -51,7 +51,7 @@ function StaffModal({ open, member, onClose }: { open: boolean; member: StaffRec
     <Modal open={open} onClose={onClose} title={member ? member.name : "Team member"} footer={<div className="flex items-center justify-between gap-2"><div>{member ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>Save</Button></div></div>}>
       {member ? (
         <div className="space-y-5">
-          {passwordMessage ? <div className="rounded-2xl border border-[rgba(243,191,87,0.24)] bg-[rgba(243,191,87,0.08)] px-4 py-4 text-sm text-[#ffe6bf]">Temporary password: <strong>{passwordMessage}</strong></div> : null}
+          {passwordMessage ? <div className="rounded-2xl border border-[var(--accent)] bg-[var(--accent-soft)] px-4 py-4 text-sm text-[var(--accent)]">Temporary password: <strong>{passwordMessage}</strong></div> : null}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>
             <Field label="Role"><Select value={role} onChange={(event) => setRole(event.target.value)}><option value="SUPER_ADMIN">SUPER_ADMIN</option><option value="STAFF">STAFF</option><option value="VIEWER">VIEWER</option><option value="ADMIN">ADMIN</option></Select></Field>

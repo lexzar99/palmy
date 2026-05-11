@@ -43,12 +43,12 @@ export default function LoginPage() {
     <div className="auth-shell">
       <Surface className="w-full max-w-md px-8 py-10">
         <div className="flex items-center justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[linear-gradient(135deg,#f3bf57,#ffd77f)] text-2xl font-black text-[#11151b]">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)] text-2xl font-semibold text-[var(--accent-fg)]">
             M
           </div>
         </div>
 
-        <h1 className="mt-6 text-center text-2xl font-black tracking-[-0.04em]">MatGo Admin</h1>
+        <h1 className="mt-6 text-center text-[26px] font-semibold tracking-[-0.025em]">MatGo Admin</h1>
 
         <form className="mt-8 grid gap-5" onSubmit={handleSubmit}>
           <Field label="Användarnamn">

@@ -56,9 +56,9 @@ export function MetricCard({
 }) {
   return (
     <article className="metric-card">
-      <p className="text-[10px] font-700 uppercase tracking-[0.12em] text-[var(--text-muted)]">{label}</p>
-      <p className="mt-2 text-2xl font-bold tracking-[-0.035em] text-[var(--text-primary)]">{value}</p>
-      {detail ? <div className="mt-1.5 text-xs leading-5 text-[var(--text-secondary)]">{detail}</div> : null}
+      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</p>
+      <p className="mt-4 text-[40px] font-semibold tracking-[-0.035em] text-[var(--text-primary)] leading-[1.05]">{value}</p>
+      {detail ? <div className="mt-3 text-[13px] text-[var(--text-secondary)]">{detail}</div> : null}
     </article>
   );
 }
@@ -113,17 +113,17 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
-    <div className="surface-muted px-6 py-12 text-center">
-      <h3 className="text-xl font-black tracking-[-0.03em]">{title}</h3>
-      {description ? <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">{description}</p> : null}
-      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+    <div className="surface-muted px-6 py-14 text-center">
+      <h3 className="text-xl font-semibold tracking-[-0.025em]">{title}</h3>
+      {description ? <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">{description}</p> : null}
+      {action ? <div className="mt-6 flex justify-center">{action}</div> : null}
     </div>
   );
 }
 
 export function LoadingPanel({ label = "Laddar..." }: { label?: string }) {
   return (
-    <div className="surface flex min-h-[260px] items-center justify-center px-6 py-12 text-sm font-semibold text-[var(--text-secondary)]">
+    <div className="surface flex min-h-[260px] items-center justify-center px-6 py-12 text-sm font-medium text-[var(--text-secondary)]">
       {label}
     </div>
   );
@@ -132,8 +132,8 @@ export function LoadingPanel({ label = "Laddar..." }: { label?: string }) {
 export function ErrorPanel({ title, description, action }: { title: string; description?: string; action?: React.ReactNode }) {
   return (
     <div className="surface flex min-h-[260px] flex-col items-center justify-center gap-3 px-6 py-12 text-center">
-      <h3 className="text-2xl font-black tracking-[-0.03em]">{title}</h3>
-      {description ? <p className="max-w-2xl text-sm leading-7 text-[var(--text-secondary)]">{description}</p> : null}
+      <h3 className="text-2xl font-semibold tracking-[-0.025em]">{title}</h3>
+      {description ? <p className="max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
   );
@@ -161,17 +161,17 @@ export function Modal({
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className={cn("modal-panel", widthClassName)}>
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] bg-[rgba(17,21,29,0.94)] px-6 py-5 backdrop-blur">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--border-subtle)] bg-[var(--bg-panel-strong)] px-7 py-6">
           <div>
-            <h2 className="text-2xl font-black tracking-[-0.04em]">{title}</h2>
-            {description ? <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{description}</p> : null}
+            <h2 className="text-2xl font-semibold tracking-[-0.025em]">{title}</h2>
+            {description ? <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{description}</p> : null}
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Stäng">
             <X size={18} />
           </button>
         </div>
-        <div className="px-6 py-6">{children}</div>
-        {footer ? <div className="sticky bottom-0 border-t border-[var(--border-subtle)] bg-[rgba(17,21,29,0.96)] px-6 py-4">{footer}</div> : null}
+        <div className="px-7 py-7">{children}</div>
+        {footer ? <div className="sticky bottom-0 border-t border-[var(--border-subtle)] bg-[var(--bg-panel-strong)] px-7 py-5">{footer}</div> : null}
       </div>
     </div>
   );
@@ -187,17 +187,17 @@ export function Tabs<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((option) => (
         <button
           key={option.value}
           type="button"
           onClick={() => onChange(option.value)}
           className={cn(
-            "rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em]",
+            "rounded-lg border px-3.5 py-2 text-[12px] font-semibold tracking-[-0.005em] transition-colors",
             value === option.value
-              ? "border-[rgba(243,191,87,0.28)] bg-[rgba(243,191,87,0.1)] text-[var(--accent-strong)]"
-              : "border-[var(--border-subtle)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]",
+              ? "border-transparent bg-[var(--accent-soft)] text-[var(--accent)]"
+              : "border-[var(--border-subtle)] bg-transparent text-[var(--text-secondary)] hover:border-[var(--border-strong)] hover:text-[var(--text-primary)]",
           )}
         >
           {option.label}

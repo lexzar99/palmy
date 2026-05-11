@@ -8,6 +8,7 @@ import { clearStoredAdminSession } from "@/shared/auth/storage";
 import { Button, Surface } from "@/shared/components/ui";
 import { Sidebar } from "@/shared/layout/sidebar";
 import { RealtimeSync } from "@/shared/layout/realtime-sync";
+import { CommandPalette, useCommandPalette } from "@/shared/layout/command-palette";
 
 function LoadingScreen() {
   return (
@@ -15,7 +16,7 @@ function LoadingScreen() {
       <Surface className="max-w-sm px-8 py-10 text-center">
         <p className="eyebrow">MatGo Admin</p>
         <h1 className="section-title mt-4">Verifierar session</h1>
-        <p className="section-subtitle">Laddar kontrollpanelen...</p>
+        <p className="section-subtitle">Laddar kontrollpanelen…</p>
       </Surface>
     </div>
   );
@@ -25,7 +26,7 @@ function BlockedScreen({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="auth-shell">
       <Surface className="max-w-md px-8 py-10 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(239,107,115,0.1)] text-[var(--danger)]">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[rgba(251,113,133,0.1)] text-[var(--danger)]">
           <ShieldAlert size={22} />
         </div>
         <h1 className="section-title mt-5">Åtkomst nekad</h1>
@@ -41,6 +42,7 @@ function BlockedScreen({ onLogout }: { onLogout: () => void }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const session = useAdminSession();
+  const palette = useCommandPalette();
 
   useEffect(() => {
     if (session.isError) {
@@ -65,12 +67,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <RealtimeSync />
-      <Sidebar />
+      <Sidebar onOpenPalette={palette.openPalette} />
       <main className="content-shell">
-        <div className="content-frame page-stack">
-          {children}
-        </div>
+        <div className="content-frame page-stack">{children}</div>
       </main>
+      <CommandPalette open={palette.open} onClose={palette.close} />
     </div>
   );
 }

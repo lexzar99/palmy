@@ -212,7 +212,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       icon: {
         path: g.maps.SymbolPath.CIRCLE,
         scale: 11,
-        fillColor: "#f3bf57",
+        fillColor: "#c2f54b",
         fillOpacity: 1,
         strokeColor: "#ffffff",
         strokeWeight: 2.5,
@@ -261,18 +261,18 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
       drawingMode: null,
       drawingControl: false,
       circleOptions: {
-        fillColor: "#f3bf57",
+        fillColor: "#c2f54b",
         fillOpacity: 0.22,
-        strokeColor: "#f3bf57",
+        strokeColor: "#c2f54b",
         strokeOpacity: 0.95,
         strokeWeight: 3,
         editable: true,
         draggable: true,
       },
       polygonOptions: {
-        fillColor: "#f3bf57",
+        fillColor: "#c2f54b",
         fillOpacity: 0.22,
-        strokeColor: "#f3bf57",
+        strokeColor: "#c2f54b",
         strokeOpacity: 0.95,
         strokeWeight: 3,
         editable: true,
@@ -493,7 +493,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex min-w-[220px] flex-1">
-          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 transition-all focus-within:border-[rgba(243,191,87,0.4)]">
+          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-4 py-2.5 transition-all focus-within:border-[var(--accent)]">
             <Search size={13} className="shrink-0 text-[var(--text-secondary)]" />
             <input
               value={search}
@@ -524,7 +524,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
           ) : null}
         </div>
 
-        <button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} className="rounded-2xl bg-[linear-gradient(135deg,#f3bf57,#ffd77f)] px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#11151b] transition-all disabled:opacity-40">
+        <button type="button" onClick={geocodeSearch} disabled={searching || !search.trim() || !mapsReady} className="rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--accent-fg)] transition-all hover:bg-[var(--accent-strong)] disabled:opacity-40">
           {searching ? <Loader2 size={12} className="inline animate-spin" /> : <Navigation2 size={12} className="inline" />} Set center
         </button>
 
@@ -565,7 +565,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
             </div>
           ) : null}
           {mapsReady ? (
-            <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-xl border border-[rgba(243,191,87,0.3)] bg-[rgba(15,19,27,0.9)] px-3 py-2 backdrop-blur-sm">
+            <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 rounded-xl border border-[var(--accent-soft)] bg-[rgba(10,11,14,0.9)] px-3 py-2 backdrop-blur-sm">
               <div className="h-3 w-3 rounded-full border-2 border-white bg-[var(--accent)]" />
               <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--accent-strong)]">City center</span>
             </div>
@@ -612,7 +612,7 @@ export default function ZoneEditor({ zones, onChange, cityName = "", centerLat, 
                     <div className="space-y-2.5 px-3.5 pb-3.5" onClick={(event) => event.stopPropagation()}>
                       <div>
                         <label className="mb-0.5 block text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-secondary)]">Zone name</label>
-                        <input className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[var(--text-primary)] outline-none focus:border-[rgba(243,191,87,0.4)]" value={zone.name} onChange={(event) => updateZone(zone.id, { name: event.target.value })} />
+                        <input className="w-full rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-3 py-2 text-[11px] font-black text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" value={zone.name} onChange={(event) => updateZone(zone.id, { name: event.target.value })} />
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
