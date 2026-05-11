@@ -40,7 +40,16 @@ const Navbar = () => {
     </nav>
   );
   return (
-    <nav className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`} style={{ backgroundColor: "var(--bg-primary)", borderColor: "var(--border-muted)" }}>
+    <nav
+      className={`fixed top-0 left-0 right-0 border-b transition-all duration-300 ${isOpen ? 'z-[200]' : 'z-[100] backdrop-blur-md'}`}
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        borderColor: "var(--border-muted)",
+        // Subtle skugga under navbaren ger separation från content i båda
+        // tema-lägena. Mörkare/tunnare på dark, ljusare på light.
+        boxShadow: "0 1px 0 var(--border-muted), 0 4px 16px rgba(0,0,0,0.06)",
+      }}
+    >
       <div className="max-w-7xl 2xl:max-w-[1600px] mx-auto px-6 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-1 group" aria-label="MatGo — startsidan">
           <span className="text-2xl font-black italic tracking-tighter leading-none transition-transform group-hover:scale-105" style={{ color: "var(--text-primary)" }}>
@@ -52,13 +61,13 @@ const Navbar = () => {
             partner-portal (admin nås via egen subdomän), och ingen
             öppet-status (plattformen är alltid live — restaurang-status
             visas per restaurang istället). */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-medium uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
-          <Link href="/" className="hover:text-gold-500 transition-colors">Hem</Link>
-          <Link href="/discover" className="hover:text-gold-500 transition-colors">Upptäck</Link>
-          <Link href="/about" className="hover:text-gold-500 transition-colors">Om oss</Link>
-          <Link href="/contact" className="hover:text-gold-500 transition-colors">Kontakt</Link>
-          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)" }}>Mina beställningar</Link>
-          <Link href="/profile" className="hover:text-gold-500 transition-colors text-gold-500">Logga in</Link>
+        <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest">
+          <Link href="/" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Hem</Link>
+          <Link href="/discover" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Upptäck</Link>
+          <Link href="/about" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Om oss</Link>
+          <Link href="/contact" className="hover:text-gold-500 transition-colors" style={{ color: "var(--text-primary)" }}>Kontakt</Link>
+          <Link href="/orders" className="hover:text-gold-500 transition-colors border-l pl-8" style={{ borderColor: "var(--border-muted)", color: "var(--text-primary)" }}>Mina beställningar</Link>
+          <Link href="/profile" className="text-gold-500 hover:text-gold-400 transition-colors">Logga in</Link>
         </div>
 
         <div className="flex items-center gap-4 relative z-[100]">

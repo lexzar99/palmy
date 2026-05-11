@@ -20,14 +20,18 @@ import {
   Percent,
   Info,
   Phone,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTheme } from "@/app/providers";
 import AddressModal from "@/components/AddressModal";
 import AddressPullDown from "@/components/AddressPullDown";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import FreeDeliverySection from "@/components/FreeDeliverySection";
+import MobileFooterLinks from "@/components/MobileFooterLinks";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -85,6 +89,7 @@ type PromoCardItem =
 
 export default function HomePage() {
   const router = useRouter();
+  const { theme, toggleTheme } = useTheme();
   const promoRailRef = useRef<HTMLDivElement | null>(null);
   const promoIndexRef = useRef(0);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -674,13 +679,38 @@ export default function HomePage() {
               );
             })()}
 
-            <h1 className="relative z-10 text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
-              Vad blir det <span className="text-gold-500 italic">idag?</span>
-            </h1>
+            <div className="relative z-10 flex items-start justify-between gap-3">
+              <h1 className="text-2xl font-black tracking-tight leading-tight" style={{ color: "var(--text-primary)" }}>
+                Vad blir det <span className="text-gold-500 italic">idag?</span>
+              </h1>
+              {/* Theme-toggle — knapp för dark/light bredvid rubriken */}
+              <button
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "Byt till ljust läge" : "Byt till mörkt läge"}
+                className="shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-90"
+                style={{
+                  backgroundColor: "var(--bg-deep)",
+                  border: "1px solid var(--border-muted)",
+                }}
+              >
+                {theme === "dark" ? (
+                  <Sun size={16} className="text-gold-500" />
+                ) : (
+                  <Moon size={16} className="text-gold-600" />
+                )}
+              </button>
+            </div>
             <p className="relative z-10 text-[10px] font-bold uppercase tracking-[0.2em] mt-1.5" style={{ color: "var(--text-secondary)" }}>
               Hitta snabbt · beställ enkelt
             </p>
           </motion.div>
+
+          {/* Om oss + Kontakt — mobil-knappar precis under titel-kortet så
+              de syns direkt utan att scrolla. Endast mobil — desktop använder
+              top-navbarens länkar. */}
+          <div className="md:hidden mb-5">
+            <MobileFooterLinks />
+          </div>
 
           {/* Adress + Toggle + Sök — pancake på mobil, en rad på desktop */}
           <div className="grid gap-3 lg:grid-cols-[1.4fr_auto_1fr] lg:items-center lg:gap-4">

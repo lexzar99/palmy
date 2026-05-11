@@ -3,7 +3,6 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
 import Navbar from "@/components/Navbar";
-import MobileFooterLinks from "@/components/MobileFooterLinks";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import Providers from "./providers";
 import LiveOrderBanner from "@/components/LiveOrderBanner";
@@ -51,7 +50,9 @@ export default function RootLayout({
             <Navbar />
           </div>
           <main>{children}</main>
-          <MobileFooterLinks />
+          {/* MobileFooterLinks renderas inom enskilda sidor istället (typ
+              HomePage) så den hamnar närmare content och inte gömd långt ner
+              vid bottom-nav. */}
           <LiveOrderBanner />
           <BottomNav />
           <CookieConsent />

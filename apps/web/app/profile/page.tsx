@@ -670,11 +670,51 @@ function ProfileContent() {
             </button>
           </form>
 
-          {/*
-            OAuth-knappar (Apple/Google/Facebook) är temporärt dolda — de
-            kommer tillbaka när Apple/Google-konton är konfigurerade i Supabase.
-            Tills dess är email+lösen primär metod.
-          */}
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div
+                className="w-full border-t"
+                style={{ borderColor: "var(--border-muted)" }}
+              />
+            </div>
+            <div className="relative flex justify-center">
+              <span
+                className="px-4 text-[10px] font-black uppercase tracking-widest"
+                style={{
+                  backgroundColor: "var(--bg-primary)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Eller med socialt konto
+              </span>
+            </div>
+          </div>
+
+          {/* Social buttons — Supabase OAuth. Facebook kommer senare. */}
+          <div className="grid grid-cols-2 gap-3">
+            <SocialButton
+              provider="apple"
+              label="Apple"
+              icon={
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+              }
+            />
+            <SocialButton
+              provider="google"
+              label="Google"
+              icon={
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#EA4335" d="M5.27 9.76A7.08 7.08 0 0 1 12 5c1.69 0 3.21.6 4.4 1.59L19.9 3.1A11.94 11.94 0 0 0 12 0C8.16 0 4.82 2 2.86 5.01l2.41 2.75z"/>
+                  <path fill="#34A853" d="M16.04 18.01A7.07 7.07 0 0 1 12 19.1c-2.93 0-5.44-1.78-6.6-4.34l-2.84 2.19A11.96 11.96 0 0 0 12 24c3.24 0 6.17-1.17 8.4-3.09l-4.36-2.9z"/>
+                  <path fill="#4A90D9" d="M19.1 12.2c0-.73-.07-1.36-.18-2H12v4.01h4.04a3.7 3.7 0 0 1-1.53 2.36l4.36 2.9c2.61-2.41 3.23-5.96.23-7.27z"/>
+                  <path fill="#FBBC05" d="M5.4 14.76A7.16 7.16 0 0 1 5 12c0-.95.19-1.86.41-2.24L2.86 7.01A11.9 11.9 0 0 0 0 12c0 1.7.37 3.31.97 4.77l4.43-2z"/>
+                </svg>
+              }
+            />
+          </div>
 
           {/* Register link */}
           <p className="text-center text-[11px] font-bold uppercase tracking-widest text-zinc-600">
