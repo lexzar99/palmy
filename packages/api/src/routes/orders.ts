@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import prisma from '../lib/prisma';
@@ -640,14 +640,25 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Leveransavgift (use pre-calculated value from above)
 
-    let total = subtotal - discountAmount + deliveryFee;
+    const total = subtotal - discountAmount + deliveryFee;
 
-    // If payment is already settled, align order total with the paid amount.
-    // Except for BYPASS which uses our calculated total.
+    // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
+    // koden order-total NEDÅT om Stripe visade lägre belopp — det betydde att en
+    // angripare kunde betala mindre via en manipulerad PaymentIntent och få mat
+    // för det reducerade beloppet. Nu kastar vi fel istället.
+    //
+    // Tolerans: 1 öre (avrundningsavvikelse). BYPASS (amount === -1) hoppas
+    // över eftersom det är en explicit test-/dev-kanal.
     if (confirmedPayment && confirmedPayment.amount !== -1) {
-      total = confirmedPayment.amount;
-      const reconciledDiscount = subtotal + deliveryFee - total;
-      discountAmount = reconciledDiscount > 0 ? reconciledDiscount : 0;
+      const diff = Math.abs(confirmedPayment.amount - total);
+      if (diff > 1) {
+        console.warn(
+          `[order] Payment amount mismatch: expected ${total} öre, Stripe says ${confirmedPayment.amount} öre (diff ${diff})`,
+        );
+        throw new OrderValidationError(
+          'Betalningsbeloppet matchar inte order-summan. Försök igen.',
+        );
+      }
     }
 
     if (!confirmedPayment) {
@@ -910,7 +921,11 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
   }
 });
 
-// GET /api/orders/:id - Hämta en order (för kund att följa sin order)
+// GET /api/orders/:id - Hämta en order (för kund att följa sin order).
+// Ägarskap krävs: antingen via JWT (inloggad kund) ELLER customerPhone som
+// query-param som matchar order.customerPhone (för guest-ordrar).
+// Utan dessa returnerar vi 404 (samma som om order inte fanns) så att
+// ID-gissning inte avslöjar vilka ordrar som existerar.
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const order: any = await prisma.order.findUnique({
@@ -919,6 +934,54 @@ router.get('/:id', async (req: Request, res: Response) => {
     });
 
     if (!order) {
+      res.status(404).json({ error: 'Order hittades inte' });
+      return;
+    }
+
+    // Ägarskaps-kontroll
+    let isOwner = false;
+
+    // 1. JWT-baserad auth — om header finns och token-userId matchar order.userId
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      // Supabase
+      if (supabaseAdmin) {
+        try {
+          const { data: { user: sbUser } } = await supabaseAdmin.auth.getUser(token);
+          if (sbUser && order.userId === sbUser.id) isOwner = true;
+        } catch { /* try legacy */ }
+      }
+      // Legacy custom JWT
+      if (!isOwner) {
+        try {
+          const payload = jwt.verify(token, JWT_SECRET) as any;
+          if (payload?.id && order.userId === payload.id) isOwner = true;
+        } catch { /* fallthrough */ }
+      }
+    }
+
+    // 2. customerPhone-match — för guest-ordrar och nyligen lagda ordrar där
+    // kunden ännu inte loggat in. Telefonnumret normaliseras (siffror + +).
+    if (!isOwner) {
+      const queryPhone = typeof req.query.phone === 'string' ? req.query.phone : null;
+      const normalize = (p: string | null | undefined) => (p || '').replace(/[^\d+]/g, '');
+      if (queryPhone && normalize(queryPhone) === normalize(order.customerPhone)) {
+        isOwner = true;
+      }
+    }
+
+    // 3. Grace-period för nyligen lagda ordrar (5 min) — webhook-confirmation
+    // och redirect-flows (Swish/Klarna) kan komma tillbaka utan auth-header
+    // direkt. Vi tillåter ID-baserad åtkomst inom kort fönster efter create.
+    if (!isOwner) {
+      const ageMs = Date.now() - new Date(order.createdAt).getTime();
+      if (ageMs < 5 * 60 * 1000) {
+        isOwner = true;
+      }
+    }
+
+    if (!isOwner) {
       res.status(404).json({ error: 'Order hittades inte' });
       return;
     }
@@ -995,12 +1058,24 @@ router.get('/:id', async (req: Request, res: Response) => {
 // Stores the iOS Live Activity push token for an order so the backend can
 // later push status updates straight to the Dynamic Island (works even when
 // the app is killed). Token is hex-encoded and per-activity.
+// Gate alla debug-endpoints bakom NODE_ENV !== production. I prod kan
+// debug-la-tokens exponera senaste 10 ordrar (id + token-preview) och
+// debug-la-push kan trigga APNs-anrop på alla ordrar — inget av det
+// hör hemma i prod-trafiken.
+const blockInProduction = (_req: Request, res: Response, next: NextFunction): void => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  next();
+};
+
 // GET /api/orders/debug-la-config
 // Reports whether the four APNs env vars Railway needs are set + which host
 // the backend will hit. The full key/team/bundle ids are NOT returned —
 // only presence + length + the first/last 2 chars so we can spot a
 // truncation or extra-quotes bug without leaking the credentials.
-router.get('/debug-la-config', async (_req: Request, res: Response) => {
+router.get('/debug-la-config', blockInProduction, async (_req: Request, res: Response) => {
   const stripQuotes = (v: string | undefined): string =>
     (v ?? '').replace(/^["']|["']$/g, '').trim();
   const keyId = stripQuotes(process.env.APNS_KEY_ID);
@@ -1036,7 +1111,7 @@ router.get('/debug-la-config', async (_req: Request, res: Response) => {
 // Lists the 10 most recent orders that have a Live Activity token registered,
 // so we can pick a fresh order to debug with. No auth — keyed by token
 // preview only, full token never exposed.
-router.get('/debug-la-tokens', async (_req: Request, res: Response) => {
+router.get('/debug-la-tokens', blockInProduction, async (_req: Request, res: Response) => {
   try {
     const orders = await prisma.order.findMany({
       where: { liveActivityToken: { not: null } },
@@ -1075,7 +1150,7 @@ router.get('/debug-la-tokens', async (_req: Request, res: Response) => {
 //   curl -X POST https://api.../api/orders/<orderId>/debug-la-push \
 //     -H 'Content-Type: application/json' \
 //     -d '{"status":"PREPARING"}'
-router.post('/:id/debug-la-push', async (req: Request, res: Response) => {
+router.post('/:id/debug-la-push', blockInProduction, async (req: Request, res: Response) => {
   const { pushOrderStatusUpdate, ApnsError } = await import('../lib/liveActivityPush');
   try {
     const orderId = req.params.id;

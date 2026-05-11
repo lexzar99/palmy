@@ -146,3 +146,71 @@ export const requireSuperAdmin = (
 };
 
 export const isSuperAdmin = requireSuperAdmin;
+
+// RBAC-rolle-matrix (gäller efter `authenticate`):
+//   - SUPER_ADMIN: allt
+//   - ADMIN / RESTAURANT_ADMIN: allt inom egen restaurang (read + write + delete)
+//   - STAFF: read + write inom egen restaurang, INTE delete eller resurs-skapande
+//   - VIEWER: bara read inom egen restaurang
+//
+// Routes ska blockera baserat på roll:
+//   - GET (read): alla roller passerar genom requireAnyAdmin
+//   - POST/PATCH (write): kräver requireWriteAccess (block VIEWER)
+//   - DELETE: kräver requireDeleteAccess (block STAFF + VIEWER)
+const WRITE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN', 'STAFF']);
+const DELETE_ROLES = new Set(['SUPER_ADMIN', 'ADMIN', 'RESTAURANT_ADMIN']);
+
+export const requireWriteAccess = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const role = req.admin?.role;
+  if (!role || !WRITE_ROLES.has(role)) {
+    res.status(403).json({ error: 'Du har inte rättigheter att utföra denna ändring' });
+    return;
+  }
+  next();
+};
+
+export const requireDeleteAccess = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const role = req.admin?.role;
+  if (!role || !DELETE_ROLES.has(role)) {
+    res.status(403).json({ error: 'Bara administratörer kan radera resurser' });
+    return;
+  }
+  next();
+};
+
+// Auto-RBAC baserat på HTTP-method. Applicera på router för en hel modul
+// (ex. router.use(autoRoleGate)) så att alla routes får default-skydd.
+export const autoRoleGate = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const method = req.method.toUpperCase();
+  const role = req.admin?.role;
+
+  // Auth-middleware körs separat och sätter req.admin — saknas det = inte
+  // autentiserad och vi släpper genom så att caller kan returnera 401.
+  // (Detta middleware körs ALLTID efter authenticate.)
+  if (!role) {
+    res.status(401).json({ error: 'Inte autentiserad' });
+    return;
+  }
+
+  if (method === 'DELETE' && !DELETE_ROLES.has(role)) {
+    res.status(403).json({ error: 'Bara administratörer kan radera resurser' });
+    return;
+  }
+  if ((method === 'POST' || method === 'PATCH' || method === 'PUT') && !WRITE_ROLES.has(role)) {
+    res.status(403).json({ error: 'Du har inte rättigheter att utföra denna ändring' });
+    return;
+  }
+  next();
+};

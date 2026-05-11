@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
+import { authenticate, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
 
@@ -19,6 +20,20 @@ if (process.env.STRIPE_SECRET_KEY) {
 
 
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+
+// Startup-validering: webhook-secret MÅSTE vara satt i prod, annars
+// kan order-status (PAID/FAILED) inte uppdateras automatiskt — admin
+// måste markera manuellt vilket är felbenäget.
+if (process.env.NODE_ENV === 'production') {
+  if (!WEBHOOK_SECRET || WEBHOOK_SECRET.includes('your_webhook_secret_here') || !WEBHOOK_SECRET.startsWith('whsec_')) {
+    console.error(
+      '❌ STRIPE_WEBHOOK_SECRET saknas eller är ogiltig i produktion. Webhook-signaturer kommer att rejectas. Hämta riktig secret från Stripe Dashboard → Webhooks.',
+    );
+  }
+  if (process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_')) {
+    console.warn('⚠️  STRIPE_SECRET_KEY är en test-nyckel (sk_test_) i NODE_ENV=production.');
+  }
+}
 
 // POST /api/payments/create-intent
 // Skapar en Stripe PaymentIntent för checkout
@@ -101,8 +116,11 @@ router.post('/create-intent', async (req, res) => {
 });
 
 // POST /api/payments/refund
-// Refundar en PaymentIntent — anropas automatiskt av appen om orderSkapandet misslyckas efter betalning
-router.post('/refund', async (req, res) => {
+// Refundar en PaymentIntent. Kräver SUPER_ADMIN — utan auth kunde vem som
+// helst med PaymentIntent-ID refundera order (t.ex. gissa från order-mail).
+// Frontend (cart-flödet) använder INTE denna direkt — admin-panelens
+// /admin/orders/:id/refund är primär refund-flow för admins.
+router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
   const idempotencyKey = getIdempotencyKey(req);
   if (idempotencyKey) {
     const cached = getCachedResponse(`refund:${idempotencyKey}`);

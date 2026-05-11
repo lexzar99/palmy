@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
-import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
+import { authenticate, requireSuperAdmin, autoRoleGate, AuthRequest } from '../middleware/auth';
 import { getIO } from '../lib/socket';
 import { eatsmartCatalog, getCatalogStats } from '../lib/eatsmartCatalog';
 import { slugify } from '../lib/slug';
@@ -16,6 +16,10 @@ import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
 
 const router = Router();
 router.use(authenticate);
+// RBAC: VIEWER kan bara läsa, STAFF kan läsa+skriva men inte radera,
+// ADMIN/RESTAURANT_ADMIN/SUPER_ADMIN kan allt. Per-route `requireSuperAdmin`
+// gäller fortfarande för känsliga ops (wipe, refund, staff-management).
+router.use(autoRoleGate);
 
 const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
 

@@ -94,15 +94,43 @@ const corsOptions: cors.CorsOptions = {
   credentials: true,
 };
 
-// Socket.IO setup
-initSocket(httpServer, {
+// Socket.IO setup — async pga Redis-adapter-anslutning. Vi väntar inte på
+// resultatet eftersom Redis-fail ska inte blockera startup (fallback till
+// in-memory). initSocket loggar status själv.
+void initSocket(httpServer, {
   cors: corsOptions,
 });
 
 // Middleware
-app.use(helmet({ 
-  contentSecurityPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+// CSP är en backend-API, så scripts/styles serveras inte härifrån — vi blockerar
+// allt utom det API:et självt behöver (own origin för felmeddelanden,
+// Stripe.js för card-element callbacks i webhooks, data: för base64-images i
+// receipt-rendering, Cloudinary CDN för bilder).
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://js.stripe.com"],
+      connectSrc: [
+        "'self'",
+        "https://api.stripe.com",
+        "https://*.supabase.co",
+        "https://*.cloudinary.com",
+        "wss:",
+        "ws:",
+      ],
+      frameSrc: ["'self'", "https://js.stripe.com", "https://hooks.stripe.com"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://*.cloudinary.com", "https:"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "data:", "https:"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+    },
+  },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  hsts: process.env.NODE_ENV === 'production' ? { maxAge: 31536000, includeSubDomains: true, preload: true } : false,
 }));
 app.use(cors(corsOptions));
 app.use(compression());
