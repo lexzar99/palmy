@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Building2, Save, Check, Tag } from "lucide-react";
-import { Button, Field, Input, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { Loader2, Building2, Save, Check } from "lucide-react";
+import { Button, Field, Input, PageHeader, Surface, Textarea } from "@/shared/components/ui";
 import {
   getPlatformSettings,
   platformSettingsQueryKey,
@@ -115,26 +115,6 @@ export function PlatformSettingsPage() {
             />
           </Field>
         </div>
-      </Surface>
-
-      <Surface className="px-6 py-6">
-        <div className="flex items-center gap-3 mb-5">
-          <Tag size={18} className="text-[var(--accent)]" />
-          <h2 className="text-base font-black uppercase tracking-tight">Sektioner på hem-sidan</h2>
-        </div>
-
-        <Field label="Rea & Rabatter-sektion">
-          <Select
-            value={form.showDiscountedRail === false ? "off" : "on"}
-            onChange={(e) => setForm((p) => ({ ...p, showDiscountedRail: e.target.value === "on" }))}
-          >
-            <option value="on">På — visa rabatterade rätter på hem-sidan</option>
-            <option value="off">Av — dölj sektionen helt</option>
-          </Select>
-        </Field>
-        <p className="text-xs mt-2" style={{ color: "var(--text-secondary)" }}>
-          Stänger av/på sektionen som visar rabatterade produkter från olika restauranger. Påverkar både mobil-rail och desktop-sidebar.
-        </p>
       </Surface>
 
       <Surface className="px-6 py-6">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
@@ -100,6 +100,10 @@ const DELIVERY_STEPS = ["PENDING", "ACCEPTED", "PREPARING", "DELIVERING"];
 const OrderStatusPage = () => {
   const { id } = useParams();
   const orderId = Array.isArray(id) ? id[0] : id;
+  const searchParams = useSearchParams();
+  // Phone som ownership-bevis när användaren kommer från /orders-listan
+  // (där vi sparar phone i localStorage). Backend kollar mot order.customerPhone.
+  const phoneFromUrl = searchParams.get("phone");
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const socketRef = useRef<any>(null);
@@ -114,14 +118,20 @@ const OrderStatusPage = () => {
   const fetchOrder = useCallback(async () => {
     if (!orderId) return;
     try {
-      const res = await axios.get(`${API_URL}/api/orders/${orderId}`);
+      // Skicka phone som ownership-bevis så backend-middleware (5-min grace
+      // OR JWT OR phone-match) tillåter access. För nyligen lagda orders
+      // räcker grace-fönstret men efter 5 min behövs phone.
+      const url = phoneFromUrl
+        ? `${API_URL}/api/orders/${orderId}?phone=${encodeURIComponent(phoneFromUrl)}`
+        : `${API_URL}/api/orders/${orderId}`;
+      const res = await axios.get(url, { withCredentials: true });
       setOrder(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, phoneFromUrl]);
 
   useEffect(() => {
     if (!orderId) return;

@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, EyeOff, Filter, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, EyeOff, Filter, Loader2, Percent, Plus, Search, Trash2 } from "lucide-react";
+import { getPlatformSettings, platformSettingsQueryKey, updatePlatformSettings } from "@/modules/platform-settings/api";
 import {
   categoriesQueryKey,
   createCategory,
@@ -679,6 +680,8 @@ export function CategoriesPage() {
         }
       />
 
+      <DiscountedRailToggle />
+
       <Surface className="px-6 py-6">
         <p className="text-sm text-[var(--text-secondary)]">
           <strong>FILTER:</strong> väljer restauranger automatiskt baserat på regler.{" "}
@@ -755,5 +758,54 @@ export function CategoriesPage() {
       <CategoryEditorModal open={Boolean(activeSection)} section={activeSection} onClose={() => setActiveSection(null)} />
       <CategoryEditorModal open={createOpen} section={null} onClose={() => setCreateOpen(false)} />
     </div>
+  );
+}
+
+// Toggle för "Rea & Rabatter"-sektionen på hem-sidan i web.
+// Värdet sparas i RestaurantSettings.showDiscountedRail (singleton).
+function DiscountedRailToggle() {
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: platformSettingsQueryKey, queryFn: getPlatformSettings });
+  const value = (settings.data as { showDiscountedRail?: boolean } | undefined)?.showDiscountedRail ?? true;
+
+  const mutation = useMutation({
+    mutationFn: (next: boolean) => updatePlatformSettings({ showDiscountedRail: next }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: platformSettingsQueryKey });
+    },
+  });
+
+  if (settings.isLoading) {
+    return (
+      <Surface className="px-6 py-5 flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+        <Loader2 size={14} className="animate-spin" /> Laddar inställning...
+      </Surface>
+    );
+  }
+
+  return (
+    <Surface className="px-6 py-5">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ backgroundColor: "var(--bg-deep)", border: "1px solid var(--border-muted)" }}>
+            <Percent size={16} className="text-gold-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-sm tracking-tight" style={{ color: "var(--text-primary)" }}>Rea & Rabatter</p>
+            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              Sektionen med rabatterade rätter från flera restauranger som visas på hem-sidan.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant={value ? "secondary" : "primary"}
+          onClick={() => mutation.mutate(!value)}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? <Loader2 size={14} className="animate-spin" /> : value ? <EyeOff size={14} /> : <Eye size={14} />}
+          {value ? "Stäng av" : "Aktivera"}
+        </Button>
+      </div>
+    </Surface>
   );
 }
