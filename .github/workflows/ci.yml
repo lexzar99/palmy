@@ -1,0 +1,82 @@
+name: CI — typecheck + build
+
+# Körs på varje push till main + alla PR:s. Förhindrar att kod som inte ens
+# kompilerar går live. Railway/Vercel deployar fortfarande automatiskt vid
+# push till main, men CI ger oss en grön/röd-indikator först.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api-typecheck:
+    name: API — typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        working-directory: packages/api
+        run: pnpm exec prisma generate --schema prisma/schema.prisma
+
+      - name: Typecheck
+        working-directory: packages/api
+        run: pnpm exec tsc --noEmit
+
+  web-typecheck:
+    name: Web — typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck web
+        working-directory: apps/web
+        run: pnpm exec tsc --noEmit
+
+  admin-typecheck:
+    name: Admin — typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck admin
+        working-directory: apps/admin
+        run: pnpm exec tsc --noEmit

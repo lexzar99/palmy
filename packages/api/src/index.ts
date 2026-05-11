@@ -2,6 +2,8 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { requestLogger } from './middleware/requestLogger';
+import { logger } from './lib/logger';
 import compression from 'compression';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
@@ -134,6 +136,10 @@ app.use(helmet({
 }));
 app.use(cors(corsOptions));
 app.use(compression());
+
+// Request-loggning (måste komma efter cors/helmet så vi har en chans att logga,
+// men före routes så vi får request-ID i alla downstream calls)
+app.use(requestLogger);
 
 // Stripe webhooks need raw body
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));

@@ -78,7 +78,16 @@ function CategoryModal({ open, restaurantId, category, onClose }: { open: boolea
       title={category ? "Edit category" : "New category"}
       footer={
         <div className="flex items-center justify-between gap-3">
-          <div>{category ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div>
+          <div>{category ? (
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (window.confirm(`Radera kategorin "${category.name}"?\n\nAlla produkter i kategorin försvinner också. Detta kan inte ångras.`)) {
+                  deleteMutation.mutate();
+                }
+              }}
+            >Delete</Button>
+          ) : null}</div>
           <div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div>
         </div>
       }
@@ -186,7 +195,16 @@ function ProductModal({ open, restaurantId, product, categories, extraGroups, ex
       open={open}
       onClose={onClose}
       title={product ? "Edit product" : "New product"}
-      footer={<div className="flex items-center justify-between gap-3"><div>{product ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+      footer={<div className="flex items-center justify-between gap-3"><div>{product ? (
+        <Button
+          variant="danger"
+          onClick={() => {
+            if (window.confirm(`Radera produkten "${product.name}"?\n\nProdukten försvinner från menyn. Befintliga ordrar påverkas inte. Detta kan inte ångras.`)) {
+              deleteMutation.mutate();
+            }
+          }}
+        >Delete</Button>
+      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
     >
         <div className="grid gap-4 md:grid-cols-2">
         <Field label="Name"><Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
@@ -334,7 +352,16 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
       open={open}
       onClose={onClose}
       title={group ? "Edit extra group" : "New extra group"}
-      footer={<div className="flex items-center justify-between gap-3"><div>{group ? <Button variant="danger" onClick={() => deleteMutation.mutate()}>Delete</Button> : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
+      footer={<div className="flex items-center justify-between gap-3"><div>{group ? (
+        <Button
+          variant="danger"
+          onClick={() => {
+            if (window.confirm(`Radera tillvalsgruppen "${group.name}"?\n\nProdukter som använder gruppen tappar dessa tillval. Detta kan inte ångras.`)) {
+              deleteMutation.mutate();
+            }
+          }}
+        >Delete</Button>
+      ) : null}</div><div className="flex gap-2"><Button onClick={onClose}>Close</Button><Button variant="primary" onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : "Save"}</Button></div></div>}
     >
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Name"><Input value={name} onChange={(event) => setName(event.target.value)} /></Field>

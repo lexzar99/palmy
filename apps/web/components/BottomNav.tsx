@@ -35,6 +35,8 @@ const BottomNav = () => {
             <Link
               key={item.href}
               href={item.href}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
               className="relative flex-1 flex flex-col items-center justify-center py-4 px-1 sm:px-2 rounded-[2.5rem] transition-colors duration-300 touch-manipulation"
             >
               <div className="relative z-10 flex flex-col items-center gap-1">

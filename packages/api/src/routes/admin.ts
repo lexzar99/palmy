@@ -23,6 +23,40 @@ router.use(autoRoleGate);
 
 const isSuperAdmin = (req: AuthRequest) => req.admin?.role === 'SUPER_ADMIN';
 
+// Roll som får se ofiltrerad customer-PII (full telefon, email, adress).
+// STAFF och VIEWER ser maskerad data för GDPR-skäl — de behöver veta att en
+// order finns men inte kunna exportera kundens kontaktuppgifter.
+// ADMIN/RESTAURANT_ADMIN behöver telefon för att kunna ringa kund vid problem.
+const canSeeCustomerPII = (req: AuthRequest): boolean => {
+  const role = req.admin?.role;
+  return role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'RESTAURANT_ADMIN';
+};
+
+const maskPhone = (phone: string | null | undefined): string | null => {
+  if (!phone) return null;
+  // Behåll landkod + sista 2 siffrorna: "+4670*****12"
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 4) return '****';
+  const head = phone.startsWith('+') ? `+${digits.slice(0, Math.min(3, digits.length - 2))}` : digits.slice(0, Math.min(3, digits.length - 2));
+  return `${head}${'*'.repeat(Math.max(2, digits.length - 5))}${digits.slice(-2)}`;
+};
+
+const maskEmail = (email: string | null | undefined): string | null => {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!domain) return '***@***';
+  const localMasked = local.length <= 2 ? local[0] + '*' : `${local[0]}${'*'.repeat(local.length - 2)}${local[local.length - 1]}`;
+  return `${localMasked}@${domain}`;
+};
+
+const maskOrderPII = <T extends { customerPhone?: string | null; customerEmail?: string | null; deliveryStreet?: string | null; deliveryZip?: string | null }>(order: T): T => ({
+  ...order,
+  customerPhone: maskPhone(order.customerPhone),
+  customerEmail: maskEmail(order.customerEmail),
+  deliveryStreet: order.deliveryStreet ? order.deliveryStreet.replace(/\d+/g, '##') : null,
+  deliveryZip: order.deliveryZip ? '***' : null,
+});
+
 const requireRestaurantScope = (req: AuthRequest, res: any): string | null => {
   if (isSuperAdmin(req)) return null;
   const rid = req.admin?.restaurantId;
@@ -293,19 +327,23 @@ router.get('/orders', async (req, res) => {
       prisma.order.count({ where }),
     ]);
 
+    const showFullPII = canSeeCustomerPII(req as AuthRequest);
     res.json({
-      orders: orders.map((o) => ({
-        ...o,
-        total: o.total / 100,
-        deliveryFee: o.deliveryFee / 100,
-        discountAmount: o.discountAmount / 100,
-        items: o.items.map((i) => ({
-          ...i,
-          basePrice: i.basePrice / 100,
-          subtotal: i.subtotal / 100,
-        })),
-        restaurantName: o.restaurant?.name || 'Okänd restaurang',
-      })),
+      orders: orders.map((o) => {
+        const base = {
+          ...o,
+          total: o.total / 100,
+          deliveryFee: o.deliveryFee / 100,
+          discountAmount: o.discountAmount / 100,
+          items: o.items.map((i) => ({
+            ...i,
+            basePrice: i.basePrice / 100,
+            subtotal: i.subtotal / 100,
+          })),
+          restaurantName: o.restaurant?.name || 'Okänd restaurang',
+        };
+        return showFullPII ? base : maskOrderPII(base);
+      }),
       total,
     });
   } catch (error) {
@@ -339,7 +377,8 @@ router.get('/orders/:id', async (req, res) => {
       }
     }
 
-    res.json({
+    const showFullPII = canSeeCustomerPII(req as AuthRequest);
+    const base = {
       ...order,
       total: order.total / 100,
       deliveryFee: order.deliveryFee / 100,
@@ -350,7 +389,8 @@ router.get('/orders/:id', async (req, res) => {
         subtotal: i.subtotal / 100,
       })),
       restaurantName: order.restaurant?.name || 'Okänd restaurang',
-    });
+    };
+    res.json(showFullPII ? base : maskOrderPII(base));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
   }

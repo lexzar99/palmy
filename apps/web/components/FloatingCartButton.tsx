@@ -32,6 +32,7 @@ const FloatingCartButton = () => {
       >
         <Link
           href="/cart"
+          aria-label={`Gå till varukorg, ${count} ${count === 1 ? "vara" : "varor"}, ${total.toFixed(0)} kronor`}
           className="flex items-center justify-between rounded-full border border-gold-400/50 bg-gold-500 px-3 py-2 shadow-lg shadow-gold-500/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
         >
           <div className="flex items-center gap-2">

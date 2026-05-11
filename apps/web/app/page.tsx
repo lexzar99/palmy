@@ -503,6 +503,7 @@ export default function HomePage() {
                   <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
+                      aria-label={`Information om ${r.name}`}
                       className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-zinc-100 border border-white/10 hover:bg-gold-500 hover:text-zinc-950 transition-all shadow-xl"
                     >
                       <Info size={14} />

@@ -273,7 +273,15 @@ function CategoryEditorModal({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             {section ? (
-              <Button variant="danger" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+              <Button
+                variant="danger"
+                onClick={() => {
+                  if (window.confirm(`Radera home-sektionen "${section.title}"?\n\nSektionen försvinner från web och app. Detta kan inte ångras.`)) {
+                    deleteMutation.mutate();
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+              >
                 <Trash2 size={16} /> Radera
               </Button>
             ) : null}

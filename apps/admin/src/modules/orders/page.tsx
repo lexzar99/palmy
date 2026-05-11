@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, CheckCircle2, Clock3, Loader2, ReceiptText, RefreshCw, Search, ShieldCheck, Trash2, UserRound, Wallet } from "lucide-react";
-import { deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, updateOrderStatus, type AdminOrder } from "@/modules/orders/api";
+import { deleteOrder, getOrder, getOrders, orderDetailQueryKey, ordersQueryKey, refundOrder, updateOrderStatus, ORDERS_PAGE_SIZE, type AdminOrder } from "@/modules/orders/api";
 import { CustomerModal } from "@/modules/customers/page";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Surface, Tabs, Textarea } from "@/shared/components/ui";
 import { formatCurrency, formatDateTime, formatNumber, orderStatusLabel, orderStatusTone } from "@/shared/utils/format";
@@ -281,14 +281,22 @@ function OrderDetailsModal({
 export function OrdersPage() {
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("ALL");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activeCustomerId, setActiveCustomerId] = useState<string | null>(null);
 
+  // Återställ till första sidan när status-filter byts
+  useEffect(() => {
+    setPage(1);
+  }, [status]);
+
   const orders = useQuery({
-    queryKey: ordersQueryKey(status),
-    queryFn: () => getOrders(status),
+    queryKey: ordersQueryKey(status, page, ORDERS_PAGE_SIZE),
+    queryFn: () => getOrders(status, page, ORDERS_PAGE_SIZE),
     refetchInterval: 10_000,
   });
+
+  const totalPages = orders.data ? Math.max(1, Math.ceil(orders.data.total / ORDERS_PAGE_SIZE)) : 1;
 
   const filteredOrders = useMemo(() => {
     const list = orders.data?.orders || [];
@@ -339,6 +347,7 @@ export function OrdersPage() {
         {filteredOrders.length === 0 ? (
           <div className="mt-6"><EmptyState title="No orders in this view" /></div>
         ) : (
+          <>
           <div className="mt-6 grid gap-3">
             {filteredOrders.map((order) => (
               <button
@@ -379,6 +388,32 @@ export function OrdersPage() {
               </button>
             ))}
           </div>
+
+          {/* Pagination — bara om mer än en sida */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex items-center justify-between gap-3 flex-wrap">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Sida <strong>{page}</strong> av <strong>{totalPages}</strong> ({orders.data.total} ordrar totalt)
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || orders.isFetching}
+                >
+                  Föregående
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages || orders.isFetching}
+                >
+                  Nästa
+                </Button>
+              </div>
+            </div>
+          )}
+          </>
         )}
       </Surface>
 

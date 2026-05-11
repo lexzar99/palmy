@@ -1197,20 +1197,69 @@ export default function CartPage() {
                        </AnimatePresence>
 
                        <div className="space-y-8">
+                        {(() => {
+                          // Inline-validering: vi flagga fält som har varit "rört" och nu är ogiltigt.
+                          // Definieras inline för att inte behöva nya useState.
+                          const nameTouched = formData.customerName.length > 0;
+                          const phoneTouched = formData.customerPhone.length > 0;
+                          const emailTouched = formData.customerEmail.length > 0;
+                          const nameInvalid = nameTouched && formData.customerName.trim().length < 2;
+                          // Telefon: minst 8 siffror (svenska mobilnr utan landkod är 9-10 siffror, +46 ger fler)
+                          const phoneDigits = formData.customerPhone.replace(/\D/g, '');
+                          const phoneInvalid = phoneTouched && phoneDigits.length < 8;
+                          const emailInvalid = emailTouched && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail);
+                          const errorBorder = "border-rose-500/60 focus:border-rose-500/80";
+                          const okBorder = "focus:border-gold-500/40";
+                          return (
+                            <>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Ditt Namn</label>
-                              <input value={formData.customerName} onChange={e => setFormData({...formData, customerName: e.target.value})} autoComplete="name" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="Namn" />
+                              <input
+                                value={formData.customerName}
+                                onChange={e => setFormData({...formData, customerName: e.target.value})}
+                                autoComplete="name"
+                                aria-invalid={nameInvalid || undefined}
+                                className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${nameInvalid ? errorBorder : okBorder}`}
+                                style={{ backgroundColor: "var(--bg-deep)", borderColor: nameInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
+                                placeholder="Namn"
+                              />
+                              {nameInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Minst 2 tecken</p>}
                            </div>
                            <div className="space-y-2">
                               <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>Telefon</label>
-                              <input value={formData.customerPhone} onChange={e => setFormData({...formData, customerPhone: e.target.value})} type="tel" autoComplete="tel" inputMode="tel" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="+46 70 000 00 00" />
+                              <input
+                                value={formData.customerPhone}
+                                onChange={e => setFormData({...formData, customerPhone: e.target.value})}
+                                type="tel"
+                                autoComplete="tel"
+                                inputMode="tel"
+                                aria-invalid={phoneInvalid || undefined}
+                                className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${phoneInvalid ? errorBorder : okBorder}`}
+                                style={{ backgroundColor: "var(--bg-deep)", borderColor: phoneInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
+                                placeholder="+46 70 000 00 00"
+                              />
+                              {phoneInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Telefonnummer behöver minst 8 siffror</p>}
                            </div>
                         </div>
                         <div className="space-y-2">
                            <label className="text-[9px] font-black uppercase tracking-widest ml-3" style={{ color: "var(--text-secondary)" }}>E-post</label>
-                           <input value={formData.customerEmail} onChange={e => setFormData({...formData, customerEmail: e.target.value})} type="email" autoComplete="email" inputMode="email" className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="E-post (valfritt)" />
+                           <input
+                             value={formData.customerEmail}
+                             onChange={e => setFormData({...formData, customerEmail: e.target.value})}
+                             type="email"
+                             autoComplete="email"
+                             inputMode="email"
+                             aria-invalid={emailInvalid || undefined}
+                             className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
+                             style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
+                             placeholder="E-post (valfritt)"
+                           />
+                           {emailInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Ogiltig e-postadress</p>}
                         </div>
+                            </>
+                          );
+                        })()}
 
                         {orderType === 'DELIVERY' && (
                            <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">

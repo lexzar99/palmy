@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { X, Plus, Minus, Check, ShoppingBag, Sparkles } from "lucide-react";
 import { useCartStore, type BogoChoice } from "@/store/cartStore";
 import ConfirmModal from "./ConfirmModal";
+import { useToast } from "./Toast";
 
 interface ProductModalProps {
   product: any;
@@ -30,6 +31,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
   const setBogoChoice = useCartStore((state) => state.setBogoChoice);
   const currentCartRestaurantId = useCartStore((state) => state.restaurantId);
   const cartItemsCount = useCartStore((state) => state.items.length);
+  const { toast } = useToast();
 
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [selectedExtras, setSelectedExtras] = useState<any[]>([]);
@@ -183,6 +185,7 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
         extras: selectedExtras,
         note: note.trim() || undefined,
       });
+      toast(`${product.name} uppdaterad`, "success");
     } else {
       addItem({
         productId: product.id,
@@ -203,6 +206,9 @@ const ProductModal = ({ product, restaurantId, restaurantSlug, onClose, editCart
           product: { id: product.id, name: product.name, price: product.price, imageUrl: product.imageUrl ?? null },
         };
         setBogoChoice(choice);
+        toast(`Gratis ${product.name} tillagd!`, "success");
+      } else {
+        toast(`${product.name} tillagd i kasse`, "success");
       }
     }
     onClose();

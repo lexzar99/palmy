@@ -42,11 +42,18 @@ export interface AdminOrder {
   paymentStatus?: string | null;
 }
 
-export const ordersQueryKey = (status: string) => ["orders", status] as const;
+export const ordersQueryKey = (status: string, page: number = 1, pageSize: number = 50) =>
+  ["orders", status, page, pageSize] as const;
 export const orderDetailQueryKey = (orderId: string | null) => ["orders", "detail", orderId] as const;
 
-export const getOrders = (status: string) =>
-  apiGet<{ orders: AdminOrder[]; total: number }>(`/admin/orders?limit=160${status !== "ALL" ? `&status=${status}` : ""}`);
+export const ORDERS_PAGE_SIZE = 50;
+
+export const getOrders = (status: string, page: number = 1, pageSize: number = ORDERS_PAGE_SIZE) => {
+  const offset = (page - 1) * pageSize;
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+  if (status !== "ALL") params.set("status", status);
+  return apiGet<{ orders: AdminOrder[]; total: number }>(`/admin/orders?${params.toString()}`);
+};
 
 export const getOrder = (orderId: string) => apiGet<AdminOrder>(`/admin/orders/${orderId}`);
 
