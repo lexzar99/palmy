@@ -23,7 +23,7 @@ const BottomNav = () => {
 
   return (
     <div
-      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4 sm:px-6"
+      className="fixed left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4 sm:px-6 md:hidden"
       style={{ bottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}
     >
       <nav className="backdrop-blur-3xl border rounded-[3rem] p-2 flex items-center justify-between shadow-2xl" style={{ backgroundColor: "var(--glass-bg)", borderColor: "var(--glass-border)" }}>

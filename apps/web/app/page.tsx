@@ -570,12 +570,77 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pb-36" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-10 xl:px-16">
+    <div className="min-h-screen pb-36 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
+      <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16">
+        {/* DESKTOP COMPACT HERO — only md+ — bakgrund + stor titel + tagline */}
+        <section
+          className="hidden md:block relative overflow-hidden rounded-3xl mb-8 mt-2"
+          style={{
+            background: "linear-gradient(135deg, rgba(212,167,74,0.18) 0%, rgba(212,167,74,0.04) 50%, transparent 100%)",
+            border: "1px solid rgba(212,167,74,0.18)",
+          }}
+        >
+          {/* Radial glow */}
+          <div className="absolute inset-0 pointer-events-none" style={{
+            background: "radial-gradient(circle at 80% 30%, rgba(212,167,74,0.25) 0%, transparent 55%)",
+          }} />
+          {/* Grid bakgrund */}
+          <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)",
+            backgroundSize: "48px 48px",
+          }} />
+
+          <div className="relative grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8 px-10 py-12 lg:py-14 items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border mb-5" style={{ borderColor: "rgba(212,167,74,0.3)", backgroundColor: "rgba(212,167,74,0.08)" }}>
+                <Sparkles size={11} className="text-gold-500" />
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-gold-500">Mat från Lunds bästa</span>
+              </div>
+              <h1 className="text-5xl lg:text-6xl xl:text-7xl font-black italic tracking-tighter leading-[0.95] mb-3" style={{ color: "var(--text-primary)" }}>
+                Hungrig?<br />
+                <span className="text-gold-500">Vi fixar resten.</span>
+              </h1>
+              <p className="text-sm lg:text-base font-bold mt-4 max-w-md" style={{ color: "var(--text-secondary)" }}>
+                Bläddra bland favoritrestauranger, hitta dagens deals och få maten levererad — eller hämta själv.
+              </p>
+              <div className="flex items-center gap-3 mt-6 flex-wrap">
+                {["Snabb leverans", "Säker betalning", "Lokala favoriter"].map((b) => (
+                  <div key={b} className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gold-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{b}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="hidden lg:flex items-center justify-center relative">
+              <div className="absolute inset-0 rounded-full" style={{
+                background: "radial-gradient(circle, rgba(212,167,74,0.2) 0%, transparent 60%)",
+              }} />
+              <div className="relative text-[180px] xl:text-[220px] font-black italic tracking-tighter leading-none opacity-90 text-gold-500 select-none">
+                🍕
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* HEADER */}
         <header className="mb-6 sm:mb-8 relative">
-          {/* Adressväljare */}
-          <div className="mb-4">
+          {/* Mobil-titel — på desktop ersätts den av compact hero ovan */}
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 md:hidden"
+          >
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
+              Vad blir det <span className="text-gold-500 italic">idag?</span>
+            </h1>
+            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: "var(--text-secondary)" }}>
+              Hitta snabbt · beställ enkelt
+            </p>
+          </motion.div>
+
+          {/* Adress + Toggle + Sök — pancake på mobil, en rad på desktop */}
+          <div className="grid gap-3 lg:grid-cols-[1.4fr_auto_1fr] lg:items-center lg:gap-4">
             <AddressPullDown
               currentAddress={address}
               zoneStatus={orderType === "DELIVERY" ? (zoneError ? "error" : (typeof window !== "undefined" && localStorage.getItem("platform_coords")) ? "ok" : null) : null}
@@ -590,61 +655,47 @@ export default function HomePage() {
                 }
               }}
             />
-          </div>
 
-          {/* Rubrik – vänsterjusterad */}
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-3"
-          >
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-snug" style={{ color: "var(--text-primary)" }}>
-              Vad blir det <span className="text-gold-500 italic">idag?</span>
-            </h1>
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] mt-1" style={{ color: "var(--text-secondary)" }}>
-              Hitta snabbt · beställ enkelt
-            </p>
-          </motion.div>
-
-          {/* Leverans/Hämtning-toggle – full bredd, centrerad, stor */}
-          <div className="relative p-1 glass-panel rounded-2xl flex items-center mb-3 shadow-sm">
-            <div
-              className="absolute inset-y-1 bg-gold-500 rounded-xl transition-all duration-300 shadow-lg"
-              style={{ width: 'calc(50% - 4px)', left: orderType === 'DELIVERY' ? '4px' : 'calc(50%)' }}
-            />
-            <button
-              onClick={() => toggleOrderType("DELIVERY")}
-              className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}
-            >
-              <Truck size={15} /> Leverans
-            </button>
-            <button
-              onClick={() => toggleOrderType("PICKUP")}
-              className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}
-            >
-              <Store size={15} /> Hämtning
-            </button>
-          </div>
-
-          {/* Sökfält */}
-          <Link
-            href="/search"
-            className="flex items-center gap-2 rounded-2xl px-4 py-3 border hover:border-gold-500/50 transition-all group shadow-sm"
-            style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
-          >
-            <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
-            <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
-              Sök restaurang eller maträtt
-            </span>
-            <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
-              <ArrowRight size={14} />
+            {/* Leverans/Hämtning-toggle */}
+            <div className="relative p-1 glass-panel rounded-2xl flex items-center shadow-sm lg:w-[280px]">
+              <div
+                className="absolute inset-y-1 bg-gold-500 rounded-xl transition-all duration-300 shadow-lg"
+                style={{ width: 'calc(50% - 4px)', left: orderType === 'DELIVERY' ? '4px' : 'calc(50%)' }}
+              />
+              <button
+                onClick={() => toggleOrderType("DELIVERY")}
+                className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'DELIVERY' ? 'text-zinc-950' : 'text-zinc-500'}`}
+              >
+                <Truck size={15} /> Leverans
+              </button>
+              <button
+                onClick={() => toggleOrderType("PICKUP")}
+                className={`relative z-10 flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${orderType === 'PICKUP' ? 'text-zinc-950' : 'text-zinc-500'}`}
+              >
+                <Store size={15} /> Hämtning
+              </button>
             </div>
-          </Link>
+
+            {/* Sökfält */}
+            <Link
+              href="/search"
+              className="flex items-center gap-2 rounded-2xl px-4 py-3 border hover:border-gold-500/50 transition-all group shadow-sm"
+              style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border-muted)" }}
+            >
+              <Search size={14} className="shrink-0" style={{ color: "var(--text-secondary)" }} />
+              <span className="text-[11px] font-bold flex-1 truncate" style={{ color: "var(--text-secondary)" }}>
+                Sök restaurang eller maträtt
+              </span>
+              <div className="w-7 h-7 rounded-full bg-gold-500 flex items-center justify-center text-zinc-950 group-hover:rotate-12 transition-all shrink-0">
+                <ArrowRight size={14} />
+              </div>
+            </Link>
+          </div>
         </header>
 
         {/* Cuisine Selector */}
         <section className="mb-6 sm:mb-8">
-          <div className="flex sm:justify-start gap-2 sm:gap-3 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="flex sm:justify-start gap-2 sm:gap-3 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
             {cuisineFilters.map((c, i) => (
               <motion.button
                 key={c.label}
@@ -678,7 +729,7 @@ export default function HomePage() {
             tar huvudbredden, Rea & Rabatter är vertikal sidebar till höger.
           Sponsor-korten behåller sin storlek (260px) — fler syns bara för att containern är bredare.
         */}
-        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 xl:gap-8 lg:items-start">
+        <div className="mb-8 lg:grid lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-6 xl:gap-8 lg:items-start">
           {promoCards.length > 0 ? (
             <section className="mb-6 lg:mb-0">
               <div className="flex items-center justify-between mb-3 px-1">
@@ -811,7 +862,7 @@ export default function HomePage() {
           </div>
 
           {/* QUICK-FILTERS */}
-          <div className="flex gap-2 overflow-x-auto pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-5">
+          <div className="flex gap-2 overflow-x-auto lg:flex-wrap lg:overflow-visible pb-3 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 mb-5">
             {([
               { key: "all",   label: "Alla",          icon: "📊" },
               { key: "rated", label: "Betyg 4.0+",     icon: "★" },
@@ -859,7 +910,7 @@ export default function HomePage() {
               <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Här ekar det tomt just nu.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
                 {filtered.map((r, i) => {
                   const isOutOfZone = orderType === "DELIVERY" && zoneRestaurantIds !== null && !zoneRestaurantIds.includes(r.id);
                   const isClosed = r.isOpen === false;
