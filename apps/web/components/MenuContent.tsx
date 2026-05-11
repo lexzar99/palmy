@@ -330,7 +330,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {/* Dynamic Cover Image with Parallax-ish feel */}
       <div className="relative w-full h-[50vh] overflow-hidden">
         {heroImage ? (
-           <img src={heroImage} alt={restaurant?.name} className="w-full h-full object-cover scale-105" />
+           <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover scale-105" />
         ) : (
            <div className="w-full h-full bg-gradient-to-b" style={{ backgroundImage: "linear-gradient(to bottom, var(--bg-deep), var(--bg-primary))" }} />
         )}
@@ -560,7 +560,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                   >
                     {p.imageUrl && (
                       <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                        <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -630,7 +630,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        >
                            {p.imageUrl && (
                               <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "var(--bg-deep)" }}>
-                                 <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+                                 <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
                                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                            )}

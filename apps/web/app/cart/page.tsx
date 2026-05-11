@@ -637,6 +637,30 @@ export default function CartPage() {
     }
   }, [currentRestaurantId]);
 
+  // Restaurang-status-poll: om kund tillbringar 15-20 min i kassan och
+  // restaurangen stängt under tiden vill vi upptäcka det innan de klickar
+  // "Slutför köp". Pollar var 30s. Disabler submit-knappen via
+  // restaurantSettings.isOpen som redan används i rad ~1541.
+  useEffect(() => {
+    if (!currentRestaurantId) return;
+    const checkStatus = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`);
+        if (res.data) {
+          setRestaurantSettings((prev) => ({
+            ...prev,
+            isOpen: res.data.isOpen ?? prev.isOpen,
+            pausedUntil: res.data.pausedUntil ?? prev.pausedUntil,
+          }));
+        }
+      } catch {
+        // Ignorerat — om vi inte når servern lämnar vi senaste värdet
+      }
+    };
+    const interval = setInterval(checkStatus, 30_000);
+    return () => clearInterval(interval);
+  }, [currentRestaurantId]);
+
   // BOGO-förhandsgranskning: anropa server-side evaluate-cart när varukorgen ändras
   useEffect(() => {
     if (!currentRestaurantId || items.length === 0) {
@@ -1453,6 +1477,32 @@ export default function CartPage() {
                              className="h-full rounded-full bg-gold-500"
                              initial={{ width: 0 }}
                              animate={{ width: `${Math.min((subtotal / dealNudge.deal.minOrder) * 100, 100)}%` }}
+                             transition={{ duration: 0.5, ease: "easeOut" }}
+                           />
+                         </div>
+                       </motion.div>
+                     )}
+
+                     {/* Min-order-banner — visas när kund är under minsta orderbelopp.
+                         Sticky-känsla nära submit-knappen så det är omöjligt att missa. */}
+                     {subtotal > 0 && subtotal < minOrder && (
+                       <motion.div
+                         initial={{ opacity: 0, y: 6 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         className="mt-6 rounded-2xl border px-4 py-3"
+                         style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.30)" }}
+                       >
+                         <div className="flex items-center justify-between gap-2 mb-2">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">
+                             Lägg till {(minOrder - subtotal).toFixed(0)} kr för att slutföra köpet
+                           </p>
+                           <span className="text-[10px] font-black text-rose-500">{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
+                         </div>
+                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                           <motion.div
+                             className="h-full rounded-full bg-rose-500"
+                             initial={{ width: 0 }}
+                             animate={{ width: `${Math.min((subtotal / minOrder) * 100, 100)}%` }}
                              transition={{ duration: 0.5, ease: "easeOut" }}
                            />
                          </div>

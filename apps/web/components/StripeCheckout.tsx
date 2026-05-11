@@ -31,9 +31,14 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
     setIsProcessing(true);
     setErrorMessage(null);
 
+    // 30s timeout — om Stripe hänger (dåligt nätverk, deras backend slö) får
+    // kunden ett vettigt felmeddelande istället för spinnande oändligt
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('TIMEOUT')), 30_000),
+    );
+
     try {
-      // Confirm the payment
-      const { error, paymentIntent } = await stripe.confirmPayment({
+      const confirmPromise = stripe.confirmPayment({
         elements,
         confirmParams: {
           // Return URL is required but we'll try to handle it in-page if possible
@@ -42,6 +47,8 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
         },
         redirect: 'if_required',
       });
+
+      const { error, paymentIntent } = await Promise.race([confirmPromise, timeoutPromise]);
 
       if (error) {
         setErrorMessage(error.message || "Ett oväntat fel uppstod.");
@@ -58,8 +65,14 @@ const StripeCheckout = ({ onSuccess, amount, draftId }: StripeCheckoutProps) => 
       setErrorMessage("Betalningen väntar fortfarande på bekräftelse. Försök igen om en stund.");
       setIsProcessing(false);
     } catch (unexpectedError) {
-      console.error("Stripe checkout error:", unexpectedError);
-      setErrorMessage("Kunde inte genomföra betalningen. Försök igen.");
+      const isTimeout = (unexpectedError as Error)?.message === 'TIMEOUT';
+      if (isTimeout) {
+        console.warn("[stripe] confirmPayment timed out after 30s");
+        setErrorMessage("Betalningen tog för lång tid. Kontrollera din internetanslutning och försök igen.");
+      } else {
+        console.error("Stripe checkout error:", unexpectedError);
+        setErrorMessage("Kunde inte genomföra betalningen. Försök igen.");
+      }
       setIsProcessing(false);
     }
   };

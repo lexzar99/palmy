@@ -472,7 +472,7 @@ export default function HomePage() {
                 })()}
                 <div className="h-36 sm:h-44 md:h-40 lg:h-48 w-full rounded-[1.5rem] sm:rounded-[2rem] bg-zinc-100 relative overflow-hidden mb-4">
                   {r.heroImageUrl || r.imageUrl ? (
-                    <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
+                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
                   )}
@@ -552,6 +552,18 @@ export default function HomePage() {
 
   const handleRestaurantClick = (e: React.MouseEvent, r: Restaurant) => {
     e.preventDefault();
+    // Stängd restaurang — alert istället för silent navigation. Användaren
+    // skulle annars kunna scrolla menyn och försöka beställa, för att sedan
+    // få "kunde inte skapa order" först vid checkout. Bättre att stoppa här.
+    const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
+    const isPaused = pausedUntil && pausedUntil.getTime() > Date.now();
+    if (r.isOpen === false || isPaused) {
+      const msg = isPaused
+        ? `${r.name} har pausat beställningar. Försök igen om en stund.`
+        : `${r.name} är stängt just nu. Kolla öppettiderna och försök igen senare.`;
+      alert(msg);
+      return;
+    }
     router.push(getRestaurantHref(r));
   };
 
@@ -738,7 +750,7 @@ export default function HomePage() {
                   >
                     <div className="w-full h-24 relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
                       {r.heroImageUrl || r.imageUrl ? (
-                        <img src={getCardImage(r)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                        <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                       ) : null}
                     </div>
                     <div className="p-3">
@@ -891,7 +903,7 @@ export default function HomePage() {
                           {/* IMAGE */}
                           <div className="h-36 sm:h-44 w-full overflow-hidden relative">
                             {r.imageUrl || r.heroImageUrl ? (
-                              <img src={getCardImage(r)} alt={r.name} className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
+                              <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍱</div>
                             )}
