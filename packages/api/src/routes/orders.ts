@@ -462,12 +462,16 @@ router.post('/', async (req: Request, res: Response) => {
 
       if (!confirmedPayment) {
         for (const group of groupMap.values()) {
+          // Defensiv null-coalescing — schemat säger NOT NULL men gammal data
+          // från före migration kan ha null-värden.
+          const minSel = group.minSelections ?? 0;
+          const maxSel = group.maxSelections ?? 99;
           const selectedInGroup = validatedExtras.filter((selected) => selected.groupId === group.id);
-          if (selectedInGroup.length < group.minSelections) {
-            throw new OrderValidationError(`${product.name} kräver minst ${group.minSelections} val i ${group.name.toLowerCase()}`);
+          if (selectedInGroup.length < minSel) {
+            throw new OrderValidationError(`${product.name} kräver minst ${minSel} val i ${group.name.toLowerCase()}`);
           }
-          if (selectedInGroup.length > group.maxSelections) {
-            throw new OrderValidationError(`${product.name} tillåter högst ${group.maxSelections} val i ${group.name.toLowerCase()}`);
+          if (selectedInGroup.length > maxSel) {
+            throw new OrderValidationError(`${product.name} tillåter högst ${maxSel} val i ${group.name.toLowerCase()}`);
           }
           if (group.required && selectedInGroup.length === 0) {
             throw new OrderValidationError(`${group.name} måste väljas för ${product.name}`);
@@ -756,8 +760,18 @@ router.post('/', async (req: Request, res: Response) => {
     // For pending-payment orders, skip all post-creation side effects until
     // the Stripe webhook confirms the payment.
     if (!isPendingPayment) {
-      // Trigger loyalty/retention rewards (async)
-      triggerLoyaltyRewards(order).catch(console.error);
+      // Trigger loyalty/retention rewards (async). Failar tyst i bakgrunden
+      // — vi blockerar inte order-skapandet på det, men loggar med kontext
+      // så vi kan upptäcka i Sentry/loggar om en kund inte fick sin reward.
+      triggerLoyaltyRewards(order).catch((err) => {
+        console.error('[loyalty] reward trigger failed', {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerPhone: order.customerPhone ? `${order.customerPhone.slice(0, -4)}xxxx` : null,
+          restaurantId: order.restaurantId,
+          error: err?.message || String(err),
+        });
+      });
 
       // Uppdatera rabattkods-räknare (Skip for 'test' mock).
       // Atomisk increment med villkor "usageCount < maxUsages" via raw SQL —
@@ -915,8 +929,17 @@ router.get('/draft/:id', async (req: Request, res: Response) => {
       return;
     }
 
-    res.json(JSON.parse(draft.data));
+    // draft.data är JSON-stringat när vi sparar — om det är korrupt (manuell
+    // DB-redigering, halv-skrivning) ger vi 400 istället för 500 så klienten
+    // kan visa ett vettigt felmeddelande.
+    try {
+      res.json(JSON.parse(draft.data));
+    } catch (parseErr) {
+      console.error('[orders] corrupt draft data for id', req.params.id, parseErr);
+      res.status(400).json({ error: 'Utkastet är korrupt och kan inte läsas' });
+    }
   } catch (error) {
+    console.error('[orders] draft fetch error:', error);
     res.status(500).json({ error: 'Serverfel vid hämtning av utkast' });
   }
 });

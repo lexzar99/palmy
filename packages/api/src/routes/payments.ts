@@ -93,12 +93,21 @@ router.post('/create-intent', async (req, res) => {
       idempotencyKey ? { idempotencyKey: `create-intent:${idempotencyKey}` } : undefined
     );
 
-    // Link the pending order to this payment intent
+    // Link the pending order to this payment intent. Vi väljer att inte
+    // returnera fel till klienten om DB-uppdateringen failar — Stripe har redan
+    // skapat intent och kunden ska kunna betala. Men strukturerad error-log
+    // krävs så vi kan upptäcka mismatched intents/orders i Sentry.
     if (orderId && typeof orderId === 'string') {
       await prisma.order.update({
         where: { id: orderId },
         data: { stripePaymentIntentId: paymentIntent.id },
-      }).catch((e) => console.warn('[payments] could not link order to intent:', e?.message));
+      }).catch((e) => console.error('[payments] could not link order to intent', {
+        orderId,
+        paymentIntentId: paymentIntent.id,
+        error: e?.message || String(e),
+        // INTE PII — bara debug-flagga som hjälper hitta lost-pending-order
+        // när kund kommer tillbaka och säger "jag betalade men ingen mat".
+      }));
     }
 
     const responseBody = {

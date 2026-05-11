@@ -237,7 +237,15 @@ const getGroupIdsForProduct = (
 // GET /api/admin/orders
 router.get('/orders', async (req, res) => {
   try {
-    const { status, limit = '50', offset = '0', date, restaurantId, from, to } = req.query;
+    const { status, limit: rawLimit = '50', offset: rawOffset = '0', date, restaurantId, from, to } = req.query;
+
+    // Klampa limit till max 200 så en klient inte kan be om alla 50k ordrar
+    // och spiska minnet. offset clampas till 0+ för att förhindra negativa
+    // skip-värden (Prisma kraschar på negativ skip).
+    const parsedLimit = parseInt(rawLimit as string, 10);
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 200) : 50;
+    const parsedOffset = parseInt(rawOffset as string, 10);
+    const offset = Number.isFinite(parsedOffset) && parsedOffset >= 0 ? parsedOffset : 0;
 
     const where: Record<string, unknown> = {};
     if (isSuperAdmin(req as AuthRequest)) {
@@ -273,8 +281,8 @@ router.get('/orders', async (req, res) => {
       prisma.order.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        take: parseInt(limit as string),
-        skip: parseInt(offset as string),
+        take: limit,
+        skip: offset,
         include: {
           restaurant: { select: { name: true } },
           items: {
