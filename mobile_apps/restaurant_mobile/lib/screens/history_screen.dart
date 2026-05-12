@@ -141,7 +141,7 @@ class _DaySummary extends StatelessWidget {
                 style: TextStyle(
                   color: accent,
                   fontSize: 10,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 1.2,
                 ),
               ),
@@ -155,7 +155,7 @@ class _DaySummary extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontSize: 22,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: -0.4,
               ),
             ),
@@ -198,7 +198,7 @@ class _HistoryList extends StatelessWidget {
                     height: 56,
                     decoration: BoxDecoration(
                       color: AppTheme.faintColor(context),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
                       Icons.history_toggle_off_rounded,
@@ -284,7 +284,7 @@ class _HistoryCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 14,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -292,7 +292,7 @@ class _HistoryCard extends StatelessWidget {
                           '#${order.orderNumber}',
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.mutedColor(context),
                           ),
                         ),
@@ -332,7 +332,7 @@ class _HistoryCard extends StatelessWidget {
                     OrderUi.formatCurrency(order.total),
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       color: accent,
                     ),
                   ),

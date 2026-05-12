@@ -17,9 +17,9 @@ class _LogScreenState extends State<LogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DEBUG LOGS',
+        title: const Text('Debug log',
             style: TextStyle(
-                fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 2)),
+                fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: -0.2)),
         actions: [
           IconButton(
             onPressed: () {

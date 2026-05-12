@@ -117,7 +117,7 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                     ),
                     const Spacer(),
 
-                    // Big bell in cream circle
+                    // Bell in soft circle
                     ScaleTransition(
                       scale: CurvedAnimation(
                         parent: _entry,
@@ -125,23 +125,16 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                       ),
                       child: Center(
                         child: Container(
-                          width: 144,
-                          height: 144,
+                          width: 128,
+                          height: 128,
                           decoration: BoxDecoration(
-                            color: iconBg,
+                            color: accent.withOpacity(0.12),
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: accent.withOpacity(0.20),
-                                blurRadius: 30,
-                                offset: const Offset(0, 14),
-                              ),
-                            ],
                           ),
                           child: Icon(
                             Icons.notifications_active_rounded,
                             color: accent,
-                            size: 76,
+                            size: 64,
                           ),
                         ),
                       ),
@@ -156,24 +149,28 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                       child: Column(
                         children: [
                           Text(
-                            'Ny order!',
+                            'Ny order',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppTheme.ink,
-                              fontSize: 42,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1.5,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.6,
                               height: 1.0,
                             ),
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 12),
                           // Type pill
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 7),
+                                horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: iconBg,
-                              borderRadius: BorderRadius.circular(20),
+                              color: accent.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: accent.withOpacity(0.22),
+                                width: 1,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -183,15 +180,15 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                                       ? Icons.shopping_bag_rounded
                                       : Icons.delivery_dining_rounded,
                                   color: accent,
-                                  size: 14,
+                                  size: 13,
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 5),
                                 Text(
                                   isPickup ? 'AVHÄMTNING' : 'LEVERANS',
                                   style: TextStyle(
                                     color: accent,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w900,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w600,
                                     letterSpacing: 0.5,
                                   ),
                                 ),
@@ -204,9 +201,9 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppTheme.ink,
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -1.0,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.6,
                               height: 1.0,
                             ),
                           ),
@@ -216,18 +213,18 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: AppTheme.ink.withOpacity(0.65),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 6),
                           Text(
                             OrderUi.formatCurrency(order.total),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: accent,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
@@ -243,35 +240,28 @@ class _NewOrderAlertScreenState extends State<NewOrderAlertScreen>
                             const Interval(0.5, 1.0, curve: Curves.easeOutBack),
                       ),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
                           color: accent,
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.35),
-                              blurRadius: 22,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
                               'Tryck för att öppna',
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.3,
+                                color: isPickup ? AppTheme.ink : Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.1,
                               ),
                             ),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 6),
                             Icon(
                               Icons.arrow_forward_rounded,
-                              color: Colors.white,
-                              size: 20,
+                              color: isPickup ? AppTheme.ink : Colors.white,
+                              size: 18,
                             ),
                           ],
                         ),

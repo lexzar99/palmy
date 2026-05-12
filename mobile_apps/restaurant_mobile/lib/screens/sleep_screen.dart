@@ -164,7 +164,7 @@ class _SleepScreenState extends State<SleepScreen>
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.40),
                               fontSize: 11,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: 1.6,
                             ),
                           ),
@@ -240,7 +240,7 @@ class _ClosedBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
       decoration: BoxDecoration(
         color: AppTheme.danger.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
         border:
             Border.all(color: AppTheme.danger.withOpacity(0.35), width: 1.2),
       ),
@@ -259,7 +259,7 @@ class _ClosedBadge extends StatelessWidget {
             style: TextStyle(
               color: AppTheme.danger,
               fontSize: 11,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w600,
               letterSpacing: 1.6,
             ),
           ),
@@ -281,7 +281,7 @@ class _PauseBadge extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           decoration: BoxDecoration(
             color: AppTheme.warning.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
                 color: AppTheme.warning.withOpacity(0.35), width: 1.2),
           ),
@@ -296,7 +296,7 @@ class _PauseBadge extends StatelessWidget {
                 style: TextStyle(
                   color: AppTheme.warning,
                   fontSize: 11,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w600,
                   letterSpacing: 1.6,
                 ),
               ),
@@ -356,7 +356,7 @@ class _ExtendChip extends StatelessWidget {
               style: const TextStyle(
                 color: AppTheme.warning,
                 fontSize: 13,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -379,7 +379,7 @@ class _OpenNowButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         decoration: BoxDecoration(
           color: AppTheme.success,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
               color: AppTheme.success.withOpacity(0.40),
@@ -399,7 +399,7 @@ class _OpenNowButton extends StatelessWidget {
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: 1.0,
               ),
             ),

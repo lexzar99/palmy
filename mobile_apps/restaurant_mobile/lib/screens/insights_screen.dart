@@ -86,7 +86,7 @@ class InsightsScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppTheme.panelColor(context),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: AppTheme.borderColor(context)),
                   ),
                   child: Column(
@@ -171,7 +171,7 @@ class _Title extends StatelessWidget {
           style: TextStyle(
             color: isDark ? AppTheme.goldAccent : AppTheme.lightGold,
             fontSize: 11,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w600,
             letterSpacing: 1.6,
           ),
         ),
@@ -230,7 +230,7 @@ class _MiniMetric extends StatelessWidget {
             style: TextStyle(
               color: accent,
               fontSize: 9,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w600,
               letterSpacing: 1.0,
             ),
           ),
@@ -242,7 +242,7 @@ class _MiniMetric extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: -0.4,
               ),
             ),
@@ -288,7 +288,7 @@ class _Bar extends StatelessWidget {
               label,
               style: const TextStyle(
                 fontSize: 13,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
               ),
             ),
             const Spacer(),
@@ -353,7 +353,7 @@ class _CompareCard extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -367,7 +367,7 @@ class _CompareCard extends StatelessWidget {
               value,
               style: const TextStyle(
                 fontSize: 22,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 letterSpacing: -0.4,
               ),
             ),

@@ -49,26 +49,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           // ── Title ──────────────────────────────────────────────────────
           Padding(
-            padding: const EdgeInsets.fromLTRB(4, 6, 4, 14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Inställningar',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.8,
-                          color: isDark ? Colors.white : AppTheme.ink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            padding: const EdgeInsets.fromLTRB(4, 6, 4, 18),
+            child: Text(
+              'Inställningar',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+                color: isDark ? Colors.white : AppTheme.ink,
+              ),
             ),
           ),
 
@@ -78,20 +67,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [AppTheme.goldAccent, AppTheme.gold],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
+                    color: isDark ? AppTheme.gold : AppTheme.lightGold,
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.storefront_rounded,
-                      color: AppTheme.ink, size: 24),
+                  child: Icon(Icons.storefront_rounded,
+                      color: isDark ? AppTheme.ink : Colors.white, size: 22),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,8 +84,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Text(
                         authProvider.user?['name'] ?? 'Restaurangkonto',
                         style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
                       ),
@@ -110,9 +95,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             .toString()
                             .toUpperCase(),
                         style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0.6,
                           color: AppTheme.mutedColor(context),
                         ),
                       ),
@@ -317,13 +302,16 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.4,
-        color: AppTheme.mutedColor(context),
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 2),
+      child: Text(
+        label.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.9,
+          color: AppTheme.mutedColor(context),
+        ),
       ),
     );
   }
@@ -357,13 +345,13 @@ class _CompactTile extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: resolvedIconColor.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: resolvedIconColor, size: 18),
+            child: Icon(icon, color: resolvedIconColor, size: 17),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -372,12 +360,12 @@ class _CompactTile extends StatelessWidget {
               children: [
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w800)),
+                        fontSize: 14, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(subtitle,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       color: AppTheme.mutedColor(context),
                     )),
               ],
@@ -386,7 +374,7 @@ class _CompactTile extends StatelessWidget {
           const SizedBox(width: 8),
           trailing ??
               Icon(Icons.chevron_right_rounded,
-                  color: AppTheme.mutedColor(context), size: 20),
+                  color: AppTheme.mutedColor(context), size: 18),
         ],
       ),
     );
@@ -413,17 +401,17 @@ class _CompactThemeCard extends StatelessWidget {
       onTap: onTap,
       tint: accent,
       color: selected
-          ? accent.withOpacity(0.12)
+          ? accent.withOpacity(0.10)
           : AppTheme.panelColor(context),
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
           Container(
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             decoration: BoxDecoration(
-              color: accent.withOpacity(0.14),
-              borderRadius: BorderRadius.circular(11),
+              color: accent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               switch (preference) {
@@ -432,7 +420,7 @@ class _CompactThemeCard extends StatelessWidget {
                 ThemePreference.system => Icons.phone_android_rounded,
               },
               color: accent,
-              size: 18,
+              size: 16,
             ),
           ),
           const SizedBox(height: 8),
@@ -440,7 +428,7 @@ class _CompactThemeCard extends StatelessWidget {
             preference.label,
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: selected
                   ? accent
                   : AppTheme.mutedColor(context),
@@ -449,7 +437,7 @@ class _CompactThemeCard extends StatelessWidget {
           ),
           if (selected) ...[
             const SizedBox(height: 4),
-            Icon(Icons.check_circle_rounded, color: accent, size: 14),
+            Icon(Icons.check_circle_rounded, color: accent, size: 13),
           ],
         ],
       ),

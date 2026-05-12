@@ -2,8 +2,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../core/theme.dart';
+
 /// Full-screen feedback after accepting a pending order.
-/// Green for fast (≤ 30 s), orange for slow (> 30 s).
+/// Lime/success for fast (≤ 30 s), amber/warning for slow (> 30 s).
 class AcceptResultScreen extends StatefulWidget {
   /// Seconds it took the staff to accept the order from when it landed.
   final int seconds;
@@ -23,10 +25,9 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
 
   bool get _isSlow => widget.seconds > _slowThresholdSeconds;
 
-  Color get _accent =>
-      _isSlow ? const Color(0xFFFF8A00) : const Color(0xFF21C77A);
+  Color get _accent => _isSlow ? AppTheme.warning : AppTheme.success;
   Color get _accentDeep =>
-      _isSlow ? const Color(0xFFD96A00) : const Color(0xFF0E8A56);
+      _isSlow ? const Color(0xFFE69500) : const Color(0xFF15803D);
 
   @override
   void initState() {
@@ -137,25 +138,25 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
                     child: Column(
                       children: [
                         Text(
-                          _isSlow ? 'Lite långsamt' : 'Bra jobbat!',
+                          _isSlow ? 'Lite långsamt' : 'Bra jobbat',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 38,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.2,
+                            fontSize: 32,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: -0.6,
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
                         Text(
                           _isSlow
                               ? 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nNästa gång — försök snabbare så vi inte tappar kunder.'
                               : 'Du tog emot beställningen på ${_formatSeconds(widget.seconds)}.\nKunden är garanterat nöjd.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.92),
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                            color: Colors.white.withOpacity(0.90),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
                             height: 1.45,
                           ),
                         ),
@@ -171,23 +172,23 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
                     ),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 14),
+                          horizontal: 20, vertical: 12),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white.withOpacity(0.3)),
+                        color: Colors.white.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white.withOpacity(0.22)),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.bolt_rounded, color: Colors.white),
-                          const SizedBox(width: 8),
+                          const Icon(Icons.bolt_rounded, color: Colors.white, size: 22),
+                          const SizedBox(width: 6),
                           Text(
                             _formatSeconds(widget.seconds),
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
                               fontFeatures: [ui.FontFeature.tabularFigures()],
                             ),
                           ),
@@ -201,13 +202,13 @@ class _AcceptResultScreenState extends State<AcceptResultScreen>
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: _accentDeep,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                       textStyle: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
                       ),
                     ),
                     child: const Text('Tillbaka till ordrar'),

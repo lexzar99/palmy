@@ -297,7 +297,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
           child: Container(
             decoration: BoxDecoration(
               color: AppTheme.panelColor(context),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: isDark
                     ? Colors.white.withOpacity(0.08)
@@ -326,7 +326,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                       'Manuell IP-adress',
                       style: TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
@@ -417,7 +417,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
         child: Container(
           decoration: BoxDecoration(
             color: AppTheme.panelColor(context),
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isDark
                   ? Colors.white.withOpacity(0.08)
@@ -454,7 +454,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                           : 'Nätverksskrivare',
                       style: TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
@@ -520,7 +520,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                                   p.name,
                                   style: TextStyle(
                                     fontSize: 17,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w600,
                                     color:
                                         isDark ? Colors.white : AppTheme.ink,
                                   ),
@@ -548,7 +548,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                               'Välj',
                               style: TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: AppTheme.success,
                               ),
                             ),
@@ -584,7 +584,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: AppTheme.panelColor(context),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDark
                   ? Colors.white.withOpacity(0.07)
@@ -619,7 +619,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                       title,
                       style: TextStyle(
                         fontSize: 18,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
@@ -676,7 +676,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                       ? 'Aktiv skrivare'
                       : _nameController.text,
                   style: TextStyle(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     fontSize: 16,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
@@ -733,7 +733,7 @@ class _PrintSettingsScreenState extends State<PrintSettingsScreen> {
                             'Skrivare',
                             style: TextStyle(
                               fontSize: 26,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                               letterSpacing: -0.6,
                               color: isDark ? Colors.white : AppTheme.ink,
                             ),

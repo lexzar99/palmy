@@ -60,9 +60,9 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
       appBar: AppBar(
         backgroundColor: AppTheme.charcoal,
         elevation: 0,
-        title: const Text('HANTERA TILLBEHÖR',
+        title: const Text('Hantera tillbehör',
             style: TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: -0.2)),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.gold))
@@ -75,7 +75,7 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
                               .bodySmall
                               ?.color
                               ?.withOpacity(0.6),
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 2)))
               : ListView.builder(
                   padding: const EdgeInsets.all(20),
@@ -84,22 +84,20 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
                     final extra = allExtras[i];
                     final isActive = extra['isActive'] ?? true;
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
+                      margin: const EdgeInsets.only(bottom: 10),
                       decoration: BoxDecoration(
-                        color: AppTheme.zinc,
-                        borderRadius: BorderRadius.circular(22),
+                        color: AppTheme.panelColor(context),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                             color: isActive
-                                ? AppTheme.gold.withOpacity(0.2)
-                                : Theme.of(context)
-                                    .dividerColor
-                                    .withOpacity(0.5)),
+                                ? AppTheme.gold.withOpacity(0.18)
+                                : AppTheme.borderColor(context)),
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20, vertical: 8),
                         title: Text(
-                          extra['name'].toString().toUpperCase(),
+                          extra['name'].toString(),
                           style: TextStyle(
                             color: isActive
                                 ? Theme.of(context).textTheme.bodyLarge?.color
@@ -108,17 +106,20 @@ class _ExtrasScreenState extends State<ExtrasScreen> {
                                     .bodySmall
                                     ?.color
                                     ?.withOpacity(0.7),
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w600,
                             fontSize: 14,
                           ),
                         ),
-                        subtitle: Text(
-                            extra['groupName'].toString().toUpperCase(),
-                            style: const TextStyle(
-                                color: AppTheme.gold,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1)),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                              extra['groupName'].toString().toUpperCase(),
+                              style: TextStyle(
+                                  color: AppTheme.mutedColor(context),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.5)),
+                        ),
                         trailing: Switch(
                           value: isActive,
                           onChanged: (v) async {

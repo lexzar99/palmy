@@ -62,7 +62,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
           behavior: SnackBarBehavior.floating,
           content: const Text(
             'Kunde inte godkänna order — kontrollera nätverk',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
           ),
         ),
       );
@@ -85,9 +85,9 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Text('Neka order?',
-            style: TextStyle(fontWeight: FontWeight.w900)),
+            style: TextStyle(fontWeight: FontWeight.w600)),
         content: const Text(
             'Ordern avvisas och kunden meddelas. Kan inte ångras.'),
         actions: [
@@ -104,7 +104,7 @@ class _OrderTakeScreenState extends State<OrderTakeScreen> {
             ),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Neka',
-                style: TextStyle(fontWeight: FontWeight.w900)),
+                style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -200,7 +200,7 @@ class _MinimalHeader extends StatelessWidget {
                   '#${order.orderNumber}',
                   style: TextStyle(
                     fontSize: 22,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: -0.4,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
@@ -229,7 +229,7 @@ class _MinimalHeader extends StatelessWidget {
                         style: TextStyle(
                           color: accent,
                           fontSize: 10,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 0.6,
                         ),
                       ),
@@ -278,7 +278,7 @@ class _CustomerCard extends StatelessWidget {
                   order.customerName,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                     letterSpacing: -0.3,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
@@ -369,7 +369,7 @@ class _NoteCard extends StatelessWidget {
                     OrderUi.deliveryInstructionLabel(order.deliveryInstructions),
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       color: isDark ? Colors.white : AppTheme.ink,
                     ),
                   ),
@@ -452,7 +452,7 @@ class _OrderSection extends StatelessWidget {
                   'Totalt',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : AppTheme.ink,
                   ),
                 ),
@@ -461,7 +461,7 @@ class _OrderSection extends StatelessWidget {
                   OrderUi.formatCurrency(order.total),
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w600,
                     color: accent,
                   ),
                 ),
@@ -504,7 +504,7 @@ class _ItemRow extends StatelessWidget {
               '${item.quantity}×',
               style: TextStyle(
                 color: accent,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w600,
                 fontSize: 12,
               ),
             ),
@@ -522,7 +522,7 @@ class _ItemRow extends StatelessWidget {
                         item.productName,
                         style: TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: -0.2,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
@@ -533,7 +533,7 @@ class _ItemRow extends StatelessWidget {
                       OrderUi.formatCurrency(item.subtotal),
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : AppTheme.ink,
                       ),
                     ),
@@ -557,7 +557,7 @@ class _ItemRow extends StatelessWidget {
                             isMandatory ? '-- ' : '++ ',
                             style: TextStyle(
                               fontSize: isMandatory ? 13 : 12,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w600,
                               color: isMandatory
                                   ? (isDark ? Colors.white : AppTheme.ink)
                                   : accent,
@@ -670,7 +670,7 @@ class _BottomBar extends StatelessWidget {
                     style: TextStyle(
                       color: AppTheme.mutedColor(context),
                       fontSize: 11,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       letterSpacing: 1.4,
                     ),
                   ),
@@ -687,7 +687,7 @@ class _BottomBar extends StatelessWidget {
                       style: TextStyle(
                         color: goldColor,
                         fontSize: 12,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -708,7 +708,7 @@ class _BottomBar extends StatelessWidget {
                         _readyTime(selected),
                         style: TextStyle(
                           fontSize: 14,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w600,
                           color: goldColor,
                         ),
                       ),
@@ -737,7 +737,7 @@ class _BottomBar extends StatelessWidget {
                       height: 56,
                       decoration: BoxDecoration(
                         color: AppTheme.danger.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                             color: AppTheme.danger.withOpacity(0.50),
                             width: 1.4),
@@ -762,7 +762,7 @@ class _BottomBar extends StatelessWidget {
                                   style: TextStyle(
                                     color: AppTheme.danger,
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: FontWeight.w600,
                                     letterSpacing: 0.8,
                                   ),
                                 ),
@@ -781,7 +781,7 @@ class _BottomBar extends StatelessWidget {
                           color: busy
                               ? accent.withOpacity(0.60)
                               : accent,
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: busy
                             ? const Center(
@@ -803,7 +803,7 @@ class _BottomBar extends StatelessWidget {
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 14,
-                                      fontWeight: FontWeight.w900,
+                                      fontWeight: FontWeight.w600,
                                       letterSpacing: 1.0,
                                     ),
                                   ),
@@ -965,7 +965,7 @@ class _Card extends StatelessWidget {
       padding: padding ?? const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16233D) : Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDark
               ? Colors.white.withOpacity(0.09)
