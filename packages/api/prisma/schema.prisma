@@ -265,12 +265,54 @@ model AdminUser {
   name          String
   role          String   @default("STAFF")
   isActive      Boolean  @default(true)
-  // TOTP (2FA) — speakeasy-genererat base32-secret. När totpEnabled=true
-  // krävs en kod vid login. Lagras encrypted-at-rest av Postgres.
+  // TOTP (2FA) — otplib-genererat base32-secret. När totpEnabled=true
+  // krävs en kod vid login från ny enhet. Lagras encrypted-at-rest av Postgres.
   totpSecret    String?
   totpEnabled   Boolean  @default(false)
+  // Tidstämpel när recovery codes senast genererades (för att visa varning
+  // till admin om de är gamla)
+  recoveryGeneratedAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  trustedDevices TrustedDevice[]
+  recoveryCodes  RecoveryCode[]
+}
+
+// Trusted device — när admin loggat in med TOTP får enheten en cookie som
+// gäller 30 dagar. Då slipper man TOTP-prompt nästa gång på samma dator.
+// Admin kan revoka enheter från /2fa-sidan om de tappat dem.
+model TrustedDevice {
+  id           String    @id @default(cuid())
+  adminId      String
+  // bcrypt-hash av cookie-tokenen (samma princip som lösenord — vi vill
+  // inte lagra tokens i klartext)
+  tokenHash    String
+  // User-friendly label så admin kan känna igen enheten i listan
+  // ('Chrome på MacBook Pro · Stockholm')
+  deviceLabel  String
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  admin        AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+// Recovery codes — 10 engångskoder genererade vid TOTP-setup. Om admin
+// tappar telefonen kan de använda en kod istället för TOTP. Engångsbruk.
+model RecoveryCode {
+  id        String    @id @default(cuid())
+  adminId   String
+  codeHash  String    // bcrypt-hash av en kod som "ABCD-1234"
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  admin     AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
 }
 
 // Audit-log — varje mutation från admin loggas hit. Används för support

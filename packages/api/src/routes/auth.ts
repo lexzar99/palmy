@@ -10,6 +10,19 @@ import supabaseAdmin from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
+import {
+  createTrustedDevice,
+  setTrustedDeviceCookie,
+  verifyTrustedDeviceCookie,
+  listTrustedDevices,
+  revokeTrustedDevice,
+  revokeAllTrustedDevices,
+} from '../lib/trustedDevice';
+import {
+  generateRecoveryCodes,
+  consumeRecoveryCode,
+  countRemainingCodes,
+} from '../lib/recoveryCodes';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 
@@ -430,18 +443,57 @@ router.post('/login', authLimiter, async (req, res) => {
       return;
     }
 
-    // 2FA-kontroll om aktiverat på kontot
+    // 2FA / Trusted Device-flow:
+    // 1. Om TOTP är aktiverat på kontot → kräver kod, OM inte enheten är trusted
+    // 2. Trusted device-cookie giltig (sätts efter förra TOTP-verifieringen) → hoppa över
+    // 3. Annars: kräv totp (Google Authenticator) ELLER recoveryCode
+    // 4. Efter lyckad verifiering: skapa ny trusted device + sätt cookie
+    let needsTrustedDeviceCookie = false;
     if ((admin as { totpEnabled?: boolean }).totpEnabled) {
-      const { totp: providedTotp } = req.body as { totp?: string };
-      if (!providedTotp) {
-        // Returnera 200 med totpRequired-flag så klienten kan visa kod-input
-        res.status(200).json({ totpRequired: true });
-        return;
-      }
-      const valid = verifySync({ token: providedTotp, secret: (admin as { totpSecret?: string }).totpSecret || '' });
-      if (!valid) {
-        res.status(401).json({ error: 'Ogiltig 2FA-kod' });
-        return;
+      const trustedDeviceId = await verifyTrustedDeviceCookie(req, admin.id);
+
+      if (!trustedDeviceId) {
+        const { totp: providedTotp, recoveryCode } = req.body as {
+          totp?: string;
+          recoveryCode?: string;
+        };
+
+        // Ingen kod skickad → tala om för klient att TOTP behövs
+        if (!providedTotp && !recoveryCode) {
+          res.status(200).json({ totpRequired: true });
+          return;
+        }
+
+        let verified = false;
+
+        // Försök TOTP först
+        if (providedTotp) {
+          verified = Boolean(verifySync({
+            token: providedTotp,
+            secret: (admin as { totpSecret?: string }).totpSecret || '',
+          }));
+        }
+
+        // Annars recovery code som fallback
+        if (!verified && recoveryCode) {
+          verified = await consumeRecoveryCode(admin.id, recoveryCode);
+          if (verified) {
+            console.log(`[auth] Recovery code används för admin ${admin.email}`);
+          }
+        }
+
+        if (!verified) {
+          (req as AuthRequest).admin = { id: admin.id, email: admin.email, role: admin.role } as any;
+          await audit(req as AuthRequest, 'LOGIN_FAIL', {
+            resourceType: 'Auth',
+            resourceId: admin.id,
+            changes: { reason: 'invalid_totp_or_recovery' },
+          });
+          res.status(401).json({ error: 'Ogiltig 2FA-kod eller recovery-kod' });
+          return;
+        }
+
+        needsTrustedDeviceCookie = true;
       }
     }
 
@@ -486,12 +538,19 @@ router.post('/login', authLimiter, async (req, res) => {
       path: '/',
     });
 
+    // Om TOTP precis verifierades på en ny enhet — utfärda trusted device-cookie
+    // så nästa login från samma dator slipper TOTP-prompt.
+    if (needsTrustedDeviceCookie) {
+      const trustedToken = await createTrustedDevice(admin.id, req);
+      setTrustedDeviceCookie(res, trustedToken);
+    }
+
     // Logga lyckad inloggning. Sätt req.admin manuellt så audit() får rätt adminId.
     (req as AuthRequest).admin = { id: admin.id, email: admin.email, role: admin.role } as any;
     await audit(req as AuthRequest, 'LOGIN_SUCCESS', {
       resourceType: 'Auth',
       resourceId: admin.id,
-      changes: { restaurantId, role: admin.role },
+      changes: { restaurantId, role: admin.role, newTrustedDevice: needsTrustedDeviceCookie },
     });
 
     // Returnerar fortfarande token i body för bakåt-kompatibilitet med
@@ -563,10 +622,45 @@ router.post('/2fa/verify', authenticate, async (req: any, res) => {
       data: { totpEnabled: true } as any,
     });
 
-    res.json({ success: true });
+    // Vid första aktivering: generera 10 recovery codes och visa EN gång.
+    // Användare måste spara dem nu — backend lagrar bara bcrypt-hash.
+    const recoveryCodes = await generateRecoveryCodes(admin.id);
+
+    await audit(req as AuthRequest, '2FA_ENABLE', {
+      resourceType: 'AdminUser',
+      resourceId: admin.id,
+    });
+    res.json({ success: true, recoveryCodes });
   } catch (err) {
     console.error('[2fa verify] error:', err);
     res.status(500).json({ error: '2FA-verify misslyckades' });
+  }
+});
+
+// POST /api/auth/2fa/recovery/regenerate — generera nya 10 recovery codes.
+// Invaliderar alla gamla. Kräver giltig TOTP-kod.
+router.post('/2fa/recovery/regenerate', authenticate, async (req: any, res) => {
+  try {
+    const { totp } = req.body as { totp?: string };
+    if (!totp) return res.status(400).json({ error: 'TOTP-kod krävs' });
+
+    const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
+    if (!admin || !(admin as any).totpEnabled || !(admin as any).totpSecret) {
+      return res.status(400).json({ error: '2FA är inte aktiverat' });
+    }
+
+    const valid = verifySync({ token: totp, secret: (admin as any).totpSecret });
+    if (!valid) return res.status(401).json({ error: 'Ogiltig TOTP-kod' });
+
+    const recoveryCodes = await generateRecoveryCodes(admin.id);
+    await audit(req as AuthRequest, '2FA_RECOVERY_REGENERATE', {
+      resourceType: 'AdminUser',
+      resourceId: admin.id,
+    });
+    res.json({ recoveryCodes });
+  } catch (err) {
+    console.error('[2fa regenerate] error:', err);
+    res.status(500).json({ error: 'Kunde inte generera nya recovery codes' });
   }
 });
 
@@ -597,13 +691,64 @@ router.post('/2fa/disable', authenticate, async (req: any, res) => {
   }
 });
 
-// GET /api/auth/2fa/status — kollar om 2FA är på för nuvarande user
+// GET /api/auth/2fa/status — kollar om 2FA är på + recovery codes kvar
 router.get('/2fa/status', authenticate, async (req: any, res) => {
   try {
     const admin = await prisma.adminUser.findUnique({ where: { id: req.admin?.id } });
-    res.json({ enabled: Boolean((admin as any)?.totpEnabled) });
+    const enabled = Boolean((admin as any)?.totpEnabled);
+    const remainingCodes = enabled ? await countRemainingCodes(req.admin.id) : 0;
+    res.json({
+      enabled,
+      remainingRecoveryCodes: remainingCodes,
+      recoveryGeneratedAt: (admin as any)?.recoveryGeneratedAt ?? null,
+    });
   } catch {
-    res.json({ enabled: false });
+    res.json({ enabled: false, remainingRecoveryCodes: 0 });
+  }
+});
+
+// ============================================================
+// Trusted Devices — listar/revokar enheter som slipper TOTP-prompt
+// ============================================================
+
+// GET /api/auth/trusted-devices — listar aktiva enheter för inloggad admin
+router.get('/trusted-devices', authenticate, async (req: any, res) => {
+  try {
+    const devices = await listTrustedDevices(req.admin.id);
+    res.json(devices);
+  } catch (err) {
+    console.error('[trusted-devices list] error:', err);
+    res.status(500).json({ error: 'Kunde inte hämta enheter' });
+  }
+});
+
+// DELETE /api/auth/trusted-devices/:id — revoka en enskild enhet
+router.delete('/trusted-devices/:id', authenticate, async (req: any, res) => {
+  try {
+    await revokeTrustedDevice(req.admin.id, req.params.id);
+    await audit(req as AuthRequest, 'TRUSTED_DEVICE_REVOKE', {
+      resourceType: 'TrustedDevice',
+      resourceId: req.params.id,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[trusted-devices revoke] error:', err);
+    res.status(500).json({ error: 'Kunde inte revoka enhet' });
+  }
+});
+
+// DELETE /api/auth/trusted-devices — revoka ALLA aktiva enheter (panic-knapp)
+router.delete('/trusted-devices', authenticate, async (req: any, res) => {
+  try {
+    await revokeAllTrustedDevices(req.admin.id);
+    await audit(req as AuthRequest, 'TRUSTED_DEVICE_REVOKE_ALL', {
+      resourceType: 'AdminUser',
+      resourceId: req.admin.id,
+    });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[trusted-devices revoke-all] error:', err);
+    res.status(500).json({ error: 'Kunde inte revoka enheter' });
   }
 });
 
