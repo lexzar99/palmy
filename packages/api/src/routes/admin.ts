@@ -1736,6 +1736,10 @@ const normalizeDealInputForDb = (body: any) => {
   delete next.scopeType;
   delete next.targetIds;
   delete next.restaurant;
+  // kr-varianter används bara för konvertering till *-Ore-fälten nedan,
+  // de finns inte som kolumner i Prisma-schemat
+  delete next.bogoMaxRewardPrice;
+  delete next.bogoMinOrderAmount;
 
   if (body.scopeType !== undefined) {
     const scopeType = String(body.scopeType || 'RESTAURANT').toUpperCase();

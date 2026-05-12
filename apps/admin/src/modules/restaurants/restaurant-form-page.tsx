@@ -72,8 +72,8 @@ type FormState = {
   imageUrl: string; heroImageUrl: string;
   etaOverride: string; etaCalculated: number | null; etaEffective: number;
   featuredClass: number; isOpen: boolean; rating: number; ratingCount: number;
-  internalInfo: string; tags: string; latitude: string; longitude: string;
-  freeDeliveryAbove: number; openingHours: HoursForm; logoutCode: string;
+  internalInfo: string; latitude: string; longitude: string;
+  openingHours: HoursForm; logoutCode: string;
   announcementText: string; vatPercent: string;
 };
 
@@ -83,8 +83,8 @@ const emptyForm: FormState = {
   imageUrl: "", heroImageUrl: "",
   etaOverride: "", etaCalculated: null, etaEffective: 40,
   featuredClass: 3, isOpen: true, rating: 4.6, ratingCount: 0,
-  internalInfo: "", tags: "", latitude: "", longitude: "",
-  freeDeliveryAbove: 0, openingHours: buildDefaultHours(), logoutCode: "",
+  internalInfo: "", latitude: "", longitude: "",
+  openingHours: buildDefaultHours(), logoutCode: "",
   announcementText: "", vatPercent: "",
 };
 
@@ -97,10 +97,9 @@ const mapDetailToForm = (d: RestaurantDetail): FormState => ({
   etaCalculated: d.etaCalculatedMinutes ?? null, etaEffective: d.etaMinutes ?? 40,
   featuredClass: (d as any).featuredClass || 3, isOpen: d.manualIsOpen,
   rating: d.rating || 0, ratingCount: d.ratingCount || 0,
-  internalInfo: (d as any).internalInfo || "", tags: ((d as any).tags || []).join(", "),
+  internalInfo: (d as any).internalInfo || "",
   latitude: d.latitude != null ? String(d.latitude) : "",
   longitude: d.longitude != null ? String(d.longitude) : "",
-  freeDeliveryAbove: (d as any).freeDeliveryAbove || 0,
   openingHours: parseHoursFromDetail(d.openingHours),
   logoutCode: (d as any).logoutCode || "",
   announcementText: (d as any).announcementText || "",
@@ -117,10 +116,8 @@ const mapFormToPayload = (f: FormState): RestaurantFormPayload => ({
   featuredClass: Number(f.featuredClass || 3), isOpen: f.isOpen,
   rating: Number(f.rating || 0), ratingCount: Number(f.ratingCount || 0),
   internalInfo: f.internalInfo || null,
-  tags: f.tags.split(",").map((t) => t.trim()).filter(Boolean),
   latitude: f.latitude.trim() ? Number(f.latitude) : null,
   longitude: f.longitude.trim() ? Number(f.longitude) : null,
-  freeDeliveryAbove: Number(f.freeDeliveryAbove || 0),
   openingHours: f.openingHours,
   logoutCode: f.logoutCode.trim() || null,
   announcementText: f.announcementText.trim() || null,
@@ -430,7 +427,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
                 <Field label="Override (lämna tom = auto)"><Input type="number" min={25} max={55} placeholder="t.ex. 35" value={form.etaOverride} onChange={(e) => set("etaOverride", e.target.value)} /></Field>
               </div>
             </div>
-            <Field label="Fri leverans från (kr)"><Input type="number" value={form.freeDeliveryAbove} onChange={(e) => set("freeDeliveryAbove", Number(e.target.value))} /></Field>
             <Field label="Moms">
               <Select value={form.vatPercent} onChange={(e) => set("vatPercent", e.target.value)}>
                 <option value="">Ingen momsrad</option>
@@ -446,7 +442,6 @@ export function RestaurantFormPage({ restaurantId }: { restaurantId?: string }) 
             <Field label="Logout-kod (Flutter)"><Input value={form.logoutCode} onChange={(e) => set("logoutCode", e.target.value)} placeholder="t.ex. 1234" /></Field>
             <Field label="Latitud"><Input value={form.latitude} onChange={(e) => set("latitude", e.target.value)} /></Field>
             <Field label="Longitud"><Input value={form.longitude} onChange={(e) => set("longitude", e.target.value)} /></Field>
-            <Field label="Taggar"><Input value={form.tags} onChange={(e) => set("tags", e.target.value)} placeholder="pizza, halal, lunch" /></Field>
             <Field label="Intern anteckning"><Textarea value={form.internalInfo} onChange={(e) => set("internalInfo", e.target.value)} /></Field>
             <Field label="Kundinfobanner">
               <Textarea value={form.announcementText} onChange={(e) => set("announcementText", e.target.value)} placeholder="Vi har tillfälligt stängt — öppnar igen onsdag 12 juni." />
