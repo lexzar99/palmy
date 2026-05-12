@@ -30,7 +30,6 @@ import AddressPullDown from "@/components/AddressPullDown";
 import DealFlipCard, { type DealCardData } from "@/components/DealFlipCard";
 import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
-import FreeDeliverySection from "@/components/FreeDeliverySection";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import RecentOrderCard from "@/components/RecentOrderCard";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
@@ -887,9 +886,6 @@ export default function HomePage() {
           : featured.length > 0
             ? renderFeaturedRail("HETA LISTAN", "Toppvalen i din stad just nu", featured)
             : null}
-
-        {/* FRI LEVERANS */}
-        {orderType !== "PICKUP" && <FreeDeliverySection />}
 
         {/* SNABB LEVERANS (Liten kategori - fungerar som "avskiljare" nr 2) */}
         {(() => {
