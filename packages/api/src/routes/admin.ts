@@ -966,14 +966,19 @@ router.post('/categories', async (req, res) => {
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
     const category = await prisma.category.create({
-      data: { 
-        name, 
-        slug: `${slug}-${Date.now()}`, 
-        description, 
-        imageUrl, 
+      data: {
+        name,
+        slug: `${slug}-${Date.now()}`,
+        description,
+        imageUrl,
         position: position || 0,
         restaurantId: scopedRestaurantId
       },
+    });
+    await audit(req as AuthRequest, 'CATEGORY_CREATE', {
+      resourceType: 'Category',
+      resourceId: category.id,
+      changes: { name, restaurantId: scopedRestaurantId },
     });
     res.status(201).json(category);
   } catch (error: any) {
@@ -1003,6 +1008,11 @@ router.delete('/orders/:id', async (req, res) => {
     // Notifiera alla om att ordern är borta
     getIO().to('admin-room').emit('order:updated', { orderId: req.params.id });
 
+    await audit(req as AuthRequest, 'ORDER_DELETE', {
+      resourceType: 'Order',
+      resourceId: req.params.id,
+      changes: { orderNumber: order.orderNumber },
+    });
     res.json({ success: true, message: 'Order raderad' });
   } catch (err) {
     console.error('Delete order error:', err);
@@ -1044,6 +1054,11 @@ router.patch('/categories/:id', async (req, res) => {
       where: { id: req.params.id },
       data,
     });
+    await audit(req as AuthRequest, 'CATEGORY_UPDATE', {
+      resourceType: 'Category',
+      resourceId: category.id,
+      changes: data,
+    });
     res.json(category);
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1072,6 +1087,10 @@ router.delete('/categories/:id', async (req, res) => {
 
     await prisma.category.delete({
       where: { id: req.params.id },
+    });
+    await audit(req as AuthRequest, 'CATEGORY_DELETE', {
+      resourceType: 'Category',
+      resourceId: req.params.id,
     });
     res.json({ success: true });
   } catch {
@@ -1209,6 +1228,11 @@ router.post('/products', async (req, res) => {
       },
     });
 
+    await audit(req as AuthRequest, 'PRODUCT_CREATE', {
+      resourceType: 'Product',
+      resourceId: product.id,
+      changes: { name: data.name, price: data.price, categoryId: data.categoryId },
+    });
     res.status(201).json({ ...product, price: product.price / 100 });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1260,6 +1284,11 @@ router.patch('/products/:id', async (req, res) => {
       },
     });
 
+    await audit(req as AuthRequest, 'PRODUCT_UPDATE', {
+      resourceType: 'Product',
+      resourceId: product.id,
+      changes: updateData,
+    });
     res.json({ ...product, price: product.price / 100 });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1287,6 +1316,10 @@ router.delete('/products/:id', async (req, res) => {
     }
 
     await prisma.product.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'PRODUCT_DELETE', {
+      resourceType: 'Product',
+      resourceId: req.params.id,
+    });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1371,6 +1404,11 @@ router.post('/extra-groups', async (req, res) => {
       }
     }
 
+    await audit(req as AuthRequest, 'EXTRA_GROUP_CREATE', {
+      resourceType: 'ExtraGroup',
+      resourceId: group.id,
+      changes: { name: group.name, restaurantId: scopedRestaurantId },
+    });
     res.status(201).json({
       ...group,
       extras: group.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
@@ -1438,6 +1476,10 @@ router.patch('/extra-groups/:id', async (req, res) => {
       }
     }
 
+    await audit(req as AuthRequest, 'EXTRA_GROUP_UPDATE', {
+      resourceType: 'ExtraGroup',
+      resourceId: group.id,
+    });
     res.json({
       ...group,
       extras: group.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
@@ -1468,6 +1510,10 @@ router.delete('/extra-groups/:id', async (req, res) => {
     }
 
     await prisma.extraGroup.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'EXTRA_GROUP_DELETE', {
+      resourceType: 'ExtraGroup',
+      resourceId: req.params.id,
+    });
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -1526,6 +1572,11 @@ router.post('/extra-groups/:id/copy', async (req, res) => {
       },
       include: { extras: true },
     });
+    await audit(req as AuthRequest, 'EXTRA_GROUP_COPY', {
+      resourceType: 'ExtraGroup',
+      resourceId: copy.id,
+      changes: { sourceId: source.id, targetRestaurantId: String(targetRestaurantId) },
+    });
     res.status(201).json({
       ...copy,
       extras: copy.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
@@ -1563,6 +1614,11 @@ router.post('/categories/:id/copy', async (req, res) => {
         imageUrl: source.imageUrl,
         restaurantId: String(targetRestaurantId),
       },
+    });
+    await audit(req as AuthRequest, 'CATEGORY_COPY', {
+      resourceType: 'Category',
+      resourceId: copy.id,
+      changes: { sourceId: source.id, targetRestaurantId: String(targetRestaurantId) },
     });
     res.status(201).json(copy);
   } catch (err) {
@@ -1613,6 +1669,15 @@ router.post('/products/:id/copy', async (req, res) => {
         discountImageUrl: source.discountImageUrl,
         discountLabel: source.discountLabel,
         discountActive: source.discountActive,
+      },
+    });
+    await audit(req as AuthRequest, 'PRODUCT_COPY', {
+      resourceType: 'Product',
+      resourceId: copy.id,
+      changes: {
+        sourceId: source.id,
+        targetRestaurantId: String(targetRestaurantId),
+        targetCategoryId: String(targetCategoryId),
       },
     });
     res.status(201).json({ ...copy, price: copy.price / 100 });
@@ -2221,6 +2286,11 @@ router.post('/deals', async (req, res) => {
       data: normalized as any,
     });
 
+    await audit(req as AuthRequest, 'DEAL_CREATE', {
+      resourceType: 'Deal',
+      resourceId: deal.id,
+      changes: { title: deal.title, restaurantId: scopedRestaurantId, triggerType: normalized.triggerType },
+    });
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);
@@ -2293,6 +2363,11 @@ router.patch('/deals/:id', async (req, res) => {
       data: normalizedData,
     });
 
+    await audit(req as AuthRequest, 'DEAL_UPDATE', {
+      resourceType: 'Deal',
+      resourceId: deal.id,
+      changes: { isActive: nextIsActive, scopeChanged, scopeType: nextScopeType },
+    });
     res.json(formatDealForAdmin(deal));
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Serverfel' });
@@ -2317,6 +2392,10 @@ router.delete('/deals/:id', async (req, res) => {
     }
 
     await prisma.deal.delete({ where: { id } });
+    await audit(req as AuthRequest, 'DEAL_DELETE', {
+      resourceType: 'Deal',
+      resourceId: id,
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete deal error:', error);
@@ -2395,6 +2474,11 @@ router.post('/staff/invite', authenticate, requireSuperAdmin, async (req, res) =
     });
 
     const formatted = await formatStaffMember(created);
+    await audit(req as AuthRequest, 'STAFF_INVITE', {
+      resourceType: 'AdminUser',
+      resourceId: created.id,
+      changes: { email: created.email, role: created.role },
+    });
     res.status(201).json({ ...formatted, temporaryPassword });
   } catch (error) {
     console.error('Staff invite error:', error);
@@ -2437,6 +2521,11 @@ router.patch('/staff/:id', authenticate, requireSuperAdmin, async (req, res) => 
     });
 
     const formatted = await formatStaffMember(updated);
+    await audit(req as AuthRequest, 'STAFF_UPDATE', {
+      resourceType: 'AdminUser',
+      resourceId: updated.id,
+      changes: { active, role: normalizedRole, name },
+    });
     res.json(formatted);
   } catch (error) {
     console.error('Staff update error:', error);
@@ -2451,6 +2540,10 @@ router.delete('/staff/:id', authenticate, requireSuperAdmin, async (req: AuthReq
     }
 
     await prisma.adminUser.delete({ where: { id: req.params.id } });
+    await audit(req, 'STAFF_DELETE', {
+      resourceType: 'AdminUser',
+      resourceId: req.params.id,
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('Staff delete error:', error);
@@ -2724,6 +2817,11 @@ router.put('/restaurants/:id/login', authenticate, requireSuperAdmin, async (req
 
     // Returnera färska data.
     const refreshed = await resolveLoginAccount(restaurant.id);
+    await audit(req as AuthRequest, 'RESTAURANT_LOGIN_UPSERT', {
+      resourceType: 'Restaurant',
+      resourceId: restaurant.id,
+      changes: { username: trimmedUsername, restaurantName: restaurant.name },
+    });
     res.json({
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
@@ -2742,13 +2840,18 @@ router.delete('/restaurants/:id/login', authenticate, requireSuperAdmin, async (
   try {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: req.params.id },
-      select: { id: true, adminUserId: true },
+      select: { id: true, adminUserId: true, name: true },
     });
     if (!restaurant) return res.status(404).json({ error: 'Restaurang hittades inte' });
     if (restaurant.adminUserId) {
       await prisma.adminUser.delete({ where: { id: restaurant.adminUserId } }).catch(() => null);
       await prisma.restaurant.update({ where: { id: restaurant.id }, data: { adminUserId: null, adminEmail: null } });
     }
+    await audit(req as AuthRequest, 'RESTAURANT_LOGIN_DELETE', {
+      resourceType: 'Restaurant',
+      resourceId: restaurant.id,
+      changes: { restaurantName: restaurant.name },
+    });
     res.json({ success: true });
   } catch (error) {
     console.error('Delete restaurant login error:', error);
@@ -2770,6 +2873,10 @@ router.post('/deals/wipe', authenticate, requireSuperAdmin, async (req, res) => 
     // Rensa även User.claimedDealIds så Profile-listan inte pekar på
     // borttagna deals.
     await (prisma as any).user.updateMany({ data: { claimedDealIds: '[]' } }).catch(() => null);
+    await audit(req as AuthRequest, 'DEAL_WIPE_ALL', {
+      resourceType: 'Deal',
+      changes: { deleted: before },
+    });
     res.json({ success: true, deleted: before });
   } catch (error: any) {
     console.error('Wipe deals error:', error);
@@ -2797,6 +2904,10 @@ router.post('/orders/wipe', authenticate, requireSuperAdmin, async (req, res) =>
     await prisma.order.deleteMany({ where });
     const after = await prisma.order.count({ where });
 
+    await audit(req as AuthRequest, 'ORDER_WIPE', {
+      resourceType: 'Order',
+      changes: { deleted: before - after, scope: restaurantId ?? 'ALL' },
+    });
     res.json({ success: true, deleted: before - after, before, after, scope: restaurantId ?? 'ALL' });
   } catch (error: any) {
     console.error('Wipe orders error:', error);
@@ -2814,6 +2925,10 @@ router.post('/staff/:id/reset-password', authenticate, requireSuperAdmin, async 
       data: { password: hashedPassword, isActive: true },
     });
 
+    await audit(req as AuthRequest, 'STAFF_PASSWORD_RESET', {
+      resourceType: 'AdminUser',
+      resourceId: req.params.id,
+    });
     res.json({ success: true, temporaryPassword });
   } catch (error) {
     console.error('Staff password reset error:', error);
@@ -3152,6 +3267,11 @@ router.post('/discounts', async (req, res) => {
     const discount = await prisma.discountCode.create({
       data: discountData,
     });
+    await audit(req as AuthRequest, 'DISCOUNT_CREATE', {
+      resourceType: 'DiscountCode',
+      resourceId: discount.id,
+      changes: { code: discount.code, type: discount.type, value: discount.value },
+    });
     res.status(201).json(formatDiscountCodeForAdmin(discount));
   } catch (error: unknown) {
     if ((error as { code?: string }).code === 'P2002') {
@@ -3193,6 +3313,11 @@ router.patch('/discounts/:id', async (req, res) => {
       where: { id: req.params.id },
       data: updateData,
     });
+    await audit(req as AuthRequest, 'DISCOUNT_UPDATE', {
+      resourceType: 'DiscountCode',
+      resourceId: updated.id,
+      changes: updateData,
+    });
     res.json(formatDiscountCodeForAdmin(updated));
   } catch {
     res.status(500).json({ error: 'Serverfel' });
@@ -3207,6 +3332,10 @@ router.delete('/discounts/:id', async (req, res) => {
 
     await prisma.discountCode.delete({
       where: { id: req.params.id },
+    });
+    await audit(req as AuthRequest, 'DISCOUNT_DELETE', {
+      resourceType: 'DiscountCode',
+      resourceId: req.params.id,
     });
     res.json({ success: true });
   } catch {
@@ -3263,6 +3392,15 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       });
     }
 
+    await audit(authReq, 'ORDER_REFUND', {
+      resourceType: 'Order',
+      resourceId: order.id,
+      changes: {
+        orderNumber: order.orderNumber,
+        amount: refundAmountOre / 100,
+        reason: reason || 'Återbetalning via admin',
+      },
+    });
     res.json({ success: true, refundedAmount: refundAmountOre / 100 });
   } catch (error: any) {
     console.error('Refund error:', error);

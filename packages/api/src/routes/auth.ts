@@ -8,6 +8,8 @@ import { JWT_SECRET } from '../lib/config';
 import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
 import supabaseAdmin from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
+import type { AuthRequest } from '../middleware/auth';
+import { audit } from '../lib/auditLog';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 
@@ -405,12 +407,25 @@ router.post('/login', authLimiter, async (req, res) => {
     const admin = await resolveAdminByIdentifier(effectiveLoginId);
 
     if (!admin) {
+      // Logga miss-försök så vi kan spåra brute-force trots rate-limit.
+      // req.admin är undefined här — audit() loggar med adminId=null.
+      await audit(req as AuthRequest, 'LOGIN_FAIL', {
+        resourceType: 'Auth',
+        changes: { identifier: loginId, reason: 'no_account' },
+      });
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
+      // Logga med kandidat-admin-id så vi kan se vilka konton brute-forcas mot.
+      (req as AuthRequest).admin = { id: admin.id, email: admin.email, role: admin.role } as any;
+      await audit(req as AuthRequest, 'LOGIN_FAIL', {
+        resourceType: 'Auth',
+        resourceId: admin.id,
+        changes: { identifier: loginId, reason: 'wrong_password' },
+      });
       res.status(401).json({ error: 'Felaktigt användarnamn eller lösenord' });
       return;
     }
@@ -469,6 +484,14 @@ router.post('/login', authLimiter, async (req, res) => {
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
+    });
+
+    // Logga lyckad inloggning. Sätt req.admin manuellt så audit() får rätt adminId.
+    (req as AuthRequest).admin = { id: admin.id, email: admin.email, role: admin.role } as any;
+    await audit(req as AuthRequest, 'LOGIN_SUCCESS', {
+      resourceType: 'Auth',
+      resourceId: admin.id,
+      changes: { restaurantId, role: admin.role },
     });
 
     // Returnerar fortfarande token i body för bakåt-kompatibilitet med
