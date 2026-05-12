@@ -23,3 +23,6 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     ],
   });
 }
+
+// Sentry v10 — kräver explicit export för att fånga route-transitions (navigations)
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
