@@ -884,47 +884,6 @@ export default function HomePage() {
             ? renderFeaturedRail("HETA LISTAN", "Toppvalen i din stad just nu", featured)
             : null}
 
-        {/* SNABB LEVERANS (Liten kategori - fungerar som "avskiljare" nr 2) */}
-        {(() => {
-          const fast = filtered.filter((r) => (r.etaMinutes ?? Number.POSITIVE_INFINITY) <= 25).slice(0, 10);
-          if (fast.length === 0) return null;
-          return (
-            <section className="mb-12 mt-4">
-              <div className="flex items-center justify-between mb-4 px-1">
-                <h2 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
-                  <span className="text-amber-500 text-lg leading-none">⚡</span> Snabbast leverans
-                </h2>
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6 lg:mx-0 lg:px-0">
-                {fast.map((r, i) => (
-                  <motion.button
-                    key={r.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.03 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={(e) => handleRestaurantClick(e as any, r)}
-                    className="shrink-0 w-40 rounded-2xl border overflow-hidden text-left group"
-                    style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
-                  >
-                    <div className="w-full h-24 relative overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
-                      {r.heroImageUrl || r.imageUrl ? (
-                        <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                      ) : null}
-                    </div>
-                    <div className="p-3">
-                      <div className="text-[13px] font-black truncate" style={{ color: "var(--text-primary)" }}>{r.name}</div>
-                      <div className="text-[10px] mt-1 font-bold" style={{ color: "var(--text-secondary)" }}>
-                        {Math.round(r.etaMinutes ?? 0)} min <span className="opacity-50 mx-1">•</span> {r.rating ? `${r.rating.toFixed(1)}★` : "Ny"}
-                      </div>
-                    </div>
-                  </motion.button>
-                ))}
-              </div>
-            </section>
-          );
-        })()}
-
         {filteredByDeal && (
           <section className="mb-10">
             <div className="flex items-center justify-between gap-4 rounded-[1.8rem] border px-5 py-4" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
