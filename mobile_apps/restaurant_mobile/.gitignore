@@ -46,3 +46,4 @@ app.*.map.json
 android/key.properties
 android/*.jks
 android/app/google-services.json
+.claude/worktrees/
