@@ -310,18 +310,27 @@ export default function HomePage() {
 
     const pub: DealCardData[] = deals.map(d => {
       const related = [d.restaurantId, ...(d.applicableRestaurantIds || [])].filter(Boolean);
+      const isBogo = d.triggerType === "BOGO_CATEGORY" || d.dealType === "BOGO_CATEGORY";
+      const discountPercent = !isBogo && d.discountType === "PERCENTAGE" ? Number(d.discountValue) || 0 : 0;
       return {
         id: d.id,
         badgeLabel: d.isGlobal ? "Globalt" : (d.restaurant?.name || "Erbjudande"),
         title: d.title,
         subtitle: d.description || (d.restaurant?.name ? `Hos ${d.restaurant.name}` : "Gäller alla restauranger"),
-        rewardLabel: d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`,
+        // BOGO har 0kr discount men ger gratisvara — visa det istället för "0 kr".
+        rewardLabel: isBogo
+          ? "1+1 GRATIS"
+          : d.discountType === "PERCENTAGE"
+            ? `${d.discountValue}%`
+            : `${d.discountValue} kr`,
         description: d.description,
         code: d.code,
         validUntil: d.validUntil,
         minOrderText: d.minOrder ? `Min ${d.minOrder} kr` : null,
         tags: d.tags || [],
-        tone: "purple" as const,
+        tone: (isBogo ? "emerald" : "purple") as "emerald" | "purple",
+        isBogo,
+        discountPercent,
         variant: "public" as const,
         relatedRestaurantIds: related,
         isGlobal: d.isGlobal ?? false,
@@ -400,6 +409,17 @@ export default function HomePage() {
     return allDealCards.find(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
   }, [allDealCards]);
 
+  // En restaurang kan ha max 2 badges: en BOGO + en regular (högsta procenten).
+  const getBadgesForRestaurant = useCallback((restaurantId: string) => {
+    const eligible = allDealCards.filter(d => d.relatedRestaurantIds?.includes(restaurantId) || d.isGlobal);
+    const bogo = eligible.find(d => d.isBogo) || null;
+    const regulars = eligible.filter(d => !d.isBogo);
+    // Sortera regulars: högsta % först, fallback till första
+    regulars.sort((a, b) => (b.discountPercent || 0) - (a.discountPercent || 0));
+    const regular = regulars[0] || null;
+    return { bogo, regular };
+  }, [allDealCards]);
+
   const handlePromoScroll = useCallback(() => {
     const rail = promoRailRef.current;
     if (!rail) return;
@@ -466,15 +486,21 @@ export default function HomePage() {
                 className="group relative block h-full glass-card rounded-[2rem] sm:rounded-[2.5rem] p-3 flex flex-col overflow-hidden border border-transparent hover:border-gold-500/30 transition-all"
               >
                 {(() => {
-                  const activeDeal = getDealForRestaurant(r.id);
-                  if (activeDeal) {
-                    return (
-                      <div className={`absolute top-8 -left-7 -rotate-45 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-9 py-1.5 shadow-2xl z-20`}>
-                        <p className="text-[7px] font-black uppercase tracking-widest text-center">{activeDeal.rewardLabel}</p>
-                      </div>
-                    );
-                  }
-                  return null;
+                  const badges = getBadgesForRestaurant(r.id);
+                  return (
+                    <>
+                      {badges.bogo && (
+                        <div className="absolute top-8 -left-7 -rotate-45 bg-emerald-500 text-zinc-950 px-9 py-1.5 shadow-2xl z-20">
+                          <p className="text-[7px] font-black uppercase tracking-widest text-center">1+1 GRATIS</p>
+                        </div>
+                      )}
+                      {badges.regular && (
+                        <div className={`absolute ${badges.bogo ? "top-3 right-3" : "top-8 -left-7 -rotate-45"} ${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 ${badges.bogo ? "px-3 py-1 rounded-full" : "px-9 py-1.5 shadow-2xl"} z-20`}>
+                          <p className="text-[7px] font-black uppercase tracking-widest text-center">{badges.regular.rewardLabel}</p>
+                        </div>
+                      )}
+                    </>
+                  );
                 })()}
                 <div className="h-36 sm:h-44 md:h-40 lg:h-48 w-full rounded-[1.5rem] sm:rounded-[2rem] bg-zinc-100 relative overflow-hidden mb-4">
                   {r.heroImageUrl || r.imageUrl ? (
@@ -1005,7 +1031,6 @@ export default function HomePage() {
                   const isClosed = r.isOpen === false;
                   const dimmed = isClosed || isOutOfZone;
                   const injectDeal = (allDealCards.length > 0 && (i + 1) % 4 === 0) ? allDealCards[Math.floor(i / 4) % allDealCards.length] : null;
-                  const activeDeal = getDealForRestaurant(r.id);
                   const isFav = favorites.has(r.id);
 
                   const toggleFav = (e: React.MouseEvent) => {
@@ -1033,12 +1058,24 @@ export default function HomePage() {
                           className="group block glass-card rounded-[2rem] overflow-hidden hover:shadow-xl transition-all relative border"
                           style={{ borderColor: "var(--border-muted)" }}
                         >
-                          {/* DEAL RIBBON */}
-                          {activeDeal && (
-                            <div className={`absolute top-0 right-0 ${activeDeal.tone === "purple" ? "bg-purple-500" : activeDeal.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-5 py-1.5 z-20 rounded-bl-[1.5rem]`}>
-                              <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {activeDeal.rewardLabel}</p>
-                            </div>
-                          )}
+                          {/* DEAL RIBBONS — max 1 BOGO + 1 regular */}
+                          {(() => {
+                            const badges = getBadgesForRestaurant(r.id);
+                            return (
+                              <>
+                                {badges.bogo && (
+                                  <div className="absolute top-0 left-0 bg-emerald-500 text-zinc-950 px-4 py-1.5 z-20 rounded-br-[1.5rem]">
+                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> 1+1 GRATIS</p>
+                                  </div>
+                                )}
+                                {badges.regular && (
+                                  <div className={`absolute top-0 right-0 ${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-5 py-1.5 z-20 rounded-bl-[1.5rem]`}>
+                                    <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {badges.regular.rewardLabel}</p>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
 
                           {/* IMAGE */}
                           <div className="h-36 sm:h-44 w-full overflow-hidden relative">

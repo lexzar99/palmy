@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Sparkles, Tag, X, ArrowRight, Copy, Check } from "lucide-react";
 
-export type DealTone = "gold" | "orange" | "purple";
+export type DealTone = "gold" | "orange" | "purple" | "emerald";
 
 export interface DealCardData {
   id: string;
@@ -20,14 +20,19 @@ export interface DealCardData {
   tone?: DealTone;
   variant?: "public" | "personal";
   relatedRestaurantIds?: string[];
+  // BOGO-flag: påverkar både badge-text (1+1 GRATIS) och färg (emerald).
+  isBogo?: boolean;
+  // För att kunna välja högsta procent när flera regular-deals finns på samma restaurang.
+  discountPercent?: number;
   onNavigateToFiltered?: (ids: string[], title: string) => void;
   onUseNow?: () => void;
 }
 
 const TONES: Record<DealTone, { accent: string }> = {
-  gold:   { accent: "#EAB545" },
-  orange: { accent: "#F07A13" },
-  purple: { accent: "#A855F7" },
+  gold:    { accent: "#EAB545" },
+  orange:  { accent: "#F07A13" },
+  purple:  { accent: "#A855F7" },
+  emerald: { accent: "#10B981" },
 };
 
 export default function DealFlipCard({ deal }: { deal: DealCardData }) {
