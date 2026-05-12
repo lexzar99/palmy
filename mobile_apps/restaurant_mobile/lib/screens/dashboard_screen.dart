@@ -71,7 +71,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     'Order #${failure.orderNumber} ej utskriven',
                     style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                         fontSize: 14),
                   ),
                   Text(
@@ -399,36 +399,33 @@ class _Header extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 44,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.8,
-                  height: 1.0,
+                  fontSize: 32,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.6,
+                  height: 1.05,
                   color: isDark ? Colors.white : AppTheme.ink,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.55)
-                      : const Color(0xFF8E8E93),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: AppTheme.mutedColor(context),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 10),
-        // Big circular STÄNGD/ÖPPET status button (matchar mockup)
+        const SizedBox(width: 12),
         _StatusButton(
           isOpen: isOpen,
           label: statusLabel,
           color: statusColor,
           onTap: () => _showStatusPicker(context, provider),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 4),
         _BellButton(
           hasPending: hasPending,
           isDark: isDark,
@@ -446,21 +443,17 @@ class _Header extends StatelessWidget {
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(12),
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: AppTheme.panelColor(ctx),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppTheme.isDark(ctx)
-                  ? Colors.white.withOpacity(0.10)
-                  : AppTheme.ink.withOpacity(0.10),
-            ),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.borderColor(ctx)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 14),
                 child: Row(
                   children: [
                     Text(
@@ -470,7 +463,7 @@ class _Header extends StatelessWidget {
                             ? Colors.white
                             : AppTheme.ink,
                         fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const Spacer(),
@@ -551,50 +544,36 @@ class _StatusButton extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: color.withOpacity(0.35), width: 1.4),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.18),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          color: color.withOpacity(0.10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.25), width: 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Levande pulserande dot
             Container(
-              width: 9,
-              height: 9,
+              width: 7,
+              height: 7,
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.55),
-                    blurRadius: 6,
-                  ),
-                ],
               ),
             ),
-            const SizedBox(width: 9),
+            const SizedBox(width: 7),
             Text(
               label,
               style: TextStyle(
                 color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
               ),
             ),
-            const SizedBox(width: 4),
-            Icon(Icons.expand_more_rounded, color: color, size: 16),
+            const SizedBox(width: 2),
+            Icon(Icons.expand_more_rounded, color: color, size: 14),
           ],
         ),
       ),
@@ -676,28 +655,26 @@ class _SectionHeaderRow extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            color: isDark ? Colors.white : AppTheme.ink,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.6,
+            color: AppTheme.mutedColor(context),
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.9,
           ),
         ),
         if (countBadge != null) ...[
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Container(
-            width: 24,
-            height: 24,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppTheme.brandGold,
-              shape: BoxShape.circle,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.gold,
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               '$countBadge',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
+              style: TextStyle(
+                color: isDark ? AppTheme.ink : AppTheme.ink,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -825,27 +802,27 @@ class _StatusTile extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.10) : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
+          color: selected ? color.withOpacity(0.08) : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: selected
-                ? color.withOpacity(0.45)
+                ? color.withOpacity(0.30)
                 : AppTheme.borderColor(context),
-            width: 1.3,
+            width: 1,
           ),
         ),
         child: Row(
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: 34,
+              height: 34,
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: Icon(icon, color: color, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -854,10 +831,10 @@ class _StatusTile extends StatelessWidget {
                 children: [
                   Text(title,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w900, fontSize: 15)),
+                          fontWeight: FontWeight.w600, fontSize: 14)),
                   Text(subtitle,
                       style: TextStyle(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         fontSize: 12,
                         color: AppTheme.mutedColor(context),
                       )),
@@ -869,7 +846,7 @@ class _StatusTile extends StatelessWidget {
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_unchecked,
               color: selected ? color : AppTheme.mutedColor(context),
-              size: 22,
+              size: 20,
             ),
           ],
         ),
@@ -895,35 +872,26 @@ class _NewOrderBanner extends StatelessWidget {
           CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
         ),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppTheme.brandGold, AppTheme.brandGoldSoft],
-            ),
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.brandGold.withOpacity(0.40),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
+            color: AppTheme.gold,
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.notifications_active_rounded,
-                  color: Colors.white, size: 18),
+                  color: AppTheme.ink, size: 16),
               const SizedBox(width: 8),
               Text(
                 count > 1
-                    ? '$count nya ordrar inkommen!'
-                    : 'Ny order inkommen!',
+                    ? '$count nya ordrar inkommen'
+                    : 'Ny order inkommen',
                 style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.1,
+                  color: AppTheme.ink,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0,
                 ),
               ),
             ],

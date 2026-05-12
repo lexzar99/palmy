@@ -34,38 +34,32 @@ class NewOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
-    final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
-    final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
+    final typeColor = isPickup ? AppTheme.gold : AppTheme.brandBlue;
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
 
-    final cardBg = isDark
-        ? AppTheme.deepSea
-        : (isPickup ? AppTheme.creamBg : Colors.white);
+    final cardBg = isDark ? AppTheme.deepSea : AppTheme.paper;
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : AppTheme.ink.withOpacity(0.06);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: width ?? 200,
+        width: width ?? 210,
         decoration: BoxDecoration(
           color: cardBg,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.28 : 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: 1),
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -73,70 +67,69 @@ class NewOrderCard extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
-                            width: 50,
-                            height: 50,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
-                              color: iconBg,
-                              borderRadius: BorderRadius.circular(13),
+                              color: typeColor.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            child: Icon(typeIcon, color: typeColor, size: 26),
+                            child: Icon(typeIcon, color: typeColor, size: 20),
                           ),
                           const Spacer(),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 9, vertical: 4),
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: typeColor,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Text(
-                              'NY ORDER',
+                            child: Text(
+                              'NY',
                               style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
+                                color: isPickup ? AppTheme.ink : Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
                                 letterSpacing: 0.5,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 20),
                       Text(
                         '#${order.orderNumber}',
                         style: TextStyle(
-                          fontSize: 38,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.5,
+                          fontSize: 32,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.6,
                           height: 1.0,
                           color: isDark ? Colors.white : AppTheme.ink,
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
                         isPickup ? 'avhämtning' : 'leverans',
                         style: TextStyle(
                           color: typeColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.1,
                         ),
                       ),
                       const Spacer(),
                       Text(
                         _relTime(order.createdAt),
                         style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? Colors.white.withOpacity(0.40)
-                              : const Color(0xFF9AA0A6),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AppTheme.mutedColor(context),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              Container(height: 4, color: typeColor),
+              Container(height: 3, color: typeColor),
             ],
           ),
         ),
@@ -182,7 +175,7 @@ class OrderListTile extends StatelessWidget {
       case 'REJECTED':
         return AppTheme.danger;
       case 'PENDING':
-        return AppTheme.brandGold;
+        return AppTheme.warning;
       default:
         return AppTheme.success;
     }
@@ -192,9 +185,7 @@ class OrderListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = AppTheme.isDark(context);
     final isPickup = order.type != 'DELIVERY';
-    final typeColor = isPickup ? AppTheme.brandGold : AppTheme.brandBlue;
-    final iconBg = isPickup ? AppTheme.creamPill : AppTheme.blueTintPill;
-    final pillBg = isPickup ? AppTheme.creamBg : AppTheme.blueTint;
+    final typeColor = isPickup ? AppTheme.gold : AppTheme.brandBlue;
     final typeIcon =
         isPickup ? Icons.shopping_bag_rounded : Icons.delivery_dining_rounded;
     final statusColor = _statusColor(order.status);
@@ -202,23 +193,24 @@ class OrderListTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
       highlightColor:
-          (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
-      splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.05),
+          (isDark ? Colors.white : AppTheme.ink).withOpacity(0.03),
+      splashColor: (isDark ? Colors.white : AppTheme.ink).withOpacity(0.04),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Row(
           children: [
             Container(
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(14),
+                color: typeColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(typeIcon, color: typeColor, size: 26),
+              child: Icon(typeIcon, color: typeColor, size: 22),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,9 +218,9 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     '#${order.orderNumber}',
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.2,
                       color: isDark ? Colors.white : AppTheme.ink,
                     ),
                   ),
@@ -236,11 +228,9 @@ class OrderListTile extends StatelessWidget {
                   Text(
                     _relTime(order.createdAt),
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.white.withOpacity(0.40)
-                          : const Color(0xFF9AA0A6),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.mutedColor(context),
                     ),
                   ),
                 ],
@@ -252,18 +242,22 @@ class OrderListTile extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 5),
+                      horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: pillBg,
-                    borderRadius: BorderRadius.circular(14),
+                    color: typeColor.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: typeColor.withOpacity(0.20),
+                      width: 1,
+                    ),
                   ),
                   child: Text(
                     isPickup ? 'AVHÄMTNING' : 'LEVERANS',
                     style: TextStyle(
                       color: typeColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ),
@@ -272,20 +266,18 @@ class OrderListTile extends StatelessWidget {
                   statusLabel,
                   style: TextStyle(
                     color: statusColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.4,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Icon(
               Icons.chevron_right_rounded,
-              size: 22,
-              color: isDark
-                  ? Colors.white.withOpacity(0.28)
-                  : const Color(0xFFB0B5BD),
+              size: 20,
+              color: AppTheme.mutedColor(context).withOpacity(0.5),
             ),
           ],
         ),

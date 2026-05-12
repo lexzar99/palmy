@@ -1,32 +1,52 @@
 import 'package:flutter/material.dart';
 
+/// MatGo Business — visuell stil matchad mot webben + admin-panelen v2.
+///
+/// Palett: electric lime (#c2f54b) på neutral näst-svart, zinc-grå texter,
+/// 14px hörnradie, semibold (600) typografi.
+///
+/// Vi behåller alla gamla constant-namn (gold, brandGold, deepSea, etc.) så att
+/// befintliga widgets kompilerar — bara värdena byts till de nya kort.
 class AppTheme {
-  static const Color midnight = Color(0xFF09111F);
-  static const Color storm = Color(0xFF101A2F);
-  static const Color deepSea = Color(0xFF16233D);
-  static const Color steel = Color(0xFF24324F);
-  static const Color paper = Color(0xFFFFFFFF);
-  static const Color mist = Color(0xFFF4F7FB);
-  static const Color frost = Color(0xFFE8EEF7);
-  static const Color ink = Color(0xFF0E1628);
-  static const Color mutedInk = Color(0xFF5E6A84);
-  static const Color gold = Color(0xFFFFC86B);
-  static const Color goldAccent = Color(0xFFFFE5AE);
-  static const Color lightGold = Color(0xFFA76A17);
-  // Brand gold from mockup (AVHÄMTNING button + accents)
-  static const Color brandGold = Color(0xFFC8941A);
-  static const Color brandGoldSoft = Color(0xFFD9A33A);
-  static const Color creamBg = Color(0xFFFFF4DC);
-  static const Color creamPill = Color(0xFFFCEAC4);
-  static const Color brandBlue = Color(0xFF4A90E2);
-  static const Color blueTint = Color(0xFFE8F0FE);
-  static const Color blueTintPill = Color(0xFFDCE8FF);
-  static const Color success = Color(0xFF2DC48D);
-  static const Color danger = Color(0xFFFF6B78);
-  static const Color warning = Color(0xFFFFA749);
-  static const Color info = Color(0xFF5AB7FF);
-  static const Color lavender = Color(0xFF8D8BFF);
+  // ── Neutral dark backgrounds (zinc/near-black, INTE blue-tinted) ───────────
+  static const Color midnight = Color(0xFF08090B); // bg-page
+  static const Color storm = Color(0xFF0B0C0F); // bg-primary
+  static const Color deepSea = Color(0xFF0E0F12); // bg-panel
+  static const Color steel = Color(0xFF16181B); // bg-panel-muted
 
+  // ── Light surfaces ─────────────────────────────────────────────────────────
+  static const Color paper = Color(0xFFFFFFFF);
+  static const Color mist = Color(0xFFFAFAFA);
+  static const Color frost = Color(0xFFF4F4F5);
+  static const Color ink = Color(0xFF09090B); // zinc-950
+  static const Color mutedInk = Color(0xFF52525B); // zinc-600
+
+  // ── Accent: electric lime (matchar admin v2 #c2f54b) ───────────────────────
+  // Behåll gamla namn (gold/lightGold/goldAccent) för bakåtkomp.
+  static const Color gold = Color(0xFFC2F54B);
+  static const Color goldAccent = Color(0xFFD6FF6E);
+  static const Color lightGold = Color(0xFF84CC16); // lime-500 för light mode
+
+  /// Behåll "brandGold"-namnet — det är pickup-färgen i order-korten.
+  /// I nya paletten är pickup också lime.
+  static const Color brandGold = Color(0xFFC2F54B);
+  static const Color brandGoldSoft = Color(0xFFD6FF6E);
+  static const Color creamBg = Color(0x14C2F54B); // lime-soft bg
+  static const Color creamPill = Color(0x26C2F54B); // lime-soft pill
+
+  /// Delivery-färgen (semantisk differentiering vs pickup). Soft sky-blue.
+  static const Color brandBlue = Color(0xFF60A5FA);
+  static const Color blueTint = Color(0x1460A5FA);
+  static const Color blueTintPill = Color(0x2660A5FA);
+
+  // ── Status ────────────────────────────────────────────────────────────────
+  static const Color success = Color(0xFF4ADE80);
+  static const Color danger = Color(0xFFFB7185);
+  static const Color warning = Color(0xFFFBBF24);
+  static const Color info = Color(0xFF60A5FA);
+  static const Color lavender = Color(0xFFA78BFA);
+
+  // Legacy aliases
   static const Color charcoal = midnight;
   static const Color zinc = deepSea;
   static const Color lightBg = mist;
@@ -40,45 +60,50 @@ class AppTheme {
   static bool isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
 
+  /// Backgrunds-gradient. I nya paletten är dark läget en RIKTIG neutral nästan-svart
+  /// (inte blå-tonad). Ljus är off-white.
   static LinearGradient shellGradient(BuildContext context) {
     if (isDark(context)) {
       return const LinearGradient(
-        colors: [Color(0xFF07101E), Color(0xFF0B1730), Color(0xFF132240)],
+        colors: [Color(0xFF08090B), Color(0xFF0B0C0F)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     }
 
     return const LinearGradient(
-      colors: [Color(0xFFF4F4F4), Color(0xFFF4F4F4)],
+      colors: [Color(0xFFFAFAFA), Color(0xFFF4F4F5)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
   }
 
   static Color panelColor(BuildContext context) {
-    return isDark(context) ? const Color(0xCC16233D) : const Color(0xFFFFFFFF);
+    return isDark(context) ? const Color(0xFF0E0F12) : paper;
   }
 
   static Color mutedColor(BuildContext context) {
-    return isDark(context) ? Colors.white.withOpacity(0.68) : mutedInk;
+    return isDark(context) ? const Color(0xFFA1A1AA) : mutedInk;
   }
 
   static Color faintColor(BuildContext context) {
     return isDark(context)
-        ? Colors.white.withOpacity(0.12)
-        : ink.withOpacity(0.05);
+        ? Colors.white.withOpacity(0.04)
+        : ink.withOpacity(0.04);
   }
 
   static Color borderColor(BuildContext context, {Color? tint}) {
-    final base = tint ?? (isDark(context) ? Colors.white : ink);
-    return base.withOpacity(isDark(context) ? 0.12 : 0.06);
+    if (tint != null) return tint.withOpacity(isDark(context) ? 0.20 : 0.18);
+    return isDark(context)
+        ? Colors.white.withOpacity(0.06)
+        : ink.withOpacity(0.06);
   }
 
+  /// Panel-dekoration. Subtila borders, ingen tung skugga i dark. 14px hörn.
   static BoxDecoration panelDecoration(
     BuildContext context, {
     Color? tint,
-    double radius = 28,
+    double radius = 14,
     Gradient? gradient,
     Color? color,
   }) {
@@ -89,17 +114,17 @@ class AppTheme {
       borderRadius: BorderRadius.circular(radius),
       border: Border.all(
         color: borderColor(context, tint: tint),
-        width: 1.2,
+        width: 1,
       ),
-      boxShadow: [
-        BoxShadow(
-          color: isDarkMode
-              ? Colors.black.withOpacity(0.30)
-              : const Color(0xFF95A3BE).withOpacity(0.08),
-          blurRadius: isDarkMode ? 28 : 14,
-          offset: const Offset(0, 8),
-        ),
-      ],
+      boxShadow: isDarkMode
+          ? const []
+          : [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 12,
+                offset: const Offset(0, 2),
+              ),
+            ],
     );
   }
 
@@ -116,8 +141,8 @@ class AppTheme {
       onSurface: paper,
       tertiary: lavender,
       onTertiary: paper,
-      outline: Color(0x334B617F),
-      outlineVariant: Color(0x1F4B617F),
+      outline: Color(0x14FFFFFF),
+      outlineVariant: Color(0x0AFFFFFF),
       shadow: Colors.black,
       scrim: Colors.black,
       inverseSurface: paper,
@@ -137,7 +162,7 @@ class AppTheme {
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: midnight,
       cardColor: deepSea,
-      dividerColor: Colors.white.withOpacity(0.08),
+      dividerColor: Colors.white.withOpacity(0.06),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -149,8 +174,8 @@ class AppTheme {
       ),
       inputDecorationTheme: _inputDecorationTheme(Brightness.dark),
       elevatedButtonTheme: _elevatedButtonTheme(
+        background: gold,
         foreground: ink,
-        shadowColor: gold.withOpacity(0.28),
       ),
       outlinedButtonTheme: _outlinedButtonTheme(Brightness.dark),
       textButtonTheme: _textButtonTheme(Brightness.dark),
@@ -159,15 +184,15 @@ class AppTheme {
       snackBarTheme: _snackBarTheme(Brightness.dark),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.transparent,
-        indicatorColor: gold.withOpacity(0.16),
+        indicatorColor: gold.withOpacity(0.14),
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => textTheme.labelSmall?.copyWith(
             color: states.contains(WidgetState.selected)
                 ? gold
-                : Colors.white.withOpacity(0.62),
+                : Colors.white.withOpacity(0.58),
             fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w900
-                : FontWeight.w700,
+                ? FontWeight.w700
+                : FontWeight.w500,
           ),
         ),
       ),
@@ -185,22 +210,22 @@ class AppTheme {
         indicatorColor: gold,
         labelColor: gold,
         unselectedLabelColor: Colors.white.withOpacity(0.55),
-        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle:
-            textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
         dividerColor: Colors.transparent,
       ),
       cardTheme: CardTheme(
         color: deepSea,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: Colors.white.withOpacity(0.06)),
         ),
       ),
       dialogTheme: DialogTheme(
         backgroundColor: storm,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }
@@ -218,9 +243,9 @@ class AppTheme {
       onSurface: ink,
       tertiary: lavender,
       onTertiary: paper,
-      outline: Color(0x1A111827),
-      outlineVariant: Color(0x14111827),
-      shadow: Color(0x22000000),
+      outline: Color(0x14111827),
+      outlineVariant: Color(0x0A111827),
+      shadow: Color(0x14000000),
       scrim: Color(0x33000000),
       inverseSurface: ink,
       onInverseSurface: paper,
@@ -239,7 +264,7 @@ class AppTheme {
       scaffoldBackgroundColor: Colors.transparent,
       canvasColor: mist,
       cardColor: paper,
-      dividerColor: ink.withOpacity(0.08),
+      dividerColor: ink.withOpacity(0.06),
       textTheme: textTheme,
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
@@ -251,8 +276,8 @@ class AppTheme {
       ),
       inputDecorationTheme: _inputDecorationTheme(Brightness.light),
       elevatedButtonTheme: _elevatedButtonTheme(
+        background: lightGold,
         foreground: paper,
-        shadowColor: lightGold.withOpacity(0.22),
       ),
       outlinedButtonTheme: _outlinedButtonTheme(Brightness.light),
       textButtonTheme: _textButtonTheme(Brightness.light),
@@ -266,8 +291,8 @@ class AppTheme {
           (states) => textTheme.labelSmall?.copyWith(
             color: states.contains(WidgetState.selected) ? lightGold : mutedInk,
             fontWeight: states.contains(WidgetState.selected)
-                ? FontWeight.w900
-                : FontWeight.w700,
+                ? FontWeight.w700
+                : FontWeight.w500,
           ),
         ),
       ),
@@ -285,22 +310,22 @@ class AppTheme {
         indicatorColor: lightGold,
         labelColor: lightGold,
         unselectedLabelColor: mutedInk,
-        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900),
+        labelStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
         unselectedLabelStyle:
-            textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+            textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w500),
         dividerColor: Colors.transparent,
       ),
       cardTheme: CardTheme(
         color: paper,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(28),
-          side: BorderSide(color: ink.withOpacity(0.05)),
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: ink.withOpacity(0.06)),
         ),
       ),
       dialogTheme: DialogTheme(
         backgroundColor: paper,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       ),
     );
   }
@@ -308,68 +333,74 @@ class AppTheme {
   static TextTheme _buildTextTheme(TextTheme base, Brightness brightness) {
     final bodyColor = brightness == Brightness.dark ? paper : ink;
     final secondary = brightness == Brightness.dark
-        ? Colors.white.withOpacity(0.72)
+        ? const Color(0xFFA1A1AA) // zinc-400
         : mutedInk;
 
     return base.copyWith(
       displaySmall: base.displaySmall?.copyWith(
-        fontWeight: FontWeight.w900,
+        fontSize: 30,
+        fontWeight: FontWeight.w600,
         color: bodyColor,
-        letterSpacing: -1.6,
+        letterSpacing: -0.6,
+        height: 1.1,
       ),
       headlineMedium: base.headlineMedium?.copyWith(
-        fontWeight: FontWeight.w900,
+        fontSize: 22,
+        fontWeight: FontWeight.w600,
         color: bodyColor,
-        letterSpacing: -0.7,
+        letterSpacing: -0.3,
+        height: 1.2,
       ),
       titleLarge: base.titleLarge?.copyWith(
-        fontSize: 22,
-        fontWeight: FontWeight.w900,
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
         color: bodyColor,
-        letterSpacing: -0.4,
+        letterSpacing: -0.2,
       ),
       titleMedium: base.titleMedium?.copyWith(
-        fontSize: 16,
-        fontWeight: FontWeight.w800,
-        color: bodyColor,
-      ),
-      bodyLarge: base.bodyLarge?.copyWith(
         fontSize: 15,
         fontWeight: FontWeight.w600,
         color: bodyColor,
-        height: 1.35,
+      ),
+      bodyLarge: base.bodyLarge?.copyWith(
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+        color: bodyColor,
+        height: 1.45,
       ),
       bodyMedium: base.bodyMedium?.copyWith(
         fontSize: 13,
-        fontWeight: FontWeight.w600,
+        fontWeight: FontWeight.w500,
         color: secondary,
-        height: 1.4,
+        height: 1.45,
       ),
       bodySmall: base.bodySmall?.copyWith(
         fontSize: 11,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w500,
         color: secondary,
-        height: 1.35,
+        height: 1.4,
       ),
       labelLarge: base.labelLarge?.copyWith(
         fontSize: 12,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         letterSpacing: 0.1,
       ),
       labelMedium: base.labelMedium?.copyWith(
         fontSize: 10,
-        fontWeight: FontWeight.w900,
-        letterSpacing: 1.1,
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.6,
       ),
     );
   }
 
   static InputDecorationTheme _inputDecorationTheme(Brightness brightness) {
     final isDarkMode = brightness == Brightness.dark;
-    final fill = isDarkMode ? const Color(0xB0192743) : Colors.white;
+    final fill = isDarkMode ? const Color(0xFF16181B) : paper;
     final borderColor =
         isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.08);
-    final labelColor = isDarkMode ? Colors.white.withOpacity(0.72) : mutedInk;
+    final labelColor = isDarkMode
+        ? const Color(0xFFA1A1AA)
+        : mutedInk;
 
     return InputDecorationTheme(
       filled: true,
@@ -377,56 +408,55 @@ class AppTheme {
       hintStyle: TextStyle(color: labelColor.withOpacity(0.75)),
       labelStyle: TextStyle(
         color: labelColor,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 0.3,
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
       ),
       prefixIconColor: labelColor,
       suffixIconColor: labelColor,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: BorderSide(color: borderColor, width: 1.1),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: borderColor, width: 1),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(
           color: isDarkMode ? gold : lightGold,
-          width: 1.4,
+          width: 1.5,
         ),
       ),
       errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
-        borderSide: const BorderSide(color: danger, width: 1.3),
+        borderRadius: BorderRadius.circular(10),
+        borderSide: const BorderSide(color: danger, width: 1.2),
       ),
       focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(10),
         borderSide: const BorderSide(color: danger, width: 1.4),
       ),
     );
   }
 
   static ElevatedButtonThemeData _elevatedButtonTheme({
+    required Color background,
     required Color foreground,
-    required Color shadowColor,
   }) {
     return ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        backgroundColor: gold,
+        backgroundColor: background,
         foregroundColor: foreground,
         elevation: 0,
-        shadowColor: shadowColor,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        shadowColor: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
         textStyle: const TextStyle(
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.2,
-          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
+          fontSize: 14,
         ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -438,11 +468,11 @@ class AppTheme {
         foregroundColor: isDarkMode ? paper : ink,
         side: BorderSide(
           color: isDarkMode
-              ? Colors.white.withOpacity(0.12)
+              ? Colors.white.withOpacity(0.10)
               : ink.withOpacity(0.10),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -452,7 +482,7 @@ class AppTheme {
     return TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: color,
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
       ),
     );
   }
@@ -461,17 +491,18 @@ class AppTheme {
     final isDarkMode = brightness == Brightness.dark;
     return ChipThemeData(
       backgroundColor:
-          isDarkMode ? Colors.white.withOpacity(0.06) : ink.withOpacity(0.04),
+          isDarkMode ? Colors.white.withOpacity(0.04) : ink.withOpacity(0.04),
       selectedColor:
-          isDarkMode ? gold.withOpacity(0.18) : lightGold.withOpacity(0.16),
+          isDarkMode ? gold.withOpacity(0.16) : lightGold.withOpacity(0.14),
       side: BorderSide(
         color:
-            isDarkMode ? Colors.white.withOpacity(0.10) : ink.withOpacity(0.08),
+            isDarkMode ? Colors.white.withOpacity(0.08) : ink.withOpacity(0.06),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       labelStyle: TextStyle(
         color: isDarkMode ? paper : ink,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w500,
+        fontSize: 12,
       ),
     );
   }
@@ -493,10 +524,10 @@ class AppTheme {
 
   static SnackBarThemeData _snackBarTheme(Brightness brightness) {
     return SnackBarThemeData(
-      backgroundColor: brightness == Brightness.dark ? storm : ink,
+      backgroundColor: brightness == Brightness.dark ? steel : ink,
       contentTextStyle:
-          const TextStyle(color: paper, fontWeight: FontWeight.w600),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          const TextStyle(color: paper, fontWeight: FontWeight.w500),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       behavior: SnackBarBehavior.floating,
     );
   }

@@ -170,7 +170,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                                                 .textTheme
                                                 .titleMedium
                                                 ?.color,
-                                        fontWeight: FontWeight.w900,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                 ),
                               ),
@@ -284,7 +284,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen>
                       builder: (context, child) {
                         return Container(
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(32),
+                            borderRadius: BorderRadius.circular(14),
                             boxShadow: isOverdue
                                 ? [
                                     BoxShadow(
@@ -694,7 +694,7 @@ class _ItemCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: AppTheme.panelColor(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.borderColor(context)),
       ),
       child: Column(
@@ -711,14 +711,14 @@ class _ItemCard extends StatelessWidget {
                   height: 32,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppTheme.info.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(9),
+                    color: AppTheme.info.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     '${item.quantity}×',
                     style: const TextStyle(
                       color: AppTheme.info,
-                      fontWeight: FontWeight.w900,
+                      fontWeight: FontWeight.w600,
                       fontSize: 13,
                     ),
                   ),
@@ -729,7 +729,7 @@ class _ItemCard extends StatelessWidget {
                     item.productName,
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -738,7 +738,7 @@ class _ItemCard extends StatelessWidget {
                   OrderUi.formatCurrency(item.subtotal),
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -773,7 +773,7 @@ class _ItemCard extends StatelessWidget {
                           isMandatory ? '-- ' : '++ ',
                           style: TextStyle(
                             fontSize: isMandatory ? 14 : 13,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w600,
                             color: isMandatory
                                 ? Theme.of(context).textTheme.bodyLarge?.color
                                 : AppTheme.success,
@@ -784,9 +784,7 @@ class _ItemCard extends StatelessWidget {
                             name,
                             style: TextStyle(
                               fontSize: isMandatory ? 14 : 13,
-                              fontWeight: isMandatory
-                                  ? FontWeight.w800
-                                  : FontWeight.w700,
+                              fontWeight: FontWeight.w500,
                               color: isMandatory
                                   ? Theme.of(context).textTheme.bodyLarge?.color
                                   : AppTheme.success,
@@ -798,7 +796,7 @@ class _ItemCard extends StatelessWidget {
                             '+ ${OrderUi.formatCurrency(price)}',
                             style: const TextStyle(
                               fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               color: AppTheme.success,
                             ),
                           ),
@@ -829,7 +827,7 @@ class _ItemCard extends StatelessWidget {
                       item.note!,
                       style: const TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w500,
                         color: AppTheme.warning,
                       ),
                     ),
