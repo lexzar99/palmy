@@ -96,7 +96,7 @@ export default function RestaurantReviewsPage() {
   }, [data]);
 
   return (
-    <div className="min-h-screen pb-24" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="min-h-screen pb-24 md:pt-20" style={{ backgroundColor: "var(--bg-primary)" }}>
       <div className="mx-auto max-w-3xl px-4 pt-6 sm:px-6 sm:pt-8">
         <Link
           href={`/restaurants/${slug}`}

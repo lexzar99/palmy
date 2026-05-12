@@ -13,6 +13,7 @@ import {
 } from "@/modules/deals/api";
 import { discountsQueryKey, getDiscounts, createDiscount, updateDiscount, deleteDiscount, type DiscountRecord } from "@/modules/coupons/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Textarea } from "@/shared/components/ui";
+import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { formatDate, formatNumber } from "@/shared/utils/format";
 import { getRestaurantOverview, restaurantsQueryKey, type ControlCenterRestaurantSnapshot } from "@/modules/restaurants/api";
 
@@ -160,18 +161,15 @@ export function DealsPage() {
       />
 
       <Surface className="px-6 py-6">
-        {/* Restaurant filter */}
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Select
+        {/* Restaurant filter — stad först, sen restaurang */}
+        <div className="mb-6">
+          <CityRestaurantPicker
             value={filterRestaurantId || ""}
-            onChange={(e) => setFilterRestaurantId(e.target.value || null)}
-            className="w-56"
-          >
-            <option value="">Alla restauranger</option>
-            {restaurants.data.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          </Select>
+            onChange={(rid) => setFilterRestaurantId(rid || null)}
+            emptyOption={{ value: "", label: "Alla restauranger i stad" }}
+          />
           {filterRestaurantId && (
-            <button type="button" onClick={() => setFilterRestaurantId(null)} className="text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
+            <button type="button" onClick={() => setFilterRestaurantId(null)} className="mt-2 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] underline">
               Visa alla
             </button>
           )}

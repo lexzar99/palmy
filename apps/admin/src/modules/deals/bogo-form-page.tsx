@@ -19,6 +19,7 @@ import {
   updateAutomaticDeal,
 } from "@/modules/deals/api";
 import { Button, Field, Input, Select, Surface } from "@/shared/components/ui";
+import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { ImageUploadField } from "@/shared/components/image-upload";
 
 type TriggerMode = "category" | "minorder" | "products";
@@ -326,27 +327,20 @@ export function BogoFormPage({ dealId }: { dealId?: string }) {
               />
             </Field>
 
-            <Field label="Restaurang">
-              <Select
-                value={draft.restaurantId}
-                onChange={(e) => {
-                  setDraft((prev) => ({
-                    ...prev,
-                    restaurantId: e.target.value,
-                    triggerCategoryId: "",
-                    rewardCategoryId: "",
-                    bogoExcludedProductIds: [],
-                    bogoRewardProductIds: [],
-                    bogoTriggerProductIds: [],
-                  }));
-                }}
-              >
-                <option value="">Välj restaurang...</option>
-                {(restaurants.data ?? []).map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </Select>
-            </Field>
+            <CityRestaurantPicker
+              value={draft.restaurantId}
+              onChange={(rid) => {
+                setDraft((prev) => ({
+                  ...prev,
+                  restaurantId: rid,
+                  triggerCategoryId: "",
+                  rewardCategoryId: "",
+                  bogoExcludedProductIds: [],
+                  bogoRewardProductIds: [],
+                  bogoTriggerProductIds: [],
+                }));
+              }}
+            />
 
             <ImageUploadField
               label="Bannerbild (valfritt)"

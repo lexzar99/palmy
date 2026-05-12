@@ -75,6 +75,7 @@ export default function CartPage() {
 
   const [user, setUser] = useState<any>(null);
   const [orderType, setOrderType] = useState<"PICKUP" | "DELIVERY">("DELIVERY");
+  const [topUpToMinimum, setTopUpToMinimum] = useState(true);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -382,6 +383,10 @@ export default function CartPage() {
     ? (deliveryCheck?.deliveryFee ?? restaurantSettings.deliveryFee)
     : 0;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
+  // Komplettering till minimum: läggs som extra avgift om kund godkänt det
+  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < minOrder
+    ? Math.max(0, minOrder - subtotal)
+    : 0;
   const productIds = items.flatMap((i) => Array.from({ length: i.quantity }, () => i.productId));
   const automaticDeal = useMemo(() => pickBestDeal(deals, subtotal, productIds), [deals, subtotal, productIds]);
 
@@ -412,7 +417,7 @@ export default function CartPage() {
 
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount);
-  const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee - finalDiscount);
+  const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
@@ -748,6 +753,7 @@ export default function CartPage() {
       })),
       note: i.note,
     })),
+    minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
   });
 
   // Legacy submitOrder used only for test/promo flow (FREE_PROMO)
@@ -1495,35 +1501,52 @@ export default function CartPage() {
                        </motion.div>
                      )}
 
-                     {/* Min-order-banner — visas när kund är under minsta orderbelopp.
-                         Sticky-känsla nära submit-knappen så det är omöjligt att missa. */}
+                     {/* Min-order-banner med komplettering-toggle — default på,
+                         kund betalar mellanskillnaden så ordern kan slutföras. */}
                      {subtotal > 0 && subtotal < minOrder && (
                        <motion.div
                          initial={{ opacity: 0, y: 6 }}
                          animate={{ opacity: 1, y: 0 }}
                          className="mt-6 rounded-2xl border px-4 py-3"
-                         style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.30)" }}
+                         style={{
+                           background: topUpToMinimum ? "rgba(231,178,75,0.08)" : "rgba(239,68,68,0.08)",
+                           borderColor: topUpToMinimum ? "rgba(231,178,75,0.30)" : "rgba(239,68,68,0.30)",
+                         }}
                        >
                          <div className="flex items-center justify-between gap-2 mb-2">
-                           <p className="text-[10px] font-black uppercase tracking-widest text-rose-500">
-                             Lägg till {(minOrder - subtotal).toFixed(0)} kr för att slutföra köpet
+                           <p className={`text-[10px] font-black uppercase tracking-widest ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>
+                             {topUpToMinimum
+                               ? `Komplettering +${(minOrder - subtotal).toFixed(0)} kr till minimum`
+                               : `Saknar ${(minOrder - subtotal).toFixed(0)} kr till minimum`}
                            </p>
-                           <span className="text-[10px] font-black text-rose-500">{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
+                           <span className={`text-[10px] font-black ${topUpToMinimum ? "text-gold-500" : "text-rose-500"}`}>{subtotal.toFixed(0)} / {minOrder.toFixed(0)} kr</span>
                          </div>
-                         <div className="h-1.5 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.07)" }}>
+                         <div className="h-1.5 w-full rounded-full overflow-hidden mb-3" style={{ background: "rgba(255,255,255,0.07)" }}>
                            <motion.div
-                             className="h-full rounded-full bg-rose-500"
+                             className={`h-full rounded-full ${topUpToMinimum ? "bg-gold-500" : "bg-rose-500"}`}
                              initial={{ width: 0 }}
                              animate={{ width: `${Math.min((subtotal / minOrder) * 100, 100)}%` }}
                              transition={{ duration: 0.5, ease: "easeOut" }}
                            />
                          </div>
+                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                           <input
+                             type="checkbox"
+                             checked={topUpToMinimum}
+                             onChange={(e) => setTopUpToMinimum(e.target.checked)}
+                             className="h-4 w-4 accent-gold-500 cursor-pointer"
+                           />
+                           <span className="text-[10px] font-bold leading-snug" style={{ color: "var(--text-secondary)" }}>
+                             Betala mellanskillnaden ({(minOrder - subtotal).toFixed(0)} kr) så ordern kan slutföras
+                           </span>
+                         </label>
                        </motion.div>
                      )}
 
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
+                        {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Komplettering till minimum</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} KR</span></div>}
                         {bogoPreview && bogoDiscount >= finalDiscount && (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
                             <span>🎁 {bogoChoice ? bogoChoice.product.name : bogoPreview.dealTitle}</span>
@@ -1574,10 +1597,10 @@ export default function CartPage() {
 
                       <button
                          onClick={startCheckout}
-                         disabled={loading || subtotal < minOrder || !restaurantSettings.isOpen || addressZoneStatus === "error"}
+                         disabled={loading || (subtotal < minOrder && !topUpToMinimum) || !restaurantSettings.isOpen || addressZoneStatus === "error"}
                         className="w-full mt-8 py-5 sm:py-6 bg-gold-500 hover:bg-gold-400 text-zinc-950 rounded-[1.75rem] sm:rounded-[2rem] font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-gold-500/20 active:scale-95 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 group"
                      >
-                        {loading ? <Loader2 className="animate-spin" size={24} /> : subtotal < minOrder ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
+                        {loading ? <Loader2 className="animate-spin" size={24} /> : (subtotal < minOrder && !topUpToMinimum) ? `Köp för ${(minOrder - subtotal).toFixed(0)} kr till` : addressZoneStatus === "error" ? "Fel leveransadress" : <>Slutför Köp <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" /></>}
                      </button>
                  </motion.div>
                )}

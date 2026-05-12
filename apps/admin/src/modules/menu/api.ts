@@ -86,3 +86,11 @@ export const deleteProduct = (productId: string) => apiDelete<{ success: boolean
 export const createExtraGroup = (payload: Record<string, unknown>) => apiPost<ExtraGroupRecord>("/admin/extra-groups", payload);
 export const updateExtraGroup = (groupId: string, payload: Record<string, unknown>) => apiPatch<ExtraGroupRecord>(`/admin/extra-groups/${groupId}`, payload);
 export const deleteExtraGroup = (groupId: string) => apiDelete<{ success: boolean }>(`/admin/extra-groups/${groupId}`);
+
+// Copy/import — nya id genereras, källan rörs inte.
+export const copyCategory = (sourceId: string, targetRestaurantId: string) =>
+  apiPost<CategoryRecord>(`/admin/categories/${sourceId}/copy`, { targetRestaurantId });
+export const copyProduct = (sourceId: string, targetRestaurantId: string, targetCategoryId: string) =>
+  apiPost<ProductRecord>(`/admin/products/${sourceId}/copy`, { targetRestaurantId, targetCategoryId });
+export const copyExtraGroup = (sourceId: string, targetRestaurantId: string) =>
+  apiPost<ExtraGroupRecord>(`/admin/extra-groups/${sourceId}/copy`, { targetRestaurantId });

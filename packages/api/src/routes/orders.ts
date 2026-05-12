@@ -119,6 +119,10 @@ const CreateOrderSchema = z.object({
   // Scheduled order time (ISO string, null = ASAP)
   scheduledFor: z.string().nullable().optional(),
   pendingPayment: z.boolean().optional(),
+
+  // Kund godkände att betala mellanskillnaden till minsta orderbelopp (kr).
+  // Backend lägger till på deliveryFee om subtotal < min och topUp >= shortfall.
+  minOrderTopUp: z.number().nonnegative().optional(),
 }).refine((val) => Boolean(val.restaurantId || val.restaurantSlug), {
   message: 'restaurantId eller restaurantSlug krävs',
   path: ['restaurantId'],
@@ -497,10 +501,18 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Minsta ordersumma-validering
+    // Minsta ordersumma-validering — kund kan välja att betala mellanskillnaden
+    // via `minOrderTopUp`-fältet (kr). Då läggs det på deliveryFee och ordern går igenom.
     if (!confirmedPayment && subtotal < minOrderAmount) {
-      res.status(400).json({ error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr. Du saknar ${((minOrderAmount - subtotal) / 100).toFixed(0)} kr.` });
-      return;
+      const topUpKr = Number(data.minOrderTopUp || 0);
+      const topUpOre = Math.max(0, Math.round(topUpKr * 100));
+      const shortfall = minOrderAmount - subtotal;
+      if (topUpOre >= shortfall) {
+        deliveryFee = deliveryFee + topUpOre;
+      } else {
+        res.status(400).json({ error: `Minsta beställningsbelopp är ${minOrderAmount / 100} kr. Du saknar ${((minOrderAmount - subtotal) / 100).toFixed(0)} kr.` });
+        return;
+      }
     }
 
     // Rabattkod och automatiska deals

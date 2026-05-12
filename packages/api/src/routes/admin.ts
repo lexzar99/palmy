@@ -1306,13 +1306,10 @@ router.get('/extra-groups', async (req, res) => {
       : requireRestaurantScope(req as AuthRequest, res);
     if (!isSuperAdmin(req as AuthRequest) && !scopedRestaurantId) return;
 
+    // Strikt filter per restaurang — extras-grupper ska aldrig läcka mellan
+    // restauranger även om någon legacy-rad har restaurantId=null.
     const groups = await prisma.extraGroup.findMany({
-      where: { 
-        OR: [
-          { restaurantId: scopedRestaurantId },
-          { restaurantId: null }
-        ]
-      },
+      where: scopedRestaurantId ? { restaurantId: scopedRestaurantId } : {},
       include: {
         extras: { orderBy: { position: 'asc' } },
         _count: { select: { productGroups: true } },
@@ -1474,6 +1471,154 @@ router.delete('/extra-groups/:id', async (req, res) => {
     res.json({ success: true });
   } catch {
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// =====================
+// COPY/IMPORT — kopiera kategori/produkt/extra-grupp från en restaurang till en annan.
+// Nya id genereras, originalet rörs inte.
+// =====================
+
+const copySlug = (base: string) => {
+  const random = Math.random().toString(36).slice(2, 6);
+  return `${base.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${random}`;
+};
+
+// POST /api/admin/extra-groups/:id/copy
+router.post('/extra-groups/:id/copy', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Endast super-admin kan kopiera mellan restauranger' });
+      return;
+    }
+    const { targetRestaurantId } = req.body;
+    if (!targetRestaurantId) {
+      res.status(400).json({ error: 'targetRestaurantId krävs' });
+      return;
+    }
+    const source = await prisma.extraGroup.findUnique({
+      where: { id: req.params.id },
+      include: { extras: { orderBy: { position: 'asc' } } },
+    });
+    if (!source) {
+      res.status(404).json({ error: 'Källan hittades inte' });
+      return;
+    }
+    const copy = await prisma.extraGroup.create({
+      data: {
+        name: source.name,
+        description: source.description,
+        type: source.type,
+        required: source.required,
+        minSelections: source.minSelections,
+        maxSelections: source.maxSelections,
+        position: source.position,
+        restaurantId: String(targetRestaurantId),
+        extras: {
+          create: source.extras.map((e, i) => ({
+            name: e.name,
+            priceAddon: e.priceAddon,
+            isDefault: e.isDefault,
+            isActive: e.isActive,
+            position: i,
+          })),
+        },
+      },
+      include: { extras: true },
+    });
+    res.status(201).json({
+      ...copy,
+      extras: copy.extras.map((e) => ({ ...e, priceAddon: e.priceAddon / 100 })),
+    });
+  } catch (err) {
+    console.error('Copy extra-group error:', err);
+    res.status(500).json({ error: 'Kunde inte kopiera tillbehörsgrupp' });
+  }
+});
+
+// POST /api/admin/categories/:id/copy
+router.post('/categories/:id/copy', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Endast super-admin kan kopiera mellan restauranger' });
+      return;
+    }
+    const { targetRestaurantId } = req.body;
+    if (!targetRestaurantId) {
+      res.status(400).json({ error: 'targetRestaurantId krävs' });
+      return;
+    }
+    const source = await prisma.category.findUnique({ where: { id: req.params.id } });
+    if (!source) {
+      res.status(404).json({ error: 'Källan hittades inte' });
+      return;
+    }
+    const copy = await prisma.category.create({
+      data: {
+        name: source.name,
+        slug: copySlug(source.slug || source.name),
+        description: source.description,
+        position: source.position,
+        isActive: source.isActive,
+        imageUrl: source.imageUrl,
+        restaurantId: String(targetRestaurantId),
+      },
+    });
+    res.status(201).json(copy);
+  } catch (err) {
+    console.error('Copy category error:', err);
+    res.status(500).json({ error: 'Kunde inte kopiera kategori' });
+  }
+});
+
+// POST /api/admin/products/:id/copy
+// body: { targetRestaurantId, targetCategoryId } — kategorin MÅSTE tillhöra
+// målrestaurangen, annars 400.
+router.post('/products/:id/copy', async (req, res) => {
+  try {
+    if (!isSuperAdmin(req as AuthRequest)) {
+      res.status(403).json({ error: 'Endast super-admin kan kopiera mellan restauranger' });
+      return;
+    }
+    const { targetRestaurantId, targetCategoryId } = req.body;
+    if (!targetRestaurantId || !targetCategoryId) {
+      res.status(400).json({ error: 'targetRestaurantId + targetCategoryId krävs' });
+      return;
+    }
+    const targetCategory = await prisma.category.findUnique({ where: { id: String(targetCategoryId) } });
+    if (!targetCategory || targetCategory.restaurantId !== String(targetRestaurantId)) {
+      res.status(400).json({ error: 'Målkategorin tillhör inte målrestaurangen' });
+      return;
+    }
+    const source = await prisma.product.findUnique({ where: { id: req.params.id } });
+    if (!source) {
+      res.status(404).json({ error: 'Källan hittades inte' });
+      return;
+    }
+    const copy = await prisma.product.create({
+      data: {
+        name: source.name,
+        slug: copySlug(source.slug || source.name),
+        description: source.description,
+        price: source.price,
+        categoryId: String(targetCategoryId),
+        imageUrl: source.imageUrl,
+        isActive: source.isActive,
+        isVegan: source.isVegan,
+        isVegetarian: source.isVegetarian,
+        isGlutenFree: source.isGlutenFree,
+        position: source.position,
+        discountPercent: source.discountPercent,
+        discountPrice: source.discountPrice,
+        discountImageUrl: source.discountImageUrl,
+        discountLabel: source.discountLabel,
+        discountActive: source.discountActive,
+      },
+    });
+    res.status(201).json({ ...copy, price: copy.price / 100 });
+  } catch (err) {
+    console.error('Copy product error:', err);
+    res.status(500).json({ error: 'Kunde inte kopiera produkt' });
   }
 });
 

@@ -6,9 +6,9 @@ import { ChevronLeft, Shield, Lock, Eye, Trash2, Smartphone, ChevronRight } from
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen pb-32" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
+    <div className="min-h-screen pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       {/* Header */}
-      <div className="sticky top-0 z-30 backdrop-blur-xl p-6" style={{ backgroundColor: "rgba(252,252,249,0.8)", borderBottom: "1px solid var(--border-muted)" }}>
+      <div className="sticky top-0 md:top-20 z-30 backdrop-blur-xl p-6" style={{ backgroundColor: "rgba(252,252,249,0.8)", borderBottom: "1px solid var(--border-muted)" }}>
         <div className="max-w-3xl mx-auto flex items-center gap-4">
           <Link href="/profile" className="p-3 rounded-2xl transition-all active:scale-90" style={{ backgroundColor: "var(--bg-deep)", color: "var(--text-secondary)" }}>
             <ChevronLeft size={20} />

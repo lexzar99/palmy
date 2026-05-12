@@ -100,6 +100,20 @@ export function Field({ label, children }: { label: string; children: React.Reac
 }
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  // För type="number" — strippa leading zeros så "010" automatiskt blir "10".
+  // Annars: vanlig pass-through.
+  if (props.type === "number" && props.onChange) {
+    const originalOnChange = props.onChange;
+    const wrappedOnChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const v = e.target.value;
+      if (v.length > 1 && v[0] === "0" && v[1] !== "." && v[1] !== ",") {
+        const stripped = v.replace(/^0+/, "") || "0";
+        e.target.value = stripped;
+      }
+      originalOnChange(e);
+    };
+    return <input className={cn("input", props.className)} {...props} onChange={wrappedOnChange} />;
+  }
   return <input className={cn("input", props.className)} {...props} />;
 }
 

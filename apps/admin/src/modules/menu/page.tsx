@@ -7,6 +7,9 @@ import { Loader2, Plus, Search, Tags } from "lucide-react";
 import { dealsQueryKey, getAutomaticDeals, type AutomaticDealRecord, type DealProductRef, type DealRestaurantRef } from "@/modules/deals/api";
 import { AutomaticDealModal } from "@/modules/deals/components/automatic-deal-modal";
 import {
+  copyCategory,
+  copyExtraGroup,
+  copyProduct,
   createCategory,
   createExtraGroup,
   createProduct,
@@ -30,7 +33,9 @@ import {
   type RestaurantRef,
 } from "@/modules/menu/api";
 import { Badge, Button, EmptyState, ErrorPanel, Field, Input, Modal, PageHeader, Select, Surface, Tabs, Textarea } from "@/shared/components/ui";
+import { CityRestaurantPicker } from "@/shared/components/city-restaurant-picker";
 import { ImageUploadField } from "@/shared/components/image-upload";
+import { Copy } from "lucide-react";
 import { formatCurrency } from "@/shared/utils/format";
 
 type MenuTab = "categories" | "products" | "extras";
@@ -398,6 +403,138 @@ function ExtraGroupModal({ open, restaurantId, group, categories, onClose }: { o
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Import-modal: kopiera kategori/produkt/extra-grupp från en annan restaurang.
+// Källan rörs inte — målet får nya id:n.
+// ─────────────────────────────────────────────────────────────────────────
+function ImportFromOtherModal({
+  open,
+  onClose,
+  currentRestaurantId,
+  tab,
+  currentCategories,
+}: {
+  open: boolean;
+  onClose: () => void;
+  currentRestaurantId: string;
+  tab: MenuTab;
+  currentCategories: CategoryRecord[];
+}) {
+  const queryClient = useQueryClient();
+  const [sourceRestaurantId, setSourceRestaurantId] = useState("");
+  const [targetCategoryId, setTargetCategoryId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setSourceRestaurantId("");
+      setTargetCategoryId("");
+      setError(null);
+    }
+  }, [open]);
+
+  const sourceCategories = useQuery({
+    queryKey: ["import", "categories", sourceRestaurantId],
+    queryFn: () => getCategories(sourceRestaurantId),
+    enabled: open && tab === "categories" && Boolean(sourceRestaurantId),
+  });
+  const sourceProducts = useQuery({
+    queryKey: ["import", "products", sourceRestaurantId],
+    queryFn: () => getProducts(sourceRestaurantId),
+    enabled: open && tab === "products" && Boolean(sourceRestaurantId),
+  });
+  const sourceGroups = useQuery({
+    queryKey: ["import", "groups", sourceRestaurantId],
+    queryFn: () => getExtraGroups(sourceRestaurantId),
+    enabled: open && tab === "extras" && Boolean(sourceRestaurantId),
+  });
+
+  const copyMutation = useMutation({
+    mutationFn: async (sourceId: string) => {
+      setError(null);
+      if (tab === "categories") return copyCategory(sourceId, currentRestaurantId);
+      if (tab === "products") {
+        if (!targetCategoryId) throw new Error("Välj målkategori först");
+        return copyProduct(sourceId, currentRestaurantId, targetCategoryId);
+      }
+      return copyExtraGroup(sourceId, currentRestaurantId);
+    },
+    onSuccess: async () => {
+      if (tab === "categories") await queryClient.invalidateQueries({ queryKey: menuCategoriesQueryKey(currentRestaurantId) });
+      if (tab === "products") await queryClient.invalidateQueries({ queryKey: menuProductsQueryKey(currentRestaurantId) });
+      if (tab === "extras") await queryClient.invalidateQueries({ queryKey: menuGroupsQueryKey(currentRestaurantId) });
+    },
+    onError: (err: any) => setError(err?.response?.data?.error || err?.message || "Kunde inte kopiera"),
+  });
+
+  const items: Array<{ id: string; name: string; meta?: string }> =
+    tab === "categories"
+      ? (sourceCategories.data || []).map((c) => ({ id: c.id, name: c.name, meta: `${c._count?.products ?? 0} produkter` }))
+      : tab === "products"
+        ? (sourceProducts.data || []).map((p) => ({ id: p.id, name: p.name, meta: `${(p as any).price ?? ""} kr` }))
+        : (sourceGroups.data || []).map((g) => ({ id: g.id, name: g.name, meta: `${g.extras?.length ?? 0} tillval` }));
+
+  const isLoading = (tab === "categories" && sourceCategories.isLoading) ||
+    (tab === "products" && sourceProducts.isLoading) ||
+    (tab === "extras" && sourceGroups.isLoading);
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Importera ${tab === "categories" ? "kategori" : tab === "products" ? "produkt" : "tillbehörsgrupp"}`}
+      description="Källan rörs inte. Kopian får nytt id i din restaurang."
+    >
+      <div className="grid gap-5">
+        <CityRestaurantPicker
+          value={sourceRestaurantId}
+          onChange={(rid) => setSourceRestaurantId(rid)}
+          restaurantLabel="Källrestaurang"
+        />
+
+        {tab === "products" && sourceRestaurantId ? (
+          <Field label="Målkategori i din restaurang">
+            <Select value={targetCategoryId} onChange={(event) => setTargetCategoryId(event.target.value)}>
+              <option value="">Välj kategori…</option>
+              {currentCategories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
+
+        {error && <p className="text-sm text-rose-400">{error}</p>}
+
+        {sourceRestaurantId ? (
+          isLoading ? (
+            <p className="text-sm text-[var(--text-secondary)]">Laddar…</p>
+          ) : items.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">Inget att kopiera.</p>
+          ) : (
+            <div className="grid gap-2 max-h-[400px] overflow-y-auto">
+              {items.map((item) => (
+                <div key={item.id} className="surface-muted flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold truncate">{item.name}</p>
+                    {item.meta && <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{item.meta}</p>}
+                  </div>
+                  <Button
+                    variant="primary"
+                    onClick={() => copyMutation.mutate(item.id)}
+                    disabled={copyMutation.isPending || (tab === "products" && !targetCategoryId)}
+                  >
+                    <Copy size={13} /> Kopiera
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 export function MenuPage() {
   const searchParams = useSearchParams();
   const [activeRestaurantId, setActiveRestaurantId] = useState<string | null>(null);
@@ -411,6 +548,7 @@ export function MenuPage() {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
 
   const restaurants = useQuery({ queryKey: menuRestaurantsQueryKey, queryFn: getMenuRestaurants });
   const automaticDeals = useQuery({ queryKey: dealsQueryKey, queryFn: getAutomaticDeals });
@@ -484,6 +622,11 @@ export function MenuPage() {
         title="Menu"
         actions={
           <>
+            {activeRestaurantId ? (
+              <Button variant="secondary" onClick={() => setImportModalOpen(true)}>
+                <Copy size={14} /> Importera från annan
+              </Button>
+            ) : null}
             {tab === "categories" && activeRestaurantId ? (
               <Button variant="primary" onClick={() => { setActiveCategory(null); setCategoryModalOpen(true); }}>
                 <Plus size={14} /> Category
@@ -504,10 +647,11 @@ export function MenuPage() {
       />
 
       <Surface className="px-5 py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <Select value={activeRestaurantId || ""} onChange={(event) => setActiveRestaurantId(event.target.value)} className="w-full lg:w-56">
-            {restaurants.data.map((restaurant) => <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>)}
-          </Select>
+        <CityRestaurantPicker
+          value={activeRestaurantId || ""}
+          onChange={(rid) => setActiveRestaurantId(rid || null)}
+        />
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative flex-1">
             <Search size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input className="pl-10" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter..." />
@@ -591,6 +735,13 @@ export function MenuPage() {
           <CategoryModal open={categoryModalOpen} restaurantId={activeRestaurantId} category={activeCategory} onClose={() => setCategoryModalOpen(false)} />
           <ProductModal open={productModalOpen} restaurantId={activeRestaurantId} product={activeProduct} categories={categories.data || []} extraGroups={groups.data || []} onClose={() => setProductModalOpen(false)} existingDeals={(automaticDeals.data || []).filter((deal) => deal.restaurantId === activeRestaurantId || deal.applicableRestaurantIds?.includes(activeRestaurantId) || deal.isGlobal)} restaurants={(restaurants.data || []).map((restaurant) => ({ id: restaurant.id, name: restaurant.name, slug: restaurant.slug, city: restaurant.city || null })) as DealRestaurantRef[]} products={products.data || []} />
           <ExtraGroupModal open={groupModalOpen} restaurantId={activeRestaurantId} group={activeGroup} categories={categories.data || []} onClose={() => setGroupModalOpen(false)} />
+          <ImportFromOtherModal
+            open={importModalOpen}
+            onClose={() => setImportModalOpen(false)}
+            currentRestaurantId={activeRestaurantId}
+            tab={tab}
+            currentCategories={categories.data || []}
+          />
         </>
       ) : null}
     </div>

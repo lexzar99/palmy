@@ -326,7 +326,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
   return (
-    <div className="pb-32 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
+    <div className="pb-32 md:pt-20 selection:bg-gold-500/30" style={{ backgroundColor: "var(--bg-primary)" }}>
       {/* Dynamic Cover Image with Parallax-ish feel */}
       <div className="relative w-full h-[50vh] overflow-hidden">
         {heroImage ? (
@@ -476,7 +476,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
         </div>
 
         {/* Sticky Search */}
-        <div className="sticky top-0 z-40 mb-2">
+        <div className="sticky top-0 md:top-20 z-40 mb-2">
           <div className="rounded-[2.5rem] p-2 shadow-xl" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}>
             <div className="relative group">
               <Search size={16} className="absolute left-6 top-1/2 -translate-y-1/2 group-focus-within:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }} />
@@ -494,7 +494,7 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
 
         {/* Sticky Categories — breaks out of parent px-6 so scroll is never clipped */}
         {categories.length > 0 && (
-          <div className="sticky z-40 mb-16 -mx-6 lg:-mx-12" style={{ top: "3.5rem" }}>
+          <div className="sticky z-40 mb-16 -mx-6 lg:-mx-12 top-14 md:top-[8.5rem]">
             <div
               className="flex gap-2 no-scrollbar px-6 lg:px-12"
               style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" as any, paddingRight: "1.5rem" }}
