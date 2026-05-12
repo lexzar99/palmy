@@ -51,86 +51,101 @@ export default function OrdersPage() {
   useEffect(() => {
     let cancelled = false;
 
-    const fetchAll = async () => {
-      const refs = readOrderHistory();
-
-      // Hämta också från backend om kund är inloggad — fanger orders gjorda
-      // på andra enheter / i RN-appen som inte hamnat i denna browsers localStorage.
-      let backendOrders: Array<{
-        id: string;
-        orderNumber?: string;
-        status?: string;
-        total?: number;
-        createdAt?: string;
-        restaurantName?: string | null;
-        customerPhone?: string;
-      }> = [];
-      try {
-        const res = await axios.get(`/api/platform/profile/orders`, { timeout: 8000 });
-        if (Array.isArray(res.data)) backendOrders = res.data;
-      } catch {
-        // Inte inloggad eller backend down — falla tillbaka på bara localStorage
-      }
-
-      // Merge backend + localStorage: backend-orders har företräde, sen
-      // komplettera med localStorage-only (guest-orders eller orders från
-      // tidigare sessioner innan login).
-      const seenIds = new Set(backendOrders.map((o) => o.id));
-      const backendRows: OrderRow[] = backendOrders.map((o) => ({
-        id: o.id,
-        phone: o.customerPhone || "",
-        createdAt: o.createdAt || new Date().toISOString(),
-        restaurantName: o.restaurantName ?? null,
-        restaurantSlug: null,
-        total: o.total,
-        loaded: true,
-        orderNumber: o.orderNumber,
-        status: o.status,
-        fetchedTotal: o.total,
-      }));
-
-      const localOnlyRefs = refs.filter((r) => !seenIds.has(r.id));
-
-      // Hämta detaljer för localStorage-bara orders via public endpoint med
-      // phone som ownership-bevis
-      const localRows = await Promise.all(
-        localOnlyRefs.map(async (ref): Promise<OrderRow> => {
-          try {
-            const res = await axios.get(`${API_URL}/api/orders/${ref.id}`, {
-              params: { phone: ref.phone },
-              timeout: 8000,
-            });
-            return {
-              ...ref,
-              loaded: true,
-              orderNumber: res.data.orderNumber,
-              status: res.data.status,
-              fetchedTotal: res.data.total,
-              restaurantName: res.data.restaurantName ?? ref.restaurantName ?? null,
-            };
-          } catch (err) {
-            const status = (err as { response?: { status?: number } })?.response?.status;
-            return {
-              ...ref,
-              loaded: false,
-              error: status === 404 ? "not_found" : "network",
-            };
-          }
-        }),
-      );
-
-      if (cancelled) return;
-
-      // Kombinera + sortera på createdAt desc (senaste först)
-      const combined = [...backendRows, ...localRows].sort((a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-      setRows(combined);
+    // 1) Visa localStorage-refs DIREKT som "loaded med basic data" — namn,
+    //    total och createdAt har vi redan. Statusen fylls i async i bakgrunden.
+    //    Detta gör att listan blir klickbar omedelbart istället för att vänta
+    //    8s på flera API-anrop.
+    const refs = readOrderHistory();
+    if (refs.length > 0) {
+      const initial: OrderRow[] = refs
+        .map((ref) => ({
+          ...ref,
+          loaded: true as const,
+          orderNumber: undefined,
+          status: undefined,
+          fetchedTotal: ref.total,
+          restaurantName: ref.restaurantName ?? null,
+        }))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRows(initial);
       setLoading(false);
-    };
+    }
 
-    void fetchAll();
-    return () => { cancelled = true; };
+    // 2) Backend-fetch i bakgrunden (inloggade users — orders från andra enheter)
+    axios
+      .get(`/api/platform/profile/orders`, { timeout: 5000 })
+      .then((res) => {
+        if (cancelled || !Array.isArray(res.data)) return;
+        const backendOrders = res.data;
+        setRows((prev) => {
+          const seenIds = new Set(backendOrders.map((o: any) => o.id));
+          const backendRows: OrderRow[] = backendOrders.map((o: any) => ({
+            id: o.id,
+            phone: o.customerPhone || "",
+            createdAt: o.createdAt || new Date().toISOString(),
+            restaurantName: o.restaurantName ?? null,
+            restaurantSlug: null,
+            total: o.total,
+            loaded: true as const,
+            orderNumber: o.orderNumber,
+            status: o.status,
+            fetchedTotal: o.total,
+          }));
+          const localOnly = prev.filter((r) => !seenIds.has(r.id));
+          return [...backendRows, ...localOnly].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          );
+        });
+        setLoading(false);
+      })
+      .catch(() => {
+        // Inte inloggad / backend nere — vi har redan localStorage-rader
+        if (!cancelled) setLoading(false);
+      });
+
+    // 3) Per-order-fetch för status/orderNumber. Var och en uppdaterar sin
+    //    egen rad utan att blockera resten.
+    refs.forEach((ref) => {
+      axios
+        .get(`${API_URL}/api/orders/${ref.id}`, {
+          params: { phone: ref.phone },
+          timeout: 5000,
+        })
+        .then((res) => {
+          if (cancelled) return;
+          setRows((prev) =>
+            prev.map((row) =>
+              row.id === ref.id
+                ? {
+                    ...row,
+                    loaded: true as const,
+                    orderNumber: res.data.orderNumber,
+                    status: res.data.status,
+                    fetchedTotal: res.data.total,
+                    restaurantName: res.data.restaurantName ?? row.restaurantName ?? null,
+                  }
+                : row,
+            ),
+          );
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          const httpStatus = (err as { response?: { status?: number } })?.response?.status;
+          // Bara markera som broken om 404 — nätfel låter vi vara, då har vi
+          // ändå basic localStorage-data att visa
+          if (httpStatus === 404) {
+            setRows((prev) =>
+              prev.map((row) =>
+                row.id === ref.id ? { ...row, loaded: false as const, error: "not_found" as const } : row,
+              ),
+            );
+          }
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleClearMissing = (id: string) => {
@@ -192,14 +207,11 @@ export default function OrdersPage() {
           </motion.div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {rows.map((row, i) => {
+            {rows.map((row) => {
               if (!row.loaded) {
                 return (
-                  <motion.div
+                  <div
                     key={row.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
                     className="rounded-2xl border p-5 flex flex-col gap-3"
                     style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
                   >
@@ -217,50 +229,48 @@ export default function OrdersPage() {
                     <p className="text-sm font-black" style={{ color: "var(--text-secondary)" }}>
                       {new Date(row.createdAt).toLocaleString("sv-SE")}
                     </p>
-                  </motion.div>
+                  </div>
                 );
               }
               const statusInfo = row.status ? STATUS_LABEL[row.status] : null;
               return (
-                <motion.div
+                <Link
                   key={row.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.04 }}
+                  href={`/order/${row.id}?phone=${encodeURIComponent(row.phone)}`}
+                  className="group block rounded-2xl border p-5 hover:border-gold-500/40 transition-colors active:scale-[0.99]"
+                  style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", touchAction: "manipulation" }}
                 >
-                  <Link
-                    href={`/order/${row.id}?phone=${encodeURIComponent(row.phone)}`}
-                    className="group block rounded-2xl border p-5 hover:border-gold-500/40 transition-all"
-                    style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}
-                  >
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--text-secondary)" }}>
-                          {row.restaurantName || "Beställning"}
-                        </p>
-                        <p className="text-lg font-black tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
-                          {row.orderNumber || row.id.slice(-6).toUpperCase()}
-                        </p>
-                      </div>
-                      <ChevronRight size={18} className="shrink-0 text-zinc-500 group-hover:text-gold-500 transition-colors" />
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest mb-1" style={{ color: "var(--text-secondary)" }}>
+                        {row.restaurantName || "Beställning"}
+                      </p>
+                      <p className="text-lg font-black tracking-tight truncate" style={{ color: "var(--text-primary)" }}>
+                        {row.orderNumber || row.id.slice(-6).toUpperCase()}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 flex-wrap mb-3">
-                      {statusInfo && (
-                        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${toneClasses[statusInfo.tone]}`}>
-                          {statusInfo.label}
-                        </span>
-                      )}
-                      {typeof row.fetchedTotal === "number" && (
-                        <span className="text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
-                          {row.fetchedTotal.toFixed(0)} kr
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
-                      <Clock size={11} /> {new Date(row.createdAt).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
-                    </div>
-                  </Link>
-                </motion.div>
+                    <ChevronRight size={18} className="shrink-0 text-zinc-500 group-hover:text-gold-500 transition-colors" />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    {statusInfo ? (
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${toneClasses[statusInfo.tone]}`}>
+                        {statusInfo.label}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest bg-zinc-500/10 text-zinc-400 border border-zinc-500/20">
+                        Hämtar status…
+                      </span>
+                    )}
+                    {typeof row.fetchedTotal === "number" && (
+                      <span className="text-[10px] font-bold" style={{ color: "var(--text-secondary)" }}>
+                        {row.fetchedTotal.toFixed(0)} kr
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold" style={{ color: "var(--text-secondary)", opacity: 0.6 }}>
+                    <Clock size={11} /> {new Date(row.createdAt).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
+                  </div>
+                </Link>
               );
             })}
           </div>

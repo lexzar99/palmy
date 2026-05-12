@@ -494,7 +494,7 @@ export default function HomePage() {
                         </div>
                       )}
                       {badges.regular && (
-                        <div className={`absolute ${badges.bogo ? "top-3 right-3" : "top-8 -left-7 -rotate-45"} ${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 ${badges.bogo ? "px-3 py-1 rounded-full" : "px-9 py-1.5 shadow-2xl"} z-20`}>
+                        <div className={`absolute ${badges.bogo ? "top-16 -left-7" : "top-8 -left-7"} -rotate-45 ${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-9 py-1.5 shadow-2xl z-20`}>
                           <p className="text-[7px] font-black uppercase tracking-widest text-center">{badges.regular.rewardLabel}</p>
                         </div>
                       )}
@@ -508,7 +508,7 @@ export default function HomePage() {
                     <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
                   )}
 
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
                     {(() => {
                       const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
                       const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
@@ -529,9 +529,6 @@ export default function HomePage() {
                         </div>
                       );
                     })()}
-                  </div>
-
-                  <div className="absolute top-3 right-3 flex flex-col gap-2 items-end">
                     <button
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); setInfoRestaurant(r); }}
                       aria-label={`Information om ${r.name}`}
@@ -1054,22 +1051,23 @@ export default function HomePage() {
                           className="group block glass-card rounded-[2rem] overflow-hidden hover:shadow-xl transition-all relative border"
                           style={{ borderColor: "var(--border-muted)" }}
                         >
-                          {/* DEAL RIBBONS — max 1 BOGO + 1 regular */}
+                          {/* DEAL RIBBONS — max 1 BOGO + 1 regular, båda på vänster
+                              så status/heart på höger inte täcks */}
                           {(() => {
                             const badges = getBadgesForRestaurant(r.id);
                             return (
-                              <>
+                              <div className="absolute top-0 left-0 z-20 flex flex-col gap-1">
                                 {badges.bogo && (
-                                  <div className="absolute top-0 left-0 bg-emerald-500 text-zinc-950 px-4 py-1.5 z-20 rounded-br-[1.5rem]">
+                                  <div className="bg-emerald-500 text-zinc-950 px-4 py-1.5 rounded-br-[1.5rem]">
                                     <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> 1+1 GRATIS</p>
                                   </div>
                                 )}
                                 {badges.regular && (
-                                  <div className={`absolute top-0 right-0 ${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-5 py-1.5 z-20 rounded-bl-[1.5rem]`}>
+                                  <div className={`${badges.regular.tone === "purple" ? "bg-purple-500" : badges.regular.tone === "orange" ? "bg-orange-500" : "bg-gold-500"} text-zinc-950 px-4 py-1.5 rounded-br-[1.5rem]`}>
                                     <p className="text-[9px] font-black uppercase tracking-widest flex items-center gap-1"><Sparkles size={10}/> {badges.regular.rewardLabel}</p>
                                   </div>
                                 )}
-                              </>
+                              </div>
                             );
                           })()}
 
@@ -1083,8 +1081,9 @@ export default function HomePage() {
                             {/* gradient overlay */}
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
 
-                            {/* Status badge */}
-                            <div className="absolute top-3 left-3">
+                            {/* Status + Hjärta — stack på höger så BOGO/% badge på vänster
+                                inte täcker dem */}
+                            <div className="absolute top-3 right-3 flex flex-col gap-2 items-end z-10">
                               {(() => {
                                 const pausedUntil = r.pausedUntil ? new Date(r.pausedUntil) : null;
                                 const isPaused = pausedUntil !== null && pausedUntil.getTime() > Date.now();
@@ -1111,20 +1110,19 @@ export default function HomePage() {
                                   </div>
                                 );
                               })()}
-                            </div>
 
-                            {/* HEART button */}
-                            <button
-                              onClick={toggleFav}
-                              className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
-                              style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
-                              aria-label={isFav ? "Ta bort favorit" : "Lägg till favorit"}
-                            >
-                              {isFav
-                                ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                                : <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-                              }
-                            </button>
+                              <button
+                                onClick={toggleFav}
+                                className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                                style={{ backgroundColor: "rgba(255,255,255,0.92)", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}
+                                aria-label={isFav ? "Ta bort favorit" : "Lägg till favorit"}
+                              >
+                                {isFav
+                                  ? <svg viewBox="0 0 24 24" fill="#FF3B30" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                  : <svg viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" className="w-5 h-5"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                }
+                              </button>
+                            </div>
 
                             {/* Restaurant name on image */}
                             <div className="absolute bottom-3 left-4 right-14">
