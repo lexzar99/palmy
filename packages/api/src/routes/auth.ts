@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import twilio from 'twilio';
@@ -11,6 +12,20 @@ import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
 
 const router = Router();
+
+// ── Rate-limit på auth-endpoints ────────────────────────────────────────────
+// Foodora-style: 10 försök per IP per 10 min → 5 min lockout. Generöst nog
+// att fat-fingers inte låser ute riktiga användare, snålt nog att stoppa bots.
+const authLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minuter
+  max: 10,
+  standardHeaders: true, // returnerar RateLimit-* headers
+  legacyHeaders: false,
+  message: {
+    error: 'För många försök. Försök igen om några minuter.',
+    retryAfter: 300, // klient kan visa nedräkning (5 min)
+  },
+});
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
@@ -327,7 +342,7 @@ export const requireVerifiedPhone = async (req: any, res: any, next: any) => {
 // (Google/Apple) eller registreras via /api/auth/register-user (email+lösen).
 
 // POST /api/auth/lookup-phone
-router.post('/lookup-phone', async (req, res) => {
+router.post('/lookup-phone', authLimiter, async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Telefonnummer krävs' });
@@ -363,7 +378,7 @@ router.get('/me', authenticateUser, async (req: any, res: any) => {
 });
 
 // POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store');
 
@@ -451,7 +466,7 @@ router.post('/login', async (req, res) => {
     res.cookie('admin_token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
@@ -630,7 +645,7 @@ router.post('/verify', async (req, res) => {
 });
 
 // POST /api/auth/register-user
-router.post('/register-user', async (req, res) => {
+router.post('/register-user', authLimiter, async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone } = req.body;
     if (!firstName || !lastName || !email || !password || !phone) {
@@ -670,7 +685,7 @@ router.post('/register-user', async (req, res) => {
 });
 
 // POST /api/auth/login-user
-router.post('/login-user', async (req, res) => {
+router.post('/login-user', authLimiter, async (req, res) => {
   try {
     const { identifier, password } = req.body;
     const user = await (prisma as any).user.findFirst({
@@ -687,7 +702,7 @@ router.post('/login-user', async (req, res) => {
 });
 
 // POST /api/auth/oauth-token
-router.post('/oauth-token', async (req, res) => {
+router.post('/oauth-token', authLimiter, async (req, res) => {
   try {
     const { email, name, provider, providerId, image } = req.body;
     if (!email) return res.status(400).json({ error: 'E-post krävs' });
