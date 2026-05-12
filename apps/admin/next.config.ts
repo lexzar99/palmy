@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const apiTarget =
   process.env.API_PROXY_TARGET ||
@@ -21,4 +22,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// withSentryConfig sätter upp source maps automatiskt vid build om
+// SENTRY_AUTH_TOKEN finns. Utan token bygger Next.js som vanligt
+// och Sentry-events fungerar fortfarande (men stack traces blir
+// minifierade).
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+  disableLogger: true,
+});

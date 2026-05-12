@@ -1,4 +1,21 @@
 import 'dotenv/config';
+
+// Sentry — måste init:as ALLRA FÖRST, innan andra imports som kan trigga
+// errors. När SENTRY_DSN saknas är init() en no-op och Sentry-anrop nedan
+// blir tysta. Detta gör att utvecklare lokalt slipper Sentry-aktivitet.
+import * as Sentry from '@sentry/node';
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    // Sample 10% av transactions för performance monitoring — free-tier
+    // räcker länge med detta. Höj/sänk efter behov.
+    tracesSampleRate: 0.1,
+    // 100% av errors (de är viktiga)
+    sampleRate: 1.0,
+  });
+}
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -299,7 +316,13 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Endpoint inte hittad' });
 });
 
-// Error handler
+// Sentry — fångar uncaught errors innan den lokala handlern svarar 500.
+// När DSN saknas är detta en no-op.
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
+
+// Error handler — sista utvägen om Sentry inte fångar / ingen DSN
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Server error:', err);
   res.status(500).json({ error: 'Internt serverfel' });
