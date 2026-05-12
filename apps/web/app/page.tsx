@@ -576,7 +576,7 @@ export default function HomePage() {
 
 
   return (
-    <div className="min-h-screen pb-36 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)", paddingTop: "max(1rem, env(safe-area-inset-top, 0px))" }}>
+    <div className="min-h-screen pb-36 pt-[max(1rem,env(safe-area-inset-top,0px))] md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
       <div className="relative mx-auto max-w-7xl 2xl:max-w-[1600px] px-4 sm:px-6 lg:px-10 xl:px-16">
         {/* DESKTOP COMPACT HERO — only md+ — bakgrund + stor titel + tagline */}
         <section
