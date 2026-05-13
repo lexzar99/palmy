@@ -628,21 +628,13 @@ export default function HomeScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
-                themePreference === "light"
-                  ? "Byt till mörkt läge"
-                  : themePreference === "dark"
-                  ? "Följ systemets läge"
-                  : "Byt till ljust läge"
+                themePreference === "dark" ? "Byt till ljust läge" : "Byt till mörkt läge"
               }
               onPress={() => {
-                // Cycle: light -> dark -> system -> light
-                const next =
-                  themePreference === "light"
-                    ? "dark"
-                    : themePreference === "dark"
-                    ? "system"
-                    : "light";
-                setThemePreference(next);
+                // Enkel toggle: light ↔ dark. "System"-läget togs bort eftersom
+                // det förvirrade vissa användare. Kan återintroduceras senare
+                // via en mer avancerad inställning i Profile om önskat.
+                setThemePreference(themePreference === "dark" ? "light" : "dark");
               }}
               style={{
                 width: 40,
@@ -656,13 +648,7 @@ export default function HomeScreen({
               }}
             >
               <Ionicons
-                name={
-                  themePreference === "light"
-                    ? "sunny-outline"
-                    : themePreference === "dark"
-                    ? "moon-outline"
-                    : "desktop-outline"
-                }
+                name={themePreference === "dark" ? "sunny-outline" : "moon-outline"}
                 size={18}
                 color={palette.gold}
               />

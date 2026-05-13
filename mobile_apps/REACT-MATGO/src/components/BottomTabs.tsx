@@ -19,7 +19,7 @@ export default function BottomTabs({
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { ls } = useArabic();
-  const { palette } = useTheme();
+  const { palette, mode } = useTheme();
   const styles = useSharedStyles();
   const itemCount = useAppStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
   // Tab order matches the web's BottomNav: home, discover, cart, orders, profile.
@@ -66,7 +66,8 @@ export default function BottomTabs({
           borderRadius: 45,
           paddingVertical: 8,
           paddingHorizontal: 8,
-          backgroundColor: "rgba(252, 252, 249, 0.9)", // slightly transparent light bg
+          // Theme-aware tab bar bg: dark glass i dark mode, cream glass i light.
+          backgroundColor: mode === "dark" ? "rgba(24, 24, 27, 0.92)" : "rgba(252, 252, 249, 0.9)",
           borderWidth: 1,
           borderColor: palette.border,
           shadowColor: "#000",
