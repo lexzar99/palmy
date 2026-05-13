@@ -3,7 +3,7 @@ import { View, Text, Alert, Linking, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getImageUrl } from '../lib/api';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import ScalePressable from './ScalePressable';
 
 const TILE_WIDTH = 260;
@@ -23,6 +23,7 @@ export default function SponsorTile({
   openRestaurant: (slug: string) => void;
   pushRoute?: (route: any) => void;
 }) {
+  const { palette } = useTheme();
   const showName = sponsor.showName !== false;
   const imgUri = getImageUrl(sponsor.imageUrl);
 

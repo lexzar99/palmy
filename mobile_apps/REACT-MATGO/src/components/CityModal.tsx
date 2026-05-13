@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, FlatList, Pressable, Modal } from 'react-native';
-import { palette, styles } from '../constants/theme';
+import { styles } from '../constants/theme';
 import type { City } from '../types';
 
 export default function CityModal({

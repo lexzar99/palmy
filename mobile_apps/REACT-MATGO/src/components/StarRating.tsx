@@ -1,9 +1,10 @@
 import React from "react";
 import { View, Text } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 
 export default function StarRating({ rating, size = 12, showNumber = false }: { rating?: number; size?: number; showNumber?: boolean }) {
+  const { palette } = useTheme();
   const stars = Math.round(rating || 0);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>

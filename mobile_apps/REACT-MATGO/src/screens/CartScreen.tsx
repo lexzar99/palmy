@@ -34,7 +34,8 @@ import {
 } from "../lib/quickAddresses";
 import { saveGuestOrder } from "../lib/guestOrders";
 import ScalePressable from "../components/ScalePressable";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
 import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 import { startOrderActivity } from '../lib/liveActivities';
@@ -50,6 +51,7 @@ import { CartScreenSkeleton } from "../components/SkeletonLoader";
 
 function CartEmptyState({ onExplore }: { onExplore: () => void }) {
   const { t } = useTranslation();
+  const { palette } = useTheme();
   const floatAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -194,6 +196,7 @@ export default function CartScreen({
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { ls } = useArabic();
+  const { palette } = useTheme();
   const screenTopPadding = getScreenTopPadding(insets.top);
   const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
 

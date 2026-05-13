@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
 
 interface HomeAddressInputProps {
@@ -17,6 +17,8 @@ export default function HomeAddressInput({
   onSelect,
   onPress,
 }: HomeAddressInputProps) {
+  const { palette } = useTheme();
+  const styles = React.useMemo(() => makeStyles(palette), [palette]);
   const [suggestions, setSuggestions] = useState<PlaceItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -150,36 +152,37 @@ export default function HomeAddressInput({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: "relative",
-    zIndex: 100,
-  },
-  suggestionsContainer: {
-    position: "absolute",
-    top: 60,
-    left: 0,
-    right: 0,
-    backgroundColor: palette.panel,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: "hidden",
-    zIndex: 200,
-  },
-  suggestionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,248,234,0.06)",
-  },
-  suggestionText: {
-    flex: 1,
-    color: palette.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-});
+const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
+  StyleSheet.create({
+    container: {
+      position: "relative",
+      zIndex: 100,
+    },
+    suggestionsContainer: {
+      position: "absolute",
+      top: 60,
+      left: 0,
+      right: 0,
+      backgroundColor: palette.panel,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      overflow: "hidden",
+      zIndex: 200,
+    },
+    suggestionItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: "rgba(255,248,234,0.06)",
+    },
+    suggestionText: {
+      flex: 1,
+      color: palette.text,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+  });

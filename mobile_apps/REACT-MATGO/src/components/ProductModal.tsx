@@ -5,7 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 import { api, getImageUrl } from '../lib/api';
-import { palette, styles } from '../constants/theme';
+import { styles } from '../constants/theme';
+import { useTheme } from '../theme';
 import { Header, PrimaryButton } from '../components/ui';
 import type { MenuProduct, OrderType, CartItem, MenuExtra, MenuExtraGroup } from '../types';
 
@@ -34,6 +35,7 @@ export default function ProductModal({
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { palette } = useTheme();
   const modalScrollRef = useRef<ScrollView | null>(null);
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [note, setNote] = useState(initialNote ?? "");

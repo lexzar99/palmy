@@ -15,7 +15,9 @@ import { useTranslation } from "react-i18next";
 import { useArabic } from "../hooks/useArabic";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
+import type { Palette } from "../theme/palette";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import { getGuestOrders, removeGuestOrder, type GuestOrder } from "../lib/guestOrders";
 import type { Order } from "../types";
@@ -63,14 +65,17 @@ const STATUS_LABEL: Record<string, { label: string; tone: "warn" | "ok" | "info"
   DELIVERY_FAILED: { label: "Leverans misslyckades", tone: "muted" },
 };
 
-const TONE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+// Built per-render so dark mode can swap `muted`.
+const buildToneColors = (palette: Palette): Record<string, { bg: string; text: string; border: string }> => ({
   warn: { bg: "rgba(245,158,11,0.10)", text: "#B45309", border: "rgba(245,158,11,0.30)" },
   ok: { bg: "rgba(16,163,74,0.10)", text: "#15803D", border: "rgba(16,163,74,0.30)" },
   info: { bg: "rgba(37,99,235,0.10)", text: "#1D4ED8", border: "rgba(37,99,235,0.30)" },
   muted: { bg: "rgba(110,110,115,0.10)", text: palette.muted, border: "rgba(110,110,115,0.25)" },
-};
+});
 
 function StatusBadge({ status }: { status?: string }) {
+  const { palette } = useTheme();
+  const TONE_COLORS = React.useMemo(() => buildToneColors(palette), [palette]);
   if (!status) {
     return (
       <View
@@ -110,6 +115,7 @@ function StatusBadge({ status }: { status?: string }) {
 }
 
 function EmptyState({ onExplore }: { onExplore: () => void }) {
+  const { palette } = useTheme();
   const floatAnim = React.useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
@@ -202,6 +208,7 @@ export default function OrdersListScreen({
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { ls } = useArabic();
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
 
   const [rows, setRows] = useState<OrderRow[]>([]);

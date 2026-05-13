@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../lib/api";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 
 type DealRestaurant = {
   id: string;
@@ -61,6 +61,7 @@ export default function DealScreen({
   goBack: () => void;
   openRestaurant: (slug: string) => void;
 }) {
+  const { palette } = useTheme();
   const [deal, setDeal] = useState<DealDetail | null>(null);
   const [restaurants, setRestaurants] = useState<DealRestaurant[]>([]);
   const [loading, setLoading] = useState(true);

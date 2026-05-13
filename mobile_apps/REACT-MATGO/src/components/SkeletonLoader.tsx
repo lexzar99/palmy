@@ -1,11 +1,13 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform, View } from "react-native";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
 
 /**
  * A single shimmer bone for skeleton loading.
  */
 function Bone({ width, height, style }: { width?: number | string; height: number; style?: any }) {
+  const { palette } = useTheme();
   const shimmer = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -44,6 +46,7 @@ function Bone({ width, height, style }: { width?: number | string; height: numbe
 }
 
 function SurfaceCard({ children, style }: { children: React.ReactNode; style?: any }) {
+  const { palette } = useTheme();
   return (
     <View
       style={[
@@ -65,6 +68,7 @@ function SurfaceCard({ children, style }: { children: React.ReactNode; style?: a
 
 /** Skeleton for a RestaurantCard */
 export function RestaurantCardSkeleton() {
+  const { palette } = useTheme();
   return (
     <View
       style={{
@@ -127,6 +131,7 @@ export function HomeScreenSkeleton() {
 
 /** Skeleton for RestaurantScreen (menu loading) */
 export function RestaurantScreenSkeleton({ heroTopInset = 18 }: { heroTopInset?: number }) {
+  const { palette } = useTheme();
   return (
     <View style={{ gap: 12 }}>
       <View style={[styles.restaurantHeroWrap, { paddingTop: heroTopInset }]}> 

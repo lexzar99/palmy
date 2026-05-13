@@ -14,7 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Notifications from "expo-notifications";
 import { api } from "../lib/api";
 import { useAppStore } from "../store/useAppStore";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 
 const DISMISS_KEY = "matgo_claim_dismissed_at";
 
@@ -33,6 +33,7 @@ export default function ClaimDealPopup({
 }: {
   currentRouteName: string;
 }) {
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
   const [deal, setDeal] = useState<any | null>(null);

@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Platform, StyleSheet, Text, View } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { Ionicons } from '@expo/vector-icons';
-import { palette } from '../constants/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function NetworkBanner() {

@@ -10,7 +10,7 @@ import { useArabic } from '../hooks/useArabic';
 import { useAppStore } from '../store/useAppStore';
 import { api, getImageUrl } from '../lib/api';
 import { getScreenCache, setScreenCache } from '../lib/screenCache';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import { getBottomTabsContentPadding } from '../constants/layout';
 import StarRating from '../components/StarRating';
 import ScalePressable from '../components/ScalePressable';
@@ -22,6 +22,7 @@ type Cache = { restaurants: Restaurant[] };
 
 function RestaurantRow({ restaurant, onPress, index }: { restaurant: Restaurant; onPress: () => void; index: number }) {
   const { t } = useTranslation();
+  const { palette } = useTheme();
   const opacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function DiscoverScreen({
   autoFocus?: boolean;
   initialCuisine?: string;
 }) {
+  const { palette } = useTheme();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { ls } = useArabic();

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Modal, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import { useAppStore } from '../store/useAppStore';
 import {
   type QuickAddress,
@@ -33,6 +33,7 @@ interface Props {
 
 export default function AddressPullDown({ onOpenFull, zoneStatus, autoOpen, onAutoOpenHandled }: Props) {
   const { t } = useTranslation();
+  const { palette } = useTheme();
   const address    = useAppStore((s) => s.address);
   const coords     = useAppStore((s) => s.coords);
   const orderType  = useAppStore((s) => s.orderType);

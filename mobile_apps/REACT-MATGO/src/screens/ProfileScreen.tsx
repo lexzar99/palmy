@@ -22,7 +22,8 @@ import { api } from "../lib/api";
 import { APP_AUTH_CALLBACK_URL, isAuthRedirectUrl, parseAuthRedirect } from "../lib/authRedirect";
 import { getScreenCache, setScreenCache } from "../lib/screenCache";
 import { supabase } from "../lib/supabase";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
 import { ScreenWrap, PrimaryButton } from "../components/ui";
 import { ProfileScreenSkeleton } from "../components/SkeletonLoader";
 
@@ -86,6 +87,7 @@ export default function ProfileScreen({
   openCart: () => void;
   openDeal?: (id: string) => void;
 }) {
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const setToken = useAppStore((s) => s.setToken);
   const profile = useAppStore((s) => s.profile);

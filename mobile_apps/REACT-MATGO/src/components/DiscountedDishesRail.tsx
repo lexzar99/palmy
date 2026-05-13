@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api, getImageUrl } from '../lib/api';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import ScalePressable from './ScalePressable';
 
 interface DiscountedDish {
@@ -23,6 +23,7 @@ interface DiscountedDish {
 }
 
 export default function DiscountedDishesRail({ openRestaurant }: { openRestaurant: (slug: string) => void }) {
+  const { palette } = useTheme();
   const [dishes, setDishes] = useState<DiscountedDish[]>([]);
   const [loaded, setLoaded] = useState(false);
 

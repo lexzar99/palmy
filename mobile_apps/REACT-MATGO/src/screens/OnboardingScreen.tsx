@@ -11,7 +11,8 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
-import { palette, styles } from '../constants/theme';
+import { styles } from '../constants/theme';
+import { useTheme } from '../theme';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
 
@@ -54,6 +55,7 @@ function PermissionPage({
   skipSubLabel?: string;
 }) {
   const { t } = useTranslation();
+  const { palette } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(32)).current;
 
@@ -161,6 +163,7 @@ export default function OnboardingScreen({
   requestPushPermission?: () => Promise<boolean>;
   skipPermissions?: boolean;
 }) {
+  const { palette } = useTheme();
   const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);

@@ -18,7 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
 import { supabase } from "../lib/supabase";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 
 const COUNTRY_CODES = [
   { code: "+46", flag: "🇸🇪", name: "Sverige" },
@@ -42,6 +42,7 @@ const COUNTRY_CODES = [
  * sparas som kontaktinfo utan kod-verifiering.
  */
 export default function PhoneGateScreen() {
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
   const setProfile = useAppStore((s) => s.setProfile);

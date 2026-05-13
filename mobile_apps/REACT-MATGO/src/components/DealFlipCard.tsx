@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 
 export type DealFlipCardData = {
   id: string;
@@ -26,7 +26,7 @@ type DealFlipCardProps = {
   deal: DealFlipCardData;
 };
 
-const tones = {
+const buildTones = (palette: ReturnType<typeof useTheme>["palette"]) => ({
   gold: {
     accent: palette.gold,
     accentSoft: "rgba(217,176,85,0.18)",
@@ -45,9 +45,12 @@ const tones = {
     border: "rgba(168,85,247,0.22)",
     tagBg: "rgba(168,85,247,0.12)",
   },
-} as const;
+});
 
 export default function DealFlipCard({ deal }: DealFlipCardProps) {
+  const { palette } = useTheme();
+  const styles = React.useMemo(() => makeStyles(palette), [palette]);
+  const tones = React.useMemo(() => buildTones(palette), [palette]);
   const [flipped, setFlipped] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const tone = tones[deal.tone || "gold"];
@@ -209,7 +212,8 @@ export default function DealFlipCard({ deal }: DealFlipCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
+  StyleSheet.create({
   container: {
     width: 260,
     height: 150,

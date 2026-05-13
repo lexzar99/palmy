@@ -3,11 +3,12 @@ import { View, Text, Pressable, Animated, Alert, Easing } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppStore } from '../store/useAppStore';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import type { Order } from '../types';
+import type { Palette } from '../theme/palette';
 
 // ─── Status helper ─────────────────────────────────────────────────────────────
-function getStatusDisplay(status: string) {
+function getStatusDisplay(status: string, palette: Palette) {
   switch (status) {
     case "PENDING":
       return { label: "GRANSKAS", icon: "time", color: "#B45309", bgColor: "rgba(245,158,11,0.16)", baseProgress: 10 };
@@ -74,6 +75,7 @@ export default function LiveOrderBanner({
   openOrder: (id: string) => void;
   onDismiss: () => void;
 }) {
+  const { palette } = useTheme();
   // Order data is owned by `useOrderActivitySync` (mounted at App level) and
   // pushed into the store. The banner is purely presentational so we don't
   // double up on socket connections, polls, or auto-dismiss timers.
@@ -144,7 +146,7 @@ export default function LiveOrderBanner({
   // ── Status change side-effects: crossfade colour, morph icon, animate progress
   useEffect(() => {
     if (!order) return;
-    const display = getStatusDisplay(order.status);
+    const display = getStatusDisplay(order.status, palette);
 
     if (lastStatus.current === null) {
       // First render — snap, don't animate.
@@ -155,7 +157,7 @@ export default function LiveOrderBanner({
     }
 
     if (lastStatus.current !== order.status) {
-      const prev = getStatusDisplay(lastStatus.current);
+      const prev = getStatusDisplay(lastStatus.current, palette);
 
       // Colour crossfade
       setColorPair({ prev, next: display });
@@ -219,7 +221,7 @@ export default function LiveOrderBanner({
   // ── Slow progress creep within the active band ──────────────────────────────
   useEffect(() => {
     if (!order) return;
-    const display = getStatusDisplay(order.status);
+    const display = getStatusDisplay(order.status, palette);
     const targetMax = Math.min(display.baseProgress + 22, 96);
 
     const creepTimer = setInterval(() => {
@@ -325,7 +327,7 @@ export default function LiveOrderBanner({
   // also rebuilds the native AnimatedNode graph, which can briefly leak NaN
   // values through to UIKit and crash the view tree.
   const safeStatus = order?.status ?? "PENDING";
-  const display = getStatusDisplay(safeStatus);
+  const display = getStatusDisplay(safeStatus, palette);
   const accentColor: string = display.color;
 
   const { containerTransform, containerOpacity } = useMemo(() => {

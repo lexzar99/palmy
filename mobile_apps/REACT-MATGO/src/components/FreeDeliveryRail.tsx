@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Image, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api, getImageUrl } from '../lib/api';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import ScalePressable from './ScalePressable';
 
 interface Item {
@@ -20,6 +20,7 @@ interface Item {
 }
 
 export default function FreeDeliveryRail({ openRestaurant }: { openRestaurant: (slug: string) => void }) {
+  const { palette } = useTheme();
   const [items, setItems] = useState<Item[]>([]);
   const [loaded, setLoaded] = useState(false);
 

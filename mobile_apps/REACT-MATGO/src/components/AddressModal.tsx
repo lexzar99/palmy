@@ -27,7 +27,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_URL } from "../lib/api";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 import { useTranslation } from "react-i18next";
 
 // Session token for Google billing grouping
@@ -62,7 +62,8 @@ interface AddressModalProps {
 }
 
 // ── Colours ──────────────────────────────────────────────────────────────────
-const C = {
+// Built per-render so we pick up the active palette from useTheme.
+const buildColors = (palette: ReturnType<typeof useTheme>["palette"]) => ({
   bg:        palette.bg,
   card:      palette.panel,
   surface:   palette.card,
@@ -78,7 +79,7 @@ const C = {
   red:       palette.danger,
   redBg:     "rgba(220,38,38,0.12)",
   overlay:   "rgba(33,22,15,0.32)",
-};
+});
 
 const { width: SW } = Dimensions.get("window");
 const CARD_W = Math.min(SW - 40, 440);
@@ -93,6 +94,9 @@ export default function AddressModal({
 }: AddressModalProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const { palette } = useTheme();
+  const C = React.useMemo(() => buildColors(palette), [palette]);
+  const s = React.useMemo(() => makeStyles(C), [C]);
   const [orderType, setOrderType] = useState<OrderType>(initialOrderType);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
 
@@ -469,7 +473,7 @@ export default function AddressModal({
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
-const s = StyleSheet.create({
+const makeStyles = (C: ReturnType<typeof buildColors>) => StyleSheet.create({
   // Centered layout
   outer: {
     flex: 1,

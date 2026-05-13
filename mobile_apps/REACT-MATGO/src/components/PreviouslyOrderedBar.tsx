@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
-import { palette } from '../constants/theme';
+import { useTheme } from '../theme';
 import { useAppStore } from '../store/useAppStore';
 import ScalePressable from './ScalePressable';
 import { useTranslation } from 'react-i18next';
@@ -31,6 +31,7 @@ export default function PreviouslyOrderedBar({
 }) {
   const { t } = useTranslation();
   const { ls } = useArabic();
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const addItem = useAppStore((s) => s.addItem);
   const clearCart = useAppStore((s) => s.clearCart);

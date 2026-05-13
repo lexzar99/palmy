@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
 
 interface AddressAutocompleteProps {
@@ -19,6 +19,8 @@ export default function AddressAutocomplete({
   onSelect,
   placeholder = "Ange adress...",
 }: AddressAutocompleteProps) {
+  const { palette } = useTheme();
+  const styles = React.useMemo(() => makeStyles(palette), [palette]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -104,56 +106,57 @@ export default function AddressAutocomplete({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    position: "relative",
-    zIndex: 100,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: palette.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    color: palette.text,
-    fontSize: 14,
-    fontWeight: "700",
-    padding: 0,
-    margin: 0,
-  },
-  suggestionsContainer: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
-    backgroundColor: palette.panel,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: palette.border,
-    marginTop: 4,
-    overflow: "hidden",
-    zIndex: 200,
-  },
-  suggestionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: palette.border,
-  },
-  suggestionText: {
-    flex: 1,
-    color: palette.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-});
+const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
+  StyleSheet.create({
+    container: {
+      position: "relative",
+      zIndex: 100,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: palette.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 10,
+    },
+    input: {
+      flex: 1,
+      color: palette.text,
+      fontSize: 14,
+      fontWeight: "700",
+      padding: 0,
+      margin: 0,
+    },
+    suggestionsContainer: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      backgroundColor: palette.panel,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: palette.border,
+      marginTop: 4,
+      overflow: "hidden",
+      zIndex: 200,
+    },
+    suggestionItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: palette.border,
+    },
+    suggestionText: {
+      flex: 1,
+      color: palette.text,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+  });

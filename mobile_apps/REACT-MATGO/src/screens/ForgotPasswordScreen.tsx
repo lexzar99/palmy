@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../lib/api";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
 import { Header, ScreenWrap } from "../components/ui";
 
 // Glömt-lösenord-flöde — steg 1 av 2.
@@ -24,6 +25,7 @@ export default function ForgotPasswordScreen({
 }: {
   goBack: () => void;
 }) {
+  const { palette } = useTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

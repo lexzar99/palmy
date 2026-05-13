@@ -42,7 +42,8 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { api, getImageUrl } from "../lib/api";
 import { rememberQuickAddress } from "../lib/quickAddresses";
-import { palette, styles } from "../constants/theme";
+import { styles } from "../constants/theme";
+import { useTheme } from "../theme";
 import { getBottomTabsContentPadding, getScreenTopPadding, getStickyHeaderTopInset } from "../constants/layout";
 
 
@@ -135,6 +136,7 @@ export default function HomeScreen({
 }) {
   const { t } = useTranslation();
   const { ls } = useArabic();
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const cacheKey = token || "__guest__";
   const cachedData = getScreenCache<HomeScreenCache>("home", cacheKey);

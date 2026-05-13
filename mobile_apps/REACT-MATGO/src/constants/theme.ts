@@ -4,36 +4,30 @@ import { lightPalette } from "../theme/palette";
 // ── Palette ─────────────────────────────────────────────────────────────────
 // The canonical palette lives in src/theme/palette.ts and mirrors the web
 // app's CSS tokens (apps/web/app/globals.css). We re-export the LIGHT palette
-// here so the 30+ files doing `import { palette } from '../constants/theme'`
-// keep working unchanged while picking up the new web-aligned colors:
-//   gold:     #D9B055 → #E7B24B  (web --color-gold-500)
-//   goldDark: #7D6126 → #C28E2E  (web --color-gold-600)
-//   text:     #21160F → #1C1C1E  (web --text-primary)
-//   muted:    #7C6854 → #6E6E73  (web --text-secondary)
-//   border:   warm brown → cool neutral matching --glass-border
+// here so the `styles` StyleSheet below — which is still imported by ~18
+// components and screens — keeps rendering identical light-mode colors as
+// before, even though no one imports `palette` from this file anymore.
 //
-// ── Migrating to dark mode ──────────────────────────────────────────────────
-// The `palette` and `styles` exported below are FROZEN at module load and
-// will NOT react when the user (or the OS) flips theme mode. To make a
-// component dark-mode-aware:
+// ── Migration status ────────────────────────────────────────────────────────
+// All 33 customer-app components/screens that USED to do
+//   `import { palette } from '../constants/theme'`
+// have been migrated to subscribe to `useTheme()` from `src/theme`, so they
+// pick up dark mode when the OS color scheme flips. See
+// `src/theme/ThemeProvider.tsx` for the runtime context.
 //
-//   1. Replace the static import:
-//        - import { palette, styles } from '../constants/theme';
-//        + import { useTheme } from '../theme';
+// What's still light-only:
+//   - The big `styles` StyleSheet exported at the bottom of this file. It's
+//     shared across many components (Header, RestaurantCard, CityModal,
+//     ProductModal, etc) and dark-mode-ifying it would require restructuring
+//     every consumer to build their own makeStyles factory. The frozen
+//     light-mode tokens here are deliberately kept as a safety net.
+//   - Anything else that does `import { palette } from '../constants/theme'`
+//     in the future — should NOT exist, since the export is now only used
+//     internally by `styles` below.
 //
-//   2. Read the live theme inside the component:
-//          const { palette } = useTheme();
-//
-//   3. Build styles inline or with useMemo so they pick up palette changes:
-//          const s = useMemo(
-//            () => StyleSheet.create({
-//              card: { backgroundColor: palette.panel, ... },
-//            }),
-//            [palette]
-//          );
-//
-// The static `styles` StyleSheet below stays in place as a transitional
-// safety net until every screen has been migrated — do not delete it.
+// If you need a token that adapts to dark mode, use:
+//   const { palette } = useTheme();
+// inside your component. Never import `palette` from this file in new code.
 export const palette = lightPalette;
 
 // Re-export the new token scales for any local consumers that need them.

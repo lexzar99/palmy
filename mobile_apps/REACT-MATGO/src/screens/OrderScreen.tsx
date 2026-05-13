@@ -10,7 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { io } from "socket.io-client";
 import { useAppStore } from "../store/useAppStore";
 import { api, SOCKET_URL } from "../lib/api";
-import { palette } from "../constants/theme";
+import { useTheme } from "../theme";
 import { ScreenWrap, Header, EmptyPanel, PulseIndicator, SpinningLoader } from "../components/ui";
 import { OrderScreenSkeleton } from "../components/SkeletonLoader";
 import { DELIVERY_AUTO_DISMISS_MS } from "../lib/orderTiming";
@@ -50,6 +50,7 @@ function getStatusDisplay(status: string, danger: string, gold: string, success:
 }
 
 export default function OrderScreen({ id, phone, goBack }: { id: string; phone?: string; goBack: () => void }) {
+  const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
