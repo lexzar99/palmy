@@ -71,7 +71,6 @@ type ProfileScreenCache = {
   savedAddresses: SavedAddress[];
   editName: string;
   editEmail: string;
-  showAddPhone: boolean;
 };
 
 export default function ProfileScreen({
@@ -117,18 +116,10 @@ export default function ProfileScreen({
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => cachedData?.savedAddresses || []);
   const [phone, setPhone] = useState("");
   const [countryCode, setCountryCode] = useState("+46");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpPhone, setOtpPhone] = useState("");
-  const [showOtp, setShowOtp] = useState(false);
   const [pageLoading, setPageLoading] = useState(() => (token ? !cachedData : false));
   const [authLoading, setAuthLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [socialLoading, setSocialLoading] = useState<"google" | "facebook" | "apple" | null>(null);
-  const [showAddPhone, setShowAddPhone] = useState(() => cachedData?.showAddPhone || false);
-  const [addPhoneCountry, setAddPhoneCountry] = useState("+46");
-  const [addPhoneNum, setAddPhoneNum] = useState("");
-  const [addPhoneLoading, setAddPhoneLoading] = useState(false);
-  const [addPhoneError, setAddPhoneError] = useState("");
   // Apple-name gate (only fires when /api/profile.needsName === true).
   const [showAddName, setShowAddName] = useState(false);
   const [addFirstName, setAddFirstName] = useState("");
@@ -233,23 +224,20 @@ export default function ProfileScreen({
     return () => { guestIconBreath.stopAnimation(); };
   }, [token, profile]);
 
-  // Google/Apple sign-in completed: if the OAuth user has no verified phone
-  // yet, gate them — DO NOT setToken/setProfile until they finish phone+OTP
-  // via the dedicated AddPhone flow on this screen. This is a backstop; the
-  // backend also rejects OAuth-only users on protected endpoints.
+  // Google/Apple sign-in completed. OAuth users without a phone land on the
+  // profile and can add it via the settings → edit profile form (which calls
+  // /api/profile/link-phone directly — no OTP).
   const handleSocialAuthResult = useCallback((result: { token: string; user: any }) => {
     setSocialLoading(null);
     setToken(result.token);
     setProfile(result.user);
     if (result.user?.needsName) {
       setShowAddName(true);
-      // Phone collection (if also needed) happens after name in this flow,
-      // so don't open AddPhone yet — handleAddName will route to it.
       return;
     }
     if (result.user?.needsPhone) {
-      setShowAddPhone(true);
-      return;
+      setActiveTab("settings");
+      setIsEditing(true);
     }
     fetchProfileData(result.token);
   }, [setToken, setProfile]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -274,10 +262,10 @@ export default function ProfileScreen({
       setAddFirstName("");
       setAddLastName("");
       if (profileRes.data?.needsPhone) {
-        setShowAddPhone(true);
-      } else {
-        fetchProfileData(token);
+        setActiveTab("settings");
+        setIsEditing(true);
       }
+      fetchProfileData(token);
     } catch (e: any) {
       setAddNameError(e.response?.data?.error || e.message || "Kunde inte spara namn");
     } finally {
@@ -364,7 +352,6 @@ export default function ProfileScreen({
         }
         setEditName(nextProfile?.name || "");
         setEditEmail(nextProfile?.email || "");
-        setShowAddPhone(!nextProfile?.phone);
         setScreenCache<ProfileScreenCache>("profile", authToken, {
           profile: nextProfile,
           orders: (ordersRes.data || []) as Order[],
@@ -372,7 +359,6 @@ export default function ProfileScreen({
           savedAddresses: (addressRes.data || []) as SavedAddress[],
           editName: nextProfile?.name || "",
           editEmail: nextProfile?.email || "",
-          showAddPhone: !nextProfile?.phone,
         });
       } catch (err: any) {
         // Only clear the session if the profile call returned 401/403 — a
@@ -399,7 +385,6 @@ export default function ProfileScreen({
       setOrders([]);
       setDeals([]);
       setSavedAddresses([]);
-      setShowAddPhone(false);
       return;
     }
     fetchProfileData(token, { showLoader: initialProfileFetchShouldShowLoader }).catch(() => clearSession());
@@ -457,37 +442,14 @@ export default function ProfileScreen({
     }
   }, [activeTab]);
 
-  const sendOtpToPhone = useCallback(async (phoneNumber: string) => {
-    setAuthLoading(true);
-    setLoginError("");
-    setAddPhoneError("");
-    try {
-      // Always go through our Twilio-backed /send-otp endpoint. When the
-      // current session is an OAuth user missing a phone we forward the
-      // Supabase JWT so /verify-otp later attaches the new number to that
-      // existing account rather than minting a phone-only one.
-      const isLinking = !!token && !!(profile as any)?.needsPhone;
-      const headers = isLinking && token
-        ? { Authorization: `Bearer ${token}` }
-        : undefined;
-      const { data } = await api.post("/api/auth/send-otp", { phone: phoneNumber }, { headers });
-      if (data?.devCode) setOtpCode(data.devCode);
-      setOtpPhone(phoneNumber);
-      setShowOtp(true);
-      setShowAddPhone(false);
-    } catch (error: any) {
-      const msg = error?.response?.data?.error || error?.message || "Kunde inte skicka kod";
-      setLoginError(msg);
-      setAddPhoneError(msg);
-    } finally {
-      setAuthLoading(false);
-      setAddPhoneLoading(false);
-    }
-  }, [token, profile]);
-
-  const handleSendOtp = useCallback(async () => {
+  // Phone-only login is no longer supported (Twilio OTP endpoints removed —
+  // see project memory "OTP/SMS-verifiering är borttagen"). Guest "CONTINUE"
+  // routes everyone to the register flow with their phone prefilled. OAuth
+  // users without a phone add it via settings → edit profile, which calls
+  // /api/profile/link-phone directly.
+  const handleContinueWithPhone = useCallback(() => {
     if (!phone.trim()) {
-      Alert.alert("Nummer krävs", "Ange telefonnumret du använder på webben.");
+      Alert.alert("Nummer krävs", "Ange ditt telefonnummer.");
       return;
     }
     const internationalPhone = buildInternationalPhone(countryCode, phone);
@@ -495,89 +457,8 @@ export default function ProfileScreen({
       Alert.alert("Nummer krävs", "Ange ett giltigt telefonnummer.");
       return;
     }
-
-    setAuthLoading(true);
-    try {
-      // Check if phone exists in DB before sending OTP
-      const { data: lookup } = await api.post("/api/auth/lookup-phone", { phone: internationalPhone });
-
-      if (!lookup.exists) {
-        setAuthLoading(false);
-        // It's a new number, force them to the registration flow
-        openRegister(internationalPhone);
-        return;
-      }
-
-      await sendOtpToPhone(internationalPhone);
-    } catch (e: any) {
-       setAuthLoading(false);
-       setLoginError("Kunde inte verifiera numret. Försök igen.");
-    }
-  }, [buildInternationalPhone, countryCode, normalizePhone, phone, sendOtpToPhone, openRegister]);
-
-  const handleAddPhone = useCallback(async () => {
-    if (!addPhoneNum.trim()) {
-      setAddPhoneError("Ange telefonnummer");
-      return;
-    }
-    setAddPhoneLoading(true);
-    const internationalPhone = buildInternationalPhone(addPhoneCountry, addPhoneNum);
-    await sendOtpToPhone(internationalPhone);
-  }, [addPhoneCountry, addPhoneNum, buildInternationalPhone, sendOtpToPhone]);
-
-  const verifyOtp = useCallback(async () => {
-    if (!otpCode.trim()) return;
-    setAuthLoading(true);
-    setLoginError("");
-    try {
-      const isLinking = !!token && !!(profile as any)?.needsPhone;
-      if (isLinking) {
-        // Twilio verify with the Supabase JWT attached: /verify-otp links the
-        // phone (uniquely) to the OAuth user record. We keep the same JWT and
-        // just re-fetch the profile to clear `needsPhone`.
-        await api.post(
-          "/api/auth/verify-otp",
-          { phone: otpPhone, code: otpCode },
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        try {
-          const profileRes = await api.get('/api/profile', { headers: { Authorization: `Bearer ${token}` } });
-          setProfile(profileRes.data);
-        } catch {}
-        setShowOtp(false);
-        setOtpCode("");
-        setAddPhoneNum("");
-        setPageLoading(true);
-        return;
-      }
-
-      // Phone-only login / registration. Backend creates or fetches the user
-      // by phone and returns our own JWT — no Supabase session is involved.
-      const { data } = await api.post("/api/auth/verify-otp", {
-        phone: otpPhone,
-        code: otpCode,
-      });
-      const tok = data?.token;
-      if (!tok) throw new Error("Ingen session mottogs");
-      setToken(tok);
-      const nextProfile = data?.user || {
-        id: "",
-        name: "",
-        phone: otpPhone,
-        isVerified: true,
-      };
-      setProfile(nextProfile);
-      setShowOtp(false);
-      setOtpCode("");
-      setPhone("");
-      setAddPhoneNum("");
-      setPageLoading(true);
-    } catch (error: any) {
-      setLoginError(error?.response?.data?.error || error?.message || "Felaktig kod");
-    } finally {
-      setAuthLoading(false);
-    }
-  }, [otpCode, otpPhone, profile, setProfile, setToken, token]);
+    openRegister(internationalPhone);
+  }, [buildInternationalPhone, countryCode, normalizePhone, openRegister, phone]);
 
   const handleSocialLogin = useCallback(
     async (provider: "google" | "facebook" | "apple") => {
@@ -667,8 +548,6 @@ export default function ProfileScreen({
     setOrders([]);
     setDeals([]);
     setSavedAddresses([]);
-    setShowOtp(false);
-    setShowAddPhone(false);
     setActiveTab("overview");
     setIsEditing(false);
     setLoginError("");
@@ -897,7 +776,7 @@ export default function ProfileScreen({
 
               {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
 
-              <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleSendOtp} disabled={authLoading} style={{ marginTop: 18 }} />
+              <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleContinueWithPhone} disabled={authLoading} style={{ marginTop: 18 }} />
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
@@ -955,28 +834,6 @@ export default function ProfileScreen({
             </Pressable>
           </Animated.View>
         </View>
-
-        <Modal visible={showOtp} transparent animationType="slide" onRequestClose={() => setShowOtp(false)}>
-          <View style={styles.modalBackdrop}>
-            <View style={[styles.modalCard, { borderRadius: 30 }]}>
-              <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>{t('profile.otp.title')}</Text>
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('profile.otp.sent', { phone: otpPhone })}</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="123 456"
-                placeholderTextColor={palette.muted}
-                value={otpCode}
-                onChangeText={(value) => setOtpCode(value.replace(/[^0-9]/g, ""))}
-                keyboardType="number-pad"
-              />
-              {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginBottom: 10, textAlign: "center" }}>{loginError}</Text>}
-              <PrimaryButton label={authLoading ? t('common.loading') : t('profile.otp.confirmBtn')} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
-              <Pressable style={{ marginTop: 10 }} onPress={() => setShowOtp(false)}>
-                <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('profile.otp.cancelBtn')}</Text>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
 
         <Modal visible={langPickerOpen} transparent animationType="slide" onRequestClose={() => setLangPickerOpen(false)}>
           <View style={styles.modalBackdrop}>
@@ -1581,28 +1438,6 @@ export default function ProfileScreen({
         </View>
       </Modal>
 
-      {/* OTP modal */}
-      <Modal visible={showOtp} transparent animationType="slide" onRequestClose={() => setShowOtp(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { borderRadius: 30 }]}>
-            <Text style={{ color: palette.text, fontSize: 16, fontWeight: "900", marginBottom: 8 }}>{t('profile.otp.title')}</Text>
-            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>{t('profile.otp.sent', { phone: otpPhone })}</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="000 000"
-              placeholderTextColor={palette.muted}
-              value={otpCode}
-              onChangeText={(value) => setOtpCode(value.replace(/[^0-9]/g, ""))}
-              keyboardType="number-pad"
-            />
-            {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginBottom: 10, textAlign: "center" }}>{loginError}</Text>}
-            <PrimaryButton label={authLoading ? t('common.loading') : t('profile.otp.confirmBtn')} onPress={verifyOtp} disabled={authLoading} icon="shield-checkmark-outline" />
-            <Pressable style={{ marginTop: 10 }} onPress={() => setShowOtp(false)}>
-              <Text style={{ color: palette.gold, fontWeight: "700", textAlign: "center" }}>{t('profile.otp.cancelBtn')}</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
     </ScreenWrap>
   );
 }
