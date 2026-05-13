@@ -89,8 +89,10 @@ export default function SplashLoader(_props: { message?: string }) {
   const logoScale = useRef(new Animated.Value(0.85)).current;
   const logoY = useRef(new Animated.Value(8)).current;
 
-  // Radial glow — opacity-breathing istället för scale (ingen position-drift)
-  const glowOpacity = useRef(new Animated.Value(0)).current;
+  // Radial glow — opacity-breathing istället för scale (ingen position-drift).
+  // Startar på 0.5 så cirkeln är synlig direkt, även om splash hinner
+  // unmount:as innan entrance-animationen är klar.
+  const glowOpacity = useRef(new Animated.Value(0.5)).current;
 
   // Tagline + badge fade-in
   const badgeOpacity = useRef(new Animated.Value(0)).current;
@@ -103,26 +105,28 @@ export default function SplashLoader(_props: { message?: string }) {
 
   useEffect(() => {
     // ── Entrance ─────────────────────────────────────────────────────────────
-    // ~500 ms längre än innan: glow 700→1000ms, logo 520→720ms, delays +100ms
+    // Glow startar redan på 0.5 (synlig direkt). Snabb fade till 1.0 så hela
+    // cirkeln är synlig under splashens första frame, sedan mjuk breathe.
     Animated.timing(glowOpacity, {
       toValue: 1,
-      duration: 1000,
+      duration: 400,
       easing: Easing.out(Easing.quad),
       useNativeDriver: ND,
     }).start(() => {
       // Opacity-breathing — INGEN scale = ingen position-drift = ingen glitch.
-      // Långt + symmetriskt så det känns mjukt, inte pulserande.
+      // Behåller HÖG opacity hela tiden (0.85 ↔ 1.0) så cirkeln aldrig
+      // upplevs försvinna ens när splashen är kort.
       Animated.loop(
         Animated.sequence([
           Animated.timing(glowOpacity, {
-            toValue: 0.7,
-            duration: 3200,
+            toValue: 0.85,
+            duration: 2800,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: ND,
           }),
           Animated.timing(glowOpacity, {
             toValue: 1,
-            duration: 3200,
+            duration: 2800,
             easing: Easing.inOut(Easing.sin),
             useNativeDriver: ND,
           }),

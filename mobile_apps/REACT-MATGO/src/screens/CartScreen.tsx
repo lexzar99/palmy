@@ -265,6 +265,7 @@ export default function CartScreen({
   const [formData, setFormData] = useState({
     customerName: "",
     customerPhone: "",
+    customerEmail: "",
     deliveryStreet: "",
     deliveryZip: "",
     deliveryCity: "",
@@ -275,6 +276,11 @@ export default function CartScreen({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [autocompleteValue, setAutocompleteValue] = useState("");
   const [tipAmount, setTipAmount] = useState<number>(0);
+  const [showCustomTipInput, setShowCustomTipInput] = useState<boolean>(false);
+  const [customTipText, setCustomTipText] = useState<string>("");
+  // Komplettering till minimum — när subtotal < minOrder kan kunden kryssa i
+  // detta för att betala mellanskillnaden (paritet med web cart).
+  const [topUpToMinimum, setTopUpToMinimum] = useState<boolean>(true);
 
   const scheduleWindow = useMemo(() => {
     const minTime = getMinimumScheduledTime();
@@ -430,8 +436,15 @@ export default function CartScreen({
     orderType === "DELIVERY"
       ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? restaurantSettings.deliveryFee)
       : 0;
+  const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
+  // Komplettering till minimum — bara aktiv när kunden kryssat i checkboxen och
+  // subtotal verkligen ligger under minimum (paritet med web).
+  const minOrderTopUp = topUpToMinimum && subtotal > 0 && subtotal < minOrder
+    ? Math.max(0, minOrder - subtotal)
+    : 0;
+  const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
   const isTestCode = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
-  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee - personalDiscount + tipAmount);
+  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - personalDiscount + effectiveTip);
 
   // Initial data fetch
   useEffect(() => {
@@ -483,6 +496,7 @@ export default function CartScreen({
           ...current,
           customerName: current.customerName || (isGuestProfile ? "" : profName),
           customerPhone: current.customerPhone || (isGuestProfile ? "" : (profileRes.data?.phone || "")),
+          customerEmail: current.customerEmail || (isGuestProfile ? "" : (profileRes.data?.email || "")),
           deliveryStreet: current.deliveryStreet || profileRes.data?.address || "",
           deliveryZip: current.deliveryZip || profileRes.data?.zip || "",
         }));
@@ -767,7 +781,9 @@ export default function CartScreen({
         }
       }
 
-      if (subtotal < restaurantSettings.minOrderAmount) {
+      // Tillåt checkout om subtotal < minOrder ENDAST när användaren kryssat
+      // i komplettering-checkboxen (paritet med web). Annars blockera.
+      if (subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum) {
         Alert.alert(t('cart.errors.minimumOrder'), t('cart.summary.minimum', { amount: restaurantSettings.minOrderAmount }));
         setSubmitting(false);
         return;
@@ -922,13 +938,15 @@ export default function CartScreen({
         type: orderType,
         customerName: formData.customerName,
         customerPhone: formData.customerPhone,
+        customerEmail: formData.customerEmail || undefined,
         deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
         deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
         deliveryCity: orderType === "DELIVERY" ? formData.deliveryCity : undefined,
         deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
-        deliveryNote: tipAmount > 0 ? `(Dricks gett: ${tipAmount} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
-        note: tipAmount > 0 ? `(Dricks gett: ${tipAmount} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
-        tip: tipAmount > 0 ? tipAmount : undefined,
+        deliveryNote: effectiveTip > 0 ? `(Dricks gett: ${effectiveTip} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
+        note: effectiveTip > 0 ? `(Dricks gett: ${effectiveTip} kr i appen) ${formData.note || ""}`.trim() : formData.note || undefined,
+        tip: effectiveTip > 0 ? effectiveTip : undefined,
+        minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
         stripePaymentIntentId: finalPaymentIntentId,
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: undefined,
@@ -1138,6 +1156,25 @@ export default function CartScreen({
               </View>
             ))}
           </View>
+
+          {/* Login prompt — soft, not blocking (paritet med web: visas högst upp
+              i form-flödet så användaren ser fördelarna med konto innan checkout). */}
+          {!token && (
+            <View style={[styles.formCard, { borderColor: "rgba(231,178,75,0.2)", backgroundColor: "rgba(231,178,75,0.03)" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(231,178,75,0.1)", alignItems: "center", justifyContent: "center" }}>
+                  <Ionicons name="person-outline" size={20} color={palette.gold} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>{t('cart.guest.title')}</Text>
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>{t('cart.guest.description')}</Text>
+                </View>
+                <Pressable onPress={openProfile} style={{ backgroundColor: palette.gold, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
+                  <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{t('cart.guest.loginBtn')}</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
 
           {/* 2. Order Type Toggle */}
           <View style={{ flexDirection: "row", gap: 10, paddingHorizontal: 4 }}>
@@ -1414,24 +1451,7 @@ export default function CartScreen({
             </Pressable>
           </Modal>
 
-          {!token && (
-            <View style={[styles.formCard, { borderColor: "rgba(231,178,75,0.2)", backgroundColor: "rgba(231,178,75,0.03)" }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(231,178,75,0.1)", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="person-outline" size={20} color={palette.gold} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic", textTransform: "uppercase" }}>{t('cart.guest.title')}</Text>
-                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 2 }}>{t('cart.guest.description')}</Text>
-                </View>
-                <Pressable onPress={openProfile} style={{ backgroundColor: palette.gold, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 }}>
-                  <Text style={{ color: "#000", fontSize: 10, fontWeight: "900", textTransform: "uppercase" }}>{t('cart.guest.loginBtn')}</Text>
-                </Pressable>
-              </View>
-            </View>
-          )}
-
-          {/* 3. Customer Info */}
+          {/* 3. Customer Info — namn, telefon, e-post (paritet med web) */}
           <View style={styles.formCard}>
             <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 12 }}>{t('cart.sections.customer')}</Text>
             <View style={{ gap: 10 }}>
@@ -1449,6 +1469,15 @@ export default function CartScreen({
                 keyboardType="phone-pad"
                 value={formData.customerPhone}
                 onChangeText={(value) => setFormData((v) => ({ ...v, customerPhone: value }))}
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="E-post (valfritt)"
+                placeholderTextColor={palette.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={formData.customerEmail}
+                onChangeText={(value) => setFormData((v) => ({ ...v, customerEmail: value }))}
               />
             </View>
           </View>
@@ -1623,7 +1652,7 @@ export default function CartScreen({
             </View>
           )}
 
-          {/* 5. Notes & Promo */}
+          {/* 5. Notes (extranotering) — fristående för paritet med web cart */}
           <View style={styles.formCard}>
             <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), marginBottom: 12 }}>{t('cart.sections.notes')}</Text>
             <TextInput
@@ -1634,41 +1663,10 @@ export default function CartScreen({
               value={formData.note}
               onChangeText={(value) => setFormData((v) => ({ ...v, note: value }))}
             />
-
-            <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
-              <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
-                placeholder={t('cart.inputs.promo')}
-                placeholderTextColor={palette.muted}
-                autoCapitalize="none"
-                value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCode}
-                onChangeText={(value) => {
-                  if (selectedPersonalDeal) setSelectedPersonalDeal(null);
-                  setPromoCode(value);
-                }}
-                editable={!selectedPersonalDeal}
-              />
-              <Pressable
-                onPress={
-                  selectedPersonalDeal
-                    ? removePersonalDeal
-                    : handlePromo
-                }
-                style={{
-                  backgroundColor: selectedPersonalDeal ? palette.danger : palette.gold,
-                  paddingHorizontal: 22,
-                  justifyContent: "center",
-                  borderRadius: 18,
-                }}
-              >
-                <Text style={{ color: selectedPersonalDeal ? "#fff" : "#000", fontWeight: "900", textTransform: "uppercase", fontSize: 10 }}>
-                  {selectedPersonalDeal ? t('cart.promo.remove') : t('cart.promo.check')}
-                </Text>
-              </Pressable>
-            </View>
           </View>
 
-          {/* 6. Tipping Section — wider, full-bleed within scroll padding */}
+          {/* 6. Tipping Section — wider, full-bleed within scroll padding.
+              Web-paritet: presets [0, 10, 20, 30] + "Annat…" som öppnar fri input. */}
           {orderType === "DELIVERY" && (
             <View style={[styles.formCard, { paddingVertical: 22, paddingHorizontal: 22, marginHorizontal: -4 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -1680,21 +1678,27 @@ export default function CartScreen({
               <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginBottom: 16 }}>
                 {t('cart.tip.description')}
               </Text>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                {[0, 10, 20, 50].map((amt) => {
-                  const isActive = tipAmount === amt;
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                {[0, 10, 20, 30].map((amt) => {
+                  const isActive = !showCustomTipInput && tipAmount === amt;
                   return (
                     <ScalePressable
                       key={amt}
-                      onPress={() => setTipAmount(amt)}
+                      onPress={() => {
+                        setShowCustomTipInput(false);
+                        setCustomTipText("");
+                        setTipAmount(amt);
+                      }}
                       style={{
-                        flex: 1,
+                        flexGrow: 1,
+                        flexBasis: 0,
+                        minWidth: 60,
                         backgroundColor: isActive ? palette.gold : palette.panelMuted,
                         borderWidth: 1,
                         borderColor: isActive ? palette.gold : palette.border,
                         borderRadius: 14,
                         paddingVertical: 14,
-                        alignItems: "center"
+                        alignItems: "center",
                       }}
                     >
                       <Text style={{ color: isActive ? "#000" : palette.text, fontWeight: "900", fontSize: 12 }}>
@@ -1703,11 +1707,92 @@ export default function CartScreen({
                     </ScalePressable>
                   );
                 })}
+                <ScalePressable
+                  onPress={() => {
+                    const next = !showCustomTipInput;
+                    setShowCustomTipInput(next);
+                    if (next) {
+                      setCustomTipText(tipAmount > 0 ? String(tipAmount) : "");
+                    } else {
+                      setCustomTipText("");
+                      setTipAmount(0);
+                    }
+                  }}
+                  style={{
+                    flexGrow: 1,
+                    flexBasis: 0,
+                    minWidth: 60,
+                    backgroundColor: showCustomTipInput ? palette.gold : palette.panelMuted,
+                    borderWidth: 1,
+                    borderColor: showCustomTipInput ? palette.gold : palette.border,
+                    borderRadius: 14,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: showCustomTipInput ? "#000" : palette.text, fontWeight: "900", fontSize: 12 }}>
+                    Annat…
+                  </Text>
+                </ScalePressable>
               </View>
+              {showCustomTipInput && (
+                <View style={{ marginTop: 12, position: "relative" }}>
+                  <TextInput
+                    style={[styles.input, { paddingRight: 44 }]}
+                    placeholder="Eget belopp i kr"
+                    placeholderTextColor={palette.muted}
+                    keyboardType="numeric"
+                    value={customTipText}
+                    onChangeText={(raw) => {
+                      const digits = raw.replace(/[^0-9]/g, "");
+                      setCustomTipText(digits);
+                      const parsed = digits === "" ? 0 : parseInt(digits, 10);
+                      setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+                    }}
+                  />
+                  <Text style={{ position: "absolute", right: 16, top: "50%", marginTop: -7, color: palette.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5) }}>kr</Text>
+                </View>
+              )}
             </View>
           )}
 
-          {/* 6b. Personal deals — horizontal scroller. Tap a card to apply. */}
+          {/* 7. Promo Code — integrerad rad med Tag-ikon, paritet med web. */}
+          <View style={[styles.formCard, { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14 }]}>
+            <Ionicons name="pricetag-outline" size={16} color={palette.gold} style={{ opacity: selectedPersonalDeal ? 1 : 0.5 }} />
+            <TextInput
+              style={[styles.input, { flex: 1, marginBottom: 0, paddingVertical: 12 }]}
+              placeholder={selectedPersonalDeal ? "Tillämpad" : t('cart.inputs.promo')}
+              placeholderTextColor={palette.muted}
+              autoCapitalize="none"
+              value={selectedPersonalDeal ? selectedPersonalDeal.code : promoCode}
+              onChangeText={(value) => {
+                if (selectedPersonalDeal) setSelectedPersonalDeal(null);
+                setPromoCode(value);
+              }}
+              editable={!selectedPersonalDeal}
+            />
+            <Pressable
+              onPress={
+                selectedPersonalDeal
+                  ? removePersonalDeal
+                  : handlePromo
+              }
+              style={{
+                backgroundColor: selectedPersonalDeal ? palette.danger : palette.gold,
+                paddingHorizontal: 20,
+                paddingVertical: 12,
+                justifyContent: "center",
+                borderRadius: 14,
+              }}
+            >
+              <Text style={{ color: selectedPersonalDeal ? "#fff" : "#000", fontWeight: "900", textTransform: "uppercase", fontSize: 10 }}>
+                {selectedPersonalDeal ? t('cart.promo.remove') : t('cart.promo.check')}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* 7b. Personal deals — horizontal scroller (RN-specifik, ingen
+              motsvarighet i web cart men kvar enligt user request "behåll funktioner"). */}
           {personalDeals.length > 0 && (
             <View style={{ marginTop: 4, marginHorizontal: -4 }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10, paddingHorizontal: 4 }}>
@@ -1825,8 +1910,67 @@ export default function CartScreen({
             </View>
           )}
 
-          {/* 7. Summary */}
-          <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4 }]}>
+          {/* 8. Min-order top-up banner — paritet med web. När subtotal < minimum
+              kan kunden kryssa i för att betala mellanskillnaden så ordern kan slutföras.
+              Default på (samma som web) men kunden kan koppla av för att avbryta. */}
+          {subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && (
+            <View
+              style={{
+                marginTop: 4,
+                borderRadius: 16,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
+                borderWidth: 1,
+                backgroundColor: topUpToMinimum ? "rgba(231,178,75,0.08)" : "rgba(239,68,68,0.08)",
+                borderColor: topUpToMinimum ? "rgba(231,178,75,0.30)" : "rgba(239,68,68,0.30)",
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <Text style={{ color: topUpToMinimum ? palette.gold : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), flex: 1 }}>
+                  {topUpToMinimum
+                    ? `Komplettering +${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till minimum`
+                    : `Saknar ${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till minimum`}
+                </Text>
+                <Text style={{ color: topUpToMinimum ? palette.gold : palette.danger, fontSize: 10, fontWeight: "900" }}>
+                  {Math.round(subtotal)} / {Math.round(restaurantSettings.minOrderAmount)} kr
+                </Text>
+              </View>
+              {/* Progress bar */}
+              <View style={{ height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.07)", overflow: "hidden", marginBottom: 10 }}>
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${Math.min((subtotal / restaurantSettings.minOrderAmount) * 100, 100)}%`,
+                    backgroundColor: topUpToMinimum ? palette.gold : palette.danger,
+                    borderRadius: 3,
+                  }}
+                />
+              </View>
+              <Pressable
+                onPress={() => setTopUpToMinimum((v) => !v)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <View
+                  style={{
+                    width: 18, height: 18, borderRadius: 5,
+                    backgroundColor: topUpToMinimum ? palette.gold : "transparent",
+                    borderWidth: 1.5,
+                    borderColor: topUpToMinimum ? palette.gold : palette.muted,
+                    alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  {topUpToMinimum && <Ionicons name="checkmark" size={12} color="#000" />}
+                </View>
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", flex: 1, lineHeight: 14 }}>
+                  Betala mellanskillnaden ({Math.round(restaurantSettings.minOrderAmount - subtotal)} kr) så ordern kan slutföras
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
+          {/* 9. Summary — paritet med web: Delsumma → Leveransavgift → Dricks →
+              Komplettering → Rabatt → Moms (alla rader ovanför) → TOTALT. */}
+          <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: palette.border, borderRadius: 0, marginTop: 4, paddingTop: 20 }]}>
             <View style={{ gap: 8 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                 <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.subtotal')}</Text>
@@ -1835,21 +1979,31 @@ export default function CartScreen({
               {orderType === "DELIVERY" && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.deliveryFee')}</Text>
-                  <Text style={{ color: palette.text, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
+                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>{Math.round(deliveryFee)} KR</Text>
                 </View>
               )}
-              {tipAmount > 0 && orderType === "DELIVERY" && (
+              {effectiveTip > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.gold, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.tip')}</Text>
-                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{tipAmount} KR</Text>
+                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{Math.round(effectiveTip)} KR</Text>
+                </View>
+              )}
+              {minOrderTopUp > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>Komplettering till minimum</Text>
+                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{Math.round(minOrderTopUp)} KR</Text>
                 </View>
               )}
               {personalDiscount > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.summary.discount')}</Text>
-                  <Text style={{ color: palette.success, fontWeight: "900", fontSize: 11 }}>-{Math.round(personalDiscount)} KR</Text>
+                  <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5), fontStyle: "italic" }}>{t('cart.summary.discount')}</Text>
+                  <Text style={{ color: palette.success, fontWeight: "900", fontSize: 11, fontStyle: "italic" }}>-{Math.round(personalDiscount)} KR</Text>
                 </View>
               )}
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ color: palette.muted, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5) }}>{t('cart.vatIncluded', { rate: 6 })}</Text>
+                <Text style={{ color: palette.muted, fontWeight: "700", fontSize: 11 }}>{Math.round(total * 6 / 106)} kr</Text>
+              </View>
             </View>
 
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: 20 }}>
@@ -1859,25 +2013,34 @@ export default function CartScreen({
               </Text>
             </View>
 
-            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-              <Text style={{ color: palette.muted, fontWeight: "600", fontSize: 10, letterSpacing: ls(0.3) }}>{t('cart.vatIncluded', { rate: 6 })}</Text>
-              <Text style={{ color: palette.muted, fontWeight: "700", fontSize: 10 }}>{Math.round(total * 6 / 106)} kr</Text>
-            </View>
-
-            {subtotal < restaurantSettings.minOrderAmount && (
-              <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 16, padding: 14, marginTop: 18, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                <Text style={{ color: palette.danger, fontSize: 10, fontWeight: "900", textAlign: "center", textTransform: "uppercase", letterSpacing: ls(0.5) }}>
-                  {t('cart.summary.minimum', { amount: restaurantSettings.minOrderAmount })}
+            {/* Guest info banner — låg-intensitet, visas precis ovanför CTA
+                (paritet med web cart: "Du handlar som gäst…"). Login-prompten
+                högre upp är den primära; den här är en mjuk påminnelse. */}
+            {!token && (
+              <View style={{ marginTop: 18, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 16, backgroundColor: palette.panelMuted, borderWidth: 1, borderColor: palette.border, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Ionicons name="person-outline" size={14} color={palette.muted} />
+                <Text style={{ flex: 1, color: palette.muted, fontSize: 10, fontWeight: "700", lineHeight: 14 }}>
+                  Du handlar som gäst. <Text style={{ color: palette.gold, fontWeight: "900" }} onPress={openProfile}>Logga in</Text> för sparade adresser och personliga erbjudanden.
                 </Text>
               </View>
             )}
 
             <PrimaryButton
-              label={submitting ? t('cart.submittingBtn') : t('cart.checkoutBtn', { amount: Math.round(total) })}
+              label={
+                submitting
+                  ? t('cart.submittingBtn')
+                  : (subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum)
+                    ? `Köp för ${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till`
+                    : t('cart.checkoutBtn', { amount: Math.round(total) })
+              }
               onPress={handleCheckoutPress}
-              disabled={submitting || !restaurantSettings.isOpen || subtotal < restaurantSettings.minOrderAmount}
+              disabled={
+                submitting
+                || !restaurantSettings.isOpen
+                || (subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum)
+              }
               icon="checkmark-circle-outline"
-              style={{ marginTop: 28, paddingVertical: 19 }}
+              style={{ marginTop: 22, paddingVertical: 19 }}
             />
           </View>
         </>

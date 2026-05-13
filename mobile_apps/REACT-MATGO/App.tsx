@@ -645,7 +645,7 @@ export function getOpeningHoursLines(restaurant?: Restaurant | null) {
 
 // ─── AppContent ────────────────────────────────────────────────────────────────
 function AppContent() {
-  const { palette } = useTheme();
+  const { palette, mode } = useTheme();
   const styles = useSharedStyles();
   const [currentRouteName, setCurrentRouteName] = useState<string>("home");
   const [splashFinished, setSplashFinished] = useState(false);
@@ -977,8 +977,8 @@ function AppContent() {
 
   return (
     <View style={styles.safe}>
-      <ExpoStatusBar style="dark" />
-      <StatusBar barStyle="dark-content" />
+      <ExpoStatusBar style={mode === "dark" ? "light" : "dark"} />
+      <StatusBar barStyle={mode === "dark" ? "light-content" : "dark-content"} />
       <LinearGradient
         colors={[palette.panel, palette.bg, palette.panelMuted]}
         locations={[0, 0.22, 1]}

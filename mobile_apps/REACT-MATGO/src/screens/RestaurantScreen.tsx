@@ -277,6 +277,20 @@ export default function RestaurantScreen({
 
   const heroImage = restaurant?.heroImageUrl || restaurant?.imageUrl;
 
+  // ── Hero / sticky-nav fade gradients ────────────────────────────────────────
+  // Before dark-mode migration, both gradients used hardcoded cream
+  // `rgba(255,248,239,*)` stops so the hero image faded smoothly into the
+  // page bg `#FFF8EF`. In dark mode that produces a glaring white hero.
+  // We now derive the rgb of `palette.bg` once and reuse it with the same
+  // alpha stops — light keeps the cream fade, dark fades into `#09090b`.
+  const bgRgbaBase = useMemo(() => {
+    const hex = palette.bg.replace('#', '');
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (alpha: number) => `rgba(${r},${g},${b},${alpha})`;
+  }, [palette.bg]);
+
   useEffect(() => {
     if (!filteredCategories.length) return;
     if (!activeCategory || !filteredCategories.some((category) => category.id === activeCategory)) {
@@ -362,7 +376,7 @@ export default function RestaurantScreen({
             ) : (
               <LinearGradient colors={[palette.panelMuted, palette.bg]} style={StyleSheet.absoluteFillObject} />
             )}
-            <LinearGradient colors={["rgba(255,248,239,0.14)", "rgba(255,248,239,0.62)", palette.bg]} style={styles.restaurantHeroOverlay} />
+            <LinearGradient colors={[bgRgbaBase(0.14), bgRgbaBase(0.62), palette.bg]} style={styles.restaurantHeroOverlay} />
 
             <View style={styles.restaurantHeroTopBar}>
               <Pressable style={styles.restaurantHeroBackButton} onPress={goBack}>
@@ -482,7 +496,7 @@ export default function RestaurantScreen({
         >
           <LinearGradient
             pointerEvents="none"
-            colors={["rgba(255,248,239,0.98)", "rgba(255,248,239,0.95)", "rgba(255,248,239,0.76)", "rgba(255,248,239,0)"]}
+            colors={[bgRgbaBase(0.98), bgRgbaBase(0.95), bgRgbaBase(0.76), bgRgbaBase(0)]}
             locations={[0, 0.38, 0.76, 1]}
             style={StyleSheet.absoluteFillObject}
           />
