@@ -76,8 +76,7 @@ import {
 } from "./src/lib/authRedirect";
 import { AppStripeProvider, useAppPaymentSheet } from "./src/lib/stripeProvider";
 import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src/lib/liveActivities";
-import { palette, styles } from "./src/constants/theme";
-import { ThemeProvider, setBrandFontLoaded, useThemeMode } from "./src/theme";
+import { ThemeProvider, setBrandFontLoaded, useSharedStyles, useTheme, useThemeMode } from "./src/theme";
 import { useAppStore } from "./src/store/useAppStore";
 import { usePushNotifications } from "./src/hooks/usePushNotifications";
 import { useOrderActivitySync } from "./src/hooks/useOrderActivitySync";
@@ -242,6 +241,8 @@ function Header({
   subtitle?: string;
   onBack?: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.header}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -260,6 +261,7 @@ function Header({
 }
 
 function ScreenWrap({ children }: { children: React.ReactNode }) {
+  const styles = useSharedStyles();
   return <ScrollView contentContainerStyle={styles.scrollContent}>{children}</ScrollView>;
 }
 
@@ -274,6 +276,8 @@ function RestaurantCard({
   containerStyle?: any;
   isOutOfZone?: boolean;
 }) {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <ScalePressable
       style={[
@@ -401,6 +405,7 @@ function SectionTitle({
   actionLabel?: string;
   onPress?: () => void;
 }) {
+  const styles = useSharedStyles();
   return (
     <View style={styles.sectionTitleRow}>
       <Text style={styles.sectionHeading}>{title}</Text>
@@ -422,6 +427,7 @@ function ToggleChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useSharedStyles();
   return (
     <ScalePressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
@@ -436,6 +442,8 @@ function Badge({
   label: string;
   tone: "success" | "danger" | "gold" | "info";
 }) {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   const map = {
     success: { bg: "rgba(52,199,89,0.12)", text: palette.success },
     danger: { bg: "rgba(255,59,48,0.12)", text: palette.danger },
@@ -458,6 +466,8 @@ function Counter({
   onDecrease: () => void;
   onIncrease: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.counter}>
       <Pressable onPress={onDecrease}>
@@ -480,6 +490,8 @@ function SummaryRow({
   value: string;
   highlight?: boolean;
 }) {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.inlineSummary}>
       <Text style={[styles.summaryLabel, highlight && { color: palette.text }]}>{label}</Text>
@@ -489,6 +501,7 @@ function SummaryRow({
 }
 
 function EmptyPanel({ label }: { label: string }) {
+  const styles = useSharedStyles();
   return (
     <View style={styles.emptyPanel}>
       <Text style={styles.helperText}>{label}</Text>
@@ -509,6 +522,7 @@ function PrimaryButton({
   icon?: keyof typeof Ionicons.glyphMap;
   style?: any;
 }) {
+  const styles = useSharedStyles();
   return (
     <Pressable
       style={[styles.primaryButton, disabled && styles.primaryButtonDisabled, style]}
@@ -631,6 +645,8 @@ export function getOpeningHoursLines(restaurant?: Restaurant | null) {
 
 // ─── AppContent ────────────────────────────────────────────────────────────────
 function AppContent() {
+  const { palette } = useTheme();
+  const styles = useSharedStyles();
   const [currentRouteName, setCurrentRouteName] = useState<string>("home");
   const [splashFinished, setSplashFinished] = useState(false);
   const hydrated = useAppStore((s) => s.hydrated);
@@ -1208,6 +1224,7 @@ function AppContent() {
 
 // ─── Root ──────────────────────────────────────────────────────────────────────
 function App() {
+  const { palette } = useTheme();
   const [appKey, setAppKey] = React.useState(0);
   const [i18nReady, setI18nReady] = React.useState(false);
   const [i18nInstance, setI18nInstance] = React.useState<any>(null);

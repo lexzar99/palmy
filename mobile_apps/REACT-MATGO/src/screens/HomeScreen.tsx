@@ -42,7 +42,7 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { api, getImageUrl } from "../lib/api";
 import { rememberQuickAddress } from "../lib/quickAddresses";
-import { useSharedStyles, useTheme, useThemeMode } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import { getBottomTabsContentPadding, getScreenTopPadding, getStickyHeaderTopInset } from "../constants/layout";
 
 
@@ -137,7 +137,8 @@ export default function HomeScreen({
   const { ls } = useArabic();
   const { palette } = useTheme();
   const styles = useSharedStyles();
-  const { preference: themePreference, setMode: setThemeMode } = useThemeMode();
+  const themePreference = useAppStore((s) => s.themePreference);
+  const setThemePreference = useAppStore((s) => s.setThemePreference);
   const token = useAppStore((s) => s.token);
   const cacheKey = token || "__guest__";
   const cachedData = getScreenCache<HomeScreenCache>("home", cacheKey);
@@ -641,7 +642,7 @@ export default function HomeScreen({
                     : themePreference === "dark"
                     ? "system"
                     : "light";
-                setThemeMode(next);
+                setThemePreference(next);
               }}
               style={{
                 width: 40,
