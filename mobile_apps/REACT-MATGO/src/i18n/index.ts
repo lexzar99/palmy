@@ -64,7 +64,9 @@ export async function initI18n() {
       lng,
       fallbackLng: 'en',
       interpolation: { escapeValue: false },
-      compatibilityJSON: 'v3',
+      // i18next v26 uses v4 plural format by default; our translation files
+      // don't use any plural-suffix keys (no `_plural`, `_one`, `_other`),
+      // so omitting compatibilityJSON keeps the modern v4 behaviour.
     });
 
   return i18n;

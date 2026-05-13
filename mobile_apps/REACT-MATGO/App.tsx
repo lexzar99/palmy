@@ -108,6 +108,8 @@ import CartScreen from "./src/screens/CartScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
 import EmailLoginScreen from "./src/screens/EmailLoginScreen";
+import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
+import ResetPasswordScreen from "./src/screens/ResetPasswordScreen";
 import OrderScreen from "./src/screens/OrderScreen";
 import OrdersListScreen from "./src/screens/OrdersListScreen";
 import DealScreen from "./src/screens/DealScreen";
@@ -820,6 +822,25 @@ function AppContent() {
     // Push registration is handled by usePushNotifications hook
 
     const handleUrl = async (url: string) => {
+      // ── Reset-password deep link ──────────────────────────────────────────
+      // Mejlets mobil-länk är `foodgo://reset-password?token=<hex>`. Vi
+      // parsar tokenen själva — det är en separat URL-prefix från
+      // foodgo://auth/* så isAuthRedirectUrl() skulle annars filtrera bort
+      // den. Vi navigerar bara till ResetPasswordScreen; själva POST:en
+      // sker när användaren skickar formuläret.
+      if (url.startsWith("foodgo://reset-password")) {
+        const queryIndex = url.indexOf("?");
+        let token = "";
+        if (queryIndex >= 0) {
+          const params = new URLSearchParams(url.slice(queryIndex + 1));
+          token = params.get("token") || "";
+        }
+        if (token) {
+          pushRoute({ name: "reset-password", token } as any);
+        }
+        return;
+      }
+
       if (!isAuthRedirectUrl(url)) return;
 
       const {
@@ -900,7 +921,7 @@ function AppContent() {
       authListener.unsubscribe();
       linkSub.remove();
     };
-  }, [openRoot, setOnboardingComplete, setProfile, setToken]);
+  }, [openRoot, pushRoute, setOnboardingComplete, setProfile, setToken]);
 
   if (!hydrated || !splashFinished) {
     return <SplashLoader />;
@@ -929,7 +950,12 @@ function AppContent() {
   }
 
   const tabValue =
-    currentRouteName === "restaurant" || currentRouteName === "order" || currentRouteName === "register" || currentRouteName === "email-login"
+    currentRouteName === "restaurant" ||
+    currentRouteName === "order" ||
+    currentRouteName === "register" ||
+    currentRouteName === "email-login" ||
+    currentRouteName === "forgot-password" ||
+    currentRouteName === "reset-password"
       ? "home"
       : currentRouteName;
 
@@ -1101,9 +1127,32 @@ function AppContent() {
                   <EmailLoginScreen
                     goBack={goBack}
                     openRegister={() => replaceRoute({ name: "register" } as any)}
+                    openForgotPassword={() =>
+                      pushRoute({ name: "forgot-password" } as any)
+                    }
                     onLoggedIn={() => {
                       setCurrentRouteName("profile");
                       replaceRoute({ name: "profile" });
+                    }}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen name="forgot-password">
+                {() => <ForgotPasswordScreen goBack={goBack} />}
+              </Stack.Screen>
+
+              <Stack.Screen name="reset-password">
+                {(props: any) => (
+                  <ResetPasswordScreen
+                    token={props.route.params?.token || ""}
+                    goBack={goBack}
+                    onResetComplete={() => {
+                      // Återställning klar — ta användaren till email-login
+                      // så de kan logga in med nya lösenordet. Vi auto-loggar
+                      // inte in eftersom backend bara håller hash:en.
+                      setCurrentRouteName("email-login");
+                      replaceRoute({ name: "email-login" } as any);
                     }}
                   />
                 )}
@@ -1144,7 +1193,7 @@ function AppContent() {
               onDismiss={() => setActiveOrder(null)}
             />
           )}
-          {!["restaurant", "order", "register", "email-login", "deal"].includes(currentRouteName) && (
+          {!["restaurant", "order", "register", "email-login", "forgot-password", "reset-password", "deal"].includes(currentRouteName) && (
             <BottomTabs active={tabValue as any} onChange={openRoot} />
           )}
         </View>

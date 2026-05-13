@@ -713,9 +713,9 @@ export default function HomeScreen({
                 onPress={() => {
                   setActiveCuisine(filter.name);
                   if (filter.name === "Alla") {
-                    pushRoute({ name: "discover" } as any);
+                    pushRoute?.({ name: "discover" } as any);
                   } else {
-                    pushRoute({ name: "discover", cuisine: filter.name } as any);
+                    pushRoute?.({ name: "discover", cuisine: filter.name } as any);
                   }
                   // Favoriter navigates to discover with favorites filter
                 }}

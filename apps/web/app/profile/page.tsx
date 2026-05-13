@@ -741,6 +741,14 @@ function ProfileContent() {
             >
               {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : "Logga in"}
             </button>
+            <div className="text-center pt-1">
+              <Link
+                href="/forgot-password"
+                className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-gold-500 transition-colors"
+              >
+                Glömt lösenord?
+              </Link>
+            </div>
           </form>
 
           {/* Divider */}

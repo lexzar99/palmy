@@ -461,6 +461,12 @@ model User {
   oauthProvider  String?
   oauthId        String?
   image          String?
+  // Forgot-password flow — vi lagrar en kryptografiskt slumpad token + utgångstid.
+  // Tokenen mejlas till användaren via en länk; klienten POSTar tillbaka token +
+  // nytt lösenord till /api/account/reset-password. Båda fälten nollställs när
+  // återställningen är gjord. Index på tokenen för snabb lookup.
+  passwordResetToken     String?   @unique
+  passwordResetExpiresAt DateTime?
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]

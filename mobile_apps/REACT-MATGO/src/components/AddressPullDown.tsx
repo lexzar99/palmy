@@ -157,7 +157,7 @@ export default function AddressPullDown({ onOpenFull, zoneStatus, autoOpen, onAu
                           : null;
                         await rememberQuickAddress(a);
                         setAddresses(await readQuickAddresses());
-                        if (addrCoords && orderType === 'PICKUP') setOrderType('DELIVERY');
+                        // We're already inside the DELIVERY branch — no order-type switch needed.
                         setAddress(full, addrCoords);
                         setOpen(false);
                       }}

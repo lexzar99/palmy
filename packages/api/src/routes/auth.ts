@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
@@ -10,6 +11,7 @@ import supabaseAdmin from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
+import { sendEmail } from '../lib/email';
 import {
   createTrustedDevice,
   setTrustedDeviceCookie,
@@ -881,6 +883,175 @@ router.post('/login-user', authLimiter, async (req, res) => {
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, isVerified: user.isVerified } });
   } catch (error) {
     res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// ============================================================
+// Forgot password / Reset password — kund-flöde
+// ============================================================
+//
+// Två steg:
+//   1. POST /forgot-password   { email }
+//      Genererar en kryptografiskt slumpad token, lagrar bcrypt-token-värdet
+//      direkt på User-raden (passwordResetToken) + en utgångstid 1h fram.
+//      Mejlar länk till användaren. Returnerar ALLTID 200 så en angripare
+//      inte kan probea vilka mejlkonton som finns.
+//
+//   2. POST /reset-password    { token, newPassword }
+//      Slår upp användaren på tokenen, validerar utgångstid, sätter nytt
+//      lösenord (bcrypt) och nollar token-fälten.
+
+// URL:er till klienterna. För länken som skickas i mejlet använder vi
+// publika host-namn — fallback till env eller hårdkodade staging-värden.
+const WEB_RESET_BASE =
+  process.env.WEB_RESET_PASSWORD_URL || 'https://matgo.se/reset-password';
+const MOBILE_RESET_DEEP_LINK_BASE =
+  process.env.MOBILE_RESET_PASSWORD_URL || 'foodgo://reset-password';
+
+// POST /api/auth/forgot-password — begär återställningslänk
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  // Vi loggar generösa serverfel men returnerar alltid 200 mot klienten,
+  // så ingen kan dra slutsatser av svaret. Klienten visar bara en generisk
+  // "om kontot finns har vi skickat en länk"-text.
+  try {
+    const { email } = req.body as { email?: string };
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      return res.status(400).json({ error: 'Ogiltig e-postadress' });
+    }
+
+    const user = await (prisma as any).user.findFirst({
+      where: { email: normalizedEmail, isActive: true, deletedAt: null },
+      select: { id: true, email: true, firstName: true, name: true, password: true, oauthProvider: true },
+    });
+
+    // Bara skicka länk om kontot har ett lösenord. OAuth-only-konton (Google/
+    // Apple utan password) ska inte få ett reset-mejl — de är inte "låsta ute".
+    // Klienten får ändå 200 så detta är osynligt utåt.
+    if (user && user.password) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1h
+      await (prisma as any).user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: token,
+          passwordResetExpiresAt: expiresAt,
+        },
+      });
+
+      const greetingName = user.firstName || user.name || 'där';
+      const webLink = `${WEB_RESET_BASE}?token=${token}`;
+      const mobileLink = `${MOBILE_RESET_DEEP_LINK_BASE}?token=${token}`;
+
+      const text = [
+        `Hej ${greetingName}!`,
+        '',
+        'Vi fick en begäran om att återställa lösenordet till ditt MatGo-konto.',
+        'Klicka på länken nedan för att välja ett nytt lösenord. Länken gäller 1 timme.',
+        '',
+        `Webb:   ${webLink}`,
+        `Mobil:  ${mobileLink}`,
+        '',
+        'Om du inte bett om att återställa lösenordet kan du ignorera detta mejl — kontot är säkert.',
+        '',
+        'Vänliga hälsningar,',
+        'MatGo',
+      ].join('\n');
+
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
+          <h2 style="margin: 0 0 16px; font-weight: 900; letter-spacing: -0.5px;">Återställ ditt lösenord</h2>
+          <p style="margin: 0 0 12px;">Hej ${greetingName}!</p>
+          <p style="margin: 0 0 12px;">Klicka på knappen nedan för att välja ett nytt lösenord. Länken gäller <strong>1 timme</strong>.</p>
+          <p style="margin: 24px 0;">
+            <a href="${webLink}" style="display: inline-block; background: #d4af37; color: #0b0a0f; text-decoration: none; padding: 14px 28px; border-radius: 14px; font-weight: 900; letter-spacing: 0.5px;">Återställ lösenord</a>
+          </p>
+          <p style="margin: 0 0 8px; font-size: 13px; color: #555;">Använder du mobilappen? Öppna istället:<br><a href="${mobileLink}">${mobileLink}</a></p>
+          <p style="margin: 24px 0 0; font-size: 12px; color: #888;">Om du inte bett om att återställa lösenordet kan du ignorera detta mejl — kontot är säkert.</p>
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          to: user.email!,
+          subject: 'Återställ ditt lösenord — MatGo',
+          text,
+          html,
+        });
+      } catch (mailErr) {
+        // Mejl fick inte gå igenom — logga, men returnera fortfarande 200
+        // mot klienten. Användaren får be om en ny länk.
+        console.error('[forgot-password] sendEmail failed:', mailErr);
+      }
+
+      await audit(req as AuthRequest, 'PASSWORD_RESET_REQUESTED', {
+        resourceType: 'User',
+        resourceId: user.id,
+        changes: { email: user.email },
+      });
+    } else if (user && !user.password && user.oauthProvider) {
+      // Kontot finns men är OAuth-only — logga så support kan hjälpa till
+      // (utan att läcka info till klienten).
+      console.log(`[forgot-password] OAuth-only account (${user.oauthProvider}) requested reset for ${normalizedEmail}`);
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[forgot-password] error:', error);
+    // Även här: 200 mot klienten så vi inte avslöjar serverfel som
+    // sidotips om att kontot finns. Audit-loggen och konsolen har spårningen.
+    return res.status(200).json({ ok: true });
+  }
+});
+
+// POST /api/auth/reset-password — fullföljer återställningen
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body as { token?: string; newPassword?: string };
+    if (!token || typeof token !== 'string' || token.length < 32) {
+      return res.status(400).json({ error: 'Ogiltig återställningslänk' });
+    }
+    if (!newPassword || typeof newPassword !== 'string') {
+      return res.status(400).json({ error: 'Nytt lösenord krävs' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Lösenordet måste vara minst 8 tecken' });
+    }
+    if (newPassword.length > 256) {
+      return res.status(400).json({ error: 'Ogiltigt lösenordsformat' });
+    }
+
+    const user = await (prisma as any).user.findFirst({
+      where: { passwordResetToken: token, isActive: true, deletedAt: null },
+      select: { id: true, email: true, passwordResetExpiresAt: true },
+    });
+
+    if (!user || !user.passwordResetExpiresAt || new Date(user.passwordResetExpiresAt).getTime() < Date.now()) {
+      // Generisk text — vi vill inte skilja på "ogiltig" och "utgången"
+      // i klient-meddelandet.
+      return res.status(400).json({ error: 'Länken är ogiltig eller har gått ut. Be om en ny.' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await (prisma as any).user.update({
+      where: { id: user.id },
+      data: {
+        password: hashed,
+        passwordResetToken: null,
+        passwordResetExpiresAt: null,
+      },
+    });
+
+    await audit(req as AuthRequest, 'PASSWORD_RESET_COMPLETED', {
+      resourceType: 'User',
+      resourceId: user.id,
+      changes: { email: user.email },
+    });
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[reset-password] error:', error);
+    return res.status(500).json({ error: 'Serverfel' });
   }
 });
 

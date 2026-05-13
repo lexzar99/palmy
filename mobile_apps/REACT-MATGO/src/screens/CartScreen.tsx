@@ -836,9 +836,12 @@ export default function CartScreen({
         // device + with our merchantIdentifier entitlement. If it returns
         // false, log clearly so we know Stripe is going to filter Apple Pay
         // out of the sheet — that's why the button doesn't appear.
+        // Note: on iOS this resolves to `StripeAPI.deviceSupportsApplePay()`
+        // and ignores any params, so we don't pass `applePay` here (the
+        // current Stripe SDK types only expose `googlePay` on this call).
         let applePaySupported = false;
         try {
-          applePaySupported = await isPlatformPaySupported({ applePay: { merchantCountryCode: "SE" } });
+          applePaySupported = await isPlatformPaySupported();
         } catch (probeErr: any) {
           captureError(probeErr, { stage: "isPlatformPaySupported" });
         }

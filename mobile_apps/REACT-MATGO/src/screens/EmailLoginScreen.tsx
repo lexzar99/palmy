@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Platform,
   Pressable,
@@ -22,10 +21,12 @@ import { Header, ScreenWrap } from "../components/ui";
 export default function EmailLoginScreen({
   goBack,
   openRegister,
+  openForgotPassword,
   onLoggedIn,
 }: {
   goBack: () => void;
   openRegister: () => void;
+  openForgotPassword?: () => void;
   onLoggedIn: () => void;
 }) {
   const setToken = useAppStore((s) => s.setToken);
@@ -92,12 +93,11 @@ export default function EmailLoginScreen({
   };
 
   const handleForgotPassword = () => {
-    // TODO: Password reset endpoint doesn't exist yet on the API. Surface
-    // a soft message instead of a non-functional flow.
-    Alert.alert(
-      "Återställ lösenord",
-      "Kommer snart. Kontakta support om du behöver komma åt ditt konto direkt."
-    );
+    // Navigerar till ForgotPasswordScreen där användaren kan begära en
+    // återställningslänk. Backend (POST /api/account/forgot-password) returnerar
+    // alltid 200 och skickar mejlet om kontot finns — så detta läcker inte
+    // information om vilka mejlkonton som är registrerade.
+    openForgotPassword?.();
   };
 
   return (
