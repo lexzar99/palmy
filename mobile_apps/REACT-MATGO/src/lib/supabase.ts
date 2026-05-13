@@ -1,21 +1,26 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient } from "@supabase/supabase-js";
-import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_SUPABASE_URL } from "./env";
 
 // ── Supabase auth storage ──────────────────────────────────────────────────
-// Previously this used AsyncStorage, which puts the Supabase JWT in plaintext
-// alongside the rest of the app state. On a rooted/jailbroken device any other
-// app could read it. We swap to expo-secure-store so the value lives in the
-// iOS Keychain / Android Keystore instead.
-//
-// Supabase calls getItem/setItem/removeItem with keys like
-// `sb-<project-ref>-auth-token`. SecureStore restricts keys to the character
-// class [A-Za-z0-9._-], which those keys already satisfy.
-//
-// Supabase sessions are typically ~1.5 KB. iOS Keychain entries are limited
-// to 2 KB; if a future Supabase release pushes the session past that we'd
-// need a chunking adapter. For now the native side handles it.
+// Vi vill helst använda expo-secure-store (iOS Keychain / Android Keystore)
+// för Supabase-JWT:n. MEN om paketet inte är länkat native-sidan (typiskt:
+// `pod install` har inte körts efter att vi lade till deppen) kraschar
+// `import * as SecureStore from "expo-secure-store"` vid JS-load med
+// "Cannot find native module 'ExpoSecureStore'".
+// Lösning: dynamic require + try/catch, fall tillbaka till AsyncStorage
+// om Keychain-modulen saknas. Sämre säkerhet men appen funkar.
+let SecureStoreModule: typeof import("expo-secure-store") | null = null;
+if (Platform.OS !== "web") {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    SecureStoreModule = require("expo-secure-store");
+  } catch {
+    SecureStoreModule = null;
+  }
+}
+
 const secureStorageAdapter = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") {
@@ -25,8 +30,16 @@ const secureStorageAdapter = {
         return null;
       }
     }
+    if (SecureStoreModule) {
+      try {
+        const v = await SecureStoreModule.getItemAsync(key);
+        if (v) return v;
+      } catch {
+        // fall through
+      }
+    }
     try {
-      return await SecureStore.getItemAsync(key);
+      return await AsyncStorage.getItem(key);
     } catch {
       return null;
     }
@@ -38,8 +51,16 @@ const secureStorageAdapter = {
       } catch {}
       return;
     }
+    if (SecureStoreModule) {
+      try {
+        await SecureStoreModule.setItemAsync(key, value);
+        return;
+      } catch {
+        // fall through
+      }
+    }
     try {
-      await SecureStore.setItemAsync(key, value);
+      await AsyncStorage.setItem(key, value);
     } catch {}
   },
   async removeItem(key: string): Promise<void> {
@@ -49,8 +70,13 @@ const secureStorageAdapter = {
       } catch {}
       return;
     }
+    if (SecureStoreModule) {
+      try {
+        await SecureStoreModule.deleteItemAsync(key);
+      } catch {}
+    }
     try {
-      await SecureStore.deleteItemAsync(key);
+      await AsyncStorage.removeItem(key);
     } catch {}
   },
 };

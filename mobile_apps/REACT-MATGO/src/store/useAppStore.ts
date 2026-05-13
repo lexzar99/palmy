@@ -1,18 +1,31 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { create } from "zustand";
 import { AppStoreState, CartItem, OrderType, Profile } from "../types";
 
-const STORAGE_KEY = "react-matgo-store";
-// SecureStore key for the JWT — kept off of AsyncStorage so other apps on
-// rooted/jailbroken devices can't read it. Keys are restricted to
-// [A-Za-z0-9._-] (see expo-secure-store docs).
-const TOKEN_KEY = "react-matgo-auth-token";
+// expo-secure-store är ett native module. Om den inte är länkad i iOS-bygget
+// (typiskt: glömt köra `pod install` efter att vi lade till paketet) kraschar
+// `import * as SecureStore from "expo-secure-store"` vid JS-load med
+// "Cannot find native module 'ExpoSecureStore'". Vi använder dynamic require
+// + try/catch så appen INTE kraschar — istället faller tillbaka till
+// AsyncStorage för token, vilket är mindre säkert men inte broken.
+// Reaktivera Keychain genom att köra `cd ios && pod install` och bygga om.
+let SecureStoreModule: typeof import("expo-secure-store") | null = null;
+if (Platform.OS !== "web") {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    SecureStoreModule = require("expo-secure-store");
+  } catch {
+    SecureStoreModule = null;
+  }
+}
 
-// expo-secure-store doesn't run on web (no Keychain/Keystore equivalent). When
-// running in web preview / Expo Web we transparently fall back to a localStorage
-// shim so the dev flow doesn't crash.
+const STORAGE_KEY = "react-matgo-store";
+// Token-nyckel: ASYNC_STORAGE_TOKEN_KEY för fallback, TOKEN_KEY för SecureStore
+// (samma nyckel — vi rensar bara från fel storage vid migration).
+const TOKEN_KEY = "react-matgo-auth-token";
+const ASYNC_TOKEN_KEY = "react-matgo-auth-token-fallback";
+
 const secureStorage = {
   async getItem(key: string): Promise<string | null> {
     if (Platform.OS === "web") {
@@ -22,8 +35,18 @@ const secureStorage = {
         return null;
       }
     }
+    if (SecureStoreModule) {
+      try {
+        const v = await SecureStoreModule.getItemAsync(key);
+        if (v) return v;
+      } catch {
+        // fall through till AsyncStorage-fallback
+      }
+    }
+    // Fallback: läs från AsyncStorage (om vi tidigare skrivit dit pga
+    // saknat native-module).
     try {
-      return await SecureStore.getItemAsync(key);
+      return await AsyncStorage.getItem(ASYNC_TOKEN_KEY);
     } catch {
       return null;
     }
@@ -35,8 +58,16 @@ const secureStorage = {
       } catch {}
       return;
     }
+    if (SecureStoreModule) {
+      try {
+        await SecureStoreModule.setItemAsync(key, value);
+        return;
+      } catch {
+        // fall through
+      }
+    }
     try {
-      await SecureStore.setItemAsync(key, value);
+      await AsyncStorage.setItem(ASYNC_TOKEN_KEY, value);
     } catch {}
   },
   async removeItem(key: string): Promise<void> {
@@ -46,8 +77,13 @@ const secureStorage = {
       } catch {}
       return;
     }
+    if (SecureStoreModule) {
+      try {
+        await SecureStoreModule.deleteItemAsync(key);
+      } catch {}
+    }
     try {
-      await SecureStore.deleteItemAsync(key);
+      await AsyncStorage.removeItem(ASYNC_TOKEN_KEY);
     } catch {}
   },
 };
