@@ -77,6 +77,7 @@ import {
 import { AppStripeProvider, useAppPaymentSheet } from "./src/lib/stripeProvider";
 import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src/lib/liveActivities";
 import { palette, styles } from "./src/constants/theme";
+import { ThemeProvider, setBrandFontLoaded } from "./src/theme";
 import { useAppStore } from "./src/store/useAppStore";
 import { usePushNotifications } from "./src/hooks/usePushNotifications";
 import { useOrderActivitySync } from "./src/hooks/useOrderActivitySync";
@@ -1178,6 +1179,13 @@ function App() {
     });
   }, []);
 
+  // Flip the brand-font flag once expo-font finishes registering the Outfit
+  // weights, so `fontFamily.brand` (from src/theme/typography) starts
+  // resolving to 'Outfit' for any consumer that uses the getter.
+  React.useEffect(() => {
+    if (fontsLoaded) setBrandFontLoaded(true);
+  }, [fontsLoaded]);
+
   // Apple App Tracking Transparency (ATT) — krävs av App Store när IDFA
   // potentiellt används (Sentry m.fl.). Endast iOS, fire-and-forget så det
   // inte blockerar render. Apple kräver att prompten visas EFTER att UI är
@@ -1211,7 +1219,9 @@ function App() {
         <I18nextProvider i18n={i18nInstance}>
           <SafeAreaProvider>
             <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="foodgo">
-              <AppContent key={appKey} />
+              <ThemeProvider>
+                <AppContent key={appKey} />
+              </ThemeProvider>
             </AppStripeProvider>
           </SafeAreaProvider>
         </I18nextProvider>

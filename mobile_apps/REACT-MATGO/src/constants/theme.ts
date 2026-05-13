@@ -12,8 +12,28 @@ import { lightPalette } from "../theme/palette";
 //   muted:    #7C6854 → #6E6E73  (web --text-secondary)
 //   border:   warm brown → cool neutral matching --glass-border
 //
-// New components should prefer `useTheme()` from src/theme so they react to
-// dark mode automatically.
+// ── Migrating to dark mode ──────────────────────────────────────────────────
+// The `palette` and `styles` exported below are FROZEN at module load and
+// will NOT react when the user (or the OS) flips theme mode. To make a
+// component dark-mode-aware:
+//
+//   1. Replace the static import:
+//        - import { palette, styles } from '../constants/theme';
+//        + import { useTheme } from '../theme';
+//
+//   2. Read the live theme inside the component:
+//          const { palette } = useTheme();
+//
+//   3. Build styles inline or with useMemo so they pick up palette changes:
+//          const s = useMemo(
+//            () => StyleSheet.create({
+//              card: { backgroundColor: palette.panel, ... },
+//            }),
+//            [palette]
+//          );
+//
+// The static `styles` StyleSheet below stays in place as a transitional
+// safety net until every screen has been migrated — do not delete it.
 export const palette = lightPalette;
 
 // Re-export the new token scales for any local consumers that need them.
@@ -113,6 +133,7 @@ export const styles = StyleSheet.create({
   restaurantHeroBackText: {
     color: palette.text,
     fontSize: 10,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.9,
@@ -141,6 +162,7 @@ export const styles = StyleSheet.create({
   restaurantHeroGhostButtonText: {
     color: palette.text,
     fontSize: 10,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.7,
@@ -164,6 +186,7 @@ export const styles = StyleSheet.create({
   restaurantHeroPrimaryButtonText: {
     color: "#000",
     fontSize: 10,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.7,
@@ -204,6 +227,7 @@ export const styles = StyleSheet.create({
   },
   restaurantHeroStatusText: {
     fontSize: 9,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.9,
@@ -218,6 +242,7 @@ export const styles = StyleSheet.create({
     color: palette.text,
     fontSize: 24,
     lineHeight: 26,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: -0.7,
@@ -235,6 +260,7 @@ export const styles = StyleSheet.create({
   restaurantHeroCuisine: {
     color: "rgba(28,28,30,0.52)",
     fontSize: 9,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 1.2,
@@ -247,14 +273,17 @@ export const styles = StyleSheet.create({
   restaurantHeroRatingText: {
     color: palette.goldDark,
     fontSize: 11,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   restaurantHeroRatingCount: {
     color: "rgba(28,28,30,0.38)",
     fontSize: 10,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   restaurantHeroDescriptionPremium: {
+    fontFamily: 'Outfit_400Regular',
     color: "rgba(28,28,30,0.8)",
     fontSize: 11,
     lineHeight: 15,
@@ -286,6 +315,7 @@ export const styles = StyleSheet.create({
   restaurantQuickStatLabel: {
     color: "rgba(125,97,38,0.76)",
     fontSize: 8,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -294,6 +324,7 @@ export const styles = StyleSheet.create({
   restaurantQuickStatValue: {
     color: palette.text,
     fontSize: 10,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textAlign: "center",
   },
@@ -327,6 +358,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     color: palette.text,
     fontSize: 13,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
     paddingVertical: 0,
   },
@@ -356,6 +388,7 @@ export const styles = StyleSheet.create({
   restaurantCategoryChipText: {
     color: palette.muted,
     fontSize: 9,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     letterSpacing: 0.7,
@@ -379,6 +412,7 @@ export const styles = StyleSheet.create({
   restaurantMenuSectionTitle: {
     color: palette.text,
     fontSize: 22,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     fontStyle: "italic",
@@ -432,6 +466,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     color: palette.text,
     fontSize: 15,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textTransform: "uppercase",
     fontStyle: "italic",
@@ -448,23 +483,27 @@ export const styles = StyleSheet.create({
   restaurantMenuPriceBadgeText: {
     color: palette.goldDark,
     fontSize: 11,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
   restaurantMenuDiscountedPrice: {
     color: palette.muted,
     fontSize: 10,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     textDecorationLine: "line-through",
   },
   restaurantMenuDiscountedPriceCurrent: {
     color: palette.goldDark,
     fontSize: 11,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
   restaurantMenuProductDescription: {
     color: palette.muted,
     fontSize: 10,
     lineHeight: 15,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -496,6 +535,7 @@ export const styles = StyleSheet.create({
   eyebrow: {
     color: palette.goldDark,
     fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1.5,
@@ -505,9 +545,11 @@ export const styles = StyleSheet.create({
     color: palette.text,
     fontSize: 30,
     lineHeight: 34,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   heroSubtitle: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 14,
     lineHeight: 20,
@@ -533,6 +575,7 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   searchPlaceholder: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 14,
   },
@@ -551,6 +594,7 @@ export const styles = StyleSheet.create({
     flex: 1,
     color: palette.text,
     fontSize: 15,
+    fontFamily: 'Outfit_600SemiBold',
     fontWeight: "600",
   },
   sectionTitleRow: {
@@ -563,6 +607,7 @@ export const styles = StyleSheet.create({
   sectionHeading: {
     color: palette.text,
     fontSize: 20,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   // Quick-filter chips (sticky ovanför listan)
@@ -585,10 +630,12 @@ export const styles = StyleSheet.create({
   quickFilterChipText: {
     color: palette.muted,
     fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   quickFilterChipTextActive: {
     color: "#000",
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   chipRow: {
@@ -613,10 +660,12 @@ export const styles = StyleSheet.create({
   },
   chipText: {
     color: palette.muted,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   chipTextActive: {
     color: "#000",
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   horizontalCards: {
@@ -635,9 +684,11 @@ export const styles = StyleSheet.create({
   dealTitle: {
     color: palette.goldDark,
     fontSize: 16,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   dealBody: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     lineHeight: 19,
   },
@@ -662,6 +713,7 @@ export const styles = StyleSheet.create({
   cardTitle: {
     color: palette.text,
     fontSize: 18,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     flex: 1,
     paddingRight: 10,
@@ -689,6 +741,7 @@ export const styles = StyleSheet.create({
   },
   floatingCartText: {
     color: "#000",
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   bottomTabs: {
@@ -715,6 +768,7 @@ export const styles = StyleSheet.create({
   bottomTabLabel: {
     color: palette.muted,
     fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   modalBackdrop: {
@@ -821,6 +875,7 @@ export const styles = StyleSheet.create({
   productHeroTitle: {
     color: "#FFF9F2",
     fontSize: 28,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     letterSpacing: -0.6,
     textShadowColor: "rgba(0,0,0,0.28)",
@@ -831,6 +886,7 @@ export const styles = StyleSheet.create({
     color: "rgba(255,249,242,0.92)",
     fontSize: 14,
     lineHeight: 21,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
     textShadowColor: "rgba(0,0,0,0.18)",
     textShadowOffset: { width: 0, height: 1 },
@@ -856,11 +912,13 @@ export const styles = StyleSheet.create({
   productHeroPriceChipText: {
     color: palette.goldDark,
     fontSize: 12,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   productModalTitle: {
     color: palette.text,
     fontSize: 28,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     letterSpacing: -0.6,
   },
@@ -868,6 +926,7 @@ export const styles = StyleSheet.create({
     color: "rgba(33,22,15,0.72)",
     fontSize: 14,
     lineHeight: 22,
+    fontFamily: 'Outfit_600SemiBold',
     fontWeight: "600",
   },
   productMetaCard: {
@@ -903,9 +962,11 @@ export const styles = StyleSheet.create({
   productGroupTitle: {
     color: palette.text,
     fontSize: 18,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   productGroupDescription: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
@@ -930,6 +991,7 @@ export const styles = StyleSheet.create({
   },
   productGroupBadgeText: {
     fontSize: 11,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   productGroupBadgeTextRequired: {
@@ -947,6 +1009,7 @@ export const styles = StyleSheet.create({
   productGroupCountText: {
     color: palette.text,
     fontSize: 11,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   productOptionsList: {
@@ -1003,6 +1066,7 @@ export const styles = StyleSheet.create({
   productOptionTitle: {
     color: palette.text,
     fontSize: 15,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   productOptionTitleActive: {
@@ -1011,6 +1075,7 @@ export const styles = StyleSheet.create({
   productOptionMeta: {
     color: palette.muted,
     fontSize: 12,
+    fontFamily: 'Outfit_600SemiBold',
     fontWeight: "600",
   },
   productOptionMetaActive: {
@@ -1027,9 +1092,11 @@ export const styles = StyleSheet.create({
   productNoteLabel: {
     color: palette.text,
     fontSize: 16,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   productNoteInput: {
+    fontFamily: 'Outfit_400Regular',
     minHeight: 110,
     borderRadius: 18,
     backgroundColor: palette.card,
@@ -1053,6 +1120,7 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   productSelectionErrorText: {
+    fontFamily: 'Outfit_400Regular',
     color: "#9F1239",
     flex: 1,
     lineHeight: 19,
@@ -1075,11 +1143,13 @@ export const styles = StyleSheet.create({
   productFooterLabel: {
     color: palette.muted,
     fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   productFooterValue: {
     color: palette.text,
     fontSize: 24,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     letterSpacing: -0.4,
     marginTop: 2,
@@ -1106,6 +1176,7 @@ export const styles = StyleSheet.create({
   productQuantityValue: {
     color: palette.text,
     fontSize: 18,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     minWidth: 28,
     textAlign: "center",
@@ -1137,17 +1208,20 @@ export const styles = StyleSheet.create({
   productAddButtonLabel: {
     color: "#000",
     fontSize: 16,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
   productAddButtonSubLabel: {
     color: "rgba(0,0,0,0.58)",
     fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
     marginTop: 2,
   },
   productAddButtonPrice: {
     color: "#000",
     fontSize: 18,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
   cityOption: {
@@ -1171,9 +1245,11 @@ export const styles = StyleSheet.create({
   headerTitle: {
     color: palette.text,
     fontSize: 28,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   headerSubtitle: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 14,
     marginTop: 2,
@@ -1196,6 +1272,7 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   input: {
+    fontFamily: 'Outfit_400Regular',
     backgroundColor: palette.panel,
     borderRadius: 18,
     borderWidth: 1,
@@ -1220,9 +1297,11 @@ export const styles = StyleSheet.create({
   },
   infoCardTitle: {
     color: palette.text,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   infoCardBody: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     lineHeight: 18,
   },
@@ -1242,9 +1321,11 @@ export const styles = StyleSheet.create({
   productTitle: {
     color: palette.text,
     fontSize: 16,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   productDescription: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 13,
     lineHeight: 18,
@@ -1253,6 +1334,7 @@ export const styles = StyleSheet.create({
   productPrice: {
     color: palette.goldDark,
     fontSize: 14,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     marginTop: 8,
   },
@@ -1272,9 +1354,11 @@ export const styles = StyleSheet.create({
   alertTitle: {
     color: palette.goldDark,
     fontSize: 18,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   alertText: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.text,
     lineHeight: 19,
   },
@@ -1304,6 +1388,7 @@ export const styles = StyleSheet.create({
   },
   counterText: {
     color: palette.text,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   formCard: {
@@ -1329,9 +1414,11 @@ export const styles = StyleSheet.create({
   },
   secondaryButtonLabel: {
     color: palette.text,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   helperText: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     lineHeight: 18,
   },
@@ -1363,6 +1450,7 @@ export const styles = StyleSheet.create({
     gap: 12,
   },
   summaryLabel: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 14,
     flex: 1,
@@ -1370,6 +1458,7 @@ export const styles = StyleSheet.create({
   summaryValue: {
     color: palette.text,
     fontSize: 14,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   emptyPanel: {
@@ -1396,10 +1485,12 @@ export const styles = StyleSheet.create({
   },
   primaryButtonLabel: {
     color: "#000",
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   linkText: {
     color: palette.goldDark,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
     textAlign: "center",
   },
@@ -1410,6 +1501,7 @@ export const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 12,
+    fontFamily: 'Outfit_700Bold',
     fontWeight: "700",
   },
   discountedRail: {
@@ -1429,6 +1521,7 @@ export const styles = StyleSheet.create({
   discountedRailHeaderText: {
     color: palette.gold,
     fontSize: 9,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
     letterSpacing: 1.5,
   },
@@ -1474,6 +1567,7 @@ export const styles = StyleSheet.create({
   discountedBadgeText: {
     color: "#fff",
     fontSize: 8,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
   discountedProductInfo: {
@@ -1482,6 +1576,7 @@ export const styles = StyleSheet.create({
   discountedProductTitle: {
     color: palette.text,
     fontSize: 9,
+    fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
     marginBottom: 2,
   },
@@ -1491,6 +1586,7 @@ export const styles = StyleSheet.create({
     gap: 4,
   },
   discountedOriginalPrice: {
+    fontFamily: 'Outfit_400Regular',
     color: palette.muted,
     fontSize: 8,
     textDecorationLine: "line-through",
@@ -1498,6 +1594,7 @@ export const styles = StyleSheet.create({
   discountedNewPrice: {
     color: palette.goldDark,
     fontSize: 10,
+    fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
 });
