@@ -47,11 +47,16 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 interface ThemeProviderProps {
   children: React.ReactNode;
-  // Optional initial preference — defaults to following the OS.
+  // Optional initial preference. Default 'light' eftersom ~18 komponenter
+  // fortfarande använder static lightPalette via constants/theme.ts (för
+  // den delade `styles`-StyleSheet:en). Om vi tillåter 'system' blir UI
+  // mixat: cream-bakgrund + vit text på enheter med iPhone i dark mode.
+  // Webbens default är också light. Användare kan toggla via settings
+  // (kommer som separat feature).
   initialMode?: ThemeMode;
 }
 
-export function ThemeProvider({ children, initialMode = "system" }: ThemeProviderProps) {
+export function ThemeProvider({ children, initialMode = "light" }: ThemeProviderProps) {
   const [preference, setPreference] = useState<ThemeMode>(initialMode);
   const systemScheme = useColorScheme();
 
@@ -89,7 +94,6 @@ export function ThemeProvider({ children, initialMode = "system" }: ThemeProvide
  */
 export function useTheme(): Theme {
   const ctx = useContext(ThemeContext);
-  const systemScheme = useColorScheme();
 
   if (ctx) {
     return {
@@ -102,10 +106,13 @@ export function useTheme(): Theme {
     };
   }
 
-  const fallbackMode: ResolvedThemeMode = systemScheme === "dark" ? "dark" : "light";
+  // Fallback (no provider) — default to LIGHT to match the rest of the app's
+  // static light palette. Vi följer INTE systemets dark mode här eftersom
+  // det skulle mixa cream-bakgrund med dark-text för komponenter som råkar
+  // landa utanför ThemeProvider.
   return {
-    mode: fallbackMode,
-    palette: fallbackMode === "dark" ? darkPalette : lightPalette,
+    mode: "light",
+    palette: lightPalette,
     radii,
     spacing,
     fontFamily,
