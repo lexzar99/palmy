@@ -812,11 +812,98 @@ export default function ProfileScreen({
               </Animated.View>
             </View>
 
+            {/* Kontakt support — paritet med inloggad vy (Kontakt & hjälp).
+                Gäster ska ha samma genväg till support. */}
+            <Pressable
+              onPress={() => {
+                const subject = "Hjälp";
+                const body = `Hej MatGo-support,\n\nBeskriv ditt ärende här:\n`;
+                const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                Linking.openURL(url).catch(() => {
+                  Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+                });
+              }}
+              style={{
+                marginTop: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                paddingVertical: 14,
+                paddingHorizontal: 18,
+                borderRadius: 22,
+                borderWidth: 1,
+                borderColor: "rgba(234,181,69,0.4)",
+                backgroundColor: "rgba(234,181,69,0.06)",
+              }}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color={palette.gold} />
+              <Text style={{ color: palette.gold, fontSize: 12, fontWeight: "900", letterSpacing: ls(1.8) }}>
+                KONTAKTA SUPPORT
+              </Text>
+            </Pressable>
+
             <Pressable style={{ marginTop: 18 }} onPress={() => openRegister()}>
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
                 INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
               </Text>
             </Pressable>
+
+            {/* Inställningar — minimal gäst-version av settings-fliken så
+                man kan byta tema utan att logga in. Settings-fliken är
+                annars bara synlig för inloggade. */}
+            <View style={{ marginTop: 28 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10, paddingHorizontal: 4 }}>
+                <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>
+                  INSTÄLLNINGAR
+                </Text>
+                <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
+              </View>
+
+              <View style={[styles.formCard, { borderRadius: 30, padding: 20, gap: 12 }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Tema</Text>
+                  <Ionicons
+                    name={themePreference === "dark" ? "moon-outline" : themePreference === "system" ? "phone-portrait-outline" : "sunny-outline"}
+                    size={18}
+                    color={palette.muted}
+                  />
+                </View>
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  {([
+                    { id: "light", label: "Ljus", icon: "sunny-outline" as const },
+                    { id: "dark", label: "Mörk", icon: "moon-outline" as const },
+                    { id: "system", label: "System", icon: "phone-portrait-outline" as const },
+                  ] as const).map((opt) => {
+                    const active = themePreference === opt.id;
+                    return (
+                      <Pressable
+                        key={opt.id}
+                        onPress={() => setThemePreference(opt.id)}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6,
+                          paddingVertical: 12,
+                          borderRadius: 16,
+                          backgroundColor: active ? "rgba(234,181,69,0.12)" : palette.panelMuted,
+                          borderWidth: 1,
+                          borderColor: active ? palette.gold : palette.border,
+                        }}
+                      >
+                        <Ionicons name={opt.icon} size={14} color={active ? palette.gold : palette.muted} />
+                        <Text style={{ color: active ? palette.gold : palette.text, fontSize: 11, fontWeight: "900", letterSpacing: ls(1) }}>
+                          {opt.label.toUpperCase()}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
           </Animated.View>
         </View>
 
@@ -1258,6 +1345,58 @@ export default function ProfileScreen({
       {/* Settings tab */}
       {activeTab === "settings" && !isEditing && (
         <View style={{ gap: 14 }}>
+          {/* Kontakt & support — flyttad upp till toppen av settings så
+              man inte behöver scrolla igenom hela listan för att nå
+              support. Också mer visuellt framträdande som gold-outlined
+              card med icon-badge (mer iögonfallande än text-rad). */}
+          <Pressable
+            onPress={() => {
+              const id = profile?.id ? ` #${profile.id}` : "";
+              const emailLine = profile?.email ? `\n\nE-post: ${profile.email}` : "";
+              const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
+              const subject = `Hjälp${id}`;
+              const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
+              const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+              Linking.openURL(url).catch(() => {
+                Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+              });
+            }}
+            style={{
+              borderRadius: 30,
+              padding: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              backgroundColor: "rgba(234,181,69,0.08)",
+              borderWidth: 1,
+              borderColor: "rgba(234,181,69,0.35)",
+            }}
+          >
+            <View
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 14,
+                backgroundColor: "rgba(234,181,69,0.18)",
+                alignItems: "center",
+                justifyContent: "center",
+                borderWidth: 1,
+                borderColor: "rgba(234,181,69,0.3)",
+              }}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color={palette.gold} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: palette.gold, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginBottom: 2 }}>
+                BEHÖVER DU HJÄLP?
+              </Text>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>
+                Kontakta oss
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward-outline" size={18} color={palette.gold} />
+          </Pressable>
+
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable onPress={() => setIsEditing(true)} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.editProfile')}</Text>
@@ -1325,25 +1464,6 @@ export default function ProfileScreen({
             </Text>
           </View>
 
-          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
-            <Pressable
-              onPress={() => {
-                const id = profile?.id ? ` #${profile.id}` : "";
-                const emailLine = profile?.email ? `\n\nE-post: ${profile.email}` : "";
-                const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
-                const subject = `Hjälp${id}`;
-                const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
-                const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                Linking.openURL(url).catch(() => {
-                  Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
-                });
-              }}
-              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
-            >
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Kontakt & hjälp</Text>
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={palette.muted} />
-            </Pressable>
-          </View>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable
               onPress={() => {

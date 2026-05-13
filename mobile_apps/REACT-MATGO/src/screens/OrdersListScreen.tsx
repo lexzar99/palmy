@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Pressable,
@@ -9,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Linking from "expo-linking";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
@@ -210,6 +212,21 @@ export default function OrdersListScreen({
   const { ls } = useArabic();
   const { palette } = useTheme();
   const token = useAppStore((s) => s.token);
+  const profile = useAppStore((s) => s.profile);
+
+  // Kontakta support — öppnar mail med användarens id/email förifyllda
+  // om de finns. Synlig oavsett inloggad eller gäst.
+  const openSupport = useCallback(() => {
+    const id = profile?.id ? ` #${profile.id}` : "";
+    const emailLine = profile?.email ? `\n\nE-post: ${profile.email}` : "";
+    const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
+    const subject = `Hjälp med order${id}`;
+    const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
+    const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+    });
+  }, [profile]);
 
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,30 +377,56 @@ export default function OrdersListScreen({
     >
       {/* Header — mirror av web's <h1>Mina beställningar</h1> */}
       <View style={{ marginBottom: 18 }}>
-        <Text
-          style={{
-            color: palette.gold,
-            fontSize: 10,
-            fontWeight: "900",
-            letterSpacing: ls(3),
-            marginBottom: 8,
-            textTransform: "uppercase",
-          }}
-        >
-          Beställningar
-        </Text>
-        <Text
-          style={{
-            color: palette.text,
-            fontSize: 36,
-            fontWeight: "900",
-            fontStyle: "italic",
-            letterSpacing: -1,
-            marginBottom: 8,
-          }}
-        >
-          MINA <Text style={{ color: palette.gold }}>BESTÄLLNINGAR</Text>
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                color: palette.gold,
+                fontSize: 10,
+                fontWeight: "900",
+                letterSpacing: ls(3),
+                marginBottom: 8,
+                textTransform: "uppercase",
+              }}
+            >
+              Beställningar
+            </Text>
+            <Text
+              style={{
+                color: palette.text,
+                fontSize: 36,
+                fontWeight: "900",
+                fontStyle: "italic",
+                letterSpacing: -1,
+                marginBottom: 8,
+              }}
+            >
+              MINA <Text style={{ color: palette.gold }}>BESTÄLLNINGAR</Text>
+            </Text>
+          </View>
+
+          {/* Kontakta oss — ikon-knapp i top-right. Synlig oavsett om man
+              är inloggad eller gäst. Tap → mailto med order-context. */}
+          <Pressable
+            onPress={openSupport}
+            hitSlop={8}
+            style={({ pressed }) => ({
+              width: 42,
+              height: 42,
+              borderRadius: 14,
+              backgroundColor: "rgba(234,181,69,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(234,181,69,0.3)",
+              alignItems: "center",
+              justifyContent: "center",
+              opacity: pressed ? 0.6 : 1,
+              marginTop: 4,
+            })}
+            accessibilityLabel="Kontakta support"
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={palette.gold} />
+          </Pressable>
+        </View>
         {!token && (
           <View
             style={{

@@ -81,9 +81,18 @@ export default function BottomTabs({
       <Animated.View
         style={{
           position: "absolute",
+          // Vertical inset is fine because the pill keeps its own height
+          // (8 px above + 8 px below the tab's vertical center area).
           top: 8,
           bottom: 8,
-          left: 8,
+          // Horizontal: `left` must be 0, NOT 8. onLayout reports each tab's
+          // x in the parent's frame (which already includes the parent's
+          // padding-left offset of 8), so translateX = layouts[active].x
+          // alone is enough to land on the tab. The previous `left: 8`
+          // added 8 px on top of that — visible as an asymmetric pill that
+          // sat to the right of every tab, most noticeably the focused
+          // (wider) middle tab where the offset became visually significant.
+          left: 0,
           width: pillWidth,
           transform: [{ translateX }],
           zIndex: 0,

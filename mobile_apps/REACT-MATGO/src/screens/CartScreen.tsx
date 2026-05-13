@@ -487,6 +487,14 @@ export default function CartScreen({
           deliveryZip: current.deliveryZip || profileRes.data?.zip || "",
         }));
 
+        // Main data is in — reveal content immediately. Saved addresses below
+        // are a secondary fetch and shouldn't block the whole screen on a slow
+        // network. Previously, if /api/profile/addresses hung or rate-limited
+        // mid-flight and the effect cleanup ran (e.g. token churn from the 401
+        // interceptor), the `finally if (active) setPageLoading(false)` branch
+        // never fired and the skeleton stayed forever.
+        setPageLoading(false);
+
         if (token) {
           const addressRes = await api
             .get("/api/profile/addresses", { headers: { Authorization: `Bearer ${token}` } })
@@ -511,7 +519,12 @@ export default function CartScreen({
           }
         }
       } finally {
-        if (active) setPageLoading(false);
+        // Safety net — fires even if Promise.all threw or the effect was torn
+        // down before we hit the early setPageLoading(false) above. Setting
+        // state on an unmounted component is a tolerated no-op in React 18+,
+        // so we drop the `if (active)` guard that previously caused the
+        // skeleton to get stuck whenever the effect was cleaned up mid-flight.
+        setPageLoading(false);
       }
     })();
     return () => {

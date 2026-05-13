@@ -29,6 +29,13 @@ type MainStep = "notifications" | "auth" | "location";
 type AuthStep = "landing" | "phone" | "profile" | "otp";
 
 // ─── Full-page permission screen ───────────────────────────────────────────────
+// Modernare visuell stil — paritet med web's OG-image:
+//   - Stor, glow-omgärdad gold-ikon istället för rounded-square
+//   - Big bold Outfit_900Black titel med fontStyle: italic + tight letter-spacing
+//   - Tagline under titeln (i muted)
+//   - Feature-kort med tunnare borders och mer luft
+//   - CTA-knapp pinned till botten med gold-glow shadow
+//   - Skippa-länk visas som liten muted text under CTA
 function PermissionPage({
   icon,
   title,
@@ -58,75 +65,130 @@ function PermissionPage({
   const { palette } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(32)).current;
+  const iconScale = useRef(new Animated.Value(0.78)).current;
+  const iconBreath = useRef(new Animated.Value(1)).current;
+  const ringScale = useRef(new Animated.Value(0.5)).current;
+  const ringOpacity = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+      Animated.timing(iconScale, { toValue: 1, duration: 560, easing: Easing.out(Easing.back(1.3)), useNativeDriver: true }),
+    ]).start(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(iconBreath, { toValue: 1.05, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(iconBreath, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ]),
+      ).start();
+    });
+
+    // Ring pulse — fires once on mount
+    Animated.parallel([
+      Animated.timing(ringScale, { toValue: 2.0, duration: 1000, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(ringOpacity, { toValue: 0, duration: 1000, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start();
+
+    return () => { iconBreath.stopAnimation(); };
   }, []);
 
   return (
     <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 26, paddingBottom: 48 }}
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 28, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Big icon */}
-        <View style={{ alignItems: 'center', marginTop: 32, marginBottom: 32 }}>
-          <View style={{
-            width: 100, height: 100, borderRadius: 30,
-            backgroundColor: 'rgba(231,178,75,0.12)',
-            borderWidth: 1.5, borderColor: 'rgba(231,178,75,0.3)',
-            alignItems: 'center', justifyContent: 'center',
-            shadowColor: palette.gold, shadowOpacity: 0.3, shadowRadius: 24, shadowOffset: { width: 0, height: 8 },
-          }}>
-            <Ionicons name={icon} size={46} color={palette.gold} />
-          </View>
+        {/* Hero icon — stor gold-glow + animerad ring som en vågpuls */}
+        <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 36 }}>
+          <Animated.View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              width: 150, height: 150, borderRadius: 75,
+              borderWidth: 1.5, borderColor: 'rgba(231,178,75,0.85)',
+              opacity: ringOpacity,
+              transform: [{ scale: ringScale }],
+            }}
+          />
+          <Animated.View style={{ transform: [{ scale: iconBreath }] }}>
+            <Animated.View style={{ transform: [{ scale: iconScale }] }}>
+              <View style={{
+                width: 124, height: 124, borderRadius: 38,
+                backgroundColor: 'rgba(231,178,75,0.10)',
+                borderWidth: 1.5, borderColor: 'rgba(231,178,75,0.28)',
+                alignItems: 'center', justifyContent: 'center',
+                shadowColor: palette.gold, shadowOpacity: 0.55, shadowRadius: 50, shadowOffset: { width: 0, height: 16 },
+              }}>
+                <Ionicons name={icon} size={54} color={palette.gold} />
+              </View>
+            </Animated.View>
+          </Animated.View>
         </View>
 
-        <Text style={{ color: palette.text, fontSize: 34, fontWeight: '900', lineHeight: 38, letterSpacing: -0.5, marginBottom: 12 }}>
-          {title}{'\n'}<Text style={{ color: palette.gold }}>{highlight}</Text>
+        {/* Title — italic Outfit Black, paritet med MATGO-loggan i OG-image */}
+        <Text style={{
+          fontFamily: 'Outfit_900Black',
+          color: palette.text,
+          fontSize: 38, fontWeight: '900',
+          lineHeight: 42, letterSpacing: -1.5,
+          fontStyle: 'italic',
+          marginBottom: 14, textAlign: 'center',
+        }}>
+          {title.toUpperCase()}{'\n'}
+          <Text style={{ color: palette.gold }}>{highlight.toUpperCase()}</Text>
         </Text>
-        <Text style={{ color: palette.muted, fontSize: 14, fontWeight: '500', lineHeight: 22, marginBottom: 32 }}>
+
+        {/* Tagline */}
+        <Text style={{
+          fontFamily: 'Outfit_500Medium',
+          color: palette.muted, fontSize: 14, fontWeight: '500',
+          lineHeight: 22, marginBottom: 32, textAlign: 'center',
+          paddingHorizontal: 8,
+        }}>
           {subtitle}
         </Text>
 
-        {/* Features */}
-        <View style={{ gap: 12, marginBottom: 40 }}>
+        {/* Features — paritet med web's feature-rader, tunnare borders och mer luft */}
+        <View style={{ gap: 10, marginBottom: 32 }}>
           {features.map((f) => (
             <View
               key={f.icon}
               style={{
                 flexDirection: 'row', alignItems: 'center', gap: 14,
-                backgroundColor: palette.card, borderRadius: 18, padding: 14,
+                backgroundColor: palette.card, borderRadius: 20, padding: 16,
                 borderWidth: 1, borderColor: palette.border,
               }}
             >
               <View style={{
                 width: 44, height: 44, borderRadius: 14,
-                backgroundColor: 'rgba(231,178,75,0.08)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.16)',
+                backgroundColor: 'rgba(231,178,75,0.10)',
+                borderWidth: 1, borderColor: 'rgba(231,178,75,0.20)',
                 alignItems: 'center', justifyContent: 'center',
               }}>
-                <Ionicons name={f.icon} size={19} color={palette.gold} />
+                <Ionicons name={f.icon} size={20} color={palette.gold} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: palette.text, fontSize: 14, fontWeight: '800' }}>{f.title}</Text>
-                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: '500', marginTop: 2 }}>{f.sub}</Text>
+                <Text style={{ fontFamily: 'Outfit_800ExtraBold', color: palette.text, fontSize: 14, fontWeight: '800' }}>
+                  {f.title}
+                </Text>
+                <Text style={{ fontFamily: 'Outfit_500Medium', color: palette.muted, fontSize: 12, fontWeight: '500', marginTop: 2, lineHeight: 16 }}>
+                  {f.sub}
+                </Text>
               </View>
             </View>
           ))}
         </View>
 
-        {/* CTA */}
+        {/* CTA — primary gold knapp med gold-glow */}
         <Pressable
           onPress={onCta}
           disabled={ctaLoading}
           style={{
-            backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18,
+            backgroundColor: palette.gold, borderRadius: 24, paddingVertical: 18,
             alignItems: 'center', opacity: ctaLoading ? 0.7 : 1,
-            shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 20, shadowOffset: { width: 0, height: 8 },
-            marginBottom: 16,
+            shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 10 },
+            marginBottom: 12,
           }}
         >
           {ctaLoading
@@ -134,7 +196,7 @@ function PermissionPage({
             : (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                 <Ionicons name={icon} size={18} color="#000" />
-                <Text style={{ color: '#000', fontWeight: '900', fontSize: 15 }}>{ctaLabel}</Text>
+                <Text style={{ fontFamily: 'Outfit_900Black', color: '#000', fontWeight: '900', fontSize: 15 }}>{ctaLabel}</Text>
               </View>
             )
           }
@@ -142,9 +204,11 @@ function PermissionPage({
 
         {!!onSkip && (
           <Pressable onPress={onSkip} style={{ alignItems: 'center', paddingVertical: 10 }}>
-            <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700' }}>{skipLabel || t('onboarding.hoppaOver')}</Text>
+            <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 1.5 }}>
+              {(skipLabel || t('onboarding.hoppaOver')).toUpperCase()}
+            </Text>
             {!!skipSubLabel && (
-              <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center', paddingHorizontal: 20, lineHeight: 15 }}>{skipSubLabel}</Text>
+              <Text style={{ fontFamily: 'Outfit_500Medium', color: palette.muted, fontSize: 11, fontWeight: '500', marginTop: 4, textAlign: 'center', paddingHorizontal: 20, lineHeight: 15 }}>{skipSubLabel}</Text>
             )}
           </Pressable>
         )}
@@ -501,26 +565,32 @@ export default function OnboardingScreen({
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-          {/* Brand bar */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 26, paddingTop: topContentInset, marginBottom: 4 }}>
-            <View style={{
-              width: 38, height: 38, borderRadius: 12,
-              backgroundColor: 'rgba(231,178,75,0.12)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.28)',
-              alignItems: 'center', justifyContent: 'center',
+          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
+            <Text style={{
+              fontFamily: 'Outfit_900Black',
+              color: palette.text, fontSize: 22, fontWeight: '900',
+              letterSpacing: -1, fontStyle: 'italic',
             }}>
-              <Ionicons name="restaurant" size={18} color={palette.gold} />
-            </View>
-            <Text style={{ color: palette.gold, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, fontStyle: 'italic', marginLeft: 10 }}>
-              FoodGo
+              MAT<Text style={{ color: palette.gold }}>GO</Text>
             </Text>
-            {/* Step dots */}
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
-              {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
-                <View key={s} style={{
-                  width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
-                  backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
-                }} />
-              ))}
+
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+              {/* Step dots — 3 dots, current filled gold */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                  <View key={s} style={{
+                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
+                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                  }} />
+                ))}
+              </View>
+              {/* Skippa — top-right, liten muted */}
+              <Pressable onPress={goToAuth} hitSlop={8} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+                <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                  Skippa
+                </Text>
+              </Pressable>
             </View>
           </View>
 
@@ -553,24 +623,42 @@ export default function OnboardingScreen({
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 26, paddingTop: topContentInset, marginBottom: 4 }}>
-            <View style={{
-              width: 38, height: 38, borderRadius: 12,
-              backgroundColor: 'rgba(231,178,75,0.12)', borderWidth: 1, borderColor: 'rgba(231,178,75,0.28)',
-              alignItems: 'center', justifyContent: 'center',
+          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
+            <Text style={{
+              fontFamily: 'Outfit_900Black',
+              color: palette.text, fontSize: 22, fontWeight: '900',
+              letterSpacing: -1, fontStyle: 'italic',
             }}>
-              <Ionicons name="restaurant" size={18} color={palette.gold} />
-            </View>
-            <Text style={{ color: palette.gold, fontSize: 20, fontWeight: '900', letterSpacing: -0.5, fontStyle: 'italic', marginLeft: 10 }}>
-              FoodGo
+              MAT<Text style={{ color: palette.gold }}>GO</Text>
             </Text>
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 6 }}>
-              {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
-                <View key={s} style={{
-                  width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
-                  backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
-                }} />
-              ))}
+
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                  <View key={s} style={{
+                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
+                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                  }} />
+                ))}
+              </View>
+              {/* Skippa — top-right, hoppa över plats men slutför inloggning */}
+              <Pressable
+                onPress={() => {
+                  if (pendingToken && pendingProfile) {
+                    finishWithAuth(pendingToken, pendingProfile);
+                  } else {
+                    setOnboardingComplete(true);
+                    onComplete();
+                  }
+                }}
+                hitSlop={8}
+                style={{ paddingHorizontal: 6, paddingVertical: 4 }}
+              >
+                <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                  Skippa
+                </Text>
+              </Pressable>
             </View>
           </View>
 
@@ -614,31 +702,25 @@ export default function OnboardingScreen({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header row */}
+            {/* Header row — MATGO-wordmark istället för rounded-icon + "FoodGo" */}
             <Animated.View style={{
               opacity: fadeAnim, transform: [{ translateY: slideAnim }],
               flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 36,
             }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <View style={{
-                  width: 42, height: 42, borderRadius: 14,
-                  backgroundColor: "rgba(231,178,75,0.12)", borderWidth: 1, borderColor: "rgba(231,178,75,0.28)",
-                  alignItems: "center", justifyContent: "center",
-                  shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
-                }}>
-                  <Ionicons name="restaurant" size={20} color={palette.gold} />
-                </View>
-                <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", letterSpacing: -0.5, fontStyle: "italic" }}>
-                  FoodGo
-                </Text>
-              </View>
+              <Text style={{
+                fontFamily: 'Outfit_900Black',
+                color: palette.text, fontSize: 24, fontWeight: '900',
+                letterSpacing: -1, fontStyle: 'italic',
+              }}>
+                MAT<Text style={{ color: palette.gold }}>GO</Text>
+              </Text>
 
               {/* Step dots — only when past landing */}
               {step !== "landing" && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 8 }}>
                   {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
                     <View key={s} style={{
-                      width: mainStep === s ? 20 : 6, height: 6, borderRadius: 3,
+                      width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
                       backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
                     }} />
                   ))}
@@ -651,7 +733,7 @@ export default function OnboardingScreen({
                   style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 20, backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border }}
                 >
                   <Ionicons name="globe-outline" size={13} color={palette.muted} />
-                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700" }}>{currentLanguage.toUpperCase()}</Text>
+                  <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 11, fontWeight: "700" }}>{currentLanguage.toUpperCase()}</Text>
                 </Pressable>
               </View>
             </Animated.View>
