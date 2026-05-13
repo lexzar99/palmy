@@ -55,6 +55,7 @@ import printingRoutes from './routes/printing';
 import { ensureDefaultSuperAdmin, ensureRestaurantAdmins } from './lib/bootstrapAuth';
 import { runDailyLoyaltyChecks } from './lib/loyalty';
 import { runDailyCleanup } from './lib/cleanup';
+import { startStripeReconciliation } from './lib/stripeReconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
@@ -342,6 +343,10 @@ const PORT = Number(process.env.PORT || 4000);
     // Run daily maintenance once on startup
     runDailyLoyaltyChecks().catch(err => console.error('[Loyalty] Early run error:', err));
     runDailyCleanup().catch(err => console.error('[Cleanup] Early run error:', err));
+
+    // Stripe reconciliation — polling-loop som ersätter webhook tills den är
+    // konfigurerad. Pollar pending payments var 60 sek och refunds var 10 min.
+    startStripeReconciliation();
     
     // Schedule daily jobs
     setInterval(() => {
