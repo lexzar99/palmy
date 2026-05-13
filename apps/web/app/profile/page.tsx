@@ -205,6 +205,75 @@ function SocialButton({
   );
 }
 
+/**
+ * Språkväljare i Inställningar — paritet med RN-appen (sv/en/ar).
+ * Persisterar i `matgo_locale`. Faktisk i18n-byte över UI:t är inte aktiverad
+ * i webben ännu, så just nu bara sparar vi valet inför framtida i18n-runtime.
+ */
+const SUPPORTED_LOCALES = [
+  { code: "sv", label: "Svenska", flag: "🇸🇪" },
+  { code: "en", label: "English", flag: "🇬🇧" },
+  { code: "ar", label: "العربية", flag: "🇸🇦" },
+] as const;
+
+function LanguagePickerRow() {
+  const [locale, setLocale] = useState<string>("sv");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem("matgo_locale");
+      if (stored && SUPPORTED_LOCALES.some((l) => l.code === stored)) {
+        setLocale(stored);
+      }
+    } catch {
+      /* noop */
+    }
+  }, []);
+
+  const handleChange = (next: string) => {
+    setLocale(next);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("matgo_locale", next);
+      } catch {
+        /* noop */
+      }
+    }
+  };
+
+  const active = SUPPORTED_LOCALES.find((l) => l.code === locale) ?? SUPPORTED_LOCALES[0];
+
+  return (
+    <div className="p-6 flex items-center justify-between group">
+      <div className="flex items-center gap-4">
+        <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center text-lg">
+          {active.flag}
+        </div>
+        <div>
+          <p className="font-bold text-sm text-white">Språk</p>
+          <p className="text-[10px] text-zinc-500 font-medium uppercase tracking-widest">Välj språk för appen</p>
+        </div>
+      </div>
+      <div className="relative">
+        <select
+          value={locale}
+          onChange={(e) => handleChange(e.target.value)}
+          className="appearance-none bg-zinc-800 text-white text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 pr-8 border border-white/10 cursor-pointer outline-none focus:border-gold-500/40 transition-all"
+          aria-label="Språk"
+        >
+          {SUPPORTED_LOCALES.map((l) => (
+            <option key={l.code} value={l.code} className="bg-zinc-900">
+              {l.flag} {l.label}
+            </option>
+          ))}
+        </select>
+        <ChevronRight size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rotate-90 text-zinc-400" />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ─────────────────────────────────────────────────────────
 function ProfileContent() {
   const router = useRouter();
@@ -1203,6 +1272,13 @@ function ProfileContent() {
                        <div className="absolute left-1 top-1 w-4 h-4 bg-zinc-600 rounded-full" />
                     </div>
                   </div>
+                  {/*
+                    Språkväljare (paritet med RN — sv/en/ar).
+                    TODO: i18n-byte i UI är inte trådat in i webben ännu (next-intl saknas).
+                    För nu persisterar vi bara valet i `matgo_locale` så att flaggan följer
+                    med när en framtida i18n-lösning aktiveras.
+                  */}
+                  <LanguagePickerRow />
                 </div>
               </div>
 

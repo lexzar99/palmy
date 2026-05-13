@@ -1,9 +1,59 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { create } from "zustand";
 import { AppStoreState, CartItem, OrderType, Profile } from "../types";
 
 const STORAGE_KEY = "react-matgo-store";
+// SecureStore key for the JWT — kept off of AsyncStorage so other apps on
+// rooted/jailbroken devices can't read it. Keys are restricted to
+// [A-Za-z0-9._-] (see expo-secure-store docs).
+const TOKEN_KEY = "react-matgo-auth-token";
 
+// expo-secure-store doesn't run on web (no Keychain/Keystore equivalent). When
+// running in web preview / Expo Web we transparently fall back to a localStorage
+// shim so the dev flow doesn't crash.
+const secureStorage = {
+  async getItem(key: string): Promise<string | null> {
+    if (Platform.OS === "web") {
+      try {
+        return typeof window !== "undefined" ? window.localStorage.getItem(key) : null;
+      } catch {
+        return null;
+      }
+    }
+    try {
+      return await SecureStore.getItemAsync(key);
+    } catch {
+      return null;
+    }
+  },
+  async setItem(key: string, value: string): Promise<void> {
+    if (Platform.OS === "web") {
+      try {
+        if (typeof window !== "undefined") window.localStorage.setItem(key, value);
+      } catch {}
+      return;
+    }
+    try {
+      await SecureStore.setItemAsync(key, value);
+    } catch {}
+  },
+  async removeItem(key: string): Promise<void> {
+    if (Platform.OS === "web") {
+      try {
+        if (typeof window !== "undefined") window.localStorage.removeItem(key);
+      } catch {}
+      return;
+    }
+    try {
+      await SecureStore.deleteItemAsync(key);
+    } catch {}
+  },
+};
+
+// Persist only the non-sensitive slice to AsyncStorage. The auth token lives in
+// SecureStore (see TOKEN_KEY) and is written separately whenever it changes.
 const persistState = async (state: AppStoreState) => {
   await AsyncStorage.setItem(
     STORAGE_KEY,
@@ -16,7 +66,7 @@ const persistState = async (state: AppStoreState) => {
       deliveryAddress: state.deliveryAddress,
       deliveryCoords: state.deliveryCoords,
       pickupCity: state.pickupCity,
-      token: state.token,
+      // token deliberately omitted — stored in SecureStore via TOKEN_KEY
       profile: state.profile,
       activeOrderId: state.activeOrderId,
       dislikedIngredients: state.dislikedIngredients,
@@ -25,6 +75,14 @@ const persistState = async (state: AppStoreState) => {
       favorites: state.favorites,
     })
   );
+};
+
+const persistToken = async (token: string | null) => {
+  if (token) {
+    await secureStorage.setItem(TOKEN_KEY, token);
+  } else {
+    await secureStorage.removeItem(TOKEN_KEY);
+  }
 };
 
 export const useAppStore = create<AppStoreState>((set, get) => ({
@@ -59,8 +117,23 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   hydrate: async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      // Read the token from its secure location first.
+      let token: string | null = null;
+      try {
+        token = await secureStorage.getItem(TOKEN_KEY);
+      } catch {}
+
       if (raw) {
         const parsed = JSON.parse(raw);
+        // ── Migration: previous app versions stored the JWT inside the
+        // AsyncStorage blob in plain text. If we find one there, move it to
+        // SecureStore and strip it from the persisted blob.
+        if (!token && typeof parsed.token === "string" && parsed.token) {
+          const legacyToken: string = parsed.token;
+          token = legacyToken;
+          try { await secureStorage.setItem(TOKEN_KEY, legacyToken); } catch {}
+        }
+        delete parsed.token;
         // Clear pickupCity if it looks like a street address (contains comma) — stale from old bug
         if (parsed.pickupCity && parsed.pickupCity.includes(",")) {
           parsed.pickupCity = "";
@@ -73,9 +146,17 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
           parsed.address = parsed.deliveryAddress || "";
           parsed.coords = parsed.deliveryCoords || null;
         }
-        set({ ...parsed, hydrated: true });
+        set({ ...parsed, token, hydrated: true });
+        // Re-persist so the migrated blob (without token) is what hits disk
+        // next time. Fire-and-forget — failures are non-fatal and will retry
+        // on the next state mutation.
+        queueMicrotask(() => persistState(get()).catch(() => {}));
         return;
       }
+      // No persisted state but we may still have a token in SecureStore
+      // (e.g. fresh install + login or AsyncStorage cleared by the OS).
+      set({ token, hydrated: true });
+      return;
     } catch {}
     set({ hydrated: true });
   },
@@ -199,7 +280,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   setOrderType: (orderType: OrderType) => {
     const state = get();
     const update: any = { orderType };
-    
+
     if (orderType === "DELIVERY") {
       update.address = state.deliveryAddress;
       update.coords = state.deliveryCoords;
@@ -215,8 +296,11 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
   setToken: (token) => {
     set({ token });
+    // Token goes to SecureStore — the rest of the persisted blob does not
+    // include it. Fire-and-forget; a write failure just means the next
+    // cold start will see the user as logged out.
     queueMicrotask(() => {
-      persistState(get()).catch(() => {});
+      persistToken(token).catch(() => {});
     });
   },
   setProfile: (profile: Profile | null) => {
@@ -234,6 +318,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   clearSession: () => {
     set({ token: null, profile: null, pendingPromoCode: null, activeOrderId: null, activeOrder: null });
     queueMicrotask(() => {
+      persistToken(null).catch(() => {});
       persistState(get()).catch(() => {});
     });
   },

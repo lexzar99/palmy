@@ -14,16 +14,19 @@ export default function BottomTabs({
   onChange,
 }: {
   active: string;
-  onChange: (name: "home" | "search" | "cart" | "profile" | "discover") => void;
+  onChange: (name: "home" | "search" | "cart" | "profile" | "discover" | "orders") => void;
 }) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { ls } = useArabic();
   const itemCount = useAppStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
-  const tabs: { key: "home" | "discover" | "cart" | "profile"; label: string; icon: keyof typeof Ionicons.glyphMap; count?: number }[] = [
+  // Tab order matches the web's BottomNav: home, discover, cart, orders, profile.
+  // "Orders" uses a receipt-style icon (Ionicons receipt-outline ~ lucide ReceiptText).
+  const tabs: { key: "home" | "discover" | "cart" | "orders" | "profile"; label: string; icon: keyof typeof Ionicons.glyphMap; count?: number }[] = [
     { key: "home", label: t('tabs.home'), icon: "home-outline" },
     { key: "discover", label: t('tabs.discover'), icon: "compass-outline" },
     { key: "cart", label: t('tabs.cart'), icon: "bag-handle-outline", count: itemCount },
+    { key: "orders", label: t('tabs.orders', { defaultValue: 'ORDER' }), icon: "receipt-outline" },
     { key: "profile", label: t('tabs.profile'), icon: "person-outline" },
   ];
 

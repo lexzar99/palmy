@@ -4,6 +4,7 @@ const en = {
     home: 'HOME',
     discover: 'DISCOVER',
     cart: 'CART',
+    orders: 'ORDERS',
     profile: 'PROFILE',
   },
 

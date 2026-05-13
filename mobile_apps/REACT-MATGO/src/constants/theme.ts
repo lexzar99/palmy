@@ -1,27 +1,28 @@
 import { StyleSheet } from 'react-native';
+import { lightPalette } from "../theme/palette";
 
-// ── Vibrant light palette ─────────────────────────────────────────────────
-// Varm, ljus och tydlig med starkare kontrast i CTA:er, badges och metadata.
-export const palette = {
-  bg: "#FFF8EF",
-  panel: "#FFFFFF",
-  panelMuted: "#FFF0D8",
-  card: "#FFF6E7",
-  border: "rgba(125,97,38,0.12)",
-  text: "#21160F",
-  muted: "#7C6854",
-  gold: "#D9B055",
-  goldDark: "#7D6126",
-  orange: "#FF7A00",
-  success: "#16A34A",
-  danger: "#DC2626",
-  info: "#2563EB",
-  skeletonBase: "#F2E7D5",
-  skeletonHighlight: "#FBF4E8",
-};
+// ── Palette ─────────────────────────────────────────────────────────────────
+// The canonical palette lives in src/theme/palette.ts and mirrors the web
+// app's CSS tokens (apps/web/app/globals.css). We re-export the LIGHT palette
+// here so the 30+ files doing `import { palette } from '../constants/theme'`
+// keep working unchanged while picking up the new web-aligned colors:
+//   gold:     #D9B055 → #E7B24B  (web --color-gold-500)
+//   goldDark: #7D6126 → #C28E2E  (web --color-gold-600)
+//   text:     #21160F → #1C1C1E  (web --text-primary)
+//   muted:    #7C6854 → #6E6E73  (web --text-secondary)
+//   border:   warm brown → cool neutral matching --glass-border
+//
+// New components should prefer `useTheme()` from src/theme so they react to
+// dark mode automatically.
+export const palette = lightPalette;
 
+// Re-export the new token scales for any local consumers that need them.
+export { radii, spacing, fontFamily } from "../theme";
+
+// Keep the `ui` block — `borderRadius` is now aligned with the web's
+// `rounded-lg` (14px) instead of the previous chunky 24px.
 export const ui = {
-  borderRadius: 24,
+  borderRadius: 14,
   buttonHeight: 56,
   padding: 20,
 };

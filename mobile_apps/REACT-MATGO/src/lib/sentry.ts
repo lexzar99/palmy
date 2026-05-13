@@ -14,6 +14,7 @@ export function initSentry() {
     environment: __DEV__ ? "development" : "production",
     enableAutoSessionTracking: true,
     tracesSampleRate: __DEV__ ? 1.0 : 0.1,
+    profilesSampleRate: 0.1,
     attachStacktrace: true,
     debug: false,
   });

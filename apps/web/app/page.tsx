@@ -36,6 +36,7 @@ import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
 import { useCartStore } from "@/store/cartStore";
+import { useFavorites } from "@/lib/favoritesStore";
 
 interface Restaurant {
   id: string;
@@ -68,8 +69,11 @@ interface City {
   deliveryMode: "ALL" | "ONLY_PICKUP" | "ONLY_DELIVERY";
 }
 
+// Match RN-appens cuisine-ordning (HomeScreen.tsx): Alla, Favoriter, Pizza, Sushi, Kebab, Burgare, Pasta, Asiatiskt.
+// "Favoriter" är en pseudo-cuisine som filtrerar via localStorage-backad favorites-store.
 const cuisineFilters = [
   { label: "Alla", emoji: "📋" },
+  { label: "Favoriter", emoji: "❤️" },
   { label: "Pizza", emoji: "🍕" },
   { label: "Sushi", emoji: "🍣" },
   { label: "Kebab", emoji: "🥙" },
@@ -110,8 +114,8 @@ export default function HomePage() {
   const [selectedCity, setSelectedCity] = useState<City | null>(null);
   // Quick-filter state
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
-  // Favorites state (localStorage-backed)
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  // Favoriter (delad localStorage-backad store — paritet med RN)
+  const { favorites, toggle: toggleFavorite } = useFavorites();
 
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
@@ -141,11 +145,7 @@ export default function HomePage() {
       }
       if (storedType === "PICKUP" || storedType === "DELIVERY") setOrderType(storedType as "DELIVERY" | "PICKUP");
 
-      // Restore favorites
-      try {
-        const savedFavs = JSON.parse(localStorage.getItem("platform_favorites") || "[]");
-        if (Array.isArray(savedFavs)) setFavorites(new Set(savedFavs));
-      } catch {}
+      // Favoriter hydreras via useFavorites-hooken (delad mellan vyer).
 
       const err = localStorage.getItem("platform_address_error");
       if (err) {
@@ -342,10 +342,14 @@ export default function HomePage() {
 
   const filtered = useMemo(() => {
     const list = restaurants.filter((r) => {
+      // "Favoriter" är en pseudo-cuisine: filtrerar mot localStorage-store i stället för cuisine-fält
       const matchCuisine =
-        activeCuisine === "Alla" ||
-        (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
-        (r.tags || []).some((t) => t.toLowerCase().includes(activeCuisine.toLowerCase()));
+        activeCuisine === "Alla"
+          ? true
+          : activeCuisine === "Favoriter"
+            ? favorites.has(r.id)
+            : (r.cuisine || "").toLowerCase().includes(activeCuisine.toLowerCase()) ||
+              (r.tags || []).some((t) => t.toLowerCase().includes(activeCuisine.toLowerCase()));
       const matchQuery =
         query.trim().length === 0 ||
         r.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -379,7 +383,7 @@ export default function HomePage() {
       if (quickFilter === "free") return !r.deliveryFee || r.deliveryFee === 0;
       return true;
     });
-  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal, quickFilter, allDealCards]);
+  }, [restaurants, activeCuisine, query, orderType, zoneRestaurantIds, filteredByDeal, quickFilter, allDealCards, favorites, selectedCity]);
 
   const featured = filtered.filter((r) => r.featuredClass === 1 || r.featuredClass === 2).slice(0, 8);
 
@@ -987,12 +991,7 @@ export default function HomePage() {
 
                   const toggleFav = (e: React.MouseEvent) => {
                     e.preventDefault(); e.stopPropagation();
-                    setFavorites(prev => {
-                      const next = new Set(prev);
-                      if (next.has(r.id)) next.delete(r.id); else next.add(r.id);
-                      localStorage.setItem("platform_favorites", JSON.stringify([...next]));
-                      return next;
-                    });
+                    toggleFavorite(r.id);
                   };
 
                   return (

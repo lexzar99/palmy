@@ -3,6 +3,7 @@ const sv = {
     home: 'HEM',
     discover: 'UPPTÄCK',
     cart: 'KORG',
+    orders: 'ORDER',
     profile: 'PROFIL',
   },
   common: {

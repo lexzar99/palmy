@@ -36,6 +36,15 @@ const Stack = createNativeStackNavigator();
 export const navigationRef = createNavigationContainerRef<any>();
 import { StatusBar as ExpoStatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
+import {
+  Outfit_400Regular,
+  Outfit_500Medium,
+  Outfit_600SemiBold,
+  Outfit_700Bold,
+  Outfit_800ExtraBold,
+  Outfit_900Black,
+} from "@expo-google-fonts/outfit";
 import { io, Socket } from "socket.io-client";
 import * as WebBrowser from "expo-web-browser";
 import * as Notifications from "expo-notifications";
@@ -47,6 +56,7 @@ import { RestartContext } from './src/contexts/restart';
 import { supabase } from "./src/lib/supabase";
 import { validateEnv } from "./src/lib/env";
 import { initSentry, wrap as sentryWrap } from "./src/lib/sentry";
+import { requestTracking } from "./src/lib/tracking";
 import ErrorBoundary from "./src/components/ErrorBoundary";
 
 initSentry();
@@ -96,7 +106,9 @@ import RestaurantScreen from "./src/screens/RestaurantScreen";
 import CartScreen from "./src/screens/CartScreen";
 import ProfileScreen from "./src/screens/ProfileScreen";
 import RegisterScreen from "./src/screens/RegisterScreen";
+import EmailLoginScreen from "./src/screens/EmailLoginScreen";
 import OrderScreen from "./src/screens/OrderScreen";
+import OrdersListScreen from "./src/screens/OrdersListScreen";
 import DealScreen from "./src/screens/DealScreen";
 import OnboardingScreen from "./src/screens/OnboardingScreen";
 import PhoneGateScreen from "./src/screens/PhoneGateScreen";
@@ -704,7 +716,7 @@ function AppContent() {
   }, []);
 
   const openRoot = useCallback(
-    (name: "home" | "search" | "cart" | "profile" | "discover") => {
+    (name: "home" | "search" | "cart" | "profile" | "discover" | "orders") => {
       if (navigationRef.isReady()) {
         const currentName = navigationRef.getCurrentRoute()?.name || "home";
 
@@ -916,7 +928,7 @@ function AppContent() {
   }
 
   const tabValue =
-    currentRouteName === "restaurant" || currentRouteName === "order" || currentRouteName === "register"
+    currentRouteName === "restaurant" || currentRouteName === "order" || currentRouteName === "register" || currentRouteName === "email-login"
       ? "home"
       : currentRouteName;
 
@@ -1038,6 +1050,21 @@ function AppContent() {
               </Stack.Screen>
 
               <Stack.Screen
+                name="orders"
+                options={{
+                  animation: "fade",
+                  animationDuration: 180,
+                }}
+              >
+                {() => (
+                  <OrdersListScreen
+                    openOrder={(id, phone) => pushRoute({ name: "order", id, phone } as any)}
+                    openHome={() => openRoot("home")}
+                  />
+                )}
+              </Stack.Screen>
+
+              <Stack.Screen
                 name="profile"
                 options={{
                   animation: "fade",
@@ -1047,6 +1074,7 @@ function AppContent() {
                 {() => (
                   <ProfileScreen
                     openRegister={(initialPhone) => pushRoute({ name: "register", initialPhone } as any)}
+                    openEmailLogin={() => pushRoute({ name: "email-login" } as any)}
                     openOrder={(id) => pushRoute({ name: "order", id } as any)}
                     openCart={() => openRoot("cart")}
                     openDeal={(id) => pushRoute({ name: "deal", id } as any)}
@@ -1067,10 +1095,24 @@ function AppContent() {
                 )}
               </Stack.Screen>
 
+              <Stack.Screen name="email-login">
+                {() => (
+                  <EmailLoginScreen
+                    goBack={goBack}
+                    openRegister={() => replaceRoute({ name: "register" } as any)}
+                    onLoggedIn={() => {
+                      setCurrentRouteName("profile");
+                      replaceRoute({ name: "profile" });
+                    }}
+                  />
+                )}
+              </Stack.Screen>
+
               <Stack.Screen name="order">
                 {(props: any) => (
                   <OrderScreen
                     id={props.route.params?.id}
+                    phone={props.route.params?.phone}
                     goBack={() => {
                       if (navigationRef.isReady() && navigationRef.canGoBack()) goBack();
                       else openRoot("home");
@@ -1101,7 +1143,7 @@ function AppContent() {
               onDismiss={() => setActiveOrder(null)}
             />
           )}
-          {!["restaurant", "order", "register", "deal"].includes(currentRouteName) && (
+          {!["restaurant", "order", "register", "email-login", "deal"].includes(currentRouteName) && (
             <BottomTabs active={tabValue as any} onChange={openRoot} />
           )}
         </View>
@@ -1120,6 +1162,15 @@ function App() {
   const [i18nReady, setI18nReady] = React.useState(false);
   const [i18nInstance, setI18nInstance] = React.useState<any>(null);
 
+  const [fontsLoaded] = useFonts({
+    Outfit_400Regular,
+    Outfit_500Medium,
+    Outfit_600SemiBold,
+    Outfit_700Bold,
+    Outfit_800ExtraBold,
+    Outfit_900Black,
+  });
+
   React.useEffect(() => {
     initI18n().then((instance) => {
       setI18nInstance(instance);
@@ -1127,11 +1178,26 @@ function App() {
     });
   }, []);
 
+  // Apple App Tracking Transparency (ATT) — krävs av App Store när IDFA
+  // potentiellt används (Sentry m.fl.). Endast iOS, fire-and-forget så det
+  // inte blockerar render. Apple kräver att prompten visas EFTER att UI är
+  // synligt — vi väntar tills fonter + i18n är klara så ATT-dialogen kommer
+  // ovanpå appen istället för splash.
+  React.useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    if (!fontsLoaded || !i18nReady) return;
+    // Liten delay så att ATT-prompten inte krockar med vår egen splash-fade.
+    const t = setTimeout(() => {
+      requestTracking().catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [fontsLoaded, i18nReady]);
+
   const restartApp = React.useCallback(() => {
     setAppKey((k) => k + 1);
   }, []);
 
-  if (!i18nReady || !i18nInstance) {
+  if (!i18nReady || !i18nInstance || !fontsLoaded) {
     return (
       <View style={{ flex: 1, backgroundColor: palette.bg }}>
         <SplashLoader />

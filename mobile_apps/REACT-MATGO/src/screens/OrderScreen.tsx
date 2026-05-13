@@ -49,7 +49,7 @@ function getStatusDisplay(status: string, danger: string, gold: string, success:
   }
 }
 
-export default function OrderScreen({ id, goBack }: { id: string; goBack: () => void }) {
+export default function OrderScreen({ id, phone, goBack }: { id: string; phone?: string; goBack: () => void }) {
   const token = useAppStore((s) => s.token);
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +62,12 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
 
   const fetchOrder = useCallback(async () => {
     try {
+      // Phone som ownership-bevis när användaren kommer från Orders-listan
+      // utan att vara inloggad (mirror av web order/[id]/page.tsx).
+      // Backend matchar query.phone mot order.customerPhone om JWT saknas.
       const response = await api.get(`/api/orders/${id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
+        params: phone ? { phone } : undefined,
       });
       setOrder(response.data || null);
     } catch {
@@ -71,7 +75,7 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
     } finally {
       setLoading(false);
     }
-  }, [id, token]);
+  }, [id, token, phone]);
 
   useEffect(() => {
     fetchOrder();
@@ -433,6 +437,124 @@ export default function OrderScreen({ id, goBack }: { id: string; goBack: () => 
             <Text style={{ color: palette.gold, fontSize: 32, fontWeight: "900", fontStyle: "italic", letterSpacing: -1 }}>
               {(order as any).total || 0} <Text style={{ fontSize: 12, fontWeight: "700", fontStyle: "normal" }}>SEK</Text>
             </Text>
+          </View>
+        </View>
+
+        {/* Hantering — restaurang, adress, betalning.
+            Mirror av apps/web/app/order/[id]/page.tsx "Hantering"-sidebar.
+            Restaurangbild ingår INTE i /api/orders/:id-svaret än, så vi
+            visar bara namn + adress + telefon. TODO: lägg till
+            restaurant.imageUrl/heroImageUrl i backend-svaret för att
+            kunna visa en restaurangsbild. */}
+        <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: palette.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+            <Text style={{ color: palette.text, fontSize: 18, fontWeight: "900", fontStyle: "italic", letterSpacing: -0.5 }}>HANTERING</Text>
+            <Ionicons name={order.type === "DELIVERY" ? "bicycle-outline" : "storefront-outline"} size={22} color={palette.gold} />
+          </View>
+
+          <View style={{ gap: 18 }}>
+            {/* Kundens telefon */}
+            {(order as any).customerPhone ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="call-outline" size={18} color={palette.gold} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Ditt nummer
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", letterSpacing: 0.5 }}>
+                    {(order as any).customerPhone}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Restaurang */}
+            {(order as any).restaurantName ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="storefront-outline" size={18} color={palette.gold} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Restaurang
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900", textTransform: "uppercase", letterSpacing: 0.3 }}>
+                    {(order as any).restaurantName}
+                  </Text>
+                  {(order as any).restaurantPhone ? (
+                    <Text style={{ color: palette.gold, fontSize: 11, fontWeight: "800", marginTop: 3 }}>
+                      {(order as any).restaurantPhone}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Leveransadress (DELIVERY) eller upphämtningsadress (PICKUP) */}
+            {order.type === "DELIVERY" && (order as any).deliveryStreet ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="location-outline" size={18} color={palette.info} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Leveransadress
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", lineHeight: 18 }}>
+                    {(order as any).deliveryStreet}
+                  </Text>
+                  {((order as any).deliveryZip || (order as any).deliveryCity || (order as any).restaurantCity) ? (
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: 3, textTransform: "uppercase" }}>
+                      {[(order as any).deliveryZip, (order as any).deliveryCity || (order as any).restaurantCity].filter(Boolean).join(" ")}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : order.type !== "DELIVERY" && (order as any).restaurantAddress ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="location-outline" size={18} color={palette.success} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.success, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Hämta hos
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", textTransform: "uppercase", lineHeight: 18 }}>
+                    {(order as any).restaurantAddress}
+                  </Text>
+                  {((order as any).restaurantZip || (order as any).restaurantCity) ? (
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "800", letterSpacing: 1, marginTop: 3, textTransform: "uppercase" }}>
+                      {[(order as any).restaurantZip, (order as any).restaurantCity].filter(Boolean).join(" ")}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            {/* Betalningsmetod — backend returnerar paymentMethod="ONLINE"
+                för Stripe-betalda orders, null för kontant/pending. */}
+            {(order as any).paymentMethod ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="card-outline" size={18} color={palette.gold} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Betalning
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", letterSpacing: 0.3 }}>
+                    {(order as any).paymentMethod === "ONLINE" ? "Betalt med kort" : (order as any).paymentMethod}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Beställd kl. */}
+            {order.createdAt ? (
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+                <Ionicons name="time-outline" size={18} color={palette.muted} style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1.5, marginBottom: 4, textTransform: "uppercase" }}>
+                    Beställd
+                  </Text>
+                  <Text style={{ color: palette.text, fontSize: 12, fontWeight: "900", letterSpacing: 1, textTransform: "uppercase" }}>
+                    {new Date(order.createdAt).toLocaleString("sv-SE", { dateStyle: "short", timeStyle: "short" })}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
           </View>
         </View>
 

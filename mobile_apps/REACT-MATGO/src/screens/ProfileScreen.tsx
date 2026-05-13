@@ -76,11 +76,13 @@ type ProfileScreenCache = {
 
 export default function ProfileScreen({
   openRegister,
+  openEmailLogin,
   openOrder,
   openCart,
   openDeal,
 }: {
   openRegister: (initialPhone?: string) => void;
+  openEmailLogin?: () => void;
   openOrder: (id: string) => void;
   openCart: () => void;
   openDeal?: (id: string) => void;
@@ -137,7 +139,10 @@ export default function ProfileScreen({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(() => cachedData?.editName || profile?.name || "");
   const [editEmail, setEditEmail] = useState(() => cachedData?.editEmail || profile?.email || "");
+  const [editPhoneCountry, setEditPhoneCountry] = useState("+46");
+  const [editPhone, setEditPhone] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPhone, setIsSavingPhone] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
   const [addrModalOpen, setAddrModalOpen] = useState(false);
@@ -656,6 +661,9 @@ export default function ProfileScreen({
       console.warn("Supabase signout issue:", e);
     }
     clearSession();
+    // Töm också varukorgen — annars ärver nästa inloggade användare
+    // föregående användares cart-state (parity med web).
+    clearCart();
     setOrders([]);
     setDeals([]);
     setSavedAddresses([]);
@@ -664,7 +672,7 @@ export default function ProfileScreen({
     setActiveTab("overview");
     setIsEditing(false);
     setLoginError("");
-  }, [clearSession, token]);
+  }, [clearCart, clearSession, token]);
 
   const handleUpdateProfile = useCallback(async () => {
     if (!token || !profile) return;
@@ -684,6 +692,43 @@ export default function ProfileScreen({
       setIsSaving(false);
     }
   }, [editEmail, editName, getAuthHeaders, profile, setProfile, token]);
+
+  const handleSavePhone = useCallback(async () => {
+    if (!token || !profile) return;
+    const raw = editPhone.trim();
+    if (!raw) {
+      Alert.alert("Telefonnummer krävs", "Ange ditt telefonnummer.");
+      return;
+    }
+    const international = buildInternationalPhone(editPhoneCountry, raw);
+    if (!normalizePhone(international)) {
+      Alert.alert("Ogiltigt nummer", "Ange ett giltigt telefonnummer.");
+      return;
+    }
+    setIsSavingPhone(true);
+    try {
+      const { data } = await api.post(
+        "/api/profile/link-phone",
+        { phone: international },
+        { headers: getAuthHeaders(token) }
+      );
+      const nextUser = data?.user;
+      if (nextUser) {
+        setProfile({ ...profile, ...nextUser });
+      } else {
+        setProfile({ ...profile, phone: international });
+      }
+      setEditPhone("");
+      Alert.alert("Sparat", "Telefonnumret har uppdaterats.");
+    } catch (error: any) {
+      Alert.alert(
+        "Kunde inte spara telefon",
+        error?.response?.data?.error || "Försök igen om en stund."
+      );
+    } finally {
+      setIsSavingPhone(false);
+    }
+  }, [buildInternationalPhone, editPhone, editPhoneCountry, getAuthHeaders, normalizePhone, profile, setProfile, token]);
 
   const handleReorder = useCallback(
     async (orderId: string) => {
@@ -895,7 +940,15 @@ export default function ProfileScreen({
               </View>
             </View>
 
-            <Pressable style={{ marginTop: 24 }} onPress={() => openRegister()}>
+            {openEmailLogin && (
+              <Pressable style={{ marginTop: 18, paddingVertical: 6 }} onPress={openEmailLogin}>
+                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center", letterSpacing: 1.2 }}>
+                  ELLER <Text style={{ color: palette.gold }}>LOGGA IN MED EMAIL</Text>
+                </Text>
+              </Pressable>
+            )}
+
+            <Pressable style={{ marginTop: 18 }} onPress={() => openRegister()}>
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
                 INGET KONTO? <Text style={{ color: palette.gold }}>SKAPA KONTO GRATIS</Text>
               </Text>
@@ -1379,6 +1432,51 @@ export default function ProfileScreen({
             </Pressable>
           </View>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
+            <Pressable
+              onPress={() => {
+                const id = profile?.id ? ` #${profile.id}` : "";
+                const emailLine = profile?.email ? `\n\nE-post: ${profile.email}` : "";
+                const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
+                const subject = `Hjälp${id}`;
+                const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
+                const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                Linking.openURL(url).catch(() => {
+                  Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+                });
+              }}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Kontakt & hjälp</Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={palette.muted} />
+            </Pressable>
+          </View>
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
+            <Pressable
+              onPress={() => {
+                WebBrowser.openBrowserAsync("https://matgo.se/terms").catch(() => {
+                  Linking.openURL("https://matgo.se/terms").catch(() => {});
+                });
+              }}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Användarvillkor</Text>
+              <Ionicons name="document-text-outline" size={18} color={palette.muted} />
+            </Pressable>
+          </View>
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
+            <Pressable
+              onPress={() => {
+                WebBrowser.openBrowserAsync("https://matgo.se/privacy").catch(() => {
+                  Linking.openURL("https://matgo.se/privacy").catch(() => {});
+                });
+              }}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+            >
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Integritetspolicy</Text>
+              <Ionicons name="shield-checkmark-outline" size={18} color={palette.muted} />
+            </Pressable>
+          </View>
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable onPress={handleDeleteAccount} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.deleteAccount')}</Text>
               <Ionicons name="trash-outline" size={18} color={palette.danger} />
@@ -1397,7 +1495,51 @@ export default function ProfileScreen({
           </View>
           <TextInput style={styles.input} placeholder={t('profile.edit.namePlaceholder')} placeholderTextColor={palette.muted} value={editName} onChangeText={setEditName} />
           <TextInput style={styles.input} placeholder={t('profile.edit.emailPlaceholder')} placeholderTextColor={palette.muted} value={editEmail} onChangeText={setEditEmail} keyboardType="email-address" autoCapitalize="none" />
-          <TextInput style={[styles.input, { color: palette.muted }]} editable={false} value={profile.phone || "Ej angivet"} />
+
+          {/* Current phone (read-only summary) */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 }}>
+            <Ionicons name="call-outline" size={14} color={palette.muted} />
+            <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
+              Nuvarande nummer: {profile.phone || "Ej angivet"}
+            </Text>
+          </View>
+
+          {/* Editable phone row — country picker + number input + save */}
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <Pressable
+              onPress={() => {
+                const currentIndex = COUNTRY_CODES.findIndex((item) => item.code === editPhoneCountry);
+                const next = COUNTRY_CODES[(currentIndex + 1) % COUNTRY_CODES.length];
+                setEditPhoneCountry(next.code);
+              }}
+              style={{
+                width: 96, borderRadius: 18,
+                backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border,
+                paddingHorizontal: 10, paddingVertical: 14,
+                flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>{COUNTRY_CODES.find((item) => item.code === editPhoneCountry)?.flag || "🇸🇪"}</Text>
+              <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{editPhoneCountry}</Text>
+            </Pressable>
+            <View style={{ flex: 1 }}>
+              <TextInput
+                style={[styles.input, { marginBottom: 0 }]}
+                placeholder="070 000 00 00"
+                placeholderTextColor={palette.muted}
+                keyboardType="phone-pad"
+                value={editPhone}
+                onChangeText={setEditPhone}
+              />
+            </View>
+          </View>
+          <PrimaryButton
+            label={isSavingPhone ? "Sparar…" : "Spara telefon"}
+            onPress={handleSavePhone}
+            disabled={isSavingPhone || !editPhone.trim()}
+            icon="call-outline"
+          />
+
           <PrimaryButton
             label={isSaving ? t('common.saving') : saveSuccess ? t('common.saved') : t('common.save')}
             onPress={handleUpdateProfile}

@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import axios from "axios";
-import { 
+import {
   Search, Sparkles, MapPin, Star, History, Compass, ArrowRight,
   Utensils, Coffee, Pizza, Bike, Clock, Heart, Filter, ChevronRight
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
+import { useFavorites } from "@/lib/favoritesStore";
 
 const getImageSrc = (path?: string) => {
   if (!path) return "";
@@ -33,6 +34,9 @@ export default function DiscoverPage() {
   const [loading, setLoading] = useState(true);
   // Zone awareness: IDs that can deliver to the saved address (null = no address yet)
   const [deliverableIds, setDeliverableIds] = useState<Set<string> | null>(null);
+  // Favoriter (paritet med RN — filtreras lokalt över både trending & sökresultat)
+  const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -76,12 +80,21 @@ export default function DiscoverPage() {
     }
   };
 
-  const filteredRestaurants = restaurants.filter(r => 
-    r.name.toLowerCase().includes(activeSearch.toLowerCase()) ||
-    r.categories?.some((c: any) => c.name.toLowerCase().includes(activeSearch.toLowerCase()))
-  );
+  const filteredRestaurants = useMemo(() => {
+    return restaurants.filter((r) => {
+      const matchesSearch =
+        r.name.toLowerCase().includes(activeSearch.toLowerCase()) ||
+        r.categories?.some((c: any) => c.name.toLowerCase().includes(activeSearch.toLowerCase()));
+      const matchesFavorites = !favoritesOnly || favorites.has(r.id);
+      return matchesSearch && matchesFavorites;
+    });
+  }, [restaurants, activeSearch, favoritesOnly, favorites]);
 
-  const trendingRestaurants = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
+  const trendingRestaurants = useMemo(() => {
+    const base = [...restaurants].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    const filtered = favoritesOnly ? base.filter((r) => favorites.has(r.id)) : base;
+    return filtered.slice(0, 5);
+  }, [restaurants, favoritesOnly, favorites]);
 
   return (
     <div className="min-h-screen pb-32 md:pt-20" style={{ backgroundColor: "var(--bg-primary)", color: "var(--text-primary)" }}>
@@ -119,10 +132,28 @@ export default function DiscoverPage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bläddra Kategorier</h2>
+            {/*
+              Favoriter-toggle — visa endast restauranger som finns i `platform_favorites`.
+              Visas alltid (även med 0 favoriter), så användaren kan se den och förstå funktionen.
+            */}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setFavoritesOnly((v) => !v)}
+              aria-pressed={favoritesOnly}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest transition-all shrink-0 border ${
+                favoritesOnly
+                  ? "bg-rose-500/15 border-rose-500/30 text-rose-500"
+                  : "border-[var(--border-muted)] text-zinc-500 hover:text-rose-500 hover:border-rose-500/30"
+              }`}
+              style={{ backgroundColor: favoritesOnly ? undefined : "var(--bg-secondary)" }}
+            >
+              <Heart size={12} className={favoritesOnly ? "fill-rose-500" : ""} />
+              Favoriter{favorites.size > 0 ? ` (${favorites.size})` : ""}
+            </motion.button>
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide px-2">
             {CATEGORIES.map((cat) => (
-              <motion.button 
+              <motion.button
                 key={cat.name}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveSearch(cat.name)}
@@ -143,12 +174,25 @@ export default function DiscoverPage() {
           <section className="space-y-6">
             <div className="flex items-center justify-between px-2">
               <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-3" style={{ color: "var(--text-primary)" }}>
-                <Sparkles className="text-gold-500" size={18} /> Populärt Just nu
+                <Sparkles className="text-gold-500" size={18} />
+                {favoritesOnly ? "Dina Favoriter" : "Populärt Just nu"}
               </h2>
             </div>
             <div className="space-y-4">
-              {trendingRestaurants.map((rest) => (
-                <Link 
+              {trendingRestaurants.length === 0 ? (
+                <div className="py-20 text-center rounded-[2.5rem] border border-dashed" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                  <Heart size={48} className="mx-auto mb-4 opacity-20" style={{ color: "var(--text-primary)" }} />
+                  <p className="font-black uppercase" style={{ color: "var(--text-secondary)" }}>
+                    {favoritesOnly ? "Inga favoriter ännu" : "Inga restauranger"}
+                  </p>
+                  <p className="text-xs mt-2" style={{ color: "var(--text-secondary)", opacity: 0.4 }}>
+                    {favoritesOnly ? "Tryck på hjärtat på ett restaurangkort för att spara." : "Försök igen om en stund."}
+                  </p>
+                </div>
+              ) : trendingRestaurants.map((rest) => {
+                const fav = isFavorite(rest.id);
+                return (
+                <Link
                   key={rest.id}
                   href={`/restaurants/${rest.slug}`}
                   className="flex items-center gap-4 p-3 rounded-[2rem] transition-all group overflow-hidden relative shadow-sm"
@@ -181,9 +225,18 @@ export default function DiscoverPage() {
                       {rest.city && <span className="truncate opacity-50">{rest.city}</span>}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(rest.id); }}
+                    className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shrink-0 border"
+                    style={{ borderColor: "var(--border-muted)", backgroundColor: fav ? "rgba(244,63,94,0.10)" : "transparent" }}
+                    aria-label={fav ? "Ta bort favorit" : "Lägg till favorit"}
+                  >
+                    <Heart size={14} className={fav ? "fill-rose-500 text-rose-500" : "text-zinc-500"} />
+                  </button>
                   <ChevronRight size={18} className="text-zinc-600 group-hover:text-gold-500 transition-all shrink-0" />
                 </Link>
-              ))}
+              ); })}
             </div>
           </section>
         )}
@@ -211,8 +264,9 @@ export default function DiscoverPage() {
               ) : (
                 filteredRestaurants.map((rest) => {
                   const inZone = deliverableIds === null || deliverableIds.has(rest.id);
+                  const fav = isFavorite(rest.id);
                   return (
-                    <Link 
+                    <Link
                       key={rest.id}
                       href={`/restaurants/${rest.slug}`}
                       className={`flex items-center gap-6 p-4 border rounded-[2.5rem] transition-all group relative overflow-hidden shadow-sm ${
@@ -234,6 +288,15 @@ export default function DiscoverPage() {
                           )}
                         </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(rest.id); }}
+                        className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 shrink-0 border"
+                        style={{ borderColor: "var(--border-muted)", backgroundColor: fav ? "rgba(244,63,94,0.10)" : "transparent" }}
+                        aria-label={fav ? "Ta bort favorit" : "Lägg till favorit"}
+                      >
+                        <Heart size={14} className={fav ? "fill-rose-500 text-rose-500" : "text-zinc-500"} />
+                      </button>
                       <ChevronRight size={18} className="text-zinc-700 group-hover:text-gold-500 transition-all shrink-0" />
                     </Link>
                   );

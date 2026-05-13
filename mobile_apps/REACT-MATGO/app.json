@@ -19,6 +19,7 @@
       "infoPlist": {
         "NSSupportsLiveActivities": true,
         "NSSupportsLiveActivitiesFrequentUpdates": true,
+        "NSUserTrackingUsageDescription": "Vi använder detta för att förbättra appens prestanda och förebygga buggar.",
         "UIBackgroundModes": [
           "remote-notification",
           "fetch"
@@ -67,6 +68,12 @@
         {
           "merchantIdentifier": "merchant.com.foodgoJalle.app",
           "enableGooglePay": true
+        }
+      ],
+      [
+        "expo-tracking-transparency",
+        {
+          "userTrackingPermission": "Vi använder detta för att förbättra appens prestanda och förebygga buggar."
         }
       ],
       "@sentry/react-native"

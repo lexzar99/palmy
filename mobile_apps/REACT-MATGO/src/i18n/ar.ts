@@ -3,6 +3,7 @@ const ar = {
     home: 'الرئيسية',
     discover: 'استكشف',
     cart: 'السلة',
+    orders: 'الطلبات',
     profile: 'الملف',
   },
   common: {

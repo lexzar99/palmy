@@ -32,6 +32,7 @@ import {
   rememberQuickAddress,
   writeQuickAddresses,
 } from "../lib/quickAddresses";
+import { saveGuestOrder } from "../lib/guestOrders";
 import ScalePressable from "../components/ScalePressable";
 import { palette, styles } from "../constants/theme";
 import { useTranslation } from 'react-i18next';
@@ -981,6 +982,19 @@ export default function CartScreen({
         // Soft nudge (once per install) to enable Frequent Updates so the
         // Dynamic Island countdown stays accurate. No-op outside iOS.
         void maybeShowFrequentUpdatesPrompt();
+        // Spara ordern lokalt så gäster (utan login) kan se sin
+        // beställningshistorik på Orders-tabben. Backend-orders för
+        // inloggade users hämtas separat från /api/profile/orders, men
+        // lokala kopior fungerar som fallback om JWT förfaller eller
+        // appen körs på en ny enhet. Mirror av apps/web/lib/orderHistory.ts.
+        saveGuestOrder({
+          id: String(successId),
+          phone: formData.customerPhone,
+          createdAt: new Date().toISOString(),
+          restaurantName: cartRestaurant?.name ?? null,
+          restaurantSlug: cartRestaurant?.slug ?? null,
+          total: Math.round(total),
+        }).catch(() => {});
         clearCart();
         openOrder(successId);
       } else {

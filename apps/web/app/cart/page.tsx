@@ -140,6 +140,11 @@ export default function CartPage() {
   const [selHour, setSelHour] = useState("12");
   const [selMin, setSelMin] = useState("00");
 
+  // Dricks (paritet med RN CartScreen) — endast leverans
+  const [tipAmount, setTipAmount] = useState<number>(0);
+  const [showCustomTipInput, setShowCustomTipInput] = useState<boolean>(false);
+  const [customTipText, setCustomTipText] = useState<string>("");
+
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
 
@@ -417,7 +422,9 @@ export default function CartPage() {
 
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount);
-  const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount);
+  // Dricks läggs till total endast vid DELIVERY (RN-paritet — dricks är till leveranspersonen)
+  const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
+  const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
@@ -723,38 +730,55 @@ export default function CartPage() {
     }
   }, []);
 
-  const buildOrderPayload = (paymentIntentId?: string) => ({
-    type: orderType,
-    customerName: formData.customerName,
-    customerPhone: formData.customerPhone,
-    customerEmail: formData.customerEmail || undefined,
-    deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
-    deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
-    deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
-    note: formData.note || undefined,
-    deliveryInstructions: orderType === "DELIVERY" ? formData.deliveryInstructions || undefined : undefined,
-    stripePaymentIntentId: paymentIntentId,
-    discountCode: selectedPersonalDeal?.code || undefined,
-    appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
-    restaurantId: useCartStore.getState().restaurantId || undefined,
-    restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
-    lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
-    lng: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })(),
-    scheduledFor: scheduledFor?.toISOString() || undefined,
-    items: items.map((i) => ({
-      productId: i.productId,
-      quantity: i.quantity,
-      selectedExtras: i.extras.map((e) => ({
-        groupId: e.groupId,
-        groupName: e.groupName,
-        extraId: e.extraId,
-        extraName: e.name,
-        priceAddon: e.price,
+  const buildOrderPayload = (paymentIntentId?: string) => {
+    // Bake in dricks-anteckning till note/deliveryInstructions enligt RN-mönstret —
+    // backend och kurir ser dricks-beloppet direkt i fritext utöver `tip`-fältet.
+    const baseNote = formData.note || "";
+    const baseDeliveryInstructions = orderType === "DELIVERY"
+      ? (formData.deliveryInstructions || "")
+      : "";
+    const tipNote = effectiveTip > 0 ? `(Dricks gett: ${effectiveTip} kr i appen)` : "";
+    const composedNote = tipNote
+      ? `${tipNote}${baseNote ? ` ${baseNote}` : ""}`.trim()
+      : baseNote;
+    const composedDeliveryInstructions = orderType === "DELIVERY"
+      ? (tipNote ? `${tipNote}${baseDeliveryInstructions ? ` ${baseDeliveryInstructions}` : ""}`.trim() : baseDeliveryInstructions)
+      : undefined;
+
+    return {
+      type: orderType,
+      customerName: formData.customerName,
+      customerPhone: formData.customerPhone,
+      customerEmail: formData.customerEmail || undefined,
+      deliveryStreet: orderType === "DELIVERY" ? formData.deliveryStreet : undefined,
+      deliveryZip: orderType === "DELIVERY" ? formData.deliveryZip : undefined,
+      deliveryCity: orderType === "DELIVERY" ? (formData.deliveryCity || undefined) : undefined,
+      note: composedNote || undefined,
+      deliveryInstructions: composedDeliveryInstructions || undefined,
+      stripePaymentIntentId: paymentIntentId,
+      discountCode: selectedPersonalDeal?.code || undefined,
+      appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
+      restaurantId: useCartStore.getState().restaurantId || undefined,
+      restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
+      lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
+      lng: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lng; } catch { return undefined; } })(),
+      scheduledFor: scheduledFor?.toISOString() || undefined,
+      tip: effectiveTip > 0 ? effectiveTip : undefined,
+      items: items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+        selectedExtras: i.extras.map((e) => ({
+          groupId: e.groupId,
+          groupName: e.groupName,
+          extraId: e.extraId,
+          extraName: e.name,
+          priceAddon: e.price,
+        })),
+        note: i.note,
       })),
-      note: i.note,
-    })),
-    minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
-  });
+      minOrderTopUp: minOrderTopUp > 0 ? minOrderTopUp : undefined,
+    };
+  };
 
   // Legacy submitOrder used only for test/promo flow (FREE_PROMO)
   const submitOrder = async (paymentIntentId: string) => {
@@ -1412,6 +1436,87 @@ export default function CartPage() {
                            <textarea rows={2} value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} className="w-full border rounded-2xl p-5 text-sm font-bold placeholder:text-zinc-400 focus:border-gold-500/40 outline-none transition-all resize-none" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }} placeholder="T.ex. portkod 1234, ingen lök i kebaben..." />
                         </div>
 
+                        {/*
+                         * Dricks till leveranspersonen (paritet med RN CartScreen, raderna 1638-1675).
+                         * Default = 0 kr så befintligt flöde är opåverkat.
+                         * Belopp läggs både i `tip`-fältet och bakas in i `note`/`deliveryInstructions`
+                         * som "(Dricks gett: X kr i appen)" — samma mönster som RN.
+                         * Visas endast vid DELIVERY; vid PICKUP är dricks dolt.
+                         */}
+                        {orderType === 'DELIVERY' && (
+                           <div className="space-y-3">
+                              <div className="flex items-center gap-3 ml-3">
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" className="text-gold-500"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                 <label className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>Lägg till dricks?</label>
+                              </div>
+                              <p className="text-[10px] font-bold leading-snug ml-3" style={{ color: "var(--text-secondary)" }}>
+                                 Frivillig dricks går direkt till leveranspersonen.
+                              </p>
+                              <div className="grid grid-cols-5 gap-2">
+                                 {[0, 10, 20, 30].map((amt) => {
+                                    const isActive = !showCustomTipInput && tipAmount === amt;
+                                    return (
+                                       <button
+                                          key={amt}
+                                          type="button"
+                                          onClick={() => { setShowCustomTipInput(false); setCustomTipText(""); setTipAmount(amt); }}
+                                          className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                             isActive
+                                                ? "bg-gold-500 border-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
+                                                : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
+                                          }`}
+                                          style={{ backgroundColor: isActive ? undefined : "var(--bg-deep)" }}
+                                       >
+                                          {amt === 0 ? "Ingen" : `+${amt} kr`}
+                                       </button>
+                                    );
+                                 })}
+                                 <button
+                                    type="button"
+                                    onClick={() => {
+                                       const next = !showCustomTipInput;
+                                       setShowCustomTipInput(next);
+                                       if (next) {
+                                          setCustomTipText(tipAmount > 0 ? String(tipAmount) : "");
+                                       } else {
+                                          setCustomTipText("");
+                                          setTipAmount(0);
+                                       }
+                                    }}
+                                    className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all active:scale-95 ${
+                                       showCustomTipInput
+                                          ? "bg-gold-500 border-gold-500 text-zinc-950 shadow-lg shadow-gold-500/20"
+                                          : "border-[var(--border-muted)] text-zinc-500 hover:text-gold-500 hover:border-gold-500/30"
+                                    }`}
+                                    style={{ backgroundColor: showCustomTipInput ? undefined : "var(--bg-deep)" }}
+                                 >
+                                    Annat…
+                                 </button>
+                              </div>
+                              {showCustomTipInput && (
+                                 <div className="relative">
+                                    <input
+                                       type="number"
+                                       min={0}
+                                       step={1}
+                                       inputMode="numeric"
+                                       value={customTipText}
+                                       onChange={(e) => {
+                                          const raw = e.target.value.replace(/[^0-9]/g, "");
+                                          setCustomTipText(raw);
+                                          const parsed = raw === "" ? 0 : parseInt(raw, 10);
+                                          setTipAmount(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+                                       }}
+                                       placeholder="Eget belopp i kr"
+                                       className="w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all focus:border-gold-500/40"
+                                       style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)", color: "var(--text-primary)" }}
+                                    />
+                                    <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black uppercase tracking-widest text-zinc-500">kr</span>
+                                 </div>
+                              )}
+                           </div>
+                        )}
+
                         {/* Promo Code Integrated */}
                         <div className="relative group flex items-center">
                           <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
@@ -1546,6 +1651,7 @@ export default function CartPage() {
                      <div className="mt-10 pt-10 space-y-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
                         <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Delsumma</span><span>{subtotal.toFixed(0)} KR</span></div>
                         {orderType === 'DELIVERY' && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Leveransavgift</span><span className="text-gold-500">{deliveryFee.toFixed(0)} KR</span></div>}
+                        {effectiveTip > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-gold-500"><span>Dricks</span><span>+{effectiveTip.toFixed(0)} KR</span></div>}
                         {minOrderTopUp > 0 && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}><span>Komplettering till minimum</span><span className="text-gold-500">+{minOrderTopUp.toFixed(0)} KR</span></div>}
                         {bogoPreview && bogoDiscount >= finalDiscount && (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
