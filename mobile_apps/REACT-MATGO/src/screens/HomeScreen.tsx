@@ -42,8 +42,7 @@ import {
 import { useAppStore } from "../store/useAppStore";
 import { api, getImageUrl } from "../lib/api";
 import { rememberQuickAddress } from "../lib/quickAddresses";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme, useThemeMode } from "../theme";
 import { getBottomTabsContentPadding, getScreenTopPadding, getStickyHeaderTopInset } from "../constants/layout";
 
 
@@ -137,6 +136,8 @@ export default function HomeScreen({
   const { t } = useTranslation();
   const { ls } = useArabic();
   const { palette } = useTheme();
+  const styles = useSharedStyles();
+  const { preference: themePreference, setMode: setThemeMode } = useThemeMode();
   const token = useAppStore((s) => s.token);
   const cacheKey = token || "__guest__";
   const cachedData = getScreenCache<HomeScreenCache>("home", cacheKey);
@@ -535,7 +536,7 @@ export default function HomeScreen({
             alignItems: "center",
             gap: 10,
             borderRadius: 18,
-            backgroundColor: "rgba(255,255,255,0.94)",
+            backgroundColor: palette.panel,
             borderWidth: 1,
             borderColor: palette.border,
             paddingLeft: 14,
@@ -613,13 +614,59 @@ export default function HomeScreen({
         contentContainerStyle={{ paddingTop: screenTopPadding, paddingBottom: screenBottomPadding, gap: 10 }}
       >
         <View style={{ paddingTop: 10, marginBottom: 2, paddingHorizontal: 20 }}>
-          {/* Compact adresspil i toppen */}
-          <AddressPullDown
-            onOpenFull={() => setAddressModalOpen(true)}
-            zoneStatus={orderType === 'DELIVERY' ? (zoneError ? 'error' : coords ? 'ok' : null) : null}
-            autoOpen={autoOpenAddressPicker}
-            onAutoOpenHandled={() => setAutoOpenAddressPicker(false)}
-          />
+          {/* Top row: address pulldown + theme toggle */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <AddressPullDown
+                onOpenFull={() => setAddressModalOpen(true)}
+                zoneStatus={orderType === 'DELIVERY' ? (zoneError ? 'error' : coords ? 'ok' : null) : null}
+                autoOpen={autoOpenAddressPicker}
+                onAutoOpenHandled={() => setAutoOpenAddressPicker(false)}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                themePreference === "light"
+                  ? "Byt till mörkt läge"
+                  : themePreference === "dark"
+                  ? "Följ systemets läge"
+                  : "Byt till ljust läge"
+              }
+              onPress={() => {
+                // Cycle: light -> dark -> system -> light
+                const next =
+                  themePreference === "light"
+                    ? "dark"
+                    : themePreference === "dark"
+                    ? "system"
+                    : "light";
+                setThemeMode(next);
+              }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                borderWidth: 1,
+                borderColor: palette.gold,
+                backgroundColor: palette.panel,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons
+                name={
+                  themePreference === "light"
+                    ? "sunny-outline"
+                    : themePreference === "dark"
+                    ? "moon-outline"
+                    : "desktop-outline"
+                }
+                size={18}
+                color={palette.gold}
+              />
+            </Pressable>
+          </View>
 
           {/* Greeting */}
           <View style={{ marginTop: 8 }}>

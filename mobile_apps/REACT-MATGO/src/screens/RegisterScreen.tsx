@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, Pressable, Platform, Animated, ActivityIndicator } from 'react-native';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 import { Header, ScreenWrap } from '../components/ui';
 
 // Mirrors the web register flow (apps/web/app/register/page.tsx):
@@ -23,6 +22,7 @@ export default function RegisterScreen({
   onRegistered: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
 

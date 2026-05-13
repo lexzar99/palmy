@@ -1,33 +1,20 @@
 import { StyleSheet } from 'react-native';
-import { lightPalette } from "../theme/palette";
+import { lightPalette, type Palette } from "../theme/palette";
 
 // ── Palette ─────────────────────────────────────────────────────────────────
 // The canonical palette lives in src/theme/palette.ts and mirrors the web
-// app's CSS tokens (apps/web/app/globals.css). We re-export the LIGHT palette
-// here so the `styles` StyleSheet below — which is still imported by ~18
-// components and screens — keeps rendering identical light-mode colors as
-// before, even though no one imports `palette` from this file anymore.
+// app's CSS tokens (apps/web/app/globals.css). The legacy `palette` export
+// here is kept as an alias for `lightPalette` for backwards compatibility
+// only — new code should use `useTheme()` instead.
 //
-// ── Migration status ────────────────────────────────────────────────────────
-// All 33 customer-app components/screens that USED to do
-//   `import { palette } from '../constants/theme'`
-// have been migrated to subscribe to `useTheme()` from `src/theme`, so they
-// pick up dark mode when the OS color scheme flips. See
-// `src/theme/ThemeProvider.tsx` for the runtime context.
+// ── Dark-mode-aware `styles` ────────────────────────────────────────────────
+// The big `styles` StyleSheet below has been converted to a palette-driven
+// factory (`makeSharedStyles`). Components that need dark-mode-aware styles
+// should pull them in via the `useSharedStyles()` hook from `src/theme`,
+// which calls this factory with the active palette from `useTheme()`.
 //
-// What's still light-only:
-//   - The big `styles` StyleSheet exported at the bottom of this file. It's
-//     shared across many components (Header, RestaurantCard, CityModal,
-//     ProductModal, etc) and dark-mode-ifying it would require restructuring
-//     every consumer to build their own makeStyles factory. The frozen
-//     light-mode tokens here are deliberately kept as a safety net.
-//   - Anything else that does `import { palette } from '../constants/theme'`
-//     in the future — should NOT exist, since the export is now only used
-//     internally by `styles` below.
-//
-// If you need a token that adapts to dark mode, use:
-//   const { palette } = useTheme();
-// inside your component. Never import `palette` from this file in new code.
+// For backwards compatibility we still export a precomputed light-mode
+// `styles` object — avoid in new code (it won't switch to dark mode).
 export const palette = lightPalette;
 
 // Re-export the new token scales for any local consumers that need them.
@@ -41,7 +28,8 @@ export const ui = {
   padding: 20,
 };
 
-export const styles = StyleSheet.create({
+export function makeSharedStyles(palette: Palette) {
+  return StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: palette.bg,
@@ -112,7 +100,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255,249,240,0.94)",
+    backgroundColor: palette.panel,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(125,97,38,0.14)",
@@ -141,7 +129,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255,249,240,0.94)",
+    backgroundColor: palette.panel,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "rgba(125,97,38,0.14)",
@@ -252,7 +240,7 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   restaurantHeroCuisine: {
-    color: "rgba(28,28,30,0.52)",
+    color: palette.muted,
     fontSize: 9,
     fontFamily: 'Outfit_900Black',
     fontWeight: "900",
@@ -271,14 +259,14 @@ export const styles = StyleSheet.create({
     fontWeight: "800",
   },
   restaurantHeroRatingCount: {
-    color: "rgba(28,28,30,0.38)",
+    color: palette.muted,
     fontSize: 10,
     fontFamily: 'Outfit_800ExtraBold',
     fontWeight: "800",
   },
   restaurantHeroDescriptionPremium: {
     fontFamily: 'Outfit_400Regular',
-    color: "rgba(28,28,30,0.8)",
+    color: palette.text,
     fontSize: 11,
     lineHeight: 15,
     maxWidth: "88%",
@@ -307,7 +295,7 @@ export const styles = StyleSheet.create({
     elevation: 2,
   },
   restaurantQuickStatLabel: {
-    color: "rgba(125,97,38,0.76)",
+    color: palette.muted,
     fontSize: 8,
     fontFamily: 'Outfit_900Black',
     fontWeight: "900",
@@ -330,7 +318,7 @@ export const styles = StyleSheet.create({
     elevation: 10,
   },
   restaurantStickyNavCard: {
-    backgroundColor: "rgba(255,248,239,0.98)",
+    backgroundColor: palette.panel,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: palette.border,
@@ -415,7 +403,7 @@ export const styles = StyleSheet.create({
   restaurantMenuSectionDivider: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(28,28,30,0.06)",
+    backgroundColor: palette.border,
   },
   restaurantMenuProductList: {
     gap: 10,
@@ -810,7 +798,7 @@ export const styles = StyleSheet.create({
     width: 54,
     height: 5,
     borderRadius: 999,
-    backgroundColor: "rgba(125,97,38,0.22)",
+    backgroundColor: palette.border,
     marginTop: 10,
     marginBottom: 4,
     paddingVertical: 12,
@@ -824,9 +812,9 @@ export const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: palette.panel,
     borderWidth: 1,
-    borderColor: "rgba(28,28,30,0.08)",
+    borderColor: palette.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -917,7 +905,7 @@ export const styles = StyleSheet.create({
     letterSpacing: -0.6,
   },
   productModalDescription: {
-    color: "rgba(33,22,15,0.72)",
+    color: palette.muted,
     fontSize: 14,
     lineHeight: 22,
     fontFamily: 'Outfit_600SemiBold',
@@ -1122,7 +1110,7 @@ export const styles = StyleSheet.create({
   productModalFooter: {
     borderTopWidth: 1,
     borderTopColor: palette.border,
-    backgroundColor: "rgba(255,248,239,0.98)",
+    backgroundColor: palette.panel,
     paddingHorizontal: 18,
     paddingTop: 16,
     paddingBottom: 26,
@@ -1503,7 +1491,7 @@ export const styles = StyleSheet.create({
     paddingBottom: 6,
     backgroundColor: palette.bg,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(125,97,38,0.08)",
+    borderBottomColor: palette.border,
   },
   discountedRailHeaderRow: {
     flexDirection: "row",
@@ -1522,7 +1510,7 @@ export const styles = StyleSheet.create({
   discountedRailHeaderLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "rgba(125,97,38,0.12)",
+    backgroundColor: palette.border,
   },
   discountedRailContent: {
     gap: 8,
@@ -1559,7 +1547,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   discountedBadgeText: {
-    color: "#fff",
+    color: "#000",
     fontSize: 8,
     fontFamily: 'Outfit_900Black',
     fontWeight: "900",
@@ -1591,4 +1579,9 @@ export const styles = StyleSheet.create({
     fontFamily: 'Outfit_900Black',
     fontWeight: "900",
   },
-});
+  });
+}
+
+// Backwards-compat: precomputed light-mode StyleSheet. Avoid in new code —
+// use `useSharedStyles()` (from src/theme) instead so dark mode works.
+export const styles = makeSharedStyles(lightPalette);

@@ -9,6 +9,11 @@
 // directly. For dark-mode-aware components use `useTheme()` instead.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import React from "react";
+
+import { useTheme } from "./ThemeProvider";
+import { makeSharedStyles } from "../constants/theme";
+
 export { lightPalette, darkPalette, goldScale, type Palette } from "./palette";
 export { lightPalette as palette } from "./palette";
 export { radii, type Radii } from "./radii";
@@ -28,3 +33,18 @@ export {
   type ThemeMode,
   type ResolvedThemeMode,
 } from "./ThemeProvider";
+
+/**
+ * useSharedStyles — palette-driven version of the legacy `styles` StyleSheet
+ * exported from `src/constants/theme`. Returns the same set of style keys,
+ * but built from the currently-active palette so dark mode actually works.
+ *
+ * Usage:
+ *   const styles = useSharedStyles();
+ *   ...
+ *   <View style={styles.safe} />
+ */
+export function useSharedStyles() {
+  const { palette } = useTheme();
+  return React.useMemo(() => makeSharedStyles(palette), [palette]);
+}

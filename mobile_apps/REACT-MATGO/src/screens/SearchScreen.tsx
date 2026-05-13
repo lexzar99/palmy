@@ -3,8 +3,7 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView } from 
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
 import { getScreenCache, setScreenCache } from '../lib/screenCache';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 import type { Restaurant } from '../types';
 import { Header, ScreenWrap, RestaurantCard, EmptyPanel } from '../components/ui';
 import ScalePressable from '../components/ScalePressable';
@@ -25,6 +24,7 @@ type SearchScreenCache = {
 
 export default function SearchScreen({ openRestaurant }: { openRestaurant: (slug: string) => void }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const cachedData = getScreenCache<SearchScreenCache>('search', 'shared');
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
   const [query, setQuery] = useState("");

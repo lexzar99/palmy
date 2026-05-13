@@ -11,8 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
 
@@ -228,6 +227,7 @@ export default function OnboardingScreen({
   skipPermissions?: boolean;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);

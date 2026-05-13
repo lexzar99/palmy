@@ -7,8 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 import { getBottomTabsBottomOffset } from '../constants/layout';
 import { useAppStore } from '../store/useAppStore';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 
 export default function BottomTabs({
   active,
@@ -21,6 +20,7 @@ export default function BottomTabs({
   const { t } = useTranslation();
   const { ls } = useArabic();
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const itemCount = useAppStore((state) => state.items.reduce((sum, item) => sum + item.quantity, 0));
   // Tab order matches the web's BottomNav: home, discover, cart, orders, profile.
   // "Orders" uses a receipt-style icon (Ionicons receipt-outline ~ lucide ReceiptText).

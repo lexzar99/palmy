@@ -10,8 +10,7 @@ import {
 } from "react-native";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import { Header, ScreenWrap } from "../components/ui";
 
 // Email + password login screen. Mirrors the web platform flow
@@ -31,6 +30,7 @@ export default function EmailLoginScreen({
   onLoggedIn: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
 

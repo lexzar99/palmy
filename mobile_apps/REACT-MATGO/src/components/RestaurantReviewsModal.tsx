@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 
 type Review = {
   id: string;
@@ -61,6 +60,7 @@ export default function RestaurantReviewsModal({
   onClose: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const [data, setData] = useState<ReviewsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

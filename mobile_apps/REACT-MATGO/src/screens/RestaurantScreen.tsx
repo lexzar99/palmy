@@ -9,8 +9,7 @@ import { api, getImageUrl, SOCKET_URL } from '../lib/api';
 import { getRestaurantStatusLabel } from '../lib/pauseStatus';
 import { getRestaurantHeroTopInset } from '../constants/layout';
 import { getScreenCache, setScreenCache } from '../lib/screenCache';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 import { EmptyPanel } from '../components/ui';
 import CityModal from '../components/CityModal';
 import AddressModal from '../components/AddressModal';
@@ -49,6 +48,7 @@ export default function RestaurantScreen({
   const { t } = useTranslation();
   const { ls } = useArabic();
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const heroTopInset = getRestaurantHeroTopInset(insets.top);
   const stickyHeaderTopInset = Math.max(insets.top - 8, 18);
   const cachedData = getScreenCache<RestaurantScreenCache>('restaurant', slug);

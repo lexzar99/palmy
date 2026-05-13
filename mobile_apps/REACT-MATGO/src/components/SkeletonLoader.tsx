@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform, View } from "react-native";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 
 /**
  * A single shimmer bone for skeleton loading.
@@ -132,6 +131,7 @@ export function HomeScreenSkeleton() {
 /** Skeleton for RestaurantScreen (menu loading) */
 export function RestaurantScreenSkeleton({ heroTopInset = 18 }: { heroTopInset?: number }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={{ gap: 12 }}>
       <View style={[styles.restaurantHeroWrap, { paddingTop: heroTopInset }]}> 

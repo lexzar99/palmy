@@ -34,8 +34,7 @@ import {
 } from "../lib/quickAddresses";
 import { saveGuestOrder } from "../lib/guestOrders";
 import ScalePressable from "../components/ScalePressable";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import { useTranslation } from 'react-i18next';
 import { useArabic } from '../hooks/useArabic';
 import { startOrderActivity } from '../lib/liveActivities';
@@ -197,6 +196,7 @@ export default function CartScreen({
   const { t } = useTranslation();
   const { ls } = useArabic();
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const screenTopPadding = getScreenTopPadding(insets.top);
   const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
 

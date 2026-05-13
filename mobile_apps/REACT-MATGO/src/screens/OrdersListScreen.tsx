@@ -17,8 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useArabic } from "../hooks/useArabic";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import type { Palette } from "../theme/palette";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import { getGuestOrders, removeGuestOrder, type GuestOrder } from "../lib/guestOrders";
@@ -211,6 +210,7 @@ export default function OrdersListScreen({
   const { t } = useTranslation();
   const { ls } = useArabic();
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
 

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Pressable, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getImageUrl } from '../lib/api';
-import { styles } from '../constants/theme';
-import { useTheme } from '../theme';
+import { useSharedStyles, useTheme } from '../theme';
 import type { Restaurant } from '../types';
 import RestaurantReviewsModal from './RestaurantReviewsModal';
 
@@ -32,6 +31,7 @@ export default function RestaurantInfoModal({
   onClose: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const [reviewsOpen, setReviewsOpen] = useState(false);
   if (!restaurant) return null;
 

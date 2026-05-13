@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   Animated,
+  Appearance,
   Dimensions,
   Easing,
   Platform,
@@ -9,37 +10,87 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { useAppStore } from "../store/useAppStore";
 
 const { width } = Dimensions.get("window");
 const ND = Platform.OS !== "web";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Modern dark-mode SplashLoader — visuell paritet med web's OG-image:
-//   - Mörk backdrop (#09090b)
-//   - Italic "MATGO" wordmark, "GO" i gold (#E7B24B)
-//   - Radial gold-glow bakom logotypen
-//   - Pulserande dot-indikator (ingen stor spinner)
-//   - Fade-in logo → scale-up → hold → loop dots
+// Modern theme-aware SplashLoader — visuell paritet med web's OG-image.
 //
-// OBS: native iOS/Android splash är cream (#FFF8EF) i app.json, så vi har en
-// kort cross-fade-perception när JS-bundle laddas. Det är OK — den native
-// splash försvinner direkt när detta komponent monterar.
+// OBS: SplashLoader renderas FÖRE ThemeProvider monteras (splash-gate i App.tsx
+// kör innan provider-trädet sätts upp). Därför läser vi temat direkt från
+// useAppStore istället för useTheme().
+//
+// Glow-cirkeln: tidigare scale-loop (1 ↔ 1.08) flyttade gradient-peak eftersom
+// transform-origin är center. Resultat: synlig "rör sig och resettas"-glitch.
+// Ny lösning: opacity-loop (ingen position-förändring), längre + mjukare sin-
+// liknande easing.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BG = "#09090b";
 const GOLD = "#E7B24B";
 
 const GLOW_SIZE = Math.min(width * 1.4, 560);
 
+type ThemeVariant = "light" | "dark";
+
+interface SplashTheme {
+  bg: string;
+  wordmarkPrimary: string; // "MAT"-delen
+  badgeBg: string;
+  badgeBorder: string;
+  tagline: string;
+  glowColors: [string, string, string];
+}
+
+const themes: Record<ThemeVariant, SplashTheme> = {
+  light: {
+    bg: "#FFF8EF",
+    wordmarkPrimary: "#1C1C1E",
+    badgeBg: "rgba(212,167,74,0.12)",
+    badgeBorder: "rgba(212,167,74,0.45)",
+    tagline: "rgba(28,28,30,0.7)",
+    glowColors: [
+      "rgba(231,178,75,0.35)",
+      "rgba(231,178,75,0.10)",
+      "transparent",
+    ],
+  },
+  dark: {
+    bg: "#09090b",
+    wordmarkPrimary: "#FFFFFF",
+    badgeBg: "rgba(212,167,74,0.12)",
+    badgeBorder: "rgba(212,167,74,0.4)",
+    tagline: "rgba(255,255,255,0.65)",
+    glowColors: [
+      "rgba(212,167,74,0.45)",
+      "rgba(212,167,74,0.10)",
+      "transparent",
+    ],
+  },
+};
+
+function resolveSplashVariant(preference: "light" | "dark" | "system"): ThemeVariant {
+  if (preference === "dark") return "dark";
+  if (preference === "light") return "light";
+  // system — använd Appearance synkront eftersom vi inte har ThemeProvider här
+  const system = Appearance.getColorScheme();
+  return system === "dark" ? "dark" : "light";
+}
+
 export default function SplashLoader(_props: { message?: string }) {
+  // Theme — läs direkt från store (ThemeProvider finns inte än vid splash)
+  const preference = useAppStore((s) => s.themePreference);
+  const variant = useMemo(() => resolveSplashVariant(preference), [preference]);
+  const theme = themes[variant];
+
   // Logo entrance
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.85)).current;
   const logoY = useRef(new Animated.Value(8)).current;
 
-  // Radial glow — slow breathing
+  // Radial glow — opacity-breathing istället för scale (ingen position-drift)
   const glowOpacity = useRef(new Animated.Value(0)).current;
-  const glowScale = useRef(new Animated.Value(0.7)).current;
 
   // Tagline + badge fade-in
   const badgeOpacity = useRef(new Animated.Value(0)).current;
@@ -51,78 +102,83 @@ export default function SplashLoader(_props: { message?: string }) {
   const dot3 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
-    // Glow appears first, then keeps slow-breathing
-    Animated.parallel([
-      Animated.timing(glowOpacity, {
-        toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: ND,
-      }),
-      Animated.timing(glowScale, {
-        toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: ND,
-      }),
-    ]).start(() => {
+    // ── Entrance ─────────────────────────────────────────────────────────────
+    // ~500 ms längre än innan: glow 700→1000ms, logo 520→720ms, delays +100ms
+    Animated.timing(glowOpacity, {
+      toValue: 1,
+      duration: 1000,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: ND,
+    }).start(() => {
+      // Opacity-breathing — INGEN scale = ingen position-drift = ingen glitch.
+      // Långt + symmetriskt så det känns mjukt, inte pulserande.
       Animated.loop(
         Animated.sequence([
-          Animated.timing(glowScale, { toValue: 1.08, duration: 2800, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
-          Animated.timing(glowScale, { toValue: 1, duration: 2800, easing: Easing.inOut(Easing.quad), useNativeDriver: ND }),
+          Animated.timing(glowOpacity, {
+            toValue: 0.7,
+            duration: 3200,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: ND,
+          }),
+          Animated.timing(glowOpacity, {
+            toValue: 1,
+            duration: 3200,
+            easing: Easing.inOut(Easing.sin),
+            useNativeDriver: ND,
+          }),
         ]),
       ).start();
     });
 
-    // Logo entrance — delayed slightly so the glow sets the stage
+    // Logo entrance — delayed slightly så glow sätter scenen
     Animated.sequence([
-      Animated.delay(180),
+      Animated.delay(280),
       Animated.parallel([
-        Animated.timing(logoOpacity, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
-        Animated.timing(logoScale, { toValue: 1, duration: 640, easing: Easing.out(Easing.back(1.1)), useNativeDriver: ND }),
-        Animated.timing(logoY, { toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 720, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
+        Animated.timing(logoScale, { toValue: 1, duration: 840, easing: Easing.out(Easing.back(1.1)), useNativeDriver: ND }),
+        Animated.timing(logoY, { toValue: 0, duration: 720, easing: Easing.out(Easing.cubic), useNativeDriver: ND }),
       ]),
     ]).start();
 
-    // Badge appears after logo
-    Animated.sequence([
-      Animated.delay(580),
-      Animated.timing(badgeOpacity, { toValue: 1, duration: 400, useNativeDriver: ND }),
-    ]).start();
-
-    // Tagline appears last
+    // Badge efter logo
     Animated.sequence([
       Animated.delay(780),
-      Animated.timing(taglineOpacity, { toValue: 1, duration: 460, useNativeDriver: ND }),
+      Animated.timing(badgeOpacity, { toValue: 1, duration: 480, useNativeDriver: ND }),
+    ]).start();
+
+    // Tagline sist
+    Animated.sequence([
+      Animated.delay(1000),
+      Animated.timing(taglineOpacity, { toValue: 1, duration: 540, useNativeDriver: ND }),
     ]).start();
 
     // Dots — staggered pulse, loops indefinitely
     const pulseDot = (anim: Animated.Value, delay: number) => {
       const pulse = () =>
         Animated.sequence([
-          Animated.timing(anim, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: ND }),
-          Animated.timing(anim, { toValue: 0.3, duration: 420, easing: Easing.in(Easing.quad), useNativeDriver: ND }),
+          Animated.timing(anim, { toValue: 1, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: ND }),
+          Animated.timing(anim, { toValue: 0.3, duration: 500, easing: Easing.inOut(Easing.sin), useNativeDriver: ND }),
         ]);
       Animated.sequence([Animated.delay(delay), Animated.loop(pulse())]).start();
     };
-    pulseDot(dot1, 900);
-    pulseDot(dot2, 1050);
-    pulseDot(dot3, 1200);
+    pulseDot(dot1, 1200);
+    pulseDot(dot2, 1380);
+    pulseDot(dot3, 1560);
   }, []);
 
   return (
-    <View style={styles.container}>
-      {/* Radial gold glow — uppe till höger, paritet med OG-image */}
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
+      {/* Radial gold glow — uppe till höger, paritet med OG-image.
+          Ingen scale-animation = ingen position-drift. Bara opacity-breathing. */}
       <Animated.View
         pointerEvents="none"
         style={[
           styles.glowWrap,
-          {
-            opacity: glowOpacity,
-            transform: [{ scale: glowScale }],
-          },
+          { opacity: glowOpacity },
         ]}
       >
         <LinearGradient
-          colors={[
-            "rgba(212,167,74,0.45)",
-            "rgba(212,167,74,0.10)",
-            "transparent",
-          ]}
+          colors={theme.glowColors}
           locations={[0, 0.4, 0.75]}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 1, y: 1 }}
@@ -133,7 +189,16 @@ export default function SplashLoader(_props: { message?: string }) {
       {/* Centerblock — badge + wordmark + tagline */}
       <View style={styles.center}>
         {/* Badge */}
-        <Animated.View style={[styles.badge, { opacity: badgeOpacity }]}>
+        <Animated.View
+          style={[
+            styles.badge,
+            {
+              opacity: badgeOpacity,
+              backgroundColor: theme.badgeBg,
+              borderColor: theme.badgeBorder,
+            },
+          ]}
+        >
           <Text style={styles.badgeText}>BESTÄLLNINGSPLATTFORM</Text>
         </Animated.View>
 
@@ -147,13 +212,18 @@ export default function SplashLoader(_props: { message?: string }) {
             ],
           }}
         >
-          <Text style={styles.wordmark}>
+          <Text style={[styles.wordmark, { color: theme.wordmarkPrimary }]}>
             MAT<Text style={styles.wordmarkGold}>GO</Text>
           </Text>
         </Animated.View>
 
         {/* Tagline */}
-        <Animated.Text style={[styles.tagline, { opacity: taglineOpacity }]}>
+        <Animated.Text
+          style={[
+            styles.tagline,
+            { opacity: taglineOpacity, color: theme.tagline },
+          ]}
+        >
           Mat från dem bästa av dem bästa
         </Animated.Text>
       </View>
@@ -184,7 +254,6 @@ export default function SplashLoader(_props: { message?: string }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: BG,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
@@ -208,8 +277,6 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(212,167,74,0.4)",
-    backgroundColor: "rgba(212,167,74,0.12)",
     marginBottom: 24,
   },
   badgeText: {
@@ -224,7 +291,6 @@ const styles = StyleSheet.create({
     fontSize: 76,
     fontWeight: "900",
     fontStyle: "italic",
-    color: "#FFFFFF",
     letterSpacing: -3.5,
     lineHeight: 80,
     textAlign: "center",
@@ -235,7 +301,6 @@ const styles = StyleSheet.create({
   tagline: {
     fontFamily: "Outfit_700Bold",
     marginTop: 22,
-    color: "rgba(255,255,255,0.65)",
     fontSize: 14,
     fontWeight: "700",
     letterSpacing: 0.2,

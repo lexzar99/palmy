@@ -10,8 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../lib/api";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import { Header, ScreenWrap } from "../components/ui";
 
 // Glömt-lösenord-flöde — steg 2 av 2.
@@ -30,6 +29,7 @@ export default function ResetPasswordScreen({
   onResetComplete: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);

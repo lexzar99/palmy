@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, FlatList, Pressable, Modal } from 'react-native';
-import { styles } from '../constants/theme';
+import { useSharedStyles } from '../theme';
 import type { City } from '../types';
 
 export default function CityModal({
@@ -16,6 +16,7 @@ export default function CityModal({
   onClose: () => void;
   onSelect: (city: City) => void;
 }) {
+  const styles = useSharedStyles();
   return (
     <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.modalBackdrop}>

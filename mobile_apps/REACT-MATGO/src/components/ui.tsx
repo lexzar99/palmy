@@ -21,8 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
-import { styles } from "../constants/theme";
-import { useTheme } from "../theme";
+import { useSharedStyles, useTheme } from "../theme";
 import { getImageUrl } from "../lib/api";
 import ScalePressable from "./ScalePressable";
 import StarRating from "./StarRating";
@@ -101,6 +100,7 @@ export function Header({
   onBack?: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.header}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
@@ -121,6 +121,7 @@ export function Header({
 // ─── ScreenWrap ────────────────────────────────────────────────────────────────
 export function ScreenWrap({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
+  const styles = useSharedStyles();
 
   return (
     <ScrollView
@@ -347,6 +348,7 @@ export function SectionTitle({
   actionLabel?: string;
   onPress?: () => void;
 }) {
+  const styles = useSharedStyles();
   return (
     <View style={styles.sectionTitleRow}>
       <Text style={styles.sectionHeading}>{title}</Text>
@@ -369,6 +371,7 @@ export function ToggleChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useSharedStyles();
   return (
     <ScalePressable style={[styles.chip, active && styles.chipActive]} onPress={onPress}>
       <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
@@ -385,6 +388,7 @@ export function Badge({
   tone: "success" | "danger" | "gold" | "info";
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   const map = {
     success: { bg: "rgba(52,199,89,0.14)", text: palette.success },
     danger: { bg: "rgba(255,107,107,0.14)", text: palette.danger },
@@ -409,6 +413,7 @@ export function Counter({
   onIncrease: () => void;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.counter}>
       <Pressable onPress={onDecrease}>
@@ -433,6 +438,7 @@ export function SummaryRow({
   highlight?: boolean;
 }) {
   const { palette } = useTheme();
+  const styles = useSharedStyles();
   return (
     <View style={styles.inlineSummary}>
       <Text style={[styles.summaryLabel, highlight && { color: palette.text }]}>{label}</Text>
@@ -443,6 +449,7 @@ export function SummaryRow({
 
 // ─── EmptyPanel ────────────────────────────────────────────────────────────────
 export function EmptyPanel({ label }: { label: string }) {
+  const styles = useSharedStyles();
   return (
     <View style={styles.emptyPanel}>
       <Text style={styles.helperText}>{label}</Text>
