@@ -30,14 +30,16 @@ const COUNTRY_CODES = [
 ];
 
 /**
- * Hard phone-verification gate.
+ * Phone + name gate.
  *
  * Rendered at App level whenever the active session is an OAuth account
- * (Apple/Google) without a verified phone. The user can ONLY:
- *   - Verify a phone via Twilio OTP, or
+ * (Apple/Google) without a phone number on the profile, or without a
+ * structured first/last name. The user can ONLY:
+ *   - Save phone (+ name if missing) directly via /api/profile/link-phone, or
  *   - Sign out and try again.
  *
- * The rest of the app is hidden behind this until the gate clears.
+ * NOTE: SMS/OTP verifiering är borttaget från plattformen — telefon
+ * sparas som kontaktinfo utan kod-verifiering.
  */
 export default function PhoneGateScreen() {
   const token = useAppStore((s) => s.token);
@@ -45,14 +47,11 @@ export default function PhoneGateScreen() {
   const setProfile = useAppStore((s) => s.setProfile);
   const clearSession = useAppStore((s) => s.clearSession);
 
-  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [countryCode, setCountryCode] = useState("+46");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [otpPhone, setOtpPhone] = useState("");
-  const [otpCode, setOtpCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -68,8 +67,8 @@ export default function PhoneGateScreen() {
   const profileComplete = (profile as any)?.profileComplete === true
     || (!!profileFirst && !!profileLast);
   const needsName = !profileComplete;
-  // When the user already has a verified phone but no name, this screen
-  // becomes a name-only gate. Skip the SMS step entirely.
+  // When the user already has a phone but no name, this screen becomes a
+  // name-only gate.
   const nameOnlyMode = !((profile as any)?.needsPhone) && needsName;
   const greetingName = profileFirst || profileLast
     ? [profileFirst, profileLast].filter(Boolean).join(" ")
@@ -103,7 +102,7 @@ export default function PhoneGateScreen() {
   const buildPhone = (cc: string, raw: string) =>
     `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
-  const sendOtp = useCallback(async () => {
+  const savePhoneAndName = useCallback(async () => {
     if (needsName && (!firstName.trim() || !lastName.trim())) {
       setError(!firstName.trim() ? "Ange ditt förnamn" : "Ange ditt efternamn");
       return;
@@ -116,59 +115,37 @@ export default function PhoneGateScreen() {
     setLoading(true);
     setError("");
     try {
-      const { data } = await api.post(
-        "/api/auth/send-otp",
-        { phone: full },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (data?.devCode) setOtpCode(data.devCode);
-      setOtpPhone(full);
-      setStep("otp");
-    } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Kunde inte skicka SMS");
-    } finally {
-      setLoading(false);
-    }
-  }, [phone, countryCode, token, firstName, lastName, needsName]);
-
-  const verifyOtp = useCallback(async () => {
-    if (!otpCode.trim() || !token) {
-      setError("Ange koden från SMS:et");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      await api.post(
-        "/api/auth/verify-otp",
-        { phone: otpPhone, code: otpCode },
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      // Save first/last name if the user just provided them on this screen.
+      // Save name first if needed (so backend has full identity before
+      // we attach phone to the account).
       const first = firstName.trim();
       const last = lastName.trim();
-      if (first || last) {
-        const joined = [first, last].filter(Boolean).join(" ");
+      if (needsName && (first || last)) {
         await api.patch(
           "/api/profile",
           {
             firstName: first || undefined,
             lastName: last || undefined,
-            name: joined || undefined,
+            name: [first, last].filter(Boolean).join(" ") || undefined,
           },
           { headers: { Authorization: `Bearer ${token}` } },
-        ).catch(() => null);
+        );
       }
+      // Save phone directly — ingen OTP-verifiering, det är borttaget.
+      await api.post(
+        "/api/profile/link-phone",
+        { phone: full },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       const profileRes = await api.get("/api/profile", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setProfile(profileRes.data);
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Felaktig kod");
+      setError(e?.response?.data?.error || e?.message || "Kunde inte spara telefonnummer");
     } finally {
       setLoading(false);
     }
-  }, [otpCode, otpPhone, token, firstName, lastName, setProfile]);
+  }, [phone, countryCode, token, firstName, lastName, needsName, setProfile]);
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut().catch(() => null);
@@ -176,9 +153,6 @@ export default function PhoneGateScreen() {
   }, [clearSession]);
 
   const topInset = Platform.OS === "ios" ? 16 : (StatusBar.currentHeight || 0) + 16;
-  const masked = profile?.email
-    ? profile.email
-    : profile?.name || "ditt konto";
 
   return (
     <View style={{ flex: 1, backgroundColor: "#07060c" }}>
@@ -209,7 +183,7 @@ export default function PhoneGateScreen() {
               <Ionicons name="restaurant" size={18} color={palette.gold} />
             </View>
             <Text style={{ color: palette.gold, fontSize: 20, fontWeight: "900", letterSpacing: -0.5, fontStyle: "italic", marginLeft: 10 }}>
-              FoodGo
+              MatGo
             </Text>
             <Pressable
               onPress={handleSignOut}
@@ -251,16 +225,16 @@ export default function PhoneGateScreen() {
             {nameOnlyMode ? (
               <>Vad heter{"\n"}<Text style={{ color: palette.gold }}>du?</Text></>
             ) : (
-              <>Verifiera ditt{"\n"}<Text style={{ color: palette.gold }}>telefonnummer</Text></>
+              <>Lägg till ditt{"\n"}<Text style={{ color: palette.gold }}>telefonnummer</Text></>
             )}
           </Text>
           <Text style={{ color: palette.muted, fontSize: 14, fontWeight: "500", lineHeight: 22, marginBottom: 28 }}>
             {nameOnlyMode
               ? "Apple delade inte ditt namn. Fyll i för- och efternamn så vi kan visa dig korrekt i appen."
-              : "Vi skickar en kod via SMS för att verifiera numret till ditt konto."}
+              : "Vi använder numret för leveransuppdateringar och som kontaktinfo för kuriren."}
           </Text>
 
-          {step === "phone" && nameOnlyMode && (
+          {nameOnlyMode ? (
             <View style={{ gap: 12 }}>
               <TextInput
                 style={{
@@ -297,9 +271,7 @@ export default function PhoneGateScreen() {
                 onSubmitEditing={saveNameOnly}
               />
             </View>
-          )}
-
-          {step === "phone" && !nameOnlyMode && (
+          ) : (
             <View style={{ gap: 12 }}>
               {needsName && (
                 <>
@@ -365,7 +337,7 @@ export default function PhoneGateScreen() {
                   keyboardType="phone-pad"
                   value={phone}
                   onChangeText={(t) => { setPhone(t); setError(""); }}
-                  onSubmitEditing={sendOtp}
+                  onSubmitEditing={savePhoneAndName}
                   autoFocus
                 />
               </View>
@@ -430,39 +402,6 @@ export default function PhoneGateScreen() {
             </View>
           )}
 
-          {step === "otp" && (
-            <View
-              style={{
-                backgroundColor: palette.panelMuted,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: palette.border,
-                padding: 6,
-                marginBottom: 8,
-              }}
-            >
-              <TextInput
-                style={{
-                  color: palette.gold,
-                  fontSize: 30,
-                  fontWeight: "900",
-                  textAlign: "center",
-                  letterSpacing: 12,
-                  paddingVertical: 18,
-                  paddingHorizontal: 14,
-                }}
-                placeholder="——————"
-                placeholderTextColor="rgba(234,181,69,0.2)"
-                keyboardType="number-pad"
-                maxLength={6}
-                value={otpCode}
-                onChangeText={(t) => { setOtpCode(t); setError(""); }}
-                onSubmitEditing={verifyOtp}
-                autoFocus
-              />
-            </View>
-          )}
-
           {!!error && (
             <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)", marginTop: 12 }}>
               <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
@@ -470,7 +409,7 @@ export default function PhoneGateScreen() {
           )}
 
           <Pressable
-            onPress={nameOnlyMode ? saveNameOnly : (step === "otp" ? verifyOtp : sendOtp)}
+            onPress={nameOnlyMode ? saveNameOnly : savePhoneAndName}
             disabled={loading}
             style={{
               backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18,
@@ -483,23 +422,17 @@ export default function PhoneGateScreen() {
               : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons
-                    name={nameOnlyMode ? "checkmark-circle-outline" : (step === "otp" ? "shield-checkmark-outline" : "send-outline")}
+                    name={nameOnlyMode ? "checkmark-circle-outline" : "checkmark-circle-outline"}
                     size={18}
                     color="#000"
                   />
                   <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>
-                    {nameOnlyMode ? "Spara" : (step === "otp" ? "Verifiera kod" : "Skicka SMS-kod")}
+                    {nameOnlyMode ? "Spara" : "Spara och fortsätt"}
                   </Text>
                 </View>
               )
             }
           </Pressable>
-
-          {!nameOnlyMode && step === "otp" && (
-            <Pressable onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }} style={{ alignItems: "center", marginTop: 14, paddingVertical: 8 }}>
-              <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>Använd ett annat nummer</Text>
-            </Pressable>
-          )}
         </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
