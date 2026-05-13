@@ -136,7 +136,7 @@ function SocialButton({
   label,
   icon,
 }: {
-  provider: "google" | "facebook" | "apple";
+  provider: "google" | "apple";
   label: string;
   icon: React.ReactNode;
 }) {
@@ -155,10 +155,6 @@ function SocialButton({
       // namn + email (annars hamnar profilen i "Komplettera namn"-läge).
       if (provider === "apple") {
         options.scopes = "name email";
-      } else if (provider === "facebook") {
-        // Facebook returnerar first_name/last_name som user_metadata om vi ber
-        // om public_profile. email scope krävs för att få användarens mail.
-        options.scopes = "email,public_profile";
       } else if (provider === "google") {
         options.scopes = "email profile openid";
       }
@@ -412,7 +408,7 @@ function ProfileContent() {
     let exchanging = false;
 
     /**
-     * När Supabase säger att vi är inloggade (Google/Apple/Facebook OAuth) har
+     * När Supabase säger att vi är inloggade (Google/Apple OAuth) har
      * vi BARA en Supabase-session — inte vårt platform-JWT som backend kräver
      * för /api/platform/profile. Vi måste BYTA Supabase-token mot platform-
      * token via POST /api/auth/oauth-token.
@@ -772,7 +768,7 @@ function ProfileContent() {
             </div>
           </div>
 
-          {/* Social buttons — Supabase OAuth. Facebook kommer senare. */}
+          {/* Social buttons — Supabase OAuth. Apple + Google only. */}
           <div className="grid grid-cols-2 gap-3">
             <SocialButton
               provider="apple"

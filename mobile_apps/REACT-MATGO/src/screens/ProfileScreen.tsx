@@ -76,13 +76,16 @@ type ProfileScreenCache = {
 
 export default function ProfileScreen({
   openRegister,
-  openEmailLogin,
+  openForgotPassword,
   openOrder,
   openCart,
   openDeal,
 }: {
   openRegister: (initialPhone?: string) => void;
-  openEmailLogin?: () => void;
+  // openEmailLogin is no longer used — email/password is now inline in the
+  // guest view (mirrors web /profile). Kept off the type so callers stop
+  // passing it; the route still exists in App.tsx for legacy deep links.
+  openForgotPassword?: () => void;
   openOrder: (id: string) => void;
   openCart: () => void;
   openDeal?: (id: string) => void;
@@ -105,6 +108,8 @@ export default function ProfileScreen({
   const clearCart = useAppStore((s) => s.clearCart);
   const deliveryAddress = useAppStore((s) => s.deliveryAddress);
   const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
+  const themePreference = useAppStore((s) => s.themePreference);
+  const setThemePreference = useAppStore((s) => s.setThemePreference);
   const cacheKey = token || "__guest__";
   const cachedData = token ? getScreenCache<ProfileScreenCache>("profile", cacheKey) : null;
   const initialProfileFetchShouldShowLoader = useRef(!cachedData).current;
@@ -116,12 +121,13 @@ export default function ProfileScreen({
   const [availableDeals, setAvailableDeals] = useState<any[]>([]);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => cachedData?.savedAddresses || []);
-  const [phone, setPhone] = useState("");
-  const [countryCode, setCountryCode] = useState("+46");
   const [pageLoading, setPageLoading] = useState(() => (token ? !cachedData : false));
   const [authLoading, setAuthLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [socialLoading, setSocialLoading] = useState<"google" | "facebook" | "apple" | null>(null);
+  // Email + password inline login (mirrors web's profile login form).
+  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [socialLoading, setSocialLoading] = useState<"google" | "apple" | null>(null);
   // Apple-name gate (only fires when /api/profile.needsName === true).
   const [showAddName, setShowAddName] = useState(false);
   const [addFirstName, setAddFirstName] = useState("");
@@ -444,87 +450,62 @@ export default function ProfileScreen({
     }
   }, [activeTab]);
 
-  // Phone-only login is no longer supported (Twilio OTP endpoints removed —
-  // see project memory "OTP/SMS-verifiering är borttagen"). Guest "CONTINUE"
-  // routes everyone to the register flow with their phone prefilled. OAuth
-  // users without a phone add it via settings → edit profile, which calls
-  // /api/profile/link-phone directly.
-  const handleContinueWithPhone = useCallback(() => {
-    if (!phone.trim()) {
-      Alert.alert("Nummer krävs", "Ange ditt telefonnummer.");
+  // Email + password login — mirrors web's POST /api/account/login-user flow
+  // (apps/web/app/profile/page.tsx → handleEmailLogin). The backend route
+  // accepts either email or phone in `identifier`. OAuth users without a
+  // phone add it via settings → edit profile, which calls
+  // /api/profile/link-phone directly (no OTP/SMS verification — see project
+  // memory "OTP/SMS-verifiering är borttagen").
+  const handleEmailLogin = useCallback(async () => {
+    setLoginError("");
+    const identifier = loginIdentifier.trim();
+    if (!identifier) {
+      setLoginError("Ange din e-post");
       return;
     }
-    const internationalPhone = buildInternationalPhone(countryCode, phone);
-    if (!normalizePhone(internationalPhone)) {
-      Alert.alert("Nummer krävs", "Ange ett giltigt telefonnummer.");
+    if (!loginPassword) {
+      setLoginError("Ange ditt lösenord");
       return;
     }
-    openRegister(internationalPhone);
-  }, [buildInternationalPhone, countryCode, normalizePhone, openRegister, phone]);
+    setAuthLoading(true);
+    try {
+      const { data } = await api.post("/api/account/login-user", {
+        identifier,
+        password: loginPassword,
+      });
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
+      setToken(tok);
+      try {
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        setProfile(profileRes.data);
+      } catch {
+        if (data?.user) setProfile(data.user);
+      }
+      fetchProfileData(tok);
+    } catch (e: any) {
+      if (e?.response?.status === 401) {
+        setLoginError("Felaktig email eller lösenord");
+      } else {
+        setLoginError(e?.response?.data?.error || e?.message || "Inloggning misslyckades");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }, [loginIdentifier, loginPassword, setProfile, setToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSocialLogin = useCallback(
-    async (provider: "google" | "facebook" | "apple") => {
+    async (provider: "google" | "apple") => {
       setSocialLoading(provider);
       if (provider === "google") {
         await googlePrompt();
-      } else if (provider === "apple") {
-        await applePrompt();
       } else {
-        try {
-          const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
-            provider: "facebook",
-            options: {
-              redirectTo: SUPABASE_REDIRECT_URL,
-              skipBrowserRedirect: true,
-              // Scopes så Facebook ger first_name/last_name + email i
-              // user_metadata. Backend mappar dessa exakt som Google/Apple,
-              // sen tar PhoneGateScreen vid om telefon saknas.
-              scopes: "email,public_profile",
-            },
-          });
-          if (oauthErr || !data.url) throw oauthErr ?? new Error("No OAuth URL");
-          const result = await WebBrowser.openAuthSessionAsync(data.url, SUPABASE_REDIRECT_URL);
-          if (result.type === "success" && result.url) {
-            const {
-              code,
-              accessToken,
-              refreshToken,
-              error: authError,
-            } = parseAuthRedirect(result.url);
-            if (authError) throw new Error(authError);
-
-            let sessionAccessToken: string | undefined;
-
-            if (accessToken && refreshToken) {
-              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (sessionError) throw sessionError;
-              sessionAccessToken = sessionData.session?.access_token;
-            } else if (code) {
-              const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-              if (sessionError) throw sessionError;
-              sessionAccessToken = sessionData.session?.access_token;
-            }
-
-            if (sessionAccessToken) {
-              const profileRes = await api.get("/api/profile", {
-                headers: { Authorization: `Bearer ${sessionAccessToken}` },
-              });
-              setToken(sessionAccessToken);
-              setProfile(profileRes.data);
-              fetchProfileData(sessionAccessToken);
-            }
-          }
-        } catch {
-          Alert.alert("Inloggning misslyckades", "Kontrollera anslutningen och försök igen.");
-        } finally {
-          setSocialLoading(null);
-        }
+        await applePrompt();
       }
     },
-    [googlePrompt, applePrompt, fetchProfileData, setToken, setProfile]
+    [googlePrompt, applePrompt]
   );
 
   const handleLogout = useCallback(async () => {
@@ -742,47 +723,60 @@ export default function ProfileScreen({
             {t('profile.guest.description').toUpperCase()}
           </Animated.Text>
 
-          {/* Form card + buttons — slide up together */}
+          {/* Form card + buttons — slide up together. Email + password layout
+              mirrors web's /profile guest view (Email → Lösenord → Logga in →
+              Glömt lösenord? → Eller med socialt konto → Apple/Google). */}
           <Animated.View style={{ opacity: guestCardOpacity, transform: [{ translateY: guestCardY }] }}>
             <View style={[styles.formCard, { borderRadius: 30, marginTop: 24, padding: 20 }]}>
-              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 12 }}>{t('profile.overview.phone').toUpperCase()}</Text>
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <Pressable
-                  onPress={() => {
-                    const currentIndex = COUNTRY_CODES.findIndex((item) => item.code === countryCode);
-                    const next = COUNTRY_CODES[(currentIndex + 1) % COUNTRY_CODES.length];
-                    setCountryCode(next.code);
-                  }}
-                  style={{
-                    width: 100, borderRadius: 18,
-                    backgroundColor: palette.card, borderWidth: 1, borderColor: palette.border,
-                    paddingHorizontal: 12, paddingVertical: 18,
-                    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-                  }}
-                >
-                  <Text style={{ fontSize: 20 }}>{COUNTRY_CODES.find((item) => item.code === countryCode)?.flag || "🇸🇪"}</Text>
-                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>{countryCode}</Text>
-                </Pressable>
+              {/* Email */}
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 8, marginLeft: 4 }}>EMAIL</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: 12, fontSize: 16, fontWeight: "700", paddingVertical: 18 }]}
+                placeholder="din@email.se"
+                placeholderTextColor={palette.muted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoComplete="email"
+                textContentType="emailAddress"
+                value={loginIdentifier}
+                onChangeText={(v) => { setLoginIdentifier(v); if (loginError) setLoginError(""); }}
+              />
 
-                <View style={{ flex: 1 }}>
-                  <TextInput
-                    style={[styles.input, { marginBottom: 0, fontSize: 18, fontWeight: "800", paddingVertical: 18 }]}
-                    placeholder="070 000 00 00"
-                    placeholderTextColor={palette.muted}
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                </View>
-              </View>
+              {/* Lösenord */}
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), marginBottom: 8, marginLeft: 4 }}>LÖSENORD</Text>
+              <TextInput
+                style={[styles.input, { marginBottom: 0, fontSize: 16, fontWeight: "700", paddingVertical: 18 }]}
+                placeholder="••••••••"
+                placeholderTextColor={palette.muted}
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                textContentType="password"
+                value={loginPassword}
+                onChangeText={(v) => { setLoginPassword(v); if (loginError) setLoginError(""); }}
+                onSubmitEditing={handleEmailLogin}
+              />
 
               {!!loginError && <Text style={{ color: palette.danger, fontSize: 11, fontWeight: "800", marginTop: 14, textAlign: "center" }}>{loginError}</Text>}
 
-              <PrimaryButton label={authLoading ? t('common.loading') : t('common.continue').toUpperCase()} onPress={handleContinueWithPhone} disabled={authLoading} style={{ marginTop: 18 }} />
+              <PrimaryButton
+                label={authLoading ? t('common.loading') : "Logga in"}
+                onPress={handleEmailLogin}
+                disabled={authLoading}
+                style={{ marginTop: 18 }}
+              />
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 28, marginBottom: 18 }}>
+              {openForgotPassword && (
+                <Pressable onPress={openForgotPassword} style={{ alignItems: "center", marginTop: 12, paddingVertical: 6 }}>
+                  <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "900", letterSpacing: ls(1.6) }}>
+                    GLÖMT LÖSENORD?
+                  </Text>
+                </Pressable>
+              )}
+
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 22, marginBottom: 18 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>{t('common.or')}</Text>
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>ELLER MED SOCIALT KONTO</Text>
                 <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
               </View>
 
@@ -796,38 +790,27 @@ export default function ProfileScreen({
                 />
               )}
 
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                {(["google", "facebook"] as const).map((provider) => (
-                  <Animated.View key={provider} style={provider === "google" ? { flex: 1, transform: [{ scale: googleGuestScale }] } : { flex: 1 }}>
-                    <Pressable
-                      onPress={() => handleSocialLogin(provider)}
-                      onPressIn={provider === "google" ? () => Animated.spring(googleGuestScale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start() : undefined}
-                      onPressOut={provider === "google" ? () => Animated.spring(googleGuestScale, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start() : undefined}
-                      style={{
-                        backgroundColor: palette.card, borderRadius: 24, borderWidth: 1, borderColor: palette.border,
-                        paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-                        opacity: socialLoading !== null && socialLoading !== provider ? 0.6 : 1,
-                      }}
-                    >
-                      <Ionicons
-                        name={socialLoading === provider ? "hourglass-outline" : provider === "google" ? "logo-google" : "logo-facebook"}
-                        size={20}
-                        color={provider === "facebook" ? "#1877f2" : "#DB4437"}
-                      />
-                      <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>{provider.toUpperCase()}</Text>
-                    </Pressable>
-                  </Animated.View>
-                ))}
-              </View>
+              {/* Google (Facebook removed — only Google + Apple supported) */}
+              <Animated.View style={{ transform: [{ scale: googleGuestScale }] }}>
+                <Pressable
+                  onPress={() => handleSocialLogin("google")}
+                  onPressIn={() => Animated.spring(googleGuestScale, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                  onPressOut={() => Animated.spring(googleGuestScale, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                  style={{
+                    backgroundColor: palette.card, borderRadius: 24, borderWidth: 1, borderColor: palette.border,
+                    paddingVertical: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+                    opacity: socialLoading !== null && socialLoading !== "google" ? 0.6 : 1,
+                  }}
+                >
+                  <Ionicons
+                    name={socialLoading === "google" ? "hourglass-outline" : "logo-google"}
+                    size={20}
+                    color="#DB4437"
+                  />
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900" }}>GOOGLE</Text>
+                </Pressable>
+              </Animated.View>
             </View>
-
-            {openEmailLogin && (
-              <Pressable style={{ marginTop: 18, paddingVertical: 6 }} onPress={openEmailLogin}>
-                <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center", letterSpacing: 1.2 }}>
-                  ELLER <Text style={{ color: palette.gold }}>LOGGA IN MED EMAIL</Text>
-                </Text>
-              </Pressable>
-            )}
 
             <Pressable style={{ marginTop: 18 }} onPress={() => openRegister()}>
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "900", textAlign: "center" }}>
@@ -1290,6 +1273,58 @@ export default function ProfileScreen({
               </View>
             </Pressable>
           </View>
+
+          {/* Tema-väljare — paritet med web (sun/moon-knapp i navbaren).
+              OBS: Den delade `styles`-StyleSheet:en i constants/theme.ts är
+              fortfarande hårdkodat ljus och används av ~18 komponenter, så
+              dark mode visar cream-bg-fläckar tills de migrerats. Användaren
+              varnas via not-texten under knapparna. */}
+          <View style={[styles.formCard, { borderRadius: 30, padding: 20, gap: 12 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Tema</Text>
+              <Ionicons
+                name={themePreference === "dark" ? "moon-outline" : themePreference === "system" ? "phone-portrait-outline" : "sunny-outline"}
+                size={18}
+                color={palette.muted}
+              />
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {([
+                { id: "light", label: "Ljus", icon: "sunny-outline" as const },
+                { id: "dark", label: "Mörk", icon: "moon-outline" as const },
+                { id: "system", label: "System", icon: "phone-portrait-outline" as const },
+              ] as const).map((opt) => {
+                const active = themePreference === opt.id;
+                return (
+                  <Pressable
+                    key={opt.id}
+                    onPress={() => setThemePreference(opt.id)}
+                    style={{
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      paddingVertical: 12,
+                      borderRadius: 16,
+                      backgroundColor: active ? "rgba(234,181,69,0.12)" : palette.panelMuted,
+                      borderWidth: 1,
+                      borderColor: active ? palette.gold : palette.border,
+                    }}
+                  >
+                    <Ionicons name={opt.icon} size={14} color={active ? palette.gold : palette.muted} />
+                    <Text style={{ color: active ? palette.gold : palette.text, fontSize: 11, fontWeight: "900", letterSpacing: ls(1) }}>
+                      {opt.label.toUpperCase()}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", lineHeight: 14 }}>
+              Mörkt läge är experimentellt — vissa delar kan se ljusare ut än andra.
+            </Text>
+          </View>
+
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
             <Pressable
               onPress={() => {

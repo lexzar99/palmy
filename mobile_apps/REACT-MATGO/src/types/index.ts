@@ -303,4 +303,13 @@ export interface AppStoreState {
   /** True once the user has completed or dismissed the first-launch onboarding */
   onboardingComplete: boolean;
   setOnboardingComplete: (value: boolean) => void;
+  /**
+   * User's preferred color scheme. 'light' is default since the shared
+   * `styles` StyleSheet in constants/theme.ts is still light-only and used
+   * by many components — dark mode is therefore experimental and may show
+   * cream-bg patches inside dark UI until those components migrate to
+   * palette-driven colors.
+   */
+  themePreference: "light" | "dark" | "system";
+  setThemePreference: (preference: "light" | "dark" | "system") => void;
 }

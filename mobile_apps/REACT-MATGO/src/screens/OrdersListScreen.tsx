@@ -409,7 +409,7 @@ export default function OrdersListScreen({
                 lineHeight: 16,
               }}
             >
-              Sparas lokalt på din enhet — logga in för att synka mellan enheter.
+              Dina ordrar sparas här.
             </Text>
           </View>
         )}

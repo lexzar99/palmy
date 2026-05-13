@@ -77,7 +77,7 @@ import {
 import { AppStripeProvider, useAppPaymentSheet } from "./src/lib/stripeProvider";
 import { startOrderActivity, updateOrderActivity, endOrderActivity } from "./src/lib/liveActivities";
 import { palette, styles } from "./src/constants/theme";
-import { ThemeProvider, setBrandFontLoaded } from "./src/theme";
+import { ThemeProvider, setBrandFontLoaded, useThemeMode } from "./src/theme";
 import { useAppStore } from "./src/store/useAppStore";
 import { usePushNotifications } from "./src/hooks/usePushNotifications";
 import { useOrderActivitySync } from "./src/hooks/useOrderActivitySync";
@@ -1101,7 +1101,7 @@ function AppContent() {
                 {() => (
                   <ProfileScreen
                     openRegister={(initialPhone) => pushRoute({ name: "register", initialPhone } as any)}
-                    openEmailLogin={() => pushRoute({ name: "email-login" } as any)}
+                    openForgotPassword={() => pushRoute({ name: "forgot-password" } as any)}
                     openOrder={(id) => pushRoute({ name: "order", id } as any)}
                     openCart={() => openRoot("cart")}
                     openDeal={(id) => pushRoute({ name: "deal", id } as any)}
@@ -1272,15 +1272,34 @@ function App() {
         <I18nextProvider i18n={i18nInstance}>
           <SafeAreaProvider>
             <AppStripeProvider publishableKey={STRIPE_PUBLISHABLE_KEY} urlScheme="foodgo">
-              <ThemeProvider>
-                <AppContent key={appKey} />
-              </ThemeProvider>
+              <ThemedRoot appKey={appKey} />
             </AppStripeProvider>
           </SafeAreaProvider>
         </I18nextProvider>
       </ErrorBoundary>
     </RestartContext.Provider>
   );
+}
+
+// Subscribes ThemeProvider's preference to the persisted store. Reads the
+// user's chosen theme (light/dark/system) from useAppStore and re-syncs the
+// provider whenever it changes (settings toggle, app launch after hydrate).
+function ThemedRoot({ appKey }: { appKey: number }) {
+  const themePreference = useAppStore((s) => s.themePreference);
+  return (
+    <ThemeProvider initialMode={themePreference || "light"}>
+      <ThemeBridge preference={themePreference || "light"} />
+      <AppContent key={appKey} />
+    </ThemeProvider>
+  );
+}
+
+function ThemeBridge({ preference }: { preference: "light" | "dark" | "system" }) {
+  const { setMode, preference: providerPref } = useThemeMode();
+  React.useEffect(() => {
+    if (preference !== providerPref) setMode(preference);
+  }, [preference, providerPref, setMode]);
+  return null;
 }
 
 export default sentryWrap(App);

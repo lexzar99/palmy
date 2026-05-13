@@ -1,6 +1,5 @@
 import NextAuth, { DefaultSession } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import FacebookProvider from "next-auth/providers/facebook";
 import AppleProvider from "next-auth/providers/apple";
 import axios from "axios";
 
@@ -102,7 +101,6 @@ function createAuthHandler() {
     throw new Error("NEXTAUTH_SECRET saknas i miljövariabler");
   }
   const googleCredentials = getProviderCredentials("Google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET");
-  const facebookCredentials = getProviderCredentials("Facebook", "FACEBOOK_CLIENT_ID", "FACEBOOK_CLIENT_SECRET");
   // Apple kräver Service ID + JWT-baserad client secret (genererad från Apple privata nyckel).
   // Sätt APPLE_CLIENT_ID = Service ID, APPLE_CLIENT_SECRET = JWT (giltig 6 mån max).
   const appleCredentials = getProviderCredentials("Apple", "APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET");
@@ -119,14 +117,6 @@ function createAuthHandler() {
                   prompt: "consent select_account",
                 },
               },
-            }),
-          ]
-        : []),
-      ...(facebookCredentials
-        ? [
-            FacebookProvider({
-              clientId: facebookCredentials.clientId,
-              clientSecret: facebookCredentials.clientSecret,
             }),
           ]
         : []),

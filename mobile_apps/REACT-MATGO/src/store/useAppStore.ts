@@ -109,6 +109,7 @@ const persistState = async (state: AppStoreState) => {
       deliveryOverrides: state.deliveryOverrides,
       onboardingComplete: state.onboardingComplete,
       favorites: state.favorites,
+      themePreference: state.themePreference,
     })
   );
 };
@@ -142,6 +143,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   deliveryOverrides: {},
   onboardingComplete: false,
   favorites: [],
+  themePreference: "light",
   toggleFavorite: (restaurantId) =>
     set((state) => {
       const next = state.favorites.includes(restaurantId)
@@ -397,6 +399,12 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
   setOnboardingComplete: (onboardingComplete) => {
     set({ onboardingComplete });
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setThemePreference: (themePreference) => {
+    set({ themePreference });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

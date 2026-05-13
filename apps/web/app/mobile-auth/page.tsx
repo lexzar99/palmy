@@ -6,15 +6,14 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { getSafeNativeAuthRedirect, getSafeNativeAuthRedirectOrDefault } from "@/lib/nativeAuthRedirect";
 
-type SocialProvider = "google" | "facebook";
+type SocialProvider = "google";
 
 const SOCIAL_PROVIDERS: Array<{ id: SocialProvider; label: string }> = [
   { id: "google", label: "Fortsätt med Google" },
-  { id: "facebook", label: "Fortsätt med Facebook" },
 ];
 
 function isSocialProvider(value: string): value is SocialProvider {
-  return value === "google" || value === "facebook";
+  return value === "google";
 }
 
 const buildCallbackUrl = (redirect: string) => {
