@@ -15,6 +15,9 @@ import SupportChat from "@/components/SupportChat";
 const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  // Basurl för OG-bilder + canonical URLs. Krävs i prod annars fallar
+  // sociala medier-previews till http://localhost:3000 vid build.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://matgo.se"),
   title: "MatGo | Beställ från dina favoritrestauranger",
   description: "Beställ mat från flera lokala restauranger. Snabb leverans, smidig betalning och ett brett utbud.",
   applicationName: "MatGo",

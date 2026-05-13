@@ -657,6 +657,11 @@ router.patch('/orders/:id/status', async (req, res) => {
       });
     }
 
+    await audit(req as AuthRequest, 'ORDER_STATUS_UPDATE', {
+      resourceType: 'Order',
+      resourceId: order.id,
+      changes: { orderNumber: order.orderNumber, newStatus: order.status, estimatedTime },
+    });
     res.json({ success: true, status: order.status });
   } catch {
     res.status(500).json({ error: 'Kunde inte uppdatera status' });
@@ -710,6 +715,11 @@ router.patch('/orders/:id', async (req, res) => {
       );
     }
 
+    await audit(req as AuthRequest, 'ORDER_UPDATE', {
+      resourceType: 'Order',
+      resourceId: order.id,
+      changes: { customerName, customerPhone, deliveryStreet, status, paymentMethod },
+    });
     res.json(order);
   } catch (error) {
     res.status(500).json({ error: 'Kunde inte uppdatera order' });
@@ -1729,6 +1739,11 @@ router.patch('/extras/:id', async (req, res) => {
       data: updateData,
     });
 
+    await audit(req as AuthRequest, 'EXTRA_UPDATE', {
+      resourceType: 'Extra',
+      resourceId: extra.id,
+      changes: updateData,
+    });
     res.json({ ...extra, priceAddon: extra.priceAddon / 100 });
   } catch (err) {
     console.error('Error updating extra:', err);
@@ -2195,6 +2210,11 @@ router.patch('/customer-deals/:id', authenticate, async (req, res) => {
         campaign: { select: { title: true, discountType: true, discountValue: true } },
       },
     });
+    await audit(req as AuthRequest, 'CUSTOMER_DEAL_UPDATE', {
+      resourceType: 'CustomerDeal',
+      resourceId: updated.id,
+      changes: { isUsed, maxUsages },
+    });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Kunde inte uppdatera deal' });
@@ -2205,6 +2225,10 @@ router.patch('/customer-deals/:id', authenticate, async (req, res) => {
 router.delete('/customer-deals/:id', authenticate, requireSuperAdmin, async (req, res) => {
   try {
     await prisma.customerDeal.delete({ where: { id: req.params.id } });
+    await audit(req as AuthRequest, 'CUSTOMER_DEAL_DELETE', {
+      resourceType: 'CustomerDeal',
+      resourceId: req.params.id,
+    });
     res.json({ ok: true });
   } catch {
     res.status(500).json({ error: 'Kunde inte radera deal' });
@@ -2725,10 +2749,12 @@ const formatLoginAccount = (admin: {
   name: admin.name,
   role: admin.role,
   isActive: admin.isActive,
-  // passwordPlain läcks bara ut om ENABLE_PASSWORD_PLAIN=true. I prod kan
-  // man stänga av det helt så bcrypt-hashen är enda lagrade representationen.
+  // passwordPlain läcks ENDAST i klartext om ENABLE_PASSWORD_PLAIN=true (default false).
+  // I prod är detta avstängt → bcrypt-hashen är enda lagrade representationen.
+  // hasPassword reflekterar SANT huruvida ett lösen finns i DB, oavsett gate-flaggan,
+  // så admin kan se status även när själva strängen inte exponeras.
   password: ENABLE_PASSWORD_PLAIN ? admin.passwordPlain : null,
-  hasPassword: ENABLE_PASSWORD_PLAIN ? Boolean(admin.passwordPlain) : false,
+  hasPassword: Boolean(admin.passwordPlain),
 });
 
 // GET: returnerar ENA inloggningskontot. Om inget finns returneras
@@ -3133,6 +3159,11 @@ router.post('/menu/import-eatsmart', async (req, res) => {
     // summary from the catalog stats for the client
     const stats = getCatalogStats();
 
+    await audit(req as AuthRequest, 'MENU_IMPORT_EATSMART', {
+      resourceType: 'Restaurant',
+      resourceId: restaurantId,
+      changes: { categoriesCreated: createdCategories, productsImported: stats.productCount },
+    });
     res.json({
       success: true,
       summary: {
@@ -3211,6 +3242,10 @@ router.post('/menu/bulk-import', async (req, res) => {
       }
     }
 
+    await audit(req as AuthRequest, 'MENU_BULK_IMPORT', {
+      resourceType: 'Menu',
+      changes: { created: results.created, errors: results.errors },
+    });
     res.json({ success: true, ...results });
   } catch (error) {
     console.error('Bulk import fatal error:', error);

@@ -684,6 +684,21 @@ router.post('/2fa/disable', authenticate, async (req: any, res) => {
       data: { totpEnabled: false, totpSecret: null } as any,
     });
 
+    // Radera även recovery codes och trusted devices så ingen kan logga in
+    // utan att sätta upp 2FA igen
+    await Promise.all([
+      (prisma as any).recoveryCode.deleteMany({ where: { adminId: admin.id } }).catch(() => null),
+      (prisma as any).trustedDevice.updateMany({
+        where: { adminId: admin.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }).catch(() => null),
+    ]);
+
+    await audit(req as AuthRequest, '2FA_DISABLE', {
+      resourceType: 'AdminUser',
+      resourceId: admin.id,
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('[2fa disable] error:', err);
