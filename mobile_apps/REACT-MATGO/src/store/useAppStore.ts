@@ -110,6 +110,7 @@ const persistState = async (state: AppStoreState) => {
       onboardingComplete: state.onboardingComplete,
       favorites: state.favorites,
       themePreference: state.themePreference,
+      bogoChoice: state.bogoChoice,
     })
   );
 };
@@ -137,6 +138,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   profile: null,
   pendingPromoCode: null,
   filteredRestaurantIds: null,
+  bogoChoice: null,
   activeOrderId: null,
   activeOrder: null,
   dislikedIngredients: [],
@@ -271,7 +273,14 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
       restaurantId: null,
       restaurantSlug: null,
       pendingPromoCode: null,
+      bogoChoice: null,
     });
+    queueMicrotask(() => {
+      persistState(get()).catch(() => {});
+    });
+  },
+  setBogoChoice: (bogoChoice) => {
+    set({ bogoChoice });
     queueMicrotask(() => {
       persistState(get()).catch(() => {});
     });

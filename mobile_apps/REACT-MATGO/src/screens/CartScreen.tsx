@@ -45,6 +45,7 @@ import { CartItem, DeliveryCheck, City } from "../types";
 
 import AddressAutocomplete from "../components/AddressAutocomplete";
 import ProductModal from "../components/ProductModal";
+import BogoPickerModal from "../components/BogoPickerModal";
 import { Header, ScreenWrap, PrimaryButton } from "../components/ui";
 import { CartScreenSkeleton } from "../components/SkeletonLoader";
 
@@ -205,6 +206,8 @@ export default function CartScreen({
   const updateQuantity = useAppStore((s) => s.updateQuantity);
   const updateItem = useAppStore((s) => s.updateItem);
   const clearCart = useAppStore((s) => s.clearCart);
+  const bogoChoice = useAppStore((s) => s.bogoChoice);
+  const setBogoChoice = useAppStore((s) => s.setBogoChoice);
   const [editing, setEditing] = useState<{ product: any; item: CartItem } | null>(null);
 
   const handleEditCartItem = useCallback(async (item: CartItem) => {
@@ -281,6 +284,21 @@ export default function CartScreen({
   // Komplettering till minimum — när subtotal < minOrder kan kunden kryssa i
   // detta för att betala mellanskillnaden (paritet med web cart).
   const [topUpToMinimum, setTopUpToMinimum] = useState<boolean>(true);
+
+  // ── BOGO state ──────────────────────────────────────────────────────────
+  // Server-side preview returnerar bästa deal + reward-produkter när varukorgen
+  // ändras. Speglar useEffect:en i apps/web/app/cart/page.tsx — samma endpoint,
+  // samma datastruktur. `bogoChoice` (i Zustand) håller koll på vilken
+  // gratisvara användaren faktiskt valt.
+  const [bogoPreview, setBogoPreview] = useState<{
+    dealId: string | null;
+    dealTitle: string;
+    rewardCategoryName: string | null;
+    rewardProducts: { id: string; name: string; price: number; imageUrl?: string | null }[];
+    discountKr: number;
+    bogoExcludedExtraIds: string[];
+  } | null>(null);
+  const [showBogoPicker, setShowBogoPicker] = useState(false);
 
   const scheduleWindow = useMemo(() => {
     const minTime = getMinimumScheduledTime();
@@ -443,8 +461,12 @@ export default function CartScreen({
     ? Math.max(0, minOrder - subtotal)
     : 0;
   const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
+  // BOGO-rabatt kommer från server-evaluering — vi visar den som rabatt-rad
+  // när den är bäst (paritet med web: `finalDiscount = max(personal, bogo)`).
+  const bogoDiscount = bogoPreview?.discountKr ?? 0;
+  const finalDiscount = Math.max(personalDiscount, bogoDiscount);
   const isTestCode = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
-  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - personalDiscount + effectiveTip);
+  const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount + effectiveTip);
 
   // Initial data fetch
   useEffect(() => {
@@ -628,6 +650,66 @@ export default function CartScreen({
       active = false;
     };
   }, [coords, currentRestaurantId, orderType]);
+
+  // ── BOGO-förhandsgranskning ─────────────────────────────────────────────
+  // Anropar /api/deals/evaluate-cart server-side när varukorgen ändras —
+  // samma endpoint som web cart-page. Debouncar ~300 ms så snabba
+  // quantity-klick inte spammar API:et. Endast BOGO-deals visas i pickern
+  // (övriga rabatter ger fortfarande total-rabatt via finalDiscount).
+  useEffect(() => {
+    if (!currentRestaurantId || items.length === 0) {
+      setBogoPreview(null);
+      // Inga items → ingen aktiv BOGO; rensa eventuell vald gratisvara.
+      if (useAppStore.getState().bogoChoice) {
+        setBogoChoice(null);
+      }
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        const res = await api.post("/api/deals/evaluate-cart", {
+          restaurantId: currentRestaurantId,
+          // Skicka inte BOGO-gratisvaran tillbaka in i evalueringen — den ska
+          // inte räknas mot trigger-mängden (annars dubbelräknas).
+          items: items
+            .filter((i) => !i.bogoFreeFromDealId)
+            .map((i) => ({ productId: i.productId, quantity: i.quantity })),
+        });
+        const data = res.data || {};
+        if (data.isBogo && data.discountAmountKr > 0 && data.dealTitle) {
+          setBogoPreview({
+            dealId: data.dealId ?? null,
+            dealTitle: data.dealTitle,
+            rewardCategoryName: data.rewardCategoryName ?? null,
+            rewardProducts: Array.isArray(data.rewardProducts) ? data.rewardProducts : [],
+            discountKr: data.discountAmountKr,
+            bogoExcludedExtraIds: Array.isArray(data.bogoExcludedExtraIds) ? data.bogoExcludedExtraIds : [],
+          });
+          // Rensa bogoChoice om det gäller en annan deal nu
+          const existing = useAppStore.getState().bogoChoice;
+          if (existing && existing.dealId !== data.dealId) {
+            setBogoChoice(null);
+          }
+        } else {
+          setBogoPreview(null);
+          if (useAppStore.getState().bogoChoice) setBogoChoice(null);
+        }
+      } catch {
+        setBogoPreview(null);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [items, currentRestaurantId, setBogoChoice]);
+
+  // Om användaren manuellt tar bort BOGO-gratisvaran från korgen ska
+  // valet återspeglas i bogoChoice — annars sitter det kvar som "vald".
+  useEffect(() => {
+    if (!bogoChoice) return;
+    const stillPresent = items.some(
+      (i) => i.bogoFreeFromDealId === bogoChoice.dealId && i.productId === bogoChoice.product.id,
+    );
+    if (!stillPresent) setBogoChoice(null);
+  }, [items, bogoChoice, setBogoChoice]);
 
   // Apply a personal deal both locally and to Zustand so it survives a
   // mount/unmount cycle (e.g. user navigates away and back to cart).
@@ -959,6 +1041,9 @@ export default function CartScreen({
           productId: item.productId,
           quantity: item.quantity,
           note: item.note,
+          // Backend förväntar sig fältet för att rabattera raden till 0 kr —
+          // utan det räknas BOGO-gratisvaran som vanlig betald position.
+          bogoFreeFromDealId: item.bogoFreeFromDealId,
           selectedExtras: item.extras.map((extra: any) => ({
             groupId: extra.groupId,
             groupName: extra.groupName,
@@ -1968,6 +2053,68 @@ export default function CartScreen({
             </View>
           )}
 
+          {/* 8b. BOGO — banner om gratisvara ej vald, annars chosen-display.
+              Speglar apps/web/app/cart/page.tsx ~1540-1582. Visas bara när
+              servern returnerar en BOGO-deal (isBogo: true). */}
+          {bogoPreview && !bogoChoice && bogoPreview.rewardProducts.length > 0 && (
+            <Pressable
+              onPress={() => setShowBogoPicker(true)}
+              style={{
+                marginTop: 14,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: "rgba(16,185,129,0.30)",
+                backgroundColor: "rgba(16,185,129,0.08)",
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#10B981", fontSize: 10, fontWeight: "900", letterSpacing: ls(2), textTransform: "uppercase" }}>
+                  BOGO — välj gratisprodukt
+                </Text>
+                <Text style={{ color: palette.textSecondary, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+                  Du har inte valt din gratis
+                  {bogoPreview.rewardCategoryName ? ` ${bogoPreview.rewardCategoryName.toLowerCase()}` : " produkt"} →
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#10B981" />
+            </Pressable>
+          )}
+          {bogoChoice && (
+            <View
+              style={{
+                marginTop: 14,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: "rgba(16,185,129,0.30)",
+                backgroundColor: "rgba(16,185,129,0.08)",
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: "#10B981", fontSize: 10, fontWeight: "900", letterSpacing: ls(2), textTransform: "uppercase" }}>
+                  Gratisprodukt vald
+                </Text>
+                <Text style={{ color: palette.textSecondary, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+                  {bogoChoice.product.name}
+                </Text>
+              </View>
+              <Pressable onPress={() => setShowBogoPicker(true)} hitSlop={6}>
+                <Text style={{ color: "#10B981", fontSize: 10, fontWeight: "900", letterSpacing: ls(1) }}>Ändra</Text>
+              </Pressable>
+            </View>
+          )}
+
           {/* 9. Summary — paritet med web: Delsumma → Leveransavgift → Dricks →
               Komplettering → Rabatt → Moms (alla rader ovanför) → TOTALT. */}
           <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: palette.border, borderRadius: 0, marginTop: 4, paddingTop: 20 }]}>
@@ -1994,7 +2141,15 @@ export default function CartScreen({
                   <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11 }}>+{Math.round(minOrderTopUp)} KR</Text>
                 </View>
               )}
-              {personalDiscount > 0 && (
+              {bogoPreview && bogoDiscount > 0 && bogoDiscount >= finalDiscount && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ color: "#10B981", fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5), fontStyle: "italic" }} numberOfLines={1}>
+                    🎁 {bogoChoice ? bogoChoice.product.name : bogoPreview.dealTitle}
+                  </Text>
+                  <Text style={{ color: "#10B981", fontWeight: "900", fontSize: 11, fontStyle: "italic" }}>-{Math.round(bogoDiscount)} KR</Text>
+                </View>
+              )}
+              {personalDiscount > 0 && (!bogoPreview || bogoDiscount < finalDiscount) && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5), fontStyle: "italic" }}>{t('cart.summary.discount')}</Text>
                   <Text style={{ color: palette.success, fontWeight: "900", fontSize: 11, fontStyle: "italic" }}>-{Math.round(personalDiscount)} KR</Text>
@@ -2066,6 +2221,20 @@ export default function CartScreen({
           }}
         />
       )}
+
+      {/* BOGO picker — visas över kassan när användaren trycker på banner /
+          "Ändra"-knappen i chosen-display. Renderas alltid men styrs av
+          `visible` så vi får mount-stable fade/slide-animation. */}
+      <BogoPickerModal
+        visible={showBogoPicker && !!bogoPreview && bogoPreview.rewardProducts.length > 0}
+        dealId={bogoPreview?.dealId ?? ""}
+        dealTitle={bogoPreview?.dealTitle ?? ""}
+        restaurantId={currentRestaurantId || ""}
+        restaurantSlug={currentRestaurantSlug}
+        rewardCategoryName={bogoPreview?.rewardCategoryName ?? null}
+        products={bogoPreview?.rewardProducts ?? []}
+        onClose={() => setShowBogoPicker(false)}
+      />
     </ScrollView>
   );
 }

@@ -167,7 +167,16 @@ export interface CartItem {
     price: number;
   }[];
   note?: string;
+  /** Satt om raden är en BOGO-gratisvara — speglar web/cartStore. */
+  bogoFreeFromDealId?: string;
 }
+
+export type BogoChoice = {
+  dealId: string;
+  dealTitle: string;
+  rewardCategoryName?: string | null;
+  product: { id: string; name: string; price: number; imageUrl?: string | null };
+};
 
 export interface SavedAddress {
   id: string;
@@ -272,6 +281,8 @@ export interface AppStoreState {
   profile: Profile | null;
   pendingPromoCode: string | null;
   filteredRestaurantIds: string[] | null;
+  /** Valda BOGO-gratisprodukt — synkad med CartItem som bär samma dealId. */
+  bogoChoice: BogoChoice | null;
   activeOrderId: string | null;
   /** Latest snapshot of the active order. Written by `useOrderActivitySync` so
    *  the in-app banner doesn't need its own socket / poll loop. */
@@ -293,6 +304,7 @@ export interface AppStoreState {
   setProfile: (profile: Profile | null) => void;
   setPendingPromoCode: (code: string | null) => void;
   setFilteredRestaurantIds: (ids: string[] | null) => void;
+  setBogoChoice: (choice: BogoChoice | null) => void;
   clearSession: () => void;
   setActiveOrder: (id: string | null) => void;
   setActiveOrderData: (order: Order | null) => void;
