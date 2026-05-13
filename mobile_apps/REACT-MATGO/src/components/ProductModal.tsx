@@ -20,17 +20,27 @@ export default function ProductModal({
   initialQuantity,
   initialExtras,
   initialNote,
+  bogoFreeFromDealId,
+  bogoDealTitle,
+  bogoRewardCategoryName,
+  bogoExcludedExtraIds,
 }: {
   product: MenuProduct | null;
   address: string;
   orderType: OrderType;
   forceHide?: boolean;
   onClose: () => void;
-  onAdd: (payload: { quantity: number; note?: string; extras: CartItem["extras"] }) => void;
+  onAdd: (payload: { quantity: number; note?: string; extras: CartItem["extras"]; bogoFreeFromDealId?: string }) => void;
   editMode?: boolean;
   initialQuantity?: number;
   initialExtras?: CartItem["extras"];
   initialNote?: string;
+  /** BOGO: sätts av BogoPickerModal. Baspriset nollas, extras betalas normalt. */
+  bogoFreeFromDealId?: string;
+  bogoDealTitle?: string;
+  bogoRewardCategoryName?: string | null;
+  /** Extras (Extra.id) som admin har blockerat för gratisvaran — filtreras bort innan rendering. */
+  bogoExcludedExtraIds?: string[];
 }) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -42,9 +52,31 @@ export default function ProductModal({
   const [extras, setExtras] = useState<CartItem["extras"]>(initialExtras ?? []);
   const [selectionError, setSelectionError] = useState<string | null>(null);
 
+  // För BOGO-gratisvara: filtrera bort tillval som admin har blockerat på
+  // dealen (t.ex. "Familjepizza-storlek"). Vi filtrerar både på extra-nivå
+  // och tar bort hela grupper som blivit tomma OCH inte krävs. Matchar
+  // apps/web/components/ProductModal.tsx line 45-53.
+  const excludedExtraIdSet = useMemo(
+    () => (bogoFreeFromDealId && bogoExcludedExtraIds && bogoExcludedExtraIds.length > 0
+      ? new Set(bogoExcludedExtraIds)
+      : null),
+    [bogoFreeFromDealId, bogoExcludedExtraIds],
+  );
+
+  const filteredGroups = useMemo(() => {
+    const base = product?.extraGroups || [];
+    if (!excludedExtraIdSet || excludedExtraIdSet.size === 0) return base;
+    return base
+      .map((group) => ({
+        ...group,
+        extras: (group.extras || []).filter((extra) => !excludedExtraIdSet.has(extra.id)),
+      }))
+      .filter((group) => group.extras.length > 0 || group.required);
+  }, [product, excludedExtraIdSet]);
+
   const orderedGroups = useMemo(
-    () => [...(product?.extraGroups || [])].sort((a, b) => (a.position || 0) - (b.position || 0)),
-    [product],
+    () => [...filteredGroups].sort((a, b) => (a.position || 0) - (b.position || 0)),
+    [filteredGroups],
   );
 
   const translateY = useRef(new Animated.Value(0)).current;
@@ -109,7 +141,9 @@ export default function ProductModal({
     }
 
     const defaults: CartItem["extras"] = [];
-    product.extraGroups?.forEach((group) => {
+    // Hoppa över BOGO-uteslutna extras även när vi sätter defaults — annars
+    // skulle en blockerad "default"-extra ligga kvar i state utan att synas.
+    filteredGroups.forEach((group) => {
       group.extras.forEach((extra) => {
         if (extra.isDefault) {
           defaults.push({
@@ -127,14 +161,18 @@ export default function ProductModal({
     setNote("");
     setExtras(defaults);
     setSelectionError(null);
-  }, [getExtraPrice, product, editMode, initialQuantity, initialNote, initialExtras]);
+  }, [getExtraPrice, product, editMode, initialQuantity, initialNote, initialExtras, filteredGroups]);
 
   if (!product) return null;
 
   const extrasPrice = extras.reduce((sum: number, extra: any) => sum + extra.price, 0);
-  const basePrice = product.discountActive
-    ? (product.discountPrice || Math.round(product.price - product.price * ((product.discountPercent || 0) / 100)))
-    : product.price;
+  // BOGO-gratisvara — baspris är alltid 0 (extras betalas normalt). Matchar
+  // apps/web/components/ProductModal.tsx line 133.
+  const basePrice = bogoFreeFromDealId
+    ? 0
+    : product.discountActive
+      ? (product.discountPrice || Math.round(product.price - product.price * ((product.discountPercent || 0) / 100)))
+      : product.price;
   const totalPrice = (basePrice + extrasPrice) * quantity;
 
   const toggleExtra = (group: MenuExtraGroup, extra: MenuExtra) => {
@@ -183,12 +221,16 @@ export default function ProductModal({
     for (const group of orderedGroups) {
       const selectedInGroup = extras.filter((item: any) => item.groupId === group.id);
 
+      // En obligatorisk grupp kan ha ALLA sina extras blockerade av BOGO.
+      // Då kan kunden inte uppfylla kravet — vi hoppar över valideringen
+      // för att inte fastna i ett ogiltigt tillstånd. Matchar web line 157.
       if (group.required && selectedInGroup.length === 0) {
+        if ((group.extras || []).length === 0) continue;
         setSelectionError(t('product.validationRequired', { group: group.name.toLowerCase() }));
         return;
       }
 
-      if (selectedInGroup.length < (group.minSelections || 0)) {
+      if (selectedInGroup.length < (group.minSelections || 0) && (group.extras || []).length > 0) {
         setSelectionError(t('product.validationMin', { group: group.name, count: group.minSelections }));
         return;
       }
@@ -200,7 +242,12 @@ export default function ProductModal({
     }
 
     const finalNote = note.trim();
-    onAdd({ quantity, note: finalNote || undefined, extras });
+    onAdd({
+      quantity,
+      note: finalNote || undefined,
+      extras,
+      ...(bogoFreeFromDealId ? { bogoFreeFromDealId } : {}),
+    });
   };
 
   const handleNoteFocus = () => {
@@ -237,6 +284,63 @@ export default function ProductModal({
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
             >
+            {bogoFreeFromDealId && (
+              <View
+                style={{
+                  marginHorizontal: 24,
+                  marginTop: 16,
+                  marginBottom: 4,
+                  borderRadius: 14,
+                  borderWidth: 1,
+                  borderColor: "rgba(16,185,129,0.30)",
+                  backgroundColor: "rgba(16,185,129,0.08)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(16,185,129,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Ionicons name="gift" size={16} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: "#10B981",
+                      fontSize: 10,
+                      fontWeight: "900",
+                      letterSpacing: 2,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    BOGO — Gratis
+                  </Text>
+                  {!!bogoDealTitle && (
+                    <Text
+                      style={{
+                        color: palette.textSecondary,
+                        fontSize: 11,
+                        fontWeight: "700",
+                        marginTop: 2,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {bogoDealTitle}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
             {product.imageUrl ? (
               <View style={styles.productHeroCard}>
                 <Image source={{ uri: getImageUrl(product.imageUrl) }} style={styles.productHeroImage} />
@@ -385,24 +489,58 @@ export default function ProductModal({
                 </View>
               </View>
 
-              <Pressable 
-                style={[styles.productAddButton, !address && { backgroundColor: "#E2C06C" }]}
+              <Pressable
+                style={[
+                  styles.productAddButton,
+                  !address && { backgroundColor: "#E2C06C" },
+                  // BOGO-gratisvara — emerald CTA istället för gold.
+                  bogoFreeFromDealId && { backgroundColor: palette.success },
+                ]}
                 onPress={handleAddToCart}
               >
                 <View style={styles.productAddButtonContent}>
                   <View style={styles.productAddButtonIconWrap}>
-                    <Ionicons name={!address ? "location-outline" : "bag-handle-outline"} size={18} color="#000" />
+                    <Ionicons
+                      name={!address ? "location-outline" : bogoFreeFromDealId ? "gift" : "bag-handle-outline"}
+                      size={18}
+                      color={bogoFreeFromDealId ? "#fff" : "#000"}
+                    />
                   </View>
                   <View>
-                    <Text style={styles.productAddButtonLabel}>
-                      {!address ? t('product.enterAddress') : t('product.addToCart')}
+                    <Text
+                      style={[
+                        styles.productAddButtonLabel,
+                        bogoFreeFromDealId && { color: "#fff" },
+                      ]}
+                    >
+                      {!address
+                        ? t('product.enterAddress')
+                        : bogoFreeFromDealId
+                          ? "Välj som gratis"
+                          : t('product.addToCart')}
                     </Text>
-                    <Text style={styles.productAddButtonSubLabel}>
-                      {!address ? t('product.addressRequired') : t('product.readyToOrder')}
+                    <Text
+                      style={[
+                        styles.productAddButtonSubLabel,
+                        bogoFreeFromDealId && { color: "rgba(255,255,255,0.78)" },
+                      ]}
+                    >
+                      {!address
+                        ? t('product.addressRequired')
+                        : bogoFreeFromDealId
+                          ? (extrasPrice > 0 ? `+${extrasPrice * quantity} kr extras` : "Gratis")
+                          : t('product.readyToOrder')}
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.productAddButtonPrice}>{totalPrice} kr</Text>
+                <Text
+                  style={[
+                    styles.productAddButtonPrice,
+                    bogoFreeFromDealId && { color: "#fff" },
+                  ]}
+                >
+                  {bogoFreeFromDealId && extrasPrice === 0 ? "GRATIS" : `${totalPrice} kr`}
+                </Text>
               </Pressable>
             </View>
           </Animated.View>

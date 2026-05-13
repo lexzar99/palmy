@@ -40,7 +40,7 @@ import { useArabic } from '../hooks/useArabic';
 import { startOrderActivity } from '../lib/liveActivities';
 import { maybeShowFrequentUpdatesPrompt } from '../lib/permissionPrompts';
 
-import { CartItem, DeliveryCheck, City } from "../types";
+import { CartItem, DeliveryCheck, City, MenuProduct } from "../types";
 
 
 import AddressAutocomplete from "../components/AddressAutocomplete";
@@ -202,6 +202,7 @@ export default function CartScreen({
   const screenBottomPadding = getBottomTabsContentPadding(insets.bottom);
 
   const items = useAppStore((s) => s.items);
+  const addItem = useAppStore((s) => s.addItem);
   const removeItem = useAppStore((s) => s.removeItem);
   const updateQuantity = useAppStore((s) => s.updateQuantity);
   const updateItem = useAppStore((s) => s.updateItem);
@@ -299,6 +300,17 @@ export default function CartScreen({
     bogoExcludedExtraIds: string[];
   } | null>(null);
   const [showBogoPicker, setShowBogoPicker] = useState(false);
+  // Vald gratisprodukt på väg in i ProductModal — vi hämtar fullständig
+  // produktdata (med extras) från servern först så användaren kan välja
+  // tillval på sin gratisvara. Matchar web's `bogoProduct`-flöde.
+  const [bogoSelectedProduct, setBogoSelectedProduct] = useState<{
+    product: MenuProduct;
+    dealId: string;
+    dealTitle: string;
+    rewardCategoryName: string | null;
+    excludedExtraIds: string[];
+  } | null>(null);
+  const [bogoFetching, setBogoFetching] = useState(false);
 
   const scheduleWindow = useMemo(() => {
     const minTime = getMinimumScheduledTime();
@@ -2224,7 +2236,9 @@ export default function CartScreen({
 
       {/* BOGO picker — visas över kassan när användaren trycker på banner /
           "Ändra"-knappen i chosen-display. Renderas alltid men styrs av
-          `visible` så vi får mount-stable fade/slide-animation. */}
+          `visible` så vi får mount-stable fade/slide-animation.
+          Vid val: hämta full produkt (med extras) och öppna ProductModal så
+          användaren kan välja tillval. Matchar web's MenuContent.tsx flöde. */}
       <BogoPickerModal
         visible={showBogoPicker && !!bogoPreview && bogoPreview.rewardProducts.length > 0}
         dealId={bogoPreview?.dealId ?? ""}
@@ -2234,7 +2248,124 @@ export default function CartScreen({
         rewardCategoryName={bogoPreview?.rewardCategoryName ?? null}
         products={bogoPreview?.rewardProducts ?? []}
         onClose={() => setShowBogoPicker(false)}
+        onSelectProduct={async (p) => {
+          if (!bogoPreview?.dealId) return;
+          // Snapshotta context innan vi stänger pickern — bogoPreview kan
+          // hinna uppdateras under fetch (t.ex. om en quantity-knapp klickas).
+          const dealId = bogoPreview.dealId;
+          const dealTitle = bogoPreview.dealTitle;
+          const rewardCategoryName = bogoPreview.rewardCategoryName;
+          const excludedExtraIds = bogoPreview.bogoExcludedExtraIds;
+          setBogoFetching(true);
+          setShowBogoPicker(false);
+          try {
+            const res = await api.get(`/api/menu/products/${p.id}`);
+            const fullProduct: MenuProduct = res.data;
+            setBogoSelectedProduct({
+              product: fullProduct,
+              dealId,
+              dealTitle,
+              rewardCategoryName,
+              excludedExtraIds,
+            });
+          } catch (err) {
+            // Fallback: direkt-tillägg utan extras (gammal beteende) så
+            // kunden inte fastnar pga nätverksfel. Matchar produktens
+            // pris/restaurant ur BogoPickerProduct + currentRestaurantId.
+            Alert.alert("Kunde inte ladda produktinformation", "Lägger till gratisvaran utan tillval.");
+            const slug = currentRestaurantSlug ?? null;
+            addItem({
+              productId: p.id,
+              restaurantId: currentRestaurantId || "",
+              restaurantSlug: slug,
+              name: p.name,
+              price: 0,
+              quantity: 1,
+              extras: [],
+              bogoFreeFromDealId: dealId,
+            });
+            setBogoChoice({
+              dealId,
+              dealTitle,
+              rewardCategoryName,
+              product: { id: p.id, name: p.name, price: p.price, imageUrl: p.imageUrl ?? null },
+            });
+          } finally {
+            setBogoFetching(false);
+          }
+        }}
       />
+
+      {/* BOGO-produktmodal — öppnas efter att kunden valt en gratisprodukt i
+          pickern. Baspris nollas, extras betalas normalt, blockerade extras
+          filtreras bort enligt deal-config. */}
+      {bogoSelectedProduct && (
+        <ProductModal
+          product={bogoSelectedProduct.product}
+          address={storeAddress}
+          orderType={orderType}
+          bogoFreeFromDealId={bogoSelectedProduct.dealId}
+          bogoDealTitle={bogoSelectedProduct.dealTitle}
+          bogoRewardCategoryName={bogoSelectedProduct.rewardCategoryName}
+          bogoExcludedExtraIds={bogoSelectedProduct.excludedExtraIds}
+          onClose={() => setBogoSelectedProduct(null)}
+          onAdd={(payload) => {
+            const ctx = bogoSelectedProduct;
+            if (!ctx) return;
+            const slug = currentRestaurantSlug ?? null;
+            addItem({
+              productId: ctx.product.id,
+              restaurantId: currentRestaurantId || "",
+              restaurantSlug: slug,
+              name: ctx.product.name,
+              // Baspris = 0; extras bär sina egna priser i payload.extras.
+              price: 0,
+              quantity: payload.quantity,
+              extras: payload.extras,
+              note: payload.note,
+              bogoFreeFromDealId: ctx.dealId,
+            });
+            setBogoChoice({
+              dealId: ctx.dealId,
+              dealTitle: ctx.dealTitle,
+              rewardCategoryName: ctx.rewardCategoryName,
+              product: {
+                id: ctx.product.id,
+                name: ctx.product.name,
+                price: ctx.product.price,
+                imageUrl: ctx.product.imageUrl ?? null,
+              },
+            });
+            setBogoSelectedProduct(null);
+          }}
+        />
+      )}
+
+      {/* Loading-indikator medan vi hämtar produktdata mellan picker och modal. */}
+      {bogoFetching && (
+        <Modal visible transparent statusBarTranslucent animationType="fade">
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.35)" }}>
+            <View
+              style={{
+                paddingHorizontal: 22,
+                paddingVertical: 18,
+                borderRadius: 18,
+                backgroundColor: palette.bgSecondary,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: palette.borderMuted,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <ActivityIndicator color={palette.gold} />
+              <Text style={{ color: palette.text, fontWeight: "800", fontSize: 12 }}>
+                Hämtar produkt...
+              </Text>
+            </View>
+          </View>
+        </Modal>
+      )}
     </ScrollView>
   );
 }

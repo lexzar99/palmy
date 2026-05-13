@@ -37,10 +37,9 @@ type Props = {
   rewardCategoryName?: string | null;
   products: BogoPickerProduct[];
   onClose: () => void;
-  /** Om satt anropas denna istället för direkt cart-tillägg — förälder öppnar
-   *  ProductModal så användaren kan välja extras till sin gratisvara. v1 i RN
-   *  använder enbart direkt-tillägg från kassan, men prop:en finns redan för
-   *  att matcha web. */
+  /** Om satt anropas denna istället för direkt cart-tillägg — förälder
+   *  hämtar full produkt (med extras) och öppnar ProductModal så användaren
+   *  kan välja tillval på sin gratisvara. Matchar web's MenuContent.tsx. */
   onSelectProduct?: (product: BogoPickerProduct) => void;
 };
 
@@ -96,8 +95,8 @@ export default function BogoPickerModal({
   }, [visible, translateY, backdropOpacity]);
 
   const handlePick = (p: BogoPickerProduct) => {
-    // Om förälder vill hantera extras-val via ProductModal — fortfarande
-    // inte implementerat i v1 men prop:en respekteras för framtida bruk.
+    // Om förälder vill hantera extras-val via ProductModal (kassan gör det
+    // nu) — låt den ta över. Annars: direkt-tillägg utan extras.
     if (onSelectProduct) {
       onSelectProduct(p);
       return;
