@@ -1240,14 +1240,18 @@ function App() {
   // inte blockerar render. Apple kräver att prompten visas EFTER att UI är
   // synligt — vi väntar tills fonter + i18n är klara så ATT-dialogen kommer
   // ovanpå appen istället för splash.
+  // ATT temporärt avstängt — kräver att NSUserTrackingUsageDescription
+  // FAKTISKT är i Info.plist. App.json-ändringen tas in först efter pod
+  // install + Xcode rebuild. Kan krascha release-builds om plist saknar
+  // nyckeln. Aktivera igen när Info.plist är synkad.
   React.useEffect(() => {
     if (Platform.OS !== "ios") return;
     if (!fontsLoaded || !i18nReady) return;
-    // Liten delay så att ATT-prompten inte krockar med vår egen splash-fade.
-    const t = setTimeout(() => {
-      requestTracking().catch(() => {});
-    }, 600);
-    return () => clearTimeout(t);
+    void requestTracking; // silencing unused-import
+    // const t = setTimeout(() => {
+    //   requestTracking().catch(() => {});
+    // }, 600);
+    // return () => clearTimeout(t);
   }, [fontsLoaded, i18nReady]);
 
   const restartApp = React.useCallback(() => {
