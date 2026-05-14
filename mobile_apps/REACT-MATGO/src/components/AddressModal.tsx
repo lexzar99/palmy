@@ -553,7 +553,8 @@ const makeStyles = (C: ReturnType<typeof buildColors>) => StyleSheet.create({
 
   // Predictions list
   predList: {
-    maxHeight: 220, backgroundColor: C.surface,
+    flexGrow: 1,
+    maxHeight: 320, backgroundColor: C.surface,
     borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden",
   },
   predItem: {

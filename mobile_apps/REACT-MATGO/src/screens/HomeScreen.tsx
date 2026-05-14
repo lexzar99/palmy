@@ -203,6 +203,20 @@ export default function HomeScreen({
     return { pre: t('home.greetings.lateGuest.pre'), highlight: t('home.greetings.lateGuest.highlight'), sub: t('home.greetings.lateGuest.sub') };
   }, [profile, t]);
 
+  // Derive rgb of palette.bg once so the sticky-search fade gradient works in
+  // both light (#FFF8EF cream) and dark (#09090b) mode. Hardcoded cream stops
+  // caused a "white Dynamic Island" wash over dark-mode tops.
+  const bgRgbaBase = useMemo(() => {
+    const hex = palette.bg.replace('#', '');
+    if (hex.length !== 6) {
+      return (alpha: number) => `rgba(255,248,239,${alpha})`;
+    }
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return (alpha: number) => `rgba(${r},${g},${b},${alpha})`;
+  }, [palette.bg]);
+
   const validateZone = useCallback(async (lat: number, lng: number) => {
     try {
       const res = await api.post(`/api/cities/validate-location`, { lat, lng });
@@ -984,7 +998,7 @@ export default function HomeScreen({
       >
         <LinearGradient
           pointerEvents="none"
-          colors={["rgba(255,248,239,0.98)", "rgba(255,248,239,0.94)", "rgba(255,248,239,0.72)", "rgba(255,248,239,0)"]}
+          colors={[bgRgbaBase(0.98), bgRgbaBase(0.94), bgRgbaBase(0.72), bgRgbaBase(0)]}
           locations={[0, 0.38, 0.76, 1]}
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
         />

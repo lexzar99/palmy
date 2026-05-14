@@ -1,5 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, FlatList, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  Dimensions,
+  ScrollView,
+  Keyboard,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme";
 import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
@@ -13,6 +25,15 @@ interface AddressAutocompleteProps {
 
 type Suggestion = PlaceItem;
 
+interface AnchorRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+
 export default function AddressAutocomplete({
   value,
   onChangeText,
@@ -24,13 +45,21 @@ export default function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const inputContainerRef = useRef<View>(null);
 
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  const measureAnchor = () => {
+    inputContainerRef.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x, y, width, height });
+    });
+  };
 
   const fetchSuggestions = async (text: string) => {
     if (text.length < 3) {
@@ -52,6 +81,7 @@ export default function AddressAutocomplete({
   const handleChange = (text: string) => {
     onChangeText(text);
     setShowSuggestions(true);
+    measureAnchor();
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
@@ -71,9 +101,28 @@ export default function AddressAutocomplete({
     }
   };
 
+  const handleFocus = () => {
+    setShowSuggestions(true);
+    measureAnchor();
+  };
+
+  const closeOverlay = () => {
+    setShowSuggestions(false);
+    Keyboard.dismiss();
+  };
+
+  const dropdownVisible = showSuggestions && suggestions.length > 0 && anchor !== null;
+
+  // Compute dropdown position — anchor under the input. Cap height so it fits
+  // above the keyboard / screen bottom.
+  const dropdownTop = anchor ? anchor.y + anchor.height + 4 : 0;
+  const dropdownMaxHeight = anchor
+    ? Math.max(120, Math.min(320, SCREEN_HEIGHT - dropdownTop - 80))
+    : 240;
+
   return (
     <View style={styles.container}>
-      <View style={styles.inputContainer}>
+      <View ref={inputContainerRef} style={styles.inputContainer} onLayout={measureAnchor}>
         <Ionicons name="location-outline" size={18} color={palette.goldDark} />
         <TextInput
           style={styles.input}
@@ -81,27 +130,55 @@ export default function AddressAutocomplete({
           onChangeText={handleChange}
           placeholder={placeholder}
           placeholderTextColor={palette.muted}
-          onFocus={() => setShowSuggestions(true)}
+          onFocus={handleFocus}
         />
         {loading && <ActivityIndicator size="small" color={palette.gold} />}
       </View>
 
-      {showSuggestions && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
-          {suggestions.map((suggestion) => (
-            <Pressable
-              key={suggestion.id}
-              style={styles.suggestionItem}
-              onPress={() => handleSelect(suggestion)}
+      <Modal
+        visible={dropdownVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeOverlay}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeOverlay}>
+          {/* Backdrop captures taps to dismiss */}
+        </Pressable>
+        {anchor && (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.suggestionsContainer,
+              {
+                top: dropdownTop,
+                left: anchor.x,
+                width: anchor.width,
+                maxHeight: dropdownMaxHeight,
+              },
+            ]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              showsVerticalScrollIndicator={false}
             >
-              <Ionicons name="location-outline" size={16} color={palette.goldDark} />
-              <Text style={styles.suggestionText} numberOfLines={2}>
-                {suggestion.description}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+              {suggestions.map((suggestion) => (
+                <Pressable
+                  key={suggestion.id}
+                  style={styles.suggestionItem}
+                  onPress={() => handleSelect(suggestion)}
+                >
+                  <Ionicons name="location-outline" size={16} color={palette.goldDark} />
+                  <Text style={styles.suggestionText} numberOfLines={2}>
+                    {suggestion.description}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -110,7 +187,6 @@ const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
   StyleSheet.create({
     container: {
       position: "relative",
-      zIndex: 100,
     },
     inputContainer: {
       flexDirection: "row",
@@ -133,16 +209,16 @@ const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
     },
     suggestionsContainer: {
       position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
       backgroundColor: palette.panel,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: palette.border,
-      marginTop: 4,
       overflow: "hidden",
-      zIndex: 200,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 12,
     },
     suggestionItem: {
       flexDirection: "row",
@@ -152,6 +228,7 @@ const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
       paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: palette.border,
+      backgroundColor: palette.panel,
     },
     suggestionText: {
       flex: 1,
