@@ -114,6 +114,7 @@ export default function DiscoverScreen({
   const orderType = useAppStore((s) => s.orderType);
   const pickupCity = useAppStore((s) => s.pickupCity);
   const storeAddress = useAppStore((s) => s.address);
+  const deliveryCoords = useAppStore((s) => s.deliveryCoords);
   const cachedData = getScreenCache<Cache>('discover', cacheKey);
   const clearFilteredIds = useAppStore((s) => s.setFilteredRestaurantIds);
   const storedFilteredIds = useAppStore((s) => s.filteredRestaurantIds);
@@ -121,6 +122,12 @@ export default function DiscoverScreen({
   const [restaurants, setRestaurants] = useState<Restaurant[]>(() => cachedData?.restaurants || []);
   const [query, setQuery] = useState(initialCuisine || '');
   const [loading, setLoading] = useState(!cachedData);
+  // Zone-validated restaurant ids — restaurants that cover the user's coords.
+  // null = not yet validated (or no coords); otherwise array of allowed ids.
+  const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
+  // Names of cities the user is in (from validate-location) — used to gate
+  // pickup restaurants where we have no coords-based zone match.
+  const [matchedCityNames, setMatchedCityNames] = useState<string[]>([]);
   const inputRef = useRef<TextInput>(null);
 
   // Fade the content list when query changes
@@ -154,6 +161,63 @@ export default function DiscoverScreen({
     return () => { active = false; };
   }, [cacheKey]);
 
+  // Resolve which restaurants are reachable from the user's location.
+  // Strategy:
+  //   1. If user has delivery coords → POST /api/cities/validate-location
+  //      and use the returned restaurant ids (zone-accurate).
+  //   2. Else fall back to city-name comparison further down in `results`.
+  //   3. Always re-validate when coords or orderType changes.
+  useEffect(() => {
+    let active = true;
+
+    // PICKUP mode uses the city-name path; no coords available.
+    if (orderType === 'PICKUP') {
+      setZoneRestaurantIds(null);
+      setMatchedCityNames([]);
+      return;
+    }
+
+    const coords = deliveryCoords;
+    if (!coords?.lat || !coords?.lng) {
+      setZoneRestaurantIds(null);
+      setMatchedCityNames([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const res = await api.post('/api/cities/validate-location', {
+          lat: coords.lat,
+          lng: coords.lng,
+        });
+        if (!active) return;
+        if (res.data?.covered && Array.isArray(res.data.cities)) {
+          const ids = res.data.cities.flatMap((c: any) =>
+            Array.isArray(c.restaurants) ? c.restaurants.map((r: any) => r.id) : [],
+          );
+          const cityNames = res.data.cities
+            .map((c: any) => c?.name?.toLowerCase?.())
+            .filter(Boolean);
+          setZoneRestaurantIds(ids);
+          setMatchedCityNames(cityNames);
+        } else {
+          // Coords are outside any covered zone — show empty result.
+          setZoneRestaurantIds([]);
+          setMatchedCityNames([]);
+        }
+      } catch {
+        // Network blip — leave previous filter in place; don't blank the screen.
+        if (active && zoneRestaurantIds === null) {
+          setZoneRestaurantIds(null);
+        }
+      }
+    })();
+
+    return () => { active = false; };
+    // Intentionally exclude zoneRestaurantIds from deps to avoid loops; coords+orderType drive it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryCoords?.lat, deliveryCoords?.lng, orderType]);
+
   const handleQueryChange = useCallback((text: string) => {
     Animated.timing(listOpacity, {
       toValue: 0,
@@ -175,28 +239,51 @@ export default function DiscoverScreen({
 
   const isFavoritesMode = query.toLowerCase() === 'favoriter';
 
-  // Derive user's city for favorites city-filter
+  // Derive user's city for the city-fallback filter — used when we don't have
+  // zone-accurate coords (pickup mode) or backend validate-location fails.
   const userCity = useMemo(() => {
     if (orderType === 'PICKUP') return pickupCity?.trim().toLowerCase() || null;
-    // Extract city from delivery address "Street, City, Country" → middle segment
     if (storeAddress) {
+      // "Street, City, Country" → middle segment is usually the city
       const parts = storeAddress.split(',').map((s) => s.trim());
       if (parts.length >= 2) return parts[parts.length - 2].toLowerCase();
     }
     return null;
   }, [orderType, pickupCity, storeAddress]);
 
+  // Does the user have any kind of location signal we can filter by?
+  const hasLocationSignal = !!(deliveryCoords?.lat || pickupCity || userCity);
+
+  // Restaurant-level city/zone gate. Returns true if the restaurant is
+  // reachable from the user's current location signal. Used to hide
+  // restaurants in other cities (e.g. Malmö restaurants while the user
+  // is in Lund).
+  const matchesUserLocation = useCallback((r: Restaurant) => {
+    // 1. Zone-accurate (delivery coords + validate-location result)
+    if (zoneRestaurantIds !== null) {
+      return zoneRestaurantIds.includes(r.id);
+    }
+    // 2. City-name fallback (pickup, or no coords)
+    if (userCity && r.city) {
+      return r.city.toLowerCase() === userCity;
+    }
+    if (matchedCityNames.length > 0 && r.city) {
+      return matchedCityNames.includes(r.city.toLowerCase());
+    }
+    // 3. No location signal → show everything (we'll prompt user to set address)
+    return true;
+  }, [zoneRestaurantIds, userCity, matchedCityNames]);
+
   const results = (activeFilteredIds
     ? restaurants.filter((r) => activeFilteredIds.includes(r.id))
     : restaurants
   ).filter((r) => {
+    // City/zone gate first — applies to all queries and favorites alike,
+    // including pickup mode via the city-name fallback.
+    if (!matchesUserLocation(r)) return false;
+
     if (isFavoritesMode) {
-      if (!favorites.includes(r.id)) return false;
-      // City gate — only show favorites reachable from user's location
-      if (userCity && r.city) {
-        return r.city.toLowerCase() === userCity;
-      }
-      return true;
+      return favorites.includes(r.id);
     }
     if (!query) return true;
     const hay = `${r.name} ${r.cuisine || ''} ${(r.tags || []).join(' ')}`.toLowerCase();
@@ -204,6 +291,7 @@ export default function DiscoverScreen({
   });
 
   const trending = [...restaurants]
+    .filter(matchesUserLocation)
     .sort((a, b) => (b.rating || 0) - (a.rating || 0))
     .slice(0, 12);
 
@@ -332,12 +420,34 @@ export default function DiscoverScreen({
           ListEmptyComponent={
             !loading ? (
               <View style={{ alignItems: 'center', paddingTop: 48 }}>
-                <Ionicons name={isFavoritesMode ? 'heart-outline' : 'search-outline'} size={36} color={palette.border} />
+                <Ionicons
+                  name={
+                    !hasLocationSignal
+                      ? 'location-outline'
+                      : isFavoritesMode
+                      ? 'heart-outline'
+                      : 'search-outline'
+                  }
+                  size={36}
+                  color={palette.border}
+                />
                 <Text style={{ color: palette.muted, fontSize: 13, fontWeight: '700', marginTop: 14 }}>
-                  {isFavoritesMode ? t('discover.empty.noFavorites') : t('discover.empty.noResults')}
+                  {!hasLocationSignal
+                    ? t('discover.empty.noAddress')
+                    : isFavoritesMode
+                    ? t('discover.empty.noFavorites')
+                    : !query && restaurants.length > 0
+                    ? t('discover.empty.noCity')
+                    : t('discover.empty.noResults')}
                 </Text>
                 <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '600', marginTop: 6, opacity: 0.7 }}>
-                  {isFavoritesMode ? t('discover.empty.noFavoritesHelp') : t('discover.empty.noResultsHelp')}
+                  {!hasLocationSignal
+                    ? t('discover.empty.noAddressHelp')
+                    : isFavoritesMode
+                    ? t('discover.empty.noFavoritesHelp')
+                    : !query && restaurants.length > 0
+                    ? t('discover.empty.noCityHelp')
+                    : t('discover.empty.noResultsHelp')}
                 </Text>
               </View>
             ) : null

@@ -458,6 +458,177 @@ function ThemePage({
   );
 }
 
+// ─── Email verify step ────────────────────────────────────────────────────────
+// Polls /api/account/check-email-verified every 3s after registration so that
+// when the user taps the link in their inbox (web or foodgo://verify-email),
+// we automatically continue into the app. The manual "Jag har verifierat"
+// button triggers an immediate check, and "Skicka igen" re-issues the email.
+function EmailVerifyStep({
+  email,
+  pendingToken,
+  pendingProfile,
+  onVerified,
+}: {
+  email: string;
+  pendingToken: string | null;
+  pendingProfile: any;
+  onVerified: (tok: string, prof: any) => void;
+}) {
+  const { t } = useTranslation();
+  const { palette } = useTheme();
+  const [polling, setPolling] = useState(false);
+  const [info, setInfo] = useState<string>("");
+  const [error, setError] = useState<string>("");
+  const [verified, setVerified] = useState(false);
+
+  // Keep a ref to onVerified so the polling effect doesn't restart on
+  // every parent re-render (the callback is an inline arrow in the JSX).
+  const onVerifiedRef = useRef(onVerified);
+  useEffect(() => { onVerifiedRef.current = onVerified; }, [onVerified]);
+
+  // Poll loop — kicks off as soon as the step mounts. Stable deps so we
+  // only spin one timer per pending session.
+  useEffect(() => {
+    if (!pendingToken || !pendingProfile) return;
+    let active = true;
+    let timer: any = null;
+
+    const tick = async () => {
+      if (!active) return;
+      try {
+        const { data } = await api.post(
+          "/api/account/check-email-verified",
+          { email },
+          { headers: { Authorization: `Bearer ${pendingToken}` } },
+        );
+        if (data?.verified && active) {
+          setVerified(true);
+          setInfo(t('onboarding.email.verify.verified'));
+          // Tiny delay so user sees the confirmation flash before screen flips
+          setTimeout(() => {
+            if (active) onVerifiedRef.current(pendingToken, pendingProfile);
+          }, 700);
+          return;
+        }
+      } catch {
+        // Network blip — silently swallow, next tick will retry
+      }
+      if (active) timer = setTimeout(tick, 3000);
+    };
+
+    timer = setTimeout(tick, 1500);
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [email, pendingToken, pendingProfile]);
+
+  const handleManualCheck = async () => {
+    if (!pendingToken || !pendingProfile) {
+      setError(t('onboarding.email.errors.registerFailed'));
+      return;
+    }
+    setPolling(true);
+    setError("");
+    setInfo("");
+    try {
+      const { data } = await api.post(
+        "/api/account/check-email-verified",
+        { email },
+        { headers: { Authorization: `Bearer ${pendingToken}` } },
+      );
+      if (data?.verified) {
+        setVerified(true);
+        setInfo(t('onboarding.email.verify.verified'));
+        setTimeout(() => onVerified(pendingToken, pendingProfile), 500);
+      } else {
+        setInfo(t('onboarding.email.verify.notVerifiedYet'));
+      }
+    } catch {
+      setError(t('onboarding.email.verify.checkFailed'));
+    } finally {
+      setPolling(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setError("");
+    setInfo("");
+    try {
+      await api.post("/api/account/send-verification-email", { email });
+      setInfo(t('onboarding.email.verify.resent'));
+    } catch {
+      // Backend always returns 200, but network failure is possible.
+      setError(t('onboarding.email.verify.checkFailed'));
+    }
+  };
+
+  return (
+    <>
+      <View style={{
+        backgroundColor: palette.card, borderRadius: 20, borderWidth: 1,
+        borderColor: palette.border, padding: 18, gap: 12,
+      }}>
+        <View style={{
+          width: 56, height: 56, borderRadius: 18,
+          backgroundColor: 'rgba(231,178,75,0.10)',
+          borderWidth: 1, borderColor: 'rgba(231,178,75,0.25)',
+          alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+        }}>
+          <Ionicons name="mail-unread-outline" size={26} color={palette.gold} />
+        </View>
+        <Text style={{
+          color: palette.muted, fontSize: 13, fontWeight: "500",
+          textAlign: "center", lineHeight: 18,
+        }}>
+          {t('onboarding.email.verify.body', { email })}
+        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 4 }}>
+          <ActivityIndicator size="small" color={palette.gold} />
+          <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>
+            {t('onboarding.email.verify.waiting').toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
+      <Pressable
+        onPress={handleManualCheck}
+        disabled={polling || verified}
+        style={{
+          backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+          marginTop: 4, opacity: polling || verified ? 0.7 : 1,
+          shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+        }}
+      >
+        {polling
+          ? <ActivityIndicator color="#000" />
+          : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.verify.done')}</Text>
+        }
+      </Pressable>
+
+      <Pressable
+        onPress={handleResend}
+        style={{ alignItems: "center", paddingVertical: 10 }}
+      >
+        <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.email.verify.resend')}</Text>
+      </Pressable>
+
+      {!!info && (
+        <View style={{ backgroundColor: "rgba(16,185,129,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(16,185,129,0.2)" }}>
+          <Text style={{ color: "#10b981", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{info}</Text>
+        </View>
+      )}
+
+      {!!error && (
+        <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+          <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+        </View>
+      )}
+    </>
+  );
+}
+
 // ─── OnboardingScreen ──────────────────────────────────────────────────────────
 export default function OnboardingScreen({
   onComplete,
@@ -723,7 +894,7 @@ export default function OnboardingScreen({
   // removed from the platform). This step is only reached when needsPhone=true.
   const handleSaveSocialPhone = async () => {
     if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
-    if (!pendingToken) { setError("Sessionen tappades"); return; }
+    if (!pendingToken) { setError(t('onboarding.auth.sessionLost')); return; }
     const full = buildPhone(countryCode, phone);
     setLoading(true); setError("");
     try {
@@ -737,7 +908,7 @@ export default function OnboardingScreen({
       });
       afterAuth(pendingToken, profileRes.data);
     } catch (e: any) {
-      setError(e?.response?.data?.error || e?.message || "Kunde inte spara telefonnummer");
+      setError(e?.response?.data?.error || e?.message || t('onboarding.auth.savePhoneFailed'));
     } finally { setLoading(false); }
   };
 
@@ -763,8 +934,8 @@ export default function OnboardingScreen({
   // (same one RegisterScreen uses). We generate a temporary random password
   // since the new onboarding doesn't ask for one — the user will set a real
   // password later via "forgot password" / magic-link flow once email
-  // verification arrives. For now we register, store creds as pending, and
-  // route to the verify-email placeholder.
+  // verification arrives. After registration we trigger a real email
+  // verification dispatch and the verify step polls for the verified state.
   const handlePhoneSubmitForEmail = async () => {
     if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
     const full = buildPhone(countryCode, phone);
@@ -781,7 +952,7 @@ export default function OnboardingScreen({
         password: tempPassword,
       });
       const tok = data?.token;
-      if (!tok) throw new Error("Ingen session mottogs");
+      if (!tok) throw new Error(t('onboarding.auth.noSessionReceived'));
 
       // Fetch the full profile shape, mirroring RegisterScreen.
       let prof = data?.user;
@@ -793,10 +964,21 @@ export default function OnboardingScreen({
       } catch {
         // Fall back to the user object the register call returned.
       }
+
+      // Trigger email verification dispatch. The backend always returns 200
+      // (to avoid leaking account existence) so we fire-and-forget.
+      try {
+        await api.post("/api/account/send-verification-email", {
+          email: emailValue.trim(),
+        });
+      } catch {
+        // Non-fatal — user can re-trigger from the verify screen.
+      }
+
       // Store as pending — we still want to show the verify-email screen
-      // before flipping to location/home. NOTE: email verification itself
-      // is currently a placeholder ("I have verified" button just continues).
-      // Real magic-link wiring is deferred — see the report.
+      // before flipping to location/home. The verify step polls
+      // /check-email-verified every few seconds; tapping the email link
+      // (web or foodgo://verify-email?token=...) also flips it.
       setPendingToken(tok);
       setPendingProfile(prof);
       setStep("emailVerify");
@@ -1115,7 +1297,7 @@ export default function OnboardingScreen({
                       transform: [{ translateY: lTitle1Y }],
                       fontFamily: 'Outfit_900Black',
                     }}>
-                      Beställ mat.
+                      {t('onboarding.auth.landingTitleLine1')}
                     </Animated.Text>
                     <Animated.Text style={{
                       color: palette.gold, fontSize: 46, fontWeight: "900",
@@ -1124,7 +1306,7 @@ export default function OnboardingScreen({
                       transform: [{ translateY: lTitle2Y }],
                       fontFamily: 'Outfit_900Black',
                     }}>
-                      Direkt.
+                      {t('onboarding.auth.landingTitleLine2')}
                     </Animated.Text>
                   </View>
 
@@ -1134,7 +1316,7 @@ export default function OnboardingScreen({
                     lineHeight: 22, marginBottom: 28, textAlign: "center",
                     opacity: lSubOpacity,
                   }}>
-                    Restauranger nära dig — levererat snabbt.
+                    {t('onboarding.auth.landingSubtitle')}
                   </Animated.Text>
 
                   {/* All buttons slide up together — 4 prominent options */}
@@ -1446,75 +1628,23 @@ export default function OnboardingScreen({
                 </>
               )}
 
-              {/* ── EMAIL flow: step 4 (verify email — placeholder) ── */}
+              {/* ── EMAIL flow: step 4 (verify email — real polling) ── */}
               {/*
-                NOTE: Real magic-link wiring is deferred. The backend's
-                register endpoint may dispatch a verification email, but
-                this client treats the verify step as a soft prompt: the
-                user has already been issued a session token by /register-user
-                and "Jag har verifierat" simply continues to location/finish.
-                When backend magic-link is in place, swap the done-button
-                handler to poll a /verify-email-status endpoint or to wait
-                for a deep-link.
+                After /register-user we trigger /send-verification-email so
+                the user gets a real link in their inbox. Tapping that link
+                hits /verify-email which flips emailVerifiedAt on the User
+                row. This step polls /check-email-verified every 3s plus
+                a manual "Jag har verifierat" button that triggers an
+                immediate check. The deep-link foodgo://verify-email?token=
+                also lands here via App.tsx handleUrl.
               */}
               {step === "emailVerify" && (
-                <>
-                  <View style={{
-                    backgroundColor: palette.card, borderRadius: 20, borderWidth: 1,
-                    borderColor: palette.border, padding: 18, gap: 12,
-                  }}>
-                    <View style={{
-                      width: 56, height: 56, borderRadius: 18,
-                      backgroundColor: 'rgba(231,178,75,0.10)',
-                      borderWidth: 1, borderColor: 'rgba(231,178,75,0.25)',
-                      alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
-                    }}>
-                      <Ionicons name="mail-unread-outline" size={26} color={palette.gold} />
-                    </View>
-                    <Text style={{
-                      color: palette.muted, fontSize: 13, fontWeight: "500",
-                      textAlign: "center", lineHeight: 18,
-                    }}>
-                      {t('onboarding.email.verify.body', { email: emailValue })}
-                    </Text>
-                  </View>
-
-                  <Pressable
-                    onPress={() => {
-                      // Placeholder "I have verified" — simply complete auth
-                      // using the token already issued by /register-user.
-                      if (pendingToken && pendingProfile) {
-                        afterAuth(pendingToken, pendingProfile);
-                      } else {
-                        setError(t('onboarding.email.errors.registerFailed'));
-                      }
-                    }}
-                    style={{
-                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
-                      marginTop: 4,
-                      shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
-                    }}
-                  >
-                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.verify.done')}</Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => {
-                      // "Send again" — placeholder. Real impl would call a
-                      // backend /resend-verification endpoint; right now we
-                      // just provide UX consistency.
-                    }}
-                    style={{ alignItems: "center", paddingVertical: 10 }}
-                  >
-                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.email.verify.resend')}</Text>
-                  </Pressable>
-
-                  {!!error && (
-                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
-                    </View>
-                  )}
-                </>
+                <EmailVerifyStep
+                  email={emailValue}
+                  pendingToken={pendingToken}
+                  pendingProfile={pendingProfile}
+                  onVerified={(tok, prof) => afterAuth(tok, prof)}
+                />
               )}
             </Animated.View>
 

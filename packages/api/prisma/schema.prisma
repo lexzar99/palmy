@@ -467,6 +467,13 @@ model User {
   // återställningen är gjord. Index på tokenen för snabb lookup.
   passwordResetToken     String?   @unique
   passwordResetExpiresAt DateTime?
+  // Email-verifierings-flöde — POST /api/account/send-verification-email
+  // genererar en token, mejlar länk; klienten POSTar tillbaka till
+  // /api/account/verify-email vilket sätter emailVerifiedAt och nollar
+  // tokenen. RN-klienten pollar /api/account/check-email-verified.
+  emailVerificationToken     String?   @unique
+  emailVerificationExpiresAt DateTime?
+  emailVerifiedAt            DateTime?
   orders         Order[]
   deals          CustomerDeal[]
   savedAddresses SavedAddress[]

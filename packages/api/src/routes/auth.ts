@@ -887,6 +887,216 @@ router.post('/login-user', authLimiter, async (req, res) => {
 });
 
 // ============================================================
+// Email verification — kund-flöde
+// ============================================================
+//
+// Tre endpoints:
+//   1. POST /send-verification-email { email }
+//      Genererar token, mejlar länk (web + foodgo://). Returnerar alltid 200
+//      (läcker inte vilka mejlkonton som finns).
+//   2. POST /verify-email { token }
+//      Validerar tokenen, sätter emailVerifiedAt = now(), nollar token-fält.
+//      Returnerar { ok, email } så klient/webb kan visa bekräftelse.
+//   3. POST /check-email-verified { email } (eller via auth-header)
+//      Mobilklienten pollar denna under verify-steget. Returnerar
+//      { verified: boolean }.
+
+const WEB_VERIFY_EMAIL_BASE =
+  process.env.WEB_VERIFY_EMAIL_URL || 'https://matgo.se/verify-email';
+const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
+  process.env.MOBILE_VERIFY_EMAIL_URL || 'foodgo://verify-email';
+
+// POST /api/auth/send-verification-email — skicka verifieringslänk
+router.post('/send-verification-email', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body as { email?: string };
+    const normalizedEmail = (email || '').trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) {
+      // Returnera 200 även här så vi inte läcker att email validering fail.
+      return res.status(200).json({ ok: true });
+    }
+
+    const user = await (prisma as any).user.findFirst({
+      where: { email: normalizedEmail, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        name: true,
+        emailVerifiedAt: true,
+      },
+    });
+
+    if (user && !user.emailVerifiedAt) {
+      const token = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+      await (prisma as any).user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: token,
+          emailVerificationExpiresAt: expiresAt,
+        },
+      });
+
+      const greetingName = user.firstName || user.name || 'där';
+      const webLink = `${WEB_VERIFY_EMAIL_BASE}?token=${token}`;
+      const mobileLink = `${MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE}?token=${token}`;
+
+      const text = [
+        `Hej ${greetingName}!`,
+        '',
+        'Tack för att du skapat ett MatGo-konto. För att slutföra registreringen,',
+        'klicka på länken nedan och verifiera din e-postadress. Länken gäller 24 timmar.',
+        '',
+        `Webb:   ${webLink}`,
+        `Mobil:  ${mobileLink}`,
+        '',
+        'Om du inte skapat något konto kan du ignorera detta mejl.',
+        '',
+        'Vänliga hälsningar,',
+        'MatGo',
+      ].join('\n');
+
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
+          <h2 style="margin: 0 0 16px; font-weight: 900; letter-spacing: -0.5px;">Verifiera din e-post</h2>
+          <p style="margin: 0 0 12px;">Hej ${greetingName}!</p>
+          <p style="margin: 0 0 12px;">Tack för att du skapat ett MatGo-konto. Klicka på knappen nedan för att verifiera din e-postadress. Länken gäller <strong>24 timmar</strong>.</p>
+          <p style="margin: 24px 0;">
+            <a href="${webLink}" style="display: inline-block; background: #d4af37; color: #0b0a0f; text-decoration: none; padding: 14px 28px; border-radius: 14px; font-weight: 900; letter-spacing: 0.5px;">Verifiera e-post</a>
+          </p>
+          <p style="margin: 0 0 8px; font-size: 13px; color: #555;">Använder du mobilappen? Öppna istället:<br><a href="${mobileLink}">${mobileLink}</a></p>
+          <p style="margin: 24px 0 0; font-size: 12px; color: #888;">Om du inte skapat något konto kan du ignorera detta mejl.</p>
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          to: user.email!,
+          subject: 'Verifiera din email — MatGo',
+          text,
+          html,
+        });
+      } catch (mailErr) {
+        console.error('[send-verification-email] sendEmail failed:', mailErr);
+      }
+
+      await audit(req as AuthRequest, 'EMAIL_VERIFICATION_REQUESTED', {
+        resourceType: 'User',
+        resourceId: user.id,
+        changes: { email: user.email },
+      });
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[send-verification-email] error:', error);
+    return res.status(200).json({ ok: true });
+  }
+});
+
+// POST /api/auth/verify-email — fullfölj verifieringen
+router.post('/verify-email', authLimiter, async (req, res) => {
+  try {
+    const { token } = req.body as { token?: string };
+    if (!token || typeof token !== 'string' || token.length < 32) {
+      return res.status(400).json({ error: 'Ogiltig verifieringslänk' });
+    }
+
+    const user = await (prisma as any).user.findFirst({
+      where: { emailVerificationToken: token, isActive: true, deletedAt: null },
+      select: { id: true, email: true, emailVerificationExpiresAt: true, emailVerifiedAt: true },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Länken är ogiltig eller har använts redan.' });
+    }
+
+    // Idempotent — om någon klickar igen på en redan-verifierad länk
+    // returnerar vi fortfarande ok så UX:en inte ser sönder ut.
+    if (user.emailVerifiedAt) {
+      return res.status(200).json({ ok: true, email: user.email });
+    }
+
+    if (
+      !user.emailVerificationExpiresAt ||
+      new Date(user.emailVerificationExpiresAt).getTime() < Date.now()
+    ) {
+      return res.status(400).json({ error: 'Länken har gått ut. Be om en ny.' });
+    }
+
+    await (prisma as any).user.update({
+      where: { id: user.id },
+      data: {
+        emailVerifiedAt: new Date(),
+        emailVerificationToken: null,
+        emailVerificationExpiresAt: null,
+      },
+    });
+
+    await audit(req as AuthRequest, 'EMAIL_VERIFIED', {
+      resourceType: 'User',
+      resourceId: user.id,
+      changes: { email: user.email },
+    });
+
+    return res.status(200).json({ ok: true, email: user.email });
+  } catch (error) {
+    console.error('[verify-email] error:', error);
+    return res.status(500).json({ error: 'Serverfel' });
+  }
+});
+
+// POST /api/auth/check-email-verified — pollas av RN-klienten under
+// register-flödet för att veta när användaren klickat länken i mejlet.
+// Accepterar antingen body.email eller Bearer-token.
+router.post('/check-email-verified', async (req, res) => {
+  try {
+    const bodyEmail = (req.body?.email as string | undefined)?.trim().toLowerCase();
+    let userId: string | null = null;
+
+    // Föredra auth-headern om den finns — säkrare än body.email mot enumeration.
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        if (decoded?.id) userId = decoded.id;
+      } catch {
+        // Token kanske är en Supabase-JWT — försök med supabaseAdmin
+        if (supabaseAdmin) {
+          try {
+            const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+            if (!error && user?.id) userId = user.id;
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }
+
+    let user: any = null;
+    if (userId) {
+      user = await (prisma as any).user.findUnique({
+        where: { id: userId },
+        select: { id: true, emailVerifiedAt: true },
+      });
+    } else if (bodyEmail && bodyEmail.includes('@')) {
+      user = await (prisma as any).user.findFirst({
+        where: { email: bodyEmail, isActive: true, deletedAt: null },
+        select: { id: true, emailVerifiedAt: true },
+      });
+    }
+
+    return res.status(200).json({ verified: !!user?.emailVerifiedAt });
+  } catch (error) {
+    console.error('[check-email-verified] error:', error);
+    return res.status(200).json({ verified: false });
+  }
+});
+
+// ============================================================
 // Forgot password / Reset password — kund-flöde
 // ============================================================
 //

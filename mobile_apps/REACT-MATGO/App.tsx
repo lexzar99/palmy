@@ -857,6 +857,31 @@ function AppContent() {
         return;
       }
 
+      // ── Verify-email deep link ───────────────────────────────────────────
+      // Mejlets mobil-länk är `foodgo://verify-email?token=<hex>`. Vi
+      // POSTar direkt till /api/account/verify-email och låter polling-
+      // loopen i EmailVerifyStep upptäcka att emailVerifiedAt nu är satt
+      // (vilket flippar onboarding-flödet vidare till location/home).
+      // Om verify-anropet faller (ogiltig token etc.) sväljer vi felet
+      // tyst — användaren ser ändå "väntar på verifiering"-spinnern och
+      // kan trycka "Skicka igen" eller "Jag har verifierat" i UI:t.
+      if (url.startsWith("foodgo://verify-email")) {
+        const queryIndex = url.indexOf("?");
+        let token = "";
+        if (queryIndex >= 0) {
+          const params = new URLSearchParams(url.slice(queryIndex + 1));
+          token = params.get("token") || "";
+        }
+        if (token) {
+          try {
+            await api.post("/api/account/verify-email", { token });
+          } catch {
+            // Polling-loopen ger sin egen felhantering i UI:t.
+          }
+        }
+        return;
+      }
+
       if (!isAuthRedirectUrl(url)) return;
 
       const {

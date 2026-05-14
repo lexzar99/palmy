@@ -185,22 +185,28 @@ export default function HomeScreen({
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
 
   const greeting = useMemo(() => {
+    // Time bands:
+    //   00:00–03:59 → evening (late night counts as kväll)
+    //   04:00–10:59 → morning
+    //   11:00–13:59 → lunch
+    //   14:00–17:59 → afternoon
+    //   18:00–23:59 → evening
     const h = new Date().getHours();
     const firstName = profile?.name ? profile.name.split(" ")[0] : null;
 
     if (firstName) {
-      if (h < 10) return { pre: t('home.greetings.morningName'), highlight: firstName, sub: t('home.greetings.subMorning') };
+      if (h < 4) return { pre: t('home.greetings.eveningName'), highlight: firstName, sub: t('home.greetings.subEvening') };
+      if (h < 11) return { pre: t('home.greetings.morningName'), highlight: firstName, sub: t('home.greetings.subMorning') };
       if (h < 14) return { pre: t('home.greetings.lunchName'), highlight: firstName, sub: t('home.greetings.subLunch') };
-      if (h < 17) return { pre: t('home.greetings.afternoonName'), highlight: firstName, sub: t('home.greetings.subAfternoon') };
-      if (h < 22) return { pre: t('home.greetings.eveningName'), highlight: firstName, sub: t('home.greetings.subEvening') };
-      return { pre: t('home.greetings.lateName'), highlight: firstName, sub: t('home.greetings.subLate') };
+      if (h < 18) return { pre: t('home.greetings.afternoonName'), highlight: firstName, sub: t('home.greetings.subAfternoon') };
+      return { pre: t('home.greetings.eveningName'), highlight: firstName, sub: t('home.greetings.subEvening') };
     }
 
-    if (h < 10) return { pre: t('home.greetings.morningGuest.pre'), highlight: t('home.greetings.morningGuest.highlight'), sub: t('home.greetings.morningGuest.sub') };
+    if (h < 4) return { pre: t('home.greetings.eveningGuest.pre'), highlight: t('home.greetings.eveningGuest.highlight'), sub: t('home.greetings.eveningGuest.sub') };
+    if (h < 11) return { pre: t('home.greetings.morningGuest.pre'), highlight: t('home.greetings.morningGuest.highlight'), sub: t('home.greetings.morningGuest.sub') };
     if (h < 14) return { pre: t('home.greetings.lunchGuest.pre'), highlight: t('home.greetings.lunchGuest.highlight'), sub: t('home.greetings.lunchGuest.sub') };
-    if (h < 17) return { pre: t('home.greetings.afternoonGuest.pre'), highlight: t('home.greetings.afternoonGuest.highlight'), sub: t('home.greetings.afternoonGuest.sub') };
-    if (h < 22) return { pre: t('home.greetings.eveningGuest.pre'), highlight: t('home.greetings.eveningGuest.highlight'), sub: t('home.greetings.eveningGuest.sub') };
-    return { pre: t('home.greetings.lateGuest.pre'), highlight: t('home.greetings.lateGuest.highlight'), sub: t('home.greetings.lateGuest.sub') };
+    if (h < 18) return { pre: t('home.greetings.afternoonGuest.pre'), highlight: t('home.greetings.afternoonGuest.highlight'), sub: t('home.greetings.afternoonGuest.sub') };
+    return { pre: t('home.greetings.eveningGuest.pre'), highlight: t('home.greetings.eveningGuest.highlight'), sub: t('home.greetings.eveningGuest.sub') };
   }, [profile, t]);
 
   // Derive rgb of palette.bg once so the sticky-search fade gradient works in
