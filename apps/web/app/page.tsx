@@ -116,6 +116,17 @@ export default function HomePage() {
   const [quickFilter, setQuickFilter] = useState<"all" | "rated" | "fast" | "deals" | "free">("all");
   // Favoriter (delad localStorage-backad store — paritet med RN)
   const { favorites, toggle: toggleFavorite } = useFavorites();
+  // Tidsbaserad greeting — beräknas BARA client-side i useEffect för att
+  // undvika hydration-mismatch (server-time ≠ client-time). Initial null →
+  // render visar inget greeting → useEffect populerar efter mount → matchar
+  // server-output.
+  const [greetingHour, setGreetingHour] = useState<number | null>(null);
+  useEffect(() => {
+    setGreetingHour(new Date().getHours());
+    // Uppdatera varje minut så det inte fastnar på "GOD MORGON" hela dagen.
+    const timer = setInterval(() => setGreetingHour(new Date().getHours()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Zone filtering – IDs of restaurants that can deliver to the user's saved coords
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
@@ -683,9 +694,10 @@ export default function HomePage() {
               background: "radial-gradient(circle, rgba(212,167,74,0.22) 0%, transparent 60%)",
             }} />
 
-            {/* Tidsbaserad greeting + restaurant-count */}
-            {(() => {
-              const hour = new Date().getHours();
+            {/* Tidsbaserad greeting — använder greetingHour-state som bara
+                sätts client-side efter mount → ingen hydration-mismatch. */}
+            {greetingHour !== null && (() => {
+              const hour = greetingHour;
               const greeting =
                 hour < 5 ? "GOD NATT" :
                 hour < 11 ? "GOD MORGON" :
