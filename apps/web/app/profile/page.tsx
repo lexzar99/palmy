@@ -567,24 +567,37 @@ function ProfileContent() {
       }
     };
 
-    // Initial mount: vi kan ha en kvar-liggande platform-session från tidigare
-    // (cookies) ELLER en färsk Supabase-session från callback-sidan
+    // Initial mount-strategi:
+    // Om Supabase har en session = användaren kommer just från Apple/Google-
+    // callback. Den platform_session-cookie som finns kvar är förmodligen
+    // STALE (från tidigare test-session, gammal user-id, gammal JWT_SECRET).
+    // Force-clear cookien + kör exchange direkt så vi får en fresh JWT.
+    //
+    // Om Supabase INTE har session: kolla om platform-cookien funkar via
+    // fetchData. Om den failar med 401 stannar vi kvar utan auto-logout
+    // (kontrollerat utlogg via knappen istället).
     void (async () => {
-      const authenticated = await getPlatformSessionStatus();
-      console.log("[OAuth] Initial mount: hasPlatformSession =", authenticated);
-      if (authenticated) {
-        setHasPlatformSession(true);
-        await fetchData();
-        return;
-      }
-      // Ingen platform-session — kolla om Supabase har en (efter OAuth-redirect)
       const { data: { session: sbSession } } = await supabase.auth.getSession();
       console.log(
         "[OAuth] Initial mount: hasSupabaseSession =",
         !!sbSession?.access_token,
       );
+
       if (sbSession?.access_token) {
-        await exchangeSupabaseForPlatformToken(sbSession);
+        // Fresh OAuth-flöde — alltid byt till fresh platform JWT, oavsett
+        // om gammal cookie finns. Stale cookies orsakade 401-loop tidigare.
+        console.log("[OAuth] Supabase session detected — forcing fresh exchange");
+        await clearPlatformSession().catch(() => {});
+        await exchangeSupabaseForPlatformToken(sbSession, true);
+        return;
+      }
+
+      // Ingen Supabase-session — testa platform-cookien
+      const authenticated = await getPlatformSessionStatus();
+      console.log("[OAuth] Initial mount: hasPlatformSession =", authenticated);
+      if (authenticated) {
+        setHasPlatformSession(true);
+        await fetchData();
       } else {
         setLoading(false);
       }

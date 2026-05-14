@@ -1,13 +1,8 @@
 import { cookies } from "next/headers";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const PLATFORM_SESSION_COOKIE_NAME = "platform_session";
 
 const PLATFORM_SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
-
-function isSupabaseConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-}
 
 export function getPlatformSessionCookieOptions() {
   return {
@@ -30,25 +25,17 @@ export async function clearPlatformSessionCookie() {
 }
 
 export async function getServerPlatformAccessToken() {
+  // VIKTIGT: ALLTID returnera platform_session-cookien (vårt JWT) — INGEN
+  // fallback till Supabase access_token. Det tidigare fallback-flödet
+  // skickade Supabase JWT till backend som kräver att supabaseAdmin
+  // är konfigurerad på backend (SUPABASE_SERVICE_ROLE_KEY). Om den
+  // saknas → 401 → felaktig "session utgången".
+  //
+  // Frontend ska ALLTID köra OAuth → platform JWT-exchange. Om
+  // platform_session inte finns: returnera null → proxy skickar inget
+  // Authorization-header → backend svarar 401 → frontend triggar
+  // exchangeSupabaseForPlatformToken via Supabase-session.
   const cookieStore = await cookies();
-  const legacyToken = cookieStore.get(PLATFORM_SESSION_COOKIE_NAME)?.value;
-
-  if (legacyToken) {
-    return legacyToken;
-  }
-
-  if (!isSupabaseConfigured()) {
-    return null;
-  }
-
-  try {
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
-    return session?.access_token ?? null;
-  } catch {
-    return null;
-  }
+  const platformToken = cookieStore.get(PLATFORM_SESSION_COOKIE_NAME)?.value;
+  return platformToken || null;
 }
