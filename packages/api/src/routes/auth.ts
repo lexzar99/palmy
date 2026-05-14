@@ -1285,17 +1285,35 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           password: null,
         }
       });
-    } else if (!user.oauthProvider) {
-      user = await (prisma as any).user.update({
-        where: { id: user.id },
-        data: { oauthProvider: provider, oauthId: String(providerId), image: image || user.image }
-      });
+    } else {
+      // Återanvänd existerande user-record. VIKTIGT: reset:a tombstone-fält
+      // (deletedAt, isActive) så att en tidigare soft-deleted user kan logga
+      // in igen via samma email/OAuth. Tidigare skapade detta ett 401-loop
+      // efter Apple-login eftersom authenticateUser rejectade soft-deleted
+      // användare även om JWT:n var fresh.
+      const needsUpdate =
+        !user.oauthProvider ||
+        user.deletedAt !== null ||
+        user.isActive === false;
+      if (needsUpdate) {
+        user = await (prisma as any).user.update({
+          where: { id: user.id },
+          data: {
+            oauthProvider: provider,
+            oauthId: String(providerId),
+            image: image || user.image,
+            deletedAt: null,
+            isActive: true,
+          },
+        });
+      }
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ token, user: { id: user.id, name: user.name, phone: user.phone, email: user.email, image: user.image, needsPhone: !user.phone, isVerified: user.isVerified } });
-  } catch (error) {
-    res.status(500).json({ error: 'Serverfel' });
+  } catch (error: any) {
+    console.error('[oauth-token] FAILED:', error?.message || error);
+    res.status(500).json({ error: 'Serverfel', detail: error?.message });
   }
 });
 
