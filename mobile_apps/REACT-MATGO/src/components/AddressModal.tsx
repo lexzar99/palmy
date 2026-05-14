@@ -48,6 +48,13 @@ interface CityOption {
   deliveryMode: string;
 }
 
+interface AnchorRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface AddressModalProps {
   visible: boolean;
   initialValue?: string;
@@ -81,7 +88,7 @@ const buildColors = (palette: ReturnType<typeof useTheme>["palette"]) => ({
   overlay:   "rgba(33,22,15,0.32)",
 });
 
-const { width: SW } = Dimensions.get("window");
+const { width: SW, height: SH } = Dimensions.get("window");
 const CARD_W = Math.min(SW - 40, 440);
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -117,6 +124,14 @@ export default function AddressModal({
   const sessionToken  = useRef(makeToken());
   const fadeAnim      = useRef(new Animated.Value(0)).current;
   const scaleAnim     = useRef(new Animated.Value(0.92)).current;
+  const inputContainerRef = useRef<View>(null);
+  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+
+  const measureAnchor = () => {
+    inputContainerRef.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x, y, width, height });
+    });
+  };
 
   // ── Open / close animations ─────────────────────────────────────────────────
   useEffect(() => {
@@ -208,6 +223,7 @@ export default function AddressModal({
     setConfirmedAddress(null);
     setConfirmedCoords(null);
     setError(null);
+    measureAnchor();
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchPredictions(text), 320);
   };
@@ -320,10 +336,14 @@ export default function AddressModal({
           {/* ── DELIVERY: address input ── */}
           {orderType === "DELIVERY" && (
             <>
-              <View style={[
-                s.inputRow,
-                error ? s.inputRowErr : confirmedCoords ? s.inputRowOk : {},
-              ]}>
+              <View
+                ref={inputContainerRef}
+                onLayout={measureAnchor}
+                style={[
+                  s.inputRow,
+                  error ? s.inputRowErr : confirmedCoords ? s.inputRowOk : {},
+                ]}
+              >
                 <Ionicons
                   name={confirmedCoords ? "checkmark-circle" : "location"}
                   size={18}
@@ -337,6 +357,7 @@ export default function AddressModal({
                   placeholderTextColor={C.muted}
                   autoFocus
                   returnKeyType="search"
+                  onFocus={measureAnchor}
                   onSubmitEditing={() => predictions.length === 0 && handleConfirm()}
                 />
                 {loadingPred
@@ -354,30 +375,6 @@ export default function AddressModal({
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
                   <Text style={[s.badgeTxt, { color: C.green }]}>{t('addressModal.verified')}</Text>
                 </View>
-              )}
-
-              {predictions.length > 0 && (
-                <ScrollView style={s.predList} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"} nestedScrollEnabled>
-                  {predictions.map((p, idx) => (
-                    <Pressable
-                      key={p.place_id}
-                      style={({ pressed }) => [
-                        s.predItem,
-                        idx < predictions.length - 1 && s.predItemBorder,
-                        pressed && s.predItemPress,
-                      ]}
-                      onPress={() => handleSelectPrediction(p)}
-                    >
-                      <View style={s.predIcon}>
-                        <Ionicons name="location" size={13} color={C.gold} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.predStreet} numberOfLines={1}>{street(p.description)}</Text>
-                        <Text style={s.predRest}   numberOfLines={1}>{rest(p.description)}</Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                </ScrollView>
               )}
             </>
           )}
@@ -468,6 +465,63 @@ export default function AddressModal({
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Predictions overlay — floats above the modal card so the list isn't clipped */}
+      <Modal
+        visible={orderType === "DELIVERY" && predictions.length > 0 && anchor !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPredictions([])}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => { setPredictions([]); Keyboard.dismiss(); }}
+        />
+        {anchor && (
+          <View
+            pointerEvents="box-none"
+            style={[
+              s.predOverlay,
+              {
+                top: anchor.y + anchor.height + 6,
+                left: anchor.x,
+                width: anchor.width,
+                maxHeight: Math.max(
+                  140,
+                  Math.min(360, SH - (anchor.y + anchor.height + 6) - 80),
+                ),
+              },
+            ]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              showsVerticalScrollIndicator={false}
+            >
+              {predictions.map((p, idx) => (
+                <Pressable
+                  key={p.place_id}
+                  style={({ pressed }) => [
+                    s.predItem,
+                    idx < predictions.length - 1 && s.predItemBorder,
+                    pressed && s.predItemPress,
+                  ]}
+                  onPress={() => handleSelectPrediction(p)}
+                >
+                  <View style={s.predIcon}>
+                    <Ionicons name="location" size={13} color={C.gold} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.predStreet} numberOfLines={1}>{street(p.description)}</Text>
+                    <Text style={s.predRest}   numberOfLines={1}>{rest(p.description)}</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
     </Modal>
   );
 }
@@ -551,11 +605,19 @@ const makeStyles = (C: ReturnType<typeof buildColors>) => StyleSheet.create({
   },
   badgeTxt: { flex: 1, fontSize: 11, fontWeight: "700" },
 
-  // Predictions list
-  predList: {
-    flexGrow: 1,
-    maxHeight: 320, backgroundColor: C.surface,
-    borderRadius: 16, borderWidth: 1, borderColor: C.border, overflow: "hidden",
+  // Predictions overlay (rendered via portal Modal so it isn't clipped by the card)
+  predOverlay: {
+    position: "absolute",
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    elevation: 16,
   },
   predItem: {
     flexDirection: "row", alignItems: "center", gap: 10,

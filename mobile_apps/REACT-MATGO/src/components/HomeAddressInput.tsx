@@ -1,5 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  Modal,
+  Dimensions,
+  ScrollView,
+  Keyboard,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../theme";
 import { placesAutocomplete, placesResolveCoords, type PlaceItem } from "../lib/places";
@@ -10,6 +22,15 @@ interface HomeAddressInputProps {
   onSelect: (address: string, coords?: { lat: number; lng: number }) => void;
   onPress: () => void;
 }
+
+interface AnchorRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 export default function HomeAddressInput({
   value,
@@ -24,12 +45,20 @@ export default function HomeAddressInput({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [anchor, setAnchor] = useState<AnchorRect | null>(null);
+  const inputContainerRef = useRef<View>(null);
 
   useEffect(() => {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
+
+  const measureAnchor = () => {
+    inputContainerRef.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x, y, width, height });
+    });
+  };
 
   const fetchSuggestions = async (text: string) => {
     if (text.length < 3) {
@@ -52,6 +81,7 @@ export default function HomeAddressInput({
   const handleChange = (text: string) => {
     onChangeText(text);
     setShowSuggestions(true);
+    measureAnchor();
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => fetchSuggestions(text), 300);
@@ -66,6 +96,11 @@ export default function HomeAddressInput({
 
     const coords = suggestion.coords ?? (await placesResolveCoords(suggestion));
     onSelect(formatted, coords ?? undefined);
+  };
+
+  const closeOverlay = () => {
+    setShowSuggestions(false);
+    Keyboard.dismiss();
   };
 
   if (!isEditing) {
@@ -93,10 +128,17 @@ export default function HomeAddressInput({
     );
   }
 
+  const dropdownVisible = showSuggestions && suggestions.length > 0 && anchor !== null;
+  const dropdownTop = anchor ? anchor.y + anchor.height + 4 : 0;
+  const dropdownMaxHeight = anchor
+    ? Math.max(120, Math.min(320, SCREEN_HEIGHT - dropdownTop - 80))
+    : 240;
+
   return (
     <View style={styles.container}>
-      <Pressable
-        onPress={onPress}
+      <View
+        ref={inputContainerRef}
+        onLayout={measureAnchor}
         style={{
           flexDirection: "row",
           alignItems: "center",
@@ -110,7 +152,9 @@ export default function HomeAddressInput({
           borderColor: palette.gold,
         }}
       >
-        <Ionicons name="location-outline" size={18} color={palette.gold} />
+        <Pressable onPress={onPress} hitSlop={6}>
+          <Ionicons name="location-outline" size={18} color={palette.gold} />
+        </Pressable>
         <TextInput
           style={{ flex: 1, color: palette.text, fontSize: 14, fontWeight: "800", padding: 0, margin: 0 }}
           value={value}
@@ -118,36 +162,62 @@ export default function HomeAddressInput({
           placeholder="Ange din adress..."
           placeholderTextColor={palette.muted}
           autoFocus
+          onFocus={() => { setShowSuggestions(true); measureAnchor(); }}
           onBlur={() => {
             if (!value) setIsEditing(false);
-            setShowSuggestions(false);
           }}
         />
         {loading ? (
           <ActivityIndicator size="small" color={palette.gold} />
         ) : (
-          <Pressable onPress={() => setIsEditing(false)}>
+          <Pressable onPress={() => { setShowSuggestions(false); setIsEditing(false); Keyboard.dismiss(); }}>
             <Ionicons name="checkmark" size={20} color={palette.gold} />
           </Pressable>
         )}
-      </Pressable>
+      </View>
 
-      {showSuggestions && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
-          {suggestions.map((suggestion, index) => (
-            <Pressable
-              key={index}
-              style={styles.suggestionItem}
-              onPress={() => handleSelect(suggestion)}
+      <Modal
+        visible={dropdownVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={closeOverlay}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={closeOverlay} />
+        {anchor && (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.suggestionsContainer,
+              {
+                top: dropdownTop,
+                left: anchor.x,
+                width: anchor.width,
+                maxHeight: dropdownMaxHeight,
+              },
+            ]}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              showsVerticalScrollIndicator={false}
             >
-              <Ionicons name="location-outline" size={16} color={palette.muted} />
-              <Text style={styles.suggestionText} numberOfLines={2}>
-                {suggestion.description}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
+              {suggestions.map((suggestion, index) => (
+                <Pressable
+                  key={suggestion.id ?? index}
+                  style={styles.suggestionItem}
+                  onPress={() => handleSelect(suggestion)}
+                >
+                  <Ionicons name="location-outline" size={16} color={palette.muted} />
+                  <Text style={styles.suggestionText} numberOfLines={2}>
+                    {suggestion.description}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -156,19 +226,19 @@ const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
   StyleSheet.create({
     container: {
       position: "relative",
-      zIndex: 100,
     },
     suggestionsContainer: {
       position: "absolute",
-      top: 60,
-      left: 0,
-      right: 0,
       backgroundColor: palette.panel,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: palette.border,
       overflow: "hidden",
-      zIndex: 200,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.18,
+      shadowRadius: 16,
+      elevation: 12,
     },
     suggestionItem: {
       flexDirection: "row",
@@ -178,6 +248,7 @@ const makeStyles = (palette: ReturnType<typeof useTheme>["palette"]) =>
       paddingVertical: 14,
       borderBottomWidth: 1,
       borderBottomColor: "rgba(255,248,234,0.06)",
+      backgroundColor: palette.panel,
     },
     suggestionText: {
       flex: 1,

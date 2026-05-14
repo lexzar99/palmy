@@ -877,8 +877,11 @@ export default function CartScreen({
 
       // Tillåt checkout om subtotal < minOrder ENDAST när användaren kryssat
       // i komplettering-checkboxen (paritet med web). Annars blockera.
-      if (subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum) {
-        Alert.alert(t('cart.errors.minimumOrder'), t('cart.summary.minimum', { amount: restaurantSettings.minOrderAmount }));
+      // OBS: `minOrder` är zone-aware (deliveryCheck.minOrder fallback till
+      // restaurantSettings.minOrderAmount). Vi använder den, inte restaurang-
+      // settings direkt, så min stämmer med zonen kunden levereras till.
+      if (subtotal < minOrder && !topUpToMinimum) {
+        Alert.alert(t('cart.errors.minimumOrder'), t('cart.summary.minimum', { amount: minOrder }));
         setSubmitting(false);
         return;
       }
@@ -2009,8 +2012,11 @@ export default function CartScreen({
 
           {/* 8. Min-order top-up banner — paritet med web. När subtotal < minimum
               kan kunden kryssa i för att betala mellanskillnaden så ordern kan slutföras.
-              Default på (samma som web) men kunden kan koppla av för att avbryta. */}
-          {subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && (
+              Default på (samma som web) men kunden kan koppla av för att avbryta.
+              OBS: minOrder är zone-aware (deliveryCheck.minOrder fallback till
+              restaurantSettings.minOrderAmount) — kunden ser zonens minimum
+              för den adress de levereras till, inte restaurangens default. */}
+          {subtotal > 0 && subtotal < minOrder && (
             <View
               style={{
                 marginTop: 4,
@@ -2025,11 +2031,11 @@ export default function CartScreen({
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <Text style={{ color: topUpToMinimum ? palette.gold : palette.danger, fontSize: 10, fontWeight: "900", textTransform: "uppercase", letterSpacing: ls(1.5), flex: 1 }}>
                   {topUpToMinimum
-                    ? `Komplettering +${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till minimum`
-                    : `Saknar ${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till minimum`}
+                    ? `Komplettering +${Math.round(minOrder - subtotal)} kr till minimum`
+                    : `Saknar ${Math.round(minOrder - subtotal)} kr till minimum`}
                 </Text>
                 <Text style={{ color: topUpToMinimum ? palette.gold : palette.danger, fontSize: 10, fontWeight: "900" }}>
-                  {Math.round(subtotal)} / {Math.round(restaurantSettings.minOrderAmount)} kr
+                  {Math.round(subtotal)} / {Math.round(minOrder)} kr
                 </Text>
               </View>
               {/* Progress bar */}
@@ -2037,7 +2043,7 @@ export default function CartScreen({
                 <View
                   style={{
                     height: "100%",
-                    width: `${Math.min((subtotal / restaurantSettings.minOrderAmount) * 100, 100)}%`,
+                    width: `${Math.min((subtotal / minOrder) * 100, 100)}%`,
                     backgroundColor: topUpToMinimum ? palette.gold : palette.danger,
                     borderRadius: 3,
                   }}
@@ -2059,7 +2065,7 @@ export default function CartScreen({
                   {topUpToMinimum && <Ionicons name="checkmark" size={12} color="#000" />}
                 </View>
                 <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", flex: 1, lineHeight: 14 }}>
-                  Betala mellanskillnaden ({Math.round(restaurantSettings.minOrderAmount - subtotal)} kr) så ordern kan slutföras
+                  Betala mellanskillnaden ({Math.round(minOrder - subtotal)} kr) så ordern kan slutföras
                 </Text>
               </Pressable>
             </View>
@@ -2196,15 +2202,15 @@ export default function CartScreen({
               label={
                 submitting
                   ? t('cart.submittingBtn')
-                  : (subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum)
-                    ? `Köp för ${Math.round(restaurantSettings.minOrderAmount - subtotal)} kr till`
+                  : (subtotal > 0 && subtotal < minOrder && !topUpToMinimum)
+                    ? `Köp för ${Math.round(minOrder - subtotal)} kr till`
                     : t('cart.checkoutBtn', { amount: Math.round(total) })
               }
               onPress={handleCheckoutPress}
               disabled={
                 submitting
                 || !restaurantSettings.isOpen
-                || (subtotal > 0 && subtotal < restaurantSettings.minOrderAmount && !topUpToMinimum)
+                || (subtotal > 0 && subtotal < minOrder && !topUpToMinimum)
               }
               icon="checkmark-circle-outline"
               style={{ marginTop: 22, paddingVertical: 19 }}
