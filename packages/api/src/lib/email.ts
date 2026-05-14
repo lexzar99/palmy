@@ -1,29 +1,35 @@
 // Email-transport för MatGo.
 //
-// STATUS: Resend är wired up. Om `RESEND_API_KEY` finns i env skickas mejl
-// via Resend API; saknas nyckeln faller modulen tillbaka till en console.log-
-// stub så dev/test fortsätter fungera utan extern beroende.
+// Stöder 3 transports — priority-ordning:
+//
+//   1. **Gmail SMTP** (om GMAIL_USER + GMAIL_APP_PASSWORD är satta)
+//      — Skickar via Gmails SMTP-server. Funkar UTAN egen domän, fungerar
+//      direkt till ANY mottagare. Avsändare blir den Gmail-adress du
+//      konfigurerat. Limit: ~500 mejl/dag per Gmail-konto.
+//      Setup: aktivera 2FA på Google-kontot, skapa "App password" på
+//      https://myaccount.google.com/apppasswords, sätt env-vars i Railway.
+//
+//   2. **Resend** (om RESEND_API_KEY är satt)
+//      — Modern email-API. KRÄVER verifierad domän för att skicka till
+//      andra än kontoägarens egen email. Utan verifierad domän:
+//      `onboarding@resend.dev` används men endast kontoägarens email
+//      tar emot. Bäst för PRODUKTION med egen domän.
+//
+//   3. **Console-log** (fallback om varken Gmail eller Resend är konfade)
+//      — Loggar email-innehåll till stdout. Bra för dev så flöden kan
+//      testas end-to-end utan extern beroende.
 //
 // Anrop misslyckas aldrig hårt — vi fail-open, dvs. loggar och returnerar
 // utan att kasta. Anroparna (auth-routes) har egen `try/catch` runt
 // `sendEmail()` men returnerar 200 även vid mejl-fel, så vi avslöjar
 // inte om en adress finns eller ej.
 //
-// Setup (post-deploy):
-//   1. Skapa konto på resend.com (free tier funkar).
-//   2. Generera API-nyckel.
-//   3. Sätt RESEND_API_KEY i Railway-miljön (kund-API:t).
-//
-// PROD: när du har verifierat matgo.se i Resend (via DNS-records), sätt
-//   EMAIL_FROM=MatGo <no-reply@matgo.se>
-// i Railway env för att skicka från egen domän.
-//
-// DEV/TEST: utan verifierad domän, använd Resend's test-avsändare
-// `onboarding@resend.dev` — den är förverifierad och kräver inget DNS.
-// VIKTIGT: emails går då BARA till email-adressen kontot är registrerat
-// på Resend (= din egen email). Andra mottagare blockas. Default nedan.
+// Switch-rekommendation:
+//   - DEV/TEST utan domän: Gmail SMTP (kan skicka till alla)
+//   - PROD med egen domän: Resend (snyggare avsändare, bättre deliverability)
 
 import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
 
 export type EmailMessage = {
   to: string;
@@ -39,29 +45,60 @@ export type EmailMessage = {
    */
   html?: string;
   /**
-   * From-adress. Default tas från env (`EMAIL_FROM`) om satt, annars
-   * `MatGo <no-reply@matgo.se>`.
+   * From-adress. Default tas från env (`EMAIL_FROM`) om satt; annars
+   * Gmail-användarens adress (om Gmail-transport) eller Resend test-
+   * adressen (om Resend-transport).
    */
   from?: string;
 };
 
-// Default: Resend's förverifierade test-avsändare. Funkar direkt utan DNS,
-// men mejlen levereras bara till email-adressen som Resend-kontot är
-// registrerat på. När matgo.se är verifierad i Resend → sätt EMAIL_FROM
-// i Railway till "MatGo <no-reply@matgo.se>".
-const DEFAULT_FROM =
-  process.env.EMAIL_FROM ||
-  'MatGo <onboarding@resend.dev>';
+// ── Gmail SMTP transport (om konfigurerad) ────────────────────────────────────
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
+const gmailTransporter =
+  GMAIL_USER && GMAIL_APP_PASSWORD
+    ? nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false, // STARTTLS på port 587
+        auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      })
+    : null;
 
-// Instansiera en gång vid modulladdning. `null` om ingen API-nyckel —
-// då används console.log-fallbacken så lokal utveckling inte kraschar.
+// ── Resend transport (om konfigurerad) ────────────────────────────────────────
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-export async function sendEmail(msg: EmailMessage): Promise<void> {
-  const from = msg.from || DEFAULT_FROM;
+// ── Default From-adress ────────────────────────────────────────────────────────
+// Prioritet: EMAIL_FROM env → Gmail-användaren (om Gmail-transport) →
+// Resend test-domain → hard-coded fallback.
+function defaultFrom(): string {
+  if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  if (GMAIL_USER) return `MatGo <${GMAIL_USER}>`;
+  return 'MatGo <onboarding@resend.dev>';
+}
 
+export async function sendEmail(msg: EmailMessage): Promise<void> {
+  const from = msg.from || defaultFrom();
+
+  // 1. Gmail SMTP — testbar mot vilken mottagare som helst utan domän.
+  if (gmailTransporter) {
+    try {
+      await gmailTransporter.sendMail({
+        from,
+        to: msg.to,
+        subject: msg.subject,
+        text: msg.text,
+        html: msg.html,
+      });
+    } catch (err) {
+      console.error('[email] gmail SMTP send failed:', err);
+    }
+    return;
+  }
+
+  // 2. Resend — produktion med egen domän.
   if (resend) {
     try {
       const { error } = await resend.emails.send({
@@ -72,9 +109,6 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         html: msg.html,
       });
       if (error) {
-        // Resend signalerar fel via `error`-fältet snarare än throw.
-        // Logga, men kasta inte vidare — anroparen har redan try/catch
-        // och vi vill inte krascha auth-flöden för ett mejl-fel.
         console.error('[email] resend.emails.send error:', error);
       }
     } catch (err) {
@@ -83,10 +117,9 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
     return;
   }
 
-  // Logg-fallback. Behåll formattering — Railway parsar JSON-rader bra,
-  // men för dev-konsollen vill vi se att mejlet "kom fram" i klartext.
+  // 3. Console-log fallback.
   console.log('────────────────────────────────────────────────────');
-  console.log('[email] (no RESEND_API_KEY — logging only)');
+  console.log('[email] (no transport configured — logging only)');
   console.log(`  From:    ${from}`);
   console.log(`  To:      ${msg.to}`);
   console.log(`  Subject: ${msg.subject}`);
