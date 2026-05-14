@@ -27,8 +27,11 @@ const RegisterPage = () => {
     try {
       const res = await axios.post(`${API_URL}/api/account/register-user`, { firstName, lastName, email, phone: phone || undefined, password });
       await persistPlatformSession(res.data.token);
+      // Fire-and-forget — backend returnerar alltid 200 (läcker inte konto-existens),
+      // men en network-error ska inte fälla själva registreringen.
+      axios.post(`${API_URL}/api/account/send-verification-email`, { email }).catch(() => null);
       setSuccess(true);
-      setTimeout(() => router.push("/profile"), 2000);
+      setTimeout(() => router.push("/profile"), 2500);
     } catch (err: any) {
       setError(err.response?.data?.error || "Registrering misslyckades");
     } finally {
@@ -59,7 +62,12 @@ const RegisterPage = () => {
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2.5rem] p-10 text-center space-y-4">
              <CheckCircle2 size={48} className="text-emerald-500 mx-auto animate-bounce" />
              <h2 className="text-xl font-black uppercase tracking-tight text-emerald-500">Klart!</h2>
-             <p className="text-zinc-400 text-xs">Ditt konto har skapats. Skickar dig till din profil...</p>
+             <p className="text-zinc-300 text-xs leading-relaxed">
+               Vi skickade en verifieringslänk till <span className="font-black text-emerald-400">{email}</span>.
+             </p>
+             <p className="text-zinc-500 text-[11px] leading-relaxed">
+               Kolla din mejl för att slutföra ditt konto. Skickar dig till din profil...
+             </p>
           </div>
         ) : (
           <form onSubmit={handleRegister} className="space-y-4">

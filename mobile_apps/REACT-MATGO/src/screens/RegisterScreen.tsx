@@ -35,6 +35,9 @@ export default function RegisterScreen({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Visa en kort bekräftelse efter registreringen så användaren förstår att
+  // ett verifieringsmejl är på väg innan vi skickar dem vidare till hub:en.
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const enterAnim = useRef(new Animated.Value(0)).current;
 
@@ -72,6 +75,11 @@ export default function RegisterScreen({
 
       setToken(tok);
 
+      // Trigger verification email — fire-and-forget. Backend returnerar alltid
+      // 200 (läcker inte konto-existens) men nätverksfel ska inte fälla flödet.
+      // Matchar OnboardingScreen email-flow så alla register-paths skickar mejlet.
+      api.post("/api/account/send-verification-email", { email: email.trim() }).catch(() => null);
+
       // Fetch the full profile so the rest of the app sees the same shape it
       // gets after OAuth login (needsPhone flag, isVerified, image, etc.).
       try {
@@ -83,7 +91,10 @@ export default function RegisterScreen({
         // Fallback to the minimal user object the register endpoint returned.
         if (data?.user) setProfile(data.user);
       }
-      onRegistered();
+      // Litet inline-notis-fönster så användaren vet att verifieringslänken är
+      // skickad innan vi flyttar till nästa steg (App.tsx-routing tar över).
+      setVerificationSent(true);
+      setTimeout(() => onRegistered(), 2200);
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Registrering misslyckades");
     } finally {
@@ -172,15 +183,26 @@ export default function RegisterScreen({
             </View>
           )}
 
+          {verificationSent && (
+            <View style={{ backgroundColor: "rgba(16,185,129,0.10)", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: "rgba(16,185,129,0.25)", gap: 4 }}>
+              <Text style={{ color: "#34d399", fontSize: 12, fontWeight: "900", textAlign: "center", letterSpacing: 0.4 }}>
+                Verifieringslänk skickad
+              </Text>
+              <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "500", textAlign: "center", lineHeight: 15 }}>
+                Kolla {email.trim()} för att slutföra ditt konto.
+              </Text>
+            </View>
+          )}
+
           <Pressable
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || verificationSent}
             style={{
               backgroundColor: palette.gold,
               borderRadius: 22,
               paddingVertical: 18,
               alignItems: "center",
-              opacity: loading ? 0.55 : 1,
+              opacity: loading || verificationSent ? 0.55 : 1,
               marginTop: 10,
               shadowColor: palette.gold,
               shadowOpacity: 0.35,
