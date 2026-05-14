@@ -870,11 +870,11 @@ export default function ProfileScreen({
                 Gäster ska ha samma genväg till support. */}
             <Pressable
               onPress={() => {
-                const subject = "Hjälp";
-                const body = `Hej MatGo-support,\n\nBeskriv ditt ärende här:\n`;
+                const subject = t('profile.support.mailSubject');
+                const body = t('profile.support.mailBody');
                 const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                 Linking.openURL(url).catch(() => {
-                  Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+                  Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody'));
                 });
               }}
               style={{
@@ -893,7 +893,7 @@ export default function ProfileScreen({
             >
               <Ionicons name="chatbubble-ellipses-outline" size={16} color={palette.gold} />
               <Text style={{ color: palette.gold, fontSize: 12, fontWeight: "900", letterSpacing: ls(1.8) }}>
-                KONTAKTA SUPPORT
+                {t('profile.support.cta')}
               </Text>
             </Pressable>
 
@@ -910,14 +910,14 @@ export default function ProfileScreen({
               <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10, paddingHorizontal: 4 }}>
                 <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
                 <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "900", letterSpacing: ls(2) }}>
-                  INSTÄLLNINGAR
+                  {t('profile.settings.sectionHeader')}
                 </Text>
                 <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
               </View>
 
               <View style={[styles.formCard, { borderRadius: 30, padding: 20, gap: 12 }]}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Tema</Text>
+                  <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.theme')}</Text>
                   <Ionicons
                     name={themePreference === "dark" ? "moon-outline" : themePreference === "system" ? "phone-portrait-outline" : "sunny-outline"}
                     size={18}
@@ -926,9 +926,9 @@ export default function ProfileScreen({
                 </View>
                 <View style={{ flexDirection: "row", gap: 8 }}>
                   {([
-                    { id: "light", label: "Ljus", icon: "sunny-outline" as const },
-                    { id: "dark", label: "Mörk", icon: "moon-outline" as const },
-                    { id: "system", label: "System", icon: "phone-portrait-outline" as const },
+                    { id: "light", label: t('profile.settings.themeLight'), icon: "sunny-outline" as const },
+                    { id: "dark", label: t('profile.settings.themeDark'), icon: "moon-outline" as const },
+                    { id: "system", label: t('profile.settings.themeSystem'), icon: "phone-portrait-outline" as const },
                   ] as const).map((opt) => {
                     const active = themePreference === opt.id;
                     return (
@@ -1071,9 +1071,9 @@ export default function ProfileScreen({
         <>
           <View style={[styles.formCard, { borderRadius: 30, padding: 22, gap: 18 }]}>
             {[
-              { icon: "call-outline", label: t('profile.overview.phone').toUpperCase(), value: profile.phone || "Ej angivet", onPress: undefined },
-              { icon: "mail-outline", label: "E-POST", value: profile.email || "Ej angivet", onPress: undefined },
-              { icon: "home-outline", label: t('profile.overview.address').toUpperCase(), value: deliveryAddress || savedAddresses.find((a) => a.isDefault)?.street || "Ej angivet", onPress: () => setActiveTab("addresses") },
+              { icon: "call-outline", label: t('profile.overview.phone').toUpperCase(), value: profile.phone || t('profile.overviewLabels.notProvided'), onPress: undefined },
+              { icon: "mail-outline", label: t('profile.overviewLabels.email'), value: profile.email || t('profile.overviewLabels.notProvided'), onPress: undefined },
+              { icon: "home-outline", label: t('profile.overview.address').toUpperCase(), value: deliveryAddress || savedAddresses.find((a) => a.isDefault)?.street || t('profile.overviewLabels.notProvided'), onPress: () => setActiveTab("addresses") },
             ].map(({ icon, label, value, onPress }) => (
               <Pressable key={label} onPress={onPress} style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
                 <Ionicons name={icon as any} size={16} color={palette.muted} />
@@ -1408,11 +1408,11 @@ export default function ProfileScreen({
               const id = profile?.id ? ` #${profile.id}` : "";
               const emailLine = profile?.email ? `\n\nE-post: ${profile.email}` : "";
               const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
-              const subject = `Hjälp${id}`;
-              const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
+              const subject = `${t('profile.support.mailSubject')}${id}`;
+              const body = `${t('profile.support.mailBody').split('\n\n')[0]}${emailLine}${phoneLine}\n\n${t('profile.support.mailBody').split('\n\n').slice(1).join('\n\n')}`;
               const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
               Linking.openURL(url).catch(() => {
-                Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+                Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody'));
               });
             }}
             style={{
@@ -1442,10 +1442,10 @@ export default function ProfileScreen({
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: palette.gold, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginBottom: 2 }}>
-                BEHÖVER DU HJÄLP?
+                {t('profile.support.kicker')}
               </Text>
               <Text style={{ color: palette.text, fontSize: 14, fontWeight: "900" }}>
-                Kontakta oss
+                {t('profile.support.label')}
               </Text>
             </View>
             <Ionicons name="chevron-forward-outline" size={18} color={palette.gold} />
@@ -1474,7 +1474,7 @@ export default function ProfileScreen({
               varnas via not-texten under knapparna. */}
           <View style={[styles.formCard, { borderRadius: 30, padding: 20, gap: 12 }]}>
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Tema</Text>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.theme')}</Text>
               <Ionicons
                 name={themePreference === "dark" ? "moon-outline" : themePreference === "system" ? "phone-portrait-outline" : "sunny-outline"}
                 size={18}
@@ -1483,9 +1483,9 @@ export default function ProfileScreen({
             </View>
             <View style={{ flexDirection: "row", gap: 8 }}>
               {([
-                { id: "light", label: "Ljus", icon: "sunny-outline" as const },
-                { id: "dark", label: "Mörk", icon: "moon-outline" as const },
-                { id: "system", label: "System", icon: "phone-portrait-outline" as const },
+                { id: "light", label: t('profile.settings.themeLight'), icon: "sunny-outline" as const },
+                { id: "dark", label: t('profile.settings.themeDark'), icon: "moon-outline" as const },
+                { id: "system", label: t('profile.settings.themeSystem'), icon: "phone-portrait-outline" as const },
               ] as const).map((opt) => {
                 const active = themePreference === opt.id;
                 return (
@@ -1514,7 +1514,7 @@ export default function ProfileScreen({
               })}
             </View>
             <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", lineHeight: 14 }}>
-              Mörkt läge är experimentellt — vissa delar kan se ljusare ut än andra.
+              {t('profile.settings.themeExperimentalNote')}
             </Text>
           </View>
 
@@ -1527,7 +1527,7 @@ export default function ProfileScreen({
               }}
               style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
             >
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Användarvillkor</Text>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.legal.terms')}</Text>
               <Ionicons name="document-text-outline" size={18} color={palette.muted} />
             </Pressable>
           </View>
@@ -1540,7 +1540,7 @@ export default function ProfileScreen({
               }}
               style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
             >
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>Integritetspolicy</Text>
+              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "800" }}>{t('profile.legal.privacy')}</Text>
               <Ionicons name="shield-checkmark-outline" size={18} color={palette.muted} />
             </Pressable>
           </View>
@@ -1560,7 +1560,7 @@ export default function ProfileScreen({
               color: palette.muted, fontSize: 10, fontWeight: "900",
               letterSpacing: ls(2),
             }}>
-              AVANCERAT
+              {t('profile.advanced.sectionHeader')}
             </Text>
           </View>
           <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
@@ -1570,10 +1570,10 @@ export default function ProfileScreen({
             >
               <View style={{ flex: 1 }}>
                 <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>
-                  Återställ till första gången-vy
+                  {t('profile.advanced.resetApp')}
                 </Text>
                 <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "600", marginTop: 4, lineHeight: 15 }}>
-                  Rensar lokal data och visar onboarding igen
+                  {t('profile.advanced.resetAppHint')}
                 </Text>
               </View>
               <Ionicons name="refresh-outline" size={18} color={palette.danger} />
@@ -1597,7 +1597,7 @@ export default function ProfileScreen({
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 4 }}>
             <Ionicons name="call-outline" size={14} color={palette.muted} />
             <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
-              Nuvarande nummer: {profile.phone || "Ej angivet"}
+              {t('profile.edit.currentPhonePrefix')}: {profile.phone || t('profile.edit.notProvided')}
             </Text>
           </View>
 
@@ -1631,7 +1631,7 @@ export default function ProfileScreen({
             </View>
           </View>
           <PrimaryButton
-            label={isSavingPhone ? "Sparar…" : "Spara telefon"}
+            label={isSavingPhone ? t('profile.edit.savingPhone') : t('profile.edit.savePhone')}
             onPress={handleSavePhone}
             disabled={isSavingPhone || !editPhone.trim()}
             icon="call-outline"

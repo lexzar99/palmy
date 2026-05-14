@@ -11,7 +11,7 @@ import supabaseAdmin from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
-import { sendEmail } from '../lib/email';
+import { sendEmail, renderBrandedEmail } from '../lib/email';
 import {
   createTrustedDevice,
   setTrustedDeviceCookie,
@@ -958,18 +958,17 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
         'MatGo',
       ].join('\n');
 
-      const html = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <h2 style="margin: 0 0 16px; font-weight: 900; letter-spacing: -0.5px;">Verifiera din e-post</h2>
-          <p style="margin: 0 0 12px;">Hej ${greetingName}!</p>
-          <p style="margin: 0 0 12px;">Tack för att du skapat ett MatGo-konto. Klicka på knappen nedan för att verifiera din e-postadress. Länken gäller <strong>24 timmar</strong>.</p>
-          <p style="margin: 24px 0;">
-            <a href="${webLink}" style="display: inline-block; background: #d4af37; color: #0b0a0f; text-decoration: none; padding: 14px 28px; border-radius: 14px; font-weight: 900; letter-spacing: 0.5px;">Verifiera e-post</a>
-          </p>
-          <p style="margin: 0 0 8px; font-size: 13px; color: #555;">Använder du mobilappen? Öppna istället:<br><a href="${mobileLink}">${mobileLink}</a></p>
-          <p style="margin: 24px 0 0; font-size: 12px; color: #888;">Om du inte skapat något konto kan du ignorera detta mejl.</p>
-        </div>
-      `;
+      const html = renderBrandedEmail({
+        headline: 'Bekräfta din email',
+        greeting: `Hej ${greetingName}!`,
+        intro: [
+          'Klicka för att aktivera ditt MatGo-konto.',
+        ],
+        cta: { label: 'Bekräfta email', url: webLink },
+        mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
+        footnote:
+          'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
+      });
 
       try {
         await sendEmail({
@@ -1168,18 +1167,17 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
         'MatGo',
       ].join('\n');
 
-      const html = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <h2 style="margin: 0 0 16px; font-weight: 900; letter-spacing: -0.5px;">Återställ ditt lösenord</h2>
-          <p style="margin: 0 0 12px;">Hej ${greetingName}!</p>
-          <p style="margin: 0 0 12px;">Klicka på knappen nedan för att välja ett nytt lösenord. Länken gäller <strong>1 timme</strong>.</p>
-          <p style="margin: 24px 0;">
-            <a href="${webLink}" style="display: inline-block; background: #d4af37; color: #0b0a0f; text-decoration: none; padding: 14px 28px; border-radius: 14px; font-weight: 900; letter-spacing: 0.5px;">Återställ lösenord</a>
-          </p>
-          <p style="margin: 0 0 8px; font-size: 13px; color: #555;">Använder du mobilappen? Öppna istället:<br><a href="${mobileLink}">${mobileLink}</a></p>
-          <p style="margin: 24px 0 0; font-size: 12px; color: #888;">Om du inte bett om att återställa lösenordet kan du ignorera detta mejl — kontot är säkert.</p>
-        </div>
-      `;
+      const html = renderBrandedEmail({
+        headline: 'Återställ ditt lösenord',
+        greeting: `Hej ${greetingName}!`,
+        intro: [
+          'Vi fick en begäran om att återställa lösenordet till ditt MatGo-konto. Klicka på knappen nedan för att välja ett nytt lösenord.',
+        ],
+        cta: { label: 'Välj nytt lösenord', url: webLink },
+        mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
+        footnote:
+          'Länken gäller 1 timme. Om du inte begärde detta kan du ignorera mejlet — kontot är säkert.',
+      });
 
       try {
         await sendEmail({
