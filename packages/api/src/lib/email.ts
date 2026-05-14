@@ -52,7 +52,37 @@ export type EmailMessage = {
   from?: string;
 };
 
+// Cloud-hostar (Railway, Heroku, Fly.io) blockerar ofta utgående SMTP-port
+// 587/465 för att förebygga spam-abuse. SMTP-baserade transports (Gmail, Brevo
+// via SMTP) timeout:ar då efter 30-60s. HTTPS-baserade transports (Resend,
+// Brevo API) blockas inte. Gmail behåller vi som lokalt dev-alternativ.
+const SMTP_TIMEOUT_MS = 10_000; // Fail-fast istället för att hänga 60s+
+
+// ── Brevo (Sendinblue) SMTP transport (om konfigurerad) ───────────────────────
+// REKOMMENDERAT för test utan egen domän — Brevo låter dig verifiera en
+// "Sender Email Address" via klick-länk (ingen DNS behövs), sen kan du skicka
+// FRÅN den adressen TILL valfri mottagare. 300 gratis-mejl/dag.
+// Setup: skapa konto på brevo.com → SMTP & API → SMTP-fliken → kopiera
+// SMTP-key + login-user. Sätt BREVO_SMTP_USER + BREVO_SMTP_PASS i Railway.
+const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
+const BREVO_SMTP_PASS = process.env.BREVO_SMTP_PASS;
+const brevoTransporter =
+  BREVO_SMTP_USER && BREVO_SMTP_PASS
+    ? nodemailer.createTransport({
+        host: 'smtp-relay.brevo.com',
+        port: 587,
+        secure: false,
+        auth: { user: BREVO_SMTP_USER, pass: BREVO_SMTP_PASS },
+        connectionTimeout: SMTP_TIMEOUT_MS,
+        greetingTimeout: SMTP_TIMEOUT_MS,
+        socketTimeout: SMTP_TIMEOUT_MS,
+      })
+    : null;
+
 // ── Gmail SMTP transport (om konfigurerad) ────────────────────────────────────
+// VARNING: Cloud-hostar blockerar ofta SMTP-port 587 → timeout. Gmail funkar
+// pålitligt LOKALT men inte alltid från Railway. Använd Brevo eller Resend
+// från Railway.
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
 const gmailTransporter =
@@ -62,19 +92,23 @@ const gmailTransporter =
         port: 587,
         secure: false, // STARTTLS på port 587
         auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+        connectionTimeout: SMTP_TIMEOUT_MS,
+        greetingTimeout: SMTP_TIMEOUT_MS,
+        socketTimeout: SMTP_TIMEOUT_MS,
       })
     : null;
 
 // ── Resend transport (om konfigurerad) ────────────────────────────────────────
+// HTTPS-baserad — inga port-blockaden. Bäst för PRODUKTION med egen domän.
+// Utan domän: kan bara skicka till kontoägarens email.
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
 // ── Default From-adress ────────────────────────────────────────────────────────
-// Prioritet: EMAIL_FROM env → Gmail-användaren (om Gmail-transport) →
-// Resend test-domain → hard-coded fallback.
 function defaultFrom(): string {
   if (process.env.EMAIL_FROM) return process.env.EMAIL_FROM;
+  if (BREVO_SMTP_USER) return `MatGo <${BREVO_SMTP_USER}>`;
   if (GMAIL_USER) return `MatGo <${GMAIL_USER}>`;
   return 'MatGo <onboarding@resend.dev>';
 }
@@ -82,7 +116,25 @@ function defaultFrom(): string {
 export async function sendEmail(msg: EmailMessage): Promise<void> {
   const from = msg.from || defaultFrom();
 
-  // 1. Gmail SMTP — testbar mot vilken mottagare som helst utan domän.
+  // 1. Brevo SMTP — funkar oftast från cloud-hostar utan port-block.
+  // Brevo tillåter sender-verifiering utan domän.
+  if (brevoTransporter) {
+    try {
+      await brevoTransporter.sendMail({
+        from,
+        to: msg.to,
+        subject: msg.subject,
+        text: msg.text,
+        html: msg.html,
+      });
+      console.log(`[email] Brevo sent to ${msg.to}`);
+    } catch (err) {
+      console.error('[email] Brevo SMTP send failed:', err);
+    }
+    return;
+  }
+
+  // 2. Gmail SMTP — funkar lokalt, ofta timeout från Railway pga port-block.
   if (gmailTransporter) {
     try {
       await gmailTransporter.sendMail({
@@ -92,13 +144,15 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         text: msg.text,
         html: msg.html,
       });
+      console.log(`[email] Gmail sent to ${msg.to}`);
     } catch (err) {
       console.error('[email] gmail SMTP send failed:', err);
     }
     return;
   }
 
-  // 2. Resend — produktion med egen domän.
+  // 3. Resend — HTTPS-baserad. Inga port-blockaden. Kräver verifierad domän
+  // för att skicka till andra än kontoägaren.
   if (resend) {
     try {
       const { error } = await resend.emails.send({
@@ -110,6 +164,8 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
       });
       if (error) {
         console.error('[email] resend.emails.send error:', error);
+      } else {
+        console.log(`[email] Resend sent to ${msg.to}`);
       }
     } catch (err) {
       console.error('[email] resend send threw:', err);

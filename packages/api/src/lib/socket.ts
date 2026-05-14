@@ -21,19 +21,39 @@ export async function initSocket(httpServer: HttpServer, options: any) {
 
   const redisUrl = process.env.REDIS_URL;
   if (redisUrl) {
+    // Tysta retry-loopen efter första felet — annars spammar redis-klienten
+    // konsollen med "ENOTFOUND"-fel varannan sekund om hostname är dött
+    // (typ: REDIS_URL env kvar efter att Redis-service raderats i Railway).
+    let redisErrorLogged = false;
+    const onRedisError = (err: any) => {
+      if (!redisErrorLogged) {
+        console.error('[socket-redis] error (further errors suppressed):', err?.message);
+        redisErrorLogged = true;
+      }
+    };
     try {
-      const pubClient = createClient({ url: redisUrl });
+      const pubClient = createClient({
+        url: redisUrl,
+        socket: {
+          // Ge upp efter 3 försök istället för att retry:a för evigt.
+          reconnectStrategy: (retries: number) => {
+            if (retries > 3) return new Error('Redis unreachable — giving up');
+            return Math.min(retries * 200, 1000);
+          },
+          connectTimeout: 5000,
+        },
+      });
       const subClient = pubClient.duplicate();
 
-      pubClient.on('error', (err) => console.error('[socket-redis] pub error:', err?.message));
-      subClient.on('error', (err) => console.error('[socket-redis] sub error:', err?.message));
+      pubClient.on('error', onRedisError);
+      subClient.on('error', onRedisError);
 
       await Promise.all([pubClient.connect(), subClient.connect()]);
       io.adapter(createAdapter(pubClient, subClient));
       console.log('🔗 Socket.IO Redis-adapter ansluten — multi-instance broadcast aktiv');
     } catch (err: any) {
       console.error(
-        '❌ Socket.IO Redis-adapter kunde inte initialiseras — fortsätter med in-memory (multi-instance broadcast FUNGERAR INTE):',
+        '❌ Socket.IO Redis-adapter kunde inte initialiseras — fortsätter med in-memory (multi-instance broadcast FUNGERAR INTE). Ta bort REDIS_URL från env om Redis inte används:',
         err?.message,
       );
     }
