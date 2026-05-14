@@ -374,19 +374,15 @@ function ProfileContent() {
         setShowAddPhone(false);
       }
     } catch (err: any) {
-      // Auto-loggout BARA om backend sa unauthorized (401/403). Vid transient
-      // errors (timeout, 500, nätverk) ska vi INTE logga ut användaren —
-      // tidigare buggade detta så att Apple-OAuth-redirect triggade en falsk
-      // logout direkt efter inloggning, vilket gjorde att man fick
-      // "Du är utloggad"-toast 2 ggr och sen inte var inloggad.
+      // ALDRIG auto-logga-ut härifrån. Tidigare buggade detta så att
+      // Apple-OAuth-redirect triggade en falsk logout direkt efter inloggning.
+      // Även 401 från /api/platform/profile kan vara timing-relaterat (cookie
+      // hunnit inte propagera) snarare än verklig session-utgång — låt user
+      // manuellt logga ut via knappen om sessionen är borta.
       const status = err?.response?.status;
-      if (status === 401 || status === 403) {
-        console.warn("[fetchData] unauthorized → logging out");
-        void handleLogout();
-      } else {
-        console.error("[fetchData] transient error, keeping session:", err?.message || err);
-        // Behåll sessionen — user kan försöka igen via refresh.
-      }
+      console.error(
+        `[fetchData] error status=${status} message=${err?.message || err}. NOT auto-logging out. User can refresh or click logout if needed.`,
+      );
     } finally {
       setLoading(false);
     }
