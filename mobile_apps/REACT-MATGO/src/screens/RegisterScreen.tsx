@@ -1,23 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, Pressable, Platform, Animated, ActivityIndicator } from 'react-native';
 import { api } from '../lib/api';
+import { useAppStore } from '../store/useAppStore';
 import { useSharedStyles, useTheme } from '../theme';
 import { Header, ScreenWrap } from '../components/ui';
 
 // Mirrors the web register flow (apps/web/app/register/page.tsx):
 //   POST /api/account/register-user  { firstName, lastName, email, phone, password }
-//   → { ok, email, message }   ← INGEN JWT längre
+//   → { ok, token, user, message }
 //
-// Sedan email-verification-gaten infördes utfärdar /register-user inte längre
-// någon token. Backend skickar verifieringsmejlet inline. Klienten visar
-// "kolla din mejl"-state och låter användaren resendera mejlet eller gå
-// tillbaka till login. Användaren loggas in först när de klickar i mejlet —
-// då tar deep-länken `foodgo://verify-email` över i App.tsx och får JWT från
-// /verify-email.
-//
-// Vi anropar inte längre /api/auth/send-otp eller /api/auth/verify-otp —
-// rutterna är borttagna från backend. Telefon samlas som kontaktinfo (krävs
-// av API:t för uniqueness) men SMS-verifieras inte av klienten.
+// Backend auto-loggar-in användaren: returnerar JWT + user direkt.
+// Verifieringsmejlet skickas fire-and-forget — användaren kan klicka senare
+// för att markera kontot som verifierat, men inloggning blockas inte.
+// Vi visar en kort "verifieringsmejl skickat"-banner och rör vidare via
+// onRegistered().
 export default function RegisterScreen({
   initialPhone = "",
   goBack,
@@ -29,6 +25,8 @@ export default function RegisterScreen({
 }) {
   const { palette } = useTheme();
   const styles = useSharedStyles();
+  const setToken = useAppStore((s) => s.setToken);
+  const setProfile = useAppStore((s) => s.setProfile);
 
   // Single-form flow now: collect everything on one screen and POST once.
   const [firstName, setFirstName] = useState("");
@@ -39,13 +37,9 @@ export default function RegisterScreen({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  // Persistent "kolla din mejl"-state efter lyckad registrering. Visar
-  // bekräftelse + resend-knapp + möjlighet att gå tillbaka. INGEN auto-
-  // redirect — användaren stannar tills de klickar i mejlet eller
-  // navigerar bort manuellt.
-  const [registeredEmail, setRegisteredEmail] = useState<string>("");
-  const [resending, setResending] = useState(false);
-  const [resendStatus, setResendStatus] = useState<"idle" | "sent" | "error">("idle");
+  // Kort success-banner medan vi övergår till inloggat läge. Visas ~2.2s
+  // innan vi anropar onRegistered() så användaren ser bekräftelse.
+  const [success, setSuccess] = useState(false);
 
   const enterAnim = useRef(new Animated.Value(0)).current;
 
@@ -71,35 +65,34 @@ export default function RegisterScreen({
 
     setLoading(true);
     try {
-      await api.post("/api/account/register-user", {
+      const { data } = await api.post("/api/account/register-user", {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
         phone: internationalPhone,
         password,
       });
-      // Backend svarade { ok, email, message } — kontot är skapat och
-      // verifieringsmejlet är skickat. INGEN setToken här (backend
-      // returnerar inte längre någon JWT). Visa "kolla din mejl"-state.
-      setRegisteredEmail(email.trim());
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
+
+      setToken(tok);
+      let prof: any = data?.user;
+      try {
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        prof = profileRes.data;
+      } catch {
+        // Profil-fetch är best-effort. /register-user skickar med en basal
+        // user-payload som fallback.
+      }
+      if (prof) setProfile(prof);
+      setSuccess(true);
+      setTimeout(() => { onRegistered(); }, 2200);
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Registrering misslyckades");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleResend = async () => {
-    if (!registeredEmail) return;
-    setResending(true);
-    setResendStatus("idle");
-    try {
-      await api.post("/api/account/send-verification-email", { email: registeredEmail });
-      setResendStatus("sent");
-    } catch {
-      setResendStatus("error");
-    } finally {
-      setResending(false);
     }
   };
 
@@ -117,74 +110,28 @@ export default function RegisterScreen({
         }}
       >
         <Text style={{ color: palette.text, fontSize: 32, fontWeight: "900", letterSpacing: -0.5, marginBottom: 8 }}>
-          {registeredEmail ? "Kolla din mejl" : "Skapa konto"}
+          {success ? "Välkommen!" : "Skapa konto"}
         </Text>
         <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginBottom: 24, lineHeight: 20 }}>
-          {registeredEmail
-            ? "Vi skickade en verifieringslänk. Klicka på den för att slutföra registreringen och logga in."
+          {success
+            ? "Vi loggar in dig direkt och har skickat en verifieringslänk till din mejl."
             : "Fyll i dina uppgifter för att skapa ett konto."}
         </Text>
 
-        {registeredEmail ? (
+        {success ? (
           <View style={{ gap: 14 }}>
             <View style={{ backgroundColor: "rgba(16,185,129,0.10)", borderRadius: 18, padding: 18, borderWidth: 1, borderColor: "rgba(16,185,129,0.25)", gap: 6 }}>
               <Text style={{ color: "#34d399", fontSize: 12, fontWeight: "900", textAlign: "center", letterSpacing: 0.4 }}>
-                Verifieringslänk skickad
+                Verifieringsmejl skickat
               </Text>
               <Text style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlign: "center", lineHeight: 20 }}>
-                {registeredEmail}
+                {email.trim()}
               </Text>
               <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "500", textAlign: "center", lineHeight: 16 }}>
-                Klicka på länken i mejlet på samma enhet — appen loggar in dig automatiskt.
-                Länken gäller i 24 timmar.
+                Klicka på länken i mejlet när du har en stund för att verifiera din e-post.
               </Text>
             </View>
-
-            {resendStatus === "sent" && (
-              <View style={{ backgroundColor: "rgba(16,185,129,0.1)", borderRadius: 14, padding: 10, borderWidth: 1, borderColor: "rgba(16,185,129,0.2)" }}>
-                <Text style={{ color: "#34d399", fontSize: 11, fontWeight: "700", textAlign: "center" }}>
-                  Vi skickade länken igen.
-                </Text>
-              </View>
-            )}
-            {resendStatus === "error" && (
-              <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 10, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
-                <Text style={{ color: "#fca5a5", fontSize: 11, fontWeight: "700", textAlign: "center" }}>
-                  Kunde inte skicka igen — försök strax.
-                </Text>
-              </View>
-            )}
-
-            <Pressable
-              onPress={handleResend}
-              disabled={resending || resendStatus === "sent"}
-              style={{
-                backgroundColor: "rgba(231,178,75,0.08)",
-                borderWidth: 1,
-                borderColor: "rgba(231,178,75,0.35)",
-                borderRadius: 18,
-                paddingVertical: 14,
-                alignItems: "center",
-                opacity: resending || resendStatus === "sent" ? 0.6 : 1,
-              }}
-            >
-              {resending ? (
-                <ActivityIndicator color={palette.gold} />
-              ) : (
-                <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 13 }}>
-                  Skicka igen
-                </Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => { onRegistered(); }}
-              style={{ alignItems: "center", paddingVertical: 12 }}
-            >
-              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "700" }}>
-                Tillbaka till login
-              </Text>
-            </Pressable>
+            <ActivityIndicator color={palette.gold} />
           </View>
         ) : (
         <View style={{ gap: 12 }}>

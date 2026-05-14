@@ -978,12 +978,12 @@ export default function OnboardingScreen({
   };
 
   // Register the user via the existing /api/account/register-user endpoint.
-  // VIKTIGT: Sedan email-verification-gaten infördes returnerar /register-user
-  // INTE längre någon JWT. Backend skickar verifieringsmejlet inline och
-  // svarar med { ok, email, message }. Vi sparar email + temp-lösenord lokalt
-  // så att verify-steget kan kalla /login-user när användaren har klickat
-  // i mejlet (fallback för deep-link-flödet i App.tsx som hämtar JWT direkt
-  // från /verify-email).
+  // Backend auto-loggar-in: returnerar JWT + user direkt och skickar
+  // verifieringsmejlet fire-and-forget. Vi fortsätter därför direkt till
+  // afterAuth() (location-step eller färdig onboarding) utan att vänta på
+  // verifiering. Verifierings-länken kan användaren klicka senare —
+  // EmailVerifyStep + pendingEmail/pendingPassword finns kvar för det
+  // framtida fallet då vi vill aktivera en hård gate igen.
   const handlePhoneSubmitForEmail = async () => {
     if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
     const full = buildPhone(countryCode, phone);
@@ -993,24 +993,32 @@ export default function OnboardingScreen({
       // never sees it. They reset it later via "forgot password" once
       // they're logged in via the verification flow.
       const tempPassword = `tmp_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
-      await api.post("/api/account/register-user", {
+      const { data } = await api.post("/api/account/register-user", {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: emailValue.trim(),
         phone: full,
         password: tempPassword,
       });
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
 
-      // Inga creds tillbaka — kontot är skapat, mejlet är skickat. Vi
-      // sparar email + lösenord så verify-steget kan logga in användaren
-      // automatiskt så fort emailVerifiedAt slås på. pendingToken/Profile
-      // hålls null tills dess (App.tsx's `!token`-guard ser fortfarande
-      // onboardingen som anonym).
-      setPendingToken(null);
-      setPendingProfile(null);
+      // Spara även email/lösen för det framtida flödet där vi kan vilja
+      // re-verifiera via /login-user. Just nu används de inte.
       setPendingEmail(emailValue.trim());
       setPendingPassword(tempPassword);
-      setStep("emailVerify");
+
+      let prof: any = data?.user;
+      try {
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        prof = profileRes.data;
+      } catch {
+        // Profil-fetch är best-effort. /register-user skickar med en basal
+        // user-payload som fallback.
+      }
+      afterAuth(tok, prof);
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || t('onboarding.email.errors.registerFailed'));
     } finally { setLoading(false); }

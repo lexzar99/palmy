@@ -838,11 +838,12 @@ const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
   process.env.MOBILE_VERIFY_EMAIL_URL || 'foodgo://verify-email';
 
 // POST /api/auth/register-user
-// VIKTIGT: Sedan email-verification-gaten infördes returnerar denna endpoint
-// INTE längre någon JWT. Användaren måste klicka på verifieringslänken i mejlet
-// (eller låta klienten polla /check-email-verified) — då tar /verify-email
-// över och utfärdar tokenen. OAuth-användare påverkas inte; de loggas in via
-// /oauth-token som tidigare och har sina mejl pre-verifierade.
+// Registreringen logger in användaren direkt: vi skapar kontot, returnerar
+// JWT på en gång och skickar verifieringsmejlet fire-and-forget. Användaren
+// kan klicka i mejlet senare för att markera emailVerifiedAt — men inloggning
+// blockas inte. Infrastrukturen ligger kvar (token-fält, verify-email endpoint,
+// check-email-verified) så vi kan slå på en hård gate i framtiden utan kod-
+// ändringar i datalagret.
 router.post('/register-user', authLimiter, async (req, res) => {
   try {
     const { firstName, lastName, email, password, phone } = req.body;
@@ -873,9 +874,8 @@ router.post('/register-user', authLimiter, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Generera verifierings-token direkt vid skapandet så vi kan skicka mejlet
-    // i samma request — användaren ska aldrig hamna i ett "konto skapat men
-    // inget mejl skickat"-läge. emailVerifiedAt lämnas null tills användaren
-    // klickar i mejlet och /verify-email exekverar.
+    // i samma request. emailVerifiedAt sätts först när användaren klickar
+    // länken — men inloggning blockas inte i nuläget.
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
@@ -892,49 +892,51 @@ router.post('/register-user', authLimiter, async (req, res) => {
       }
     });
 
-    // Skicka verifieringsmejlet inline. Vi loggar fel men returnerar ändå 200
-    // — kontot är skapat, klienten kan be om resend om mejlet inte kommer fram.
-    try {
-      const greetingName = user.firstName || user.name || 'där';
-      const webLink = `${WEB_VERIFY_EMAIL_BASE}?token=${verificationToken}`;
-      const mobileLink = `${MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE}?token=${verificationToken}`;
+    // Fire-and-forget: skicka verifieringsmejlet i bakgrunden. Vi väntar
+    // INTE på resultatet — registreringen ska kännas instant. Loggar fel.
+    (async () => {
+      try {
+        const greetingName = user.firstName || user.name || 'där';
+        const webLink = `${WEB_VERIFY_EMAIL_BASE}?token=${verificationToken}`;
+        const mobileLink = `${MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE}?token=${verificationToken}`;
 
-      const text = [
-        `Hej ${greetingName}!`,
-        '',
-        'Tack för att du skapat ett MatGo-konto. För att slutföra registreringen,',
-        'klicka på länken nedan och verifiera din e-postadress. Länken gäller 24 timmar.',
-        '',
-        `Webb:   ${webLink}`,
-        `Mobil:  ${mobileLink}`,
-        '',
-        'Om du inte skapat något konto kan du ignorera detta mejl.',
-        '',
-        'Vänliga hälsningar,',
-        'MatGo',
-      ].join('\n');
+        const text = [
+          `Hej ${greetingName}!`,
+          '',
+          'Tack för att du skapat ett MatGo-konto. Klicka på länken nedan när',
+          'du har en stund för att verifiera din e-postadress. Länken gäller 24 timmar.',
+          '',
+          `Webb:   ${webLink}`,
+          `Mobil:  ${mobileLink}`,
+          '',
+          'Om du inte skapat något konto kan du ignorera detta mejl.',
+          '',
+          'Vänliga hälsningar,',
+          'MatGo',
+        ].join('\n');
 
-      const html = renderBrandedEmail({
-        headline: 'Bekräfta din email',
-        greeting: `Hej ${greetingName}!`,
-        intro: [
-          'Klicka för att aktivera ditt MatGo-konto.',
-        ],
-        cta: { label: 'Bekräfta email', url: webLink },
-        mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
-        footnote:
-          'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
-      });
+        const html = renderBrandedEmail({
+          headline: 'Bekräfta din email',
+          greeting: `Hej ${greetingName}!`,
+          intro: [
+            'Tack för att du skapat ett MatGo-konto! Klicka på knappen nedan när du har en stund för att verifiera din e-post.',
+          ],
+          cta: { label: 'Bekräfta email', url: webLink },
+          mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
+          footnote:
+            'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
+        });
 
-      await sendEmail({
-        to: user.email!,
-        subject: 'Verifiera din email — MatGo',
-        text,
-        html,
-      });
-    } catch (mailErr) {
-      console.error('[register-user] sendEmail failed (account created anyway):', mailErr);
-    }
+        await sendEmail({
+          to: user.email!,
+          subject: 'Verifiera din email — MatGo',
+          text,
+          html,
+        });
+      } catch (mailErr) {
+        console.error('[register-user] sendEmail failed (account created anyway):', mailErr);
+      }
+    })();
 
     await audit(req as AuthRequest, 'USER_REGISTERED', {
       resourceType: 'User',
@@ -942,12 +944,28 @@ router.post('/register-user', authLimiter, async (req, res) => {
       changes: { email: user.email, emailVerificationDispatched: true },
     });
 
-    // Ingen token, ingen user-payload som klienten kan logga in med. Klienten
-    // visar "kolla din mejl"-skärmen och pollar /check-email-verified.
+    // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
+    // persistar token och navigerar vidare; verifieringsmejlet kommer som
+    // notifikation och kan användas senare för att markera kontot som
+    // verifierat.
+    const tokenJwt = jwt.sign(
+      { id: user.id, phone: user.phone, role: 'USER' },
+      JWT_SECRET,
+      { expiresIn: '30d' },
+    );
+
     return res.json({
       ok: true,
+      token: tokenJwt,
       email: user.email,
-      message: 'Verifiera din email innan du loggar in. Vi har skickat en länk.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        isVerified: user.isVerified,
+      },
+      message: 'Vi skickade en verifieringslänk — kolla din mejl när du har en stund.',
     });
   } catch (error) {
     console.error('[register-user] error:', error);
@@ -956,19 +974,10 @@ router.post('/register-user', authLimiter, async (req, res) => {
 });
 
 // POST /api/auth/login-user
-// Gatean på emailVerifiedAt: email+lösenord-användare måste verifiera mejlet
-// innan de får logga in. OAuth-konton (oauthProvider satt) har sina mejl
-// pre-verifierade av providern (Apple/Google) och hoppar därför över check:en
-// — de bör i praktiken aldrig gå via login-user (de loggar in via Supabase/
-// /oauth-token), men gaten ligger explicit här som defense-in-depth.
-//
-// Befintliga email-användare i DB:n vars emailVerifiedAt aldrig sattes
-// (skapade INNAN gaten infördes) behandlas implicit som verifierade om de
-// har ett lösenord OCH ingen pending emailVerificationToken — annars stoppas
-// de. Detta för att inte sparka ut etablerade konton ur appen. Migration:
-// SQL-backfill `UPDATE "User" SET "emailVerifiedAt" = COALESCE("createdAt", now())
-//   WHERE "emailVerifiedAt" IS NULL AND "password" IS NOT NULL
-//     AND "emailVerificationToken" IS NULL;` rekommenderas.
+// Normal inloggning. Vi blockar INTE på emailVerifiedAt — det är medvetet
+// avstängt tills domänen är verifierad i Brevo. Infrastrukturen kring
+// verifiering (token-fält, /verify-email, /check-email-verified) ligger
+// kvar och kan slås på igen genom att återinföra check:en här.
 router.post('/login-user', authLimiter, async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -977,22 +986,6 @@ router.post('/login-user', authLimiter, async (req, res) => {
     });
     if (!user || !user.password || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ error: 'Felaktigt lösenord eller användare' });
-    }
-
-    // Email-verifierings-gate — gäller endast email+lösen-konton. OAuth-konton
-    // har oauthProvider satt och hoppar över check:en.
-    const isOAuth = !!user.oauthProvider;
-    const hasPendingVerification = !!user.emailVerificationToken;
-    if (!isOAuth && !user.emailVerifiedAt && hasPendingVerification) {
-      await audit(req as AuthRequest, 'LOGIN_BLOCKED_UNVERIFIED', {
-        resourceType: 'User',
-        resourceId: user.id,
-        changes: { email: user.email, reason: 'email_not_verified' },
-      });
-      return res.status(403).json({
-        error: 'Email måste verifieras innan inloggning. Kolla din mejl.',
-        code: 'EMAIL_NOT_VERIFIED',
-      });
     }
 
     const token = jwt.sign({ id: user.id, phone: user.phone, role: 'USER' }, JWT_SECRET, { expiresIn: '30d' });
@@ -1110,10 +1103,11 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
 });
 
 // POST /api/auth/verify-email — fullfölj verifieringen
-// Sedan email-verification-gaten infördes är detta även det "första login"-
-// momentet för email-registrerade användare: efter lyckad verifiering
-// utfärdar vi en JWT direkt så klienten kan logga in användaren utan att
-// återkomma med login-formuläret.
+// Användaren kan klicka mejl-länken oavsett om de redan är inloggade eller
+// inte. Vi sätter emailVerifiedAt och returnerar JWT — om klienten redan har
+// en session ignorerar den värdet, annars kan den logga in användaren direkt.
+// Detta är fortfarande en bra fallback för "klicka i mejlet från en annan
+// enhet"-flödet.
 router.post('/verify-email', authLimiter, async (req, res) => {
   try {
     const { token } = req.body as { token?: string };
