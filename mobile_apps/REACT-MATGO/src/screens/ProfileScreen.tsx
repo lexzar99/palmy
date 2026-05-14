@@ -15,7 +15,9 @@ import { Ionicons } from "@expo/vector-icons";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAppStore } from "../store/useAppStore";
+import { useRestartApp } from "../contexts/restart";
 import { useGoogleAuth } from "../hooks/useGoogleAuth";
 import { useAppleAuth } from "../hooks/useAppleAuth";
 import { api } from "../lib/api";
@@ -110,6 +112,9 @@ export default function ProfileScreen({
   const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
   const themePreference = useAppStore((s) => s.themePreference);
   const setThemePreference = useAppStore((s) => s.setThemePreference);
+  const setOnboardingComplete = useAppStore((s) => s.setOnboardingComplete);
+  const setBogoChoice = useAppStore((s) => s.setBogoChoice);
+  const restartApp = useRestartApp();
   const cacheKey = token || "__guest__";
   const cachedData = token ? getScreenCache<ProfileScreenCache>("profile", cacheKey) : null;
   const initialProfileFetchShouldShowLoader = useRef(!cachedData).current;
@@ -649,6 +654,55 @@ export default function ProfileScreen({
       ]
     );
   }, [getAuthHeaders, handleLogout, token]);
+
+  // ── Reset app — clear cache & return to first-launch state ────────────────
+  // Wipes AsyncStorage + SecureStore (JWT) + resets the Zustand store, then
+  // re-mounts the entire app tree via RestartContext so OnboardingScreen is
+  // shown again. Used for testing onboarding changes without reinstalling.
+  const handleResetApp = useCallback(() => {
+    Alert.alert(
+      "Återställ appen?",
+      "All lokal data raderas — varukorg, sparade adresser, favoriter, inloggning, onboarding-status. Du måste logga in igen. Forsätt?",
+      [
+        { text: "Avbryt", style: "cancel" },
+        {
+          text: "Återställ",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                // 1. Clear AsyncStorage entirely (cart, profile blob, prefs etc).
+                await AsyncStorage.clear();
+              } catch {}
+
+              // 2. Clear SecureStore — best-effort via dynamic require since
+              // expo-secure-store may not be linked in every build. Same
+              // pattern as useAppStore.ts.
+              try {
+                // eslint-disable-next-line @typescript-eslint/no-require-imports
+                const SecureStore = require("expo-secure-store");
+                await SecureStore.deleteItemAsync("react-matgo-auth-token");
+              } catch {}
+
+              // 3. Reset Zustand store — clear cart, session, flags, choices.
+              try {
+                clearCart();
+                clearSession();
+                setOnboardingComplete(false);
+                setBogoChoice(null);
+                setProfile(null);
+                setThemePreference("light");
+              } catch {}
+
+              // 4. Re-mount the app tree — OnboardingScreen will show fresh
+              // since onboardingComplete is now false and token is null.
+              restartApp();
+            })();
+          },
+        },
+      ]
+    );
+  }, [clearCart, clearSession, restartApp, setBogoChoice, setOnboardingComplete, setProfile, setThemePreference]);
 
   if (pageLoading) {
     return (
@@ -1494,6 +1548,35 @@ export default function ProfileScreen({
             <Pressable onPress={handleDeleteAccount} style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>{t('profile.settings.deleteAccount')}</Text>
               <Ionicons name="trash-outline" size={18} color={palette.danger} />
+            </Pressable>
+          </View>
+
+          {/* Avancerat / utvecklare-sektion — placerat sist så det inte
+              tappas av misstag. Återställning rensar all lokal data och
+              visar onboarding igen, för att enkelt testa nya
+              onboarding-justeringar. */}
+          <View style={{ marginTop: 12, marginBottom: 6, paddingHorizontal: 4 }}>
+            <Text style={{
+              color: palette.muted, fontSize: 10, fontWeight: "900",
+              letterSpacing: ls(2),
+            }}>
+              AVANCERAT
+            </Text>
+          </View>
+          <View style={[styles.formCard, { borderRadius: 30, padding: 0, overflow: "hidden" }]}>
+            <Pressable
+              onPress={handleResetApp}
+              style={{ padding: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.danger, fontSize: 14, fontWeight: "800" }}>
+                  Återställ till första gången-vy
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "600", marginTop: 4, lineHeight: 15 }}>
+                  Rensar lokal data och visar onboarding igen
+                </Text>
+              </View>
+              <Ionicons name="refresh-outline" size={18} color={palette.danger} />
             </Pressable>
           </View>
         </View>

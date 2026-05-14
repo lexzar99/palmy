@@ -24,7 +24,7 @@ const COUNTRY_CODES = [
   { code: "+1", flag: "🇺🇸", name: "USA" },
 ];
 
-type MainStep = "notifications" | "auth" | "location";
+type MainStep = "theme" | "notifications" | "auth" | "location";
 type AuthStep = "landing" | "phone" | "profile" | "otp";
 
 // ─── Full-page permission screen ───────────────────────────────────────────────
@@ -216,6 +216,240 @@ function PermissionPage({
   );
 }
 
+// ─── Theme picker page ────────────────────────────────────────────────────────
+// Real-time light/dark mode toggle as the first onboarding step. Tapping a
+// card flips the entire app theme via setThemePreference — the change cascades
+// through ThemeProvider → useTheme() so this page itself re-paints with the
+// new palette as you tap.
+function ThemePage({
+  currentPreference,
+  onSelect,
+  onContinue,
+}: {
+  currentPreference: "light" | "dark" | "system";
+  onSelect: (mode: "light" | "dark") => void;
+  onContinue: () => void;
+}) {
+  const { palette } = useTheme();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(32)).current;
+  const lightScale = useRef(new Animated.Value(1)).current;
+  const darkScale = useRef(new Animated.Value(1)).current;
+
+  // 'system' counts as neither selected for the preview UI — user must pick
+  // a concrete light/dark to highlight a card (and to enable Continue).
+  const lightSelected = currentPreference === "light";
+  const darkSelected = currentPreference === "dark";
+  const hasSelection = lightSelected || darkSelected;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 420, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 420, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  // Spring-scale whichever card just became selected so the tap feels live.
+  useEffect(() => {
+    if (lightSelected) {
+      Animated.sequence([
+        Animated.spring(lightScale, { toValue: 1.04, useNativeDriver: true, speed: 40, bounciness: 8 }),
+        Animated.spring(lightScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 0 }),
+      ]).start();
+    }
+  }, [lightSelected]);
+
+  useEffect(() => {
+    if (darkSelected) {
+      Animated.sequence([
+        Animated.spring(darkScale, { toValue: 1.04, useNativeDriver: true, speed: 40, bounciness: 8 }),
+        Animated.spring(darkScale, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 0 }),
+      ]).start();
+    }
+  }, [darkSelected]);
+
+  return (
+    <Animated.View style={{ flex: 1, opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 28, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Hero block — small eyebrow + big italic title to match the
+            existing PermissionPage aesthetic (Outfit_900Black, italic). */}
+        <View style={{ alignItems: 'center', marginTop: 32, marginBottom: 8 }}>
+          <Text style={{
+            fontFamily: 'Outfit_700Bold',
+            color: palette.gold,
+            fontSize: 11, fontWeight: '700', letterSpacing: 2,
+            marginBottom: 12,
+          }}>
+            UTSEENDE
+          </Text>
+        </View>
+
+        <Text style={{
+          fontFamily: 'Outfit_900Black',
+          color: palette.text,
+          fontSize: 38, fontWeight: '900',
+          lineHeight: 42, letterSpacing: -1.5,
+          fontStyle: 'italic',
+          marginBottom: 14, textAlign: 'center',
+        }}>
+          VÄLJ DITT{'\n'}
+          <Text style={{ color: palette.gold }}>LÄGE</Text>
+        </Text>
+
+        <Text style={{
+          fontFamily: 'Outfit_500Medium',
+          color: palette.muted, fontSize: 14, fontWeight: '500',
+          lineHeight: 22, marginBottom: 32, textAlign: 'center',
+          paddingHorizontal: 8,
+        }}>
+          Du kan ändra detta när som helst i inställningarna.
+        </Text>
+
+        {/* Cards — stacked so each gets full width for the preview mockup. */}
+        <View style={{ gap: 14, marginBottom: 28 }}>
+          {/* Light card — cream/white background with dark text sample */}
+          <Animated.View style={{ transform: [{ scale: lightScale }] }}>
+            <Pressable onPress={() => onSelect("light")}>
+              <View style={{
+                backgroundColor: '#FFF8EF',
+                borderRadius: 24,
+                padding: 22,
+                borderWidth: 2,
+                borderColor: lightSelected ? palette.gold : 'rgba(28,28,30,0.07)',
+                shadowColor: lightSelected ? palette.gold : '#000',
+                shadowOpacity: lightSelected ? 0.4 : 0.1,
+                shadowRadius: lightSelected ? 20 : 12,
+                shadowOffset: { width: 0, height: 8 },
+                overflow: 'hidden',
+              }}>
+                {/* Checkmark badge when selected */}
+                {lightSelected && (
+                  <View style={{
+                    position: 'absolute', top: 14, right: 14,
+                    width: 26, height: 26, borderRadius: 13,
+                    backgroundColor: palette.gold,
+                    alignItems: 'center', justifyContent: 'center',
+                    shadowColor: palette.gold, shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+                  }}>
+                    <Ionicons name="checkmark" size={16} color="#000" />
+                  </View>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  <View style={{
+                    width: 56, height: 56, borderRadius: 18,
+                    backgroundColor: 'rgba(231,178,75,0.15)',
+                    borderWidth: 1, borderColor: 'rgba(231,178,75,0.3)',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Ionicons name="sunny-outline" size={28} color="#D9B055" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'Outfit_700Bold',
+                      color: '#6E6E73', fontSize: 10, fontWeight: '700',
+                      letterSpacing: 2, marginBottom: 4,
+                    }}>
+                      LJUST
+                    </Text>
+                    <Text style={{
+                      fontFamily: 'Outfit_900Black',
+                      color: '#1C1C1E', fontSize: 28, fontWeight: '900',
+                      letterSpacing: -1, fontStyle: 'italic',
+                    }}>
+                      MAT<Text style={{ color: '#D9B055' }}>GO</Text>
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          </Animated.View>
+
+          {/* Dark card — dark #09090b background with white text + gold GO */}
+          <Animated.View style={{ transform: [{ scale: darkScale }] }}>
+            <Pressable onPress={() => onSelect("dark")}>
+              <View style={{
+                backgroundColor: '#09090b',
+                borderRadius: 24,
+                padding: 22,
+                borderWidth: 2,
+                borderColor: darkSelected ? palette.gold : 'rgba(255,255,255,0.08)',
+                shadowColor: darkSelected ? palette.gold : '#000',
+                shadowOpacity: darkSelected ? 0.5 : 0.2,
+                shadowRadius: darkSelected ? 20 : 12,
+                shadowOffset: { width: 0, height: 8 },
+                overflow: 'hidden',
+              }}>
+                {/* Checkmark badge when selected */}
+                {darkSelected && (
+                  <View style={{
+                    position: 'absolute', top: 14, right: 14,
+                    width: 26, height: 26, borderRadius: 13,
+                    backgroundColor: palette.gold,
+                    alignItems: 'center', justifyContent: 'center',
+                    shadowColor: palette.gold, shadowOpacity: 0.5, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
+                  }}>
+                    <Ionicons name="checkmark" size={16} color="#000" />
+                  </View>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                  <View style={{
+                    width: 56, height: 56, borderRadius: 18,
+                    backgroundColor: 'rgba(231,178,75,0.12)',
+                    borderWidth: 1, borderColor: 'rgba(231,178,75,0.25)',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <Ionicons name="moon-outline" size={28} color="#E7B24B" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{
+                      fontFamily: 'Outfit_700Bold',
+                      color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700',
+                      letterSpacing: 2, marginBottom: 4,
+                    }}>
+                      MÖRKT
+                    </Text>
+                    <Text style={{
+                      fontFamily: 'Outfit_900Black',
+                      color: '#FFFFFF', fontSize: 28, fontWeight: '900',
+                      letterSpacing: -1, fontStyle: 'italic',
+                    }}>
+                      MAT<Text style={{ color: '#E7B24B' }}>GO</Text>
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </View>
+
+        {/* CTA — primary gold knapp med gold-glow. Disabled tills användaren
+            valt något (för att tvinga ett medvetet val). */}
+        <Pressable
+          onPress={onContinue}
+          disabled={!hasSelection}
+          style={{
+            backgroundColor: palette.gold, borderRadius: 24, paddingVertical: 18,
+            alignItems: 'center', opacity: hasSelection ? 1 : 0.55,
+            shadowColor: palette.gold, shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 10 },
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="arrow-forward" size={18} color="#000" />
+            <Text style={{ fontFamily: 'Outfit_900Black', color: '#000', fontWeight: '900', fontSize: 15 }}>
+              Fortsätt
+            </Text>
+          </View>
+        </Pressable>
+      </ScrollView>
+    </Animated.View>
+  );
+}
+
 // ─── OnboardingScreen ──────────────────────────────────────────────────────────
 export default function OnboardingScreen({
   onComplete,
@@ -232,6 +466,8 @@ export default function OnboardingScreen({
   const setToken = useAppStore((s) => s.setToken);
   const setProfile = useAppStore((s) => s.setProfile);
   const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
+  const themePreference = useAppStore((s) => s.themePreference);
+  const setThemePreference = useAppStore((s) => s.setThemePreference);
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -241,7 +477,7 @@ export default function OnboardingScreen({
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [pendingProfile, setPendingProfile] = useState<any>(null);
 
-  const [mainStep, setMainStep] = useState<MainStep>(skipPermissions ? "auth" : "notifications");
+  const [mainStep, setMainStep] = useState<MainStep>(skipPermissions ? "auth" : "theme");
   const [step, setStep] = useState<AuthStep>("landing");
   const [countryCode, setCountryCode] = useState("+46");
   const [phone, setPhone] = useState("");
@@ -555,6 +791,52 @@ export default function OnboardingScreen({
 
   const topContentInset = Platform.OS === "ios" ? 16 : (StatusBar.currentHeight || 0) + 16;
 
+  // ── Theme picker page ─────────────────────────────────────────────────────
+  // First step — runs before notifications so users see their preferred theme
+  // applied throughout the rest of onboarding. setThemePreference triggers a
+  // re-render via ThemeProvider, so the page itself flips palette mid-tap.
+  if (mainStep === "theme") {
+    return (
+      <View style={{ flex: 1, backgroundColor: palette.bg }}>
+        <LinearGradient
+          colors={[palette.panel, palette.bg, palette.panelMuted]}
+          locations={[0, 0.6, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
+            <Text style={{
+              fontFamily: 'Outfit_900Black',
+              color: palette.text, fontSize: 22, fontWeight: '900',
+              letterSpacing: -1, fontStyle: 'italic',
+            }}>
+              MAT<Text style={{ color: palette.gold }}>GO</Text>
+            </Text>
+
+            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+              {/* Step dots — 4 dots total nu när theme är första steget */}
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                  <View key={s} style={{
+                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
+                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+                  }} />
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <ThemePage
+            currentPreference={themePreference}
+            onSelect={(mode) => setThemePreference(mode)}
+            onContinue={() => transitionToMain("notifications")}
+          />
+        </SafeAreaView>
+      </View>
+    );
+  }
+
   // ── Notifications gate page ────────────────────────────────────────────────
   if (mainStep === "notifications") {
     return (
@@ -578,7 +860,7 @@ export default function OnboardingScreen({
             <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
               {/* Step dots — 3 dots, current filled gold */}
               <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
                   <View key={s} style={{
                     width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
                     backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
@@ -635,7 +917,7 @@ export default function OnboardingScreen({
 
             <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
               <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
                   <View key={s} style={{
                     width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
                     backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
@@ -718,7 +1000,7 @@ export default function OnboardingScreen({
               {/* Step dots — only when past landing */}
               {step !== "landing" && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginRight: 8 }}>
-                  {(['notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+                  {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
                     <View key={s} style={{
                       width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
                       backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
