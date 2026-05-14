@@ -419,7 +419,7 @@ const ar = {
       mailSubject: 'مساعدة',
       mailBody: 'مرحباً بفريق دعم MatGo،\n\nصف استفسارك هنا:\n',
       mailFailedTitle: 'تعذّر فتح البريد',
-      mailFailedBody: 'يرجى الإرسال مباشرة إلى support@matgo.se',
+      mailFailedBody: 'يرجى الإرسال مباشرة إلى {{email}}',
     },
     edit: {
       title: 'تعديل البيانات',

@@ -356,6 +356,15 @@ model RestaurantSettings {
   contactAddress        String?  // multiline OK
   aboutBody             String?  // markdown / plain text för om-oss-sidan
 
+  // Företagsidentitet — visas i Terms + Privacy + RN-support-flöden. Singleton
+  // för hela plattformen. Fallback-värden hanteras i klienterna när null.
+  companyName           String?  // ex: "MatGo AB"
+  organizationNumber    String?  // ex: "559123-4567"
+  companyAddress        String?  // postal/registrerad adress, multiline OK
+  supportEmail          String?  // primär support — RN + web SupportChat
+  privacyEmail          String?  // GDPR/DPO-kontakt
+  noReplyEmail          String?  // From-adress i sendEmail (valbar)
+
   // Platform-wide UI-toggles
   showDiscountedRail    Boolean  @default(true)  // Rea & Rabatter-sektion på hem-sidan
 

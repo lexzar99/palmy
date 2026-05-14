@@ -1,6 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
+import { getApiUrl } from "@/lib/api";
+
+/**
+ * Memoiserad support-email — uppdateras vid mount första gången SupportChat
+ * eller `openSupportChatWithOrder` körs. Krävs för att Tawk-fallbacken
+ * (mailto-länk) ska peka mot admin-konfigurerad support-adress istället för
+ * en hårdkodad string. Reload av sidan ger fresh hämtning, vilket räcker
+ * eftersom support-email sällan byts ofta.
+ */
+let cachedSupportEmail: string | null = null;
+async function loadSupportEmail(): Promise<string> {
+  if (cachedSupportEmail) return cachedSupportEmail;
+  try {
+    const res = await fetch(`${getApiUrl()}/api/settings`);
+    if (res.ok) {
+      const data = await res.json();
+      cachedSupportEmail =
+        (data.supportEmail as string) ||
+        (data.contactEmail as string) ||
+        "support@matgo.se";
+      return cachedSupportEmail;
+    }
+  } catch {
+    // Faller igenom till default.
+  }
+  cachedSupportEmail = "support@matgo.se";
+  return cachedSupportEmail;
+}
 
 /**
  * SupportChat — laddar Tawk.to-widget på alla sidor i web.
@@ -11,6 +39,12 @@ import { useEffect } from "react";
  * Chat Widget. Skapa konto gratis på tawk.to om inte gjort än.
  */
 export default function SupportChat() {
+  useEffect(() => {
+    // Förvärm support-email-cachen så fallback-mailto är snabbt om Tawk
+    // misslyckas (`openSupportChatWithOrder` är ofta synkront triggad av
+    // klick och vill inte vänta på en fetch).
+    void loadSupportEmail();
+  }, []);
   useEffect(() => {
     const propertyId = process.env.NEXT_PUBLIC_TAWK_PROPERTY_ID;
     const widgetId = process.env.NEXT_PUBLIC_TAWK_WIDGET_ID;
@@ -48,8 +82,13 @@ export function openSupportChatWithOrder(orderNumber: string, orderId?: string) 
   if (typeof window === "undefined") return;
   const Tawk = (window as any).Tawk_API;
   if (!Tawk) {
-    // Fallback: mailto med pre-fylld order-info
-    window.location.href = `mailto:info@matgo.se?subject=${encodeURIComponent(`Fråga om order ${orderNumber}`)}&body=${encodeURIComponent(`Hej!\n\nJag har en fråga om beställning ${orderNumber}.\n\n`)}`;
+    // Fallback: mailto med pre-fylld order-info. Använder cachad support-email
+    // (förvärmd av SupportChat-mount). Synkron läsning — om cache är tom
+    // landar vi på "support@matgo.se" och triggar en bakgrundsuppdatering
+    // till nästa gång.
+    const email = cachedSupportEmail || "support@matgo.se";
+    if (!cachedSupportEmail) void loadSupportEmail();
+    window.location.href = `mailto:${email}?subject=${encodeURIComponent(`Fråga om order ${orderNumber}`)}&body=${encodeURIComponent(`Hej!\n\nJag har en fråga om beställning ${orderNumber}.\n\n`)}`;
     return;
   }
 

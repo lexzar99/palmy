@@ -450,7 +450,7 @@ const en = {
       mailSubject: 'Help',
       mailBody: 'Hi MatGo support,\n\nDescribe your issue here:\n',
       mailFailedTitle: 'Could not open email',
-      mailFailedBody: 'Please send directly to support@matgo.se',
+      mailFailedBody: 'Please send directly to {{email}}',
     },
     edit: {
       title: 'EDIT DETAILS',

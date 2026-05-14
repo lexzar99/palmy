@@ -419,7 +419,7 @@ const sv = {
       mailSubject: 'Hjälp',
       mailBody: 'Hej MatGo-support,\n\nBeskriv ditt ärende här:\n',
       mailFailedTitle: 'Kunde inte öppna e-post',
-      mailFailedBody: 'Skicka istället direkt till support@matgo.se',
+      mailFailedBody: 'Skicka istället direkt till {{email}}',
     },
     edit: {
       title: 'ÄNDRA UPPGIFTER',

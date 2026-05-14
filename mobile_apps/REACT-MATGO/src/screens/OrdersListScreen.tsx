@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useArabic } from "../hooks/useArabic";
 import { useAppStore } from "../store/useAppStore";
 import { api } from "../lib/api";
+import { useAppSettings } from "../hooks/useAppSettings";
 import { useSharedStyles, useTheme } from "../theme";
 import type { Palette } from "../theme/palette";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
@@ -213,6 +214,7 @@ export default function OrdersListScreen({
   const styles = useSharedStyles();
   const token = useAppStore((s) => s.token);
   const profile = useAppStore((s) => s.profile);
+  const { settings: appSettings } = useAppSettings();
 
   // Kontakta support — öppnar mail med användarens id/email förifyllda
   // om de finns. Synlig oavsett inloggad eller gäst.
@@ -222,11 +224,12 @@ export default function OrdersListScreen({
     const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
     const subject = `Hjälp med order${id}`;
     const body = `Hej MatGo-support,${emailLine}${phoneLine}\n\nBeskriv ditt ärende här:\n`;
-    const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const supportEmail = appSettings.supportEmail;
+    const url = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => {
-      Alert.alert("Kunde inte öppna e-post", "Skicka istället direkt till support@matgo.se");
+      Alert.alert("Kunde inte öppna e-post", `Skicka istället direkt till ${supportEmail}`);
     });
-  }, [profile]);
+  }, [profile, appSettings.supportEmail]);
 
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);

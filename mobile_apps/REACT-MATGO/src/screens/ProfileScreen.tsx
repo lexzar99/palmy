@@ -40,6 +40,7 @@ import AddressModal from "../components/AddressModal";
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { useArabic } from '../hooks/useArabic';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 
 
@@ -101,6 +102,7 @@ export default function ProfileScreen({
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const { ls } = useArabic();
+  const { settings: appSettings } = useAppSettings();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
   const [sentryTestCrash, setSentryTestCrash] = useState(false);
   if (sentryTestCrash) {
@@ -872,9 +874,10 @@ export default function ProfileScreen({
               onPress={() => {
                 const subject = t('profile.support.mailSubject');
                 const body = t('profile.support.mailBody');
-                const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                const supportEmail = appSettings.supportEmail;
+                const url = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
                 Linking.openURL(url).catch(() => {
-                  Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody'));
+                  Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody', { email: supportEmail }));
                 });
               }}
               style={{
@@ -1410,9 +1413,10 @@ export default function ProfileScreen({
               const phoneLine = profile?.phone ? `\nTelefon: ${profile.phone}` : "";
               const subject = `${t('profile.support.mailSubject')}${id}`;
               const body = `${t('profile.support.mailBody').split('\n\n')[0]}${emailLine}${phoneLine}\n\n${t('profile.support.mailBody').split('\n\n').slice(1).join('\n\n')}`;
-              const url = `mailto:support@matgo.se?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+              const supportEmail = appSettings.supportEmail;
+              const url = `mailto:${supportEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
               Linking.openURL(url).catch(() => {
-                Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody'));
+                Alert.alert(t('profile.support.mailFailedTitle'), t('profile.support.mailFailedBody', { email: supportEmail }));
               });
             }}
             style={{
