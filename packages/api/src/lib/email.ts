@@ -54,16 +54,27 @@ export type EmailMessage = {
 
 // Cloud-hostar (Railway, Heroku, Fly.io) blockerar ofta utgående SMTP-port
 // 587/465 för att förebygga spam-abuse. SMTP-baserade transports (Gmail, Brevo
-// via SMTP) timeout:ar då efter 30-60s. HTTPS-baserade transports (Resend,
-// Brevo API) blockas inte. Gmail behåller vi som lokalt dev-alternativ.
+// via SMTP) timeout:ar då efter 30-60s. HTTPS-baserade transports (Brevo API,
+// Resend API) blockas inte eftersom de går via port 443. För Railway: använd
+// Brevo HTTPS API. För lokal dev: Gmail SMTP funkar.
 const SMTP_TIMEOUT_MS = 10_000; // Fail-fast istället för att hänga 60s+
 
-// ── Brevo (Sendinblue) SMTP transport (om konfigurerad) ───────────────────────
-// REKOMMENDERAT för test utan egen domän — Brevo låter dig verifiera en
-// "Sender Email Address" via klick-länk (ingen DNS behövs), sen kan du skicka
-// FRÅN den adressen TILL valfri mottagare. 300 gratis-mejl/dag.
-// Setup: skapa konto på brevo.com → SMTP & API → SMTP-fliken → kopiera
-// SMTP-key + login-user. Sätt BREVO_SMTP_USER + BREVO_SMTP_PASS i Railway.
+// ── Brevo HTTPS API (REKOMMENDERAT för Railway) ──────────────────────────────
+// Brevo's REST API på api.brevo.com — använder port 443 (HTTPS) som ALDRIG
+// blockeras av Railway. Tillåter sender-verifiering utan domän via klick-länk.
+// 300 gratis-mejl/dag.
+//
+// Setup:
+//   1. Skapa konto på brevo.com
+//   2. Senders → "Add a sender" → verifiera din email via klick-länk
+//   3. SMTP & API → "API Keys"-fliken → "Generate a new API key"
+//      (OBS: API key är ANNAN sak än SMTP key. Behöver API-fliken, inte
+//      SMTP-fliken.)
+//   4. Sätt BREVO_API_KEY i Railway (det börjar med "xkeysib-...")
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+
+// ── Brevo SMTP transport (LOKAL dev) ──────────────────────────────────────────
+// Behåll som fallback för lokal utveckling där SMTP funkar.
 const BREVO_SMTP_USER = process.env.BREVO_SMTP_USER;
 const BREVO_SMTP_PASS = process.env.BREVO_SMTP_PASS;
 const brevoTransporter =
@@ -113,11 +124,48 @@ function defaultFrom(): string {
   return 'MatGo <onboarding@resend.dev>';
 }
 
+// Parsa "Name <email@x.com>" → { name?, email } för Brevo API
+function parseFromAddress(from: string): { name?: string; email: string } {
+  const match = from.match(/^\s*(.+?)\s*<([^>]+)>\s*$/);
+  if (match) return { name: match[1].trim(), email: match[2].trim() };
+  return { email: from.trim() };
+}
+
 export async function sendEmail(msg: EmailMessage): Promise<void> {
   const from = msg.from || defaultFrom();
 
-  // 1. Brevo SMTP — funkar oftast från cloud-hostar utan port-block.
-  // Brevo tillåter sender-verifiering utan domän.
+  // 1. Brevo HTTPS API — REKOMMENDERAT för Railway. Inga port-blockaden.
+  if (BREVO_API_KEY) {
+    try {
+      const sender = parseFromAddress(from);
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender,
+          to: [{ email: msg.to }],
+          subject: msg.subject,
+          textContent: msg.text,
+          htmlContent: msg.html,
+        }),
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        console.error(`[email] Brevo API ${response.status}:`, body);
+      } else {
+        console.log(`[email] Brevo API sent to ${msg.to}`);
+      }
+    } catch (err) {
+      console.error('[email] Brevo API threw:', err);
+    }
+    return;
+  }
+
+  // 2. Brevo SMTP — funkar lokalt om port 587 inte är blockerad.
   if (brevoTransporter) {
     try {
       await brevoTransporter.sendMail({
@@ -127,7 +175,7 @@ export async function sendEmail(msg: EmailMessage): Promise<void> {
         text: msg.text,
         html: msg.html,
       });
-      console.log(`[email] Brevo sent to ${msg.to}`);
+      console.log(`[email] Brevo SMTP sent to ${msg.to}`);
     } catch (err) {
       console.error('[email] Brevo SMTP send failed:', err);
     }
