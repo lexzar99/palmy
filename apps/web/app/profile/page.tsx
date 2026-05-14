@@ -311,6 +311,13 @@ function ProfileContent() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [isLoggingOut, setIsLoggingOut] = useState(false); // To fix logout bug
+  // Login-flödet kan blockas av backend (403 EMAIL_NOT_VERIFIED) om
+  // användaren inte har klickat i verifieringsmejlet ännu. Då visar vi en
+  // egen "kolla din mejl"-state med resend-knapp istället för det generiska
+  // felmeddelandet.
+  const [loginNeedsVerification, setLoginNeedsVerification] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [resendVerificationStatus, setResendVerificationStatus] = useState<"idle" | "sent" | "error">("idle");
 
   // Edit profile
   const [isEditing, setIsEditing] = useState(false);
@@ -629,15 +636,38 @@ function ProfileContent() {
     e.preventDefault();
     setIsLoggingIn(true);
     setLoginError("");
+    setLoginNeedsVerification(false);
+    setResendVerificationStatus("idle");
     try {
       const res = await axios.post(`${API_URL}/api/account/login-user`, { identifier: loginEmail, password: loginPassword });
       await persistPlatformSession(res.data.token);
       setHasPlatformSession(true);
       await fetchData();
     } catch (err: any) {
-      setLoginError(err.response?.data?.error || "Felaktigt lösenord eller e-post");
+      // Backend 403 + code: "EMAIL_NOT_VERIFIED" → email-verifierings-gaten
+      // är aktiv. Visa då special-state istället för det generiska felet.
+      if (err?.response?.status === 403 && err?.response?.data?.code === "EMAIL_NOT_VERIFIED") {
+        setLoginNeedsVerification(true);
+        setLoginError("");
+      } else {
+        setLoginError(err.response?.data?.error || "Felaktigt lösenord eller e-post");
+      }
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!loginEmail) return;
+    setResendingVerification(true);
+    setResendVerificationStatus("idle");
+    try {
+      await axios.post(`${API_URL}/api/account/send-verification-email`, { email: loginEmail });
+      setResendVerificationStatus("sent");
+    } catch {
+      setResendVerificationStatus("error");
+    } finally {
+      setResendingVerification(false);
     }
   };
 
@@ -731,7 +761,7 @@ function ProfileContent() {
                 type="email"
                 autoComplete="email"
                 value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
+                onChange={(e) => { setLoginEmail(e.target.value); setLoginNeedsVerification(false); setResendVerificationStatus("idle"); }}
                 placeholder="din@email.se"
                 className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
@@ -744,13 +774,37 @@ function ProfileContent() {
                 type="password"
                 autoComplete="current-password"
                 value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                onChange={(e) => { setLoginPassword(e.target.value); setLoginNeedsVerification(false); setResendVerificationStatus("idle"); }}
                 placeholder="••••••••"
                 className="w-full rounded-2xl py-4 px-5 font-bold placeholder:text-zinc-300 outline-none focus:ring-2 focus:ring-gold-500/40 transition-all"
                 style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
               />
             </div>
-            {loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
+            {loginNeedsVerification && (
+              <div className="bg-amber-500/10 border border-amber-500/25 rounded-2xl p-4 space-y-3">
+                <p className="text-[11px] font-black uppercase tracking-widest text-amber-400 text-center">
+                  Kolla din mejl
+                </p>
+                <p className="text-[11px] text-zinc-300 text-center leading-relaxed">
+                  Du måste verifiera din e-post innan du kan logga in. Vi har skickat en länk till{" "}
+                  <span className="font-black text-amber-300 break-all">{loginEmail}</span>.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resendingVerification || resendVerificationStatus === "sent"}
+                  className="w-full py-3 rounded-2xl font-black uppercase tracking-widest text-[10px] bg-white/10 hover:bg-white/15 text-white disabled:opacity-60 transition-all flex items-center justify-center gap-2"
+                >
+                  {resendingVerification ? <Loader2 className="animate-spin" size={12} /> : null}
+                  {resendVerificationStatus === "sent"
+                    ? "Länken skickad"
+                    : resendVerificationStatus === "error"
+                    ? "Försök igen"
+                    : "Skicka igen"}
+                </button>
+              </div>
+            )}
+            {!loginNeedsVerification && loginError && <p className="text-red-500 text-[11px] text-center font-black uppercase">{loginError}</p>}
             <button
               type="submit"
               disabled={isLoggingIn}

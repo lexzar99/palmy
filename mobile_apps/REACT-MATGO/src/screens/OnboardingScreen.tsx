@@ -459,19 +459,25 @@ function ThemePage({
 }
 
 // ─── Email verify step ────────────────────────────────────────────────────────
-// Polls /api/account/check-email-verified every 3s after registration so that
-// when the user taps the link in their inbox (web or foodgo://verify-email),
-// we automatically continue into the app. The manual "Jag har verifierat"
-// button triggers an immediate check, and "Skicka igen" re-issues the email.
+// Sedan email-verification-gaten infördes har vi INGEN JWT under detta steg —
+// /register-user utfärdar inte längre token. Vi pollar /check-email-verified
+// med email (utan Bearer-header) och så fort backend svarar verified=true
+// kallar vi /login-user med email + temp-lösenord som onboardingen sparade.
+// Vid lyckad login får vi en JWT som mountas i appens auth-store.
+//
+// Deep-länken `foodgo://verify-email?token=…` triggar parallellt en POST mot
+// /verify-email i App.tsx — den endpointen returnerar nu också { token, user }
+// och kortsluter därmed flödet (App.tsx sätter tokenen direkt i storen, vilket
+// gör att hela onboarding-trädet får ny render via parent).
 function EmailVerifyStep({
   email,
-  pendingToken,
-  pendingProfile,
+  pendingEmail,
+  pendingPassword,
   onVerified,
 }: {
   email: string;
-  pendingToken: string | null;
-  pendingProfile: any;
+  pendingEmail: string;
+  pendingPassword: string;
   onVerified: (tok: string, prof: any) => void;
 }) {
   const { t } = useTranslation();
@@ -486,10 +492,43 @@ function EmailVerifyStep({
   const onVerifiedRef = useRef(onVerified);
   useEffect(() => { onVerifiedRef.current = onVerified; }, [onVerified]);
 
+  // Försök byta email+lösen mot en JWT via /login-user. Det här är det vi
+  // gör så fort polling-loopen ser verified=true (eller när användaren
+  // klickar "Jag har verifierat" och check:en kommer tillbaka som true).
+  // Lyckas det — vi har en session. Misslyckas det (t.ex. inga matchande
+  // creds) — visa felet och stanna kvar på verify-steget.
+  const exchangeForSession = async (): Promise<boolean> => {
+    if (!pendingEmail || !pendingPassword) return false;
+    try {
+      const { data } = await api.post("/api/account/login-user", {
+        identifier: pendingEmail,
+        password: pendingPassword,
+      });
+      const tok = data?.token;
+      if (!tok) return false;
+      let prof: any = data?.user;
+      try {
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        prof = profileRes.data;
+      } catch {
+        // Fall back to the minimal user object — onboarding doesn't need
+        // the full shape to continue.
+      }
+      onVerifiedRef.current(tok, prof);
+      return true;
+    } catch {
+      // Login kan misslyckas om e.g. deep-link redan användt token:en och
+      // sessionen finns i storen — då behöver vi inte sätta något här.
+      return false;
+    }
+  };
+
   // Poll loop — kicks off as soon as the step mounts. Stable deps so we
   // only spin one timer per pending session.
   useEffect(() => {
-    if (!pendingToken || !pendingProfile) return;
+    if (!pendingEmail) return;
     let active = true;
     let timer: any = null;
 
@@ -499,14 +538,14 @@ function EmailVerifyStep({
         const { data } = await api.post(
           "/api/account/check-email-verified",
           { email },
-          { headers: { Authorization: `Bearer ${pendingToken}` } },
         );
         if (data?.verified && active) {
           setVerified(true);
           setInfo(t('onboarding.email.verify.verified'));
-          // Tiny delay so user sees the confirmation flash before screen flips
-          setTimeout(() => {
-            if (active) onVerifiedRef.current(pendingToken, pendingProfile);
+          // Tiny delay so user sees the confirmation flash before login
+          setTimeout(async () => {
+            if (!active) return;
+            await exchangeForSession();
           }, 700);
           return;
         }
@@ -522,10 +561,10 @@ function EmailVerifyStep({
       if (timer) clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [email, pendingToken, pendingProfile]);
+  }, [email, pendingEmail]);
 
   const handleManualCheck = async () => {
-    if (!pendingToken || !pendingProfile) {
+    if (!pendingEmail || !pendingPassword) {
       setError(t('onboarding.email.errors.registerFailed'));
       return;
     }
@@ -536,12 +575,14 @@ function EmailVerifyStep({
       const { data } = await api.post(
         "/api/account/check-email-verified",
         { email },
-        { headers: { Authorization: `Bearer ${pendingToken}` } },
       );
       if (data?.verified) {
         setVerified(true);
         setInfo(t('onboarding.email.verify.verified'));
-        setTimeout(() => onVerified(pendingToken, pendingProfile), 500);
+        setTimeout(async () => {
+          const ok = await exchangeForSession();
+          if (!ok) setError(t('onboarding.email.verify.checkFailed'));
+        }, 500);
       } else {
         setInfo(t('onboarding.email.verify.notVerifiedYet'));
       }
@@ -655,6 +696,12 @@ export default function OnboardingScreen({
   // so that App.tsx's `!token` guard doesn't unmount this screen before we show location.
   const [pendingToken, setPendingToken] = useState<string | null>(null);
   const [pendingProfile, setPendingProfile] = useState<any>(null);
+  // Email-flow specifics: /register-user utfärdar inte längre någon JWT. Vi
+  // sparar email + temp-lösenord lokalt så att verify-steget kan kalla
+  // /login-user (alt. /verify-email via deep-länk) när verifieringen är klar
+  // och därigenom få fram tokenen.
+  const [pendingEmail, setPendingEmail] = useState<string>("");
+  const [pendingPassword, setPendingPassword] = useState<string>("");
 
   const [mainStep, setMainStep] = useState<MainStep>(skipPermissions ? "auth" : "theme");
   const [step, setStep] = useState<AuthStep>("landing");
@@ -930,57 +977,39 @@ export default function OnboardingScreen({
     setStep("emailPhone");
   };
 
-  // Register the user via the existing /api/account/register-user endpoint
-  // (same one RegisterScreen uses). We generate a temporary random password
-  // since the new onboarding doesn't ask for one — the user will set a real
-  // password later via "forgot password" / magic-link flow once email
-  // verification arrives. After registration we trigger a real email
-  // verification dispatch and the verify step polls for the verified state.
+  // Register the user via the existing /api/account/register-user endpoint.
+  // VIKTIGT: Sedan email-verification-gaten infördes returnerar /register-user
+  // INTE längre någon JWT. Backend skickar verifieringsmejlet inline och
+  // svarar med { ok, email, message }. Vi sparar email + temp-lösenord lokalt
+  // så att verify-steget kan kalla /login-user när användaren har klickat
+  // i mejlet (fallback för deep-link-flödet i App.tsx som hämtar JWT direkt
+  // från /verify-email).
   const handlePhoneSubmitForEmail = async () => {
     if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
     const full = buildPhone(countryCode, phone);
     setLoading(true); setError("");
     try {
       // Generate a temp password — the backend requires one but the user
-      // never sees it. They reset it later via the verification email.
+      // never sees it. They reset it later via "forgot password" once
+      // they're logged in via the verification flow.
       const tempPassword = `tmp_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
-      const { data } = await api.post("/api/account/register-user", {
+      await api.post("/api/account/register-user", {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: emailValue.trim(),
         phone: full,
         password: tempPassword,
       });
-      const tok = data?.token;
-      if (!tok) throw new Error(t('onboarding.auth.noSessionReceived'));
 
-      // Fetch the full profile shape, mirroring RegisterScreen.
-      let prof = data?.user;
-      try {
-        const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${tok}` },
-        });
-        prof = profileRes.data;
-      } catch {
-        // Fall back to the user object the register call returned.
-      }
-
-      // Trigger email verification dispatch. The backend always returns 200
-      // (to avoid leaking account existence) so we fire-and-forget.
-      try {
-        await api.post("/api/account/send-verification-email", {
-          email: emailValue.trim(),
-        });
-      } catch {
-        // Non-fatal — user can re-trigger from the verify screen.
-      }
-
-      // Store as pending — we still want to show the verify-email screen
-      // before flipping to location/home. The verify step polls
-      // /check-email-verified every few seconds; tapping the email link
-      // (web or foodgo://verify-email?token=...) also flips it.
-      setPendingToken(tok);
-      setPendingProfile(prof);
+      // Inga creds tillbaka — kontot är skapat, mejlet är skickat. Vi
+      // sparar email + lösenord så verify-steget kan logga in användaren
+      // automatiskt så fort emailVerifiedAt slås på. pendingToken/Profile
+      // hålls null tills dess (App.tsx's `!token`-guard ser fortfarande
+      // onboardingen som anonym).
+      setPendingToken(null);
+      setPendingProfile(null);
+      setPendingEmail(emailValue.trim());
+      setPendingPassword(tempPassword);
       setStep("emailVerify");
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || t('onboarding.email.errors.registerFailed'));
@@ -1641,8 +1670,8 @@ export default function OnboardingScreen({
               {step === "emailVerify" && (
                 <EmailVerifyStep
                   email={emailValue}
-                  pendingToken={pendingToken}
-                  pendingProfile={pendingProfile}
+                  pendingEmail={pendingEmail}
+                  pendingPassword={pendingPassword}
                   onVerified={(tok, prof) => afterAuth(tok, prof)}
                 />
               )}

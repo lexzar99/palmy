@@ -61,6 +61,13 @@ router.get('/', async (_req, res) => {
       contactEmail: (settings as any).contactEmail || null,
       contactAddress: (settings as any).contactAddress || null,
       aboutBody: (settings as any).aboutBody || null,
+      // Företagsidentitet (Terms/Privacy/Support i web + RN)
+      companyName: (settings as any).companyName || null,
+      organizationNumber: (settings as any).organizationNumber || null,
+      companyAddress: (settings as any).companyAddress || null,
+      supportEmail: (settings as any).supportEmail || null,
+      privacyEmail: (settings as any).privacyEmail || null,
+      noReplyEmail: (settings as any).noReplyEmail || null,
       // UI-toggles
       showDiscountedRail: (settings as any).showDiscountedRail ?? true,
       // Plattform-banner (visas i web när satt och inte expirerad)
@@ -90,7 +97,38 @@ router.patch('/', authenticate, async (req, res) => {
       return;
     }
 
-    const { isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime, notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody, showDiscountedRail, bannerMessage, bannerSeverity, bannerExpiresAt } = req.body;
+    const {
+      isOpen, deliveryFee, minOrderAmount, deliveryRadius, estimatedPickupTime, estimatedDeliveryTime,
+      notificationSound, openingHours, contactPhone, contactPhoneHours, contactEmail, contactAddress, aboutBody,
+      showDiscountedRail, bannerMessage, bannerSeverity, bannerExpiresAt,
+      companyName, organizationNumber, companyAddress,
+      supportEmail, privacyEmail, noReplyEmail,
+    } = req.body;
+
+    // Lättviktig email-validering — bara om värdet är icke-tomt. Inte
+    // RFC-perfekt men fångar typos som "support@matgo" eller " " i mitten.
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const validateEmail = (value: unknown, label: string): string | null => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      if (trimmed.length > 254) {
+        throw new Error(`${label} är för lång`);
+      }
+      if (!EMAIL_RE.test(trimmed)) {
+        throw new Error(`${label} är inte en giltig e-postadress`);
+      }
+      return trimmed;
+    };
+    const validateString = (value: unknown, max: number, label: string): string | null => {
+      if (typeof value !== 'string') return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      if (trimmed.length > max) {
+        throw new Error(`${label} är för lång (max ${max} tecken)`);
+      }
+      return trimmed;
+    };
 
     const data: Record<string, unknown> = {};
     if (isOpen !== undefined) data.isOpen = isOpen;
@@ -104,7 +142,9 @@ router.patch('/', authenticate, async (req, res) => {
     // Platform-fält (nullable strings — tomt = ta bort värdet)
     if (contactPhone !== undefined) data.contactPhone = contactPhone || null;
     if (contactPhoneHours !== undefined) data.contactPhoneHours = contactPhoneHours || null;
-    if (contactEmail !== undefined) data.contactEmail = contactEmail || null;
+    if (contactEmail !== undefined) {
+      data.contactEmail = contactEmail ? validateEmail(contactEmail, 'E-post') : null;
+    }
     if (contactAddress !== undefined) data.contactAddress = contactAddress || null;
     if (aboutBody !== undefined) data.aboutBody = aboutBody || null;
     if (showDiscountedRail !== undefined) data.showDiscountedRail = Boolean(showDiscountedRail);
@@ -112,6 +152,25 @@ router.patch('/', authenticate, async (req, res) => {
     if (bannerSeverity !== undefined) data.bannerSeverity = bannerSeverity || null;
     if (bannerExpiresAt !== undefined) {
       data.bannerExpiresAt = bannerExpiresAt ? new Date(bannerExpiresAt) : null;
+    }
+    // Företagsidentitet
+    if (companyName !== undefined) {
+      data.companyName = validateString(companyName, 200, 'Företagsnamn');
+    }
+    if (organizationNumber !== undefined) {
+      data.organizationNumber = validateString(organizationNumber, 50, 'Organisationsnummer');
+    }
+    if (companyAddress !== undefined) {
+      data.companyAddress = validateString(companyAddress, 500, 'Företagsadress');
+    }
+    if (supportEmail !== undefined) {
+      data.supportEmail = validateEmail(supportEmail, 'Support-email');
+    }
+    if (privacyEmail !== undefined) {
+      data.privacyEmail = validateEmail(privacyEmail, 'Privacy-email');
+    }
+    if (noReplyEmail !== undefined) {
+      data.noReplyEmail = validateEmail(noReplyEmail, 'No-reply-email');
     }
 
     const settings = await prisma.restaurantSettings.upsert({
@@ -150,6 +209,15 @@ router.patch('/', authenticate, async (req, res) => {
       settings: publicSettings
     });
   } catch (err) {
+    // Valideringsfel ger 400 — generiska fel ger 500.
+    const message = err instanceof Error ? err.message : String(err);
+    const looksLikeValidation =
+      message.includes('är för lång') ||
+      message.includes('giltig e-postadress');
+    if (looksLikeValidation) {
+      res.status(400).json({ error: message });
+      return;
+    }
     console.error('Settings update error:', err);
     res.status(500).json({ error: 'Serverfel' });
   }

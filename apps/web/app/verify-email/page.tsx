@@ -5,15 +5,19 @@ import axios from "axios";
 import { ArrowLeft, Loader2, CheckCircle2, MailCheck, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
+import { persistPlatformSession } from "@/lib/platformSessionClient";
 
 // Email-verifierings-flöde — steg 2 av 2.
 //   GET  ?token=…              ← länk från mejlet, auto-postar nedan
-//   POST /api/account/verify-email { token }
-// Lyckad verify → grön bekräftelse + uppmaning att fortsätta i appen.
-// Misslyckad → felmeddelande + möjlighet att be om ny länk.
+//   POST /api/account/verify-email { token }  → { ok, token, email, user }
+// Lyckad verify: vi har nu en JWT (det är "första login"-momentet för
+// email-registrerade användare). Vi persistar plattforms-sessionen och
+// redirectar in i appen. Misslyckad → felmeddelande + möjlighet att be
+// om en ny länk via /register.
 function VerifyEmailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -34,8 +38,22 @@ function VerifyEmailContent() {
 
     (async () => {
       try {
-        await axios.post(`${API_URL}/api/account/verify-email`, { token });
+        const res = await axios.post(`${API_URL}/api/account/verify-email`, { token });
+        // Backend returnerar nu en JWT på lyckad verifiering — det är
+        // användarens "första inloggning". Vi persistar sessionen och
+        // skickar in dem i appen efter en kort bekräftelse.
+        const jwt = res.data?.token;
+        if (jwt) {
+          try {
+            await persistPlatformSession(jwt);
+          } catch {
+            // Persist-fel — användaren får logga in manuellt. Vi fortsätter
+            // ändå visa success-vyn så de vet att kontot är verifierat.
+          }
+        }
         setStatus("success");
+        // Liten paus så användaren ser bekräftelsen innan vi flyttar dem.
+        setTimeout(() => router.push("/profile"), 1500);
       } catch (err: any) {
         setError(
           err?.response?.data?.error ||
@@ -44,7 +62,7 @@ function VerifyEmailContent() {
         setStatus("error");
       }
     })();
-  }, [token, status]);
+  }, [token, status, router]);
 
   return (
     <div
@@ -103,14 +121,13 @@ function VerifyEmailContent() {
               Din e-post är verifierad
             </h2>
             <p className="text-zinc-400 text-xs leading-relaxed">
-              Tack! Du kan stänga den här sidan och gå tillbaka till MatGo-appen
-              — du loggas in automatiskt.
+              Tack! Vi loggar in dig och tar dig till din profil…
             </p>
             <Link
-              href="/"
+              href="/profile"
               className="inline-block mt-4 bg-gold-500 hover:bg-gold-600 text-zinc-950 px-6 py-3 rounded-3xl font-black uppercase tracking-widest text-[10px] shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
             >
-              Gå till startsidan
+              Till profilen
             </Link>
           </div>
         )}
@@ -122,6 +139,12 @@ function VerifyEmailContent() {
               Kunde inte verifiera
             </h2>
             <p className="text-zinc-400 text-xs leading-relaxed">{error}</p>
+            <Link
+              href="/register"
+              className="inline-block mt-2 text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-gold-500 transition-colors"
+            >
+              Be om en ny länk
+            </Link>
           </div>
         )}
       </motion.div>

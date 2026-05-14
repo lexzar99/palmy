@@ -38,6 +38,12 @@ export default function EmailLoginScreen({
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // 403 EMAIL_NOT_VERIFIED från /login-user innebär att email-verification-
+  // gaten är aktiv för det här kontot. Vi visar då en egen "kolla din mejl"-
+  // panel med resend-knapp istället för det generiska fel-meddelandet.
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<"idle" | "sent" | "error">("idle");
 
   const enterAnim = useRef(new Animated.Value(0)).current;
 
@@ -52,6 +58,8 @@ export default function EmailLoginScreen({
 
   const handleLogin = async () => {
     setError("");
+    setNeedsVerification(false);
+    setResendStatus("idle");
     if (!identifier.trim()) {
       setError("Ange din e-post");
       return;
@@ -81,16 +89,34 @@ export default function EmailLoginScreen({
       }
       onLoggedIn();
     } catch (e: any) {
-      // Web translates everything to "Felaktigt lösenord eller e-post" —
-      // mirror that string so the two clients stay in sync.
-      const apiErr = e?.response?.data?.error;
-      if (e?.response?.status === 401) {
+      // Backend 403 + code: "EMAIL_NOT_VERIFIED" → visa special-state med
+      // resend-knapp. Övriga 401/4xx → generiskt felmeddelande.
+      const status = e?.response?.status;
+      const code = e?.response?.data?.code;
+      if (status === 403 && code === "EMAIL_NOT_VERIFIED") {
+        setNeedsVerification(true);
+      } else if (status === 401) {
         setError("Felaktig email eller lösenord");
       } else {
+        const apiErr = e?.response?.data?.error;
         setError(apiErr || e?.message || "Inloggning misslyckades");
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!identifier.trim()) return;
+    setResending(true);
+    setResendStatus("idle");
+    try {
+      await api.post("/api/account/send-verification-email", { email: identifier.trim() });
+      setResendStatus("sent");
+    } catch {
+      setResendStatus("error");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -161,6 +187,8 @@ export default function EmailLoginScreen({
             onChangeText={(t) => {
               setIdentifier(t);
               setError("");
+              setNeedsVerification(false);
+              setResendStatus("idle");
             }}
           />
           <TextInput
@@ -178,11 +206,79 @@ export default function EmailLoginScreen({
             onChangeText={(t) => {
               setPassword(t);
               setError("");
+              setNeedsVerification(false);
+              setResendStatus("idle");
             }}
             onSubmitEditing={handleLogin}
           />
 
-          {!!error && (
+          {needsVerification && (
+            <View
+              style={{
+                backgroundColor: "rgba(245,158,11,0.10)",
+                borderRadius: 14,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: "rgba(245,158,11,0.30)",
+                gap: 10,
+              }}
+            >
+              <Text
+                style={{
+                  color: "#fbbf24",
+                  fontSize: 12,
+                  fontWeight: "900",
+                  letterSpacing: 0.4,
+                  textAlign: "center",
+                }}
+              >
+                Kolla din mejl
+              </Text>
+              <Text
+                style={{
+                  color: palette.text,
+                  fontSize: 12,
+                  fontWeight: "600",
+                  lineHeight: 17,
+                  textAlign: "center",
+                }}
+              >
+                Du måste verifiera din e-post innan du loggar in. Vi har skickat en
+                länk till{" "}
+                <Text style={{ color: "#fbbf24", fontWeight: "900" }}>
+                  {identifier.trim()}
+                </Text>
+                .
+              </Text>
+              <Pressable
+                onPress={handleResendVerification}
+                disabled={resending || resendStatus === "sent"}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  borderRadius: 12,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.10)",
+                  opacity: resending || resendStatus === "sent" ? 0.6 : 1,
+                }}
+              >
+                {resending ? (
+                  <ActivityIndicator color={palette.text} />
+                ) : (
+                  <Text style={{ color: palette.text, fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>
+                    {resendStatus === "sent"
+                      ? "LÄNKEN SKICKAD"
+                      : resendStatus === "error"
+                      ? "FÖRSÖK IGEN"
+                      : "SKICKA IGEN"}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+
+          {!needsVerification && !!error && (
             <View
               style={{
                 backgroundColor: "rgba(239,68,68,0.1)",

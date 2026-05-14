@@ -858,13 +858,16 @@ function AppContent() {
       }
 
       // ── Verify-email deep link ───────────────────────────────────────────
-      // Mejlets mobil-länk är `foodgo://verify-email?token=<hex>`. Vi
-      // POSTar direkt till /api/account/verify-email och låter polling-
-      // loopen i EmailVerifyStep upptäcka att emailVerifiedAt nu är satt
-      // (vilket flippar onboarding-flödet vidare till location/home).
-      // Om verify-anropet faller (ogiltig token etc.) sväljer vi felet
-      // tyst — användaren ser ändå "väntar på verifiering"-spinnern och
-      // kan trycka "Skicka igen" eller "Jag har verifierat" i UI:t.
+      // Mejlets mobil-länk är `foodgo://verify-email?token=<hex>`. Sedan
+      // email-verification-gaten infördes är det HÄR den första inloggningen
+      // sker för email-registrerade användare. /verify-email returnerar nu
+      // { ok, token, user } — vi sätter tokenen direkt i appens auth-store,
+      // hämtar profilen och flippar onboarding-flaggan så root-tree:t
+      // renderar in i appen.
+      //
+      // Fallback: om verify-anropet faller (ogiltig token, redan-använd, etc.)
+      // sväljer vi felet tyst — onboarding-skärmens polling-loop kommer ändå
+      // att hitta verified=true så länge användaren är aktiv i appen.
       if (url.startsWith("foodgo://verify-email")) {
         const queryIndex = url.indexOf("?");
         let token = "";
@@ -874,7 +877,23 @@ function AppContent() {
         }
         if (token) {
           try {
-            await api.post("/api/account/verify-email", { token });
+            const { data } = await api.post("/api/account/verify-email", { token });
+            const jwt = data?.token;
+            if (jwt) {
+              setToken(jwt);
+              setOnboardingComplete(true);
+              try {
+                const profileRes = await api.get("/api/profile", {
+                  headers: { Authorization: `Bearer ${jwt}` },
+                });
+                setProfile(profileRes.data);
+              } catch {
+                // Profil-fetch är best-effort. /verify-email skickar
+                // tillbaka en basal user-payload som fallback.
+                if (data?.user) setProfile(data.user);
+              }
+              openRoot("home");
+            }
           } catch {
             // Polling-loopen ger sin egen felhantering i UI:t.
           }
