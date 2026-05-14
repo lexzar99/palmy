@@ -25,7 +25,14 @@ const COUNTRY_CODES = [
 ];
 
 type MainStep = "theme" | "notifications" | "auth" | "location";
-type AuthStep = "landing" | "phone" | "profile" | "otp";
+// New auth sub-flow:
+//   landing       → 4 buttons (Apple / Google / Email / Guest)
+//   phone         → social-auth follow-up: collect phone for /api/profile/link-phone
+//   emailEmail    → email signup: email input
+//   emailName     → email signup: first + last name
+//   emailPhone    → email signup: phone + country picker
+//   emailVerify   → email signup: placeholder "check your email" screen
+type AuthStep = "landing" | "phone" | "emailEmail" | "emailName" | "emailPhone" | "emailVerify";
 
 // ─── Full-page permission screen ───────────────────────────────────────────────
 // Modernare visuell stil — paritet med web's OG-image:
@@ -230,6 +237,7 @@ function ThemePage({
   onSelect: (mode: "light" | "dark") => void;
   onContinue: () => void;
 }) {
+  const { t } = useTranslation();
   const { palette } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(32)).current;
@@ -283,7 +291,7 @@ function ThemePage({
             fontSize: 11, fontWeight: '700', letterSpacing: 2,
             marginBottom: 12,
           }}>
-            UTSEENDE
+            {t('onboarding.theme.eyebrow')}
           </Text>
         </View>
 
@@ -295,8 +303,8 @@ function ThemePage({
           fontStyle: 'italic',
           marginBottom: 14, textAlign: 'center',
         }}>
-          VÄLJ DITT{'\n'}
-          <Text style={{ color: palette.gold }}>LÄGE</Text>
+          {t('onboarding.theme.title.line1')}{'\n'}
+          <Text style={{ color: palette.gold }}>{t('onboarding.theme.title.line2')}</Text>
         </Text>
 
         <Text style={{
@@ -305,7 +313,7 @@ function ThemePage({
           lineHeight: 22, marginBottom: 32, textAlign: 'center',
           paddingHorizontal: 8,
         }}>
-          Du kan ändra detta när som helst i inställningarna.
+          {t('onboarding.theme.subtitle')}
         </Text>
 
         {/* Cards — stacked so each gets full width for the preview mockup. */}
@@ -353,7 +361,7 @@ function ThemePage({
                       color: '#6E6E73', fontSize: 10, fontWeight: '700',
                       letterSpacing: 2, marginBottom: 4,
                     }}>
-                      LJUST
+                      {t('onboarding.theme.lightCaption')}
                     </Text>
                     <Text style={{
                       fontFamily: 'Outfit_900Black',
@@ -411,7 +419,7 @@ function ThemePage({
                       color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700',
                       letterSpacing: 2, marginBottom: 4,
                     }}>
-                      MÖRKT
+                      {t('onboarding.theme.darkCaption')}
                     </Text>
                     <Text style={{
                       fontFamily: 'Outfit_900Black',
@@ -441,7 +449,7 @@ function ThemePage({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Ionicons name="arrow-forward" size={18} color="#000" />
             <Text style={{ fontFamily: 'Outfit_900Black', color: '#000', fontWeight: '900', fontSize: 15 }}>
-              Fortsätt
+              {t('onboarding.theme.continue')}
             </Text>
           </View>
         </Pressable>
@@ -479,17 +487,19 @@ export default function OnboardingScreen({
 
   const [mainStep, setMainStep] = useState<MainStep>(skipPermissions ? "auth" : "theme");
   const [step, setStep] = useState<AuthStep>("landing");
+
+  // Phone-collection state (used by both social-auth follow-up and email signup phone step)
   const [countryCode, setCountryCode] = useState("+46");
   const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpPhone, setOtpPhone] = useState("");
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
+
+  // Email signup state
+  const [emailValue, setEmailValue] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
-  const [isNewUser, setIsNewUser] = useState(false);
-  const [isGoogleLinking, setIsGoogleLinking] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
 
@@ -512,7 +522,8 @@ export default function OnboardingScreen({
   const lBtnsOpacity = useRef(new Animated.Value(0)).current;
   const lBtnsY = useRef(new Animated.Value(44)).current;
   const googleScaleAnim = useRef(new Animated.Value(1)).current;
-  const phoneScaleAnim = useRef(new Animated.Value(1)).current;
+  const emailScaleAnim = useRef(new Animated.Value(1)).current;
+  const guestScaleAnim = useRef(new Animated.Value(1)).current;
 
   const { prompt: googlePrompt, loading: googleLoading, tokenResult: googleResult, error: googleError } = useGoogleAuth();
   const { prompt: applePrompt, tokenResult: appleResult, error: appleError } = useAppleAuth();
@@ -666,13 +677,16 @@ export default function OnboardingScreen({
   };
 
   // ── Google / Apple auth handlers ───────────────────────────────────────────
+  // When the social-auth callback returns, either:
+  //   - profile already has phone → continue to location/finish
+  //   - profile missing phone → show inline phone step, save via /api/profile/link-phone
+  //
+  // The OTP-based linking flow is gone; phone is now plain contact info.
   useEffect(() => {
     if (googleResult) {
       if (googleResult.user.needsPhone) {
-        // Store creds as pending; go collect the phone (linking flow)
         setPendingToken(googleResult.token);
         setPendingProfile(googleResult.user);
-        setIsGoogleLinking(true);
         setStep("phone");
       } else {
         afterAuth(googleResult.token, googleResult.user);
@@ -691,7 +705,6 @@ export default function OnboardingScreen({
     if (appleResult.user.needsPhone) {
       setPendingToken(appleResult.token);
       setPendingProfile(appleResult.user);
-      setIsGoogleLinking(true);
       setStep("phone");
     } else {
       afterAuth(appleResult.token, appleResult.user);
@@ -702,94 +715,139 @@ export default function OnboardingScreen({
     if (appleError && appleError !== "__cancelled__") setError(appleError);
   }, [appleError]);
 
-  // ── Phone / OTP auth handlers ──────────────────────────────────────────────
+  // ── Phone helpers ──────────────────────────────────────────────────────────
   const buildPhone = (cc: string, raw: string) => `${cc}${raw.replace(/\D/g, "").replace(/^0/, "")}`;
 
-  const handleCheckPhone = async () => {
-    if (!phone.trim()) { setError("Ange ditt telefonnummer"); return; }
+  // Save the phone number on an already-authenticated social account using
+  // /api/profile/link-phone (no OTP — per project rule, SMS verification is
+  // removed from the platform). This step is only reached when needsPhone=true.
+  const handleSaveSocialPhone = async () => {
+    if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
+    if (!pendingToken) { setError("Sessionen tappades"); return; }
     const full = buildPhone(countryCode, phone);
     setLoading(true); setError("");
     try {
-      const { data: lookup } = await api.post("/api/auth/lookup-phone", { phone: full });
-      const phoneExists = !!lookup.exists;
-      setOtpPhone(full);
-      if (!isGoogleLinking && !phoneExists) {
-        setIsNewUser(true);
-        setStep("profile");
-      } else {
-        setIsNewUser(false);
-        await triggerOtp(full);
-      }
+      await api.post(
+        "/api/profile/link-phone",
+        { phone: full },
+        { headers: { Authorization: `Bearer ${pendingToken}` } },
+      );
+      const profileRes = await api.get("/api/profile", {
+        headers: { Authorization: `Bearer ${pendingToken}` },
+      });
+      afterAuth(pendingToken, profileRes.data);
     } catch (e: any) {
-      setError(e.response?.data?.error || "Kunde inte kontrollera nummer");
+      setError(e?.response?.data?.error || e?.message || "Kunde inte spara telefonnummer");
     } finally { setLoading(false); }
   };
 
-  const triggerOtp = async (full: string) => {
+  // ── Email signup flow handlers ─────────────────────────────────────────────
+  const handleEmailNext = () => {
+    const v = emailValue.trim();
+    if (!v || !v.includes("@")) {
+      setError(t('onboarding.email.errors.invalidEmail'));
+      return;
+    }
+    setError("");
+    setStep("emailName");
+  };
+
+  const handleNameNext = () => {
+    if (!firstName.trim()) { setError(t('onboarding.email.errors.missingFirst')); return; }
+    if (!lastName.trim()) { setError(t('onboarding.email.errors.missingLast')); return; }
+    setError("");
+    setStep("emailPhone");
+  };
+
+  // Register the user via the existing /api/account/register-user endpoint
+  // (same one RegisterScreen uses). We generate a temporary random password
+  // since the new onboarding doesn't ask for one — the user will set a real
+  // password later via "forgot password" / magic-link flow once email
+  // verification arrives. For now we register, store creds as pending, and
+  // route to the verify-email placeholder.
+  const handlePhoneSubmitForEmail = async () => {
+    if (!phone.trim()) { setError(t('onboarding.email.errors.missingPhone')); return; }
+    const full = buildPhone(countryCode, phone);
+    setLoading(true); setError("");
     try {
-      // Send via our own Twilio-backed endpoint regardless of whether we're
-      // linking an OAuth account or doing phone-only sign-in. The backend
-      // verify-otp route then either links the phone to the active OAuth
-      // user (when the request carries the Supabase JWT) or creates / logs
-      // in a phone-only account.
-      const headers = isGoogleLinking && pendingToken
-        ? { Authorization: `Bearer ${pendingToken}` }
-        : undefined;
-      const { data } = await api.post("/api/auth/send-otp", { phone: full }, { headers });
-      if (data?.devCode) setOtpCode(data.devCode);
-      setOtpPhone(full);
-      setStep("otp");
+      // Generate a temp password — the backend requires one but the user
+      // never sees it. They reset it later via the verification email.
+      const tempPassword = `tmp_${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`;
+      const { data } = await api.post("/api/account/register-user", {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: emailValue.trim(),
+        phone: full,
+        password: tempPassword,
+      });
+      const tok = data?.token;
+      if (!tok) throw new Error("Ingen session mottogs");
+
+      // Fetch the full profile shape, mirroring RegisterScreen.
+      let prof = data?.user;
+      try {
+        const profileRes = await api.get("/api/profile", {
+          headers: { Authorization: `Bearer ${tok}` },
+        });
+        prof = profileRes.data;
+      } catch {
+        // Fall back to the user object the register call returned.
+      }
+      // Store as pending — we still want to show the verify-email screen
+      // before flipping to location/home. NOTE: email verification itself
+      // is currently a placeholder ("I have verified" button just continues).
+      // Real magic-link wiring is deferred — see the report.
+      setPendingToken(tok);
+      setPendingProfile(prof);
+      setStep("emailVerify");
     } catch (e: any) {
-      setError(e.response?.data?.error || e.message || "Kunde inte skicka SMS");
+      setError(e?.response?.data?.error || e?.message || t('onboarding.email.errors.registerFailed'));
+    } finally { setLoading(false); }
+  };
+
+  // ── Guest mode ─────────────────────────────────────────────────────────────
+  // Continue without auth: no token, onboardingComplete=true → routes to
+  // home. CartScreen already supports guest checkout, so this is a real
+  // "skip auth, keep browsing" path. We still want the location step
+  // (it's optional & skippable in App.tsx routing — but useful for guests
+  // to see local restaurants).
+  const handleGuest = () => {
+    setPendingToken(null);
+    setPendingProfile(null);
+    if (skipPermissions) {
+      setOnboardingComplete(true);
+      onComplete();
+    } else {
+      transitionToMain("location");
     }
   };
 
-  const handleProfileSubmit = async () => {
-    if (!name.trim()) { setError("Ange ditt namn"); return; }
-    if (!email.trim() || !email.includes("@")) { setError("Ange en giltig e-post"); return; }
-    setLoading(true);
-    await triggerOtp(otpPhone);
-    setLoading(false);
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode.trim()) { setError("Ange koden från SMS:et"); return; }
-    setLoading(true); setError("");
-    try {
-      if (isGoogleLinking) {
-        // Twilio verify with the OAuth Supabase JWT attached: backend reads
-        // the current user from the JWT and links this phone (uniquely) to
-        // that user record. We keep using the Supabase JWT afterwards so the
-        // OAuth session machinery (refresh, sign-out) keeps working.
-        await api.post(
-          "/api/auth/verify-otp",
-          { phone: otpPhone, code: otpCode },
-          { headers: { Authorization: `Bearer ${pendingToken}` } },
-        );
-        const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${pendingToken}` },
-        });
-        afterAuth(pendingToken!, profileRes.data);
-      } else {
-        // Phone-only sign-in / registration: backend creates or fetches the
-        // user keyed by phone and returns our own JWT. No Supabase session.
-        const { data } = await api.post("/api/auth/verify-otp", {
-          phone: otpPhone,
-          code: otpCode,
-          name: isNewUser ? name.trim() : undefined,
-          email: isNewUser ? email.trim() : undefined,
-        });
-        const tok = data.token;
-        if (!tok) throw new Error("Ingen session mottogs");
-        const profileRes = await api.get("/api/auth/me", { headers: { Authorization: `Bearer ${tok}` } });
-        afterAuth(tok, profileRes.data);
-      }
-    } catch (e: any) {
-      setError(e.response?.data?.error || e.message || "Felaktig kod");
-    } finally { setLoading(false); }
-  };
-
   const topContentInset = Platform.OS === "ios" ? 16 : (StatusBar.currentHeight || 0) + 16;
+
+  // Brand bar with step dots — reused across all main-step screens
+  const renderBrandBar = (extra?: React.ReactNode) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
+      <Text style={{
+        fontFamily: 'Outfit_900Black',
+        color: palette.text, fontSize: 22, fontWeight: '900',
+        letterSpacing: -1, fontStyle: 'italic',
+      }}>
+        MAT<Text style={{ color: palette.gold }}>GO</Text>
+      </Text>
+
+      <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', gap: 6 }}>
+          {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
+            <View key={s} style={{
+              width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
+              backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
+            }} />
+          ))}
+        </View>
+        {extra}
+      </View>
+    </View>
+  );
 
   // ── Theme picker page ─────────────────────────────────────────────────────
   // First step — runs before notifications so users see their preferred theme
@@ -804,29 +862,7 @@ export default function OnboardingScreen({
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
-            <Text style={{
-              fontFamily: 'Outfit_900Black',
-              color: palette.text, fontSize: 22, fontWeight: '900',
-              letterSpacing: -1, fontStyle: 'italic',
-            }}>
-              MAT<Text style={{ color: palette.gold }}>GO</Text>
-            </Text>
-
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
-              {/* Step dots — 4 dots total nu när theme är första steget */}
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
-                  <View key={s} style={{
-                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
-                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
-                  }} />
-                ))}
-              </View>
-            </View>
-          </View>
-
+          {renderBrandBar()}
           <ThemePage
             currentPreference={themePreference}
             onSelect={(mode) => setThemePreference(mode)}
@@ -847,34 +883,13 @@ export default function OnboardingScreen({
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
-            <Text style={{
-              fontFamily: 'Outfit_900Black',
-              color: palette.text, fontSize: 22, fontWeight: '900',
-              letterSpacing: -1, fontStyle: 'italic',
-            }}>
-              MAT<Text style={{ color: palette.gold }}>GO</Text>
-            </Text>
-
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
-              {/* Step dots — 3 dots, current filled gold */}
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
-                  <View key={s} style={{
-                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
-                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
-                  }} />
-                ))}
-              </View>
-              {/* Skippa — top-right, liten muted */}
-              <Pressable onPress={goToAuth} hitSlop={8} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
-                <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
-                  Skippa
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          {renderBrandBar(
+            <Pressable onPress={goToAuth} hitSlop={8} style={{ paddingHorizontal: 6, paddingVertical: 4 }}>
+              <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                {t('common.skip')}
+              </Text>
+            </Pressable>
+          )}
 
           <PermissionPage
             icon="notifications-outline"
@@ -905,44 +920,24 @@ export default function OnboardingScreen({
           style={StyleSheet.absoluteFill}
         />
         <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
-          {/* Brand bar — paritet med web's MATGO-wordmark (italic, GO i gold) */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 28, paddingTop: topContentInset, marginBottom: 8 }}>
-            <Text style={{
-              fontFamily: 'Outfit_900Black',
-              color: palette.text, fontSize: 22, fontWeight: '900',
-              letterSpacing: -1, fontStyle: 'italic',
-            }}>
-              MAT<Text style={{ color: palette.gold }}>GO</Text>
-            </Text>
-
-            <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {(['theme', 'notifications', 'auth', 'location'] as MainStep[]).map((s) => (
-                  <View key={s} style={{
-                    width: mainStep === s ? 22 : 6, height: 6, borderRadius: 3,
-                    backgroundColor: mainStep === s ? palette.gold : 'rgba(231,178,75,0.25)',
-                  }} />
-                ))}
-              </View>
-              {/* Skippa — top-right, hoppa över plats men slutför inloggning */}
-              <Pressable
-                onPress={() => {
-                  if (pendingToken && pendingProfile) {
-                    finishWithAuth(pendingToken, pendingProfile);
-                  } else {
-                    setOnboardingComplete(true);
-                    onComplete();
-                  }
-                }}
-                hitSlop={8}
-                style={{ paddingHorizontal: 6, paddingVertical: 4 }}
-              >
-                <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
-                  Skippa
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+          {renderBrandBar(
+            <Pressable
+              onPress={() => {
+                if (pendingToken && pendingProfile) {
+                  finishWithAuth(pendingToken, pendingProfile);
+                } else {
+                  setOnboardingComplete(true);
+                  onComplete();
+                }
+              }}
+              hitSlop={8}
+              style={{ paddingHorizontal: 6, paddingVertical: 4 }}
+            >
+              <Text style={{ fontFamily: 'Outfit_700Bold', color: palette.muted, fontSize: 12, fontWeight: '700', letterSpacing: 0.5 }}>
+                {t('common.skip')}
+              </Text>
+            </Pressable>
+          )}
 
           <PermissionPage
             icon="location-outline"
@@ -964,6 +959,43 @@ export default function OnboardingScreen({
   }
 
   // ── Auth flow ──────────────────────────────────────────────────────────────
+  // Step-specific hero copy. We render this above the form content.
+  const stepHero = (() => {
+    switch (step) {
+      case "phone":
+        return {
+          title: t('onboarding.auth.phone.title'),
+          subtitle: t('onboarding.auth.phone.subtitle'),
+        };
+      case "emailEmail":
+        return {
+          title: t('onboarding.email.stepEmailTitle'),
+          subtitle: t('onboarding.email.stepEmailSubtitle'),
+        };
+      case "emailName":
+        return {
+          title: t('onboarding.email.stepNameTitle'),
+          subtitle: t('onboarding.email.stepNameSubtitle'),
+        };
+      case "emailPhone":
+        return {
+          title: t('onboarding.email.stepPhoneTitle'),
+          subtitle: t('onboarding.email.stepPhoneSubtitle'),
+        };
+      case "emailVerify":
+        return {
+          title: t('onboarding.email.verify.title'),
+          subtitle: t('onboarding.email.verify.body', { email: emailValue }),
+        };
+      default:
+        return null;
+    }
+  })();
+
+  // Back-link handler — wired only on email-flow sub-steps where the user
+  // might want to step back without dropping their entered data.
+  const backFor = (target: AuthStep) => () => { setError(""); setStep(target); };
+
   return (
     <View style={{ flex: 1, backgroundColor: "#07060c" }}>
       <LinearGradient
@@ -984,7 +1016,7 @@ export default function OnboardingScreen({
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header row — MATGO-wordmark istället för rounded-icon + "FoodGo" */}
+            {/* Header row — MATGO-wordmark + step dots + language picker */}
             <Animated.View style={{
               opacity: fadeAnim, transform: [{ translateY: slideAnim }],
               flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 36,
@@ -1021,42 +1053,16 @@ export default function OnboardingScreen({
             </Animated.View>
 
             {/* Hero section — only shown for non-landing steps */}
-            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], marginBottom: step !== "landing" ? 36 : 0 }}>
-              {step === "phone" && (
-                <>
-                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                    {t('onboarding.auth.phone.title')}
-                  </Text>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                    {t('onboarding.auth.phone.subtitle')}
-                  </Text>
-                </>
-              )}
-              {step === "profile" && (
-                <>
-                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                    {t('onboarding.auth.profile.title')}
-                  </Text>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                    {t('onboarding.auth.profile.subtitle')}
-                  </Text>
-                </>
-              )}
-              {step === "otp" && (
-                <>
-                  <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
-                    {t('onboarding.auth.otp.title')}
-                  </Text>
-                  <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
-                    {t('onboarding.auth.otp.sentTo')}{" "}
-                    <Text style={{ color: palette.text, fontWeight: "700" }}>{otpPhone}</Text>
-                    {isGoogleLinking && (
-                      <Text style={{ color: palette.muted }}>{"\n"}Koden kopplar numret till ditt konto.</Text>
-                    )}
-                  </Text>
-                </>
-              )}
-            </Animated.View>
+            {!!stepHero && (
+              <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }], marginBottom: 36 }}>
+                <Text style={{ color: palette.text, fontSize: 30, fontWeight: "900", letterSpacing: -0.5 }}>
+                  {stepHero.title}
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "500", marginTop: 10, lineHeight: 20 }}>
+                  {stepHero.subtitle}
+                </Text>
+              </Animated.View>
+            )}
 
             {/* Step content */}
             <Animated.View style={{
@@ -1065,7 +1071,7 @@ export default function OnboardingScreen({
               gap: 14,
             }}>
 
-              {/* ── LANDING ── */}
+              {/* ── LANDING ── 4 prominent buttons */}
               {step === "landing" && (
                 <>
                   {/* Hero icon with animated ring + breath */}
@@ -1107,6 +1113,7 @@ export default function OnboardingScreen({
                       lineHeight: 50, letterSpacing: -1.8, textAlign: "center",
                       opacity: lTitle1Opacity,
                       transform: [{ translateY: lTitle1Y }],
+                      fontFamily: 'Outfit_900Black',
                     }}>
                       Beställ mat.
                     </Animated.Text>
@@ -1115,6 +1122,7 @@ export default function OnboardingScreen({
                       lineHeight: 50, letterSpacing: -1.8, textAlign: "center",
                       opacity: lTitle2Opacity,
                       transform: [{ translateY: lTitle2Y }],
+                      fontFamily: 'Outfit_900Black',
                     }}>
                       Direkt.
                     </Animated.Text>
@@ -1123,19 +1131,19 @@ export default function OnboardingScreen({
                   {/* Subtitle */}
                   <Animated.Text style={{
                     color: palette.muted, fontSize: 14, fontWeight: "500",
-                    lineHeight: 22, marginBottom: 32, textAlign: "center",
+                    lineHeight: 22, marginBottom: 28, textAlign: "center",
                     opacity: lSubOpacity,
                   }}>
                     Restauranger nära dig — levererat snabbt.
                   </Animated.Text>
 
-                  {/* All buttons slide up together */}
+                  {/* All buttons slide up together — 4 prominent options */}
                   <Animated.View style={{
                     opacity: lBtnsOpacity,
                     transform: [{ translateY: lBtnsY }],
                     gap: 12,
                   }}>
-                    {/* Apple (iOS compliance: at least as prominent as other social logins) */}
+                    {/* 1. Apple — iOS only, native black button */}
                     {Platform.OS === "ios" && (
                       <AppleAuthentication.AppleAuthenticationButton
                         buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -1146,7 +1154,7 @@ export default function OnboardingScreen({
                       />
                     )}
 
-                    {/* Google with press-scale */}
+                    {/* 2. Google — white background, brand mark + label */}
                     <Animated.View style={{ transform: [{ scale: googleScaleAnim }] }}>
                       <Pressable
                         onPress={googlePrompt}
@@ -1154,42 +1162,79 @@ export default function OnboardingScreen({
                         onPressOut={() => Animated.spring(googleScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
                         disabled={googleLoading}
                         style={{
-                          backgroundColor: "#fff", borderRadius: 22, paddingVertical: 17,
-                          alignItems: "center", opacity: googleLoading ? 0.6 : 1,
+                          backgroundColor: "#fff", borderRadius: 22,
+                          height: 56, alignItems: "center", justifyContent: "center",
+                          opacity: googleLoading ? 0.6 : 1,
                         }}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                           {googleLoading
                             ? <ActivityIndicator size="small" color="#000" />
                             : <Text style={{ fontSize: 17, fontWeight: "900", color: "#4285F4" }}>G</Text>}
-                          <Text style={{ color: "#000", fontWeight: "700", fontSize: 14 }}>Fortsätt med Google</Text>
+                          <Text style={{ color: "#000", fontWeight: "700", fontSize: 15 }}>
+                            {t('onboarding.auth.googleButton')}
+                          </Text>
                         </View>
                       </Pressable>
                     </Animated.View>
 
-                    {/* Divider */}
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-                      <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                      <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "700", letterSpacing: 1.5 }}>ELLER</Text>
-                      <View style={{ flex: 1, height: 1, backgroundColor: palette.border }} />
-                    </View>
-
-                    {/* Phone — primary gold CTA with press-scale */}
-                    <Animated.View style={{ transform: [{ scale: phoneScaleAnim }] }}>
+                    {/* 3. Email — gold-bordered pill, gold text */}
+                    <Animated.View style={{ transform: [{ scale: emailScaleAnim }] }}>
                       <Pressable
-                        onPress={() => { setError(""); setIsGoogleLinking(false); setIsNewUser(false); setStep("phone"); }}
-                        onPressIn={() => Animated.spring(phoneScaleAnim, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
-                        onPressOut={() => Animated.spring(phoneScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        onPress={() => {
+                          setError("");
+                          setStep("emailEmail");
+                        }}
+                        onPressIn={() => Animated.spring(emailScaleAnim, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        onPressOut={() => Animated.spring(emailScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
                         style={{
-                          backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 17,
+                          backgroundColor: "transparent",
+                          borderRadius: 22,
+                          height: 56,
                           alignItems: "center",
-                          shadowColor: palette.gold, shadowOpacity: 0.45, shadowRadius: 22, shadowOffset: { width: 0, height: 10 },
+                          justifyContent: "center",
+                          borderWidth: 2,
+                          borderColor: palette.gold,
                         }}
                       >
                         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                          <Ionicons name="phone-portrait-outline" size={18} color="#000" />
-                          <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>Logga in med telefonnummer</Text>
+                          <Ionicons name="mail-outline" size={18} color={palette.gold} />
+                          <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 15 }}>
+                            {t('onboarding.auth.emailButton')}
+                          </Text>
                         </View>
+                      </Pressable>
+                    </Animated.View>
+
+                    {/* 4. Guest — gold-outline pill with subtitle */}
+                    <Animated.View style={{ transform: [{ scale: guestScaleAnim }] }}>
+                      <Pressable
+                        onPress={handleGuest}
+                        onPressIn={() => Animated.spring(guestScaleAnim, { toValue: 0.96, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        onPressOut={() => Animated.spring(guestScaleAnim, { toValue: 1, useNativeDriver: true, speed: 60, bounciness: 0 }).start()}
+                        style={{
+                          backgroundColor: "rgba(231,178,75,0.06)",
+                          borderRadius: 22,
+                          paddingVertical: 12,
+                          paddingHorizontal: 16,
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderWidth: 1,
+                          borderColor: "rgba(231,178,75,0.35)",
+                        }}
+                      >
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                          <Ionicons name="person-outline" size={16} color={palette.text} />
+                          <Text style={{ color: palette.text, fontWeight: "800", fontSize: 14 }}>
+                            {t('onboarding.auth.guestButton')}
+                          </Text>
+                        </View>
+                        <Text style={{
+                          color: palette.muted, fontSize: 11, fontWeight: "500",
+                          marginTop: 4, textAlign: "center", lineHeight: 14,
+                        }}>
+                          {t('onboarding.auth.guestSubtitle')}
+                        </Text>
                       </Pressable>
                     </Animated.View>
 
@@ -1198,25 +1243,11 @@ export default function OnboardingScreen({
                         <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
                       </View>
                     )}
-
-                    {/* Guest link with tradeoff warning */}
-                    <Pressable
-                      onPress={() => {
-                        if (skipPermissions) { setOnboardingComplete(true); onComplete(); }
-                        else { setPendingToken(null); setPendingProfile(null); transitionToMain("location"); }
-                      }}
-                      style={{ alignItems: "center", paddingVertical: 14 }}
-                    >
-                      <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "700" }}>Fortsätt som gäst</Text>
-                      <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "500", marginTop: 4, textAlign: "center", paddingHorizontal: 24, lineHeight: 15 }}>
-                        Som gäst kan du beställa snabbt, men du missar erbjudanden och kampanjer
-                      </Text>
-                    </Pressable>
                   </Animated.View>
                 </>
               )}
 
-              {/* ── PHONE ── */}
+              {/* ── PHONE (social-auth follow-up) ── */}
               {step === "phone" && (
                 <>
                   <View style={{
@@ -1242,41 +1273,12 @@ export default function OnboardingScreen({
                       placeholderTextColor={palette.muted}
                       keyboardType="phone-pad"
                       value={phone}
-                      onChangeText={(t) => { setPhone(t); setError(""); }}
+                      onChangeText={(v) => { setPhone(v); setError(""); }}
                       returnKeyType="done"
+                      onSubmitEditing={handleSaveSocialPhone}
                       autoFocus
                     />
                   </View>
-
-                  <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
-                    <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)" }} onPress={() => setCountryPickerOpen(false)}>
-                      <View style={{
-                        position: "absolute", bottom: 0, left: 0, right: 0,
-                        backgroundColor: "#1a1624", borderTopLeftRadius: 32, borderTopRightRadius: 32,
-                        padding: 28, paddingBottom: 48, gap: 6,
-                      }}>
-                        <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16 }} />
-                        <Text style={{ color: palette.text, fontWeight: "900", fontSize: 15, marginBottom: 12, textAlign: "center" }}>{t('onboarding.phone.countryTitle')}</Text>
-                        {COUNTRY_CODES.map(cc => (
-                          <Pressable
-                            key={cc.code}
-                            onPress={() => { setCountryCode(cc.code); setCountryPickerOpen(false); }}
-                            style={{
-                              flexDirection: "row", alignItems: "center", gap: 14,
-                              paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18,
-                              backgroundColor: countryCode === cc.code ? "rgba(231,178,75,0.1)" : "transparent",
-                              borderWidth: countryCode === cc.code ? 1 : 0,
-                              borderColor: "rgba(231,178,75,0.2)",
-                            }}
-                          >
-                            <Text style={{ fontSize: 26 }}>{cc.flag}</Text>
-                            <Text style={{ color: palette.text, fontWeight: "700", flex: 1, fontSize: 15 }}>{cc.name}</Text>
-                            <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 14 }}>{cc.code}</Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </Pressable>
-                  </Modal>
 
                   {!!error && (
                     <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
@@ -1285,7 +1287,7 @@ export default function OnboardingScreen({
                   )}
 
                   <Pressable
-                    onPress={handleCheckPhone}
+                    onPress={handleSaveSocialPhone}
                     disabled={loading || !phone.trim()}
                     style={{
                       backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
@@ -1295,30 +1297,28 @@ export default function OnboardingScreen({
                   >
                     {loading
                       ? <ActivityIndicator color="#000" />
-                      : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{isGoogleLinking ? t('onboarding.phone.verifyBtn') : t('onboarding.phone.continueBtn')}</Text>
+                      : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.auth.savePhoneBtn')}</Text>
                     }
                   </Pressable>
                 </>
               )}
 
-              {/* ── PROFILE ── */}
-              {step === "profile" && (
+              {/* ── EMAIL flow: step 1 (email) ── */}
+              {step === "emailEmail" && (
                 <>
                   <TextInput
                     style={[styles.input, { paddingVertical: 18 }]}
-                    placeholder={t('onboarding.profile.namePlaceholder')}
-                    placeholderTextColor={palette.muted}
-                    value={name}
-                    onChangeText={(t) => { setName(t); setError(""); }}
-                  />
-                  <TextInput
-                    style={[styles.input, { paddingVertical: 18 }]}
-                    placeholder={t('onboarding.profile.emailPlaceholder')}
+                    placeholder={t('onboarding.email.emailPlaceholder')}
                     placeholderTextColor={palette.muted}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    value={email}
-                    onChangeText={(t) => { setEmail(t); setError(""); }}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    value={emailValue}
+                    onChangeText={(v) => { setEmailValue(v); setError(""); }}
+                    returnKeyType="next"
+                    onSubmitEditing={handleEmailNext}
+                    autoFocus
                   />
                   {!!error && (
                     <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
@@ -1326,42 +1326,98 @@ export default function OnboardingScreen({
                     </View>
                   )}
                   <Pressable
-                    onPress={handleProfileSubmit}
-                    disabled={!name.trim() || !email.trim()}
+                    onPress={handleEmailNext}
+                    disabled={!emailValue.trim()}
                     style={{
                       backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
-                      opacity: !name.trim() || !email.trim() ? 0.55 : 1, marginTop: 4,
+                      opacity: !emailValue.trim() ? 0.55 : 1, marginTop: 4,
                     }}
                   >
-                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.profile.nextBtn')}</Text>
+                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.continue')}</Text>
                   </Pressable>
-                  <Pressable onPress={() => { setStep("phone"); setError(""); }} style={{ alignItems: "center", paddingVertical: 10 }}>
-                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.profile.backPhone')}</Text>
+                  <Pressable onPress={backFor("landing")} style={{ alignItems: "center", paddingVertical: 10 }}>
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('common.back')}</Text>
                   </Pressable>
                 </>
               )}
 
-              {/* ── OTP ── */}
-              {step === "otp" && (
+              {/* ── EMAIL flow: step 2 (first + last name) ── */}
+              {step === "emailName" && (
+                <>
+                  <TextInput
+                    style={[styles.input, { paddingVertical: 18 }]}
+                    placeholder={t('onboarding.email.firstNamePlaceholder')}
+                    placeholderTextColor={palette.muted}
+                    value={firstName}
+                    onChangeText={(v) => { setFirstName(v); setError(""); }}
+                    autoCapitalize="words"
+                    autoComplete="given-name"
+                    textContentType="givenName"
+                    returnKeyType="next"
+                    autoFocus
+                  />
+                  <TextInput
+                    style={[styles.input, { paddingVertical: 18 }]}
+                    placeholder={t('onboarding.email.lastNamePlaceholder')}
+                    placeholderTextColor={palette.muted}
+                    value={lastName}
+                    onChangeText={(v) => { setLastName(v); setError(""); }}
+                    autoCapitalize="words"
+                    autoComplete="family-name"
+                    textContentType="familyName"
+                    returnKeyType="done"
+                    onSubmitEditing={handleNameNext}
+                  />
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+                  <Pressable
+                    onPress={handleNameNext}
+                    disabled={!firstName.trim() || !lastName.trim()}
+                    style={{
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+                      opacity: !firstName.trim() || !lastName.trim() ? 0.55 : 1, marginTop: 4,
+                    }}
+                  >
+                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.continue')}</Text>
+                  </Pressable>
+                  <Pressable onPress={backFor("emailEmail")} style={{ alignItems: "center", paddingVertical: 10 }}>
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('common.back')}</Text>
+                  </Pressable>
+                </>
+              )}
+
+              {/* ── EMAIL flow: step 3 (phone) ── */}
+              {step === "emailPhone" && (
                 <>
                   <View style={{
-                    backgroundColor: palette.panelMuted, borderRadius: 20, borderWidth: 1,
-                    borderColor: "rgba(234,181,69,0.2)", padding: 6,
+                    flexDirection: "row", gap: 10, backgroundColor: palette.card,
+                    borderRadius: 20, borderWidth: 1, borderColor: palette.border, padding: 6,
                   }}>
-                    <TextInput
+                    <Pressable
+                      onPress={() => setCountryPickerOpen(true)}
                       style={{
-                        color: palette.gold, fontSize: 32, fontWeight: "900",
-                        textAlign: "center", letterSpacing: 14,
-                        paddingVertical: 20, paddingHorizontal: 14,
+                        backgroundColor: palette.panelMuted, borderRadius: 14,
+                        paddingHorizontal: 14, paddingVertical: 14,
+                        flexDirection: "row", alignItems: "center", gap: 6,
                       }}
-                      placeholder="——————"
-                      placeholderTextColor="rgba(234,181,69,0.2)"
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      value={otpCode}
-                      onChangeText={(t) => { setOtpCode(t); setError(""); }}
+                    >
+                      <Text style={{ color: palette.text, fontSize: 15, fontWeight: "800" }}>
+                        {COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🇸🇪"} {countryCode}
+                      </Text>
+                      <Ionicons name="chevron-down" size={13} color={palette.muted} />
+                    </Pressable>
+                    <TextInput
+                      style={{ flex: 1, color: palette.text, fontSize: 17, fontWeight: "700", paddingHorizontal: 10, paddingVertical: 14 }}
+                      placeholder={t('onboarding.email.phonePlaceholder')}
+                      placeholderTextColor={palette.muted}
+                      keyboardType="phone-pad"
+                      value={phone}
+                      onChangeText={(v) => { setPhone(v); setError(""); }}
                       returnKeyType="done"
-                      onSubmitEditing={handleVerifyOtp}
+                      onSubmitEditing={handlePhoneSubmitForEmail}
                       autoFocus
                     />
                   </View>
@@ -1371,25 +1427,127 @@ export default function OnboardingScreen({
                     </View>
                   )}
                   <Pressable
-                    onPress={handleVerifyOtp}
-                    disabled={loading || otpCode.length < 4}
+                    onPress={handlePhoneSubmitForEmail}
+                    disabled={loading || !phone.trim()}
                     style={{
                       backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
-                      opacity: loading || otpCode.length < 4 ? 0.55 : 1,
+                      opacity: loading || !phone.trim() ? 0.55 : 1, marginTop: 4,
                       shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
                     }}
                   >
-                    {loading ? <ActivityIndicator color="#000" /> : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.otp.verifyBtn')}</Text>}
+                    {loading
+                      ? <ActivityIndicator color="#000" />
+                      : <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.continue')}</Text>
+                    }
                   </Pressable>
-                  <Pressable
-                    onPress={() => { setStep("phone"); setOtpCode(""); setError(""); }}
-                    style={{ alignItems: "center", paddingVertical: 10 }}
-                  >
-                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.otp.resend')}</Text>
+                  <Pressable onPress={backFor("emailName")} style={{ alignItems: "center", paddingVertical: 10 }}>
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('common.back')}</Text>
                   </Pressable>
                 </>
               )}
+
+              {/* ── EMAIL flow: step 4 (verify email — placeholder) ── */}
+              {/*
+                NOTE: Real magic-link wiring is deferred. The backend's
+                register endpoint may dispatch a verification email, but
+                this client treats the verify step as a soft prompt: the
+                user has already been issued a session token by /register-user
+                and "Jag har verifierat" simply continues to location/finish.
+                When backend magic-link is in place, swap the done-button
+                handler to poll a /verify-email-status endpoint or to wait
+                for a deep-link.
+              */}
+              {step === "emailVerify" && (
+                <>
+                  <View style={{
+                    backgroundColor: palette.card, borderRadius: 20, borderWidth: 1,
+                    borderColor: palette.border, padding: 18, gap: 12,
+                  }}>
+                    <View style={{
+                      width: 56, height: 56, borderRadius: 18,
+                      backgroundColor: 'rgba(231,178,75,0.10)',
+                      borderWidth: 1, borderColor: 'rgba(231,178,75,0.25)',
+                      alignItems: 'center', justifyContent: 'center', alignSelf: 'center',
+                    }}>
+                      <Ionicons name="mail-unread-outline" size={26} color={palette.gold} />
+                    </View>
+                    <Text style={{
+                      color: palette.muted, fontSize: 13, fontWeight: "500",
+                      textAlign: "center", lineHeight: 18,
+                    }}>
+                      {t('onboarding.email.verify.body', { email: emailValue })}
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      // Placeholder "I have verified" — simply complete auth
+                      // using the token already issued by /register-user.
+                      if (pendingToken && pendingProfile) {
+                        afterAuth(pendingToken, pendingProfile);
+                      } else {
+                        setError(t('onboarding.email.errors.registerFailed'));
+                      }
+                    }}
+                    style={{
+                      backgroundColor: palette.gold, borderRadius: 22, paddingVertical: 18, alignItems: "center",
+                      marginTop: 4,
+                      shadowColor: palette.gold, shadowOpacity: 0.35, shadowRadius: 16, shadowOffset: { width: 0, height: 6 },
+                    }}
+                  >
+                    <Text style={{ color: "#000", fontWeight: "900", fontSize: 15 }}>{t('onboarding.email.verify.done')}</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      // "Send again" — placeholder. Real impl would call a
+                      // backend /resend-verification endpoint; right now we
+                      // just provide UX consistency.
+                    }}
+                    style={{ alignItems: "center", paddingVertical: 10 }}
+                  >
+                    <Text style={{ color: palette.muted, fontSize: 13, fontWeight: "600" }}>{t('onboarding.email.verify.resend')}</Text>
+                  </Pressable>
+
+                  {!!error && (
+                    <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
+                      <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>
+                    </View>
+                  )}
+                </>
+              )}
             </Animated.View>
+
+            {/* Country picker — shared by both phone steps */}
+            <Modal visible={countryPickerOpen} transparent animationType="slide" onRequestClose={() => setCountryPickerOpen(false)}>
+              <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)" }} onPress={() => setCountryPickerOpen(false)}>
+                <View style={{
+                  position: "absolute", bottom: 0, left: 0, right: 0,
+                  backgroundColor: "#1a1624", borderTopLeftRadius: 32, borderTopRightRadius: 32,
+                  padding: 28, paddingBottom: 48, gap: 6,
+                }}>
+                  <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: "rgba(255,255,255,0.15)", alignSelf: "center", marginBottom: 16 }} />
+                  <Text style={{ color: palette.text, fontWeight: "900", fontSize: 15, marginBottom: 12, textAlign: "center" }}>{t('onboarding.phone.countryTitle')}</Text>
+                  {COUNTRY_CODES.map(cc => (
+                    <Pressable
+                      key={cc.code}
+                      onPress={() => { setCountryCode(cc.code); setCountryPickerOpen(false); }}
+                      style={{
+                        flexDirection: "row", alignItems: "center", gap: 14,
+                        paddingVertical: 14, paddingHorizontal: 16, borderRadius: 18,
+                        backgroundColor: countryCode === cc.code ? "rgba(231,178,75,0.1)" : "transparent",
+                        borderWidth: countryCode === cc.code ? 1 : 0,
+                        borderColor: "rgba(231,178,75,0.2)",
+                      }}
+                    >
+                      <Text style={{ fontSize: 26 }}>{cc.flag}</Text>
+                      <Text style={{ color: palette.text, fontWeight: "700", flex: 1, fontSize: 15 }}>{cc.name}</Text>
+                      <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 14 }}>{cc.code}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </Pressable>
+            </Modal>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
