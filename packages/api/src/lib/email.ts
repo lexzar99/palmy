@@ -11,10 +11,17 @@
 //
 // Setup (post-deploy):
 //   1. Skapa konto på resend.com (free tier funkar).
-//   2. Verifiera matgo.se-domänen via DNS-records.
-//   3. Generera API-nyckel.
-//   4. Sätt RESEND_API_KEY i Railway-miljön (kund-API:t).
-//   5. (Valfritt) Override `EMAIL_FROM` för annan avsändare.
+//   2. Generera API-nyckel.
+//   3. Sätt RESEND_API_KEY i Railway-miljön (kund-API:t).
+//
+// PROD: när du har verifierat matgo.se i Resend (via DNS-records), sätt
+//   EMAIL_FROM=MatGo <no-reply@matgo.se>
+// i Railway env för att skicka från egen domän.
+//
+// DEV/TEST: utan verifierad domän, använd Resend's test-avsändare
+// `onboarding@resend.dev` — den är förverifierad och kräver inget DNS.
+// VIKTIGT: emails går då BARA till email-adressen kontot är registrerat
+// på Resend (= din egen email). Andra mottagare blockas. Default nedan.
 
 import { Resend } from 'resend';
 
@@ -38,9 +45,13 @@ export type EmailMessage = {
   from?: string;
 };
 
+// Default: Resend's förverifierade test-avsändare. Funkar direkt utan DNS,
+// men mejlen levereras bara till email-adressen som Resend-kontot är
+// registrerat på. När matgo.se är verifierad i Resend → sätt EMAIL_FROM
+// i Railway till "MatGo <no-reply@matgo.se>".
 const DEFAULT_FROM =
   process.env.EMAIL_FROM ||
-  'MatGo <no-reply@matgo.se>';
+  'MatGo <onboarding@resend.dev>';
 
 // Instansiera en gång vid modulladdning. `null` om ingen API-nyckel —
 // då används console.log-fallbacken så lokal utveckling inte kraschar.
