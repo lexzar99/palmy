@@ -373,8 +373,20 @@ function ProfileContent() {
       } else {
         setShowAddPhone(false);
       }
-    } catch {
-      void handleLogout();
+    } catch (err: any) {
+      // Auto-loggout BARA om backend sa unauthorized (401/403). Vid transient
+      // errors (timeout, 500, nätverk) ska vi INTE logga ut användaren —
+      // tidigare buggade detta så att Apple-OAuth-redirect triggade en falsk
+      // logout direkt efter inloggning, vilket gjorde att man fick
+      // "Du är utloggad"-toast 2 ggr och sen inte var inloggad.
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        console.warn("[fetchData] unauthorized → logging out");
+        void handleLogout();
+      } else {
+        console.error("[fetchData] transient error, keeping session:", err?.message || err);
+        // Behåll sessionen — user kan försöka igen via refresh.
+      }
     } finally {
       setLoading(false);
     }
