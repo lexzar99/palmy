@@ -209,6 +209,14 @@ router.post('/webhook', async (req, res) => {
           include: { restaurant: { select: { name: true } }, items: true },
         });
 
+        // Referral-reward — invitee:s första betalda order = trigger.
+        try {
+          const { maybeTriggerReferralReward } = await import('./referrals');
+          await maybeTriggerReferralReward(order.id);
+        } catch (e: any) {
+          console.error('[payments webhook] referral-reward-trigger error:', e?.message);
+        }
+
         // For pending-payment orders: now that payment is confirmed, broadcast to restaurant
         if (isAwaitingPayment) {
           const orderForSocket = {

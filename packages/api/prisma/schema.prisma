@@ -373,6 +373,19 @@ model RestaurantSettings {
   bannerMessage         String?
   bannerSeverity        String?  // "info" | "warning" | "critical"
   bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
+
+  // Welcome deal — auto-tilldelas vid registrering om aktiv.
+  welcomeDealActive       Boolean   @default(false)
+  welcomeDealAmountKr     Int       @default(50)
+  welcomeDealMinOrderKr   Int       @default(150)
+  welcomeDealExpiresDays  Int       @default(30)
+
+  // Referral-system — när invitee gör sin första BETALDA order skapas
+  // UserDeal till BÅDA (inviter + invitee). Belopp i kr (inte öre — vi
+  // jobbar i hela kronor i deal-systemet för enkelhet).
+  referralEnabled         Boolean   @default(false)
+  referralRewardKr        Int       @default(50)
+  referralMinOrderKr      Int       @default(150)
 }
 
 model OrderDraft {
@@ -495,8 +508,94 @@ model User {
   // popup. Visas i profile/deals tillsammans med globala deals och
   // appliceras i checkout om villkoren matchar.
   claimedDealIds String         @default("[]")
+  // Referral-system. `referralCode` är det unika invite-code som
+  // genereras lazily när användaren öppnar referral-sidan. `referredByCode`
+  // sätts om användaren registrerade sig via en delningslänk.
+  // `deviceFingerprint` är ett opaque klient-värde (best-effort) som vi
+  // använder för soft-fraud-flags — aldrig som hard-block.
+  referralCode        String?  @unique
+  referredByCode      String?
+  deviceFingerprint   String?
+  // Senaste IP-adressen vi sett från användaren. Används BARA som signal
+  // för fraud-flags (samma IP som inviter → soft-flag). Skrivs lazily när
+  // referral-endpointer triggas; legacy-konton har null tills de aktiverar
+  // referral-flödet.
+  lastSeenIp          String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+  deals_v2       UserDeal[]
+  referralsSent     Referral[]   @relation("ReferralInviter")
+  referralReceived  Referral?    @relation("ReferralInvitee")
+}
+
+// UserDeal — en personlig rabattkupong som tillhör EN användare. Skapas av:
+//  - Welcome-deal-flow (auto vid registrering om welcomeDealActive)
+//  - Referral-reward (50 kr till BÅDA inviter + invitee när invitee:s
+//    första betalda order kommer in)
+//  - Manuell admin-utdelning (typ=MANUAL, ex. som kompensation efter
+//    försening)
+//
+// `amountKr` är primärt för cash-rabatter (kr off). `dealId` är reserverat
+// för framtida koppling till befintliga Deal-rader (procent/BOGO/etc.).
+// `metadata` är fritt JSON för flow-specifik data (ex. minOrderKr,
+// referralId, inviterUserId) som UI:t läser direkt utan extra joins.
+model UserDeal {
+  id              String    @id @default(cuid())
+  userId          String
+  dealId          String?   // referens till befintlig Deal-modell, null för auto-cash-rabatt
+  type            String    // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
+  status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
+  amountKr        Int?      // för cash-baserade deals (50 = 50 kr)
+  expiresAt       DateTime?
+  usedAt          DateTime?
+  usedOnOrderId   String?
+  metadata        Json?
+  createdAt       DateTime  @default(now())
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([type])
+}
+
+// Referral — en delningsrelation mellan en inviter och en (potentiell)
+// invitee. Skapas i två faser:
+//   1. PENDING — när inviter:s `referralCode` används mot
+//      /api/account/redeem-code (eller vid registrering med ?ref=).
+//      Vi vet ofta bara email/ip/deviceFingerprint i detta läge.
+//   2. REGISTERED — när invitee-kontot skapas och vi kan länka
+//      inviteeUserId.
+//   3. ORDERED — när invitee:s första betalda order trillar in:
+//      vi skapar UserDeals för båda parter och flippar till ORDERED.
+//   4. REVERTED — admin kan i monitorn nolla ut en reward (ex. uppenbar
+//      fusk) vilket också nollar tillhörande UserDeals.
+//
+// `fraudFlags` är en sträng-array av sanity-signaler (SAME_IP,
+// SAME_DEVICE, etc.) som vi SAMLAR men ALDRIG blockar på. Admin ser dem
+// i listan och avgör manuellt.
+model Referral {
+  id                String    @id @default(cuid())
+  code              String    @unique // typ "ANNA8X3K"
+  inviterUserId     String
+  inviteeUserId     String?   @unique // en användare kan bara bli refererad EN gång
+  inviteeEmail      String?
+  inviteeIP         String?
+  inviteeDeviceId   String?
+  status            String    @default("PENDING") // PENDING | REGISTERED | ORDERED | REVERTED
+  fraudFlags        String[]  @default([])
+  inviteeOrderId    String?   // ordern som triggade rewarden
+  createdAt         DateTime  @default(now())
+  registeredAt      DateTime?
+  rewardedAt        DateTime?
+  revertedAt        DateTime?
+  revertedBy        String?   // adminUserId
+  revertReason      String?
+
+  inviter           User      @relation("ReferralInviter", fields: [inviterUserId], references: [id])
+  invitee           User?     @relation("ReferralInvitee", fields: [inviteeUserId], references: [id])
+
+  @@index([inviterUserId])
+  @@index([status])
 }
 
 model RestaurantPayout {

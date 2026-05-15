@@ -50,6 +50,15 @@ async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.Paymen
     include: { restaurant: { select: { name: true } }, items: true },
   });
 
+  // Referral-reward — kollar om detta är invitee:s första betalda order
+  // och triggar 50/50-rewarden om så. Fail-safe: kastar aldrig.
+  try {
+    const { maybeTriggerReferralReward } = await import('../routes/referrals');
+    await maybeTriggerReferralReward(order.id);
+  } catch (e: any) {
+    console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
+  }
+
   // Pending-payment orders: nu när betalning är bekräftad, broadcasta till restaurang
   if (isAwaitingPayment) {
     const orderForSocket = {

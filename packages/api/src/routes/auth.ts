@@ -944,6 +944,14 @@ router.post('/register-user', authLimiter, async (req, res) => {
       changes: { email: user.email, emailVerificationDispatched: true },
     });
 
+    // Welcome-deal: skapas automatiskt om admin har aktiverat den i settings.
+    try {
+      const { maybeCreateWelcomeDeal } = await import('./referrals');
+      await maybeCreateWelcomeDeal(user.id);
+    } catch (e: any) {
+      console.error('[register-user] welcome-deal-trigger error:', e?.message);
+    }
+
     // Auto-login: utfärda JWT direkt och returnera user-payload. Klienten
     // persistar token och navigerar vidare; verifieringsmejlet kommer som
     // notifikation och kan användas senare för att markera kontot som
@@ -1454,6 +1462,13 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           password: null,
         }
       });
+      // Welcome-deal för nytt OAuth-konto också (om aktiv)
+      try {
+        const { maybeCreateWelcomeDeal } = await import('./referrals');
+        await maybeCreateWelcomeDeal(user.id);
+      } catch (e: any) {
+        console.error('[oauth-token] welcome-deal-trigger error:', e?.message);
+      }
     } else {
       // Återanvänd existerande user-record. VIKTIGT: reset:a tombstone-fält
       // (deletedAt, isActive) så att en tidigare soft-deleted user kan logga
