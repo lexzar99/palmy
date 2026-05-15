@@ -81,11 +81,13 @@ async function getSettings() {
   return {
     ...row,
     referralEnabled: row.referralEnabled ?? true,
-    referralRewardKr: row.referralRewardKr ?? 50,
+    referralRewardKr: row.referralRewardKr ?? 50, // legacy
+    referralRewardPercent: row.referralRewardPercent ?? 20,
     referralMinOrderKr: row.referralMinOrderKr ?? 150,
     referralMaxRewardsPerInviter: row.referralMaxRewardsPerInviter ?? 20,
     welcomeDealActive: row.welcomeDealActive ?? true,
-    welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50,
+    welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50, // legacy
+    welcomeDealPercent: row.welcomeDealPercent ?? 20,
     welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150,
     welcomeDealExpiresDays: row.welcomeDealExpiresDays ?? 30,
   };
@@ -186,7 +188,8 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
       code,
       shareUrl: `${publicShareBase()}/r/${code}`,
       enabled: !!settings.referralEnabled,
-      rewardKr: settings.referralRewardKr ?? 50,
+      rewardKr: settings.referralRewardKr ?? 50, // legacy — frontend bör använda rewardPercent
+      rewardPercent: settings.referralRewardPercent ?? 20,
       stats,
     });
   } catch (err: any) {
@@ -688,7 +691,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
       return;
     }
 
-    const rewardKr = settings.referralRewardKr ?? 50;
+    const discountPercent = settings.referralRewardPercent ?? 20;
     const minOrderKr = settings.referralMinOrderKr ?? 150;
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
@@ -712,7 +715,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
         data: {
           userId: referral.inviterUserId,
           type: 'REFERRAL_INVITER',
-          amountKr: rewardKr,
+          discountPercent,
           expiresAt,
           metadata: {
             referralId: referral.id,
@@ -725,7 +728,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
         data: {
           userId: order.userId,
           type: 'REFERRAL_INVITEE',
-          amountKr: rewardKr,
+          discountPercent,
           expiresAt,
           metadata: {
             referralId: referral.id,
@@ -736,7 +739,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
       });
     });
 
-    console.log(`[referral] Rewarded inviter=${referral.inviterUserId} invitee=${order.userId} for ${rewardKr} kr each`);
+    console.log(`[referral] Rewarded inviter=${referral.inviterUserId} invitee=${order.userId} for ${discountPercent}% each`);
 
     // TODO: push-notis till inviter när APNs-helper är tillgänglig härifrån
   } catch (err: any) {
@@ -757,7 +760,7 @@ export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
   try {
     const settings = await getSettings();
     if (!settings.welcomeDealActive) return;
-    const amountKr = settings.welcomeDealAmountKr ?? 50;
+    const discountPercent = settings.welcomeDealPercent ?? 20;
     const minOrderKr = settings.welcomeDealMinOrderKr ?? 150;
     const expiresDays = settings.welcomeDealExpiresDays ?? 30;
     const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000);
@@ -766,7 +769,7 @@ export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
       data: {
         userId,
         type: 'WELCOME',
-        amountKr,
+        discountPercent,
         expiresAt,
         metadata: { minOrderKr },
       },

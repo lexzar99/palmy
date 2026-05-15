@@ -16,11 +16,20 @@ type UserDeal = {
   id: string;
   type: "WELCOME" | "REFERRAL_INVITER" | "REFERRAL_INVITEE" | string;
   status: "ACTIVE" | "USED" | "EXPIRED" | string;
-  amountKr: number;
+  amountKr?: number; // legacy
+  discountPercent?: number; // ny — 20 = 20%
   minOrderKr?: number;
   expiresAt?: string | null;
   metadata?: Record<string, any> | null;
 };
+
+// Hjälpare för att rendera rabatt-text. Prefererar procent om satt,
+// faller tillbaka till kr för legacy-deals.
+function formatDealReward(d: UserDeal): string {
+  if (d.discountPercent && d.discountPercent > 0) return `${d.discountPercent}%`;
+  if (d.amountKr && d.amountKr > 0) return `${d.amountKr} kr`;
+  return "rabatt";
+}
 
 const DISMISS_KEY = "matgo_welcome_banner_dismissed";
 
@@ -97,12 +106,13 @@ export default function WelcomeDealBanner({ enabled = true }: { enabled?: boolea
   const expiry = formatExpiry(deal.expiresAt);
   const minOrder = deal.minOrderKr ?? deal.metadata?.minOrderKr ?? null;
 
+  const reward = formatDealReward(deal);
   const title =
     deal.type === "WELCOME"
-      ? `Du har ${deal.amountKr} kr rabatt`
+      ? `Du har ${reward} rabatt`
       : deal.type === "REFERRAL_INVITER"
-        ? `Referral-belöning: ${deal.amountKr} kr`
-        : `Du har ${deal.amountKr} kr rabatt`;
+        ? `Referral-belöning: ${reward}`
+        : `Du har ${reward} rabatt`;
 
   const subtitle = [
     minOrder ? `Min order: ${minOrder} kr` : null,

@@ -38,14 +38,14 @@ export default function InvitePage() {
           >
             Bjud in vänner.
             <br />
-            <span className="text-gold-500">Få 50 kr båda.</span>
+            <span className="text-gold-500">Få 20% båda.</span>
           </h1>
           <p
             className="text-[13px] font-bold leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
             Skicka din kod till en vän. När de gör sin första beställning
-            får ni båda 50 kr rabatt att använda i kassan.
+            får ni båda 20% rabatt att använda i kassan.
           </p>
         </div>
 
@@ -65,7 +65,7 @@ export default function InvitePage() {
           <ol className="list-decimal pl-4 space-y-1.5">
             <li>Dela din kod med en vän via knappen ovan.</li>
             <li>Vännen registrerar sig på FoodGo med din kod.</li>
-            <li>När vännen gör sin första betalda beställning får ni båda en 50 kr-rabattkupong i kassan.</li>
+            <li>När vännen gör sin första betalda beställning får ni båda en 20%-rabattkupong i kassan.</li>
           </ol>
         </div>
       </div>

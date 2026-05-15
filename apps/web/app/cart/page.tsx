@@ -58,11 +58,32 @@ type UserAccountDeal = {
   id: string;
   type: "WELCOME" | "REFERRAL_INVITER" | "REFERRAL_INVITEE" | string;
   status: "ACTIVE" | "USED" | "EXPIRED" | string;
-  amountKr: number;
+  amountKr?: number; // legacy — kr-rabatt
+  discountPercent?: number; // ny — 20 = 20%
   minOrderKr?: number;
   expiresAt?: string | null;
   metadata?: Record<string, any> | null;
 };
+
+// Räknar ut rabatt-belopp i kr för en deal givet subtotal i kr. Percent
+// vinner över amountKr om båda satta. Cappar till subtotal så vi inte
+// får negativ total.
+function computeDealAmountKr(deal: UserAccountDeal, subtotal: number): number {
+  let amount = 0;
+  if (deal.discountPercent && deal.discountPercent > 0) {
+    amount = Math.round((subtotal * deal.discountPercent) / 100);
+  } else if (deal.amountKr && deal.amountKr > 0) {
+    amount = deal.amountKr;
+  }
+  return Math.min(amount, subtotal);
+}
+
+// Formatterar rabatt-text för UI. "20%" eller "50 kr" beroende på typ.
+function formatDealLabel(deal: UserAccountDeal): string {
+  if (deal.discountPercent && deal.discountPercent > 0) return `${deal.discountPercent}%`;
+  if (deal.amountKr && deal.amountKr > 0) return `${deal.amountKr} kr`;
+  return "rabatt";
+}
 
 function dealTypeLabel(type: string): string {
   if (type === "WELCOME") return "Välkomst";
@@ -448,7 +469,7 @@ export default function CartPage() {
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
 
   // Account-deal-rabatt: appliceras bara om vald + min-order är uppfyllt.
-  // Beloppet är alltid amountKr (FIXED), aldrig procent.
+  // Stöder både percent (ny) och amountKr (legacy) via computeDealAmountKr.
   const selectedAccountDeal = useMemo(
     () => accountDeals.find((d) => d.id === selectedAccountDealId) || null,
     [accountDeals, selectedAccountDealId],
@@ -457,7 +478,7 @@ export default function CartPage() {
     if (!selectedAccountDeal) return 0;
     const minK = selectedAccountDeal.minOrderKr ?? 0;
     if (subtotal < minK) return 0;
-    return Math.min(selectedAccountDeal.amountKr, subtotal);
+    return computeDealAmountKr(selectedAccountDeal, subtotal);
   }, [selectedAccountDeal, subtotal]);
 
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
@@ -1625,7 +1646,7 @@ export default function CartPage() {
                                     />
                                     <div className="min-w-0">
                                       <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                                        Använd {d.amountKr} kr rabatt ({dealTypeLabel(d.type)})
+                                        Använd {formatDealLabel(d)} rabatt ({dealTypeLabel(d.type)})
                                       </p>
                                       {!meetsMin && min > 0 && (
                                         <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
@@ -1635,7 +1656,7 @@ export default function CartPage() {
                                     </div>
                                   </div>
                                   <span className="text-[11px] font-black text-gold-500 shrink-0">
-                                    -{d.amountKr} kr
+                                    -{computeDealAmountKr(d, subtotal)} kr
                                   </span>
                                 </label>
                               );

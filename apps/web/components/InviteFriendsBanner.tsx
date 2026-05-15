@@ -50,7 +50,7 @@ export default function InviteFriendsBanner({ enabled = true }: { enabled?: bool
             className="text-[14px] font-black leading-tight truncate"
             style={{ color: "var(--text-primary)" }}
           >
-            Tjäna <span className="text-gold-500">50 kr</span> per värvning
+            Få <span className="text-gold-500">20%</span> rabatt åt båda
           </p>
         </div>
 

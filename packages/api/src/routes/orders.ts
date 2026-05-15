@@ -674,6 +674,10 @@ router.post('/', async (req: Request, res: Response) => {
     // ägarskap, status, expiry och minOrderKr. Om dealen är större än övriga
     // rabatter — vinner den och nuller appliedDeal/validatedCode (samma
     // logik som "best wins" ovan, men user-toggled trumfar automatic).
+    //
+    // Rabattberäkning: discountPercent har företräde (20 = 20% av subtotal).
+    // amountKr behålls som legacy-fallback för deals skapade innan
+    // percent-migreringen (vissa kan ha gamla 50 kr-rabatter i DB).
     let appliedUserDealId: string | null = null;
     let appliedUserDealAmountKr: number | null = null;
     if (data.userDealId && authenticatedUserId) {
@@ -694,7 +698,13 @@ router.post('/', async (req: Request, res: Response) => {
           `Min orderbelopp för denna kupong är ${minOrderKr} kr`,
         );
       }
-      const dealAmountOre = (userDeal.amountKr ?? 0) * 100;
+      // Beräkna rabatt — percent vinner över amountKr om bägge satta.
+      let dealAmountOre = 0;
+      if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+        dealAmountOre = Math.round((subtotal * userDeal.discountPercent) / 100);
+      } else if (userDeal.amountKr && userDeal.amountKr > 0) {
+        dealAmountOre = userDeal.amountKr * 100; // legacy
+      }
       // User-toggled deal vinner alltid över automatic/manual (kunden gjorde
       // ett aktivt val). Cappa till subtotal så vi inte producerar negativ total.
       const cappedDealOre = Math.min(dealAmountOre, subtotal);
@@ -703,7 +713,9 @@ router.post('/', async (req: Request, res: Response) => {
         appliedDeal = null;
         validatedCode = undefined;
         appliedUserDealId = userDeal.id;
-        appliedUserDealAmountKr = userDeal.amountKr ?? null;
+        // Spara faktiskt applicerad rabatt i kr för historik. Inte exakt
+        // percent — historiken vill visa "X kr rabatt" på order-list.
+        appliedUserDealAmountKr = Math.round(cappedDealOre / 100);
       }
     }
 

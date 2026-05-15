@@ -15,7 +15,8 @@ type ReferralData = {
   code: string;
   shareUrl: string;
   enabled: boolean;
-  rewardKr: number;
+  rewardKr: number; // legacy — bakåtkompat med gamla deals
+  rewardPercent?: number; // ny — procent-rabatt (20 = 20%)
   stats: {
     invited: number;
     registered: number;
@@ -66,7 +67,8 @@ export default function ReferralCard() {
 
   const handleShare = async () => {
     if (!data) return;
-    const shareText = `Kom till FoodGo med min kod ${data.code} — vi får båda ${data.rewardKr} kr rabatt på nästa beställning! ${data.shareUrl}`;
+    const pct = data.rewardPercent ?? 20;
+    const shareText = `Kom till FoodGo med min kod ${data.code} — vi får båda ${pct}% rabatt på nästa beställning! ${data.shareUrl}`;
     // Native share om tillgängligt (mobil-Safari, Chrome-Android)
     if (typeof navigator !== "undefined" && (navigator as any).share) {
       try {
@@ -146,14 +148,14 @@ export default function ReferralCard() {
             style={{ color: "var(--text-primary)" }}
           >
             Tjäna{" "}
-            <span className="text-gold-500">{data.rewardKr} kr</span> åt båda
+            <span className="text-gold-500">{data.rewardPercent ?? 20}%</span> åt båda
           </h3>
           <p
             className="text-[11px] font-bold mt-2 leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
             När din vän gör sin första beställning får ni{" "}
-            <span className="text-gold-500 font-black">båda {data.rewardKr} kr</span>{" "}
+            <span className="text-gold-500 font-black">båda {data.rewardPercent ?? 20}%</span>{" "}
             rabatt på nästa order.
           </p>
         </div>
@@ -211,12 +213,8 @@ export default function ReferralCard() {
           style={{ borderTop: "1px solid var(--border-muted)" }}
         >
           <Stat label="Bjudit in" value={data.stats.invited} />
-          <Stat label="Klart" value={data.stats.ordered} />
-          <Stat
-            label="Tjänat"
-            value={data.stats.totalEarnedKr}
-            suffix=" kr"
-          />
+          <Stat label="Registrerade" value={data.stats.registered} />
+          <Stat label="Kuponger" value={data.stats.ordered} />
         </div>
       </div>
     </motion.div>

@@ -386,16 +386,21 @@ model RestaurantSettings {
   bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
 
   // Welcome deal — auto-tilldelas vid registrering om aktiv.
+  // welcomeDealPercent (20 = 20%) är primär. welcomeDealAmountKr behålls
+  // för bakåtkompat med befintliga deals men ny logik använder percent.
   welcomeDealActive       Boolean   @default(false)
   welcomeDealAmountKr     Int       @default(50)
+  welcomeDealPercent      Int       @default(20)
   welcomeDealMinOrderKr   Int       @default(150)
   welcomeDealExpiresDays  Int       @default(30)
 
   // Referral-system — när invitee gör sin första BETALDA order skapas
-  // UserDeal till BÅDA (inviter + invitee). Belopp i kr (inte öre — vi
-  // jobbar i hela kronor i deal-systemet för enkelhet).
+  // UserDeal till BÅDA (inviter + invitee). Vi ger procent-rabatt på
+  // subtotal (20 = 20%) istället för fast kr-belopp så restauranger
+  // med olika prisnivåer alla får meningsfull effekt.
   referralEnabled              Boolean   @default(false)
   referralRewardKr             Int       @default(50)
+  referralRewardPercent        Int       @default(20)
   referralMinOrderKr           Int       @default(150)
   referralMaxRewardsPerInviter Int       @default(20)
 }
@@ -557,7 +562,8 @@ model UserDeal {
   dealId          String?   // referens till befintlig Deal-modell, null för auto-cash-rabatt
   type            String    // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
   status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
-  amountKr        Int?      // för cash-baserade deals (50 = 50 kr)
+  amountKr        Int?      // legacy cash-rabatt (50 = 50 kr). Behålls för bakåtkompat.
+  discountPercent Int?      // procent-rabatt på subtotal (20 = 20%). Föredras över amountKr.
   expiresAt       DateTime?
   usedAt          DateTime?
   usedOnOrderId   String?
