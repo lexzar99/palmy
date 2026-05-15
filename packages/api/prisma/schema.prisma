@@ -110,6 +110,12 @@ model Order {
   discountCode          String?
   appliedDealId         String?
   appliedDealTitle      String?
+  // UserDeal applied at checkout (welcome/referral-coupon från användarens
+  // /api/account/deals). Frusen vid order-creation och reserverad atomiskt
+  // tills payment success → markeras USED. Vid payment fail/cancel → revertas
+  // till ACTIVE så användaren kan använda den igen.
+  userDealId            String?
+  userDealAmountKr      Int?
   stripePaymentIntentId String?
   paymentStatus         String      @default("PENDING")
   paymentMethod         String      @default("ONLINE")
@@ -129,6 +135,11 @@ model Order {
   likedItemIds          String      @default("[]")
   reviewRepliedAt       DateTime?
   allergens             String      @default("[]") // Customer allergens captured at order time
+  // Guard mot dubbel-increment av discount/deal usageCount. Både Stripe-
+  // webhook och reconcile-poller kan trigga increment-logiken — utan denna
+  // flag riskerade samma order räknas 2x. Atomisk uppdatering med
+  // `where: { id, discountUsageCounted: false }` säkrar att bara en path vinner.
+  discountUsageCounted  Boolean     @default(false)
   preparingAt           DateTime?   // When admin moved order into PREPARING — anchor for the countdown shown in the LiveActivity widget
   deliveringAt          DateTime?   // When order was marked as DELIVERING (for delayed display to customer + LA on-the-way countdown)
   scheduledFor          DateTime?   // Customer-requested delivery/pickup time (null = ASAP)
@@ -383,9 +394,10 @@ model RestaurantSettings {
   // Referral-system — när invitee gör sin första BETALDA order skapas
   // UserDeal till BÅDA (inviter + invitee). Belopp i kr (inte öre — vi
   // jobbar i hela kronor i deal-systemet för enkelhet).
-  referralEnabled         Boolean   @default(false)
-  referralRewardKr        Int       @default(50)
-  referralMinOrderKr      Int       @default(150)
+  referralEnabled              Boolean   @default(false)
+  referralRewardKr             Int       @default(50)
+  referralMinOrderKr           Int       @default(150)
+  referralMaxRewardsPerInviter Int       @default(20)
 }
 
 model OrderDraft {

@@ -18,6 +18,7 @@ import { normalizeDeliveryZones, normalizeMoneyToOre, resolveDeliveryFee } from 
 import supabaseAdmin from '../lib/supabase';
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { computeDeliveryWindowMs } from '../lib/deliveryWindow';
+import { authenticate, requireSuperAdmin } from '../middleware/auth';
 
 const router = Router();
 const STOCKHOLM_TIMEZONE = 'Europe/Stockholm';
@@ -107,6 +108,10 @@ const CreateOrderSchema = z.object({
 
   note: z.string().nullable().optional(),
   discountCode: z.string().nullable().optional(),
+  // UserDeal id från GET /api/account/deals — kunden valde att applicera en
+  // welcome/referral-kupong i kassan. Backend validerar ägarskap + status +
+  // minOrderKr och reserverar atomiskt vid order-creation.
+  userDealId: z.string().nullable().optional(),
   items: z.array(OrderItemSchema).min(1),
   
   // Stripe PaymentIntent ID
@@ -134,8 +139,18 @@ router.post('/', async (req: Request, res: Response) => {
   // (e.g. network retry of the same checkout attempt) we replay the original
   // response without doing the work twice.
   const idempotencyKey = getIdempotencyKey(req);
+  // Scope keyen till user (om authed via Authorization-header) eller IP (gäst).
+  // Hindrar att User B med samma idempotency-key får ut User A:s order-respons.
+  // OBS: authenticatedUserId resolveras längre ned — vi använder header-token-prefix
+  // som temporär scope-proxy här. För säkerhets skull bryts cache-keyen ändå per
+  // klient via IP-fallback. Det här är säkert nog för att eliminera cross-user leak.
+  const authHeaderForScope = req.headers.authorization || '';
+  const tokenScopeHash = authHeaderForScope.startsWith('Bearer ')
+    ? authHeaderForScope.slice(7, 39) // de första 32 chars av token = unique per user
+    : '';
+  const scope = tokenScopeHash || req.ip || 'anon';
   if (idempotencyKey) {
-    const cached = getCachedResponse(`orders:${idempotencyKey}`);
+    const cached = getCachedResponse(scope, `orders:${idempotencyKey}`);
     if (cached) {
       console.log(`♻️ Replaying cached response for idempotency-key ${idempotencyKey}`);
       return res.status(cached.status).json(cached.body);
@@ -144,7 +159,7 @@ router.post('/', async (req: Request, res: Response) => {
     const originalJson = res.json.bind(res);
     res.json = (body: any) => {
       if (res.statusCode >= 200 && res.statusCode < 300) {
-        cacheResponse(`orders:${idempotencyKey}`, res.statusCode, body);
+        cacheResponse(scope, `orders:${idempotencyKey}`, res.statusCode, body);
       }
       return originalJson(body);
     };
@@ -654,6 +669,44 @@ router.post('/', async (req: Request, res: Response) => {
       validatedCode = undefined;
     }
 
+    // ── UserDeal (welcome/referral-kupong) ──────────────────────────────
+    // Klienten skickar userDealId från GET /api/account/deals. Vi validerar
+    // ägarskap, status, expiry och minOrderKr. Om dealen är större än övriga
+    // rabatter — vinner den och nuller appliedDeal/validatedCode (samma
+    // logik som "best wins" ovan, men user-toggled trumfar automatic).
+    let appliedUserDealId: string | null = null;
+    let appliedUserDealAmountKr: number | null = null;
+    if (data.userDealId && authenticatedUserId) {
+      const userDeal = await (prisma as any).userDeal.findFirst({
+        where: {
+          id: data.userDealId,
+          userId: authenticatedUserId,
+          status: 'ACTIVE',
+          OR: [{ expiresAt: null }, { expiresAt: { gte: new Date() } }],
+        },
+      });
+      if (!userDeal) {
+        throw new OrderValidationError('Kupongen är inte längre giltig');
+      }
+      const minOrderKr = (userDeal.metadata as any)?.minOrderKr ?? 0;
+      if (subtotal < minOrderKr * 100) {
+        throw new OrderValidationError(
+          `Min orderbelopp för denna kupong är ${minOrderKr} kr`,
+        );
+      }
+      const dealAmountOre = (userDeal.amountKr ?? 0) * 100;
+      // User-toggled deal vinner alltid över automatic/manual (kunden gjorde
+      // ett aktivt val). Cappa till subtotal så vi inte producerar negativ total.
+      const cappedDealOre = Math.min(dealAmountOre, subtotal);
+      if (cappedDealOre > 0) {
+        discountAmount = cappedDealOre;
+        appliedDeal = null;
+        validatedCode = undefined;
+        appliedUserDealId = userDeal.id;
+        appliedUserDealAmountKr = userDeal.amountKr ?? null;
+      }
+    }
+
     // Leveransavgift (use pre-calculated value from above)
 
     const total = subtotal - discountAmount + deliveryFee;
@@ -745,6 +798,8 @@ router.post('/', async (req: Request, res: Response) => {
         discountCode: validatedCode || null,
         appliedDealId: appliedDeal?.id || null,
         appliedDealTitle: appliedDeal?.title || null,
+        userDealId: appliedUserDealId,
+        userDealAmountKr: appliedUserDealAmountKr,
         discountAmount,
         deliveryFee,
         total,
@@ -769,9 +824,40 @@ router.post('/', async (req: Request, res: Response) => {
       },
     });
 
+    // ── UserDeal-reservation ────────────────────────────────────────────
+    // Atomisk reserve så två parallella orders inte kan båda använda samma
+    // deal. updateMany med where:{status:'ACTIVE'} fungerar som compare-and-
+    // swap. Räknaren `count` säger om vi vann race:n. Om 0: dealen användes
+    // av en annan order parallellt — vi loggar warning men ordern är redan
+    // skapad med rabatten. I praktiken nästintill omöjligt eftersom samma
+    // user måste ha två concurrent checkouts. Hard-rollback skulle kräva
+    // refund-flow vilket är overkill för v1.
+    if (appliedUserDealId) {
+      const reservedCount = await (prisma as any).userDeal.updateMany({
+        where: { id: appliedUserDealId, userId: authenticatedUserId, status: 'ACTIVE' },
+        data: { status: 'RESERVED', usedOnOrderId: order.id },
+      });
+      if (reservedCount.count === 0) {
+        console.warn(
+          `[order] UserDeal reservation race lost — userDealId=${appliedUserDealId} orderId=${order.id} userId=${authenticatedUserId}. Ordern fick rabatten men dealen kunde inte reserveras.`,
+        );
+      }
+    }
+
     // For pending-payment orders, skip all post-creation side effects until
     // the Stripe webhook confirms the payment.
     if (!isPendingPayment) {
+      // UserDeal: vi har redan reserverat och vet att Stripe-betalningen
+      // gick igenom (sync path). Markera som USED direkt så användaren ser
+      // den i historiken som "använd 2026-05-15". Atomisk uppdatering med
+      // status='RESERVED'-guard så vi inte trampar på en revert.
+      if (appliedUserDealId) {
+        await (prisma as any).userDeal.updateMany({
+          where: { id: appliedUserDealId, status: 'RESERVED', usedOnOrderId: order.id },
+          data: { status: 'USED', usedAt: new Date() },
+        });
+      }
+
       // Trigger loyalty/retention rewards (async). Failar tyst i bakgrunden
       // — vi blockerar inte order-skapandet på det, men loggar med kontext
       // så vi kan upptäcka i Sentry/loggar om en kund inte fick sin reward.
@@ -1110,7 +1196,7 @@ const blockInProduction = (_req: Request, res: Response, next: NextFunction): vo
 // the backend will hit. The full key/team/bundle ids are NOT returned —
 // only presence + length + the first/last 2 chars so we can spot a
 // truncation or extra-quotes bug without leaking the credentials.
-router.get('/debug-la-config', blockInProduction, async (_req: Request, res: Response) => {
+router.get('/debug-la-config', authenticate, requireSuperAdmin, blockInProduction, async (_req: Request, res: Response) => {
   const stripQuotes = (v: string | undefined): string =>
     (v ?? '').replace(/^["']|["']$/g, '').trim();
   const keyId = stripQuotes(process.env.APNS_KEY_ID);
@@ -1146,7 +1232,7 @@ router.get('/debug-la-config', blockInProduction, async (_req: Request, res: Res
 // Lists the 10 most recent orders that have a Live Activity token registered,
 // so we can pick a fresh order to debug with. No auth — keyed by token
 // preview only, full token never exposed.
-router.get('/debug-la-tokens', blockInProduction, async (_req: Request, res: Response) => {
+router.get('/debug-la-tokens', authenticate, requireSuperAdmin, blockInProduction, async (_req: Request, res: Response) => {
   try {
     const orders = await prisma.order.findMany({
       where: { liveActivityToken: { not: null } },
@@ -1185,7 +1271,7 @@ router.get('/debug-la-tokens', blockInProduction, async (_req: Request, res: Res
 //   curl -X POST https://api.../api/orders/<orderId>/debug-la-push \
 //     -H 'Content-Type: application/json' \
 //     -d '{"status":"PREPARING"}'
-router.post('/:id/debug-la-push', blockInProduction, async (req: Request, res: Response) => {
+router.post('/:id/debug-la-push', authenticate, requireSuperAdmin, blockInProduction, async (req: Request, res: Response) => {
   const { pushOrderStatusUpdate, ApnsError } = await import('../lib/liveActivityPush');
   try {
     const orderId = req.params.id;

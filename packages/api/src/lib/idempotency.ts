@@ -24,17 +24,28 @@ export function getIdempotencyKey(req: Request): string | null {
   return trimmed;
 }
 
-export function getCachedResponse(key: string): CachedResponse | null {
-  const entry = cache.get(key);
+/**
+ * scope = userId (för authed requests) eller IP (för gäster). Säkrar att
+ * key:n inte är delad mellan användare — annars kunde User B med samma
+ * idempotency-key återanvända User A:s cachade respons (t.ex. clientSecret
+ * från Stripe).
+ */
+function buildKey(scope: string, key: string): string {
+  return `${scope}:${key}`;
+}
+
+export function getCachedResponse(scope: string, key: string): CachedResponse | null {
+  const fullKey = buildKey(scope, key);
+  const entry = cache.get(fullKey);
   if (!entry) return null;
   if (entry.expiresAt < Date.now()) {
-    cache.delete(key);
+    cache.delete(fullKey);
     return null;
   }
   return entry;
 }
 
-export function cacheResponse(key: string, status: number, body: unknown): void {
+export function cacheResponse(scope: string, key: string, status: number, body: unknown): void {
   if (cache.size >= MAX_ENTRIES) {
     const toEvict = Math.floor(MAX_ENTRIES / 10);
     let i = 0;
@@ -43,5 +54,5 @@ export function cacheResponse(key: string, status: number, body: unknown): void 
       cache.delete(k);
     }
   }
-  cache.set(key, { status, body, expiresAt: Date.now() + TTL_MS });
+  cache.set(buildKey(scope, key), { status, body, expiresAt: Date.now() + TTL_MS });
 }

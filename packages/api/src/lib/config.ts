@@ -24,6 +24,25 @@ export const JWT_SECRET = requireEnv(
   `dev-${crypto.randomBytes(32).toString('hex')}`,
 );
 
+// Hård validering i prod: refusera att starta om JWT_SECRET är default-
+// placeholdern (legacy "palmyra-super-secret-jwt-key-change-in-production"
+// eller liknande) eller kortare än 32 tecken. Misslyckas tidigt med fatal
+// log + process.exit(1) så ingen prod-server kan starta med svag nyckel.
+if (isProduction) {
+  const secret = process.env.JWT_SECRET || '';
+  const looksLikePlaceholder =
+    secret.includes('change-in-production') ||
+    secret.includes('changeme') ||
+    secret.includes('palmyra-super-secret');
+  if (!secret || looksLikePlaceholder || secret.length < 32) {
+    console.error(
+      'FATAL: JWT_SECRET måste sättas till >=32 tecken random i prod ' +
+        '(och får inte innehålla "change-in-production"). Avbryter start.',
+    );
+    process.exit(1);
+  }
+}
+
 export const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'admin';
 export const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD || (isProduction ? '' : 'admin123');
 
@@ -46,16 +65,28 @@ if (isProduction && ALLOW_WIPE_ORDERS) {
   );
 }
 
-export const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
+// Strikt allow-list. Stödjer både ALLOWED_ORIGINS (legacy) och
+// CORS_ALLOWED_ORIGINS (nytt namn) som comma-separerad env-var.
+export const ALLOWED_ORIGINS = [
+  ...(process.env.ALLOWED_ORIGINS || '').split(','),
+  ...(process.env.CORS_ALLOWED_ORIGINS || '').split(','),
+]
   .map(s => s.trim())
   .filter(Boolean);
 
-// Default origins for dev + production
+// Default origins for dev + production. Inkluderar både legacy Railway-URLer
+// (för bakåtkompatibilitet) och primära foodgo.se-domäner.
 export const DEFAULT_ORIGINS = [
+  // Dev / lokala
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:3002',
+  // Prod (foodgo.se)
+  'https://foodgo.se',
+  'https://www.foodgo.se',
+  'https://app.foodgo.se',
+  'https://admin.foodgo.se',
+  // Legacy / Railway-deploys
   'https://web-production-67f45.up.railway.app',
   'https://palmy-production-2021.up.railway.app',
   'https://admin-production-7b07.up.railway.app',
@@ -67,3 +98,32 @@ export const DEFAULT_ORIGINS = [
 export const getAllowedOrigins = (): string[] => {
   return [...DEFAULT_ORIGINS, ...ALLOWED_ORIGINS];
 };
+
+/**
+ * Strikt CORS-check. Returnerar true om origin är tillåten.
+ *
+ * - Prod: kräver matchande allow-list. Saknad origin (curl/Postman/native
+ *   apps utan Origin-header) blockas — vill inte att en sådan request ska
+ *   kunna utnyttja `credentials: true`+cookies för CSRF.
+ * - Dev: tillåter localhost/127.0.0.1/192.168.* och saknad origin (för
+ *   bekväm curl-testning).
+ *
+ * Vercel-wildcard (`*.vercel.app`) är borttaget — exakta preview-URLer
+ * måste läggas till via CORS_ALLOWED_ORIGINS om de behövs för testing.
+ */
+export function isOriginAllowed(origin: string | undefined): boolean {
+  const isProd = process.env.NODE_ENV === 'production';
+
+  if (!origin) return !isProd;
+
+  const allowed = getAllowedOrigins();
+  if (allowed.includes(origin)) return true;
+
+  if (!isProd) {
+    if (/^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return true;
+    }
+  }
+
+  return false;
+}

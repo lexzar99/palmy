@@ -14,6 +14,7 @@ import { sendApnsAlert, sendApnsSilentWake, ApnsError } from '../lib/liveActivit
 import { pushLiveActivityForOrder } from '../lib/liveActivityDispatch';
 import { recalculateRestaurantEta } from '../lib/restaurantEta';
 import { ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from '../lib/config';
+import { sanitizeError } from '../lib/errors';
 
 const router = Router();
 router.use(authenticate);
@@ -804,7 +805,7 @@ router.post('/restaurants/recalculate-eta', requireSuperAdmin, async (req, res) 
     res.json({ count: results.length, results });
   } catch (err: any) {
     console.error('[admin] recalculate-eta failed', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: sanitizeError(err, 'Serverfel') });
   }
 });
 
@@ -993,7 +994,7 @@ router.post('/categories', async (req, res) => {
     res.status(201).json(category);
   } catch (error: any) {
     console.error('Error creating category:', error);
-    res.status(500).json({ error: error.message || 'Serverfel' });
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
   }
 });
 
@@ -2318,7 +2319,7 @@ router.post('/deals', async (req, res) => {
     res.status(201).json(formatDealForAdmin(deal));
   } catch (error) {
     console.error('Create deal error:', error);
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Kunde inte skapa deal' });
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte skapa deal') });
   }
 });
 
@@ -2394,7 +2395,8 @@ router.patch('/deals/:id', async (req, res) => {
     });
     res.json(formatDealForAdmin(deal));
   } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : 'Serverfel' });
+    console.error('Update deal error:', error);
+    res.status(500).json({ error: sanitizeError(error, 'Serverfel') });
   }
 });
 
@@ -2906,7 +2908,7 @@ router.post('/deals/wipe', authenticate, requireSuperAdmin, async (req, res) => 
     res.json({ success: true, deleted: before });
   } catch (error: any) {
     console.error('Wipe deals error:', error);
-    res.status(500).json({ error: error?.message || 'Kunde inte rensa deals' });
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte rensa deals') });
   }
 });
 
@@ -2937,7 +2939,7 @@ router.post('/orders/wipe', authenticate, requireSuperAdmin, async (req, res) =>
     res.json({ success: true, deleted: before - after, before, after, scope: restaurantId ?? 'ALL' });
   } catch (error: any) {
     console.error('Wipe orders error:', error);
-    res.status(500).json({ error: error?.message || 'Kunde inte rensa ordrar' });
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte rensa ordrar') });
   }
 });
 
@@ -3177,7 +3179,7 @@ router.post('/menu/import-eatsmart', async (req, res) => {
     });
   } catch (error: any) {
     console.error('Menu import error:', error);
-    res.status(500).json({ error: error.message || 'Kunde inte importera Eatsmart-menyn' });
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte importera Eatsmart-menyn') });
   }
 });
 
@@ -3427,6 +3429,17 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
       });
     }
 
+    // Refund:a UserDeal-kupong: kunden betalade och får pengarna tillbaka,
+    // alltså ska welcome/referral-coupon också reverteras till ACTIVE så de
+    // kan använda den igen. Race-guard på USED+orderId så vi inte trampar
+    // på en deal som råkar dela samma id (shouldn't happen, defensive).
+    if ((order as any).userDealId) {
+      await prisma.userDeal.updateMany({
+        where: { id: (order as any).userDealId, usedOnOrderId: order.id, status: { in: ['USED', 'RESERVED'] } },
+        data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
+      });
+    }
+
     await audit(authReq, 'ORDER_REFUND', {
       resourceType: 'Order',
       resourceId: order.id,
@@ -3439,7 +3452,7 @@ router.post('/orders/:id/refund', async (req: any, res: any) => {
     res.json({ success: true, refundedAmount: refundAmountOre / 100 });
   } catch (error: any) {
     console.error('Refund error:', error);
-    res.status(500).json({ error: error?.message || 'Kunde inte genomföra återbetalning' });
+    res.status(500).json({ error: sanitizeError(error, 'Kunde inte genomföra återbetalning') });
   }
 });
 
@@ -3785,6 +3798,14 @@ router.post('/restaurants/:id/bulk-refund', authenticate, requireSuperAdmin, asy
           await prisma.deal.updateMany({
             where: { id: o.appliedDealId, usageCount: { gt: 0 } },
             data: { usageCount: { decrement: 1 } },
+          });
+        }
+        // Refund:a UserDeal-kupong (bulk-refund path) — samma logik som
+        // single-refund ovan. Revert RESERVED+USED → ACTIVE.
+        if ((o as any).userDealId) {
+          await prisma.userDeal.updateMany({
+            where: { id: (o as any).userDealId, usedOnOrderId: o.id, status: { in: ['USED', 'RESERVED'] } },
+            data: { status: 'ACTIVE', usedOnOrderId: null, usedAt: null },
           });
         }
         return { id: o.id, status: 'refunded', amount: o.total / 100 };

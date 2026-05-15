@@ -60,7 +60,7 @@ import { startStripeReconciliation } from './lib/stripeReconcile';
 import { startLiveActivityFinalizer } from './lib/liveActivityFinalize';
 import { logApnsBootStatus } from './lib/liveActivityPush';
 import { checkAllRestaurantsStatus } from './lib/restaurantStatus';
-import { getAllowedOrigins, ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from './lib/config';
+import { isOriginAllowed, ALLOW_WIPE_ORDERS, ENABLE_PASSWORD_PLAIN } from './lib/config';
 import { ensureDefaultHomeCategorySections } from './lib/homeCategorySections';
 import { resolveAdminSessionFromToken } from './middleware/auth';
 
@@ -99,17 +99,15 @@ const allowedOrigins = [FRONTEND_URL, ADMIN_URL, 'http://localhost:3002'];
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin: any, callback: any) => {
-    // Allow requests with no origin (mobile apps, curl, server-to-server)
-    if (!origin) return callback(null, true);
-    const allowed = getAllowedOrigins();
-    // Also allow any localhost or 192.168.x.x for dev, or any vercel deployments
-    const isLocalDev = /^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin);
-    const isVercel = origin.endsWith('.vercel.app');
-    
-    if (allowed.includes(origin) || isLocalDev || isVercel) {
+    // Strikt allow-list via isOriginAllowed:
+    //  - Prod blockar saknad origin (curl/Postman med cookies kunde annars CSRF:a)
+    //  - Prod blockar `*.vercel.app`-wildcard (preview-URLer måste explicit
+    //    läggas till via CORS_ALLOWED_ORIGINS env-var)
+    //  - Dev tillåter localhost/192.168.* och saknad origin
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
-      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      console.warn(`🚫 CORS blocked origin: ${origin || '(missing)'}`);
       callback(new Error('Not allowed by CORS'));
     }
   },

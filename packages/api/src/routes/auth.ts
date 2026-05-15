@@ -27,6 +27,8 @@ import {
 } from '../lib/recoveryCodes';
 import { generateSecret, generateURI, verifySync } from 'otplib';
 import QRCode from 'qrcode';
+import { OAuth2Client } from 'google-auth-library';
+import jwksClient from 'jwks-rsa';
 
 const router = Router();
 
@@ -61,6 +63,139 @@ function phoneVariants(phone: string): string[] {
   const n = normalizePhone(phone);
   return [n, n.slice(1)]; // e.g. ["+46728357970", "46728357970"]
 }
+
+// ── OAuth id_token-verifiering ──────────────────────────────────────────────
+// Google: stödjer en eller flera client-id:n (web/ios/android) — comma-sep i
+// GOOGLE_OAUTH_CLIENT_ID. verifyIdToken accepterar antingen string eller
+// array som audience.
+const GOOGLE_OAUTH_CLIENT_IDS = (process.env.GOOGLE_OAUTH_CLIENT_ID || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const APPLE_OAUTH_CLIENT_ID = process.env.APPLE_OAUTH_CLIENT_ID || '';
+
+const googleAuthClient = GOOGLE_OAUTH_CLIENT_IDS.length
+  ? new OAuth2Client(GOOGLE_OAUTH_CLIENT_IDS[0])
+  : null;
+
+// JWKS-klient för Apple — caching aktiv så vi inte hämtar nycklarna per
+// request. rateLimit/cacheMaxAge är defaults rekommenderade av jwks-rsa.
+const appleJwksClient = jwksClient({
+  jwksUri: 'https://appleid.apple.com/auth/keys',
+  cache: true,
+  cacheMaxEntries: 5,
+  cacheMaxAge: 10 * 60 * 60 * 1000, // 10h
+  rateLimit: true,
+});
+
+type VerifiedOAuthPayload = {
+  email: string | null;
+  providerId: string; // sub
+  name: string | null;
+  picture: string | null;
+  emailVerified: boolean;
+};
+
+async function verifyGoogleIdToken(
+  idToken: string,
+): Promise<VerifiedOAuthPayload> {
+  if (!googleAuthClient || GOOGLE_OAUTH_CLIENT_IDS.length === 0) {
+    throw new Error('GOOGLE_OAUTH_CLIENT_ID är inte konfigurerad');
+  }
+  const ticket = await googleAuthClient.verifyIdToken({
+    idToken,
+    audience: GOOGLE_OAUTH_CLIENT_IDS,
+  });
+  const payload = ticket.getPayload();
+  if (!payload || !payload.sub) {
+    throw new Error('Google id_token saknar payload/sub');
+  }
+  return {
+    email: payload.email || null,
+    providerId: payload.sub,
+    name: payload.name || null,
+    picture: payload.picture || null,
+    emailVerified: Boolean(payload.email_verified),
+  };
+}
+
+function appleGetKey(header: any, callback: any) {
+  appleJwksClient.getSigningKey(header.kid, (err, key) => {
+    if (err) return callback(err);
+    const signingKey = key?.getPublicKey();
+    callback(null, signingKey);
+  });
+}
+
+async function verifyAppleIdToken(
+  idToken: string,
+): Promise<VerifiedOAuthPayload> {
+  if (!APPLE_OAUTH_CLIENT_ID) {
+    throw new Error('APPLE_OAUTH_CLIENT_ID är inte konfigurerad');
+  }
+  const decoded: any = await new Promise((resolve, reject) => {
+    jwt.verify(
+      idToken,
+      appleGetKey,
+      {
+        algorithms: ['RS256'],
+        audience: APPLE_OAUTH_CLIENT_ID,
+        issuer: 'https://appleid.apple.com',
+      },
+      (err, payload) => {
+        if (err) return reject(err);
+        resolve(payload);
+      },
+    );
+  });
+  if (!decoded || !decoded.sub) {
+    throw new Error('Apple id_token saknar payload/sub');
+  }
+  return {
+    email: decoded.email || null,
+    providerId: decoded.sub,
+    name: decoded.name || null,
+    picture: null,
+    emailVerified:
+      decoded.email_verified === true || decoded.email_verified === 'true',
+  };
+}
+
+// ── Per-email rate-limit för /forgot-password ───────────────────────────────
+// IP-baserad limit (10/10min) stoppar inte angripare med IP-pool. Extra
+// per-email limit (3/h per email) hindrar Brevo-quota-dränering. In-memory
+// Map räcker — vi kör vanligtvis single-instance, och drift mellan instanser
+// är acceptabel (worst case: 6 mejl/h istället för 3).
+const FORGOT_PASSWORD_EMAIL_WINDOW_MS = 60 * 60 * 1000; // 60 min
+const FORGOT_PASSWORD_EMAIL_MAX = 3;
+const forgotPasswordEmailHits = new Map<string, number[]>();
+
+function recordForgotPasswordEmailHit(emailKey: string): boolean {
+  const now = Date.now();
+  const hits = forgotPasswordEmailHits.get(emailKey) || [];
+  const recent = hits.filter((ts) => now - ts < FORGOT_PASSWORD_EMAIL_WINDOW_MS);
+  if (recent.length >= FORGOT_PASSWORD_EMAIL_MAX) {
+    forgotPasswordEmailHits.set(emailKey, recent);
+    return false; // rejected
+  }
+  recent.push(now);
+  forgotPasswordEmailHits.set(emailKey, recent);
+  return true; // accepted
+}
+
+// Garbage-collect gamla entries en gång i timmen så Mapen inte växer för
+// evigt på en långkörande process. Lättviktigt — itererar igenom & droppar
+// utgångna keys.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, hits] of forgotPasswordEmailHits.entries()) {
+    const recent = hits.filter(
+      (ts) => now - ts < FORGOT_PASSWORD_EMAIL_WINDOW_MS,
+    );
+    if (recent.length === 0) forgotPasswordEmailHits.delete(key);
+    else forgotPasswordEmailHits.set(key, recent);
+  }
+}, FORGOT_PASSWORD_EMAIL_WINDOW_MS).unref?.();
 
 async function resolveAdminByIdentifier(loginId: string) {
   const directAdmin = await prisma.adminUser.findFirst({
@@ -852,12 +987,68 @@ router.post('/register-user', authLimiter, async (req, res) => {
     }
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Email unik
+    // Email unik — VIKTIGT: ingen läckage av om kontot finns. Tidigare
+    // returnerade vi olika felmeddelanden beroende på om mailen var tagen
+    // eller inte, vilket lät en angripare bygga en email-lista genom att
+    // probea adresser. Nu returnerar vi alltid samma generiska 200-svar och
+    // skickar istället ett notice-mejl till den befintliga adressen (med
+    // login-länk) så att den verkliga ägaren får besked.
     const existingEmail = await (prisma as any).user.findFirst({
       where: { email: normalizedEmail }
     });
     if (existingEmail) {
-      return res.status(400).json({ error: 'E-postadressen används redan av ett annat konto' });
+      // Fire-and-forget: notice-mejl till ägaren. Failar tyst — svaret
+      // utåt är alltid samma.
+      (async () => {
+        try {
+          const greetingName =
+            existingEmail.firstName || existingEmail.name || 'där';
+          const loginLink =
+            process.env.WEB_LOGIN_URL || 'https://matgo.se/login';
+          const text = [
+            `Hej ${greetingName}!`,
+            '',
+            'Någon försökte just skapa ett MatGo-konto med din e-postadress.',
+            'Du har redan ett konto hos oss — om det var du som försökte',
+            'registrera, klicka på länken nedan för att logga in istället.',
+            '',
+            `Logga in: ${loginLink}`,
+            '',
+            'Om det INTE var du kan du ignorera detta mejl — ditt konto är säkert.',
+            '',
+            'Vänliga hälsningar,',
+            'MatGo',
+          ].join('\n');
+          const html = renderBrandedEmail({
+            headline: 'Försök att registrera ditt konto',
+            greeting: `Hej ${greetingName}!`,
+            intro: [
+              'Någon försökte just skapa ett MatGo-konto med din e-postadress. Du har redan ett konto hos oss — om det var du, klicka för att logga in.',
+            ],
+            cta: { label: 'Logga in', url: loginLink },
+            footnote:
+              'Om det inte var du kan du ignorera mejlet — ditt konto är säkert.',
+          });
+          await sendEmail({
+            to: existingEmail.email!,
+            subject: 'Försök att registrera konto — MatGo',
+            text,
+            html,
+          });
+        } catch (mailErr) {
+          console.error(
+            '[register-user] notice-mejl till befintligt konto failade:',
+            mailErr,
+          );
+        }
+      })();
+
+      // Generisk 200 — ser identiskt ut för ny vs befintlig email.
+      return res.status(200).json({
+        ok: true,
+        message:
+          'Om kontot finns har vi skickat ett mejl med nästa steg. Kolla din inbox.',
+      });
     }
 
     // Telefon unik — kolla alla varianter (+46/46/etc) så vi inte tillåter
@@ -1306,6 +1497,17 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Ogiltig e-postadress' });
     }
 
+    // Per-email rate-limit: stoppar angripare med IP-pool från att dränera
+    // Brevo-quotan genom att hamra /forgot-password mot samma email från
+    // olika IP. Silent rate-limit — returnerar samma 200 som vanligt så
+    // angripare inte ser om limiten triggade eller om kontot inte fanns.
+    if (!recordForgotPasswordEmailHit(normalizedEmail)) {
+      console.warn(
+        `[forgot-password] per-email rate-limit triggad för ${normalizedEmail} — droppar request tyst`,
+      );
+      return res.status(200).json({ ok: true });
+    }
+
     const user = await (prisma as any).user.findFirst({
       where: { email: normalizedEmail, isActive: true, deletedAt: null },
       select: { id: true, email: true, firstName: true, name: true, password: true, oauthProvider: true },
@@ -1441,10 +1643,69 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 });
 
 // POST /api/auth/oauth-token
+// SÄKERHET: Klienten skickar id_token (Google/Apple) som verifieras server-
+// side mot respektive identitetsprovider. Tidigare litade endpoint:en på
+// email+providerId rakt från req.body, vilket lät vem som helst forge:a en
+// session för en godtycklig användare.
+//
+// Bakåtkompatibilitet: om id_token saknas och NODE_ENV !== 'production'
+// faller vi tillbaka till gamla path:en så lokal-dev fortsätter funka. I
+// produktion KRÄVS id_token.
 router.post('/oauth-token', authLimiter, async (req, res) => {
   try {
-    const { email, name, provider, providerId, image } = req.body;
+    const isProd = process.env.NODE_ENV === 'production';
+    const { idToken } = req.body as { idToken?: string };
+    let { email, name, provider, providerId, image } = req.body as {
+      email?: string;
+      name?: string;
+      provider?: string;
+      providerId?: string;
+      image?: string | null;
+    };
+
+    if (idToken && provider) {
+      // Server-side verifiering — single source of truth.
+      try {
+        let verified: VerifiedOAuthPayload;
+        if (provider === 'google') {
+          verified = await verifyGoogleIdToken(idToken);
+        } else if (provider === 'apple') {
+          verified = await verifyAppleIdToken(idToken);
+        } else {
+          return res
+            .status(400)
+            .json({ error: 'Okänd OAuth-provider' });
+        }
+        email = verified.email || email; // Apple skickar email bara på första login
+        providerId = verified.providerId;
+        name = verified.name || name;
+        image = verified.picture || image || null;
+      } catch (verifyErr: any) {
+        console.error(
+          '[oauth-token] id_token-verifiering misslyckades:',
+          verifyErr?.message || verifyErr,
+        );
+        return res
+          .status(401)
+          .json({ error: 'Ogiltig OAuth-token' });
+      }
+    } else if (isProd) {
+      // Prod kräver id_token — vägra fallback.
+      return res
+        .status(401)
+        .json({ error: 'idToken krävs för OAuth i produktion' });
+    } else {
+      // Dev-fallback (legacy path). Logga så det syns tydligt att vi
+      // bypassar verifiering.
+      console.warn(
+        '[oauth-token] DEV: ingen idToken — accepterar email+providerId rakt från body (osäker, prod-only).',
+      );
+    }
+
     if (!email) return res.status(400).json({ error: 'E-post krävs' });
+    if (!provider || !providerId) {
+      return res.status(400).json({ error: 'Provider/providerId krävs' });
+    }
 
     let user = await (prisma as any).user.findFirst({
       where: { OR: [{ email: email.toLowerCase() }, { oauthProvider: provider, oauthId: String(providerId) }] }

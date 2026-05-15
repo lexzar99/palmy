@@ -19,6 +19,7 @@
 import Stripe from 'stripe';
 import prisma from './prisma';
 import { getIO } from './socket';
+import { incrementDiscountUsageIfNotCounted } from './discountUsage';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-02-24.acacia',
@@ -59,6 +60,15 @@ async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.Paymen
     console.error('[stripeReconcile] referral-reward-trigger error:', e?.message);
   }
 
+  // UserDeal: markera reserverad welcome/referral-kupong som USED.
+  // Race-guard på status='RESERVED' → idempotent med webhook-pathen.
+  if ((order as any).userDealId) {
+    await prisma.userDeal.updateMany({
+      where: { id: (order as any).userDealId, status: 'RESERVED', usedOnOrderId: order.id },
+      data: { status: 'USED', usedAt: new Date() },
+    }).catch((e: any) => console.error('[stripeReconcile] userDeal mark-USED failed:', e?.message));
+  }
+
   // Pending-payment orders: nu när betalning är bekräftad, broadcasta till restaurang
   if (isAwaitingPayment) {
     const orderForSocket = {
@@ -78,21 +88,9 @@ async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.Paymen
       getIO().to(`admin-room:${updatedOrder.restaurantId}`).emit('order:new', orderForSocket);
     }
 
-    // Discount code usage increment (samma som webhook gör)
-    if (updatedOrder.discountCode && updatedOrder.discountCode !== 'test' && updatedOrder.discountCode !== 'testa') {
-      await prisma.discountCode.updateMany({
-        where: { code: updatedOrder.discountCode.toUpperCase() },
-        data: { usageCount: { increment: 1 } },
-      }).catch(() => {});
-    }
-
-    // Deal usage increment
-    if ((updatedOrder as any).appliedDealId) {
-      await prisma.deal.update({
-        where: { id: (updatedOrder as any).appliedDealId },
-        data: { usageCount: { increment: 1 } },
-      }).catch(() => {});
-    }
+    // Discount/deal usage-increment — idempotent på order-nivå.
+    // Webhook-path:en kör samma helper — race-guard säkrar single-counting.
+    await incrementDiscountUsageIfNotCounted(order.id);
   }
 
   // Notifiera admin (matchar webhook-beteendet)
@@ -108,10 +106,24 @@ async function applyPaymentSuccess(orderId: string, paymentIntent: Stripe.Paymen
  * Markera order som FAILED. Samma logik som webhook 'payment_intent.payment_failed'.
  */
 async function applyPaymentFailed(orderId: string, paymentIntent: Stripe.PaymentIntent) {
+  // Hämta order först så vi kan revert:a UserDeal-reservationen.
+  const failedOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { userDealId: true },
+  });
+
   await prisma.order.updateMany({
     where: { id: orderId },
     data: { paymentStatus: 'FAILED' },
   });
+
+  if (failedOrder?.userDealId) {
+    await prisma.userDeal.updateMany({
+      where: { id: failedOrder.userDealId, status: 'RESERVED', usedOnOrderId: orderId },
+      data: { status: 'ACTIVE', usedOnOrderId: null },
+    }).catch((e: any) => console.error('[stripe-reconcile] userDeal revert failed:', e?.message));
+  }
+
   console.log(`[stripe-reconcile] ❌ Markerade order ${orderId} som FAILED (intent ${paymentIntent.id}, reason: ${paymentIntent.last_payment_error?.message || 'unknown'})`);
 }
 

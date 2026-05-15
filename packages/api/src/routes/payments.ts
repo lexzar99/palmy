@@ -4,6 +4,7 @@ import prisma from '../lib/prisma';
 import { getIO } from '../lib/socket';
 import { cacheResponse, getCachedResponse, getIdempotencyKey } from '../lib/idempotency';
 import { authenticate, requireSuperAdmin } from '../middleware/auth';
+import { incrementDiscountUsageIfNotCounted } from '../lib/discountUsage';
 
 const router = Router();
 
@@ -39,8 +40,11 @@ if (process.env.NODE_ENV === 'production') {
 // Skapar en Stripe PaymentIntent för checkout
 router.post('/create-intent', async (req, res) => {
   const idempotencyKey = getIdempotencyKey(req);
+  // Scope keyen till user (om authed) eller IP (gäst). Annars kunde User B
+  // återanvända User A:s cachade clientSecret från Stripe.
+  const scope = (req as any).user?.id || req.ip || 'anon';
   if (idempotencyKey) {
-    const cached = getCachedResponse(`create-intent:${idempotencyKey}`);
+    const cached = getCachedResponse(scope, `create-intent:${idempotencyKey}`);
     if (cached) {
       return res.status(cached.status).json(cached.body);
     }
@@ -115,7 +119,7 @@ router.post('/create-intent', async (req, res) => {
       paymentIntentId: paymentIntent.id,
     };
     if (idempotencyKey) {
-      cacheResponse(`create-intent:${idempotencyKey}`, 200, responseBody);
+      cacheResponse(scope, `create-intent:${idempotencyKey}`, 200, responseBody);
     }
     res.json(responseBody);
   } catch (error) {
@@ -131,8 +135,10 @@ router.post('/create-intent', async (req, res) => {
 // /admin/orders/:id/refund är primär refund-flow för admins.
 router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
   const idempotencyKey = getIdempotencyKey(req);
+  // Routen är alltid authed med SUPER_ADMIN — scope = userId.
+  const scope = (req as any).user?.id || req.ip || 'anon';
   if (idempotencyKey) {
-    const cached = getCachedResponse(`refund:${idempotencyKey}`);
+    const cached = getCachedResponse(scope, `refund:${idempotencyKey}`);
     if (cached) {
       return res.status(cached.status).json(cached.body);
     }
@@ -160,7 +166,7 @@ router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
     console.log(`💸 Refund created: ${refund.id} for intent ${paymentIntentId}`);
     const responseBody = { success: true, refundId: refund.id };
     if (idempotencyKey) {
-      cacheResponse(`refund:${idempotencyKey}`, 200, responseBody);
+      cacheResponse(scope, `refund:${idempotencyKey}`, 200, responseBody);
     }
     res.json(responseBody);
   } catch (error: any) {
@@ -217,6 +223,17 @@ router.post('/webhook', async (req, res) => {
           console.error('[payments webhook] referral-reward-trigger error:', e?.message);
         }
 
+        // UserDeal: orderns reserverade welcome/referral-kupong markeras
+        // USED. Race-guard på status='RESERVED' så vi inte trampar på en
+        // revert som hann före. Idempotent — om dealen redan är USED är
+        // count=0 och inget händer.
+        if ((order as any).userDealId) {
+          await prisma.userDeal.updateMany({
+            where: { id: (order as any).userDealId, status: 'RESERVED', usedOnOrderId: order.id },
+            data: { status: 'USED', usedAt: new Date() },
+          }).catch((e: any) => console.error('[payments webhook] userDeal mark-USED failed:', e?.message));
+        }
+
         // For pending-payment orders: now that payment is confirmed, broadcast to restaurant
         if (isAwaitingPayment) {
           const orderForSocket = {
@@ -236,21 +253,10 @@ router.post('/webhook', async (req, res) => {
             getIO().to(`admin-room:${updatedOrder.restaurantId}`).emit('order:new', orderForSocket);
           }
 
-          // Apply discount code usage increment
-          if (updatedOrder.discountCode && updatedOrder.discountCode !== 'test' && updatedOrder.discountCode !== 'testa') {
-            await prisma.discountCode.updateMany({
-              where: { code: updatedOrder.discountCode.toUpperCase() },
-              data: { usageCount: { increment: 1 } },
-            }).catch(() => {});
-          }
-
-          // Apply deal usage increment
-          if ((updatedOrder as any).appliedDealId) {
-            await prisma.deal.update({
-              where: { id: (updatedOrder as any).appliedDealId },
-              data: { usageCount: { increment: 1 } },
-            }).catch(() => {});
-          }
+          // Discount/deal usage-increment — idempotent på order-nivå via
+          // discountUsageCounted-flag. Både denna webhook och stripeReconcile-
+          // pollern kan landa här — race-guard säkrar att bara en path vinner.
+          await incrementDiscountUsageIfNotCounted(order.id);
         }
 
         // Notifiera admin
@@ -266,16 +272,31 @@ router.post('/webhook', async (req, res) => {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const metaOrderId = paymentIntent.metadata?.orderId;
 
-      if (metaOrderId) {
+      // Hitta order(s) först — vi behöver userDealId för att kunna revert:a.
+      const failedOrders = await prisma.order.findMany({
+        where: metaOrderId
+          ? { OR: [{ id: metaOrderId }, { stripePaymentIntentId: paymentIntent.id }] }
+          : { stripePaymentIntentId: paymentIntent.id },
+        select: { id: true, userDealId: true },
+      });
+
+      const failedIds: string[] = failedOrders.map((o) => o.id);
+      if (failedIds.length > 0) {
         await prisma.order.updateMany({
-          where: { OR: [{ id: metaOrderId }, { stripePaymentIntentId: paymentIntent.id }] },
+          where: { id: { in: failedIds } },
           data: { paymentStatus: 'FAILED' },
         });
-      } else {
-        await prisma.order.updateMany({
-          where: { stripePaymentIntentId: paymentIntent.id },
-          data: { paymentStatus: 'FAILED' },
-        });
+      }
+
+      // Revert UserDeal-reservationen till ACTIVE så användaren kan
+      // använda kupongen igen på en ny order. Race-guard på 'RESERVED'.
+      for (const o of failedOrders) {
+        if (o.userDealId) {
+          await prisma.userDeal.updateMany({
+            where: { id: o.userDealId, status: 'RESERVED', usedOnOrderId: o.id },
+            data: { status: 'ACTIVE', usedOnOrderId: null },
+          }).catch((e: any) => console.error('[payments webhook] userDeal revert failed:', e?.message));
+        }
       }
       break;
     }

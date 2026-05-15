@@ -23,6 +23,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
+import rateLimit from 'express-rate-limit';
 import prisma from '../lib/prisma';
 import { authenticateUser } from './auth';
 import { authenticate, requireSuperAdmin, AuthRequest } from '../middleware/auth';
@@ -192,7 +193,37 @@ const redeemSchema = z.object({
   deviceFingerprint: z.string().optional(),
 });
 
-router.post('/redeem-code', async (req: any, res: any) => {
+// Dedikerad rate-limit ovanpå global — 8-tecken referral-koder är guess:bara,
+// så vi tar ner försök till 20/h per IP. In-memory map (per process) räcker
+// för denna soft-protection; ip-pool-angripare fångas ändå av brute-counter.
+const redeemLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1h
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'För många försök. Försök igen om en timme.' },
+});
+
+// Brute-force-räknare per IP — rensar sig själv via expiry-stamp. Vid 5+
+// failed redeem (kod hittas inte) inom 10 min → console.warn.
+const REDEEM_BRUTE_WINDOW_MS = 10 * 60 * 1000;
+const REDEEM_BRUTE_THRESHOLD = 5;
+const redeemFailedAttempts = new Map<string, { count: number; firstAt: number }>();
+function noteFailedRedeem(ip: string): void {
+  if (!ip) return;
+  const now = Date.now();
+  const existing = redeemFailedAttempts.get(ip);
+  if (!existing || now - existing.firstAt > REDEEM_BRUTE_WINDOW_MS) {
+    redeemFailedAttempts.set(ip, { count: 1, firstAt: now });
+    return;
+  }
+  existing.count += 1;
+  if (existing.count >= REDEEM_BRUTE_THRESHOLD) {
+    console.warn(`[referral-bruteforce] IP=${ip} har ${existing.count} failed redeem-försök`);
+  }
+}
+
+router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
   try {
     const parsed = redeemSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -212,11 +243,11 @@ router.post('/redeem-code', async (req: any, res: any) => {
         lastSeenIp: true,
       },
     });
+    const ip = (req.ip || req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
     if (!inviter) {
+      noteFailedRedeem(ip);
       return res.status(404).json({ error: 'Kod hittades inte' });
     }
-
-    const ip = (req.ip || req.headers['x-forwarded-for'] || '').toString().split(',')[0].trim();
     const flags = computeFraudFlags({
       inviter,
       inviteeEmail: email ?? null,
@@ -627,20 +658,44 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
     });
     if (!referral) return;
 
+    // Reward-cap per inviter — soft fraud prevention. Default 20 = max 20 referrals/månad.
+    const maxRewards = settings.referralMaxRewardsPerInviter ?? 20;
+    const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recentRewards = await (prisma as any).referral.count({
+      where: {
+        inviterUserId: referral.inviterUserId,
+        status: 'ORDERED',
+        rewardedAt: { gte: last30Days },
+      },
+    });
+    if (recentRewards >= maxRewards) {
+      console.warn(
+        `[referral] Inviter ${referral.inviterUserId} har nått cap (${maxRewards}/30d) — skippar reward för referral ${referral.id}`
+      );
+      return;
+    }
+
     const rewardKr = settings.referralRewardKr ?? 50;
     const minOrderKr = settings.referralMinOrderKr ?? 150;
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    await (prisma as any).$transaction([
-      (prisma as any).referral.update({
-        where: { id: referral.id },
+    // Interaktiv transaktion + status-guard på updateMany — gör hela operationen
+    // idempotent. Webhook + reconcile-poller kan båda trigga denna parallellt;
+    // bara den som vinner UPDATE WHERE status='REGISTERED' skapar UserDeals.
+    await (prisma as any).$transaction(async (tx: any) => {
+      const updated = await tx.referral.updateMany({
+        where: { id: referral.id, status: 'REGISTERED' },
         data: {
           status: 'ORDERED',
           rewardedAt: new Date(),
           inviteeOrderId: orderId,
         },
-      }),
-      (prisma as any).userDeal.create({
+      });
+      if (updated.count === 0) {
+        // Någon annan hann före — idempotent skip.
+        return;
+      }
+      await tx.userDeal.create({
         data: {
           userId: referral.inviterUserId,
           type: 'REFERRAL_INVITER',
@@ -652,8 +707,8 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
             minOrderKr,
           },
         },
-      }),
-      (prisma as any).userDeal.create({
+      });
+      await tx.userDeal.create({
         data: {
           userId: order.userId,
           type: 'REFERRAL_INVITEE',
@@ -665,8 +720,8 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
             minOrderKr,
           },
         },
-      }),
-    ]);
+      });
+    });
 
     console.log(`[referral] Rewarded inviter=${referral.inviterUserId} invitee=${order.userId} for ${rewardKr} kr each`);
 
