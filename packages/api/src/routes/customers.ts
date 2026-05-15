@@ -108,16 +108,25 @@ router.delete('/:id', authenticate, requireSuperAdmin, async (req, res) => {
       where: { id },
       data: {
         deletedAt: new Date(),
-        // Free up the unique email/phone slots so a future signup with
-        // the same address isn't blocked by the soft-deleted row.
+        // Free up unique slots så framtida signup med samma email/phone
+        // inte blockas av soft-deleted-raden.
         email: null,
         phone: null,
         pushToken: null,
         apnsDeviceToken: null,
-        // NOTE: isActive stays true. The admin "delete" action is a
-        // RESET — clears the data and lets the user register fresh next
-        // time they sign in (auth.ts revives the row). Use isActive=false
-        // separately if you actually need to permanently ban someone.
+        // VIKTIGT: nulla också OAuth-koppling + referralCode. Annars
+        // matchar nästa Google/Apple-login fortfarande denna rad via
+        // (oauthProvider, oauthId) och "reactiverar" usern → samma
+        // userId, samma referralCode, samma order-historik. Det var
+        // exakt buggen som dök upp efter att admin raderat customers
+        // och loggat in igen med samma Google-konto.
+        oauthProvider: null,
+        oauthId: null,
+        referralCode: null,
+        referredByCode: null,
+        // NOTE: isActive stays true. Admin-"delete" är en RESET — rensar
+        // datan och låter usern registrera sig fräsch nästa gång de
+        // signar in. Använd isActive=false separat för permanent ban.
       },
     });
     res.json({ success: true });

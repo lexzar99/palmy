@@ -256,8 +256,12 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
     const { code, email, deviceFingerprint } = parsed.data;
     const normalizedCode = code.trim().toUpperCase();
 
-    const inviter = await (prisma as any).user.findUnique({
-      where: { referralCode: normalizedCode },
+    // findFirst (inte findUnique) så vi kan filtrera på deletedAt — vi vill
+    // INTE hitta inviter:s vars konto admin har raderat. Annars: en gammal
+    // kod från en raderad user kan fortfarande redeemas och skapa Referral-
+    // rader mot inviteeUserId=null inviter.
+    const inviter = await (prisma as any).user.findFirst({
+      where: { referralCode: normalizedCode, deletedAt: null },
       select: {
         id: true,
         name: true,
@@ -369,8 +373,10 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
     const code = String(req.query?.code || '').trim().toUpperCase();
     if (!code) return res.json({ exists: false });
 
-    const inviter = await (prisma as any).user.findUnique({
-      where: { referralCode: code },
+    // findFirst + deletedAt:null så raderade users inte syns som giltiga
+    // inviters på landing-pages /r/{code}.
+    const inviter = await (prisma as any).user.findFirst({
+      where: { referralCode: code, deletedAt: null },
       select: { firstName: true, name: true },
     });
     if (!inviter) return res.json({ exists: false });
@@ -379,7 +385,8 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
     res.json({
       exists: true,
       inviterName: inviter.firstName || inviter.name || 'En vän',
-      rewardKr: settings.referralRewardKr ?? 50,
+      rewardKr: settings.referralRewardKr ?? 50, // legacy
+      rewardPercent: settings.referralRewardPercent ?? 20,
       enabled: !!settings.referralEnabled,
     });
   } catch (err: any) {
