@@ -33,6 +33,7 @@ import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import RecentOrderCard from "@/components/RecentOrderCard";
 import WelcomeDealBanner from "@/components/WelcomeDealBanner";
+import InviteFriendsBanner from "@/components/InviteFriendsBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -926,6 +927,10 @@ export default function HomePage() {
           {/* Welcome/Referral deal-banner — visas bara för inloggade som har
               en aktiv WELCOME/REFERRAL-deal från backend. */}
           {isLoggedIn && <WelcomeDealBanner enabled={isLoggedIn} />}
+
+          {/* Invite-friends-CTA — tydlig länk till /invite så användaren
+              inte behöver leta upp referral-koden under /profile. */}
+          {isLoggedIn && <InviteFriendsBanner enabled={isLoggedIn} />}
 
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
           {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
