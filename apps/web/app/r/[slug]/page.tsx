@@ -13,7 +13,8 @@ import { API_URL } from "@/lib/api";
 type ReferralPreview = {
   exists: boolean;
   inviterName?: string;
-  rewardKr?: number;
+  rewardKr?: number; // legacy
+  rewardPercent?: number;
   enabled?: boolean;
 };
 
@@ -45,8 +46,11 @@ export default async function ReferralLandingPage({
   const preview = code ? await fetchReferralPreview(code) : null;
 
   // Inte en giltig kod → vi visar "ogiltig länk"-sida istället för 404 så
-  // användaren får tydlig vägledning till hemsidan.
-  if (!preview || !preview.exists || !preview.enabled) {
+  // användaren får tydlig vägledning till hemsidan. Vi kollar BARA exists —
+  // `enabled`-flaggan styr om auto-reward triggas server-side, inte om
+  // länken är giltig. Annars: admin glömmer toggla → alla referral-länkar
+  // visar "Ogiltig länk" trots att koderna är korrekta.
+  if (!preview || !preview.exists) {
     return (
       <div
         className="min-h-screen flex flex-col items-center justify-center px-6 py-20"
@@ -81,7 +85,9 @@ export default async function ReferralLandingPage({
     );
   }
 
-  const reward = preview.rewardKr ?? 50;
+  // Percent prefereras över kr — visar "20%" istället för "50 kr".
+  // Faller tillbaka till legacy kr-display om backend bara skickar rewardKr.
+  const rewardPercent = preview.rewardPercent ?? 20;
   const inviter = preview.inviterName?.trim() || "En vän";
 
   return (
@@ -119,7 +125,7 @@ export default async function ReferralLandingPage({
               {code}
             </span>{" "}
             — så får ni båda{" "}
-            <span className="font-black text-gold-500">{reward} kr rabatt</span>{" "}
+            <span className="font-black text-gold-500">{rewardPercent}% rabatt</span>{" "}
             på er nästa beställning.
           </p>
         </div>
