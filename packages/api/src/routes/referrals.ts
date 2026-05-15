@@ -71,11 +71,24 @@ async function ensureReferralCode(userId: string): Promise<string> {
 }
 
 async function getSettings() {
-  return (
+  const row =
     (await (prisma as any).restaurantSettings.findUnique({
       where: { id: 'settings' },
-    })) || {}
-  );
+    })) || {};
+  // Sensible defaults — nya plattformar ska få referral + welcome-deal
+  // PÅ utan att admin behöver gå in och toggla. Admin kan fortfarande
+  // stänga av explicit (false vinner över default via ?? semantik).
+  return {
+    ...row,
+    referralEnabled: row.referralEnabled ?? true,
+    referralRewardKr: row.referralRewardKr ?? 50,
+    referralMinOrderKr: row.referralMinOrderKr ?? 150,
+    referralMaxRewardsPerInviter: row.referralMaxRewardsPerInviter ?? 20,
+    welcomeDealActive: row.welcomeDealActive ?? true,
+    welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50,
+    welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150,
+    welcomeDealExpiresDays: row.welcomeDealExpiresDays ?? 30,
+  };
 }
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([

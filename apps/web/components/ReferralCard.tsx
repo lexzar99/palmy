@@ -104,9 +104,11 @@ export default function ReferralCard() {
     );
   }
 
-  // Tyst gömma kortet om backend-feature inte är på eller om nåt gick fel —
-  // bättre att visa inget än en kraschad referral-sektion på Profile.
-  if (error || !data || !data.enabled) {
+  // Visa alltid koden om vi har data — `data.enabled` styr bara om
+  // belöningen triggas server-side vid invitee:s första betalda order
+  // (admin-toggle). Användaren ska alltid kunna se och dela sin kod.
+  // Tidigare gömde vi kortet helt → användare trodde funktionen var trasig.
+  if (error || !data) {
     return null;
   }
 
