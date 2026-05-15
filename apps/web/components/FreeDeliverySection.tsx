@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import axios from "axios";
 import { Bike, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -75,7 +76,14 @@ export default function FreeDeliverySection() {
           >
             <div className="relative w-full h-40 overflow-hidden" style={{ backgroundColor: "var(--bg-deep)" }}>
               {r.heroImageUrl || r.imageUrl ? (
-                <img src={getImg(r.heroImageUrl || r.imageUrl)} alt={r.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                <Image
+                  src={getImg(r.heroImageUrl || r.imageUrl)}
+                  alt={r.name}
+                  fill
+                  sizes="288px"
+                  loading="lazy"
+                  className="object-cover group-hover:scale-110 transition-transform duration-700"
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-4xl">🍽️</div>
               )}

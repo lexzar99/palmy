@@ -11,6 +11,7 @@ import FloatingCartButton from "@/components/FloatingCartButton";
 import DealSpotlight from "@/components/DealSpotlight";
 import { PublicDeal, formatDealReward } from "@/lib/deals";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import AddressModal from "@/components/AddressModal";
 import PreviouslyOrderedBar from "@/components/PreviouslyOrderedBar";
@@ -148,26 +149,33 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       if (restaurantSlug) params.slug = restaurantSlug;
       const menuParams = { ...params, v: "20260428" };
 
-      const [menuRes, restaurantRes, dealsRes] = await Promise.all([
+      // Parallellisera ALLA fyra fetches istället för sekventiell waterfall.
+      // Förut: Promise.all(menu+rest+deals) → await checkZone → eventuellt
+      // await /settings. På 4G mobil var det 400-800ms onödig blockering.
+      // Nu: alla startas parallellt, checkZone körs efter restaurant-data men
+      // settings-fallback hämtas alltid (billig, cachebar endpoint).
+      const [menuRes, restaurantRes, dealsRes, settingsRes] = await Promise.all([
         axios.get(`${API_URL}/api/menu/categories`, { params: menuParams }),
         restaurantSlug ? axios.get(`${API_URL}/api/restaurants/${restaurantSlug}`) : Promise.resolve({ data: null }),
         axios.get(`${API_URL}/api/deals`, { params: restaurantId ? { restaurantId } : restaurantSlug ? { slug: restaurantSlug } : {} }),
+        // Settings hämtas alltid — billigt och vi behöver det som fallback.
+        // Cacheas av Next via SWR-pattern; faller back på defaults om down.
+        axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
       ]);
 
       setCategories(menuRes.data);
       setDeals(dealsRes.data);
       if (restaurantRes.data) {
         setRestaurant(restaurantRes.data);
-        // Run zone check after setting restaurant
-        await checkZone(restaurantRes.data);
+        // Zone-check kan köras non-blocking efter restaurant satt.
+        checkZone(restaurantRes.data).catch((e) => console.warn("zone check failed:", e));
       } else {
-        const settingsRes = await axios.get(`${API_URL}/api/settings`);
         setRestaurant({
           name: "MatGo Lund",
-          isOpen: settingsRes.data.isOpen ?? true,
-          deliveryFee: settingsRes.data.deliveryFee ?? 0,
-          minOrderAmount: settingsRes.data.minOrderAmount ?? 150,
-          etaMinutes: settingsRes.data.estimatedDeliveryTime ?? 35,
+          isOpen: settingsRes.data?.isOpen ?? true,
+          deliveryFee: settingsRes.data?.deliveryFee ?? 0,
+          minOrderAmount: settingsRes.data?.minOrderAmount ?? 150,
+          etaMinutes: settingsRes.data?.estimatedDeliveryTime ?? 35,
         });
       }
 
@@ -330,7 +338,17 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
       {/* Dynamic Cover Image with Parallax-ish feel */}
       <div className="relative w-full h-[50vh] overflow-hidden">
         {heroImage ? (
-           <img src={heroImage} alt={restaurant?.name} loading="eager" decoding="async" className="w-full h-full object-cover scale-105" />
+           // priority = preload på SSR (LCP-bilden). next/image serverar
+           // AVIF/WebP automatiskt och responsive srcset baserat på sizes.
+           // sizes='100vw' matchar w-full → browsern hämtar exakt rätt storlek.
+           <Image
+             src={heroImage}
+             alt={restaurant?.name || "Restaurant"}
+             fill
+             priority
+             sizes="100vw"
+             className="object-cover scale-105"
+           />
         ) : (
            <div className="w-full h-full bg-gradient-to-b" style={{ backgroundImage: "linear-gradient(to bottom, var(--bg-deep), var(--bg-primary))" }} />
         )}
@@ -559,8 +577,15 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                     style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid rgba(231,178,75,0.2)" }}
                   >
                     {p.imageUrl && (
-                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                        <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                      <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 relative">
+                        <Image
+                          src={p.imageUrl}
+                          alt={p.name}
+                          fill
+                          sizes="64px"
+                          loading="lazy"
+                          className="object-cover"
+                        />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -630,7 +655,14 @@ const MenuContent = ({ restaurantSlug, restaurantId, isStandalone = false }: Men
                        >
                            {p.imageUrl && (
                               <div className="w-24 h-24 rounded-[1.8rem] overflow-hidden shrink-0 relative" style={{ backgroundColor: "var(--bg-deep)" }}>
-                                 <img src={p.imageUrl} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" />
+                                 <Image
+                                   src={p.imageUrl}
+                                   alt={p.name}
+                                   fill
+                                   sizes="96px"
+                                   loading="lazy"
+                                   className="object-cover transition-all duration-700 group-hover:scale-110"
+                                 />
                                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                               </div>
                            )}

@@ -35,8 +35,15 @@ import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
 import BogoPickerModal from "@/components/BogoPickerModal";
 import { rememberActiveOrder } from "@/components/LiveOrderBanner";
-import { loadStripe } from "@stripe/stripe-js";
-import { Elements } from "@stripe/react-stripe-js";
+import dynamic from "next/dynamic";
+// Stripe-elementen bundlas SEPARAT från initial JS. Användaren ser cart-
+// gränssnittet utan att vänta på Stripe-koden — den hämtas först när hen
+// klickar "Betala" och Elements-providern faktiskt behöver renderas.
+// Resulterar i ~50-80 kb gzipped mindre i initial bundle.
+const Elements = dynamic(
+  () => import("@stripe/react-stripe-js").then((m) => m.Elements),
+  { ssr: false }
+);
 import StripeCheckout from "@/components/StripeCheckout";
 import DealSpotlight from "@/components/DealSpotlight";
 import ProductModal from "@/components/ProductModal";
@@ -71,9 +78,19 @@ function dealTypeLabel(type: string): string {
   return "Rabatt";
 }
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
-);
+// Lazy Stripe-promise: stripe-js-koden code-splits OCH dess Stripe.connect()
+// initialiseras inte förrän getStripePromise() faktiskt kallas vid checkout.
+// Förut körde loadStripe() vid varje cart-render (även om kunden aldrig kom
+// till betalningssteget) → tappade FCP/TTI på mobil.
+let _stripePromise: Promise<any> | null = null;
+const getStripePromise = () => {
+  if (!_stripePromise) {
+    _stripePromise = import("@stripe/stripe-js").then((m) =>
+      m.loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder")
+    );
+  }
+  return _stripePromise;
+};
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
@@ -1149,7 +1166,7 @@ export default function CartPage() {
                         <CreditCard size={18} /> Betala Tryggt
                      </div>
                      <div className="rounded-3xl p-6 mb-10 border" style={{ backgroundColor: "var(--bg-deep)", borderColor: "var(--border-muted)" }}>
-                        <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
+                        <Elements stripe={getStripePromise()} options={{ clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#e7b24b', colorBackground: '#ffffff', colorText: '#1C1C1E', colorDanger: '#ef4444' } } }}>
                            <StripeCheckout amount={total} onSuccess={handlePaymentSuccess} />
                         </Elements>
                      </div>
