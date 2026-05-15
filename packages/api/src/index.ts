@@ -107,8 +107,13 @@ const corsOptions: cors.CorsOptions = {
     if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
+      // VIKTIGT: callback(null, false) istället för callback(new Error(...)).
+      // Error propagerar upp som 500 internal server error i Express (synligt
+      // i Sentry/Railway-logs som "uncaught"), och klienten ser "Kan inte
+      // nå servern". `false` returnerar bara request UTAN CORS-headers,
+      // browsern blockar då med en ren CORS-error utan att backend kraschar.
       console.warn(`🚫 CORS blocked origin: ${origin || '(missing)'}`);
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);
     }
   },
   credentials: true,

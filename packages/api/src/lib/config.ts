@@ -131,6 +131,24 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   const allowed = getAllowedOrigins();
   if (allowed.includes(origin)) return true;
 
+  // Vår egen infra: Vercel-deploys (preview + prod) och Railway-app-domäner.
+  // Tidigare blockerade vi *.vercel.app helt — för restriktivt eftersom vi
+  // använder Vercel-preview-URLer för testning innan custom domain dragits.
+  // Säkerhetsmässigt OK: ingen annan kan deploya till våra Vercel-projekt.
+  try {
+    const host = new URL(origin).hostname;
+    if (
+      host.endsWith('.vercel.app') ||
+      host.endsWith('.up.railway.app') ||
+      host.endsWith('.railway.app')
+    ) {
+      return true;
+    }
+  } catch {
+    // Ogiltigt URL-format → blockera
+    return false;
+  }
+
   if (!isProd) {
     if (/^https?:\/\/(localhost|192\.168\.\d+\.\d+|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
       return true;
