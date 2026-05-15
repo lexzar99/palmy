@@ -88,7 +88,7 @@ router.get('/categories', async (req, res) => {
     let categories = await queryActiveMenuByRestaurantId(primaryRestaurantId);
     const activeDeals = primaryRestaurantId
       ? await prisma.deal.findMany({
-          where: { isActive: true, showOnSite: true },
+          where: { isActive: true, showOnSite: true, isPersonalTemplate: false },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
         })
       : [];

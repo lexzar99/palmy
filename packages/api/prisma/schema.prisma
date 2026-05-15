@@ -239,6 +239,11 @@ model Deal {
   bogoMinOrderAmountOre     Int?
   bogoTriggerProductIds     String    @default("[]")
   showAsBanner              Boolean   @default(false)
+  // Personal-template: Dealen syns INTE som global rabatt på sajten
+  // (inte i /api/deals, inga popups, inga banners). Den används endast
+  // som mall av referral-systemet som snapshotar dess värden in i
+  // UserDeal-rader per användare. true = exklusivt för referral/welcome.
+  isPersonalTemplate    Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 
   @@index([isActive, restaurantId, validUntil])

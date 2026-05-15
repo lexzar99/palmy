@@ -29,11 +29,13 @@ import {
 } from "@/shared/components/ui";
 import { formatCurrency, formatNumber } from "@/shared/utils/format";
 import {
+  createPersonalDeal,
   getReferralStats,
   getWelcomeDealSettings,
   referralStatsQueryKey,
   updateWelcomeDealSettings,
   welcomeDealQueryKey,
+  type CreatePersonalDealPayload,
   type WelcomeDealSettings,
 } from "@/modules/marketing-referrals/api";
 
@@ -301,13 +303,16 @@ function ReferralSettingsTab({
     <div className="space-y-5">
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Referral-systemet</strong> kopplar en valfri <strong>Deal</strong> som
-          rabatt-mall. Skapa Dealen i <Link href="/deals" className="underline">/deals</Link> med
-          önskad procent/kronor och välj den nedan. Båda parter (inviter + invitee)
-          får automatiskt kupongen — invitee vid registrering med koden, inviter
-          när invitee:n gjort sin första betalda order.
+          <strong>Referral-systemet</strong> kopplar en <strong>personlig deal-mall</strong> som
+          tilldelas per-användare (inte en publik kupong-kod). Skapa en mall nedan
+          med önskad procent/kronor och välj den i dropdownen. Båda parter
+          (inviter + invitee) får automatiskt kupongen — invitee vid registrering,
+          inviter när invitee gjort sin första betalda order.
         </p>
       </Surface>
+
+      <PersonalDealCreateForm />
+
 
       {mutation.isError && (
         <Surface className="px-6 py-4">
@@ -444,6 +449,163 @@ function ReferralSettingsTab({
         </div>
       </Surface>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// PersonalDealCreateForm — quick-create för en personal-template-deal
+// som referral-systemet kan koppla. Sparar isPersonalTemplate=true så
+// dealen inte syns publikt och inte kan claimas via popup.
+// ────────────────────────────────────────────────────────────────────────────
+function PersonalDealCreateForm() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState<CreatePersonalDealPayload>({
+    title: "",
+    discountType: "PERCENTAGE",
+    discountValue: 25,
+    minOrder: 0,
+    validUntil: null,
+  });
+  const [createdFlash, setCreatedFlash] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: (payload: CreatePersonalDealPayload) => createPersonalDeal(payload),
+    onSuccess: async () => {
+      setCreatedFlash(true);
+      setTimeout(() => setCreatedFlash(false), 2500);
+      await queryClient.invalidateQueries({ queryKey: welcomeDealQueryKey });
+      // Reseta formuläret men låt dropdown-värdet uppdateras automatiskt
+      // via parent-refetch
+      setForm({ title: "", discountType: "PERCENTAGE", discountValue: 25, minOrder: 0, validUntil: null });
+      setOpen(false);
+    },
+  });
+
+  if (!open) {
+    return (
+      <Surface className="px-6 py-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-black text-sm mb-1">Skapa personlig deal-mall</p>
+            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              Mallen syns inte publikt — den tilldelas användare via referral-systemet.
+            </p>
+          </div>
+          <Button variant="primary" onClick={() => setOpen(true)}>
+            + Ny mall
+          </Button>
+        </div>
+        {createdFlash && (
+          <p className="text-[11px] mt-3 text-emerald-500 font-bold">
+            ✓ Mallen skapades. Välj den i dropdownen nedan.
+          </p>
+        )}
+      </Surface>
+    );
+  }
+
+  return (
+    <Surface className="px-6 py-6">
+      <div className="flex items-center justify-between mb-5">
+        <h2 className="text-base font-black uppercase tracking-tight">Ny personlig deal-mall</h2>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="text-xs hover:underline"
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Avbryt
+        </button>
+      </div>
+
+      {mutation.isError && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm">
+          <div className="font-bold mb-0.5 flex items-center gap-2">
+            <AlertCircle size={14} /> Kunde inte skapa
+          </div>
+          <div style={{ color: "var(--text-secondary)" }}>
+            {(mutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)
+              ?.response?.data?.error
+              || (mutation.error as { message?: string } | undefined)?.message
+              || "Okänt fel"}
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <Field label="Titel (intern, syns ej för kund)">
+          <Input
+            type="text"
+            value={form.title}
+            onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+            placeholder="t.ex. Referral 25%"
+          />
+        </Field>
+        <Field label="Rabatt-typ">
+          <select
+            value={form.discountType}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, discountType: e.target.value as "PERCENTAGE" | "FIXED" }))
+            }
+            className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+          >
+            <option value="PERCENTAGE">Procent (%)</option>
+            <option value="FIXED">Fast belopp (kr)</option>
+          </select>
+        </Field>
+        <Field label={form.discountType === "PERCENTAGE" ? "Rabatt-procent (1-100)" : "Rabatt-belopp (kr)"}>
+          <Input
+            type="number"
+            min={1}
+            max={form.discountType === "PERCENTAGE" ? 100 : 10000}
+            value={form.discountValue}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, discountValue: Number(e.target.value) || 0 }))
+            }
+          />
+        </Field>
+        <Field label="Min ordervärde (kr) — valfritt">
+          <Input
+            type="number"
+            min={0}
+            value={form.minOrder ?? 0}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, minOrder: Number(e.target.value) || 0 }))
+            }
+          />
+        </Field>
+        <Field label="Giltigt till (valfritt)">
+          <Input
+            type="date"
+            value={form.validUntil ?? ""}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, validUntil: e.target.value || null }))
+            }
+          />
+        </Field>
+      </div>
+
+      <div className="mt-6 flex gap-3">
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (!form.title.trim()) {
+              alert("Ange en titel");
+              return;
+            }
+            mutation.mutate(form);
+          }}
+          disabled={mutation.isPending}
+        >
+          {mutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+          {mutation.isPending ? "Skapar…" : "Skapa mall"}
+        </Button>
+        <Button variant="secondary" onClick={() => setOpen(false)}>
+          Avbryt
+        </Button>
+      </div>
+    </Surface>
   );
 }
 

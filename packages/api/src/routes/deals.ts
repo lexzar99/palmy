@@ -180,6 +180,9 @@ router.get('/', async (req, res) => {
       where: {
         showOnSite: true,
         isActive: true,
+        // Personal-templates används bara av referral/welcome — aldrig
+        // som global rabatt. Belt-and-suspenders ovanpå showOnSite-flaggan.
+        isPersonalTemplate: false,
         ...(targetRestaurantId
           ? {
               OR: [

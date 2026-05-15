@@ -114,13 +114,17 @@ async function snapshotReferralDeal(): Promise<{
     select: {
       id: true,
       isActive: true,
+      isPersonalTemplate: true,
       discountType: true,
       discountValue: true,
       minOrder: true,
       validUntil: true,
     },
   });
-  if (!deal || !deal.isActive) return null;
+  // Kräv Personal Template för att förhindra att en publik kupong-deal av
+  // misstag används som referral-mall (kan ha hänt om admin pekade på fel
+  // Deal innan vi lade in template-fältet).
+  if (!deal || !deal.isActive || !deal.isPersonalTemplate) return null;
 
   // Deal.discountValue tolkas baserat på discountType. PERCENTAGE → snapshota
   // som discountPercent. Annat (FIXED/BOGO/etc) → snapshota som amountKr (kr).
@@ -515,9 +519,13 @@ export const adminRouter = Router();
 adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
     const settings = await getSettings();
-    // Lista tillgängliga Deals så admin kan välja referral-reward från dropdown
+    // Lista tillgängliga Deals för referral-dropdown. Endast Personal Templates
+    // — globala kupong-deals (som visas på sajten med public code) ska INTE
+    // kunna kopplas som referral-reward, eftersom referral kräver en mall
+    // som inte är publik. Admin skapar dessa i /admin/deals → fliken
+    // "Personliga deals".
     const availableDeals = await (prisma as any).deal.findMany({
-      where: { isActive: true },
+      where: { isActive: true, isPersonalTemplate: true },
       select: {
         id: true,
         title: true,
@@ -561,17 +569,24 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     if (!parsed.success) {
       return res.status(400).json({ error: 'Ogiltiga värden', detail: parsed.error.errors });
     }
-    // Om referralDealId skickas: validera att Dealen finns och är aktiv.
+    // Om referralDealId skickas: validera att Dealen finns, är aktiv OCH är
+    // en Personal Template. Globala publika deals får inte användas som
+    // referral-mall — de kan claimas av vem som helst via popup.
     if (parsed.data.referralDealId) {
       const deal = await (prisma as any).deal.findUnique({
         where: { id: parsed.data.referralDealId },
-        select: { id: true, isActive: true },
+        select: { id: true, isActive: true, isPersonalTemplate: true },
       });
       if (!deal) {
         return res.status(400).json({ error: 'Vald deal hittades inte' });
       }
       if (!deal.isActive) {
         return res.status(400).json({ error: 'Vald deal är inaktiv — aktivera den först i /admin/deals' });
+      }
+      if (!deal.isPersonalTemplate) {
+        return res.status(400).json({
+          error: 'Bara Personliga Deals kan användas som referral-mall. Skapa en i /admin/deals → Personliga deals.',
+        });
       }
     }
     const updated = await (prisma as any).restaurantSettings.update({

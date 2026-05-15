@@ -34,6 +34,27 @@ export const getWelcomeDealSettings = () =>
 export const updateWelcomeDealSettings = (payload: Partial<WelcomeDealSettings>) =>
   apiPatch<WelcomeDealSettings>("/admin/welcome-deal", payload);
 
+// ─── Personliga Deals (referral-templates) — quick-create från marketing-sidan ─
+export interface CreatePersonalDealPayload {
+  title: string;
+  discountType: "PERCENTAGE" | "FIXED";
+  discountValue: number; // PERCENT: 25 = 25%. FIXED: belopp i kr (backend normaliserar till öre).
+  minOrder?: number; // kr
+  validUntil?: string | null;
+}
+
+export const createPersonalDeal = (payload: CreatePersonalDealPayload) =>
+  apiPost<{ id: string; title: string }>("/admin/deals", {
+    ...payload,
+    // Personal template = används bara av referral, syns inte publikt.
+    isPersonalTemplate: true,
+    showOnSite: false,
+    popupEnabled: false,
+    isActive: true,
+    isGlobal: true,
+    triggerType: "NONE",
+  });
+
 // ────────────────────────────────────────────────────────────────────────────
 // Referrals list — paginerad
 // ────────────────────────────────────────────────────────────────────────────
