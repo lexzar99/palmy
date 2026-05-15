@@ -154,7 +154,15 @@ function computeFraudFlags(input: {
 }
 
 function publicShareBase(): string {
-  return process.env.WEB_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://matgo.se';
+  // Default: Vercel-deployen som är live just nu. matgo.se (custom domain)
+  // är inte DNS-kopplad ännu — länkar dit dör. Bytt default tills custom
+  // domain pekas till Vercel. Override via WEB_BASE_URL i Railway när det
+  // är klart.
+  return (
+    process.env.WEB_BASE_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    'https://matgo-web-pi.vercel.app'
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
