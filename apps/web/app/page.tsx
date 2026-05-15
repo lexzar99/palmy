@@ -2,7 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { API_URL } from "@/lib/api";
@@ -520,13 +519,7 @@ export default function HomePage() {
                 })()}
                 <div className="h-36 sm:h-44 md:h-40 lg:h-48 w-full rounded-[1.5rem] sm:rounded-[2rem] bg-zinc-100 relative overflow-hidden mb-4">
                   {r.heroImageUrl || r.imageUrl ? (
-                    <Image
-                      src={getCardImage(r)}
-                      alt={r.name}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                      className="object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1"
-                    />
+                    <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover transition-all duration-700 group-hover:scale-110 group-hover:rotate-1" />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍴</div>
                   )}
@@ -1056,13 +1049,7 @@ export default function HomePage() {
                           {/* IMAGE */}
                           <div className="h-36 sm:h-44 w-full overflow-hidden relative">
                             {r.imageUrl || r.heroImageUrl ? (
-                              <Image
-                                src={getCardImage(r)}
-                                alt={r.name}
-                                fill
-                                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                                className="object-cover group-hover:scale-105 transition-all duration-700"
-                              />
+                              <img src={getCardImage(r)} alt={r.name} loading="lazy" decoding="async" className="h-full w-full object-cover group-hover:scale-105 transition-all duration-700" />
                             ) : (
                               <div className="h-full w-full flex items-center justify-center text-4xl" style={{ backgroundColor: "var(--bg-deep)" }}>🍱</div>
                             )}
