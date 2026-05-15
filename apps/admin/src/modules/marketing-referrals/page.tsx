@@ -101,11 +101,12 @@ function WelcomeDealTab({
   isLoading: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    welcomeDealActive: boolean;
+    welcomeDealId: string | null;
+  }>({
     welcomeDealActive: false,
-    welcomeDealAmountKr: 50,
-    welcomeDealMinOrderKr: 150,
-    welcomeDealExpiresDays: 14,
+    welcomeDealId: null,
   });
   const [hydrated, setHydrated] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -115,9 +116,7 @@ function WelcomeDealTab({
     if (settings && !hydrated) {
       setForm({
         welcomeDealActive: settings.welcomeDealActive,
-        welcomeDealAmountKr: settings.welcomeDealAmountKr,
-        welcomeDealMinOrderKr: settings.welcomeDealMinOrderKr,
-        welcomeDealExpiresDays: settings.welcomeDealExpiresDays,
+        welcomeDealId: settings.welcomeDealId,
       });
       setHydrated(true);
     }
@@ -141,13 +140,21 @@ function WelcomeDealTab({
     );
   }
 
+  const availableDeals = settings?.availableDeals ?? [];
+  const selectedDeal = availableDeals.find((d) => d.id === form.welcomeDealId);
+  const dealHint = selectedDeal
+    ? selectedDeal.discountType === "PERCENTAGE"
+      ? `${selectedDeal.discountValue}% rabatt`
+      : `${selectedDeal.discountValue} kr rabatt`
+    : null;
+
   return (
     <div className="space-y-5">
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Welcome-deal</strong> är rabatten som ges till nya kunder vid registrering.
-          Aktiveras dealen direkt på första ordern om <em>min ordervärde</em> uppfylls och utgår efter
-          angivet antal dagar.
+          <strong>Welcome-deal</strong> är rabatten som ges automatiskt till nya kunder vid
+          registrering. Kopplar en <strong>personlig deal-mall</strong> (samma typ som referral
+          använder) — admin skapar mallen i Referral Settings-fliken och pekar den hit.
         </p>
       </Surface>
 
@@ -179,40 +186,43 @@ function WelcomeDealTab({
         />
       </Surface>
 
+      <PersonalDealCreateForm />
+
       <Surface className="px-6 py-6">
-        <h2 className="text-base font-black uppercase tracking-tight mb-5">Belopp & villkor</h2>
-        <div className="grid gap-5 md:grid-cols-3">
-          <Field label="Rabattbelopp (kr)">
-            <Input
-              type="number"
-              min={0}
-              value={form.welcomeDealAmountKr}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, welcomeDealAmountKr: Number(e.target.value) }))
-              }
-            />
-          </Field>
-          <Field label="Min ordervärde (kr)">
-            <Input
-              type="number"
-              min={0}
-              value={form.welcomeDealMinOrderKr}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, welcomeDealMinOrderKr: Number(e.target.value) }))
-              }
-            />
-          </Field>
-          <Field label="Giltig i (dagar)">
-            <Input
-              type="number"
-              min={1}
-              value={form.welcomeDealExpiresDays}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, welcomeDealExpiresDays: Number(e.target.value) }))
-              }
-            />
-          </Field>
-        </div>
+        <h2 className="text-base font-black uppercase tracking-tight mb-5">Vilken mall ska användas?</h2>
+
+        {availableDeals.length === 0 && (
+          <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            <p className="font-bold mb-1">Inga personliga mallar finns</p>
+            <p style={{ color: "var(--text-secondary)" }}>
+              Skapa en mall ovan (t.ex. &quot;Welcome 25%&quot; med PERCENTAGE och 25). När den
+              finns dyker den upp i dropdownen.
+            </p>
+          </div>
+        )}
+
+        <Field label="Personlig deal-mall">
+          <select
+            value={form.welcomeDealId ?? ""}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, welcomeDealId: e.target.value || null }))
+            }
+            className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+            disabled={mutation.isPending || availableDeals.length === 0}
+          >
+            <option value="">— Välj mall —</option>
+            {availableDeals.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.title} ({d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`})
+              </option>
+            ))}
+          </select>
+          {dealHint && (
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+              ✓ Nya användare får: <strong>{dealHint}</strong> vid registrering
+            </p>
+          )}
+        </Field>
 
         <div className="mt-6">
           <Button

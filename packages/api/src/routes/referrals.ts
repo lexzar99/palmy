@@ -88,29 +88,36 @@ async function getSettings() {
     referralMinOrderKr: row.referralMinOrderKr ?? 150, // legacy
     referralMaxRewardsPerInviter: row.referralMaxRewardsPerInviter ?? 20,
     welcomeDealActive: row.welcomeDealActive ?? true,
+    welcomeDealId: row.welcomeDealId ?? null,
     welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50, // legacy
-    welcomeDealPercent: row.welcomeDealPercent ?? 20,
-    welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150,
-    welcomeDealExpiresDays: row.welcomeDealExpiresDays ?? 30,
+    welcomeDealPercent: row.welcomeDealPercent ?? 20, // legacy
+    welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150, // legacy
+    welcomeDealExpiresDays: row.welcomeDealExpiresDays ?? 30, // legacy
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Deal-snapshot — läser den valda referral-Dealen och returnerar dess värden
-// frusna för UserDeal-creation. Returnerar null om ingen Deal vald eller om
-// Dealen inte längre finns/är inaktiv → caller ska skipa reward-skapandet.
+// Deal-snapshot — läser en konfigurerad Personal Template-Deal och returnerar
+// dess värden frusna för UserDeal-creation. Returnerar null om ingen Deal
+// vald, eller om Dealen inte längre finns/är inaktiv/inte är Personal
+// Template → caller ska skipa reward-skapandet.
+//
+// Används av båda flöden:
+//  - Referral (snapshotDealById(settings.referralDealId))
+//  - Welcome  (snapshotDealById(settings.welcomeDealId))
 // ─────────────────────────────────────────────────────────────────────────────
-async function snapshotReferralDeal(): Promise<{
+type DealSnapshot = {
   dealId: string;
   discountPercent: number | null;
   amountKr: number | null;
   minOrderKr: number;
   expiresAt: Date;
-} | null> {
-  const settings = await getSettings();
-  if (!settings.referralEnabled || !settings.referralDealId) return null;
+};
+
+async function snapshotDealById(dealId: string | null | undefined): Promise<DealSnapshot | null> {
+  if (!dealId) return null;
   const deal = await (prisma as any).deal.findUnique({
-    where: { id: settings.referralDealId },
+    where: { id: dealId },
     select: {
       id: true,
       isActive: true,
@@ -122,8 +129,7 @@ async function snapshotReferralDeal(): Promise<{
     },
   });
   // Kräv Personal Template för att förhindra att en publik kupong-deal av
-  // misstag används som referral-mall (kan ha hänt om admin pekade på fel
-  // Deal innan vi lade in template-fältet).
+  // misstag används som mall.
   if (!deal || !deal.isActive || !deal.isPersonalTemplate) return null;
 
   // Deal.discountValue tolkas baserat på discountType. PERCENTAGE → snapshota
@@ -144,6 +150,18 @@ async function snapshotReferralDeal(): Promise<{
     minOrderKr,
     expiresAt,
   };
+}
+
+async function snapshotReferralDeal(): Promise<DealSnapshot | null> {
+  const settings = await getSettings();
+  if (!settings.referralEnabled) return null;
+  return snapshotDealById(settings.referralDealId);
+}
+
+async function snapshotWelcomeDeal(): Promise<DealSnapshot | null> {
+  const settings = await getSettings();
+  if (!settings.welcomeDealActive) return null;
+  return snapshotDealById(settings.welcomeDealId);
 }
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
@@ -538,9 +556,7 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
     });
     res.json({
       welcomeDealActive: !!settings.welcomeDealActive,
-      welcomeDealAmountKr: settings.welcomeDealAmountKr ?? 50,
-      welcomeDealMinOrderKr: settings.welcomeDealMinOrderKr ?? 150,
-      welcomeDealExpiresDays: settings.welcomeDealExpiresDays ?? 30,
+      welcomeDealId: settings.welcomeDealId ?? null,
       referralEnabled: !!settings.referralEnabled,
       referralDealId: settings.referralDealId ?? null,
       referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
@@ -554,14 +570,26 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
 
 const welcomeDealUpdateSchema = z.object({
   welcomeDealActive: z.boolean().optional(),
-  welcomeDealAmountKr: z.number().int().min(0).max(10000).optional(),
-  welcomeDealMinOrderKr: z.number().int().min(0).max(10000).optional(),
-  welcomeDealExpiresDays: z.number().int().min(1).max(365).optional(),
+  welcomeDealId: z.string().nullable().optional(),
   referralEnabled: z.boolean().optional(),
   referralDealId: z.string().nullable().optional(),
   referralCouponsPerSide: z.number().int().min(1).max(10).optional(),
   referralMaxRewardsPerInviter: z.number().int().min(0).max(1000).optional(),
 });
+
+// Hjälpfunktion: validera att en deal-id pekar på en aktiv Personal Template.
+async function validatePersonalTemplate(dealId: string): Promise<string | null> {
+  const deal = await (prisma as any).deal.findUnique({
+    where: { id: dealId },
+    select: { id: true, isActive: true, isPersonalTemplate: true },
+  });
+  if (!deal) return 'Vald deal hittades inte';
+  if (!deal.isActive) return 'Vald deal är inaktiv';
+  if (!deal.isPersonalTemplate) {
+    return 'Bara Personliga Deals kan användas. Skapa en mall i /marketing-referrals.';
+  }
+  return null;
+}
 
 adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, res) => {
   try {
@@ -569,25 +597,15 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     if (!parsed.success) {
       return res.status(400).json({ error: 'Ogiltiga värden', detail: parsed.error.errors });
     }
-    // Om referralDealId skickas: validera att Dealen finns, är aktiv OCH är
-    // en Personal Template. Globala publika deals får inte användas som
-    // referral-mall — de kan claimas av vem som helst via popup.
+    // Validera dropdown-vals (welcomeDealId + referralDealId) — båda måste
+    // peka på aktiva Personal Templates.
     if (parsed.data.referralDealId) {
-      const deal = await (prisma as any).deal.findUnique({
-        where: { id: parsed.data.referralDealId },
-        select: { id: true, isActive: true, isPersonalTemplate: true },
-      });
-      if (!deal) {
-        return res.status(400).json({ error: 'Vald deal hittades inte' });
-      }
-      if (!deal.isActive) {
-        return res.status(400).json({ error: 'Vald deal är inaktiv — aktivera den först i /admin/deals' });
-      }
-      if (!deal.isPersonalTemplate) {
-        return res.status(400).json({
-          error: 'Bara Personliga Deals kan användas som referral-mall. Skapa en i /admin/deals → Personliga deals.',
-        });
-      }
+      const err = await validatePersonalTemplate(parsed.data.referralDealId);
+      if (err) return res.status(400).json({ error: err });
+    }
+    if (parsed.data.welcomeDealId) {
+      const err = await validatePersonalTemplate(parsed.data.welcomeDealId);
+      if (err) return res.status(400).json({ error: err });
     }
     const updated = await (prisma as any).restaurantSettings.update({
       where: { id: 'settings' },
@@ -600,9 +618,7 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     });
     res.json({
       welcomeDealActive: !!updated.welcomeDealActive,
-      welcomeDealAmountKr: updated.welcomeDealAmountKr,
-      welcomeDealMinOrderKr: updated.welcomeDealMinOrderKr,
-      welcomeDealExpiresDays: updated.welcomeDealExpiresDays,
+      welcomeDealId: updated.welcomeDealId,
       referralEnabled: !!updated.referralEnabled,
       referralDealId: updated.referralDealId,
       referralCouponsPerSide: updated.referralCouponsPerSide,
@@ -931,20 +947,23 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
  */
 export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
   try {
-    const settings = await getSettings();
-    if (!settings.welcomeDealActive) return;
-    const discountPercent = settings.welcomeDealPercent ?? 20;
-    const minOrderKr = settings.welcomeDealMinOrderKr ?? 150;
-    const expiresDays = settings.welcomeDealExpiresDays ?? 30;
-    const expiresAt = new Date(Date.now() + expiresDays * 24 * 60 * 60 * 1000);
+    const snapshot = await snapshotWelcomeDeal();
+    if (!snapshot) {
+      // welcomeDealActive=false ELLER ingen Deal vald ELLER Dealen är inte
+      // en Personal Template → ingen welcome-deal skapas. Helt OK — admin
+      // har inte konfigurerat funktionen än.
+      return;
+    }
 
     await (prisma as any).userDeal.create({
       data: {
         userId,
+        dealId: snapshot.dealId,
         type: 'WELCOME',
-        discountPercent,
-        expiresAt,
-        metadata: { minOrderKr },
+        amountKr: snapshot.amountKr,
+        discountPercent: snapshot.discountPercent,
+        expiresAt: snapshot.expiresAt,
+        metadata: { minOrderKr: snapshot.minOrderKr },
       },
     });
   } catch (err: any) {

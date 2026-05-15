@@ -14,12 +14,10 @@ export interface AvailableDeal {
 
 export interface WelcomeDealSettings {
   welcomeDealActive: boolean;
-  welcomeDealAmountKr: number;
-  welcomeDealMinOrderKr: number;
-  welcomeDealExpiresDays: number;
+  // Welcome-deal pekar nu på en Personal Template-Deal (samma pattern
+  // som referral). Inga hårdkodade kr/percent/days-fält.
+  welcomeDealId: string | null;
   referralEnabled: boolean;
-  // Referral pekar nu på en Deal från /admin/deals — admin väljer i dropdown.
-  // Inga hårdkodade procent-fält, all rabatt-logik ligger på Dealen.
   referralDealId: string | null;
   referralCouponsPerSide: number;
   referralMaxRewardsPerInviter: number;

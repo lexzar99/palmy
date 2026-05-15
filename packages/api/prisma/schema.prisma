@@ -390,14 +390,17 @@ model RestaurantSettings {
   bannerSeverity        String?  // "info" | "warning" | "critical"
   bannerExpiresAt       DateTime? // Auto-rensar — null = visas tills manuellt borttagen
 
-  // Welcome deal — auto-tilldelas vid registrering om aktiv.
-  // welcomeDealPercent (20 = 20%) är primär. welcomeDealAmountKr behålls
-  // för bakåtkompat med befintliga deals men ny logik använder percent.
+  // Welcome deal — auto-tilldelas vid registrering om aktiv. Pekar på
+  // en Personal Template-Deal (samma pattern som referral). Admin skapar
+  // mallen i /marketing-referrals och pekar hit via welcomeDealId.
+  // Legacy-fälten (amountKr/Percent/MinOrderKr/ExpiresDays) behålls för
+  // bakåtkompat men används INTE av ny logik.
   welcomeDealActive       Boolean   @default(false)
-  welcomeDealAmountKr     Int       @default(50)
-  welcomeDealPercent      Int       @default(20)
-  welcomeDealMinOrderKr   Int       @default(150)
-  welcomeDealExpiresDays  Int       @default(30)
+  welcomeDealId           String?
+  welcomeDealAmountKr     Int       @default(50)   // legacy
+  welcomeDealPercent      Int       @default(20)   // legacy
+  welcomeDealMinOrderKr   Int       @default(150)  // legacy
+  welcomeDealExpiresDays  Int       @default(30)   // legacy
 
   // Referral-system — använder en valfri Deal som mall för rabatten.
   // Admin skapar Dealen i /admin/deals och pekar hit via referralDealId.
