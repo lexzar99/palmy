@@ -44,18 +44,10 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: apiHostname },
       { protocol: 'http', hostname: apiHostname },
-      // PRIMÄR bilduppladdning — restaurang-logos, produktbilder, deals.
-      // Backend (packages/api/src/routes/upload.ts) använder
-      // multer-storage-cloudinary. Saknades innan → next/image vägrade
-      // optimera och bilderna visades som broken.
-      { protocol: 'https', hostname: 'res.cloudinary.com' },
-      { protocol: 'https', hostname: '**.cloudinary.com' },
-      // Övriga CDN-värdar
+      // Vanliga CDN-värdar för backend-uppladdade restaurang-bilder
       { protocol: 'https', hostname: '**.supabase.co' },
       { protocol: 'https', hostname: '**.googleusercontent.com' },
-      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       { protocol: 'https', hostname: '**.amazonaws.com' },
-      { protocol: 'https', hostname: 'avatars.githubusercontent.com' },
       // Catch-all för utvecklings-/prod-API:n
       { protocol: 'https', hostname: '**.railway.app' },
       { protocol: 'https', hostname: '**.vercel.app' },
