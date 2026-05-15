@@ -83,8 +83,8 @@ function RegisterContent() {
       if (referralOk) {
         toast(
           inviterName
-            ? `Du och ${inviterName} får båda 50 kr rabatt på nästa beställning!`
-            : "Referral aktiverad — 50 kr rabatt på nästa beställning!",
+            ? `Du och ${inviterName} får båda en rabatt-kupong på nästa beställning!`
+            : "Referral aktiverad — du har en rabatt-kupong i ditt konto!",
           "success",
         );
       } else {
@@ -179,7 +179,7 @@ function RegisterContent() {
              />
              {referralCode && (
                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
-                 Ni får båda 50 kr rabatt på första beställningen
+                 Ni får båda en rabatt-kupong att använda i kassan
                </p>
              )}
            </div>

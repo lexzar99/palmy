@@ -81,15 +81,64 @@ async function getSettings() {
   return {
     ...row,
     referralEnabled: row.referralEnabled ?? true,
+    referralDealId: row.referralDealId ?? null,
+    referralCouponsPerSide: row.referralCouponsPerSide ?? 1,
     referralRewardKr: row.referralRewardKr ?? 50, // legacy
-    referralRewardPercent: row.referralRewardPercent ?? 20,
-    referralMinOrderKr: row.referralMinOrderKr ?? 150,
+    referralRewardPercent: row.referralRewardPercent ?? 20, // legacy
+    referralMinOrderKr: row.referralMinOrderKr ?? 150, // legacy
     referralMaxRewardsPerInviter: row.referralMaxRewardsPerInviter ?? 20,
     welcomeDealActive: row.welcomeDealActive ?? true,
     welcomeDealAmountKr: row.welcomeDealAmountKr ?? 50, // legacy
     welcomeDealPercent: row.welcomeDealPercent ?? 20,
     welcomeDealMinOrderKr: row.welcomeDealMinOrderKr ?? 150,
     welcomeDealExpiresDays: row.welcomeDealExpiresDays ?? 30,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deal-snapshot — läser den valda referral-Dealen och returnerar dess värden
+// frusna för UserDeal-creation. Returnerar null om ingen Deal vald eller om
+// Dealen inte längre finns/är inaktiv → caller ska skipa reward-skapandet.
+// ─────────────────────────────────────────────────────────────────────────────
+async function snapshotReferralDeal(): Promise<{
+  dealId: string;
+  discountPercent: number | null;
+  amountKr: number | null;
+  minOrderKr: number;
+  expiresAt: Date;
+} | null> {
+  const settings = await getSettings();
+  if (!settings.referralEnabled || !settings.referralDealId) return null;
+  const deal = await (prisma as any).deal.findUnique({
+    where: { id: settings.referralDealId },
+    select: {
+      id: true,
+      isActive: true,
+      discountType: true,
+      discountValue: true,
+      minOrder: true,
+      validUntil: true,
+    },
+  });
+  if (!deal || !deal.isActive) return null;
+
+  // Deal.discountValue tolkas baserat på discountType. PERCENTAGE → snapshota
+  // som discountPercent. Annat (FIXED/BOGO/etc) → snapshota som amountKr (kr).
+  // Order-flödet stödjer redan båda formaten via computeDealAmountKr-helpern.
+  const isPercent = deal.discountType === 'PERCENTAGE';
+  const minOrderKr = Math.round((deal.minOrder ?? 0) / 100) || 0;
+  // Default 30 dagars expiry om Dealen inte har validUntil — kupongen
+  // ska inte ligga aktiv för evigt.
+  const expiresAt = deal.validUntil
+    ? new Date(deal.validUntil)
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+  return {
+    dealId: deal.id,
+    discountPercent: isPercent ? deal.discountValue : null,
+    amountKr: isPercent ? null : deal.discountValue,
+    minOrderKr,
+    expiresAt,
   };
 }
 
@@ -192,12 +241,22 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
         (settings.referralRewardKr ?? 50),
     };
 
+    // Hämta värden från den valda Dealen så frontend visar exakt vad
+    // användarna faktiskt får. Snapshot är null om ingen Deal vald → vi
+    // returnerar då legacy-värdena från settings (UI:t visar "20%" som
+    // platshållare men referral är inaktivt tills admin valt en Deal).
+    const snapshot = await snapshotReferralDeal();
+    const rewardPercent = snapshot?.discountPercent ?? settings.referralRewardPercent ?? 20;
+    const rewardKr = snapshot?.amountKr ?? settings.referralRewardKr ?? 50;
+    const couponsPerSide = settings.referralCouponsPerSide ?? 1;
+
     res.json({
       code,
       shareUrl: `${publicShareBase()}/r/${code}`,
-      enabled: !!settings.referralEnabled,
-      rewardKr: settings.referralRewardKr ?? 50, // legacy — frontend bör använda rewardPercent
-      rewardPercent: settings.referralRewardPercent ?? 20,
+      enabled: !!settings.referralEnabled && !!snapshot,
+      rewardPercent,
+      rewardKr, // legacy
+      couponsPerSide,
       stats,
     });
   } catch (err: any) {
@@ -318,7 +377,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
       return res.status(400).json({ error: 'Du kan inte använda din egen kod' });
     }
 
-    await (prisma as any).referral.create({
+    const newReferral = await (prisma as any).referral.create({
       data: {
         code: normalizedCode,
         inviterUserId: inviter.id,
@@ -332,7 +391,52 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
       },
     });
 
-    res.json({ ok: true, inviterName });
+    // ── Dela ut UserDeals direkt vid redemption ──────────────────────────
+    // Vi pekar på den Deal admin har valt i /admin/marketing-referrals och
+    // snapshotar dess värden in i UserDeal-raderna. Om ingen Deal är vald
+    // (eller den är inaktiv) → skipa silent, referral-raden finns ändå för
+    // stats men ingen reward delas ut.
+    //
+    // Båda parter får N kuponger (N = referralCouponsPerSide, default 1).
+    // Inviter-rewarden ges DIREKT — anti-abuse hanteras av cap-checken som
+    // räknar status='ORDERED' rewards per inviter senaste 30 dagar.
+    let dealsCreatedFor = { invitee: 0, inviter: 0 };
+    if (inviteeUserId) {
+      try {
+        const snapshot = await snapshotReferralDeal();
+        const settings = await getSettings();
+        const couponsPerSide = Math.max(1, settings.referralCouponsPerSide ?? 1);
+        if (snapshot) {
+          // Invitee får sina kuponger
+          for (let i = 0; i < couponsPerSide; i++) {
+            await (prisma as any).userDeal.create({
+              data: {
+                userId: inviteeUserId,
+                dealId: snapshot.dealId,
+                type: 'REFERRAL_INVITEE',
+                amountKr: snapshot.amountKr,
+                discountPercent: snapshot.discountPercent,
+                expiresAt: snapshot.expiresAt,
+                metadata: {
+                  referralId: newReferral.id,
+                  inviterUserId: inviter.id,
+                  minOrderKr: snapshot.minOrderKr,
+                },
+              },
+            });
+            dealsCreatedFor.invitee++;
+          }
+          // Inviter-rewarden hanteras i maybeTriggerReferralReward (vid
+          // invitee:s första betalda order) — anti-abuse, så inte vem
+          // som helst kan göra fake-redeems för att dränera inviter:s
+          // kupong-flöde.
+        }
+      } catch (rewardErr: any) {
+        console.error('[redeem-code] reward-creation error (referral-rad skapad ändå):', rewardErr?.message);
+      }
+    }
+
+    res.json({ ok: true, inviterName, dealsCreated: dealsCreatedFor.invitee });
   } catch (err: any) {
     console.error('[redeem-code] error:', err?.message);
     res.status(500).json({ error: 'Serverfel' });
@@ -382,12 +486,18 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
     if (!inviter) return res.json({ exists: false });
 
     const settings = await getSettings();
+    const snapshot = await snapshotReferralDeal();
+    const rewardPercent = snapshot?.discountPercent ?? settings.referralRewardPercent ?? 20;
+    const rewardKr = snapshot?.amountKr ?? settings.referralRewardKr ?? 50;
     res.json({
       exists: true,
       inviterName: inviter.firstName || inviter.name || 'En vän',
-      rewardKr: settings.referralRewardKr ?? 50, // legacy
-      rewardPercent: settings.referralRewardPercent ?? 20,
-      enabled: !!settings.referralEnabled,
+      rewardPercent,
+      rewardKr, // legacy
+      couponsPerSide: settings.referralCouponsPerSide ?? 1,
+      // enabled = true bara om referral är aktivt OCH admin har valt en Deal.
+      // Annars är systemet "konfigurations-pause".
+      enabled: !!settings.referralEnabled && !!snapshot,
     });
   } catch (err: any) {
     console.error('[referral-preview] error:', err?.message);
@@ -405,14 +515,29 @@ export const adminRouter = Router();
 adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, res) => {
   try {
     const settings = await getSettings();
+    // Lista tillgängliga Deals så admin kan välja referral-reward från dropdown
+    const availableDeals = await (prisma as any).deal.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        title: true,
+        discountType: true,
+        discountValue: true,
+        minOrder: true,
+        validUntil: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
     res.json({
       welcomeDealActive: !!settings.welcomeDealActive,
       welcomeDealAmountKr: settings.welcomeDealAmountKr ?? 50,
       welcomeDealMinOrderKr: settings.welcomeDealMinOrderKr ?? 150,
       welcomeDealExpiresDays: settings.welcomeDealExpiresDays ?? 30,
       referralEnabled: !!settings.referralEnabled,
-      referralRewardKr: settings.referralRewardKr ?? 50,
-      referralMinOrderKr: settings.referralMinOrderKr ?? 150,
+      referralDealId: settings.referralDealId ?? null,
+      referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
+      referralMaxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
+      availableDeals,
     });
   } catch (err: any) {
     res.status(500).json({ error: 'Serverfel', detail: err?.message });
@@ -425,8 +550,9 @@ const welcomeDealUpdateSchema = z.object({
   welcomeDealMinOrderKr: z.number().int().min(0).max(10000).optional(),
   welcomeDealExpiresDays: z.number().int().min(1).max(365).optional(),
   referralEnabled: z.boolean().optional(),
-  referralRewardKr: z.number().int().min(0).max(10000).optional(),
-  referralMinOrderKr: z.number().int().min(0).max(10000).optional(),
+  referralDealId: z.string().nullable().optional(),
+  referralCouponsPerSide: z.number().int().min(1).max(10).optional(),
+  referralMaxRewardsPerInviter: z.number().int().min(0).max(1000).optional(),
 });
 
 adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, res) => {
@@ -434,6 +560,19 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
     const parsed = welcomeDealUpdateSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({ error: 'Ogiltiga värden', detail: parsed.error.errors });
+    }
+    // Om referralDealId skickas: validera att Dealen finns och är aktiv.
+    if (parsed.data.referralDealId) {
+      const deal = await (prisma as any).deal.findUnique({
+        where: { id: parsed.data.referralDealId },
+        select: { id: true, isActive: true },
+      });
+      if (!deal) {
+        return res.status(400).json({ error: 'Vald deal hittades inte' });
+      }
+      if (!deal.isActive) {
+        return res.status(400).json({ error: 'Vald deal är inaktiv — aktivera den först i /admin/deals' });
+      }
     }
     const updated = await (prisma as any).restaurantSettings.update({
       where: { id: 'settings' },
@@ -450,8 +589,9 @@ adminRouter.patch('/welcome-deal', authenticate, requireSuperAdmin, async (req, 
       welcomeDealMinOrderKr: updated.welcomeDealMinOrderKr,
       welcomeDealExpiresDays: updated.welcomeDealExpiresDays,
       referralEnabled: !!updated.referralEnabled,
-      referralRewardKr: updated.referralRewardKr,
-      referralMinOrderKr: updated.referralMinOrderKr,
+      referralDealId: updated.referralDealId,
+      referralCouponsPerSide: updated.referralCouponsPerSide,
+      referralMaxRewardsPerInviter: updated.referralMaxRewardsPerInviter,
     });
   } catch (err: any) {
     console.error('[welcome-deal PATCH] error:', err?.message);
@@ -706,9 +846,20 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
       return;
     }
 
-    const discountPercent = settings.referralRewardPercent ?? 20;
-    const minOrderKr = settings.referralMinOrderKr ?? 150;
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    // Snapshot den admin-valda Dealen för INVITER-rewarden (invitee fick
+    // sina kuponger redan vid redemption). Skipa om ingen Deal vald.
+    const snapshot = await snapshotReferralDeal();
+    if (!snapshot) {
+      // Markera Referral som ORDERED ändå (för stats) men ingen reward.
+      await (prisma as any).referral.updateMany({
+        where: { id: referral.id, status: 'REGISTERED' },
+        data: { status: 'ORDERED', rewardedAt: new Date(), inviteeOrderId: orderId },
+      });
+      console.log(`[referral] Order ${orderId}: ingen referralDealId konfigurerad, hoppar reward`);
+      return;
+    }
+
+    const couponsPerSide = Math.max(1, settings.referralCouponsPerSide ?? 1);
 
     // Interaktiv transaktion + status-guard på updateMany — gör hela operationen
     // idempotent. Webhook + reconcile-poller kan båda trigga denna parallellt;
@@ -726,35 +877,27 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
         // Någon annan hann före — idempotent skip.
         return;
       }
-      await tx.userDeal.create({
-        data: {
-          userId: referral.inviterUserId,
-          type: 'REFERRAL_INVITER',
-          discountPercent,
-          expiresAt,
-          metadata: {
-            referralId: referral.id,
-            inviteeUserId: order.userId,
-            minOrderKr,
+      // INVITER får sina N kuponger. Invitee fick sina vid redemption.
+      for (let i = 0; i < couponsPerSide; i++) {
+        await tx.userDeal.create({
+          data: {
+            userId: referral.inviterUserId,
+            dealId: snapshot.dealId,
+            type: 'REFERRAL_INVITER',
+            amountKr: snapshot.amountKr,
+            discountPercent: snapshot.discountPercent,
+            expiresAt: snapshot.expiresAt,
+            metadata: {
+              referralId: referral.id,
+              inviteeUserId: order.userId,
+              minOrderKr: snapshot.minOrderKr,
+            },
           },
-        },
-      });
-      await tx.userDeal.create({
-        data: {
-          userId: order.userId,
-          type: 'REFERRAL_INVITEE',
-          discountPercent,
-          expiresAt,
-          metadata: {
-            referralId: referral.id,
-            inviterUserId: referral.inviterUserId,
-            minOrderKr,
-          },
-        },
-      });
+        });
+      }
     });
 
-    console.log(`[referral] Rewarded inviter=${referral.inviterUserId} invitee=${order.userId} for ${discountPercent}% each`);
+    console.log(`[referral] Inviter=${referral.inviterUserId} fick ${couponsPerSide} kupong(er) från Deal=${snapshot.dealId} efter invitee=${order.userId}:s första betalda order`);
 
     // TODO: push-notis till inviter när APNs-helper är tillgänglig härifrån
   } catch (err: any) {

@@ -244,10 +244,16 @@ function ReferralSettingsTab({
   isLoading: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    referralEnabled: boolean;
+    referralDealId: string | null;
+    referralCouponsPerSide: number;
+    referralMaxRewardsPerInviter: number;
+  }>({
     referralEnabled: false,
-    referralRewardKr: 30,
-    referralMinOrderKr: 150,
+    referralDealId: null,
+    referralCouponsPerSide: 1,
+    referralMaxRewardsPerInviter: 20,
   });
   const [hydrated, setHydrated] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -257,13 +263,22 @@ function ReferralSettingsTab({
     if (settings && !hydrated) {
       setForm({
         referralEnabled: settings.referralEnabled,
-        referralRewardKr: settings.referralRewardKr,
-        referralMinOrderKr: settings.referralMinOrderKr,
+        referralDealId: settings.referralDealId,
+        referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
+        referralMaxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
       });
       setHydrated(true);
     }
   }, [settings, hydrated]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const availableDeals = settings?.availableDeals ?? [];
+  const selectedDeal = availableDeals.find((d) => d.id === form.referralDealId);
+  const dealHint = selectedDeal
+    ? selectedDeal.discountType === "PERCENTAGE"
+      ? `${selectedDeal.discountValue}% rabatt`
+      : `${selectedDeal.discountValue} kr rabatt`
+    : null;
 
   const mutation = useMutation({
     mutationFn: (payload: Partial<WelcomeDealSettings>) => updateWelcomeDealSettings(payload),
@@ -286,9 +301,11 @@ function ReferralSettingsTab({
     <div className="space-y-5">
       <Surface className="px-6 py-5">
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Referral-systemet</strong> belönar inviter med rabatt när deras invitee gjort
-          en order över min-belopp. Inviter får krediten som personlig UserDeal,
-          som dras av automatiskt på nästa order.
+          <strong>Referral-systemet</strong> kopplar en valfri <strong>Deal</strong> som
+          rabatt-mall. Skapa Dealen i <Link href="/deals" className="underline">/deals</Link> med
+          önskad procent/kronor och välj den nedan. Båda parter (inviter + invitee)
+          får automatiskt kupongen — invitee vid registrering med koden, inviter
+          när invitee:n gjort sin första betalda order.
         </p>
       </Surface>
 
@@ -321,27 +338,72 @@ function ReferralSettingsTab({
       </Surface>
 
       <Surface className="px-6 py-6">
-        <h2 className="text-base font-black uppercase tracking-tight mb-5">Belöning & villkor</h2>
+        <h2 className="text-base font-black uppercase tracking-tight mb-5">Belöning från Deal</h2>
+
+        {availableDeals.length === 0 && (
+          <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            <p className="font-bold mb-1">Inga aktiva Deals hittades</p>
+            <p style={{ color: "var(--text-secondary)" }}>
+              Skapa en Deal i <Link href="/deals" className="underline">/deals</Link> först — t.ex.
+              &quot;Referral 25% rabatt&quot; med discountType=PERCENTAGE och discountValue=25.
+              Aktivera den, sen dyker den upp här.
+            </p>
+          </div>
+        )}
+
         <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Belöning till inviter (kr)">
-            <Input
-              type="number"
-              min={0}
-              value={form.referralRewardKr}
+          <Field label="Vilken Deal ska användas?">
+            <select
+              value={form.referralDealId ?? ""}
               onChange={(e) =>
-                setForm((p) => ({ ...p, referralRewardKr: Number(e.target.value) }))
+                setForm((p) => ({ ...p, referralDealId: e.target.value || null }))
               }
-            />
+              className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+              disabled={mutation.isPending || availableDeals.length === 0}
+            >
+              <option value="">— Välj Deal —</option>
+              {availableDeals.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title} ({d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`})
+                </option>
+              ))}
+            </select>
+            {dealHint && (
+              <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+                ✓ Båda parter får: <strong>{dealHint}</strong>
+              </p>
+            )}
           </Field>
-          <Field label="Min ordervärde för invitee (kr)">
+          <Field label="Antal kuponger per part">
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={form.referralCouponsPerSide}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, referralCouponsPerSide: Number(e.target.value) || 1 }))
+              }
+            />
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+              1 = klassisk. 3 = invitee kan använda rabatten på sina 3 första ordrar.
+            </p>
+          </Field>
+        </div>
+
+        <div className="mt-5">
+          <Field label="Tak per inviter / 30 dagar (anti-fusk)">
             <Input
               type="number"
               min={0}
-              value={form.referralMinOrderKr}
+              max={1000}
+              value={form.referralMaxRewardsPerInviter}
               onChange={(e) =>
-                setForm((p) => ({ ...p, referralMinOrderKr: Number(e.target.value) }))
+                setForm((p) => ({ ...p, referralMaxRewardsPerInviter: Number(e.target.value) || 0 }))
               }
             />
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+              Skyddar mot fake-konton som spammar referrals.
+            </p>
           </Field>
         </div>
 

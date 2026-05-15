@@ -394,14 +394,21 @@ model RestaurantSettings {
   welcomeDealMinOrderKr   Int       @default(150)
   welcomeDealExpiresDays  Int       @default(30)
 
-  // Referral-system — när invitee gör sin första BETALDA order skapas
-  // UserDeal till BÅDA (inviter + invitee). Vi ger procent-rabatt på
-  // subtotal (20 = 20%) istället för fast kr-belopp så restauranger
-  // med olika prisnivåer alla får meningsfull effekt.
+  // Referral-system — använder en valfri Deal som mall för rabatten.
+  // Admin skapar Dealen i /admin/deals och pekar hit via referralDealId.
+  // När referral triggas skapas UserDeal(s) som pekar på Dealen och
+  // snapshotar dess discountValue → UserDeals frusna även om Dealen
+  // senare ändras. referralCouponsPerSide styr hur många kuponger
+  // varje part får (1 = klassisk, 3 = "första 3 ordrar"-modell).
+  //
+  // referralRewardKr/Percent/MinOrderKr behålls för bakåtkompat men
+  // används INTE av ny logik — Dealen själv bär dessa värden nu.
   referralEnabled              Boolean   @default(false)
-  referralRewardKr             Int       @default(50)
-  referralRewardPercent        Int       @default(20)
-  referralMinOrderKr           Int       @default(150)
+  referralDealId               String?
+  referralCouponsPerSide       Int       @default(1)
+  referralRewardKr             Int       @default(50)   // legacy
+  referralRewardPercent        Int       @default(20)   // legacy
+  referralMinOrderKr           Int       @default(150)  // legacy
   referralMaxRewardsPerInviter Int       @default(20)
 }
 

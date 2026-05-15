@@ -3,14 +3,27 @@ import { apiGet, apiPatch, apiPost } from "@/shared/api/client";
 // ────────────────────────────────────────────────────────────────────────────
 // Welcome-deal + Referral settings — singleton-konfig sparad i AdminSettings
 // ────────────────────────────────────────────────────────────────────────────
+export interface AvailableDeal {
+  id: string;
+  title: string;
+  discountType: string;
+  discountValue: number;
+  minOrder: number;
+  validUntil: string | null;
+}
+
 export interface WelcomeDealSettings {
   welcomeDealActive: boolean;
   welcomeDealAmountKr: number;
   welcomeDealMinOrderKr: number;
   welcomeDealExpiresDays: number;
   referralEnabled: boolean;
-  referralRewardKr: number;
-  referralMinOrderKr: number;
+  // Referral pekar nu på en Deal från /admin/deals — admin väljer i dropdown.
+  // Inga hårdkodade procent-fält, all rabatt-logik ligger på Dealen.
+  referralDealId: string | null;
+  referralCouponsPerSide: number;
+  referralMaxRewardsPerInviter: number;
+  availableDeals?: AvailableDeal[];
 }
 
 export const welcomeDealQueryKey = ["marketing-referrals", "welcome-deal"] as const;
