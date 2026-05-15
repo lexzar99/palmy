@@ -102,19 +102,31 @@ export const getAllowedOrigins = (): string[] => {
 /**
  * Strikt CORS-check. Returnerar true om origin är tillåten.
  *
- * - Prod: kräver matchande allow-list. Saknad origin (curl/Postman/native
- *   apps utan Origin-header) blockas — vill inte att en sådan request ska
- *   kunna utnyttja `credentials: true`+cookies för CSRF.
- * - Dev: tillåter localhost/127.0.0.1/192.168.* och saknad origin (för
- *   bekväm curl-testning).
+ * VIKTIGT om no-origin-requests:
+ * CORS är en BROWSER-mekanism. Server-to-server-trafik (Stripe-webhooks,
+ * health-checks, curl, native-app-fetch, Next.js SSR-fetch) har ingen
+ * Origin-header. CSRF kan ALDRIG hända utan en browser — och en browser
+ * sätter ALLTID Origin på cross-origin requests. Därför är "blockera
+ * no-origin" fel verktyg för CSRF-skydd. Rätt skydd: SameSite=Lax cookies
+ * eller CSRF-token. Vi använder JWT i Authorization-header (Bearer) som
+ * inte skickas automatiskt av browsers → ingen CSRF-risk över huvudtaget.
+ *
+ * Bug-historik: tidigare blockerade vi no-origin i prod → Stripe-webhooks
+ * och RN-native-app-fetch fick "Not allowed by CORS" tills denna fix.
+ *
+ * - No-origin: ALLTID tillåten (inte browser → CORS irrelevant).
+ * - Browser med origin i prod: kräver matchande allow-list.
+ * - Browser med origin i dev: tillåter även localhost/127.0.0.1/192.168.*.
  *
  * Vercel-wildcard (`*.vercel.app`) är borttaget — exakta preview-URLer
  * måste läggas till via CORS_ALLOWED_ORIGINS om de behövs för testing.
  */
 export function isOriginAllowed(origin: string | undefined): boolean {
-  const isProd = process.env.NODE_ENV === 'production';
+  // No-origin = inte browser = CORS gäller inte. Tillåt alltid.
+  // Webhooks/health/native-apps auth:as på andra sätt (signatur/JWT).
+  if (!origin) return true;
 
-  if (!origin) return !isProd;
+  const isProd = process.env.NODE_ENV === 'production';
 
   const allowed = getAllowedOrigins();
   if (allowed.includes(origin)) return true;
