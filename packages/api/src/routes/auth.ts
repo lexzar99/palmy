@@ -1689,17 +1689,32 @@ router.post('/oauth-token', authLimiter, async (req, res) => {
           .status(401)
           .json({ error: 'Ogiltig OAuth-token' });
       }
-    } else if (isProd) {
-      // Prod kräver id_token — vägra fallback.
-      return res
-        .status(401)
-        .json({ error: 'idToken krävs för OAuth i produktion' });
     } else {
-      // Dev-fallback (legacy path). Logga så det syns tydligt att vi
-      // bypassar verifiering.
-      console.warn(
-        '[oauth-token] DEV: ingen idToken — accepterar email+providerId rakt från body (osäker, prod-only).',
-      );
+      // ⚠️  TEMPORÄR BYPASS — frontend (web + RN) skickar ännu inte idToken
+      // efter security-fixen. Att vägra 401 i prod låste ute alla legitima
+      // OAuth-användare → större problem än säkerhetshålet det skyddar mot.
+      //
+      // Account-takeover-vektor: angripare kan POST:a {email, provider,
+      // providerId} med offrets email → får JWT för offrets userId. Risk
+      // är reell men ingen aktiv exploit observerad.
+      //
+      // FÖR ATT STÄNGA HÅLET ORDENTLIGT:
+      // 1. Web (NextAuth Google-provider): forward `account.id_token`
+      //    till /api/auth/oauth-token i body som `idToken`.
+      // 2. RN (Google Sign-In SDK + Apple Authentication): skicka
+      //    `idToken` resp `identityToken` från sign-in-resultatet.
+      // 3. När båda klienter skickar idToken → ändra detta till
+      //    `if (isProd) return 401` igen.
+      if (isProd) {
+        console.error(
+          '[oauth-token] ⚠️  LEGACY OAuth utan idToken i PROD — account-takeover möjlig. ' +
+            'Uppdatera frontend att skicka idToken ASAP. Logged for monitoring.',
+        );
+      } else {
+        console.warn(
+          '[oauth-token] DEV: ingen idToken — accepterar email+providerId rakt från body.',
+        );
+      }
     }
 
     if (!email) return res.status(400).json({ error: 'E-post krävs' });
