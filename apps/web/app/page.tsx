@@ -32,6 +32,7 @@ import SponsorCard, { type SponsorData } from "@/components/SponsorCard";
 import DiscountedDishesSection from "@/components/DiscountedDishesSection";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
 import RecentOrderCard from "@/components/RecentOrderCard";
+import WelcomeDealBanner from "@/components/WelcomeDealBanner";
 import { resolveHomeCategoryRestaurants, type HomeCategorySection } from "@/lib/homeCategories";
 import { getPlatformSessionStatus } from "@/lib/platformSessionClient";
 import { formatQuickAddress, parseStoredAddress, rememberQuickAddress } from "@/lib/quickAddresses";
@@ -922,6 +923,10 @@ export default function HomePage() {
 
         {/* Dynamic List Section */}
         <section id="restaurant-list" className="scroll-mt-24">
+          {/* Welcome/Referral deal-banner — visas bara för inloggade som har
+              en aktiv WELCOME/REFERRAL-deal från backend. */}
+          {isLoggedIn && <WelcomeDealBanner enabled={isLoggedIn} />}
+
           {/* Loyalty banner — shown to guests when restaurant list has loaded */}
           {!isLoggedIn && !loading && !apiError && filtered.length > 0 && (
             <div className="mb-6 p-4 rounded-[1.5rem] border border-gold-500/15 bg-gold-500/5 flex items-center gap-4">

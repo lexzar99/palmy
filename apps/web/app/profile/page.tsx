@@ -21,6 +21,7 @@ import {
 import { useCartStore } from "@/store/cartStore";
 import ConfirmModal from "@/components/ConfirmModal";
 import MobileFooterLinks from "@/components/MobileFooterLinks";
+import ReferralCard from "@/components/ReferralCard";
 import { useToast } from "@/components/Toast";
 
 // ─── Country codes ─────────────────────────────────────────────────────────
@@ -1255,6 +1256,10 @@ function ProfileContent() {
                   </p>
                 </div>
               </div>
+
+              {/* Referral-kort: bjud in vänner — visas bara om backend har
+                  referral-feature aktiverad och returnerar enabled=true. */}
+              <ReferralCard />
             </motion.div>
           )}
 

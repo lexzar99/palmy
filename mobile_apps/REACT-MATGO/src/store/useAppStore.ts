@@ -137,6 +137,7 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   token: null,
   profile: null,
   pendingPromoCode: null,
+  pendingReferralCode: null,
   filteredRestaurantIds: null,
   bogoChoice: null,
   activeOrderId: null,
@@ -358,6 +359,9 @@ export const useAppStore = create<AppStoreState>((set, get) => ({
   },
   setPendingPromoCode: (pendingPromoCode) => {
     set({ pendingPromoCode });
+  },
+  setPendingReferralCode: (pendingReferralCode) => {
+    set({ pendingReferralCode });
   },
   setFilteredRestaurantIds: (filteredRestaurantIds) => {
     set({ filteredRestaurantIds });

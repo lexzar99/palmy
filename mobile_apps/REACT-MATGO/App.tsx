@@ -659,6 +659,15 @@ function AppContent() {
 
   const handleNotificationTap = useCallback((data: Record<string, any>) => {
     if (!navigationRef.isReady()) return;
+    // Referral-rewarded push — backend skickar { type: 'REFERRAL_REWARDED' }
+    // när invitee:n gjort sin första order (eller bonus-flöden i framtiden).
+    // Vi navigerar till Profile-fliken där användaren ser sin uppdaterade
+    // stats / kod. ProfileScreen fetchar referral on mount så användaren
+    // landar direkt på de nya siffrorna.
+    if (data?.type === "REFERRAL_REWARDED") {
+      (navigationRef as any).navigate('profile');
+      return;
+    }
     if (data?.orderId) {
       setActiveOrder(data.orderId);
       navigationRef.navigate('order', { id: data.orderId });
@@ -857,6 +866,31 @@ function AppContent() {
         return;
       }
 
+      // ── Referral deep link ───────────────────────────────────────────────
+      // Form: `foodgo://r/<CODE>` — kommer från shareUrl som backenden
+      // returnerar i /api/account/referral. För en redan inloggad användare
+      // visar vi bara en Alert (de kan inte själva använda andras koder).
+      // För en ej inloggad: spara koden i store, bumpa onboarding-screen så
+      // den läser från `pendingReferralCode` och pre-fyller email-flow:n.
+      if (url.startsWith("foodgo://r/")) {
+        const rawCode = url.slice("foodgo://r/".length).split("?")[0].split("#")[0];
+        const code = decodeURIComponent(rawCode || "").trim().toUpperCase().slice(0, 12);
+        if (code) {
+          const currentToken = useAppStore.getState().token;
+          if (currentToken) {
+            // Logged-in user — inga gärna ge dem en bättre väg än Alert,
+            // men profil-sidan är där de delar sin egen kod.
+            Alert.alert(
+              "Redan inloggad",
+              "Du är redan inloggad. Dela din egen kod via Profil.",
+            );
+          } else {
+            useAppStore.getState().setPendingReferralCode(code);
+          }
+        }
+        return;
+      }
+
       // ── Verify-email deep link ───────────────────────────────────────────
       // Mejlets mobil-länk är `foodgo://verify-email?token=<hex>`. Sedan
       // email-verification-gaten infördes är det HÄR den första inloggningen
@@ -976,6 +1010,20 @@ function AppContent() {
     const linkSub = Linking.addEventListener("url", ({ url }) => {
       handleUrl(url).catch(() => {});
     });
+
+    // Cold-start deep link — addEventListener only fires for live URLs. If
+    // the app was launched FROM a referral link we read it here. We don't
+    // re-handle auth/verify-email URLs because those flows have their own
+    // cold-start paths (Supabase auto-handles tokens on launch); we only
+    // need to catch `foodgo://r/<code>` so the referral survives a cold
+    // open from the marketing message.
+    Linking.getInitialURL()
+      .then((url) => {
+        if (url && url.startsWith("foodgo://r/")) {
+          handleUrl(url).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
     return () => {
       authListener.unsubscribe();

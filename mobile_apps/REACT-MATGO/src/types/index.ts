@@ -280,6 +280,10 @@ export interface AppStoreState {
   token: string | null;
   profile: Profile | null;
   pendingPromoCode: string | null;
+  /** Referral code captured from a deep link or pasted into onboarding before
+   *  the user finishes registering. Redeemed via /api/account/redeem-code as
+   *  soon as we have a JWT. Cleared after a successful redeem attempt. */
+  pendingReferralCode: string | null;
   filteredRestaurantIds: string[] | null;
   /** Valda BOGO-gratisprodukt — synkad med CartItem som bär samma dealId. */
   bogoChoice: BogoChoice | null;
@@ -303,6 +307,7 @@ export interface AppStoreState {
   setToken: (token: string | null) => void;
   setProfile: (profile: Profile | null) => void;
   setPendingPromoCode: (code: string | null) => void;
+  setPendingReferralCode: (code: string | null) => void;
   setFilteredRestaurantIds: (ids: string[] | null) => void;
   setBogoChoice: (choice: BogoChoice | null) => void;
   clearSession: () => void;

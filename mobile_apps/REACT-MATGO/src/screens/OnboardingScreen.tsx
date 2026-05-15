@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../hooks/useLanguage';
 import { useAppStore } from '../store/useAppStore';
 import { api } from '../lib/api';
+import { getDeviceFingerprint } from '../lib/deviceFingerprint';
 import { useSharedStyles, useTheme } from '../theme';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAppleAuth } from '../hooks/useAppleAuth';
@@ -688,6 +689,12 @@ export default function OnboardingScreen({
   const setDeliveryAddress = useAppStore((s) => s.setDeliveryAddress);
   const themePreference = useAppStore((s) => s.themePreference);
   const setThemePreference = useAppStore((s) => s.setThemePreference);
+  // Referral code captured from deep link (`foodgo://r/<code>`) or pasted
+  // into the email-flow. Redeemed POST-register / POST-social-auth via
+  // /api/account/redeem-code so the user lands with the WELCOME deal already
+  // attached to their account.
+  const pendingReferralCode = useAppStore((s) => s.pendingReferralCode);
+  const setPendingReferralCode = useAppStore((s) => s.setPendingReferralCode);
   const { t } = useTranslation();
   const { currentLanguage, changeLanguage } = useLanguage();
   const [langPickerOpen, setLangPickerOpen] = useState(false);
@@ -715,6 +722,9 @@ export default function OnboardingScreen({
   const [emailValue, setEmailValue] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  // Referral input — prefilled from deep-link store value, can be pasted by
+  // the user on the email step. Always normalised to upper-case + 12 char cap.
+  const [referralCode, setReferralCode] = useState<string>(pendingReferralCode || "");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -752,6 +762,16 @@ export default function OnboardingScreen({
       Animated.timing(slideAnim, { toValue: 0, duration: 450, useNativeDriver: true }),
     ]).start();
   }, []);
+
+  // If a deep link delivers a referral code mid-onboarding (rare — the
+  // common path is landing-before-deep-link) propagate it into the local
+  // input so the user sees it pre-filled.
+  useEffect(() => {
+    if (pendingReferralCode && !referralCode) {
+      setReferralCode(pendingReferralCode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingReferralCode]);
 
   useEffect(() => {
     stepAnim.setValue(0);
@@ -850,8 +870,40 @@ export default function OnboardingScreen({
     onComplete();
   };
 
+  // Redeem the pending referral code (if any) using a freshly-issued JWT.
+  // Fire-and-forget — onboarding must never block on this, and any error
+  // (invalid code, self-referral, already-redeemed) is silently swallowed so
+  // the user still lands in the app. The store flag is cleared regardless so
+  // we don't retry on the next launch.
+  const redeemReferralIfPending = async (tok: string, email?: string) => {
+    const raw = referralCode.trim().toUpperCase();
+    if (!raw) {
+      // Clear any stale store value just in case (e.g. deep-link delivered a
+      // code but user never finished onboarding — clearing here means the
+      // next signup won't carry over).
+      setPendingReferralCode(null);
+      return;
+    }
+    try {
+      const deviceFingerprint = await getDeviceFingerprint();
+      await api.post(
+        "/api/account/redeem-code",
+        { code: raw, email: email || undefined, deviceFingerprint },
+        { headers: { Authorization: `Bearer ${tok}` } },
+      );
+    } catch {
+      // Tyst — onboarding ska aldrig blockas på referral-fel.
+    } finally {
+      setPendingReferralCode(null);
+    }
+  };
+
   // After auth succeeds: store pending creds locally, then show location gate (or finish if skipping).
   const afterAuth = (tok: string, prof: any) => {
+    // Fire the referral redeem in the background — we don't await it because
+    // onboarding flow must not stall on a network call we've explicitly
+    // declared best-effort.
+    redeemReferralIfPending(tok, prof?.email).catch(() => {});
     if (skipPermissions) {
       finishWithAuth(tok, prof);
     } else {
@@ -1587,6 +1639,30 @@ export default function OnboardingScreen({
                     returnKeyType="done"
                     onSubmitEditing={handleNameNext}
                   />
+                  {/* Referral code (optional). Auto-uppercases + caps at 12
+                      chars. Pre-filled from `pendingReferralCode` when a
+                      `foodgo://r/<code>` deep link arrived earlier. */}
+                  <View style={{ marginTop: 4 }}>
+                    <Text style={{ color: palette.muted, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 6, marginLeft: 4 }}>
+                      {t('onboarding.email.referralLabel')}
+                    </Text>
+                    <TextInput
+                      style={[styles.input, {
+                        paddingVertical: 16,
+                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                        letterSpacing: 2,
+                        textAlign: 'center',
+                      }]}
+                      placeholder={t('onboarding.email.referralPlaceholder')}
+                      placeholderTextColor={palette.muted}
+                      value={referralCode}
+                      onChangeText={(v) => setReferralCode(v.toUpperCase().slice(0, 12))}
+                      autoCapitalize="characters"
+                      autoCorrect={false}
+                      maxLength={12}
+                      returnKeyType="done"
+                    />
+                  </View>
                   {!!error && (
                     <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>
                       <Text style={{ color: "#fca5a5", fontSize: 12, fontWeight: "700", textAlign: "center" }}>{error}</Text>

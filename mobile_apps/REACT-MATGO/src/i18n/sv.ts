@@ -116,6 +116,8 @@ const sv = {
         verified: 'Verifierad! Loggar in dig…',
         checkFailed: 'Kunde inte kolla verifieringen — försök igen',
       },
+      referralLabel: 'Har du en referral-kod? (valfritt)',
+      referralPlaceholder: 'KOD',
       errors: {
         invalidEmail: 'Ange en giltig e-post',
         missingFirst: 'Ange ditt förnamn',
@@ -229,6 +231,10 @@ const sv = {
     },
     empty: 'Ingen träff. Här ekar det tomt just nu.',
     viewAll: 'VISA ALLA',
+    welcomeBanner: {
+      title: 'Du har {{amount}} kr rabatt på din första beställning',
+      subtitle: 'Min. order {{min}} kr · Gäller till {{date}}',
+    },
   },
   discover: {
     title: 'Sök',
@@ -313,6 +319,12 @@ const sv = {
     promo: {
       remove: 'Ta bort',
       check: 'Kolla',
+    },
+    deal: {
+      use: 'Använd {{amount}} kr rabatt',
+      welcomeKicker: 'Välkomst',
+      referralKicker: 'Bjud-in-belöning',
+      minOrderHint: 'Min. order: {{amount}} kr',
     },
     address: {
       default: 'STANDARD',
@@ -445,6 +457,23 @@ const sv = {
       address: 'Adress',
       orderType: 'Ordertyp',
       phone: 'Telefon',
+    },
+    referral: {
+      header: 'Bjud in vänner — tjäna {{amount}} kr åt båda',
+      body: 'När din vän gör sin första beställning får ni båda {{amount}} kr rabatt på nästa beställning.',
+      codeLabel: 'DIN KOD',
+      copyBtn: 'Kopiera',
+      copied: 'Kopierad!',
+      shareBtn: 'Dela',
+      stats: {
+        invited: 'Bjudit in',
+        completed: 'Klart',
+        earned: 'Tjänat',
+      },
+      shareTitle: 'FoodGo',
+      shareMessage: 'Kom till FoodGo med min kod {{code}} — vi får båda {{amount}} kr rabatt på nästa beställning! {{url}}',
+      alreadyLoggedInTitle: 'Redan inloggad',
+      alreadyLoggedInBody: 'Du är redan inloggad. Dela din egen kod via Profil.',
     },
   },
   address: {

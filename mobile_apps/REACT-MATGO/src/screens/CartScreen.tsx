@@ -262,6 +262,21 @@ export default function CartScreen({
   const [quickAddresses, setQuickAddresses] = useState<QuickAddress[]>([]);
   const [promoCode, setPromoCode] = useState("");
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any | null>(null);
+  // Referral / WELCOME deals attached to the user via /api/account/deals.
+  // Backend returns ACTIVE deals (and PENDING/REDEEMED for history). We
+  // show the first ACTIVE WELCOME/REFERRAL_* as an opt-in toggle in the
+  // cart summary. Once toggled on, the deal id is sent on the order
+  // payload as `userDealId` and the backend recomputes / freezes it.
+  type UserDeal = {
+    id: string;
+    type: string;
+    status: string;
+    amountKr: number;
+    expiresAt?: string | null;
+    metadata?: { minOrderKr?: number } | null;
+  };
+  const [userDeals, setUserDeals] = useState<UserDeal[]>([]);
+  const [useUserDeal, setUseUserDeal] = useState<boolean>(false);
   const [deliveryCheck, setDeliveryCheck] = useState<DeliveryCheck | null>(null);
   const [zoneCheckStatus, setZoneCheckStatus] = useState<"ok" | "error" | "checking" | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -461,6 +476,17 @@ export default function CartScreen({
     return campaign.discountValue || 0;
   }, [selectedPersonalDeal, subtotal]);
 
+  // Welcome / referral user-deal — picks the FIRST active one to keep UI
+  // simple. Backend prevents stacking these with other personal/popup
+  // deals, so we only honour `useUserDeal` if no `selectedPersonalDeal` is
+  // also picked (the toggle disables itself in the JSX in that case).
+  const activeUserDeal = userDeals[0] || null;
+  const userDealMinOrderKr = activeUserDeal?.metadata?.minOrderKr || 0;
+  const userDealEligible = !!activeUserDeal && subtotal >= userDealMinOrderKr;
+  const userDealDiscount = useUserDeal && userDealEligible && activeUserDeal
+    ? activeUserDeal.amountKr
+    : 0;
+
   const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
   const deliveryFee =
     orderType === "DELIVERY"
@@ -476,7 +502,10 @@ export default function CartScreen({
   // BOGO-rabatt kommer från server-evaluering — vi visar den som rabatt-rad
   // när den är bäst (paritet med web: `finalDiscount = max(personal, bogo)`).
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
-  const finalDiscount = Math.max(personalDiscount, bogoDiscount);
+  // userDealDiscount stackas inte med personal/BOGO — backend kommer ändå
+  // att avvisa dubbel-applicering. Vi tar den största så användaren ser den
+  // mest fördelaktiga rabatten markerad.
+  const finalDiscount = Math.max(personalDiscount, bogoDiscount, userDealDiscount);
   const isTestCode = __DEV__ && (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa");
   const total = isTestCode ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp - finalDiscount + effectiveTip);
 
@@ -485,7 +514,7 @@ export default function CartScreen({
     let active = true;
     (async () => {
       try {
-        const [settingsRes, profileRes, dealsRes, restaurantRes, citiesRes] = await Promise.all([
+        const [settingsRes, profileRes, dealsRes, restaurantRes, citiesRes, userDealsRes] = await Promise.all([
           api.get("/api/settings").catch(() => ({ data: {} })),
           token
             ? api.get("/api/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: null }))
@@ -497,6 +526,11 @@ export default function CartScreen({
             ? api.get(`/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null }))
             : Promise.resolve({ data: null }),
           api.get("/api/cities").catch(() => ({ data: [] })),
+          // /api/account/deals returnerar referral/WELCOME-deals. Endast
+          // användbart för inloggade — guests har inga user-deals.
+          token
+            ? api.get("/api/account/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { deals: [] } }))
+            : Promise.resolve({ data: { deals: [] } }),
         ]);
 
         if (!active) return;
@@ -520,6 +554,13 @@ export default function CartScreen({
         setProfile(profileRes.data || null);
         setPersonalDeals(dealsRes.data || []);
         setPickupCities(citiesRes.data || []);
+        // ACTIVE user-deals only — PENDING/REDEEMED are for /profile history.
+        // Backend returnerar { deals: [...] } eller direkt en array beroende
+        // på version — vi defensive-läser båda.
+        const rawUserDeals: UserDeal[] = Array.isArray(userDealsRes.data)
+          ? userDealsRes.data
+          : (userDealsRes.data?.deals || []);
+        setUserDeals(rawUserDeals.filter((d: UserDeal) => d.status === "ACTIVE"));
 
         // Detect guest profile (auto-generated "Gäst XXXX" name or empty id) and
         // skip auto-fill of name/phone so they explicitly enter their details.
@@ -1047,6 +1088,11 @@ export default function CartScreen({
         stripePaymentIntentId: finalPaymentIntentId,
         discountCode: selectedPersonalDeal?.code || undefined,
         appliedDealId: undefined,
+        // Referral / WELCOME deal — backend re-validates eligibility + min
+        // order, freezes the discount on the order row, and flips the
+        // UserDeal row to REDEEMED. Skicka inte med id om kunden inte
+        // markerat toggle:n eller om en personal/BOGO-deal vunnit.
+        userDealId: useUserDeal && userDealDiscount > 0 ? activeUserDeal?.id : undefined,
         restaurantId: currentRestaurantId || undefined,
         restaurantSlug: currentRestaurantSlug || undefined,
         lat: coords?.lat,
@@ -2133,6 +2179,62 @@ export default function CartScreen({
             </View>
           )}
 
+          {/* 8c. Referral / WELCOME user-deal — toggle som applicerar deal.amountKr
+              som flat-rabatt på ordern. Backend kontrollerar fortfarande min-order
+              och giltighet vid /api/orders, så toggle:n är BARA UI. När markerad
+              skickas userDealId med i payloaden. */}
+          {activeUserDeal && !selectedPersonalDeal && (
+            <Pressable
+              onPress={() => userDealEligible && setUseUserDeal((v) => !v)}
+              disabled={!userDealEligible}
+              style={{
+                marginTop: 14,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: useUserDeal && userDealEligible
+                  ? "rgba(231,178,75,0.45)"
+                  : "rgba(231,178,75,0.20)",
+                backgroundColor: useUserDeal && userDealEligible
+                  ? "rgba(231,178,75,0.12)"
+                  : "rgba(231,178,75,0.04)",
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                opacity: userDealEligible ? 1 : 0.65,
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.gold, fontSize: 10, fontWeight: "900", letterSpacing: ls(2), textTransform: "uppercase" }}>
+                  {activeUserDeal.type === "WELCOME"
+                    ? t('cart.deal.welcomeKicker').toUpperCase()
+                    : t('cart.deal.referralKicker').toUpperCase()}
+                </Text>
+                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "800", marginTop: 2 }}>
+                  {t('cart.deal.use', { amount: activeUserDeal.amountKr })}
+                </Text>
+                {!userDealEligible && userDealMinOrderKr > 0 && (
+                  <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 3 }}>
+                    {t('cart.deal.minOrderHint', { amount: userDealMinOrderKr })}
+                  </Text>
+                )}
+              </View>
+              <View
+                style={{
+                  width: 22, height: 22, borderRadius: 6,
+                  backgroundColor: useUserDeal && userDealEligible ? palette.gold : "transparent",
+                  borderWidth: 1.5,
+                  borderColor: useUserDeal && userDealEligible ? palette.gold : palette.muted,
+                  alignItems: "center", justifyContent: "center",
+                }}
+              >
+                {useUserDeal && userDealEligible && <Ionicons name="checkmark" size={14} color="#000" />}
+              </View>
+            </Pressable>
+          )}
+
           {/* 9. Summary — paritet med web: Delsumma → Leveransavgift → Dricks →
               Komplettering → Rabatt → Moms (alla rader ovanför) → TOTALT. */}
           <View style={[styles.formCard, { backgroundColor: "transparent", borderWidth: 0, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: palette.border, borderRadius: 0, marginTop: 4, paddingTop: 20 }]}>
@@ -2171,6 +2273,16 @@ export default function CartScreen({
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                   <Text style={{ color: palette.success, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5), fontStyle: "italic" }}>{t('cart.summary.discount')}</Text>
                   <Text style={{ color: palette.success, fontWeight: "900", fontSize: 11, fontStyle: "italic" }}>-{Math.round(personalDiscount)} KR</Text>
+                </View>
+              )}
+              {userDealDiscount > 0 && userDealDiscount >= finalDiscount && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <Text style={{ color: palette.gold, fontWeight: "800", textTransform: "uppercase", fontSize: 11, letterSpacing: ls(0.5), fontStyle: "italic" }} numberOfLines={1}>
+                    🎁 {activeUserDeal?.type === "WELCOME"
+                      ? t('cart.deal.welcomeKicker')
+                      : t('cart.deal.referralKicker')}
+                  </Text>
+                  <Text style={{ color: palette.gold, fontWeight: "900", fontSize: 11, fontStyle: "italic" }}>-{Math.round(userDealDiscount)} KR</Text>
                 </View>
               )}
               <View style={{ flexDirection: "row", justifyContent: "space-between" }}>

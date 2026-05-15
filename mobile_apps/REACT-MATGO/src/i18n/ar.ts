@@ -116,6 +116,8 @@ const ar = {
         verified: 'تم التحقق! جارٍ تسجيل دخولك…',
         checkFailed: 'تعذّر التحقق — حاول مرة أخرى',
       },
+      referralLabel: 'لديك رمز إحالة؟ (اختياري)',
+      referralPlaceholder: 'الرمز',
       errors: {
         invalidEmail: 'أدخل بريداً صحيحاً',
         missingFirst: 'أدخل اسمك الأول',
@@ -229,6 +231,10 @@ const ar = {
     },
     empty: 'لا توجد نتائج. لا شيء هنا الآن.',
     viewAll: 'عرض الكل',
+    welcomeBanner: {
+      title: 'لديك خصم {{amount}} كرونة على طلبك الأول',
+      subtitle: 'الحد الأدنى للطلب {{min}} كرونة · صالح حتى {{date}}',
+    },
   },
   discover: {
     title: 'بحث',
@@ -313,6 +319,12 @@ const ar = {
     promo: {
       remove: 'إزالة',
       check: 'تحقق',
+    },
+    deal: {
+      use: 'استخدم خصم {{amount}} كرونة',
+      welcomeKicker: 'ترحيب',
+      referralKicker: 'مكافأة الإحالة',
+      minOrderHint: 'الحد الأدنى للطلب: {{amount}} كرونة',
     },
     address: {
       default: 'افتراضي',
@@ -445,6 +457,23 @@ const ar = {
       address: 'العنوان',
       orderType: 'نوع الطلب',
       phone: 'الهاتف',
+    },
+    referral: {
+      header: 'ادعُ أصدقاءك — اربحا {{amount}} كرونة لكليكما',
+      body: 'عندما يقدّم صديقك طلبه الأول، تحصلان كلاكما على خصم {{amount}} كرونة على الطلب التالي.',
+      codeLabel: 'رمزك',
+      copyBtn: 'نسخ',
+      copied: 'تم النسخ!',
+      shareBtn: 'مشاركة',
+      stats: {
+        invited: 'تمت دعوته',
+        completed: 'مكتمل',
+        earned: 'مكتسب',
+      },
+      shareTitle: 'FoodGo',
+      shareMessage: 'انضم إلى FoodGo برمزي {{code}} — سنحصل كلانا على خصم {{amount}} كرونة على الطلب التالي! {{url}}',
+      alreadyLoggedInTitle: 'مسجّل الدخول بالفعل',
+      alreadyLoggedInBody: 'أنت مسجّل الدخول بالفعل. شارك رمزك من الملف الشخصي.',
     },
   },
   address: {

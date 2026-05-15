@@ -44,6 +44,7 @@ import { api, getImageUrl } from "../lib/api";
 import { rememberQuickAddress } from "../lib/quickAddresses";
 import { useSharedStyles, useTheme } from "../theme";
 import { getBottomTabsContentPadding, getScreenTopPadding, getStickyHeaderTopInset } from "../constants/layout";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
 // ─── Local helpers ─────────────────────────────────────────────────────────────
@@ -167,6 +168,16 @@ export default function HomeScreen({
   const [zoneRestaurantIds, setZoneRestaurantIds] = useState<string[] | null>(null);
   const [zoneError, setZoneError] = useState<string | null>(null);
   const [sponsors, setSponsors] = useState<any[]>(() => cachedData?.sponsors || []);
+  // Welcome banner — pulls från /api/account/deals. Visas högst upp i feeden
+  // tills användaren stänger den (en gång per device, persisted i AsyncStorage).
+  const [welcomeDeal, setWelcomeDeal] = useState<{
+    id: string;
+    type: string;
+    amountKr: number;
+    expiresAt?: string | null;
+    metadata?: { minOrderKr?: number } | null;
+  } | null>(null);
+  const [welcomeBannerDismissed, setWelcomeBannerDismissed] = useState<boolean>(true);
   const promoListRef = useRef<FlatList<SponsorCarouselItem> | null>(null);
   const [activePromoIndex, setActivePromoIndex] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -278,7 +289,7 @@ export default function HomeScreen({
     let active = true;
     (async () => {
       try {
-        const [restaurantsRes, citiesRes, dealsRes, homeCategorySectionsRes, persDealsRes, sponsorsRes] = await Promise.all([
+        const [restaurantsRes, citiesRes, dealsRes, homeCategorySectionsRes, persDealsRes, sponsorsRes, userDealsRes, bannerDismissedRaw] = await Promise.all([
           api.get("/api/restaurants"),
           api.get("/api/cities"),
           api.get("/api/deals"),
@@ -287,6 +298,12 @@ export default function HomeScreen({
             ? api.get("/api/profile/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
             : Promise.resolve({ data: [] }),
           api.get("/api/sponsors").catch(() => ({ data: [] })),
+          // Welcome / referral user-deals — banner uses the first ACTIVE
+          // WELCOME-deal. Anonymous users skip this entirely.
+          token
+            ? api.get("/api/account/deals", { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { deals: [] } }))
+            : Promise.resolve({ data: { deals: [] } }),
+          AsyncStorage.getItem("welcome_banner_dismissed_v1").catch(() => null),
         ]);
         if (!active) return;
         const nextRestaurants = (restaurantsRes.data || []) as Restaurant[];
@@ -301,6 +318,17 @@ export default function HomeScreen({
         setHomeCategorySections(nextHomeCategorySections);
         setPersonalDeals(nextPersonalDeals);
         setSponsors(nextSponsors);
+
+        // Find first ACTIVE WELCOME deal — backend kan returnera array eller
+        // { deals: [...] }. Banner döljs när användaren tryckt close eller
+        // när det inte finns någon kvalificerad deal.
+        const rawDeals: any[] = Array.isArray(userDealsRes.data)
+          ? userDealsRes.data
+          : (userDealsRes.data?.deals || []);
+        const welcome = rawDeals.find((d) => d.status === "ACTIVE" && d.type === "WELCOME") || null;
+        setWelcomeDeal(welcome);
+        setWelcomeBannerDismissed(bannerDismissedRaw === "1");
+
         setScreenCache<HomeScreenCache>("home", cacheKey, {
           restaurants: nextRestaurants,
           cities: nextCities,
@@ -319,6 +347,11 @@ export default function HomeScreen({
       active = false;
     };
   }, [cacheKey, token]);
+
+  const handleDismissWelcomeBanner = useCallback(() => {
+    setWelcomeBannerDismissed(true);
+    AsyncStorage.setItem("welcome_banner_dismissed_v1", "1").catch(() => {});
+  }, []);
 
   const selectedCity = useMemo(
     () => cities.find((city) => city.name.toLowerCase() === address.toLowerCase()) || null,
@@ -755,6 +788,51 @@ export default function HomeScreen({
             <View style={{ backgroundColor: "rgba(220, 38, 38, 0.12)", borderColor: "rgba(220, 38, 38, 0.3)", borderWidth: 1, borderRadius: 12, padding: 10, marginTop: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Ionicons name="alert-circle" size={14} color="#f87171" />
               <Text style={{ flex: 1, color: "#fca5a5", fontSize: 10, fontWeight: "800", lineHeight: 14 }}>{zoneError}</Text>
+            </View>
+          )}
+
+          {/* Welcome / referral banner — visas högst upp när användaren har
+              en ACTIVE WELCOME-deal och inte tryckt close. Persistent stäng-state
+              i AsyncStorage så banner inte återkommer efter app-restart. */}
+          {welcomeDeal && !welcomeBannerDismissed && (
+            <View
+              style={{
+                marginTop: 12,
+                borderRadius: 18,
+                backgroundColor: "rgba(231,178,75,0.10)",
+                borderWidth: 1,
+                borderColor: "rgba(231,178,75,0.36)",
+                padding: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>🎁</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }} numberOfLines={2}>
+                  {t('home.welcomeBanner.title', { amount: welcomeDeal.amountKr })}
+                </Text>
+                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 3 }} numberOfLines={1}>
+                  {t('home.welcomeBanner.subtitle', {
+                    min: welcomeDeal.metadata?.minOrderKr || 0,
+                    date: welcomeDeal.expiresAt
+                      ? new Date(welcomeDeal.expiresAt).toLocaleDateString("sv-SE")
+                      : "—",
+                  })}
+                </Text>
+              </View>
+              <Pressable
+                onPress={handleDismissWelcomeBanner}
+                hitSlop={10}
+                style={{
+                  width: 28, height: 28, borderRadius: 14,
+                  alignItems: "center", justifyContent: "center",
+                  backgroundColor: "rgba(0,0,0,0.05)",
+                }}
+              >
+                <Ionicons name="close" size={16} color={palette.muted} />
+              </Pressable>
             </View>
           )}
         </View>

@@ -29,6 +29,7 @@ import {
   User as UserIcon,
   ParkingCircle,
   KeyRound,
+  Gift,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -50,6 +51,25 @@ import {
   writeQuickAddresses,
 } from "@/lib/quickAddresses";
 import { PublicDeal, pickBestDeal, formatDealReward } from "@/lib/deals";
+
+// Account-deal från GET /api/account/deals — vi använder ACTIVE-deals av typ
+// WELCOME/REFERRAL_INVITER/REFERRAL_INVITEE som rabatt-checkbox i kassan.
+type UserAccountDeal = {
+  id: string;
+  type: "WELCOME" | "REFERRAL_INVITER" | "REFERRAL_INVITEE" | string;
+  status: "ACTIVE" | "USED" | "EXPIRED" | string;
+  amountKr: number;
+  minOrderKr?: number;
+  expiresAt?: string | null;
+  metadata?: Record<string, any> | null;
+};
+
+function dealTypeLabel(type: string): string {
+  if (type === "WELCOME") return "Välkomst";
+  if (type === "REFERRAL_INVITER") return "Referral-belöning";
+  if (type === "REFERRAL_INVITEE") return "Referral-rabatt";
+  return "Rabatt";
+}
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
@@ -88,6 +108,11 @@ export default function CartPage() {
   const [deals, setDeals] = useState<PublicDeal[]>([]);
   const [personalDeals, setPersonalDeals] = useState<any[]>([]);
   const [selectedPersonalDeal, setSelectedPersonalDeal] = useState<any>(null);
+  // Account-deals (WELCOME, REFERRAL_INVITER, REFERRAL_INVITEE) från
+  // GET /api/account/deals. Endast ACTIVE-status räknas — kund kryssar i för
+  // att applicera, vi skickar userDealId i order-payload.
+  const [accountDeals, setAccountDeals] = useState<UserAccountDeal[]>([]);
+  const [selectedAccountDealId, setSelectedAccountDealId] = useState<string | null>(null);
   const [bogoPreview, setBogoPreview] = useState<{
     discountKr: number; dealTitle: string; dealId: string | null;
     rewardCategoryName: string | null;
@@ -421,19 +446,34 @@ export default function CartPage() {
   }, [selectedPersonalDeal, subtotal]);
 
   const bogoDiscount = bogoPreview?.discountKr ?? 0;
-  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount);
+
+  // Account-deal-rabatt: appliceras bara om vald + min-order är uppfyllt.
+  // Beloppet är alltid amountKr (FIXED), aldrig procent.
+  const selectedAccountDeal = useMemo(
+    () => accountDeals.find((d) => d.id === selectedAccountDealId) || null,
+    [accountDeals, selectedAccountDealId],
+  );
+  const accountDealDiscount = useMemo(() => {
+    if (!selectedAccountDeal) return 0;
+    const minK = selectedAccountDeal.minOrderKr ?? 0;
+    if (subtotal < minK) return 0;
+    return Math.min(selectedAccountDeal.amountKr, subtotal);
+  }, [selectedAccountDeal, subtotal]);
+
+  const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
   // Dricks läggs till total endast vid DELIVERY (RN-paritet — dricks är till leveranspersonen)
   const effectiveTip = orderType === "DELIVERY" ? Math.max(0, tipAmount) : 0;
   const total = (selectedPersonalDeal?.code === "test" || selectedPersonalDeal?.code === "testa") ? 0 : Math.max(0, subtotal + deliveryFee + minOrderTopUp + effectiveTip - finalDiscount);
 
   const fetchContext = useCallback(async () => {
     try {
-      const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes] = await Promise.all([
+      const [settingsRes, dealsRes, userRes, pDealsRes, restaurantRes, accountDealsRes] = await Promise.all([
         axios.get(`${API_URL}/api/settings`).catch(() => ({ data: {} })),
         axios.get(`${API_URL}/api/deals`, { params: currentRestaurantId ? { restaurantId: currentRestaurantId } : {} }).catch(() => ({ data: [] })),
         axios.get(`/api/platform/profile`).catch(() => ({ data: null })),
         axios.get(`/api/platform/profile/deals`).catch(() => ({ data: [] })),
         currentRestaurantId ? axios.get(`${API_URL}/api/restaurants/${currentRestaurantId}`).catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+        axios.get<{ deals: UserAccountDeal[] }>(`/api/platform/account/deals`).catch(() => ({ data: { deals: [] } })),
       ]);
 
       // Only spread non-fee fields from global settings to avoid overwriting zone-specific fees
@@ -456,6 +496,21 @@ export default function CartPage() {
 
       setDeals(dealsRes.data || []);
       setPersonalDeals(pDealsRes.data || []);
+
+      // Account-deals: filtrera ACTIVE av relevant typ. Ordna med "närmaste
+      // utgång" först så användaren ser de mest tids-känsliga rabatterna.
+      const acctDeals = ((accountDealsRes.data?.deals as UserAccountDeal[]) || [])
+        .filter(
+          (d) =>
+            d.status === "ACTIVE" &&
+            ["WELCOME", "REFERRAL_INVITER", "REFERRAL_INVITEE"].includes(d.type),
+        )
+        .sort((a, b) => {
+          const ax = a.expiresAt ? new Date(a.expiresAt).getTime() : Number.POSITIVE_INFINITY;
+          const bx = b.expiresAt ? new Date(b.expiresAt).getTime() : Number.POSITIVE_INFINITY;
+          return ax - bx;
+        });
+      setAccountDeals(acctDeals);
 
       if (userRes.data) {
         setUser(userRes.data);
@@ -519,12 +574,15 @@ export default function CartPage() {
           minOrder: 0
         }
       });
+      setSelectedAccountDealId(null);
       return;
     }
 
     const matched = personalDeals.find(d => d.code.toLowerCase() === code);
     if (matched) {
       setSelectedPersonalDeal(matched);
+      // Rensa account-deal när en kupong-kod väljs — bara en rabatt åt gången
+      setSelectedAccountDealId(null);
       return;
     }
 
@@ -547,6 +605,7 @@ export default function CartPage() {
             freeDelivery: data.freeDelivery || false,
           }
         });
+        setSelectedAccountDealId(null);
       } else {
         const err = await res.json();
         setError(err.error || "Ogiltig rabattkod.");
@@ -758,6 +817,9 @@ export default function CartPage() {
       stripePaymentIntentId: paymentIntentId,
       discountCode: selectedPersonalDeal?.code || undefined,
       appliedDealId: selectedPersonalDeal ? undefined : (automaticDeal.deal?.id || undefined),
+      // Account-deal (WELCOME/REFERRAL_*) — backend matchar mot UserDeal.id
+      // och markerar den som USED när ordern slutförs.
+      userDealId: selectedAccountDeal?.id || undefined,
       restaurantId: useCartStore.getState().restaurantId || undefined,
       restaurantSlug: useCartStore.getState().restaurantSlug || undefined,
       lat: (() => { try { return JSON.parse(localStorage.getItem("platform_coords") || "null")?.lat; } catch { return undefined; } })(),
@@ -1517,6 +1579,70 @@ export default function CartPage() {
                            </div>
                         )}
 
+                        {/* Account-deals (WELCOME / REFERRAL_*) — checkbox per
+                            ACTIVE deal. Endast en kan användas åt gången. Min-
+                            order valideras lokalt; backend validerar igen vid
+                            order-create. */}
+                        {accountDeals.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] mb-2" style={{ color: "var(--text-secondary)" }}>
+                              <Gift size={11} className="inline mr-1.5 text-gold-500" />
+                              Dina belöningar
+                            </p>
+                            {accountDeals.map((d) => {
+                              const min = d.minOrderKr ?? 0;
+                              const meetsMin = subtotal >= min;
+                              const checked = selectedAccountDealId === d.id;
+                              return (
+                                <label
+                                  key={d.id}
+                                  className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3.5 cursor-pointer transition-all ${meetsMin ? "hover:brightness-110" : "opacity-50 cursor-not-allowed"}`}
+                                  style={{
+                                    backgroundColor: checked
+                                      ? "rgba(231,178,75,0.10)"
+                                      : "var(--bg-deep)",
+                                    borderColor: checked
+                                      ? "rgba(231,178,75,0.4)"
+                                      : "var(--border-muted)",
+                                  }}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      disabled={!meetsMin}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedAccountDealId(d.id);
+                                          // Rensa promo-deal när account-deal väljs — bara en åt gången
+                                          setSelectedPersonalDeal(null);
+                                          setPromoCodeInput("");
+                                        } else {
+                                          setSelectedAccountDealId(null);
+                                        }
+                                      }}
+                                      className="h-4 w-4 accent-gold-500 cursor-pointer shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
+                                        Använd {d.amountKr} kr rabatt ({dealTypeLabel(d.type)})
+                                      </p>
+                                      {!meetsMin && min > 0 && (
+                                        <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                          Min order: {min} kr
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-[11px] font-black text-gold-500 shrink-0">
+                                    -{d.amountKr} kr
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+
                         {/* Promo Code Integrated */}
                         <div className="relative group flex items-center">
                           <Tag size={16} className="absolute left-6 text-gold-500/40 group-focus-within:text-gold-500 transition-colors pointer-events-none" />
@@ -1659,7 +1785,16 @@ export default function CartPage() {
                             <span>-{bogoDiscount.toFixed(0)} KR</span>
                           </div>
                         )}
-                        {finalDiscount > 0 && (!bogoPreview || bogoDiscount < finalDiscount) && <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic"><span>Rabatt</span><span>-{finalDiscount.toFixed(0)} KR</span></div>}
+                        {finalDiscount > 0 && (!bogoPreview || bogoDiscount < finalDiscount) && (
+                          <div className="flex justify-between text-[11px] font-black uppercase tracking-widest text-emerald-500 italic">
+                            <span>
+                              {selectedAccountDeal && accountDealDiscount >= finalDiscount
+                                ? dealTypeLabel(selectedAccountDeal.type)
+                                : "Rabatt"}
+                            </span>
+                            <span>-{finalDiscount.toFixed(0)} KR</span>
+                          </div>
+                        )}
                         {restaurantSettings.vatPercent ? (
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
                             <span>Varav moms ({restaurantSettings.vatPercent}%)</span>
@@ -1726,7 +1861,7 @@ export default function CartPage() {
                    {personalDeals.map(deal => {
                      const isEligible = subtotal >= deal.campaign.minOrder;
                      return (
-                        <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all group ${isEligible ? "active:scale-[0.98]" : "opacity-30 grayscale"}`} style={{ backgroundColor: "var(--bg-deep)", borderColor: isEligible ? "rgba(231,178,75,0.2)" : "var(--border-muted)" }}>
+                        <button key={deal.id} disabled={!isEligible} onClick={() => { setSelectedPersonalDeal(deal); setSelectedAccountDealId(null); setShowDealsModal(false); }} className={`w-full text-left p-6 rounded-[2.2rem] border transition-all group ${isEligible ? "active:scale-[0.98]" : "opacity-30 grayscale"}`} style={{ backgroundColor: "var(--bg-deep)", borderColor: isEligible ? "rgba(231,178,75,0.2)" : "var(--border-muted)" }}>
                            <div className="flex items-center justify-between mb-4">
                               <div className="text-[9px] font-black uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>{deal.campaign.title}</div>
                               {isEligible && <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 rounded-md text-[8px] font-black uppercase">REDO</div>}

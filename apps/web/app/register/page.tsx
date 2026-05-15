@@ -1,30 +1,46 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import axios from "axios";
-import { User, ArrowLeft, Loader2 } from "lucide-react";
+import { User, ArrowLeft, Loader2, Gift } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 import { useToast } from "@/components/Toast";
+import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 
 // Registreringen loggar in användaren direkt. Backend skapar kontot, skickar
 // verifieringsmejl fire-and-forget och svarar med JWT + user. Vi persistar
 // sessionen, visar en kort toast om mejlet och navigerar till /profile.
 // Email-verifierings-länken i mejlet leder fortfarande till /verify-email
 // och kan användas senare för att markera kontot som verifierat.
-const RegisterPage = () => {
+//
+// REFERRAL: Om ?ref=KOD i URL ELLER användaren skriver in en kod manuellt,
+// anropar vi POST /api/account/redeem-code efter lyckad registrering.
+// Misslyckad redeem blockerar ALDRIG själva registreringen.
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
+
+  // Pre-fill referral-koden från ?ref=KOD så landing-page-flödet funkar:
+  // /r/KOD → "Registrera nu" → /register?ref=KOD → fältet är förvalt.
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      setReferralCode(ref.toUpperCase().slice(0, 12));
+    }
+  }, [searchParams]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,9 +58,40 @@ const RegisterPage = () => {
       if (token) {
         await persistPlatformSession(token);
       }
-      toast("Kolla din mejl för att verifiera senare!", "success");
+
+      // Referral-redeem är fire-and-forget — själva registreringen får aldrig
+      // blockas av att en kod är ogiltig/utgången/redan-använd.
+      let referralOk = false;
+      let inviterName: string | null = null;
+      const trimmedCode = referralCode.trim().toUpperCase();
+      if (trimmedCode) {
+        try {
+          const redeemRes = await axios.post("/api/platform/account/redeem-code", {
+            code: trimmedCode,
+            email,
+            deviceFingerprint: getDeviceFingerprint(),
+          });
+          if (redeemRes.data?.ok) {
+            referralOk = true;
+            inviterName = redeemRes.data?.inviterName || null;
+          }
+        } catch {
+          // Tyst ignorera — endast registreringen är kritisk
+        }
+      }
+
+      if (referralOk) {
+        toast(
+          inviterName
+            ? `Du och ${inviterName} får båda 50 kr rabatt på nästa beställning!`
+            : "Referral aktiverad — 50 kr rabatt på nästa beställning!",
+          "success",
+        );
+      } else {
+        toast("Kolla din mejl för att verifiera senare!", "success");
+      }
       // Kort paus så toasten hinner synas innan vi byter sida.
-      setTimeout(() => router.push("/profile"), 800);
+      setTimeout(() => router.push("/profile"), referralOk ? 1500 : 800);
     } catch (err: any) {
       setError(err.response?.data?.error || "Registrering misslyckades");
     } finally {
@@ -117,6 +164,26 @@ const RegisterPage = () => {
              className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
            />
 
+           {/* Referral-kod (frivilligt) — automatisk uppercase, max 12 tecken */}
+           <div className="space-y-1.5">
+             <label className="text-[9px] font-black uppercase tracking-widest text-zinc-500 ml-2 flex items-center gap-1.5">
+               <Gift size={11} className="text-gold-500" /> Har du en referral-kod? (Frivilligt)
+             </label>
+             <input
+               type="text"
+               placeholder="T.ex. ANNA8X3K"
+               maxLength={12}
+               value={referralCode}
+               onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-black tracking-[0.3em] text-lg uppercase placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-bold text-gold-500"
+             />
+             {referralCode && (
+               <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
+                 Ni får båda 50 kr rabatt på första beställningen
+               </p>
+             )}
+           </div>
+
            {error && <p className="text-red-500 text-[10px] font-black uppercase tracking-widest text-center">{error}</p>}
 
            <button
@@ -134,6 +201,18 @@ const RegisterPage = () => {
       </motion.div>
     </div>
   );
-};
+}
+
+// useSearchParams() kräver Suspense-boundary i Next 16 — annars går
+// hela sidan i bailout-to-CSR vid prerender, vilket triggar build-error.
+const RegisterPage = () => (
+  <Suspense fallback={
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+      <Loader2 className="animate-spin text-gold-500" size={32} />
+    </div>
+  }>
+    <RegisterContent />
+  </Suspense>
+);
 
 export default RegisterPage;

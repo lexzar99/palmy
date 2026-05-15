@@ -123,6 +123,8 @@ const en = {
         verified: 'Verified! Signing you in…',
         checkFailed: 'Could not check verification — try again',
       },
+      referralLabel: 'Got a referral code? (optional)',
+      referralPlaceholder: 'CODE',
       errors: {
         invalidEmail: 'Enter a valid email',
         missingFirst: 'Enter your first name',
@@ -247,6 +249,10 @@ const en = {
     },
     empty: 'No match. Empty here right now.',
     viewAll: 'VIEW ALL',
+    welcomeBanner: {
+      title: 'You have {{amount}} kr off your first order',
+      subtitle: 'Min. order {{min}} kr · Valid until {{date}}',
+    },
   },
 
   // ── Discover ──────────────────────────────────────────────────────────────
@@ -342,6 +348,12 @@ const en = {
     promo: {
       remove: 'Remove',
       check: 'Check',
+    },
+    deal: {
+      use: 'Use {{amount}} kr discount',
+      welcomeKicker: 'Welcome',
+      referralKicker: 'Referral reward',
+      minOrderHint: 'Min. order: {{amount}} kr',
     },
     address: {
       default: 'DEFAULT',
@@ -476,6 +488,23 @@ const en = {
       address: 'Address',
       orderType: 'Order type',
       phone: 'Phone',
+    },
+    referral: {
+      header: 'Invite friends — earn {{amount}} kr for both of you',
+      body: 'When your friend makes their first order, you both get {{amount}} kr off your next order.',
+      codeLabel: 'YOUR CODE',
+      copyBtn: 'Copy',
+      copied: 'Copied!',
+      shareBtn: 'Share',
+      stats: {
+        invited: 'Invited',
+        completed: 'Done',
+        earned: 'Earned',
+      },
+      shareTitle: 'FoodGo',
+      shareMessage: 'Join FoodGo with my code {{code}} — we both get {{amount}} kr off our next order! {{url}}',
+      alreadyLoggedInTitle: 'Already logged in',
+      alreadyLoggedInBody: 'You are already logged in. Share your own code from Profile.',
     },
   },
 

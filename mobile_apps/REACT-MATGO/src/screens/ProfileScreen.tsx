@@ -2,10 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
+  Clipboard,
   Easing,
   Image,
   Platform,
   Pressable,
+  Share,
   Text,
   TextInput,
   View,
@@ -142,6 +144,16 @@ export default function ProfileScreen({
   const [addNameSaving, setAddNameSaving] = useState(false);
   const [addNameError, setAddNameError] = useState("");
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
+  // Referral system state — fetched alongside profile data, NOT cached on
+  // disk because the stats change as friends sign up / order.
+  const [referral, setReferral] = useState<{
+    code: string;
+    shareUrl: string;
+    enabled: boolean;
+    rewardKr: number;
+    stats: { invited: number; registered: number; ordered: number; totalEarnedKr: number };
+  } | null>(null);
+  const [referralCopied, setReferralCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(() => cachedData?.editName || profile?.name || "");
   const [editEmail, setEditEmail] = useState(() => cachedData?.editEmail || profile?.email || "");
@@ -333,16 +345,24 @@ export default function ProfileScreen({
         // and must not nuke activeOrderId / log the user out if they fail
         // (that was clobbering the LiveOrderBanner mid-login).
         const profileRes = await api.get("/api/profile", { headers });
-        const [ordersResR, dealsResR, addressResR, claimedResR] = await Promise.allSettled([
+        const [ordersResR, dealsResR, addressResR, claimedResR, referralResR] = await Promise.allSettled([
           api.get("/api/profile/orders", { headers }),
           api.get("/api/profile/deals", { headers }),
           api.get("/api/profile/addresses", { headers }),
           api.get("/api/profile/claimed-deals", { headers }),
+          api.get("/api/account/referral", { headers }),
         ]);
         const ordersRes = ordersResR.status === "fulfilled" ? ordersResR.value : { data: [] };
         const dealsRes = dealsResR.status === "fulfilled" ? dealsResR.value : { data: [] };
         const addressRes = addressResR.status === "fulfilled" ? addressResR.value : { data: [] };
         const claimedRes = claimedResR.status === "fulfilled" ? claimedResR.value : { data: { claimed: [], global: [] } };
+        // Referral data is best-effort — if /api/account/referral fails the
+        // section just doesn't render. We don't surface the error because the
+        // rest of the profile is fully functional without it.
+        const referralData = referralResR.status === "fulfilled" ? referralResR.value.data : null;
+        if (referralData && typeof referralData?.code === "string") {
+          setReferral(referralData);
+        }
 
         const nextProfile = (profileRes.data || null) as any;
         setProfile(nextProfile);
@@ -400,6 +420,7 @@ export default function ProfileScreen({
       setOrders([]);
       setDeals([]);
       setSavedAddresses([]);
+      setReferral(null);
       return;
     }
     fetchProfileData(token, { showLoader: initialProfileFetchShouldShowLoader }).catch(() => clearSession());
@@ -631,6 +652,41 @@ export default function ProfileScreen({
     },
     [addItem, clearCart, getAuthHeaders, openCart, token]
   );
+
+  // ── Referral handlers ───────────────────────────────────────────────────
+  // Copy: use the legacy react-native `Clipboard` (deprecated but still
+  // works in RN 0.81 — `expo-clipboard` isn't installed and adding a new
+  // native dependency is out of scope). On web Clipboard.setString is a
+  // no-op shim; the copied toast still fires so behaviour is consistent.
+  const handleCopyReferralCode = useCallback(() => {
+    if (!referral) return;
+    try {
+      Clipboard.setString(referral.code);
+    } catch {}
+    setReferralCopied(true);
+    setTimeout(() => setReferralCopied(false), 1800);
+  }, [referral]);
+
+  const handleShareReferral = useCallback(async () => {
+    if (!referral) return;
+    const message = t('profile.referral.shareMessage', {
+      code: referral.code,
+      amount: referral.rewardKr,
+      url: referral.shareUrl,
+    });
+    try {
+      await Share.share({
+        title: t('profile.referral.shareTitle'),
+        message,
+        // iOS-only — when both message and url are supplied iOS shows them
+        // as a single rich-link card in most receivers. Android collapses
+        // url into message which is also fine.
+        url: referral.shareUrl,
+      } as any);
+    } catch {
+      // User cancelled or sheet failed — no-op.
+    }
+  }, [referral, t]);
 
   const handleDeleteAccount = useCallback(() => {
     if (!token) return;
@@ -1088,6 +1144,149 @@ export default function ProfileScreen({
               </Pressable>
             ))}
           </View>
+
+          {/* ── Referral / Bjud in vänner ─────────────────────────────────
+              Visas bara när /api/account/referral returnerade enabled=true
+              och en kod. Backend gatear hela funktionen — den kan vara
+              avstängd globalt eller per användare (suspicious-flagg etc.). */}
+          {referral && referral.enabled && referral.code && (
+            <View
+              style={{
+                marginTop: 14,
+                borderRadius: 30,
+                backgroundColor: "rgba(234,181,69,0.06)",
+                borderWidth: 1,
+                borderColor: "rgba(234,181,69,0.32)",
+                padding: 22,
+                gap: 16,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Text style={{ fontSize: 20 }}>🎁</Text>
+                <Text style={{
+                  flex: 1, color: palette.text, fontSize: 15, fontWeight: "900",
+                  fontStyle: "italic", letterSpacing: -0.3,
+                }}>
+                  {t('profile.referral.header', { amount: referral.rewardKr })}
+                </Text>
+              </View>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", lineHeight: 17 }}>
+                {t('profile.referral.body', { amount: referral.rewardKr })}
+              </Text>
+
+              {/* Code display */}
+              <View style={{
+                backgroundColor: palette.panelMuted,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: palette.border,
+                paddingVertical: 16,
+                paddingHorizontal: 18,
+                alignItems: "center",
+                gap: 4,
+              }}>
+                <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2) }}>
+                  {t('profile.referral.codeLabel')}
+                </Text>
+                <Text style={{
+                  color: palette.gold,
+                  fontSize: 26,
+                  fontWeight: "900",
+                  letterSpacing: 4,
+                  fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+                }}>
+                  {referral.code}
+                </Text>
+              </View>
+
+              {/* Copy + Share buttons */}
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  onPress={handleCopyReferralCode}
+                  style={{
+                    flex: 1,
+                    backgroundColor: palette.panel,
+                    borderWidth: 1,
+                    borderColor: palette.border,
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons
+                    name={referralCopied ? "checkmark-circle" : "copy-outline"}
+                    size={16}
+                    color={referralCopied ? "#10b981" : palette.text}
+                  />
+                  <Text style={{
+                    color: referralCopied ? "#10b981" : palette.text,
+                    fontSize: 12,
+                    fontWeight: "900",
+                    letterSpacing: ls(1),
+                  }}>
+                    {referralCopied
+                      ? t('profile.referral.copied').toUpperCase()
+                      : t('profile.referral.copyBtn').toUpperCase()}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={handleShareReferral}
+                  style={{
+                    flex: 1,
+                    backgroundColor: palette.gold,
+                    borderRadius: 16,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                    flexDirection: "row",
+                    justifyContent: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Ionicons name="share-outline" size={16} color="#000" />
+                  <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: ls(1) }}>
+                    {t('profile.referral.shareBtn').toUpperCase()}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Stats row */}
+              <View style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                borderTopWidth: 1,
+                borderTopColor: palette.border,
+                paddingTop: 14,
+              }}>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", fontStyle: "italic" }}>
+                    {referral.stats.invited}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(1), marginTop: 2 }}>
+                    {t('profile.referral.stats.invited').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", fontStyle: "italic" }}>
+                    {referral.stats.ordered}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(1), marginTop: 2 }}>
+                    {t('profile.referral.stats.completed').toUpperCase()}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, alignItems: "center" }}>
+                  <Text style={{ color: palette.gold, fontSize: 22, fontWeight: "900", fontStyle: "italic" }}>
+                    {referral.stats.totalEarnedKr}
+                  </Text>
+                  <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(1), marginTop: 2 }}>
+                    {t('profile.referral.stats.earned').toUpperCase()} kr
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
         </>
       )}
 
