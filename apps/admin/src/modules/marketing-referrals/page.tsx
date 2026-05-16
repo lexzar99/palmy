@@ -25,7 +25,6 @@ import {
   Input,
   PageHeader,
   Surface,
-  Tabs,
 } from "@/shared/components/ui";
 import { formatCurrency, formatNumber } from "@/shared/utils/format";
 import {
@@ -39,8 +38,6 @@ import {
   type PersonalDealType,
   type WelcomeDealSettings,
 } from "@/modules/marketing-referrals/api";
-
-type Tab = "welcome" | "referral" | "stats";
 
 // Format-helper för deal-display. discountType + freeDelivery kan stacka:
 //   "25%" / "50 kr" / "Fri leverans" / "25% + Fri leverans".
@@ -125,370 +122,6 @@ function ToggleRow({
       >
         {value ? "Stäng av" : "Aktivera"}
       </Button>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Tab 1 — Welcome-deal form (aktiv-toggle + belopp + min-order + expires-dagar)
-// ────────────────────────────────────────────────────────────────────────────
-function WelcomeDealTab({
-  settings,
-  isLoading,
-}: {
-  settings: WelcomeDealSettings | undefined;
-  isLoading: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<{
-    welcomeDealActive: boolean;
-    welcomeDealId: string | null;
-  }>({
-    welcomeDealActive: false,
-    welcomeDealId: null,
-  });
-  const [hydrated, setHydrated] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (settings && !hydrated) {
-      setForm({
-        welcomeDealActive: settings.welcomeDealActive,
-        welcomeDealId: settings.welcomeDealId,
-      });
-      setHydrated(true);
-    }
-  }, [settings, hydrated]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const mutation = useMutation({
-    mutationFn: (payload: Partial<WelcomeDealSettings>) => updateWelcomeDealSettings(payload),
-    onSuccess: async () => {
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 2500);
-      await queryClient.invalidateQueries({ queryKey: welcomeDealQueryKey });
-    },
-  });
-
-  if (isLoading) {
-    return (
-      <Surface className="px-6 py-12 text-sm flex items-center gap-3 text-[var(--text-secondary)]">
-        <Loader2 size={14} className="animate-spin" /> Laddar inställningar…
-      </Surface>
-    );
-  }
-
-  const availableDeals = settings?.availableDeals ?? [];
-  const selectedDeal = availableDeals.find((d) => d.id === form.welcomeDealId);
-  const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
-
-  return (
-    <div className="space-y-5">
-      <Surface className="px-6 py-5">
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Welcome-deal</strong> är rabatten som ges automatiskt till nya kunder vid
-          registrering. Kopplar en <strong>personlig deal-mall</strong> (samma typ som referral
-          använder) — admin skapar mallen i Referral Settings-fliken och pekar den hit.
-        </p>
-      </Surface>
-
-      {mutation.isError && (
-        <Surface className="px-6 py-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle size={18} className="text-red-500 mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <div className="font-bold mb-0.5">Kunde inte spara</div>
-              <div style={{ color: "var(--text-secondary)" }}>
-                {(mutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)
-                  ?.response?.data?.error
-                  || (mutation.error as { message?: string } | undefined)?.message
-                  || "Okänt fel"}
-              </div>
-            </div>
-          </div>
-        </Surface>
-      )}
-
-      <Surface className="px-6 py-6">
-        <ToggleRow
-          icon={<Gift size={16} className="text-[var(--accent)]" />}
-          title="Welcome-deal aktiv"
-          description="Slå på för att skapa welcome-deals automatiskt vid registrering."
-          value={form.welcomeDealActive}
-          onChange={(next) => setForm((p) => ({ ...p, welcomeDealActive: next }))}
-          disabled={mutation.isPending}
-        />
-      </Surface>
-
-      <PersonalDealCreateForm />
-
-      <Surface className="px-6 py-6">
-        <h2 className="text-base font-black uppercase tracking-tight mb-5">Vilken mall ska användas?</h2>
-
-        {availableDeals.length === 0 && (
-          <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
-            <p className="font-bold mb-1">Inga personliga mallar finns</p>
-            <p style={{ color: "var(--text-secondary)" }}>
-              Skapa en mall ovan (t.ex. &quot;Welcome 25%&quot; med PERCENTAGE och 25). När den
-              finns dyker den upp i dropdownen.
-            </p>
-          </div>
-        )}
-
-        <Field label="Personlig deal-mall">
-          <select
-            value={form.welcomeDealId ?? ""}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, welcomeDealId: e.target.value || null }))
-            }
-            className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
-            disabled={mutation.isPending || availableDeals.length === 0}
-          >
-            <option value="">— Välj mall —</option>
-            {availableDeals.map((d) => (
-              <option key={d.id} value={d.id}>
-                {formatDealLabel(d)}
-              </option>
-            ))}
-          </select>
-          {dealHint && (
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              ✓ Nya användare får: <strong>{dealHint}</strong> vid registrering
-            </p>
-          )}
-        </Field>
-
-        <div className="mt-6">
-          <Button
-            variant="primary"
-            onClick={() => mutation.mutate(form)}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : savedFlash ? (
-              <Check size={16} />
-            ) : (
-              <Save size={16} />
-            )}
-            {mutation.isPending ? "Sparar…" : savedFlash ? "Sparat!" : "Spara"}
-          </Button>
-        </div>
-      </Surface>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Tab 2 — Referral-settings (aktiv-toggle + belöning + min-order)
-// ────────────────────────────────────────────────────────────────────────────
-function ReferralSettingsTab({
-  settings,
-  isLoading,
-}: {
-  settings: WelcomeDealSettings | undefined;
-  isLoading: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState<{
-    referralEnabled: boolean;
-    referralDealId: string | null;
-    referralCouponsPerSide: number;
-    referralMaxRewardsPerInviter: number;
-  }>({
-    referralEnabled: false,
-    referralDealId: null,
-    referralCouponsPerSide: 1,
-    referralMaxRewardsPerInviter: 20,
-  });
-  const [hydrated, setHydrated] = useState(false);
-  const [savedFlash, setSavedFlash] = useState(false);
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (settings && !hydrated) {
-      setForm({
-        referralEnabled: settings.referralEnabled,
-        referralDealId: settings.referralDealId,
-        referralCouponsPerSide: settings.referralCouponsPerSide ?? 1,
-        referralMaxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
-      });
-      setHydrated(true);
-    }
-  }, [settings, hydrated]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const availableDeals = settings?.availableDeals ?? [];
-  const selectedDeal = availableDeals.find((d) => d.id === form.referralDealId);
-  const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
-
-  const mutation = useMutation({
-    mutationFn: (payload: Partial<WelcomeDealSettings>) => updateWelcomeDealSettings(payload),
-    onSuccess: async () => {
-      setSavedFlash(true);
-      setTimeout(() => setSavedFlash(false), 2500);
-      await queryClient.invalidateQueries({ queryKey: welcomeDealQueryKey });
-    },
-  });
-
-  if (isLoading) {
-    return (
-      <Surface className="px-6 py-12 text-sm flex items-center gap-3 text-[var(--text-secondary)]">
-        <Loader2 size={14} className="animate-spin" /> Laddar inställningar…
-      </Surface>
-    );
-  }
-
-  return (
-    <div className="space-y-5">
-      <Surface className="px-6 py-5">
-        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          <strong>Referral-systemet</strong> kopplar en <strong>personlig deal-mall</strong> som
-          tilldelas per-användare (inte en publik kupong-kod). Skapa en mall nedan
-          med önskad procent/kronor och välj den i dropdownen. Båda parter
-          (inviter + invitee) får automatiskt kupongen — invitee vid registrering,
-          inviter när invitee gjort sin första betalda order.
-        </p>
-      </Surface>
-
-      <PersonalDealCreateForm />
-
-
-      {mutation.isError && (
-        <Surface className="px-6 py-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle size={18} className="text-red-500 mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <div className="font-bold mb-0.5">Kunde inte spara</div>
-              <div style={{ color: "var(--text-secondary)" }}>
-                {(mutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)
-                  ?.response?.data?.error
-                  || (mutation.error as { message?: string } | undefined)?.message
-                  || "Okänt fel"}
-              </div>
-            </div>
-          </div>
-        </Surface>
-      )}
-
-      <Surface className="px-6 py-6">
-        <ToggleRow
-          icon={<UserPlus size={16} className="text-[var(--accent)]" />}
-          title="Referral-system aktivt"
-          description="Slå på för att låta användare bjuda in vänner och få belöning vid första order."
-          value={form.referralEnabled}
-          onChange={(next) => setForm((p) => ({ ...p, referralEnabled: next }))}
-          disabled={mutation.isPending}
-        />
-      </Surface>
-
-      <Surface className="px-6 py-6">
-        <h2 className="text-base font-black uppercase tracking-tight mb-5">Belöning från Deal</h2>
-
-        {availableDeals.length === 0 && (
-          <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
-            <p className="font-bold mb-1">Inga aktiva Deals hittades</p>
-            <p style={{ color: "var(--text-secondary)" }}>
-              Skapa en Deal i <Link href="/deals" className="underline">/deals</Link> först — t.ex.
-              &quot;Referral 25% rabatt&quot; med discountType=PERCENTAGE och discountValue=25.
-              Aktivera den, sen dyker den upp här.
-            </p>
-          </div>
-        )}
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <Field label="Vilken Deal ska användas?">
-            <select
-              value={form.referralDealId ?? ""}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, referralDealId: e.target.value || null }))
-              }
-              className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
-              disabled={mutation.isPending || availableDeals.length === 0}
-            >
-              <option value="">— Välj Deal —</option>
-              {availableDeals.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {formatDealLabel(d)}
-                </option>
-              ))}
-            </select>
-            {dealHint && (
-              <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-                ✓ Båda parter får: <strong>{dealHint}</strong>
-              </p>
-            )}
-          </Field>
-          <Field label="Antal kuponger per part">
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              value={form.referralCouponsPerSide}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, referralCouponsPerSide: Number(e.target.value) || 1 }))
-              }
-            />
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              1 = klassisk. 3 = invitee kan använda rabatten på sina 3 första ordrar.
-            </p>
-          </Field>
-        </div>
-
-        <div className="mt-5">
-          <Field label="Tak per inviter / 30 dagar (anti-fusk)">
-            <Input
-              type="number"
-              min={0}
-              max={1000}
-              value={form.referralMaxRewardsPerInviter}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, referralMaxRewardsPerInviter: Number(e.target.value) || 0 }))
-              }
-            />
-            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
-              Skyddar mot fake-konton som spammar referrals.
-            </p>
-          </Field>
-        </div>
-
-        <div className="mt-6">
-          <Button
-            variant="primary"
-            onClick={() => mutation.mutate(form)}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : savedFlash ? (
-              <Check size={16} />
-            ) : (
-              <Save size={16} />
-            )}
-            {mutation.isPending ? "Sparar…" : savedFlash ? "Sparat!" : "Spara"}
-          </Button>
-        </div>
-      </Surface>
-
-      <Surface className="px-6 py-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <List size={16} className="text-[var(--accent)]" />
-            <div>
-              <p className="font-black text-sm">Alla referrals</p>
-              <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-                Lista med detaljer, filter, fraud-flags och revert-möjlighet.
-              </p>
-            </div>
-          </div>
-          <Link href="/marketing-referrals/list">
-            <Button variant="secondary">
-              Visa lista <ArrowRight size={14} />
-            </Button>
-          </Link>
-        </div>
-      </Surface>
     </div>
   );
 }
@@ -754,7 +387,7 @@ function ConversionArrow({ from, to }: { from: number; to: number }) {
   );
 }
 
-function StatsTab() {
+export function StatsTab() {
   const stats = useQuery({
     queryKey: referralStatsQueryKey,
     queryFn: getReferralStats,
@@ -859,11 +492,11 @@ function StatsTab() {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Huvudsida — 3 tabbar
+// Huvudsida — EN unified vy (tidigare 3 tabbar). Statistik flyttad till
+// /marketing-referrals/stats. En enda toggle och en enda mall som styr
+// både welcome-deal-flow och referral-flow simultant.
 // ────────────────────────────────────────────────────────────────────────────
 export function MarketingReferralsPage() {
-  const [tab, setTab] = useState<Tab>("welcome");
-
   const settings = useQuery({
     queryKey: welcomeDealQueryKey,
     queryFn: getWelcomeDealSettings,
@@ -874,33 +507,239 @@ export function MarketingReferralsPage() {
       <PageHeader
         title="Marketing & Referrals"
         actions={
-          <Link href="/marketing-referrals/list">
-            <Button variant="secondary">
-              <List size={14} /> Alla referrals
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/marketing-referrals/stats">
+              <Button variant="secondary">Statistik</Button>
+            </Link>
+            <Link href="/marketing-referrals/list">
+              <Button variant="secondary">
+                <List size={14} /> Alla referrals
+              </Button>
+            </Link>
+          </div>
         }
       />
 
-      <Tabs<Tab>
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: "welcome", label: "Welcome Deal" },
-          { value: "referral", label: "Referral Settings" },
-          { value: "stats", label: "Statistik" },
-        ]}
-      />
+      <UnifiedMarketingTab settings={settings.data} isLoading={settings.isLoading} />
+    </div>
+  );
+}
 
-      {tab === "welcome" ? (
-        <WelcomeDealTab settings={settings.data} isLoading={settings.isLoading} />
-      ) : null}
+/**
+ * En enda vy som hanterar både welcome-deal och referral. Admin väljer
+ * EN deal-mall som används för båda flöden. Toggle aktiverar/deaktiverar
+ * båda samtidigt och sparas omedelbart (ingen separat Spara-knapp för
+ * just toggeln — buggen tidigare var att toggle bara uppdaterade local
+ * state och försvann om man lämnade sidan utan att klicka Spara).
+ */
+function UnifiedMarketingTab({
+  settings,
+  isLoading,
+}: {
+  settings: WelcomeDealSettings | undefined;
+  isLoading: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState<{
+    dealId: string | null;
+    couponsPerSide: number;
+    maxRewardsPerInviter: number;
+  }>({
+    dealId: null,
+    couponsPerSide: 1,
+    maxRewardsPerInviter: 20,
+  });
+  const [hydrated, setHydrated] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  // active = båda welcome OCH referral aktiva. Vi visar EN toggle men
+  // sätter två fält i backend.
+  const active =
+    settings != null && settings.welcomeDealActive && settings.referralEnabled;
 
-      {tab === "referral" ? (
-        <ReferralSettingsTab settings={settings.data} isLoading={settings.isLoading} />
-      ) : null}
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (settings && !hydrated) {
+      // Använd referralDealId som primär (mest sannolikt satt eftersom
+      // det är vad referral-flödet kräver). Faller tillbaka till welcomeDealId.
+      setForm({
+        dealId: settings.referralDealId ?? settings.welcomeDealId ?? null,
+        couponsPerSide: settings.referralCouponsPerSide ?? 1,
+        maxRewardsPerInviter: settings.referralMaxRewardsPerInviter ?? 20,
+      });
+      setHydrated(true);
+    }
+  }, [settings, hydrated]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-      {tab === "stats" ? <StatsTab /> : null}
+  const mutation = useMutation({
+    mutationFn: (payload: Partial<WelcomeDealSettings>) => updateWelcomeDealSettings(payload),
+    onSuccess: async () => {
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 2500);
+      await queryClient.invalidateQueries({ queryKey: welcomeDealQueryKey });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Surface className="px-6 py-12 text-sm flex items-center gap-3 text-[var(--text-secondary)]">
+        <Loader2 size={14} className="animate-spin" /> Laddar inställningar…
+      </Surface>
+    );
+  }
+
+  const availableDeals = settings?.availableDeals ?? [];
+  const selectedDeal = availableDeals.find((d) => d.id === form.dealId);
+  const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
+
+  // Toggle sparar OMEDELBART vid klick — sätter både welcome och referral.
+  const handleToggleActive = (next: boolean) => {
+    mutation.mutate({
+      welcomeDealActive: next,
+      referralEnabled: next,
+    });
+  };
+
+  // Spara-knapp persisterar resten (dropdown + kuponger + tak). Sätter
+  // BÅDA welcomeDealId och referralDealId till samma värde så båda flöden
+  // använder samma mall.
+  const handleSaveConfig = () => {
+    mutation.mutate({
+      welcomeDealId: form.dealId,
+      referralDealId: form.dealId,
+      referralCouponsPerSide: form.couponsPerSide,
+      referralMaxRewardsPerInviter: form.maxRewardsPerInviter,
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      <Surface className="px-6 py-5">
+        <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+          <strong>Marknadsföring</strong> — välj EN deal-mall som ges automatiskt
+          till nya användare vid registrering (welcome) OCH till båda parter när
+          någon använder en referral-kod. En toggle, en mall, samma rabatt
+          överallt.
+        </p>
+      </Surface>
+
+      {mutation.isError && (
+        <Surface className="px-6 py-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle size={18} className="text-red-500 mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <div className="font-bold mb-0.5">Kunde inte spara</div>
+              <div style={{ color: "var(--text-secondary)" }}>
+                {(mutation.error as { response?: { data?: { error?: string } }; message?: string } | undefined)
+                  ?.response?.data?.error
+                  || (mutation.error as { message?: string } | undefined)?.message
+                  || "Okänt fel"}
+              </div>
+            </div>
+          </div>
+        </Surface>
+      )}
+
+      <Surface className="px-6 py-6">
+        <ToggleRow
+          icon={<Gift size={16} className="text-[var(--accent)]" />}
+          title="Marknadsföring aktiv"
+          description="Slå PÅ för att aktivera både welcome-deal och referral-system. Sparas direkt."
+          value={active}
+          onChange={handleToggleActive}
+          disabled={mutation.isPending}
+        />
+      </Surface>
+
+      <PersonalDealCreateForm />
+
+      <Surface className="px-6 py-6">
+        <h2 className="text-base font-black uppercase tracking-tight mb-5">Vilken mall ska användas?</h2>
+
+        {availableDeals.length === 0 && (
+          <div className="mb-5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+            <p className="font-bold mb-1">Inga personliga mallar finns</p>
+            <p style={{ color: "var(--text-secondary)" }}>
+              Skapa en mall ovan (t.ex. &quot;Welcome 25%&quot; med PERCENTAGE och 25). När den
+              finns dyker den upp i dropdownen.
+            </p>
+          </div>
+        )}
+
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Personlig deal-mall">
+            <select
+              value={form.dealId ?? ""}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, dealId: e.target.value || null }))
+              }
+              className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
+              disabled={mutation.isPending || availableDeals.length === 0}
+            >
+              <option value="">— Välj mall —</option>
+              {availableDeals.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {formatDealLabel(d)}
+                </option>
+              ))}
+            </select>
+            {dealHint && (
+              <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+                ✓ Alla får: <strong>{dealHint}</strong>
+              </p>
+            )}
+          </Field>
+
+          <Field label="Antal kuponger per part (referral)">
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={form.couponsPerSide}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, couponsPerSide: Number(e.target.value) || 1 }))
+              }
+            />
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+              1 = klassisk. 3 = invitee kan använda rabatten på 3 ordrar.
+            </p>
+          </Field>
+        </div>
+
+        <div className="mt-5">
+          <Field label="Tak per inviter / 30 dagar (anti-fusk)">
+            <Input
+              type="number"
+              min={0}
+              max={1000}
+              value={form.maxRewardsPerInviter}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, maxRewardsPerInviter: Number(e.target.value) || 0 }))
+              }
+            />
+            <p className="text-xs mt-1.5" style={{ color: "var(--text-secondary)" }}>
+              Skyddar mot fake-konton som spammar referrals.
+            </p>
+          </Field>
+        </div>
+
+        <div className="mt-6">
+          <Button
+            variant="primary"
+            onClick={handleSaveConfig}
+            disabled={mutation.isPending}
+          >
+            {mutation.isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : savedFlash ? (
+              <Check size={16} />
+            ) : (
+              <Save size={16} />
+            )}
+            {mutation.isPending ? "Sparar…" : savedFlash ? "Sparat!" : "Spara"}
+          </Button>
+        </div>
+      </Surface>
     </div>
   );
 }
