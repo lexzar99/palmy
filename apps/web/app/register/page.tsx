@@ -129,7 +129,8 @@ function RegisterContent() {
              required
              value={firstName}
              onChange={(e) => setFirstName(e.target.value)}
-             className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
            <input
              type="text"
@@ -137,7 +138,8 @@ function RegisterContent() {
              required
              value={lastName}
              onChange={(e) => setLastName(e.target.value)}
-             className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
            <input
              type="email"
@@ -145,7 +147,8 @@ function RegisterContent() {
              required
              value={email}
              onChange={(e) => setEmail(e.target.value)}
-             className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
            <input
              type="tel"
@@ -153,7 +156,8 @@ function RegisterContent() {
              required
              value={phone}
              onChange={(e) => setPhone(e.target.value)}
-             className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
            <input
              type="password"
@@ -161,7 +165,8 @@ function RegisterContent() {
              required
              value={password}
              onChange={(e) => setPassword(e.target.value)}
-             className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500 text-white"
+             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
 
            {/* Referral-kod (frivilligt) — automatisk uppercase, max 12 tecken */}
@@ -175,7 +180,8 @@ function RegisterContent() {
                maxLength={12}
                value={referralCode}
                onChange={(e) => setReferralCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
-               className="w-full bg-white/5 border border-white/5 rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-black tracking-[0.3em] text-lg uppercase placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-bold text-gold-500"
+               className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-black tracking-[0.3em] text-lg uppercase placeholder:text-zinc-600 placeholder:tracking-normal placeholder:font-bold text-gold-500"
+               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)" }}
              />
              {referralCode && (
                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-500 ml-2">
