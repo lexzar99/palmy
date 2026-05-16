@@ -58,17 +58,21 @@ type UserAccountDeal = {
   id: string;
   type: "WELCOME" | "REFERRAL_INVITER" | "REFERRAL_INVITEE" | string;
   status: "ACTIVE" | "USED" | "EXPIRED" | string;
-  amountKr?: number; // legacy — kr-rabatt
-  discountPercent?: number; // ny — 20 = 20%
+  amountKr?: number;
+  discountPercent?: number;
+  discountType?: string | null; // PERCENTAGE | FIXED | FREE_DELIVERY
   minOrderKr?: number;
   expiresAt?: string | null;
   metadata?: Record<string, any> | null;
 };
 
-// Räknar ut rabatt-belopp i kr för en deal givet subtotal i kr. Percent
-// vinner över amountKr om båda satta. Cappar till subtotal så vi inte
-// får negativ total.
-function computeDealAmountKr(deal: UserAccountDeal, subtotal: number): number {
+// Räknar ut rabatt-belopp i kr för en deal givet subtotal+deliveryFee i kr.
+// FREE_DELIVERY: matchar deliveryFee. PERCENT: subtotal * pct / 100.
+// FIXED: amountKr. Cappar mot rätt belopp så vi inte producerar negativ total.
+function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFee: number = 0): number {
+  if (deal.discountType === "FREE_DELIVERY") {
+    return Math.max(0, deliveryFee);
+  }
   let amount = 0;
   if (deal.discountPercent && deal.discountPercent > 0) {
     amount = Math.round((subtotal * deal.discountPercent) / 100);
@@ -78,8 +82,9 @@ function computeDealAmountKr(deal: UserAccountDeal, subtotal: number): number {
   return Math.min(amount, subtotal);
 }
 
-// Formatterar rabatt-text för UI. "20%" eller "50 kr" beroende på typ.
+// Formatterar rabatt-text för UI. "20%", "50 kr" eller "Fri leverans".
 function formatDealLabel(deal: UserAccountDeal): string {
+  if (deal.discountType === "FREE_DELIVERY") return "Fri leverans";
   if (deal.discountPercent && deal.discountPercent > 0) return `${deal.discountPercent}%`;
   if (deal.amountKr && deal.amountKr > 0) return `${deal.amountKr} kr`;
   return "rabatt";
@@ -478,8 +483,10 @@ export default function CartPage() {
     if (!selectedAccountDeal) return 0;
     const minK = selectedAccountDeal.minOrderKr ?? 0;
     if (subtotal < minK) return 0;
-    return computeDealAmountKr(selectedAccountDeal, subtotal);
-  }, [selectedAccountDeal, subtotal]);
+    // deliveryFee skickas med för FREE_DELIVERY-deals så rabatten matchar
+    // exakt det användaren skulle betalat i frakt.
+    return computeDealAmountKr(selectedAccountDeal, subtotal, deliveryFee);
+  }, [selectedAccountDeal, subtotal, deliveryFee]);
 
   const finalDiscount = Math.max(automaticDeal.discountAmount, personalDiscount, bogoDiscount, accountDealDiscount);
   // Dricks läggs till total endast vid DELIVERY (RN-paritet — dricks är till leveranspersonen)
@@ -1656,7 +1663,7 @@ export default function CartPage() {
                                     </div>
                                   </div>
                                   <span className="text-[11px] font-black text-gold-500 shrink-0">
-                                    -{computeDealAmountKr(d, subtotal)} kr
+                                    -{computeDealAmountKr(d, subtotal, deliveryFee)} kr
                                   </span>
                                 </label>
                               );

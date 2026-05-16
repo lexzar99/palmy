@@ -698,23 +698,28 @@ router.post('/', async (req: Request, res: Response) => {
           `Min orderbelopp för denna kupong är ${minOrderKr} kr`,
         );
       }
-      // Beräkna rabatt — percent vinner över amountKr om bägge satta.
+      // Beräkna rabatt baserat på discountType (snapshotad från Deal).
+      // FREE_DELIVERY: matchar deliveryFee → leverans blir gratis.
+      // PERCENTAGE:    procent av subtotal.
+      // FIXED / fallback: amountKr * 100 öre.
       let dealAmountOre = 0;
-      if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+      if (userDeal.discountType === 'FREE_DELIVERY') {
+        dealAmountOre = deliveryFee; // matchar exakt så total - discount = subtotal
+      } else if (userDeal.discountPercent && userDeal.discountPercent > 0) {
         dealAmountOre = Math.round((subtotal * userDeal.discountPercent) / 100);
       } else if (userDeal.amountKr && userDeal.amountKr > 0) {
-        dealAmountOre = userDeal.amountKr * 100; // legacy
+        dealAmountOre = userDeal.amountKr * 100;
       }
-      // User-toggled deal vinner alltid över automatic/manual (kunden gjorde
-      // ett aktivt val). Cappa till subtotal så vi inte producerar negativ total.
-      const cappedDealOre = Math.min(dealAmountOre, subtotal);
+      // User-toggled deal vinner alltid över automatic/manual. För
+      // FREE_DELIVERY: cappa inte mot subtotal — rabatten är deliveryFee
+      // som redan är ett separat belopp. För andra: cappa till subtotal.
+      const cap = userDeal.discountType === 'FREE_DELIVERY' ? deliveryFee : subtotal;
+      const cappedDealOre = Math.min(dealAmountOre, cap);
       if (cappedDealOre > 0) {
         discountAmount = cappedDealOre;
         appliedDeal = null;
         validatedCode = undefined;
         appliedUserDealId = userDeal.id;
-        // Spara faktiskt applicerad rabatt i kr för historik. Inte exakt
-        // percent — historiken vill visa "X kr rabatt" på order-list.
         appliedUserDealAmountKr = Math.round(cappedDealOre / 100);
       }
     }

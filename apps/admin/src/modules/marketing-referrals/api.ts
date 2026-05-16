@@ -33,10 +33,12 @@ export const updateWelcomeDealSettings = (payload: Partial<WelcomeDealSettings>)
   apiPatch<WelcomeDealSettings>("/admin/welcome-deal", payload);
 
 // ─── Personliga Deals (referral-templates) — quick-create från marketing-sidan ─
+export type PersonalDealType = "PERCENTAGE" | "FIXED" | "FREE_DELIVERY";
+
 export interface CreatePersonalDealPayload {
   title: string;
-  discountType: "PERCENTAGE" | "FIXED";
-  discountValue: number; // PERCENT: 25 = 25%. FIXED: belopp i kr (backend normaliserar till öre).
+  discountType: PersonalDealType;
+  discountValue: number; // PERCENT: 25 = 25%. FIXED: belopp i kr. FREE_DELIVERY: 0 (ignoreras).
   minOrder?: number; // kr
   validUntil?: string | null;
 }

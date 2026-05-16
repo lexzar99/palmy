@@ -36,10 +36,25 @@ import {
   updateWelcomeDealSettings,
   welcomeDealQueryKey,
   type CreatePersonalDealPayload,
+  type PersonalDealType,
   type WelcomeDealSettings,
 } from "@/modules/marketing-referrals/api";
 
 type Tab = "welcome" | "referral" | "stats";
+
+// Format-helper för deal-display i dropdowns + hints. Visar typen
+// (Procent / Kr / Fri leverans) tillsammans med värdet.
+function formatDealLabel(d: { discountType: string; discountValue: number; title: string }): string {
+  if (d.discountType === "FREE_DELIVERY") return `${d.title} (Fri leverans)`;
+  if (d.discountType === "PERCENTAGE") return `${d.title} (${d.discountValue}%)`;
+  return `${d.title} (${d.discountValue} kr)`;
+}
+
+function formatDealHint(d: { discountType: string; discountValue: number }): string {
+  if (d.discountType === "FREE_DELIVERY") return "Fri leverans";
+  if (d.discountType === "PERCENTAGE") return `${d.discountValue}% rabatt`;
+  return `${d.discountValue} kr rabatt`;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Toggle row — gemensam pattern: ikon + label + på/av-knapp.
@@ -142,11 +157,7 @@ function WelcomeDealTab({
 
   const availableDeals = settings?.availableDeals ?? [];
   const selectedDeal = availableDeals.find((d) => d.id === form.welcomeDealId);
-  const dealHint = selectedDeal
-    ? selectedDeal.discountType === "PERCENTAGE"
-      ? `${selectedDeal.discountValue}% rabatt`
-      : `${selectedDeal.discountValue} kr rabatt`
-    : null;
+  const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
 
   return (
     <div className="space-y-5">
@@ -213,7 +224,7 @@ function WelcomeDealTab({
             <option value="">— Välj mall —</option>
             {availableDeals.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.title} ({d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`})
+                {formatDealLabel(d)}
               </option>
             ))}
           </select>
@@ -286,11 +297,7 @@ function ReferralSettingsTab({
 
   const availableDeals = settings?.availableDeals ?? [];
   const selectedDeal = availableDeals.find((d) => d.id === form.referralDealId);
-  const dealHint = selectedDeal
-    ? selectedDeal.discountType === "PERCENTAGE"
-      ? `${selectedDeal.discountValue}% rabatt`
-      : `${selectedDeal.discountValue} kr rabatt`
-    : null;
+  const dealHint = selectedDeal ? formatDealHint(selectedDeal) : null;
 
   const mutation = useMutation({
     mutationFn: (payload: Partial<WelcomeDealSettings>) => updateWelcomeDealSettings(payload),
@@ -379,7 +386,7 @@ function ReferralSettingsTab({
               <option value="">— Välj Deal —</option>
               {availableDeals.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.title} ({d.discountType === "PERCENTAGE" ? `${d.discountValue}%` : `${d.discountValue} kr`})
+                  {formatDealLabel(d)}
                 </option>
               ))}
             </select>
@@ -549,32 +556,54 @@ function PersonalDealCreateForm() {
             type="text"
             value={form.title}
             onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder="t.ex. Referral 25%"
+            placeholder={
+              form.discountType === "FREE_DELIVERY"
+                ? "t.ex. Referral Fri Leverans"
+                : form.discountType === "FIXED"
+                  ? "t.ex. Referral 50 kr off"
+                  : "t.ex. Referral 25%"
+            }
           />
         </Field>
         <Field label="Rabatt-typ">
           <select
             value={form.discountType}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, discountType: e.target.value as "PERCENTAGE" | "FIXED" }))
-            }
+            onChange={(e) => {
+              const next = e.target.value as PersonalDealType;
+              setForm((p) => ({
+                ...p,
+                discountType: next,
+                // FREE_DELIVERY behöver inget värde — sätt till 0 så
+                // backend inte validerar mot percent-range.
+                discountValue: next === "FREE_DELIVERY" ? 0 : p.discountValue || 25,
+              }));
+            }}
             className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
           >
             <option value="PERCENTAGE">Procent (%)</option>
             <option value="FIXED">Fast belopp (kr)</option>
+            <option value="FREE_DELIVERY">Fri leverans</option>
           </select>
         </Field>
-        <Field label={form.discountType === "PERCENTAGE" ? "Rabatt-procent (1-100)" : "Rabatt-belopp (kr)"}>
-          <Input
-            type="number"
-            min={1}
-            max={form.discountType === "PERCENTAGE" ? 100 : 10000}
-            value={form.discountValue}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, discountValue: Number(e.target.value) || 0 }))
+        {form.discountType !== "FREE_DELIVERY" && (
+          <Field
+            label={
+              form.discountType === "PERCENTAGE"
+                ? "Rabatt-procent (1-100)"
+                : "Rabatt-belopp (kr)"
             }
-          />
-        </Field>
+          >
+            <Input
+              type="number"
+              min={1}
+              max={form.discountType === "PERCENTAGE" ? 100 : 10000}
+              value={form.discountValue}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, discountValue: Number(e.target.value) || 0 }))
+              }
+            />
+          </Field>
+        )}
         <Field label="Min ordervärde (kr) — valfritt">
           <Input
             type="number"
@@ -595,6 +624,14 @@ function PersonalDealCreateForm() {
           />
         </Field>
       </div>
+
+      {form.discountType === "FREE_DELIVERY" && (
+        <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs">
+          <strong>Fri leverans</strong> — användaren får leveransavgiften
+          gratis (0 kr) på den ordern kupongen appliceras. Inget rabatt-
+          belopp behövs.
+        </div>
+      )}
 
       <div className="mt-6 flex gap-3">
         <Button

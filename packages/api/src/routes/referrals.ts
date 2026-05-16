@@ -108,6 +108,7 @@ async function getSettings() {
 // ─────────────────────────────────────────────────────────────────────────────
 type DealSnapshot = {
   dealId: string;
+  discountType: string; // PERCENTAGE | FIXED | FREE_DELIVERY
   discountPercent: number | null;
   amountKr: number | null;
   minOrderKr: number;
@@ -132,21 +133,22 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
   // misstag används som mall.
   if (!deal || !deal.isActive || !deal.isPersonalTemplate) return null;
 
-  // Deal.discountValue tolkas baserat på discountType. PERCENTAGE → snapshota
-  // som discountPercent. Annat (FIXED/BOGO/etc) → snapshota som amountKr (kr).
-  // Order-flödet stödjer redan båda formaten via computeDealAmountKr-helpern.
+  // Snapshota värdet i rätt fält beroende på typ:
+  //   PERCENTAGE     → discountPercent (subtotal * pct / 100)
+  //   FREE_DELIVERY  → amountKr/percent båda null (deliveryFee=0 vid checkout)
+  //   FIXED / annat  → amountKr (kr off subtotal)
   const isPercent = deal.discountType === 'PERCENTAGE';
+  const isFreeDelivery = deal.discountType === 'FREE_DELIVERY';
   const minOrderKr = Math.round((deal.minOrder ?? 0) / 100) || 0;
-  // Default 30 dagars expiry om Dealen inte har validUntil — kupongen
-  // ska inte ligga aktiv för evigt.
   const expiresAt = deal.validUntil
     ? new Date(deal.validUntil)
     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
   return {
     dealId: deal.id,
+    discountType: deal.discountType,
     discountPercent: isPercent ? deal.discountValue : null,
-    amountKr: isPercent ? null : deal.discountValue,
+    amountKr: !isPercent && !isFreeDelivery ? deal.discountValue : null,
     minOrderKr,
     expiresAt,
   };
@@ -438,6 +440,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
                 type: 'REFERRAL_INVITEE',
                 amountKr: snapshot.amountKr,
                 discountPercent: snapshot.discountPercent,
+                discountType: snapshot.discountType,
                 expiresAt: snapshot.expiresAt,
                 metadata: {
                   referralId: newReferral.id,
@@ -917,6 +920,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
             type: 'REFERRAL_INVITER',
             amountKr: snapshot.amountKr,
             discountPercent: snapshot.discountPercent,
+            discountType: snapshot.discountType,
             expiresAt: snapshot.expiresAt,
             metadata: {
               referralId: referral.id,
@@ -962,6 +966,7 @@ export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
         type: 'WELCOME',
         amountKr: snapshot.amountKr,
         discountPercent: snapshot.discountPercent,
+        discountType: snapshot.discountType,
         expiresAt: snapshot.expiresAt,
         metadata: { minOrderKr: snapshot.minOrderKr },
       },

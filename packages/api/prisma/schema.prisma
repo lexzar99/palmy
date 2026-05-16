@@ -577,8 +577,9 @@ model UserDeal {
   dealId          String?   // referens till befintlig Deal-modell, null för auto-cash-rabatt
   type            String    // WELCOME | REFERRAL_INVITER | REFERRAL_INVITEE | MANUAL
   status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
-  amountKr        Int?      // legacy cash-rabatt (50 = 50 kr). Behålls för bakåtkompat.
-  discountPercent Int?      // procent-rabatt på subtotal (20 = 20%). Föredras över amountKr.
+  amountKr        Int?      // kr-rabatt (50 = 50 kr).
+  discountPercent Int?      // procent-rabatt på subtotal (20 = 20%).
+  discountType    String?   // PERCENTAGE | FIXED | FREE_DELIVERY. Snapshotad från Deal.
   expiresAt       DateTime?
   usedAt          DateTime?
   usedOnOrderId   String?
