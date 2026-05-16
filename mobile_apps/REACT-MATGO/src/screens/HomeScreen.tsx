@@ -173,9 +173,12 @@ export default function HomeScreen({
   const [welcomeDeal, setWelcomeDeal] = useState<{
     id: string;
     type: string;
-    amountKr: number;
+    amountKr?: number | null;
+    discountPercent?: number | null;
+    discountType?: string | null;
+    freeDelivery?: boolean;
     expiresAt?: string | null;
-    metadata?: { minOrderKr?: number } | null;
+    metadata?: { minOrderKr?: number; validUntil?: string | null } | null;
   } | null>(null);
   const [welcomeBannerDismissed, setWelcomeBannerDismissed] = useState<boolean>(true);
   const promoListRef = useRef<FlatList<SponsorCarouselItem> | null>(null);
@@ -794,34 +797,68 @@ export default function HomeScreen({
           {/* Welcome / referral banner — visas högst upp när användaren har
               en ACTIVE WELCOME-deal och inte tryckt close. Persistent stäng-state
               i AsyncStorage så banner inte återkommer efter app-restart. */}
-          {welcomeDeal && !welcomeBannerDismissed && (
-            <View
-              style={{
-                marginTop: 12,
-                borderRadius: 18,
-                backgroundColor: "rgba(231,178,75,0.10)",
-                borderWidth: 1,
-                borderColor: "rgba(231,178,75,0.36)",
-                padding: 14,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <Text style={{ fontSize: 22 }}>🎁</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }} numberOfLines={2}>
-                  {t('home.welcomeBanner.title', { amount: welcomeDeal.amountKr })}
-                </Text>
-                <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 3 }} numberOfLines={1}>
-                  {t('home.welcomeBanner.subtitle', {
-                    min: welcomeDeal.metadata?.minOrderKr || 0,
-                    date: welcomeDeal.expiresAt
-                      ? new Date(welcomeDeal.expiresAt).toLocaleDateString("sv-SE")
-                      : "—",
-                  })}
-                </Text>
-              </View>
+          {welcomeDeal && !welcomeBannerDismissed && (() => {
+            // Bygg dynamisk reward-label från deal-typ:
+            //   "25% rabatt" / "50 kr rabatt" / "Fri leverans" /
+            //   "25% rabatt + Fri leverans"
+            const parts: string[] = [];
+            if (welcomeDeal.discountPercent && welcomeDeal.discountPercent > 0) {
+              parts.push(`${welcomeDeal.discountPercent}% rabatt`);
+            } else if (welcomeDeal.amountKr && welcomeDeal.amountKr > 0) {
+              parts.push(`${welcomeDeal.amountKr} kr rabatt`);
+            }
+            if (welcomeDeal.freeDelivery) parts.push("Fri leverans");
+            const rewardLabel = parts.length > 0 ? parts.join(" + ") : "rabatt";
+
+            // metadata.validUntil = admin-satt datum (null = tillsvidare).
+            // welcomeDeal.expiresAt är intern 30-dagars-default → ignorera.
+            const adminExpiry = welcomeDeal.metadata?.validUntil;
+            const expiryDate = adminExpiry
+              ? (() => {
+                  try {
+                    const d = new Date(adminExpiry);
+                    if (!Number.isFinite(d.getTime())) return null;
+                    return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+                  } catch {
+                    return null;
+                  }
+                })()
+              : null;
+            const expiryText = adminExpiry
+              ? expiryDate ? `Gäller till ${expiryDate}` : null
+              : "Gäller tillsvidare";
+
+            const minOrder = welcomeDeal.metadata?.minOrderKr;
+            const subParts: string[] = [];
+            if (minOrder && minOrder > 0) subParts.push(`Min. order ${minOrder} kr`);
+            if (expiryText) subParts.push(expiryText);
+            const subline = subParts.join(" · ");
+
+            return (
+              <View
+                style={{
+                  marginTop: 12,
+                  borderRadius: 18,
+                  backgroundColor: "rgba(231,178,75,0.10)",
+                  borderWidth: 1,
+                  borderColor: "rgba(231,178,75,0.36)",
+                  padding: 14,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <Text style={{ fontSize: 22 }}>🎁</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: palette.text, fontSize: 13, fontWeight: "900", fontStyle: "italic" }} numberOfLines={2}>
+                    Du har {rewardLabel} på din första beställning
+                  </Text>
+                  {subline ? (
+                    <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 3 }} numberOfLines={1}>
+                      {subline}
+                    </Text>
+                  ) : null}
+                </View>
               <Pressable
                 onPress={handleDismissWelcomeBanner}
                 hitSlop={10}
@@ -834,7 +871,8 @@ export default function HomeScreen({
                 <Ionicons name="close" size={16} color={palette.muted} />
               </Pressable>
             </View>
-          )}
+            );
+          })()}
         </View>
 
         {/* Categories / Cuisine filters */}

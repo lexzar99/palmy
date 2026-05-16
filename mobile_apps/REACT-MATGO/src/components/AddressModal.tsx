@@ -370,6 +370,43 @@ export default function AddressModal({
                 }
               </View>
 
+              {/* Predictions — inline dropdown direkt under input. Tidigare
+                  renderades de i en separat Modal-overlay vilket gjorde att
+                  iOS stängde keyboarden (nested modals fight for focus) och
+                  förslagslistan ibland hamnade ovanför korten. Nu syns
+                  förslagen som vanlig dropdown och keyboarden stannar uppe. */}
+              {predictions.length > 0 && !confirmedCoords && (
+                <View style={s.predInline}>
+                  <ScrollView
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="none"
+                    nestedScrollEnabled
+                    showsVerticalScrollIndicator={false}
+                    style={{ maxHeight: 220 }}
+                  >
+                    {predictions.map((p, idx) => (
+                      <Pressable
+                        key={p.place_id}
+                        style={({ pressed }) => [
+                          s.predItem,
+                          idx < predictions.length - 1 && s.predItemBorder,
+                          pressed && s.predItemPress,
+                        ]}
+                        onPress={() => handleSelectPrediction(p)}
+                      >
+                        <View style={s.predIcon}>
+                          <Ionicons name="location" size={13} color={C.gold} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.predStreet} numberOfLines={1}>{street(p.description)}</Text>
+                          <Text style={s.predRest}   numberOfLines={1}>{rest(p.description)}</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               {confirmedCoords && !error && (
                 <View style={s.badge}>
                   <Ionicons name="checkmark-circle" size={13} color={C.green} />
@@ -466,62 +503,6 @@ export default function AddressModal({
         </View>
       </KeyboardAvoidingView>
 
-      {/* Predictions overlay — floats above the modal card so the list isn't clipped */}
-      <Modal
-        visible={orderType === "DELIVERY" && predictions.length > 0 && anchor !== null}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setPredictions([])}
-      >
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => { setPredictions([]); Keyboard.dismiss(); }}
-        />
-        {anchor && (
-          <View
-            pointerEvents="box-none"
-            style={[
-              s.predOverlay,
-              {
-                top: anchor.y + anchor.height + 6,
-                left: anchor.x,
-                width: anchor.width,
-                maxHeight: Math.max(
-                  140,
-                  Math.min(360, SH - (anchor.y + anchor.height + 6) - 80),
-                ),
-              },
-            ]}
-          >
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-              showsVerticalScrollIndicator={false}
-            >
-              {predictions.map((p, idx) => (
-                <Pressable
-                  key={p.place_id}
-                  style={({ pressed }) => [
-                    s.predItem,
-                    idx < predictions.length - 1 && s.predItemBorder,
-                    pressed && s.predItemPress,
-                  ]}
-                  onPress={() => handleSelectPrediction(p)}
-                >
-                  <View style={s.predIcon}>
-                    <Ionicons name="location" size={13} color={C.gold} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.predStreet} numberOfLines={1}>{street(p.description)}</Text>
-                    <Text style={s.predRest}   numberOfLines={1}>{rest(p.description)}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
-          </View>
-        )}
-      </Modal>
     </Modal>
   );
 }
@@ -605,7 +586,18 @@ const makeStyles = (C: ReturnType<typeof buildColors>) => StyleSheet.create({
   },
   badgeTxt: { flex: 1, fontSize: 11, fontWeight: "700" },
 
-  // Predictions overlay (rendered via portal Modal so it isn't clipped by the card)
+  // Predictions inline-dropdown — renderas inom kortet direkt under input.
+  // Keyboard stannar uppe eftersom vi inte öppnar en sekundär Modal.
+  predInline: {
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    overflow: "hidden",
+  },
+
+  // Legacy predOverlay-stil — används inte längre, behållen för bakåtkompat
+  // om andra komponenter råkar referera till den.
   predOverlay: {
     position: "absolute",
     backgroundColor: C.card,

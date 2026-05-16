@@ -119,13 +119,25 @@ export function Header({
 }
 
 // ─── ScreenWrap ────────────────────────────────────────────────────────────────
-export function ScreenWrap({ children }: { children: React.ReactNode }) {
+// keyboardAware: opt-in på iOS för formulär med inputs nära botten
+// (RegisterScreen etc.). Sätter automaticallyAdjustKeyboardInsets så
+// ScrollView lyfter content upp över keyboarden istället för att gömma
+// password-fältet under den.
+export function ScreenWrap({
+  children,
+  keyboardAware = false,
+}: {
+  children: React.ReactNode;
+  keyboardAware?: boolean;
+}) {
   const insets = useSafeAreaInsets();
   const styles = useSharedStyles();
 
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps={keyboardAware ? "handled" : undefined}
+      automaticallyAdjustKeyboardInsets={keyboardAware}
       contentContainerStyle={[
         styles.scrollContent,
         {

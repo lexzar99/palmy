@@ -550,6 +550,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
                   referralId: newReferral.id,
                   inviterUserId: inviter.id,
                   minOrderKr: snapshot.minOrderKr,
+                  validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
                 },
               },
             });
@@ -1044,6 +1045,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
               referralId: referral.id,
               inviteeUserId: order.userId,
               minOrderKr: snapshot.minOrderKr,
+              validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
             },
           },
         });
@@ -1087,7 +1089,14 @@ export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
         discountType: snapshot.discountType,
         freeDelivery: snapshot.freeDelivery,
         expiresAt: snapshot.expiresAt,
-        metadata: { minOrderKr: snapshot.minOrderKr },
+        metadata: {
+          minOrderKr: snapshot.minOrderKr,
+          // validUntil = raw värde från Deal (null om admin inte satt).
+          // expiresAt ovan är intern 30-dagars-default — frontend ska
+          // använda metadata.validUntil för display ("Gäller till X" /
+          // "Gäller tillsvidare" om null).
+          validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
+        },
       },
     });
   } catch (err: any) {

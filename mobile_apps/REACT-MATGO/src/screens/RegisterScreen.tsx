@@ -97,7 +97,7 @@ export default function RegisterScreen({
   };
 
   return (
-    <ScreenWrap>
+    <ScreenWrap keyboardAware>
       <Header title="Registrering" onBack={goBack} />
 
       <Animated.View

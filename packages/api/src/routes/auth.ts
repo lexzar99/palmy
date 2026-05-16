@@ -351,11 +351,11 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
         //     Apple sent. If empty, columns stay null and the client gates
         //     into the "Complete Profile" screen exactly once.
         const meta = user.user_metadata || {};
-        const sbFirst =
+        let sbFirst =
           ((meta.first_name as string | undefined) ||
             (meta.given_name as string | undefined) ||
             '').trim() || null;
-        const sbLast =
+        let sbLast =
           ((meta.last_name as string | undefined) ||
             (meta.family_name as string | undefined) ||
             '').trim() || null;
@@ -364,6 +364,23 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
             (meta.full_name as string | undefined) ||
             [sbFirst, sbLast].filter(Boolean).join(' ').trim() ||
             '').trim() || null;
+
+        // Fallback: om Supabase saknar split first/last men har ett komplett
+        // name (vanligt med Google — vissa returnerar bara "name", inte
+        // given_name/family_name), splittar vi på space. Annars hamnar
+        // användare i PhoneGateScreen "vad heter du" trots att Google
+        // delade ett namn.
+        if (!sbFirst && !sbLast && sbName) {
+          const parts = sbName.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) {
+            sbFirst = parts[0];
+            sbLast = parts.slice(1).join(' ');
+          } else if (parts.length === 1) {
+            // Google har bara ett namn (sällsynt men möjligt) — använd
+            // som firstName så profileComplete-check accepterar single-name.
+            sbFirst = parts[0];
+          }
+        }
         const sbImage = (meta.avatar_url as string | undefined) || (meta.picture as string | undefined) || null;
 
         if (wasExistingUser) {
