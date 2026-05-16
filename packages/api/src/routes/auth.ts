@@ -984,8 +984,12 @@ router.post('/verify', async (req, res) => {
 // URL:er för verifierings-länken — används av både /register-user och
 // /send-verification-email. Placerade här (innan första route) så att båda
 // handlers kan referera värdena utan att förlita sig på hoisting-quirks.
+//
+// Default = Vercel-preview eftersom matgo.se-domänen inte är DNS-pekad ännu.
+// När custom domain är klar: sätt WEB_VERIFY_EMAIL_URL=https://matgo.se/verify-email
+// i Railway env-vars och pusha en restart.
 const WEB_VERIFY_EMAIL_BASE =
-  process.env.WEB_VERIFY_EMAIL_URL || 'https://matgo.se/verify-email';
+  process.env.WEB_VERIFY_EMAIL_URL || 'https://matgo-web-pi.vercel.app/verify-email';
 const MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE =
   process.env.MOBILE_VERIFY_EMAIL_URL || 'foodgo://verify-email';
 
@@ -1513,7 +1517,7 @@ router.post('/check-email-verified', async (req, res) => {
 // URL:er till klienterna. För länken som skickas i mejlet använder vi
 // publika host-namn — fallback till env eller hårdkodade staging-värden.
 const WEB_RESET_BASE =
-  process.env.WEB_RESET_PASSWORD_URL || 'https://matgo.se/reset-password';
+  process.env.WEB_RESET_PASSWORD_URL || 'https://matgo-web-pi.vercel.app/reset-password';
 const MOBILE_RESET_DEEP_LINK_BASE =
   process.env.MOBILE_RESET_PASSWORD_URL || 'foodgo://reset-password';
 

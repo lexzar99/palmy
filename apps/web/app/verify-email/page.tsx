@@ -9,60 +9,107 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { API_URL } from "@/lib/api";
 import { persistPlatformSession } from "@/lib/platformSessionClient";
 
-// Email-verifierings-flöde — steg 2 av 2.
-//   GET  ?token=…              ← länk från mejlet, auto-postar nedan
-//   POST /api/account/verify-email { token }  → { ok, token, email, user }
-// Lyckad verify: vi har nu en JWT (det är "första login"-momentet för
-// email-registrerade användare). Vi persistar plattforms-sessionen och
-// redirectar in i appen. Misslyckad → felmeddelande + möjlighet att be
-// om en ny länk via /register.
+// Email-verifierings-flöde — två varianter beroende på vilken email-källa:
+//
+// VARIANT A — Supabase (ny, gratis): länken har URL-hash:
+//   /verify-email#access_token=...&refresh_token=...&type=signup
+//   Vi parsar token, persistar den som platform-session (vår authenticateUser-
+//   middleware accepterar redan Supabase-JWT) → user är inloggad och verified.
+//
+// VARIANT B — Legacy custom token: länken har search-param:
+//   /verify-email?token=...
+//   Vi POSTar /api/account/verify-email med tokenen → får tillbaka vår JWT.
+//
+// Behåller båda för bakåtkompat — gamla mejl som redan skickats använder B.
 function VerifyEmailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const legacyToken = searchParams.get("token") || "";
 
-  // Två tillstånd vid mount: vi har en token och försöker verifiera, eller
-  // tokenen saknas helt.
+  // Parsa Supabase-format ur URL-hash (`#access_token=...`).
+  // Hash är inte tillgänglig i SSR så vi gör det client-side i useEffect.
+  const [supabaseTokens, setSupabaseTokens] = useState<{
+    accessToken: string;
+    refreshToken: string;
+    type: string;
+  } | null>(null);
+  const [hashRead, setHashRead] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash.slice(1); // strippa "#"
+    if (!hash) {
+      setHashRead(true);
+      return;
+    }
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token") || "";
+    const type = params.get("type") || "";
+    if (accessToken) {
+      setSupabaseTokens({ accessToken, refreshToken, type });
+    }
+    setHashRead(true);
+  }, []);
+
   const [status, setStatus] = useState<"verifying" | "success" | "error" | "missing">(
-    !token || token.length < 32 ? "missing" : "verifying"
+    "verifying",
   );
   const [error, setError] = useState("");
-  // En enda POST per page-load — React 19 strict-mode kör effects två gånger,
-  // så vi guardar med en ref för att slippa dubbel-API-anrop.
   const sent = useRef(false);
 
   useEffect(() => {
-    if (status !== "verifying") return;
+    // Vänta tills vi läst hash:en innan vi bestämmer status
+    if (!hashRead) return;
     if (sent.current) return;
-    sent.current = true;
 
-    (async () => {
-      try {
-        const res = await axios.post(`${API_URL}/api/account/verify-email`, { token });
-        // Backend returnerar nu en JWT på lyckad verifiering — det är
-        // användarens "första inloggning". Vi persistar sessionen och
-        // skickar in dem i appen efter en kort bekräftelse.
-        const jwt = res.data?.token;
-        if (jwt) {
-          try {
-            await persistPlatformSession(jwt);
-          } catch {
-            // Persist-fel — användaren får logga in manuellt. Vi fortsätter
-            // ändå visa success-vyn så de vet att kontot är verifierat.
-          }
+    // Bestäm vilken variant vi har: Supabase-hash eller legacy-token?
+    if (supabaseTokens) {
+      sent.current = true;
+      (async () => {
+        try {
+          await persistPlatformSession(supabaseTokens.accessToken);
+          setStatus("success");
+          setTimeout(() => router.push("/profile"), 1500);
+        } catch (err: any) {
+          setError("Kunde inte spara sessionen. Försök logga in manuellt.");
+          setStatus("error");
         }
-        setStatus("success");
-        // Liten paus så användaren ser bekräftelsen innan vi flyttar dem.
-        setTimeout(() => router.push("/profile"), 1500);
-      } catch (err: any) {
-        setError(
-          err?.response?.data?.error ||
-            "Länken är ogiltig eller har gått ut. Be om en ny."
-        );
-        setStatus("error");
-      }
-    })();
-  }, [token, status, router]);
+      })();
+      return;
+    }
+
+    if (legacyToken && legacyToken.length >= 32) {
+      sent.current = true;
+      (async () => {
+        try {
+          const res = await axios.post(`${API_URL}/api/account/verify-email`, {
+            token: legacyToken,
+          });
+          const jwt = res.data?.token;
+          if (jwt) {
+            try {
+              await persistPlatformSession(jwt);
+            } catch {
+              // Persist-fel — fall through till success-vyn ändå
+            }
+          }
+          setStatus("success");
+          setTimeout(() => router.push("/profile"), 1500);
+        } catch (err: any) {
+          setError(
+            err?.response?.data?.error ||
+              "Länken är ogiltig eller har gått ut. Be om en ny.",
+          );
+          setStatus("error");
+        }
+      })();
+      return;
+    }
+
+    // Varken hash eller legacy-token → ingen verifierings-data alls
+    setStatus("missing");
+  }, [hashRead, supabaseTokens, legacyToken, router]);
 
   return (
     <div

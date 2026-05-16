@@ -1,21 +1,39 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import axios from "axios";
 import { Lock, ArrowLeft, Loader2, CheckCircle2, KeyRound, AlertTriangle } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
 import { API_URL } from "@/lib/api";
 
-// Glömt-lösenord-flöde — steg 2 av 2.
-//   POST /api/account/reset-password { token, newPassword }
-// Tokenen kommer från mejlet (?token=…). Lyckad reset → redirect till home
-// efter ~2 sekunder. Misslyckad → felmeddelande, länk för att be om ny.
+// Glömt-lösenord-flöde — steg 2 av 2. Två varianter:
+//
+// A) Supabase-länk (ny): URL-hash `#access_token=...&type=recovery`.
+//    Vi sätter Supabase-sessionen och kallar supabase.auth.updateUser().
+// B) Legacy-token (gammalt mejl): `?token=…`.
+//    POST /api/account/reset-password { token, newPassword }
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") || "";
+  const legacyToken = searchParams.get("token") || "";
+
+  // Supabase-tokens från URL-hash
+  const [supabaseAccess, setSupabaseAccess] = useState<string | null>(null);
+  const [supabaseRefresh, setSupabaseRefresh] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    if (accessToken) setSupabaseAccess(accessToken);
+    if (refreshToken) setSupabaseRefresh(refreshToken);
+  }, []);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -23,9 +41,9 @@ function ResetPasswordContent() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  // Klient-side guard: visa direkt felview om token saknas helt
-  // (annars hade vi gjort ett onödigt API-anrop som ändå skulle 400a).
-  const tokenMissing = !token || token.length < 32;
+  // Klient-side guard: visa felview om varken supabase-tokens eller
+  // legacy-token är satt
+  const tokenMissing = !supabaseAccess && (!legacyToken || legacyToken.length < 32);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,18 +58,36 @@ function ResetPasswordContent() {
     }
     setSubmitting(true);
     try {
-      await axios.post(`${API_URL}/api/account/reset-password`, {
-        token,
-        newPassword,
-      });
+      if (supabaseAccess) {
+        // Supabase-flöde: skapa client → setSession → updateUser
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+        const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+        if (!supabaseUrl || !supabaseAnonKey) {
+          throw new Error("Supabase-konfig saknas på klienten");
+        }
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        await supabase.auth.setSession({
+          access_token: supabaseAccess,
+          refresh_token: supabaseRefresh || "",
+        });
+        const { error: updateErr } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+        if (updateErr) throw updateErr;
+      } else {
+        // Legacy-flöde
+        await axios.post(`${API_URL}/api/account/reset-password`, {
+          token: legacyToken,
+          newPassword,
+        });
+      }
       setSuccess(true);
-      // Användaren får logga in själv på /profile — vi kan inte autologga
-      // eftersom vi inte vet lösenordet i klartext längre (det är hashed).
       setTimeout(() => router.push("/profile"), 2200);
     } catch (err: any) {
       setError(
         err?.response?.data?.error ||
-          "Länken är ogiltig eller har gått ut. Be om en ny."
+          err?.message ||
+          "Länken är ogiltig eller har gått ut. Be om en ny.",
       );
     } finally {
       setSubmitting(false);
