@@ -7,7 +7,7 @@ import twilio from 'twilio';
 import prisma from '../lib/prisma';
 import { JWT_SECRET } from '../lib/config';
 import { getRestaurantAdminLogin, normalizeAdminLoginAlias } from '../lib/adminLogin';
-import supabaseAdmin from '../lib/supabase';
+import supabaseAdmin, { supabasePublic } from '../lib/supabase';
 import { authenticate, resolveAdminSessionFromToken } from '../middleware/auth';
 import type { AuthRequest } from '../middleware/auth';
 import { audit } from '../lib/auditLog';
@@ -1100,49 +1100,46 @@ router.post('/register-user', authLimiter, async (req, res) => {
       }
     });
 
-    // Fire-and-forget: skicka verifieringsmejlet i bakgrunden. Vi väntar
-    // INTE på resultatet — registreringen ska kännas instant. Loggar fel.
+    // Fire-and-forget: skicka verifieringsmejlet via Supabase i bakgrunden.
+    // Tidigare användes Brevo (kräver verifierad domän, fungerar inte gratis).
+    // Nu använder vi Supabase's inbyggda email-system som:
+    //   - är gratis (4 emails/h på free tier)
+    //   - skickar från noreply@mail.supabase.co (ingen egen domän behövs)
+    //   - skapar en auth.users-entry parallellt med vår User-row
+    //   - skickar verifieringslänk som redirectar tillbaka till appen
+    // Om Supabase signUp failar (t.ex. anon-key saknas eller user redan
+    // finns i Supabase) loggar vi men låter registreringen gå igenom —
+    // användaren är ändå skapad i vår DB och kan logga in lokalt.
     (async () => {
+      if (!supabasePublic) {
+        console.warn('[register-user] supabasePublic saknas — verifieringsmejl skickas inte. Sätt SUPABASE_ANON_KEY i Railway.');
+        return;
+      }
       try {
-        const greetingName = user.firstName || user.name || 'där';
-        const webLink = `${WEB_VERIFY_EMAIL_BASE}?token=${verificationToken}`;
-        const mobileLink = `${MOBILE_VERIFY_EMAIL_DEEP_LINK_BASE}?token=${verificationToken}`;
-
-        const text = [
-          `Hej ${greetingName}!`,
-          '',
-          'Tack för att du skapat ett MatGo-konto. Klicka på länken nedan när',
-          'du har en stund för att verifiera din e-postadress. Länken gäller 24 timmar.',
-          '',
-          `Webb:   ${webLink}`,
-          `Mobil:  ${mobileLink}`,
-          '',
-          'Om du inte skapat något konto kan du ignorera detta mejl.',
-          '',
-          'Vänliga hälsningar,',
-          'MatGo',
-        ].join('\n');
-
-        const html = renderBrandedEmail({
-          headline: 'Bekräfta din email',
-          greeting: `Hej ${greetingName}!`,
-          intro: [
-            'Tack för att du skapat ett MatGo-konto! Klicka på knappen nedan när du har en stund för att verifiera din e-post.',
-          ],
-          cta: { label: 'Bekräfta email', url: webLink },
-          mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
-          footnote:
-            'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
+        const { error: signUpError } = await supabasePublic.auth.signUp({
+          email: user.email!,
+          password,
+          options: {
+            data: {
+              first_name: firstName || null,
+              last_name: lastName || null,
+              full_name: user.name || null,
+              phone: user.phone || null,
+            },
+            emailRedirectTo: WEB_VERIFY_EMAIL_BASE,
+          },
         });
-
-        await sendEmail({
-          to: user.email!,
-          subject: 'Verifiera din email — MatGo',
-          text,
-          html,
-        });
-      } catch (mailErr) {
-        console.error('[register-user] sendEmail failed (account created anyway):', mailErr);
+        if (signUpError) {
+          // "User already registered" är OK — Supabase resendar verifieringsmejlet
+          // automatiskt om kontot redan finns. Andra fel loggas.
+          if (!/already/i.test(signUpError.message || '')) {
+            console.error('[register-user] supabase.signUp failed:', signUpError.message);
+          }
+        } else {
+          console.log(`[register-user] Verifieringsmejl skickat via Supabase till ${user.email}`);
+        }
+      } catch (mailErr: any) {
+        console.error('[register-user] supabase.signUp threw (account created anyway):', mailErr?.message || mailErr);
       }
     })();
 
@@ -1293,15 +1290,33 @@ router.post('/send-verification-email', authLimiter, async (req, res) => {
           'Länken gäller 24 timmar. Om du inte skapat något konto kan du ignorera detta mejl.',
       });
 
-      try {
-        await sendEmail({
-          to: user.email!,
-          subject: 'Verifiera din email — MatGo',
-          text,
-          html,
-        });
-      } catch (mailErr) {
-        console.error('[send-verification-email] sendEmail failed:', mailErr);
+      // Skicka via Supabase (gratis, ingen domän krävs). Använder
+      // resendOTP eller signUp för att trigga ny verifierings-email
+      // för en befintlig user.
+      if (supabasePublic) {
+        try {
+          // resend() är specifikt för att skicka om verifieringsmejlet
+          // till en redan-existerande Supabase-user.
+          const { error: resendErr } = await supabasePublic.auth.resend({
+            type: 'signup',
+            email: user.email!,
+            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
+          });
+          if (resendErr) {
+            // Om user inte finns i Supabase än — skapa via signUp så
+            // får hen sitt verifieringsmejl. password = dummy eftersom
+            // vi använder vår egen DB för auth.
+            await supabasePublic.auth.signUp({
+              email: user.email!,
+              password: crypto.randomBytes(16).toString('hex'),
+              options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
+            });
+          }
+        } catch (mailErr: any) {
+          console.error('[send-verification-email] supabase failed:', mailErr?.message);
+        }
+      } else {
+        console.warn('[send-verification-email] supabasePublic saknas — kan inte skicka resend-mejl');
       }
 
       await audit(req as AuthRequest, 'EMAIL_VERIFICATION_REQUESTED', {
@@ -1534,6 +1549,15 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     // Apple utan password) ska inte få ett reset-mejl — de är inte "låsta ute".
     // Klienten får ändå 200 så detta är osynligt utåt.
     if (user && user.password) {
+      // Skicka reset-länk via Supabase istället för Brevo. Supabase
+      // skickar gratis från noreply@mail.supabase.co (ingen domän behövs).
+      // Klick → Supabase verifierar → redirectar till WEB_RESET_BASE med
+      // access_token i URL-hash. Frontend-page läser det och kallar
+      // supabase.auth.updateUser({ password }) för att sätta nytt lösen.
+      //
+      // Behåller vår token-baserade flow som fallback för existerande
+      // konton som inte finns i Supabase än — vi sparar BÅDA. Frontend
+      // kan välja vilken som funkar.
       const token = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1h
       await (prisma as any).user.update({
@@ -1544,48 +1568,22 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
         },
       });
 
-      const greetingName = user.firstName || user.name || 'där';
-      const webLink = `${WEB_RESET_BASE}?token=${token}`;
-      const mobileLink = `${MOBILE_RESET_DEEP_LINK_BASE}?token=${token}`;
-
-      const text = [
-        `Hej ${greetingName}!`,
-        '',
-        'Vi fick en begäran om att återställa lösenordet till ditt MatGo-konto.',
-        'Klicka på länken nedan för att välja ett nytt lösenord. Länken gäller 1 timme.',
-        '',
-        `Webb:   ${webLink}`,
-        `Mobil:  ${mobileLink}`,
-        '',
-        'Om du inte bett om att återställa lösenordet kan du ignorera detta mejl — kontot är säkert.',
-        '',
-        'Vänliga hälsningar,',
-        'MatGo',
-      ].join('\n');
-
-      const html = renderBrandedEmail({
-        headline: 'Återställ ditt lösenord',
-        greeting: `Hej ${greetingName}!`,
-        intro: [
-          'Vi fick en begäran om att återställa lösenordet till ditt MatGo-konto. Klicka på knappen nedan för att välja ett nytt lösenord.',
-        ],
-        cta: { label: 'Välj nytt lösenord', url: webLink },
-        mobileDeepLink: { label: 'Använder du mobilappen? Öppna istället:', url: mobileLink },
-        footnote:
-          'Länken gäller 1 timme. Om du inte begärde detta kan du ignorera mejlet — kontot är säkert.',
-      });
-
-      try {
-        await sendEmail({
-          to: user.email!,
-          subject: 'Återställ ditt lösenord — MatGo',
-          text,
-          html,
-        });
-      } catch (mailErr) {
-        // Mejl fick inte gå igenom — logga, men returnera fortfarande 200
-        // mot klienten. Användaren får be om en ny länk.
-        console.error('[forgot-password] sendEmail failed:', mailErr);
+      if (supabasePublic) {
+        try {
+          const { error: resetErr } = await supabasePublic.auth.resetPasswordForEmail(
+            user.email!,
+            { redirectTo: WEB_RESET_BASE },
+          );
+          if (resetErr) {
+            console.error('[forgot-password] supabase.resetPasswordForEmail failed:', resetErr.message);
+          } else {
+            console.log(`[forgot-password] Reset-mejl skickat via Supabase till ${user.email}`);
+          }
+        } catch (mailErr: any) {
+          console.error('[forgot-password] supabase.resetPasswordForEmail threw:', mailErr?.message || mailErr);
+        }
+      } else {
+        console.warn('[forgot-password] supabasePublic saknas — reset-mejl skickas inte. Sätt SUPABASE_ANON_KEY i Railway.');
       }
 
       await audit(req as AuthRequest, 'PASSWORD_RESET_REQUESTED', {
