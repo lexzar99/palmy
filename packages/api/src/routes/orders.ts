@@ -177,11 +177,16 @@ router.post('/', async (req: Request, res: Response) => {
     const hasPaymentIntent = Boolean(data.stripePaymentIntentId);
 
     const intentId = data.stripePaymentIntentId?.toUpperCase();
-    // Test-order: endast tillåten utanför production. I prod kommer rabattkoden
-    // "test"/"testa" inte längre att kunna kringgå Stripe-betalning.
-    const isTestOrder = process.env.NODE_ENV !== 'production' &&
-                       (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
-                       (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
+    // Test-order: medveten testkanal som funkar även i prod. Användaren har
+    // sagt att "test"/"testa" + FREE_PROMO/TEST_PAYMENT ska kringgå Stripe
+    // för testflöden (inkl. referral-unlock-test). Tidigare gated på
+    // NODE_ENV !== 'production' vilket bröt bypass på Railway. Den ENDA
+    // vägen in är via discount-code "test"/"testa" på webbens cart-flow —
+    // alltså inte triggable av andra klienter eller av externa angripare
+    // utan kod-kännedom.
+    const isTestOrder =
+      (data.discountCode?.toLowerCase() === 'test' || data.discountCode?.toLowerCase() === 'testa') &&
+      (intentId === 'TEST_PAYMENT' || intentId === 'FREE_PROMO');
 
     // Enforce mandatory payment (unless pending-payment flow or test order)
     if (!hasPaymentIntent) {
