@@ -21,7 +21,7 @@ import { api } from "../lib/api";
 import { useAppPaymentSheet } from "../lib/stripeProvider";
 import { placesAutocomplete, placesResolveCoords } from "../lib/places";
 import { captureError } from "../lib/sentry";
-import { STRIPE_PUBLISHABLE_KEY } from "../lib/api";
+import { STRIPE_PUBLISHABLE_KEY, WEB_URL } from "../lib/api";
 import * as Crypto from "expo-crypto";
 import { getBottomTabsContentPadding, getScreenTopPadding } from "../constants/layout";
 import {
@@ -1035,7 +1035,16 @@ export default function CartScreen({
           paymentIntentClientSecret: clientSecret,
           ...(includeApplePay ? { applePay: { merchantCountryCode: 'SE' } } : {}),
           googlePay: { merchantCountryCode: 'SE', testEnv: false },
-          returnURL: 'foodgo://stripe-redirect',
+          // Universal Link istället för custom URL-scheme. Med foodgo://-
+          // schemat visar iOS en "Öppna i FoodGo?"-prompt vid retur från
+          // Klarna/BankID-flödet, vilket bryter UX:n efter att användaren
+          // redan BankID:at en gång. Universal Link öppnar appen direkt
+          // (kräver Associated Domains-entitlement i Xcode +
+          // matgo-web-pi.vercel.app/.well-known/apple-app-site-association
+          // som serverar appID:t — båda satta). Fallback om Universal Link
+          // inte matchar: web-sidan på /stripe-redirect försöker öppna
+          // foodgo:// så användaren ändå hamnar i appen.
+          returnURL: `${WEB_URL || 'https://matgo-web-pi.vercel.app'}/stripe-redirect`,
           appearance: {
             colors: {
               primary: toStripeHex(palette.gold),
@@ -1266,9 +1275,16 @@ export default function CartScreen({
       });
 
       if (paymentWasTaken) {
+        // Använd /refund-orphan (kund-callbar) istället för /refund
+        // (super-admin only). Den gamla endpointen returnerade 401 för
+        // alla customers — axios-interceptorn tog det som "session död"
+        // och loggade ut användaren mitt i checkout-flödet. Den nya
+        // endpointen är säker: den vägrar refundera om en Order finns
+        // länkad till intent:n, vilket innebär att en angripare inte
+        // kan returnera någon annans lagd beställning.
         try {
           await api.post(
-            "/api/payments/refund",
+            "/api/payments/refund-orphan",
             { paymentIntentId: finalPaymentIntentId },
             { headers: { "Idempotency-Key": `${idempotencyKey}:refund` } }
           );

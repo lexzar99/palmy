@@ -32,6 +32,14 @@ const AASA = {
           '/reset-password*',
           '/r/*',
           '/order/*',
+          // Stripe PaymentSheet returnURL för Klarna/BankID m.fl. redirect-
+          // baserade flöden. Universal Link istället för foodgo://-scheme så
+          // iOS öppnar appen direkt utan "Öppna i FoodGo?"-prompt. Det här
+          // är specifikt viktigt för Klarna eftersom BankID-flowet redan
+          // har gjort en tab-switch (BankID-app), och att lägga till en
+          // ytterligare "Open in app?"-prompt riskerar att användaren får
+          // upp Safari istället för att hamna direkt i appen.
+          '/stripe-redirect*',
         ],
       },
     ],

@@ -175,6 +175,102 @@ router.post('/refund', authenticate, requireSuperAdmin, async (req, res) => {
   }
 });
 
+// POST /api/payments/refund-orphan
+// Customer-initierad refund för "orphan" PaymentIntents — d.v.s. intents
+// där betalning gick igenom men ingen Order kopplades (typiskt: Klarna/
+// BankID-flödet returnerade men /api/orders POST kraschade efteråt, eller
+// klienten tappade JWT under tab-switch).
+//
+// SÄKERHET: Vi vill INTE kräva admin-auth här (det blockade hela flödet
+// och pekade auth-failures istället för missade ordrar). Men vi måste
+// förhindra att vem som helst refundar vilken intent som helst:
+//
+//   1. PaymentIntent måste finnas i Stripe och vara `succeeded`.
+//   2. PaymentIntent måste ha skapats nyligen (< 24h).
+//   3. INGEN Order i vår DB får referera till intent-id:t. Om en order
+//      finns måste den gå genom vanliga admin-refund-flödet.
+//   4. Idempotens via Stripe-keyen så dubbla anrop blir no-op.
+//
+// Med dessa villkor kan en angripare bara refundera betalningar som
+// redan är "förlorade" — vilket är exakt det användarscenario vi vill
+// stödja. Inga konsekvenser för fungerande ordrar.
+router.post('/refund-orphan', async (req, res) => {
+  const idempotencyKey = getIdempotencyKey(req);
+  const scope = req.ip || 'anon';
+  if (idempotencyKey) {
+    const cached = getCachedResponse(scope, `refund-orphan:${idempotencyKey}`);
+    if (cached) {
+      return res.status(cached.status).json(cached.body);
+    }
+  }
+
+  const { paymentIntentId } = req.body || {};
+
+  if (!paymentIntentId || typeof paymentIntentId !== 'string' || !paymentIntentId.startsWith('pi_')) {
+    res.status(400).json({ error: 'Ogiltigt paymentIntentId' });
+    return;
+  }
+
+  try {
+    // 1. Hämta intent från Stripe — verifiera att den faktiskt finns
+    //    och faktiskt är succeeded (vi vill inte försöka refundera en
+    //    intent som inte ens debiterats).
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (intent.status !== 'succeeded') {
+      // Inte succeeded → ingen pengar att refundera. Returnera 200 så
+      // klienten inte gör onödig retry-loop.
+      const responseBody = { success: true, refunded: false, reason: 'not-succeeded', status: intent.status };
+      if (idempotencyKey) {
+        cacheResponse(scope, `refund-orphan:${idempotencyKey}`, 200, responseBody);
+      }
+      res.json(responseBody);
+      return;
+    }
+
+    // 2. Verifiera tid — Stripe-intents är åldersmärkta som unix-sek.
+    //    > 24h gammal: betraktas som "för gammal" och måste hanteras av admin.
+    const createdMs = (intent.created || 0) * 1000;
+    if (Date.now() - createdMs > 24 * 60 * 60 * 1000) {
+      res.status(403).json({
+        error: 'PaymentIntent är för gammal för auto-refund. Kontakta support.',
+      });
+      return;
+    }
+
+    // 3. Verifiera att ingen Order länkats till denna intent. Om en
+    //    order finns ska refunden gå via admin-routing — vi vill inte
+    //    att en customer ska kunna refundera sin egen lagda order.
+    const existingOrder = await prisma.order.findFirst({
+      where: { stripePaymentIntentId: paymentIntentId },
+      select: { id: true, paymentStatus: true },
+    });
+    if (existingOrder) {
+      res.status(409).json({
+        error: 'Order finns redan för denna betalning — kontakta support för refund.',
+        orderId: existingOrder.id,
+      });
+      return;
+    }
+
+    // 4. Allt OK → refunda. Stripe-idempotency-key skyddar mot
+    //    dubbla refunder om klienten retry:ar.
+    const refund = await stripe.refunds.create(
+      { payment_intent: paymentIntentId },
+      idempotencyKey ? { idempotencyKey: `refund-orphan:${idempotencyKey}` } : undefined
+    );
+
+    console.log(`💸 Orphan refund created: ${refund.id} for intent ${paymentIntentId} (no order linked)`);
+    const responseBody = { success: true, refunded: true, refundId: refund.id };
+    if (idempotencyKey) {
+      cacheResponse(scope, `refund-orphan:${idempotencyKey}`, 200, responseBody);
+    }
+    res.json(responseBody);
+  } catch (error: any) {
+    console.error('Orphan refund error:', { paymentIntentId, error: error?.message });
+    res.status(500).json({ error: error?.message || 'Återbetalning misslyckades' });
+  }
+});
+
 // POST /api/payments/webhook - Stripe webhook
 router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'] as string;

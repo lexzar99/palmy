@@ -26,6 +26,21 @@ export function setUnauthorizedHandler(handler: () => void) {
   unauthorizedHandler = handler;
 }
 
+// Endpoints where 401 means "you tried something admin-only" rather than
+// "your session is dead". Hitting one of these MUST NOT trigger global
+// logout — historiskt kraschade detta checkout mid-flow: en post-payment
+// refund-call till /api/payments/refund (admin-only) returnerade 401 →
+// interceptorn nollade JWT → "debiterad men ordern kommer inte fram".
+// Lägg till nya admin-routes som klienten kan råka anropa här.
+const NON_SESSION_401_PATTERNS: RegExp[] = [
+  /\/api\/payments\/refund(?!-orphan)/, // matchar /refund men INTE /refund-orphan
+];
+
+function isNonSessionRoute(url: string | undefined): boolean {
+  if (!url) return false;
+  return NON_SESSION_401_PATTERNS.some((re) => re.test(url));
+}
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -33,7 +48,16 @@ api.interceptors.response.use(
     // Routes that return 401 because of input validation aren't a session
     // issue — but our backend uses 401 only when auth is missing/expired/
     // soft-deleted, so we can treat every 401 as a "the session is dead".
-    if (error?.response?.status === 401 && unauthorizedHandler) {
+    //
+    // Undantag: vissa admin-routes (refund t.ex.) returnerar 401 om
+    // klienten inte är admin — det är förväntat, inte ett session-fel.
+    // Vi listar dem ovan så de inte triggar global utloggning.
+    const url: string = error?.config?.url || error?.request?.responseURL || "";
+    if (
+      error?.response?.status === 401
+      && unauthorizedHandler
+      && !isNonSessionRoute(url)
+    ) {
       try { unauthorizedHandler(); } catch {}
     }
     return Promise.reject(error);
