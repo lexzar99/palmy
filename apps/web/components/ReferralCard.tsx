@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Copy, Share2, Gift, Loader2, Check } from "lucide-react";
+import { Copy, Share2, Gift, Loader2, Check, Truck, Percent, Tag, CalendarDays, Wallet } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/Toast";
 
@@ -11,15 +11,24 @@ import { useToast } from "@/components/Toast";
 // dela länken. Share-text matchar RN-appens motsvarighet så meddelandet ser
 // likadant ut oavsett plattform.
 
+type DealInfo = {
+  title: string;
+  discountType: string; // NONE | PERCENTAGE | FIXED
+  discountPercent: number | null;
+  amountKr: number | null;
+  freeDelivery: boolean;
+  minOrderKr: number;
+  expiresAt: string;
+};
+
 type ReferralData = {
   code: string;
   shareUrl: string;
   enabled: boolean;
-  discountType?: string | null; // PERCENTAGE | FIXED | FREE_DELIVERY
+  deal: DealInfo | null;
+  discountType?: string | null;
   rewardPercent?: number | null;
   rewardKr?: number | null;
-  // Färdigformaterad sträng från backend: "20%" / "50 kr" / "Fri leverans".
-  // Frontend visar den rakt av i texter så vi slipper formatteringslogik.
   rewardLabel: string;
   couponsPerSide?: number;
   stats: {
@@ -120,6 +129,17 @@ export default function ReferralCard() {
     return null;
   }
 
+  // Format-helper för expiry-display: "Gäller till 15 dec" istället för ISO.
+  const formatExpiry = (iso: string): string | null => {
+    try {
+      const d = new Date(iso);
+      if (!Number.isFinite(d.getTime())) return null;
+      return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -164,6 +184,12 @@ export default function ReferralCard() {
             på nästa order.
           </p>
         </div>
+
+        {/* Deal-hero — visuell display av den konfigurerade rabatten.
+            Anpassar sig efter typen: stort tal för procent/kr, lastbil-ikon
+            för fri leverans, kombinerad layout för stack. Visas bara om
+            referral är aktivt + en Deal är vald. */}
+        {data.enabled && data.deal && <DealHero deal={data.deal} formatExpiry={formatExpiry} />}
 
         {/* Kod + actions */}
         <div className="flex items-center gap-3">
@@ -223,6 +249,113 @@ export default function ReferralCard() {
         </div>
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * DealHero — visuell display av den konfigurerade rabatten. Anpassar sig
+ * efter dealtypen:
+ *   - PERCENTAGE → BIG "25%" med procent-symbol
+ *   - FIXED → BIG "50 KR"
+ *   - FREE_DELIVERY (ensam) → Lastbil-ikon + "FRI LEVERANS"
+ *   - Stack (t.ex. 25% + Fri leverans) → Båda visas sida vid sida
+ * Plus footer-rad med min-order + expiry.
+ */
+function DealHero({
+  deal,
+  formatExpiry,
+}: {
+  deal: DealInfo;
+  formatExpiry: (iso: string) => string | null;
+}) {
+  const hasDiscount =
+    (deal.discountType === "PERCENTAGE" && (deal.discountPercent ?? 0) > 0) ||
+    (deal.discountType === "FIXED" && (deal.amountKr ?? 0) > 0);
+  const isPercent = deal.discountType === "PERCENTAGE";
+  const expiry = formatExpiry(deal.expiresAt);
+
+  return (
+    <div
+      className="rounded-[1.5rem] p-5 border"
+      style={{
+        backgroundColor: "var(--bg-deep)",
+        borderColor: "rgba(231,178,75,0.3)",
+      }}
+    >
+      {/* Deal-titel */}
+      <p
+        className="text-[9px] font-black uppercase tracking-[0.3em] mb-3"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        {deal.title}
+      </p>
+
+      {/* Visuell hero-display — stort tal eller lastbil-ikon */}
+      <div className="flex items-center justify-center gap-5 py-3">
+        {hasDiscount && (
+          <div className="flex flex-col items-center">
+            <p className="text-5xl md:text-6xl font-black italic tracking-tighter text-gold-500 leading-none">
+              {isPercent ? deal.discountPercent : deal.amountKr}
+              <span className="text-2xl md:text-3xl align-top ml-0.5">
+                {isPercent ? "%" : "kr"}
+              </span>
+            </p>
+            <p
+              className="text-[9px] font-black uppercase tracking-[0.3em] mt-1.5"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Rabatt
+            </p>
+          </div>
+        )}
+
+        {/* Plus-symbol om båda stackar */}
+        {hasDiscount && deal.freeDelivery && (
+          <p
+            className="text-3xl font-black"
+            style={{ color: "var(--text-secondary)", opacity: 0.4 }}
+          >
+            +
+          </p>
+        )}
+
+        {deal.freeDelivery && (
+          <div className="flex flex-col items-center">
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gold-500/15 border border-gold-500/30 flex items-center justify-center">
+              <Truck size={28} className="text-gold-500" strokeWidth={2.5} />
+            </div>
+            <p
+              className="text-[9px] font-black uppercase tracking-[0.3em] mt-1.5 text-center"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Fri leverans
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Villkor-rad: min-order + expiry */}
+      {(deal.minOrderKr > 0 || expiry) && (
+        <div
+          className="flex flex-wrap items-center gap-4 mt-4 pt-3 text-[10px] font-bold"
+          style={{
+            borderTop: "1px solid var(--border-muted)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          {deal.minOrderKr > 0 && (
+            <span className="flex items-center gap-1.5">
+              <Wallet size={11} /> Min {deal.minOrderKr} kr
+            </span>
+          )}
+          {expiry && (
+            <span className="flex items-center gap-1.5">
+              <CalendarDays size={11} /> Gäller till {expiry}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

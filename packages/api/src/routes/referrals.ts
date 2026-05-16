@@ -108,6 +108,7 @@ async function getSettings() {
 // ─────────────────────────────────────────────────────────────────────────────
 type DealSnapshot = {
   dealId: string;
+  title: string; // Deal-titel för UI-display
   discountType: string; // NONE | PERCENTAGE | FIXED
   discountPercent: number | null;
   amountKr: number | null;
@@ -122,6 +123,7 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
     where: { id: dealId },
     select: {
       id: true,
+      title: true,
       isActive: true,
       isPersonalTemplate: true,
       discountType: true,
@@ -148,6 +150,7 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
 
   return {
     dealId: deal.id,
+    title: deal.title || 'Referral-rabatt',
     discountType: isPercent ? 'PERCENTAGE' : isFixed ? 'FIXED' : 'NONE',
     discountPercent: isPercent ? deal.discountValue : null,
     amountKr: isFixed ? deal.discountValue : null,
@@ -301,10 +304,23 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
       code,
       shareUrl: `${publicShareBase()}/r/${code}`,
       enabled: !!settings.referralEnabled && !!snapshot,
+      // Full deal-info för visuell display i frontend. null om ingen Deal vald.
+      deal: snapshot
+        ? {
+            title: snapshot.title,
+            discountType: snapshot.discountType,
+            discountPercent: snapshot.discountPercent,
+            amountKr: snapshot.amountKr,
+            freeDelivery: snapshot.freeDelivery,
+            minOrderKr: snapshot.minOrderKr,
+            expiresAt: snapshot.expiresAt.toISOString(),
+          }
+        : null,
+      // Legacy/convenience-fält — backend-formaterad text för splice-display.
       discountType,
       rewardPercent,
       rewardKr,
-      rewardLabel, // "20%" | "50 kr" | "Fri leverans" | "rabatt" (fallback)
+      rewardLabel,
       couponsPerSide,
       stats,
     });
@@ -541,12 +557,22 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
     res.json({
       exists: true,
       inviterName: inviter.firstName || inviter.name || 'En vän',
+      deal: snapshot
+        ? {
+            title: snapshot.title,
+            discountType: snapshot.discountType,
+            discountPercent: snapshot.discountPercent,
+            amountKr: snapshot.amountKr,
+            freeDelivery: snapshot.freeDelivery,
+            minOrderKr: snapshot.minOrderKr,
+            expiresAt: snapshot.expiresAt.toISOString(),
+          }
+        : null,
       discountType: snapshot?.discountType ?? null,
       rewardPercent: snapshot?.discountPercent ?? null,
       rewardKr: snapshot?.amountKr ?? null,
       rewardLabel: formatRewardLabel(snapshot),
       couponsPerSide: settings.referralCouponsPerSide ?? 1,
-      // enabled = true bara om referral är aktivt OCH admin har valt en Deal.
       enabled: !!settings.referralEnabled && !!snapshot,
     });
   } catch (err: any) {
