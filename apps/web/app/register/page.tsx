@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { User, ArrowLeft, Loader2, Gift } from "lucide-react";
+import { User, ArrowLeft, Loader2, Gift, CheckCircle2, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -32,6 +32,29 @@ function RegisterContent() {
   const [referralCode, setReferralCode] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState("");
+  // Success-vy: visas när registreringen är klar (oavsett om vi loggades in
+  // automatiskt eller email-existerar-skydd triggades). User klickar
+  // "Fortsätt" manuellt så de hinner läsa verifierings-instruktionen.
+  const [success, setSuccess] = useState<{ loggedIn: boolean; email: string } | null>(null);
+
+  // Password-strength: standard 4-nivå-bar baserat på längd + variation
+  const passwordStrength = useMemo(() => {
+    if (!password) return null;
+    let score = 0;
+    if (password.length >= 6) score++;
+    if (password.length >= 10) score++;
+    if (/[a-zåäö]/.test(password) && /[A-ZÅÄÖ]/.test(password)) score++;
+    if (/\d/.test(password) || /[^a-zA-ZåäöÅÄÖ0-9]/.test(password)) score++;
+    const labels = ["Svagt", "Okej", "Bra", "Starkt"];
+    const colors = ["#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
+    const idx = Math.min(3, Math.max(0, score - 1));
+    return {
+      score,
+      label: labels[idx],
+      color: colors[idx],
+      activeBars: Math.max(1, score),
+    };
+  }, [password]);
 
   // Pre-fill referral-koden från ?ref=KOD så landing-page-flödet funkar:
   // /r/KOD → "Registrera nu" → /register?ref=KOD → fältet är förvalt.
@@ -55,43 +78,43 @@ function RegisterContent() {
         password,
       });
       const token = res.data?.token;
+      const loggedIn = !!token;
       if (token) {
         await persistPlatformSession(token);
       }
 
-      // Referral-redeem är fire-and-forget — själva registreringen får aldrig
-      // blockas av att en kod är ogiltig/utgången/redan-använd.
-      let referralOk = false;
-      let inviterName: string | null = null;
-      const trimmedCode = referralCode.trim().toUpperCase();
-      if (trimmedCode) {
-        try {
-          const redeemRes = await axios.post("/api/platform/account/redeem-code", {
-            code: trimmedCode,
-            email,
-            deviceFingerprint: getDeviceFingerprint(),
-          });
-          if (redeemRes.data?.ok) {
-            referralOk = true;
-            inviterName = redeemRes.data?.inviterName || null;
+      // Referral-redeem är fire-and-forget — bara om vi blev inloggade
+      // (har JWT) försöker vi koppla koden. För email-existerar-fallet
+      // måste user logga in manuellt först, sen kan de redeem:a kod via
+      // profil-sidan om de vill.
+      if (loggedIn) {
+        const trimmedCode = referralCode.trim().toUpperCase();
+        if (trimmedCode) {
+          try {
+            const redeemRes = await axios.post("/api/platform/account/redeem-code", {
+              code: trimmedCode,
+              email,
+              deviceFingerprint: getDeviceFingerprint(),
+            });
+            if (redeemRes.data?.ok) {
+              const inviterName = redeemRes.data?.inviterName || null;
+              toast(
+                inviterName
+                  ? `Du och ${inviterName} får båda en rabatt-kupong på nästa beställning!`
+                  : "Referral aktiverad — du har en rabatt-kupong i ditt konto!",
+                "success",
+              );
+            }
+          } catch {
+            // Tyst ignorera
           }
-        } catch {
-          // Tyst ignorera — endast registreringen är kritisk
         }
       }
 
-      if (referralOk) {
-        toast(
-          inviterName
-            ? `Du och ${inviterName} får båda en rabatt-kupong på nästa beställning!`
-            : "Referral aktiverad — du har en rabatt-kupong i ditt konto!",
-          "success",
-        );
-      } else {
-        toast("Kolla din mejl för att verifiera senare!", "success");
-      }
-      // Kort paus så toasten hinner synas innan vi byter sida.
-      setTimeout(() => router.push("/profile"), referralOk ? 1500 : 800);
+      // Visa success-vyn manuell-dismiss (matchar RN-flow). Triggas oavsett
+      // om vi loggades in eller om email-existerar-skyddet ledde till tomt
+      // token-svar. Användaren får läsa verifierings-instruktionen i sin takt.
+      setSuccess({ loggedIn, email });
     } catch (err: any) {
       setError(err.response?.data?.error || "Registrering misslyckades");
     } finally {
@@ -110,6 +133,53 @@ function RegisterContent() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-sm space-y-10"
       >
+        {success ? (
+          /* Success-vy efter lyckad registrering. Manuell dismiss via knapp
+             så user hinner läsa verifierings-instruktionen — auto-redirect
+             hade gjort det förvirrande (matchar RN-flow). */
+          <div className="space-y-6">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 bg-emerald-500/10 rounded-[2rem] border border-emerald-500/20 flex items-center justify-center text-emerald-500 mx-auto shadow-2xl shadow-emerald-500/10">
+                <CheckCircle2 size={36} />
+              </div>
+              <h1 className="text-3xl font-black uppercase tracking-tight">
+                <span className="text-emerald-500">Klart!</span>
+              </h1>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "var(--text-secondary)" }}>
+                Konto skapat
+              </p>
+            </div>
+
+            <div className="rounded-[1.75rem] p-6 space-y-3" style={{ backgroundColor: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.25)" }}>
+              <div className="flex items-center gap-2 text-emerald-500">
+                <Mail size={16} />
+                <p className="text-[10px] font-black uppercase tracking-widest">
+                  Verifieringsmejl skickat
+                </p>
+              </div>
+              <p className="text-sm font-bold leading-relaxed" style={{ color: "var(--text-primary)" }}>
+                Till: <span className="text-gold-500 font-black">{success.email}</span>
+              </p>
+              <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                Klicka på länken i mejlet för att verifiera din e-post. {success.loggedIn
+                  ? "Du är redan inloggad — verifiering är frivillig men hjälper oss skydda kontot."
+                  : "Logga in via mejl-länken eller fortsätt direkt om kontot redan fanns."}
+              </p>
+              <p className="text-[10px] italic" style={{ color: "var(--text-secondary)" }}>
+                Hittar du inte mejlet? Kolla i skräppost.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => router.push(success.loggedIn ? "/profile" : "/")}
+              className="w-full bg-gold-500 hover:bg-gold-600 text-zinc-950 py-5 rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
+            >
+              Fortsätt till {success.loggedIn ? "profilen" : "hemsidan"}
+            </button>
+          </div>
+        ) : (
+        <>
         <div className="text-center space-y-4">
            <div className="w-20 h-20 bg-gold-500/10 rounded-[2rem] border border-gold-500/20 flex items-center justify-center text-gold-500 mx-auto shadow-2xl shadow-gold-500/10">
               <User size={32} />
@@ -159,15 +229,43 @@ function RegisterContent() {
              className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
              style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
            />
-           <input
-             type="password"
-             placeholder="Välj lösenord"
-             required
-             value={password}
-             onChange={(e) => setPassword(e.target.value)}
-             className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
-             style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
-           />
+           <div className="space-y-2">
+             <input
+               type="password"
+               placeholder="Välj lösenord"
+               required
+               value={password}
+               onChange={(e) => setPassword(e.target.value)}
+               className="w-full rounded-3xl py-5 px-8 outline-none focus:ring-2 focus:ring-gold-500/30 transition-all font-bold text-lg placeholder:text-zinc-500"
+               style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", color: "var(--text-primary)" }}
+             />
+             {/* Password-strength: 4-segment-bar visas så fort user börjat
+                 skriva. Standard regler — längd + variation. Ingen tvingande
+                 spärr, bara visuell hint som matchar RN-mobil-appen. */}
+             {passwordStrength && (
+               <div className="px-2">
+                 <div className="flex gap-1">
+                   {[0, 1, 2, 3].map((i) => (
+                     <div
+                       key={i}
+                       className="flex-1 h-1 rounded-full transition-colors"
+                       style={{
+                         backgroundColor: i < passwordStrength.activeBars
+                           ? passwordStrength.color
+                           : "var(--border-muted)",
+                       }}
+                     />
+                   ))}
+                 </div>
+                 <p
+                   className="text-[10px] font-bold uppercase tracking-wider mt-1.5"
+                   style={{ color: passwordStrength.color }}
+                 >
+                   Lösenord: {passwordStrength.label}
+                 </p>
+               </div>
+             )}
+           </div>
 
            {/* Referral-kod (frivilligt) — automatisk uppercase, max 12 tecken */}
            <div className="space-y-1.5">
@@ -204,6 +302,8 @@ function RegisterContent() {
         <p className="text-center text-[10px] font-black uppercase tracking-widest text-zinc-600">
            Har du redan ett konto? <Link href="/profile" className="text-gold-500">Logga in</Link>
         </p>
+        </>
+        )}
       </motion.div>
     </div>
   );
