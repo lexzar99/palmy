@@ -88,7 +88,10 @@ export default function RegisterScreen({
       }
       if (prof) setProfile(prof);
       setSuccess(true);
-      setTimeout(() => { onRegistered(); }, 2200);
+      // Tidigare auto-redirect efter 2.2s. Det var för snabbt — användaren
+      // hann inte läsa "Verifieringsmejl skickat"-skärmen och hamnade på
+      // home utan att förstå att de var inloggade men inte verifierade.
+      // Nu manuell dismiss via "Fortsätt"-knapp så user läser i egen takt.
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Registrering misslyckades");
     } finally {
@@ -120,18 +123,41 @@ export default function RegisterScreen({
 
         {success ? (
           <View style={{ gap: 14 }}>
-            <View style={{ backgroundColor: "rgba(16,185,129,0.10)", borderRadius: 18, padding: 18, borderWidth: 1, borderColor: "rgba(16,185,129,0.25)", gap: 6 }}>
-              <Text style={{ color: "#34d399", fontSize: 12, fontWeight: "900", textAlign: "center", letterSpacing: 0.4 }}>
-                Verifieringsmejl skickat
+            <View style={{ backgroundColor: "rgba(16,185,129,0.10)", borderRadius: 18, padding: 22, borderWidth: 1, borderColor: "rgba(16,185,129,0.25)", gap: 10 }}>
+              <Text style={{ color: "#34d399", fontSize: 13, fontWeight: "900", textAlign: "center", letterSpacing: 0.4 }}>
+                ✓ KONTO SKAPAT
               </Text>
-              <Text style={{ color: palette.text, fontSize: 14, fontWeight: "700", textAlign: "center", lineHeight: 20 }}>
-                {email.trim()}
+              <Text style={{ color: palette.text, fontSize: 16, fontWeight: "700", textAlign: "center", lineHeight: 22 }}>
+                Verifieringsmejl skickat till{"\n"}
+                <Text style={{ color: palette.gold, fontWeight: "900" }}>{email.trim()}</Text>
               </Text>
-              <Text style={{ color: palette.muted, fontSize: 11, fontWeight: "500", textAlign: "center", lineHeight: 16 }}>
-                Klicka på länken i mejlet när du har en stund för att verifiera din e-post.
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "500", textAlign: "center", lineHeight: 18, marginTop: 4 }}>
+                Klicka på länken i mejlet för att verifiera din e-post. Du
+                kan börja använda appen direkt — verifiering är frivillig
+                men hjälper oss att skydda kontot.
+              </Text>
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "500", textAlign: "center", marginTop: 2, fontStyle: "italic" }}>
+                Hittar du inte mejlet? Kolla i skräppost.
               </Text>
             </View>
-            <ActivityIndicator color={palette.gold} />
+            <Pressable
+              onPress={onRegistered}
+              style={{
+                backgroundColor: palette.gold,
+                borderRadius: 22,
+                paddingVertical: 18,
+                alignItems: "center",
+                marginTop: 6,
+                shadowColor: palette.gold,
+                shadowOpacity: 0.35,
+                shadowOffset: { width: 0, height: 6 },
+                shadowRadius: 14,
+              }}
+            >
+              <Text style={{ color: "#000", fontSize: 14, fontWeight: "900", letterSpacing: 1 }}>
+                FORTSÄTT TILL APPEN
+              </Text>
+            </Pressable>
           </View>
         ) : (
         <View style={{ gap: 12 }}>
