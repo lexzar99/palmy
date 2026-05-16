@@ -294,6 +294,36 @@ export const authenticateUser = async (req: any, res: any, next: any) => {
           where: { id: user.id },
           select: { deletedAt: true, isActive: true, firstName: true, lastName: true },
         }).catch(() => null);
+
+        // ID-mismatch-fix: vår /register-user skapar User med cuid() medan
+        // Supabase auth.users har UUID. Om id inte matchar någon User i vår
+        // DB, men email matchar → samma person, bara olika auth-paths
+        // (custom JWT vs Supabase JWT). Då länkar vi: använd den befintliga
+        // cuid-User:n och markera isVerified=true från Supabase-status.
+        // Annars skulle vi skapa en SEKUNDÄR User-row och användaren skulle
+        // ha två konton i parallell — buggen som gav "isVerified=false trots
+        // verifierad email".
+        let resolvedUserId = user.id;
+        if (!tombstone && user.email) {
+          const existingByEmail = await (prisma as any).user.findFirst({
+            where: { email: user.email.toLowerCase(), deletedAt: null },
+            select: { id: true, isVerified: true },
+          }).catch(() => null);
+          if (existingByEmail) {
+            resolvedUserId = existingByEmail.id;
+            // Markera som verifierad om Supabase säger så
+            if (!existingByEmail.isVerified && (user.email_confirmed_at || user.phone_confirmed_at)) {
+              await (prisma as any).user.update({
+                where: { id: existingByEmail.id },
+                data: { isVerified: true },
+              }).catch(() => null);
+              console.log(`[auth] User ${existingByEmail.id} (email=${user.email}) markerad som verifierad via Supabase`);
+            }
+            req.user = { id: resolvedUserId, email: user.email, phone: null, role: 'USER' };
+            return next();
+          }
+        }
+
         if (tombstone?.isActive === false) {
           // Permanent block — admin set isActive=false. Reject without revival.
           return res.status(401).json({ error: 'Konto avstängt' });
