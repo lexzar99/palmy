@@ -739,6 +739,14 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Leveransavgift (use pre-calculated value from above)
 
+    // Test-order: tvinga total till 0 oavsett discount-stack. UserDeal
+    // (33% rabatt) eller automatiska deals kan annars producera ett
+    // positivt total som matchar inte den 0-betalning bypass:en gör.
+    // Vi maxar discountAmount till subtotal+deliveryFee = allt absorberas.
+    if (isTestOrder) {
+      discountAmount = subtotal + deliveryFee;
+    }
+
     const total = subtotal - discountAmount + deliveryFee;
 
     // Verifiera Stripe-beloppet matchar det vi räknat fram. Tidigare auto-justerade
@@ -746,9 +754,10 @@ router.post('/', async (req: Request, res: Response) => {
     // angripare kunde betala mindre via en manipulerad PaymentIntent och få mat
     // för det reducerade beloppet. Nu kastar vi fel istället.
     //
-    // Tolerans: 1 öre (avrundningsavvikelse). BYPASS (amount === -1) hoppas
-    // över eftersom det är en explicit test-/dev-kanal.
-    if (confirmedPayment && confirmedPayment.amount !== -1) {
+    // Tolerans: 1 öre (avrundningsavvikelse). Skippas helt för:
+    //  - BYPASS (amount === -1)
+    //  - isTestOrder (test/testa-koden + FREE_PROMO/TEST_PAYMENT)
+    if (confirmedPayment && confirmedPayment.amount !== -1 && !isTestOrder) {
       const diff = Math.abs(confirmedPayment.amount - total);
       if (diff > 1) {
         console.warn(
