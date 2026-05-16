@@ -208,18 +208,55 @@ export default function RegisterScreen({
             value={phone}
             onChangeText={(t) => { setPhone(t); setError(""); }}
           />
-          <TextInput
-            style={[styles.input, { fontSize: 16, fontWeight: "700", paddingVertical: 18, marginBottom: 0 }]}
-            placeholder="Välj lösenord (minst 6 tecken)"
-            placeholderTextColor={palette.muted}
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="password-new"
-            textContentType="newPassword"
-            value={password}
-            onChangeText={(t) => { setPassword(t); setError(""); }}
-            onSubmitEditing={handleRegister}
-          />
+          <View>
+            <TextInput
+              style={[styles.input, { fontSize: 16, fontWeight: "700", paddingVertical: 18, marginBottom: 0 }]}
+              placeholder="Välj lösenord (minst 6 tecken)"
+              placeholderTextColor={palette.muted}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="password-new"
+              textContentType="newPassword"
+              value={password}
+              onChangeText={(t) => { setPassword(t); setError(""); }}
+              onSubmitEditing={handleRegister}
+            />
+            {/* Password strength — visas bara när användaren har börjat
+                skriva. Standard 4-nivå-bar (weak/okay/good/strong) baserat
+                på längd + variation. Ingen tvingande regel, bara hint. */}
+            {password.length > 0 && (() => {
+              // Räkna ut styrka 0-4
+              let score = 0;
+              if (password.length >= 6) score++;
+              if (password.length >= 10) score++;
+              if (/[a-zåäö]/.test(password) && /[A-ZÅÄÖ]/.test(password)) score++;
+              if (/\d/.test(password) || /[^a-zA-ZåäöÅÄÖ0-9]/.test(password)) score++;
+              const labels = ["Svagt", "Okej", "Bra", "Starkt"];
+              const colors = ["#ef4444", "#f59e0b", "#3b82f6", "#10b981"];
+              const idx = Math.min(3, Math.max(0, score - 1));
+              const activeBars = Math.max(1, score);
+              return (
+                <View style={{ marginTop: 8, paddingHorizontal: 4 }}>
+                  <View style={{ flexDirection: "row", gap: 4 }}>
+                    {[0, 1, 2, 3].map((i) => (
+                      <View
+                        key={i}
+                        style={{
+                          flex: 1,
+                          height: 4,
+                          borderRadius: 2,
+                          backgroundColor: i < activeBars ? colors[idx] : palette.border,
+                        }}
+                      />
+                    ))}
+                  </View>
+                  <Text style={{ color: colors[idx], fontSize: 11, fontWeight: "700", marginTop: 6, letterSpacing: 0.3 }}>
+                    Lösenord: {labels[idx]}
+                  </Text>
+                </View>
+              );
+            })()}
+          </View>
 
           {!!error && (
             <View style={{ backgroundColor: "rgba(239,68,68,0.1)", borderRadius: 14, padding: 12, borderWidth: 1, borderColor: "rgba(239,68,68,0.2)" }}>

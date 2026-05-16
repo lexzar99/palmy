@@ -184,6 +184,32 @@ function getQuickScheduledTimes(reference = new Date()) {
     });
 }
 
+/**
+ * Konverterar en CSS-color-sträng till hex som Stripe PaymentSheet
+ * accepterar (#RRGGBB eller #RRGGBBAA). Stripe rejectar rgba()/hsl()
+ * med error "Expected hex string of length 6 or 8". Vår palette har
+ * dark-mode-färger som rgba(255,255,255,0.6) → vi måste konvertera.
+ */
+function toStripeHex(color: string): string {
+  if (!color) return "#000000";
+  // Redan hex → returnera som-är (uppercase för konsistens)
+  if (color.startsWith("#")) return color.toUpperCase();
+  // rgba(r, g, b, a) → #RRGGBBAA
+  const rgbaMatch = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)$/i);
+  if (rgbaMatch) {
+    const r = Math.min(255, Math.max(0, parseInt(rgbaMatch[1], 10)));
+    const g = Math.min(255, Math.max(0, parseInt(rgbaMatch[2], 10)));
+    const b = Math.min(255, Math.max(0, parseInt(rgbaMatch[3], 10)));
+    const a = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
+    const aHex = Math.round(a * 255).toString(16).padStart(2, "0").toUpperCase();
+    const hex = `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`.toUpperCase();
+    return a >= 1 ? hex : `${hex}${aHex}`;
+  }
+  // Okänt format — fallback till svart för att inte krascha Stripe
+  console.warn(`[stripe] Okänt color-format för Stripe: "${color}" — använder #000000`);
+  return "#000000";
+}
+
 export default function CartScreen({
   openHome,
   openProfile,
@@ -271,9 +297,12 @@ export default function CartScreen({
     id: string;
     type: string;
     status: string;
-    amountKr: number;
+    amountKr?: number | null;
+    discountPercent?: number | null;
+    discountType?: string | null;
+    freeDelivery?: boolean;
     expiresAt?: string | null;
-    metadata?: { minOrderKr?: number } | null;
+    metadata?: { minOrderKr?: number; validUntil?: string | null } | null;
   };
   const [userDeals, setUserDeals] = useState<UserDeal[]>([]);
   const [useUserDeal, setUseUserDeal] = useState<boolean>(false);
@@ -482,16 +511,52 @@ export default function CartScreen({
   // also picked (the toggle disables itself in the JSX in that case).
   const activeUserDeal = userDeals[0] || null;
   const userDealMinOrderKr = activeUserDeal?.metadata?.minOrderKr || 0;
-  const userDealEligible = !!activeUserDeal && subtotal >= userDealMinOrderKr;
-  const userDealDiscount = useUserDeal && userDealEligible && activeUserDeal
-    ? activeUserDeal.amountKr
-    : 0;
+
+  // Dynamisk reward-label från deal-typ:
+  //   "25% rabatt" / "50 kr rabatt" / "Fri leverans" /
+  //   "25% rabatt + Fri leverans". Tom string om dealen saknar värde.
+  const userDealLabel = (() => {
+    if (!activeUserDeal) return "";
+    const parts: string[] = [];
+    if (activeUserDeal.discountPercent && activeUserDeal.discountPercent > 0) {
+      parts.push(`${activeUserDeal.discountPercent}% rabatt`);
+    } else if (activeUserDeal.amountKr && activeUserDeal.amountKr > 0) {
+      parts.push(`${activeUserDeal.amountKr} kr rabatt`);
+    }
+    if (activeUserDeal.freeDelivery) parts.push("Fri leverans");
+    return parts.join(" + ");
+  })();
+  // Räkna ut subtotal-rabatt-del (procent eller fast belopp)
+  const computedDealKr = (() => {
+    if (!activeUserDeal) return 0;
+    let amount = 0;
+    if (activeUserDeal.discountPercent && activeUserDeal.discountPercent > 0) {
+      amount = Math.round((subtotal * activeUserDeal.discountPercent) / 100);
+    } else if (activeUserDeal.amountKr && activeUserDeal.amountKr > 0) {
+      amount = activeUserDeal.amountKr;
+    }
+    return Math.min(amount, subtotal);
+  })();
+  // Eligible = vi har en deal som faktiskt ger rabatt OCH min-order uppfylld.
+  // Om dealen saknar värde (admin-mall är trasig) → räkna den inte som
+  // användbar — bättre att gömma toggeln än visa "Använd kr rabatt".
+  const userDealHasValue =
+    computedDealKr > 0 ||
+    (activeUserDeal?.freeDelivery === true);
+  const userDealEligible =
+    !!activeUserDeal && userDealHasValue && subtotal >= userDealMinOrderKr;
+  // userDealDiscount = subtotal-rabatten. Free delivery hanteras genom att
+  // nolla deliveryFee separat nedan, så den dubbel-räknas inte.
+  const userDealDiscount = useUserDeal && userDealEligible ? computedDealKr : 0;
+  const userDealFreeDelivery = !!(useUserDeal && userDealEligible && activeUserDeal?.freeDelivery);
 
   const ovr = currentRestaurantId ? deliveryOverrides[currentRestaurantId] : undefined;
-  const deliveryFee =
+  const rawDeliveryFee =
     orderType === "DELIVERY"
       ? (deliveryCheck?.deliveryFee ?? ovr?.deliveryFee ?? restaurantSettings.deliveryFee)
       : 0;
+  // Free delivery via userDeal → nolla fee:n så total räknas utan leverans
+  const deliveryFee = userDealFreeDelivery ? 0 : rawDeliveryFee;
   const minOrder = deliveryCheck?.minOrder ?? restaurantSettings.minOrderAmount;
   // Komplettering till minimum — bara aktiv när kunden kryssat i checkboxen och
   // subtotal verkligen ligger under minimum (paritet med web).
@@ -973,15 +1038,15 @@ export default function CartScreen({
           returnURL: 'foodgo://stripe-redirect',
           appearance: {
             colors: {
-              primary: palette.gold,
-              background: palette.bg,
-              componentBackground: palette.panel,
+              primary: toStripeHex(palette.gold),
+              background: toStripeHex(palette.bg),
+              componentBackground: toStripeHex(palette.panel),
               componentBorder: "#E8DFD1",
-              primaryText: palette.text,
-              secondaryText: palette.muted,
-              componentText: palette.text,
+              primaryText: toStripeHex(palette.text),
+              secondaryText: toStripeHex(palette.muted),
+              componentText: toStripeHex(palette.text),
               placeholderText: "#A3998D",
-              icon: palette.text,
+              icon: toStripeHex(palette.text),
             },
             shapes: {
               borderRadius: 20,
@@ -2179,11 +2244,13 @@ export default function CartScreen({
             </View>
           )}
 
-          {/* 8c. Referral / WELCOME user-deal — toggle som applicerar deal.amountKr
-              som flat-rabatt på ordern. Backend kontrollerar fortfarande min-order
-              och giltighet vid /api/orders, så toggle:n är BARA UI. När markerad
-              skickas userDealId med i payloaden. */}
-          {activeUserDeal && !selectedPersonalDeal && (
+          {/* 8c. Referral / WELCOME user-deal — toggle som applicerar dealen
+              (procent/kr/fri leverans) på ordern. Backend kontrollerar
+              fortfarande min-order vid /api/orders. När markerad skickas
+              userDealId med i payloaden. Visas BARA om dealen har ett
+              giltigt värde (annars är admin-mallen trasig och vi skulle
+              visa "Använd kr rabatt" med tom siffra). */}
+          {activeUserDeal && userDealHasValue && !selectedPersonalDeal && (
             <Pressable
               onPress={() => userDealEligible && setUseUserDeal((v) => !v)}
               disabled={!userDealEligible}
@@ -2213,7 +2280,7 @@ export default function CartScreen({
                     : t('cart.deal.referralKicker').toUpperCase()}
                 </Text>
                 <Text style={{ color: palette.text, fontSize: 13, fontWeight: "800", marginTop: 2 }}>
-                  {t('cart.deal.use', { amount: activeUserDeal.amountKr })}
+                  Använd {userDealLabel}
                 </Text>
                 {!userDealEligible && userDealMinOrderKr > 0 && (
                   <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700", marginTop: 3 }}>

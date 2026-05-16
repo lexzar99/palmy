@@ -1226,7 +1226,7 @@ export default function ProfileScreen({
                 }}
               >
                 <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: ls(1.5) }}>
-                  GÅ TILL HEM-FLIKEN FÖR ATT BESTÄLLA
+                  BESTÄLL FÖR ATT LÅSA UPP
                 </Text>
                 <Ionicons name="arrow-forward" size={14} color="#000" />
               </View>
