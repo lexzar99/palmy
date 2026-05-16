@@ -42,18 +42,42 @@ import {
 
 type Tab = "welcome" | "referral" | "stats";
 
-// Format-helper för deal-display i dropdowns + hints. Visar typen
-// (Procent / Kr / Fri leverans) tillsammans med värdet.
-function formatDealLabel(d: { discountType: string; discountValue: number; title: string }): string {
-  if (d.discountType === "FREE_DELIVERY") return `${d.title} (Fri leverans)`;
-  if (d.discountType === "PERCENTAGE") return `${d.title} (${d.discountValue}%)`;
-  return `${d.title} (${d.discountValue} kr)`;
+// Format-helper för deal-display. discountType + freeDelivery kan stacka:
+//   "25%" / "50 kr" / "Fri leverans" / "25% + Fri leverans".
+type DealForLabel = {
+  discountType: string;
+  discountValue: number;
+  freeDelivery?: boolean;
+  title: string;
+};
+
+function rewardParts(d: DealForLabel): string[] {
+  const parts: string[] = [];
+  if (d.discountType === "PERCENTAGE" && d.discountValue > 0) {
+    parts.push(`${d.discountValue}%`);
+  } else if ((d.discountType === "FIXED" || d.discountType === "FIXED_PRICE") && d.discountValue > 0) {
+    parts.push(`${d.discountValue} kr`);
+  } else if (d.discountType === "FREE_DELIVERY") {
+    // Legacy: gamla deals lagras med discountType=FREE_DELIVERY.
+    parts.push("Fri leverans");
+    return parts;
+  }
+  if (d.freeDelivery) parts.push("Fri leverans");
+  return parts;
 }
 
-function formatDealHint(d: { discountType: string; discountValue: number }): string {
-  if (d.discountType === "FREE_DELIVERY") return "Fri leverans";
-  if (d.discountType === "PERCENTAGE") return `${d.discountValue}% rabatt`;
-  return `${d.discountValue} kr rabatt`;
+function formatDealLabel(d: DealForLabel): string {
+  const parts = rewardParts(d);
+  return parts.length > 0 ? `${d.title} (${parts.join(" + ")})` : d.title;
+}
+
+function formatDealHint(d: DealForLabel): string {
+  const parts = rewardParts(d);
+  if (parts.length === 0) return "Ingen rabatt";
+  // För hint: lägg "rabatt" efter procent/kr men inte efter "Fri leverans".
+  return parts
+    .map((p) => (p === "Fri leverans" ? p : `${p} rabatt`))
+    .join(" + ");
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -481,10 +505,20 @@ function PersonalDealCreateForm() {
     title: "",
     discountType: "PERCENTAGE",
     discountValue: 25,
+    freeDelivery: false,
     minOrder: 0,
     validUntil: null,
   });
   const [createdFlash, setCreatedFlash] = useState(false);
+
+  const resetForm = () => setForm({
+    title: "",
+    discountType: "PERCENTAGE",
+    discountValue: 25,
+    freeDelivery: false,
+    minOrder: 0,
+    validUntil: null,
+  });
 
   const mutation = useMutation({
     mutationFn: (payload: CreatePersonalDealPayload) => createPersonalDeal(payload),
@@ -492,9 +526,7 @@ function PersonalDealCreateForm() {
       setCreatedFlash(true);
       setTimeout(() => setCreatedFlash(false), 2500);
       await queryClient.invalidateQueries({ queryKey: welcomeDealQueryKey });
-      // Reseta formuläret men låt dropdown-värdet uppdateras automatiskt
-      // via parent-refetch
-      setForm({ title: "", discountType: "PERCENTAGE", discountValue: 25, minOrder: 0, validUntil: null });
+      resetForm();
       setOpen(false);
     },
   });
@@ -556,16 +588,10 @@ function PersonalDealCreateForm() {
             type="text"
             value={form.title}
             onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
-            placeholder={
-              form.discountType === "FREE_DELIVERY"
-                ? "t.ex. Referral Fri Leverans"
-                : form.discountType === "FIXED"
-                  ? "t.ex. Referral 50 kr off"
-                  : "t.ex. Referral 25%"
-            }
+            placeholder="t.ex. Referral 25% + fri leverans"
           />
         </Field>
-        <Field label="Rabatt-typ">
+        <Field label="Rabatt-typ (subtotal)">
           <select
             value={form.discountType}
             onChange={(e) => {
@@ -573,19 +599,18 @@ function PersonalDealCreateForm() {
               setForm((p) => ({
                 ...p,
                 discountType: next,
-                // FREE_DELIVERY behöver inget värde — sätt till 0 så
-                // backend inte validerar mot percent-range.
-                discountValue: next === "FREE_DELIVERY" ? 0 : p.discountValue || 25,
+                // NONE → värde 0 (bara fri leverans). PERCENT/FIXED → default 25.
+                discountValue: next === "NONE" ? 0 : p.discountValue || 25,
               }));
             }}
             className="w-full rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-3 py-2 text-sm"
           >
             <option value="PERCENTAGE">Procent (%)</option>
             <option value="FIXED">Fast belopp (kr)</option>
-            <option value="FREE_DELIVERY">Fri leverans</option>
+            <option value="NONE">Ingen subtotal-rabatt</option>
           </select>
         </Field>
-        {form.discountType !== "FREE_DELIVERY" && (
+        {form.discountType !== "NONE" && (
           <Field
             label={
               form.discountType === "PERCENTAGE"
@@ -625,13 +650,40 @@ function PersonalDealCreateForm() {
         </Field>
       </div>
 
-      {form.discountType === "FREE_DELIVERY" && (
-        <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs">
-          <strong>Fri leverans</strong> — användaren får leveransavgiften
-          gratis (0 kr) på den ordern kupongen appliceras. Inget rabatt-
-          belopp behövs.
-        </div>
-      )}
+      {/* Fri-leverans-checkbox — stackbar med discountType */}
+      <div className="mt-5">
+        <label
+          className="flex items-center gap-3 cursor-pointer select-none rounded-lg border border-[var(--border-muted)] bg-[var(--bg-secondary)] px-4 py-3"
+        >
+          <input
+            type="checkbox"
+            checked={form.freeDelivery}
+            onChange={(e) =>
+              setForm((p) => ({ ...p, freeDelivery: e.target.checked }))
+            }
+            className="h-4 w-4 cursor-pointer"
+          />
+          <div className="flex-1">
+            <span className="text-sm font-bold">Fri leverans</span>
+            <p className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
+              Stackbar — kombineras med procent/kr-rabatten ovan. Bocka av om
+              kunden bara ska ha subtotal-rabatt.
+            </p>
+          </div>
+        </label>
+      </div>
+
+      {/* Förhandsvisning av vad kunden får */}
+      <div className="mt-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs">
+        <strong>Kunden får:</strong>{" "}
+        {(() => {
+          const parts: string[] = [];
+          if (form.discountType === "PERCENTAGE" && form.discountValue > 0) parts.push(`${form.discountValue}% rabatt`);
+          if (form.discountType === "FIXED" && form.discountValue > 0) parts.push(`${form.discountValue} kr rabatt`);
+          if (form.freeDelivery) parts.push("fri leverans");
+          return parts.length > 0 ? parts.join(" + ") : "Inget — bocka i något ovan";
+        })()}
+      </div>
 
       <div className="mt-6 flex gap-3">
         <Button

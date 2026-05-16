@@ -60,34 +60,46 @@ type UserAccountDeal = {
   status: "ACTIVE" | "USED" | "EXPIRED" | string;
   amountKr?: number;
   discountPercent?: number;
-  discountType?: string | null; // PERCENTAGE | FIXED | FREE_DELIVERY
+  discountType?: string | null; // NONE | PERCENTAGE | FIXED
+  freeDelivery?: boolean; // Stackbar med discountType
   minOrderKr?: number;
   expiresAt?: string | null;
   metadata?: Record<string, any> | null;
 };
 
-// Räknar ut rabatt-belopp i kr för en deal givet subtotal+deliveryFee i kr.
-// FREE_DELIVERY: matchar deliveryFee. PERCENT: subtotal * pct / 100.
-// FIXED: amountKr. Cappar mot rätt belopp så vi inte producerar negativ total.
+// Räknar ut total rabatt-belopp i kr för en deal givet subtotal+deliveryFee.
+// Stacks: subtotal-rabatt (percent/fixed) + fri-leverans (= deliveryFee).
 function computeDealAmountKr(deal: UserAccountDeal, subtotal: number, deliveryFee: number = 0): number {
-  if (deal.discountType === "FREE_DELIVERY") {
-    return Math.max(0, deliveryFee);
+  // Backward compat: legacy discountType=FREE_DELIVERY = bara leveransen
+  const isLegacyFreeDel = deal.discountType === "FREE_DELIVERY";
+  const wantsFreeDel = !!deal.freeDelivery || isLegacyFreeDel;
+
+  let subtotalDiscount = 0;
+  if (!isLegacyFreeDel) {
+    if (deal.discountPercent && deal.discountPercent > 0) {
+      subtotalDiscount = Math.round((subtotal * deal.discountPercent) / 100);
+    } else if (deal.amountKr && deal.amountKr > 0) {
+      subtotalDiscount = deal.amountKr;
+    }
   }
-  let amount = 0;
-  if (deal.discountPercent && deal.discountPercent > 0) {
-    amount = Math.round((subtotal * deal.discountPercent) / 100);
-  } else if (deal.amountKr && deal.amountKr > 0) {
-    amount = deal.amountKr;
-  }
-  return Math.min(amount, subtotal);
+  subtotalDiscount = Math.min(subtotalDiscount, subtotal);
+
+  const deliveryDiscount = wantsFreeDel ? Math.max(0, deliveryFee) : 0;
+
+  return subtotalDiscount + deliveryDiscount;
 }
 
-// Formatterar rabatt-text för UI. "20%", "50 kr" eller "Fri leverans".
+// Formatterar rabatt-text för UI. Stackar:
+//   "25%" / "50 kr" / "Fri leverans" / "25% + Fri leverans".
 function formatDealLabel(deal: UserAccountDeal): string {
-  if (deal.discountType === "FREE_DELIVERY") return "Fri leverans";
-  if (deal.discountPercent && deal.discountPercent > 0) return `${deal.discountPercent}%`;
-  if (deal.amountKr && deal.amountKr > 0) return `${deal.amountKr} kr`;
-  return "rabatt";
+  const isLegacyFreeDel = deal.discountType === "FREE_DELIVERY";
+  const parts: string[] = [];
+  if (!isLegacyFreeDel) {
+    if (deal.discountPercent && deal.discountPercent > 0) parts.push(`${deal.discountPercent}%`);
+    else if (deal.amountKr && deal.amountKr > 0) parts.push(`${deal.amountKr} kr`);
+  }
+  if (deal.freeDelivery || isLegacyFreeDel) parts.push("Fri leverans");
+  return parts.length > 0 ? parts.join(" + ") : "rabatt";
 }
 
 function dealTypeLabel(type: string): string {

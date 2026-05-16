@@ -108,9 +108,10 @@ async function getSettings() {
 // ─────────────────────────────────────────────────────────────────────────────
 type DealSnapshot = {
   dealId: string;
-  discountType: string; // PERCENTAGE | FIXED | FREE_DELIVERY
+  discountType: string; // NONE | PERCENTAGE | FIXED
   discountPercent: number | null;
   amountKr: number | null;
+  freeDelivery: boolean; // Stackbar med discountType
   minOrderKr: number;
   expiresAt: Date;
 };
@@ -125,6 +126,7 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
       isPersonalTemplate: true,
       discountType: true,
       discountValue: true,
+      freeDelivery: true,
       minOrder: true,
       validUntil: true,
     },
@@ -133,12 +135,12 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
   // misstag används som mall.
   if (!deal || !deal.isActive || !deal.isPersonalTemplate) return null;
 
-  // Snapshota värdet i rätt fält beroende på typ:
-  //   PERCENTAGE     → discountPercent (subtotal * pct / 100)
-  //   FREE_DELIVERY  → amountKr/percent båda null (deliveryFee=0 vid checkout)
-  //   FIXED / annat  → amountKr (kr off subtotal)
+  // Backward compat: gamla deals med discountType='FREE_DELIVERY' tolkas
+  // som freeDelivery=true + ingen subtotal-rabatt.
+  const isLegacyFreeDelivery = deal.discountType === 'FREE_DELIVERY';
+  const freeDelivery = !!deal.freeDelivery || isLegacyFreeDelivery;
   const isPercent = deal.discountType === 'PERCENTAGE';
-  const isFreeDelivery = deal.discountType === 'FREE_DELIVERY';
+  const isFixed = deal.discountType === 'FIXED' || deal.discountType === 'FIXED_PRICE';
   const minOrderKr = Math.round((deal.minOrder ?? 0) / 100) || 0;
   const expiresAt = deal.validUntil
     ? new Date(deal.validUntil)
@@ -146,9 +148,10 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
 
   return {
     dealId: deal.id,
-    discountType: deal.discountType,
+    discountType: isPercent ? 'PERCENTAGE' : isFixed ? 'FIXED' : 'NONE',
     discountPercent: isPercent ? deal.discountValue : null,
-    amountKr: !isPercent && !isFreeDelivery ? deal.discountValue : null,
+    amountKr: isFixed ? deal.discountValue : null,
+    freeDelivery,
     minOrderKr,
     expiresAt,
   };
@@ -166,18 +169,23 @@ async function snapshotWelcomeDeal(): Promise<DealSnapshot | null> {
   return snapshotDealById(settings.welcomeDealId);
 }
 
-// Format-helper för customer-facing UI. Returnerar en färdig string som
-// frontend kan visa rakt av: "20%" / "50 kr" / "Fri leverans" / "rabatt".
+// Format-helper för customer-facing UI. Bygger en grammatiskt komplett
+// string som frontend kan splice in i texter utan extra logik:
+//   "20% rabatt" / "50 kr rabatt" / "Fri leverans" /
+//   "20% rabatt + Fri leverans" / "rabatt" (fallback).
 function formatRewardLabel(snapshot: DealSnapshot | null): string {
   if (!snapshot) return 'rabatt';
-  if (snapshot.discountType === 'FREE_DELIVERY') return 'Fri leverans';
+  const parts: string[] = [];
   if (snapshot.discountPercent && snapshot.discountPercent > 0) {
-    return `${snapshot.discountPercent}%`;
+    parts.push(`${snapshot.discountPercent}% rabatt`);
+  } else if (snapshot.amountKr && snapshot.amountKr > 0) {
+    parts.push(`${snapshot.amountKr} kr rabatt`);
   }
-  if (snapshot.amountKr && snapshot.amountKr > 0) {
-    return `${snapshot.amountKr} kr`;
+  if (snapshot.freeDelivery) {
+    parts.push('Fri leverans');
   }
-  return 'rabatt';
+  if (parts.length === 0) return 'rabatt';
+  return parts.join(' + ');
 }
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
@@ -458,6 +466,7 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
                 amountKr: snapshot.amountKr,
                 discountPercent: snapshot.discountPercent,
                 discountType: snapshot.discountType,
+                freeDelivery: snapshot.freeDelivery,
                 expiresAt: snapshot.expiresAt,
                 metadata: {
                   referralId: newReferral.id,
@@ -568,6 +577,7 @@ adminRouter.get('/welcome-deal', authenticate, requireSuperAdmin, async (_req, r
         title: true,
         discountType: true,
         discountValue: true,
+        freeDelivery: true,
         minOrder: true,
         validUntil: true,
       },
@@ -937,6 +947,7 @@ export async function maybeTriggerReferralReward(orderId: string): Promise<void>
             amountKr: snapshot.amountKr,
             discountPercent: snapshot.discountPercent,
             discountType: snapshot.discountType,
+            freeDelivery: snapshot.freeDelivery,
             expiresAt: snapshot.expiresAt,
             metadata: {
               referralId: referral.id,
@@ -983,6 +994,7 @@ export async function maybeCreateWelcomeDeal(userId: string): Promise<void> {
         amountKr: snapshot.amountKr,
         discountPercent: snapshot.discountPercent,
         discountType: snapshot.discountType,
+        freeDelivery: snapshot.freeDelivery,
         expiresAt: snapshot.expiresAt,
         metadata: { minOrderKr: snapshot.minOrderKr },
       },

@@ -244,6 +244,11 @@ model Deal {
   // som mall av referral-systemet som snapshotar dess värden in i
   // UserDeal-rader per användare. true = exklusivt för referral/welcome.
   isPersonalTemplate    Boolean   @default(false)
+  // Stackbar fri-leverans-flagga. Kan kombineras med discountType
+  // PERCENTAGE/FIXED → kunden får t.ex. "25% rabatt + fri leverans"
+  // på samma order. Om discountType=NONE och freeDelivery=true →
+  // bara fri leverans, inget annat.
+  freeDelivery          Boolean   @default(false)
   restaurant            Restaurant? @relation(fields: [restaurantId], references: [id])
 
   @@index([isActive, restaurantId, validUntil])
@@ -579,7 +584,8 @@ model UserDeal {
   status          String    @default("ACTIVE") // ACTIVE | USED | EXPIRED
   amountKr        Int?      // kr-rabatt (50 = 50 kr).
   discountPercent Int?      // procent-rabatt på subtotal (20 = 20%).
-  discountType    String?   // PERCENTAGE | FIXED | FREE_DELIVERY. Snapshotad från Deal.
+  discountType    String?   // NONE | PERCENTAGE | FIXED. Snapshotad från Deal.
+  freeDelivery    Boolean   @default(false) // Stackbar fri-leverans-flagga.
   expiresAt       DateTime?
   usedAt          DateTime?
   usedOnOrderId   String?

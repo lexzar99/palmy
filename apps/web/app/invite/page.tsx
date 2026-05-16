@@ -38,23 +38,15 @@ export default function InvitePage() {
     };
   }, []);
 
-  const isFreeDelivery = config?.discountType === "FREE_DELIVERY";
+  // rewardLabel kommer grammatiskt komplett från backend ("20% rabatt" /
+  // "Fri leverans" / "20% rabatt + Fri leverans"). Splice rakt av.
   const rewardLabel = config?.rewardLabel || "rabatt";
   const coupons = config?.couponsPerSide ?? 1;
 
-  // Dynamisk header-rad: "Få 20% båda" / "Få Fri leverans båda" / etc.
-  const headerLine2 = isFreeDelivery ? "Få fri leverans båda" : `Få ${rewardLabel} båda`;
-
-  // Förklaringstext anpassad efter typ.
-  const subline = isFreeDelivery
-    ? `Skicka din kod till en vän. När de gör sin första beställning får ni båda fri leverans att använda i kassan.`
-    : `Skicka din kod till en vän. När de gör sin första beställning får ni båda ${rewardLabel} rabatt att använda i kassan.`;
-
-  // "Så funkar det"-steg 3 — anpassad efter typ + antal kuponger.
-  const couponsWord = coupons > 1 ? `${coupons}st ${rewardLabel}-kuponger` : `en ${rewardLabel}-kupong`;
-  const step3 = isFreeDelivery
-    ? `När vännen gör sin första betalda beställning får ni båda en fri-leverans-kupong i kassan.`
-    : `När vännen gör sin första betalda beställning får ni båda ${couponsWord} i kassan.`;
+  const headerLine2 = `Få ${rewardLabel} båda`;
+  const subline = `Skicka din kod till en vän. När de gör sin första beställning får ni båda ${rewardLabel} att använda i kassan.`;
+  const couponsWord = coupons > 1 ? `${coupons}st kuponger med ${rewardLabel}` : `en kupong med ${rewardLabel}`;
+  const step3 = `När vännen gör sin första betalda beställning får ni båda ${couponsWord} i kassan.`;
 
   return (
     <div

@@ -88,10 +88,9 @@ export default async function ReferralLandingPage({
     );
   }
 
-  // Färdig label från backend: "20%" / "50 kr" / "Fri leverans".
-  // Backend formaterar baserat på den valda Personal Template-Dealen.
+  // Färdig grammatisk label från backend: "20% rabatt" / "Fri leverans" /
+  // "20% rabatt + Fri leverans". Splice rakt av — ingen extra logik.
   const rewardLabel = preview.rewardLabel || "rabatt";
-  const isFreeDelivery = preview.discountType === "FREE_DELIVERY";
   const inviter = preview.inviterName?.trim() || "En vän";
 
   return (
@@ -129,9 +128,7 @@ export default async function ReferralLandingPage({
               {code}
             </span>{" "}
             — så får ni båda{" "}
-            <span className="font-black text-gold-500">
-              {isFreeDelivery ? "fri leverans" : `${rewardLabel} rabatt`}
-            </span>{" "}
+            <span className="font-black text-gold-500">{rewardLabel}</span>{" "}
             på er nästa beställning.
           </p>
         </div>

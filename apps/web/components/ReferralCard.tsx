@@ -153,25 +153,15 @@ export default function ReferralCard() {
             className="text-xl font-black uppercase italic tracking-tight leading-tight"
             style={{ color: "var(--text-primary)" }}
           >
-            {data.discountType === "FREE_DELIVERY" ? (
-              <>
-                Få <span className="text-gold-500">Fri leverans</span> båda
-              </>
-            ) : (
-              <>
-                Tjäna <span className="text-gold-500">{data.rewardLabel}</span> åt båda
-              </>
-            )}
+            Få <span className="text-gold-500">{data.rewardLabel}</span> åt båda
           </h3>
           <p
             className="text-[11px] font-bold mt-2 leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
             När din vän gör sin första beställning får ni{" "}
-            <span className="text-gold-500 font-black">
-              {data.discountType === "FREE_DELIVERY" ? "båda fri leverans" : `båda ${data.rewardLabel}`}
-            </span>{" "}
-            {data.discountType === "FREE_DELIVERY" ? "på nästa order." : "i rabatt på nästa order."}
+            <span className="text-gold-500 font-black">båda {data.rewardLabel}</span>{" "}
+            på nästa order.
           </p>
         </div>
 

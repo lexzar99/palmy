@@ -41,16 +41,12 @@ export default function InviteFriendsBanner({ enabled = true }: { enabled?: bool
 
   if (!enabled) return null;
 
-  // Dynamisk CTA-text:
-  //   FREE_DELIVERY → "Få Fri leverans åt båda"
-  //   PERCENT/FIXED → "Få {label} rabatt åt båda"
-  //   ingen config  → "Bjud in en vän"
-  const isFreeDelivery = config?.discountType === "FREE_DELIVERY";
+  // rewardLabel är grammatiskt komplett från backend ("20% rabatt" /
+  // "Fri leverans" / "20% rabatt + Fri leverans"). Visa rakt av.
   const rewardLabel = config?.rewardLabel;
-  const ctaSubtitle = isFreeDelivery
-    ? "Få fri leverans åt båda"
-    : rewardLabel && rewardLabel !== "rabatt"
-      ? `Få ${rewardLabel} rabatt åt båda`
+  const ctaSubtitle =
+    rewardLabel && rewardLabel !== "rabatt"
+      ? `Få ${rewardLabel} åt båda`
       : "Bjud in en vän och få belöning";
 
   return (

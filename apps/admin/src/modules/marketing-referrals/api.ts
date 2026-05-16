@@ -8,6 +8,7 @@ export interface AvailableDeal {
   title: string;
   discountType: string;
   discountValue: number;
+  freeDelivery?: boolean;
   minOrder: number;
   validUntil: string | null;
 }
@@ -33,12 +34,16 @@ export const updateWelcomeDealSettings = (payload: Partial<WelcomeDealSettings>)
   apiPatch<WelcomeDealSettings>("/admin/welcome-deal", payload);
 
 // ─── Personliga Deals (referral-templates) — quick-create från marketing-sidan ─
-export type PersonalDealType = "PERCENTAGE" | "FIXED" | "FREE_DELIVERY";
+// discountType och freeDelivery är ORTOGONALA: kunden kan få t.ex. "25%
+// rabatt + fri leverans" på samma deal. NONE betyder att enbart fri
+// leverans (eller inget alls) appliceras.
+export type PersonalDealType = "NONE" | "PERCENTAGE" | "FIXED";
 
 export interface CreatePersonalDealPayload {
   title: string;
   discountType: PersonalDealType;
-  discountValue: number; // PERCENT: 25 = 25%. FIXED: belopp i kr. FREE_DELIVERY: 0 (ignoreras).
+  discountValue: number; // PERCENT: 25 = 25%. FIXED: kr. NONE: 0 (ignoreras).
+  freeDelivery: boolean; // Stackbar med discountType.
   minOrder?: number; // kr
   validUntil?: string | null;
 }

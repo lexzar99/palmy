@@ -698,29 +698,37 @@ router.post('/', async (req: Request, res: Response) => {
           `Min orderbelopp för denna kupong är ${minOrderKr} kr`,
         );
       }
-      // Beräkna rabatt baserat på discountType (snapshotad från Deal).
-      // FREE_DELIVERY: matchar deliveryFee → leverans blir gratis.
-      // PERCENTAGE:    procent av subtotal.
-      // FIXED / fallback: amountKr * 100 öre.
-      let dealAmountOre = 0;
-      if (userDeal.discountType === 'FREE_DELIVERY') {
-        dealAmountOre = deliveryFee; // matchar exakt så total - discount = subtotal
-      } else if (userDeal.discountPercent && userDeal.discountPercent > 0) {
-        dealAmountOre = Math.round((subtotal * userDeal.discountPercent) / 100);
-      } else if (userDeal.amountKr && userDeal.amountKr > 0) {
-        dealAmountOre = userDeal.amountKr * 100;
+      // Beräkna stackad rabatt:
+      //   1. Subtotal-rabatt (PERCENTAGE / FIXED): cappad till subtotal
+      //   2. Fri leverans (boolean): cappad till deliveryFee
+      //   3. Backward compat: discountType=FREE_DELIVERY tolkas som
+      //      freeDelivery=true (vi tog bort det från enum men gamla
+      //      UserDeals kan ha det)
+      const isLegacyFreeDeliveryType = userDeal.discountType === 'FREE_DELIVERY';
+      const wantsFreeDelivery = !!userDeal.freeDelivery || isLegacyFreeDeliveryType;
+
+      let subtotalDiscountOre = 0;
+      if (!isLegacyFreeDeliveryType) {
+        if (userDeal.discountPercent && userDeal.discountPercent > 0) {
+          subtotalDiscountOre = Math.round((subtotal * userDeal.discountPercent) / 100);
+        } else if (userDeal.amountKr && userDeal.amountKr > 0) {
+          subtotalDiscountOre = userDeal.amountKr * 100;
+        }
       }
-      // User-toggled deal vinner alltid över automatic/manual. För
-      // FREE_DELIVERY: cappa inte mot subtotal — rabatten är deliveryFee
-      // som redan är ett separat belopp. För andra: cappa till subtotal.
-      const cap = userDeal.discountType === 'FREE_DELIVERY' ? deliveryFee : subtotal;
-      const cappedDealOre = Math.min(dealAmountOre, cap);
-      if (cappedDealOre > 0) {
-        discountAmount = cappedDealOre;
+      subtotalDiscountOre = Math.min(subtotalDiscountOre, subtotal);
+
+      const deliveryDiscountOre = wantsFreeDelivery ? deliveryFee : 0;
+
+      const totalDealOre = subtotalDiscountOre + deliveryDiscountOre;
+      if (totalDealOre > 0) {
+        // discountAmount absorberar BÅDA komponenterna. Order-formel är
+        // total = subtotal - discountAmount + deliveryFee. Med freeDelivery:
+        // discountAmount = subtotalDisc + deliveryFee → leveransen blir gratis.
+        discountAmount = totalDealOre;
         appliedDeal = null;
         validatedCode = undefined;
         appliedUserDealId = userDeal.id;
-        appliedUserDealAmountKr = Math.round(cappedDealOre / 100);
+        appliedUserDealAmountKr = Math.round(totalDealOre / 100);
       }
     }
 
