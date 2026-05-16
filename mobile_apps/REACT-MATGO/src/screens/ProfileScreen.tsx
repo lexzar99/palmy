@@ -146,11 +146,25 @@ export default function ProfileScreen({
   const [activeTab, setActiveTab] = useState<"overview" | "orders" | "settings" | "deals" | "addresses">("overview");
   // Referral system state — fetched alongside profile data, NOT cached on
   // disk because the stats change as friends sign up / order.
+  // locked = true tills user gjort sin första betalda order. deal = den
+  // valda mallen (kan vara null om admin inte konfigurerat).
   const [referral, setReferral] = useState<{
-    code: string;
-    shareUrl: string;
+    locked: boolean;
+    code: string | null;
+    shareUrl: string | null;
     enabled: boolean;
-    rewardKr: number;
+    rewardKr?: number | null;
+    rewardLabel: string;
+    couponsPerSide?: number;
+    deal: {
+      title: string;
+      discountType: string;
+      discountPercent: number | null;
+      amountKr: number | null;
+      freeDelivery: boolean;
+      minOrderKr: number;
+      validUntil: string | null;
+    } | null;
     stats: { invited: number; registered: number; ordered: number; totalEarnedKr: number };
   } | null>(null);
   const [referralCopied, setReferralCopied] = useState(false);
@@ -359,9 +373,23 @@ export default function ProfileScreen({
         // Referral data is best-effort — if /api/account/referral fails the
         // section just doesn't render. We don't surface the error because the
         // rest of the profile is fully functional without it.
+        // Referral payload har två shapes nu:
+        //  - locked: true  → ingen kod än, men deal-info kan visas som teaser
+        //  - locked: false → full payload med code + stats
+        // Vi sätter alltid setReferral så lock-state kan rendera.
         const referralData = referralResR.status === "fulfilled" ? referralResR.value.data : null;
-        if (referralData && typeof referralData?.code === "string") {
-          setReferral(referralData);
+        if (referralData && typeof referralData === "object") {
+          setReferral({
+            locked: !!referralData.locked,
+            code: referralData.code ?? null,
+            shareUrl: referralData.shareUrl ?? null,
+            enabled: !!referralData.enabled,
+            rewardKr: referralData.rewardKr ?? null,
+            rewardLabel: referralData.rewardLabel || "rabatt",
+            couponsPerSide: referralData.couponsPerSide ?? 1,
+            deal: referralData.deal ?? null,
+            stats: referralData.stats || { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
+          });
         }
 
         const nextProfile = (profileRes.data || null) as any;
@@ -659,7 +687,7 @@ export default function ProfileScreen({
   // native dependency is out of scope). On web Clipboard.setString is a
   // no-op shim; the copied toast still fires so behaviour is consistent.
   const handleCopyReferralCode = useCallback(() => {
-    if (!referral) return;
+    if (!referral || !referral.code) return;
     try {
       Clipboard.setString(referral.code);
     } catch {}
@@ -668,12 +696,9 @@ export default function ProfileScreen({
   }, [referral]);
 
   const handleShareReferral = useCallback(async () => {
-    if (!referral) return;
-    const message = t('profile.referral.shareMessage', {
-      code: referral.code,
-      amount: referral.rewardKr,
-      url: referral.shareUrl,
-    });
+    if (!referral || !referral.code || !referral.shareUrl) return;
+    // Grammatiskt komplett message med rewardLabel ("25% rabatt + Fri leverans")
+    const message = `Kom till FoodGo med min kod ${referral.code} — vi får båda ${referral.rewardLabel} på nästa beställning! ${referral.shareUrl}`;
     try {
       await Share.share({
         title: t('profile.referral.shareTitle'),
@@ -1146,10 +1171,69 @@ export default function ProfileScreen({
           </View>
 
           {/* ── Referral / Bjud in vänner ─────────────────────────────────
-              Visas bara när /api/account/referral returnerade enabled=true
-              och en kod. Backend gatear hela funktionen — den kan vara
-              avstängd globalt eller per användare (suspicious-flagg etc.). */}
-          {referral && referral.enabled && referral.code && (
+              Två varianter:
+              - locked: user har inte gjort sin första betalda order än →
+                visar lock-state med teaser deal-hero + CTA "Beställ nu".
+              - unlocked: full kod + share + stats + deal-hero. */}
+          {referral && referral.enabled && referral.locked && referral.deal && (
+            <View
+              style={{
+                marginTop: 14,
+                borderRadius: 30,
+                backgroundColor: palette.panel,
+                borderWidth: 1,
+                borderColor: palette.border,
+                padding: 22,
+                gap: 14,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Ionicons name="lock-closed" size={18} color={palette.muted} />
+                <Text style={{
+                  flex: 1, color: palette.muted, fontSize: 11, fontWeight: "900",
+                  letterSpacing: ls(2.5),
+                }}>
+                  LÅST — LÄGG FÖRSTA ORDERN
+                </Text>
+              </View>
+
+              <Text style={{
+                color: palette.text, fontSize: 17, fontWeight: "900",
+                fontStyle: "italic", letterSpacing: -0.3, lineHeight: 22,
+              }}>
+                Vänta — lås upp{" "}
+                <Text style={{ color: palette.gold }}>{referral.rewardLabel}</Text>
+                {" "}åt båda
+              </Text>
+              <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", lineHeight: 17 }}>
+                Lägg din första beställning så låser du upp möjligheten att bjuda in
+                vänner och få {referral.rewardLabel} på er nästa order.
+              </Text>
+
+              {/* Teaser deal-hero */}
+              <DealHeroCard deal={referral.deal} palette={palette} ls={ls} />
+
+              <View
+                style={{
+                  backgroundColor: palette.gold,
+                  borderRadius: 16,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 8,
+                  marginTop: 6,
+                }}
+              >
+                <Text style={{ color: "#000", fontSize: 12, fontWeight: "900", letterSpacing: ls(1.5) }}>
+                  GÅ TILL HEM-FLIKEN FÖR ATT BESTÄLLA
+                </Text>
+                <Ionicons name="arrow-forward" size={14} color="#000" />
+              </View>
+            </View>
+          )}
+
+          {referral && referral.enabled && !referral.locked && referral.code && (
             <View
               style={{
                 marginTop: 14,
@@ -1167,12 +1251,15 @@ export default function ProfileScreen({
                   flex: 1, color: palette.text, fontSize: 15, fontWeight: "900",
                   fontStyle: "italic", letterSpacing: -0.3,
                 }}>
-                  {t('profile.referral.header', { amount: referral.rewardKr })}
+                  Få <Text style={{ color: palette.gold }}>{referral.rewardLabel}</Text> åt båda
                 </Text>
               </View>
               <Text style={{ color: palette.muted, fontSize: 12, fontWeight: "600", lineHeight: 17 }}>
-                {t('profile.referral.body', { amount: referral.rewardKr })}
+                När din vän gör sin första beställning får ni båda {referral.rewardLabel} på nästa order.
               </Text>
+
+              {/* Deal-hero — dynamisk visuell display av rabatten */}
+              {referral.deal && <DealHeroCard deal={referral.deal} palette={palette} ls={ls} />}
 
               {/* Code display */}
               <View style={{
@@ -1882,5 +1969,126 @@ export default function ProfileScreen({
       </Modal>
 
     </ScreenWrap>
+  );
+}
+
+/**
+ * DealHeroCard — visuell representation av referral-rabatten. Stora siffror
+ * för procent/kr, lastbil-ikon för fri leverans, kombinerad layout för
+ * stack (t.ex. "25% + Fri leverans"). Footer-rad med min-order + expiry.
+ */
+function DealHeroCard({
+  deal,
+  palette,
+  ls,
+}: {
+  deal: {
+    title: string;
+    discountType: string;
+    discountPercent: number | null;
+    amountKr: number | null;
+    freeDelivery: boolean;
+    minOrderKr: number;
+    validUntil: string | null;
+  };
+  palette: any;
+  ls: (n: number) => number;
+}) {
+  const hasDiscount =
+    (deal.discountType === "PERCENTAGE" && (deal.discountPercent ?? 0) > 0) ||
+    (deal.discountType === "FIXED" && (deal.amountKr ?? 0) > 0);
+  const isPercent = deal.discountType === "PERCENTAGE";
+
+  const expiryDate = deal.validUntil
+    ? (() => {
+        try {
+          const d = new Date(deal.validUntil);
+          if (!Number.isFinite(d.getTime())) return null;
+          return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+        } catch {
+          return null;
+        }
+      })()
+    : null;
+  const expiryLabel = deal.validUntil
+    ? expiryDate
+      ? `Gäller till ${expiryDate}`
+      : null
+    : "Gäller tills vidare";
+
+  return (
+    <View
+      style={{
+        backgroundColor: palette.panelMuted,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: "rgba(234,181,69,0.3)",
+        padding: 18,
+        gap: 12,
+      }}
+    >
+      <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2.5) }}>
+        {deal.title}
+      </Text>
+
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 18 }}>
+        {hasDiscount && (
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ color: palette.gold, fontSize: 44, fontWeight: "900", fontStyle: "italic", letterSpacing: -2, lineHeight: 48 }}>
+              {isPercent ? deal.discountPercent : deal.amountKr}
+              <Text style={{ fontSize: 18, fontStyle: "italic" }}>{isPercent ? "%" : " kr"}</Text>
+            </Text>
+            <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginTop: 2 }}>
+              RABATT
+            </Text>
+          </View>
+        )}
+
+        {hasDiscount && deal.freeDelivery && (
+          <Text style={{ color: palette.muted, fontSize: 26, fontWeight: "900", opacity: 0.4 }}>+</Text>
+        )}
+
+        {deal.freeDelivery && (
+          <View style={{ alignItems: "center" }}>
+            <View style={{
+              width: 56, height: 56, borderRadius: 16,
+              backgroundColor: "rgba(234,181,69,0.15)",
+              borderWidth: 1, borderColor: "rgba(234,181,69,0.3)",
+              alignItems: "center", justifyContent: "center",
+            }}>
+              <Ionicons name="car-outline" size={26} color={palette.gold} />
+            </View>
+            <Text style={{ color: palette.muted, fontSize: 9, fontWeight: "900", letterSpacing: ls(2), marginTop: 4 }}>
+              FRI LEVERANS
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {(deal.minOrderKr > 0 || expiryLabel) && (
+        <View style={{
+          borderTopWidth: 1, borderTopColor: palette.border,
+          paddingTop: 10, flexDirection: "row", flexWrap: "wrap", gap: 12,
+          justifyContent: "center",
+        }}>
+          {deal.minOrderKr > 0 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Ionicons name="wallet-outline" size={11} color={palette.muted} />
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700" }}>
+                Min {deal.minOrderKr} kr
+              </Text>
+            </View>
+          )}
+          {expiryLabel && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Ionicons name="calendar-outline" size={11} color={palette.muted} />
+              <Text style={{ color: palette.muted, fontSize: 10, fontWeight: "700" }}>
+                {expiryLabel}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
   );
 }

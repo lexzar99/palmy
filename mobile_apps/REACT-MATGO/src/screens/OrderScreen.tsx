@@ -11,6 +11,7 @@ import { io } from "socket.io-client";
 import { useAppStore } from "../store/useAppStore";
 import { api, SOCKET_URL } from "../lib/api";
 import { useTheme } from "../theme";
+import ShareInviteCard from "../components/ShareInviteCard";
 import { ScreenWrap, Header, EmptyPanel, PulseIndicator, SpinningLoader } from "../components/ui";
 import { OrderScreenSkeleton } from "../components/SkeletonLoader";
 import { DELIVERY_AUTO_DISMISS_MS } from "../lib/orderTiming";
@@ -395,6 +396,12 @@ export default function OrderScreen({ id, phone, goBack }: { id: string; phone?:
             </View>
           </View>
         )}
+
+        {/* Share-invite-CTA — låses upp efter första betalda order. Komponenten
+            själv döljs om locked eller deal saknas, så den syns bara när den
+            faktiskt är användbar. Mellan progress-bar och receipt så användaren
+            ser den medan de väntar på maten. */}
+        {!isRejected && <ShareInviteCard />}
 
         {/* Order details */}
         <View style={{ backgroundColor: palette.panel, borderRadius: 32, padding: 24, marginBottom: 20, borderWidth: 1, borderColor: palette.border, shadowColor: "#1C1C1E", shadowOpacity: 0.04, shadowRadius: 16, elevation: 2 }}>
