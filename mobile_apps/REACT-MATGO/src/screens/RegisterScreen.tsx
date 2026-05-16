@@ -72,26 +72,32 @@ export default function RegisterScreen({
         phone: internationalPhone,
         password,
       });
-      const tok = data?.token;
-      if (!tok) throw new Error("Ingen session mottogs");
 
-      setToken(tok);
-      let prof: any = data?.user;
-      try {
-        const profileRes = await api.get("/api/profile", {
-          headers: { Authorization: `Bearer ${tok}` },
-        });
-        prof = profileRes.data;
-      } catch {
-        // Profil-fetch är best-effort. /register-user skickar med en basal
-        // user-payload som fallback.
+      // Två svars-format:
+      // 1. Ny user: { ok: true, token, email, user } → vi loggar in direkt
+      // 2. Email finns redan: { ok: true, message } UTAN token →
+      //    email-enumeration-skydd. Vi visar success-vyn ändå så user vet
+      //    att registrering togs emot (oavsett om kontot var nytt eller
+      //    befintligt). User får klicka mejl-länk för att aktivera/logga in.
+      const tok = data?.token;
+
+      if (tok) {
+        setToken(tok);
+        let prof: any = data?.user;
+        try {
+          const profileRes = await api.get("/api/profile", {
+            headers: { Authorization: `Bearer ${tok}` },
+          });
+          prof = profileRes.data;
+        } catch {
+          // Profil-fetch är best-effort
+        }
+        if (prof) setProfile(prof);
       }
-      if (prof) setProfile(prof);
+      // Visa success-vyn även om vi inte fick token (email-existerar-fall).
+      // User får läsa "Verifieringsmejl skickat" och klicka "Fortsätt"
+      // manuellt — bumpar dem till login om de inte loggades in automatiskt.
       setSuccess(true);
-      // Tidigare auto-redirect efter 2.2s. Det var för snabbt — användaren
-      // hann inte läsa "Verifieringsmejl skickat"-skärmen och hamnade på
-      // home utan att förstå att de var inloggade men inte verifierade.
-      // Nu manuell dismiss via "Fortsätt"-knapp så user läser i egen takt.
     } catch (e: any) {
       setError(e?.response?.data?.error || e?.message || "Registrering misslyckades");
     } finally {

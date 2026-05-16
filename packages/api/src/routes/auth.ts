@@ -1018,51 +1018,24 @@ router.post('/register-user', authLimiter, async (req, res) => {
       where: { email: normalizedEmail }
     });
     if (existingEmail) {
-      // Fire-and-forget: notice-mejl till ägaren. Failar tyst — svaret
-      // utåt är alltid samma.
-      (async () => {
+      // Vi triggar resend av Supabase verifierings-mejl om kontot är
+      // OAuth-only eller inte verifierat ännu (då finns kontot men user
+      // har inte slutfört flowet). Annars skickar vi inget — generic 200.
+      //
+      // Email-enumeration-skydd: vi returnerar samma 200 oavsett om kontot
+      // fanns eller inte, så angripare kan inte mappa befintliga emails.
+      // Tidigare Brevo notice-mejl togs bort eftersom Brevo kräver domän.
+      if (supabasePublic && !existingEmail.isVerified) {
         try {
-          const greetingName =
-            existingEmail.firstName || existingEmail.name || 'där';
-          const loginLink =
-            process.env.WEB_LOGIN_URL || 'https://matgo.se/login';
-          const text = [
-            `Hej ${greetingName}!`,
-            '',
-            'Någon försökte just skapa ett MatGo-konto med din e-postadress.',
-            'Du har redan ett konto hos oss — om det var du som försökte',
-            'registrera, klicka på länken nedan för att logga in istället.',
-            '',
-            `Logga in: ${loginLink}`,
-            '',
-            'Om det INTE var du kan du ignorera detta mejl — ditt konto är säkert.',
-            '',
-            'Vänliga hälsningar,',
-            'MatGo',
-          ].join('\n');
-          const html = renderBrandedEmail({
-            headline: 'Försök att registrera ditt konto',
-            greeting: `Hej ${greetingName}!`,
-            intro: [
-              'Någon försökte just skapa ett MatGo-konto med din e-postadress. Du har redan ett konto hos oss — om det var du, klicka för att logga in.',
-            ],
-            cta: { label: 'Logga in', url: loginLink },
-            footnote:
-              'Om det inte var du kan du ignorera mejlet — ditt konto är säkert.',
+          await supabasePublic.auth.resend({
+            type: 'signup',
+            email: normalizedEmail,
+            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
           });
-          await sendEmail({
-            to: existingEmail.email!,
-            subject: 'Försök att registrera konto — MatGo',
-            text,
-            html,
-          });
-        } catch (mailErr) {
-          console.error(
-            '[register-user] notice-mejl till befintligt konto failade:',
-            mailErr,
-          );
+        } catch {
+          // ignore — generic 200 returneras ändå
         }
-      })();
+      }
 
       // Generisk 200 — ser identiskt ut för ny vs befintlig email.
       return res.status(200).json({
