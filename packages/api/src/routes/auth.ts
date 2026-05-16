@@ -1120,7 +1120,10 @@ router.post('/register-user', authLimiter, async (req, res) => {
         return;
       }
       try {
-        const { error: signUpError } = await supabasePublic.auth.signUp({
+        // Försök signUp först. Om Supabase-user redan finns → identities[] är
+        // tom i response och INGET mejl skickas (Supabase v2-beteende).
+        // Då måste vi explicit kalla resend() för att trigga mejlet.
+        const { data: signUpData, error: signUpError } = await supabasePublic.auth.signUp({
           email: user.email!,
           password,
           options: {
@@ -1133,11 +1136,41 @@ router.post('/register-user', authLimiter, async (req, res) => {
             emailRedirectTo: WEB_VERIFY_EMAIL_BASE,
           },
         });
+
+        // identities tom = user fanns redan → signUp skickar INTE mejl
+        const userExists =
+          signUpData?.user &&
+          Array.isArray(signUpData.user.identities) &&
+          signUpData.user.identities.length === 0;
+
         if (signUpError) {
-          // "User already registered" är OK — Supabase resendar verifieringsmejlet
-          // automatiskt om kontot redan finns. Andra fel loggas.
-          if (!/already/i.test(signUpError.message || '')) {
+          // Explicit "already registered" error — kalla resend manuellt
+          if (/already|registered/i.test(signUpError.message || '')) {
+            const { error: resendErr } = await supabasePublic.auth.resend({
+              type: 'signup',
+              email: user.email!,
+              options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
+            });
+            if (resendErr) {
+              console.error('[register-user] supabase.resend failed:', resendErr.message);
+            } else {
+              console.log(`[register-user] Verifieringsmejl resendat via Supabase till ${user.email}`);
+            }
+          } else {
             console.error('[register-user] supabase.signUp failed:', signUpError.message);
+          }
+        } else if (userExists) {
+          // signUp returnerade utan error men identities är tom = ghost user
+          // exists. Kalla resend för att faktiskt skicka mejlet.
+          const { error: resendErr } = await supabasePublic.auth.resend({
+            type: 'signup',
+            email: user.email!,
+            options: { emailRedirectTo: WEB_VERIFY_EMAIL_BASE },
+          });
+          if (resendErr) {
+            console.error('[register-user] supabase.resend failed (existing user):', resendErr.message);
+          } else {
+            console.log(`[register-user] Verifieringsmejl resendat (befintlig user) till ${user.email}`);
           }
         } else {
           console.log(`[register-user] Verifieringsmejl skickat via Supabase till ${user.email}`);
