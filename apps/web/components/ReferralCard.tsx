@@ -15,8 +15,13 @@ type ReferralData = {
   code: string;
   shareUrl: string;
   enabled: boolean;
-  rewardKr: number; // legacy — bakåtkompat med gamla deals
-  rewardPercent?: number; // ny — procent-rabatt (20 = 20%)
+  discountType?: string | null; // PERCENTAGE | FIXED | FREE_DELIVERY
+  rewardPercent?: number | null;
+  rewardKr?: number | null;
+  // Färdigformaterad sträng från backend: "20%" / "50 kr" / "Fri leverans".
+  // Frontend visar den rakt av i texter så vi slipper formatteringslogik.
+  rewardLabel: string;
+  couponsPerSide?: number;
   stats: {
     invited: number;
     registered: number;
@@ -67,8 +72,9 @@ export default function ReferralCard() {
 
   const handleShare = async () => {
     if (!data) return;
-    const pct = data.rewardPercent ?? 20;
-    const shareText = `Kom till FoodGo med min kod ${data.code} — vi får båda ${pct}% rabatt på nästa beställning! ${data.shareUrl}`;
+    // Texten anpassar sig efter deal-typen: "20% rabatt" / "50 kr rabatt"
+    // / "fri leverans". rewardLabel kommer färdigformaterad från backend.
+    const shareText = `Kom till FoodGo med min kod ${data.code} — vi får båda ${data.rewardLabel} på nästa beställning! ${data.shareUrl}`;
     // Native share om tillgängligt (mobil-Safari, Chrome-Android)
     if (typeof navigator !== "undefined" && (navigator as any).share) {
       try {
@@ -147,16 +153,25 @@ export default function ReferralCard() {
             className="text-xl font-black uppercase italic tracking-tight leading-tight"
             style={{ color: "var(--text-primary)" }}
           >
-            Tjäna{" "}
-            <span className="text-gold-500">{data.rewardPercent ?? 20}%</span> åt båda
+            {data.discountType === "FREE_DELIVERY" ? (
+              <>
+                Få <span className="text-gold-500">Fri leverans</span> båda
+              </>
+            ) : (
+              <>
+                Tjäna <span className="text-gold-500">{data.rewardLabel}</span> åt båda
+              </>
+            )}
           </h3>
           <p
             className="text-[11px] font-bold mt-2 leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
             När din vän gör sin första beställning får ni{" "}
-            <span className="text-gold-500 font-black">båda {data.rewardPercent ?? 20}%</span>{" "}
-            rabatt på nästa order.
+            <span className="text-gold-500 font-black">
+              {data.discountType === "FREE_DELIVERY" ? "båda fri leverans" : `båda ${data.rewardLabel}`}
+            </span>{" "}
+            {data.discountType === "FREE_DELIVERY" ? "på nästa order." : "i rabatt på nästa order."}
           </p>
         </div>
 

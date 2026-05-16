@@ -1,16 +1,61 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import axios from "axios";
 import Link from "next/link";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import ReferralCard from "@/components/ReferralCard";
 
 /**
- * Dedikerad invite-sida. ReferralCard finns redan på /profile, men det är
- * gömt långt ner. Den här sidan är en direkt-länk så "Bjud in vänner"-
- * knappen på startsidan tar användaren rakt till delningsfunktionen utan
- * att de behöver hitta vägen till profil-sidan.
+ * Dedikerad invite-sida. Hämtar referral-config från backend så headern
+ * + "Så funkar det"-texten anpassar sig efter den konfigurerade dealen
+ * (procent / kr / fri leverans). ReferralCard hanterar kod-display +
+ * share-funktionalitet.
  */
+
+type ReferralConfig = {
+  enabled: boolean;
+  discountType?: string | null;
+  rewardLabel?: string;
+  couponsPerSide?: number;
+};
+
 export default function InvitePage() {
+  const [config, setConfig] = useState<ReferralConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    axios
+      .get<ReferralConfig>("/api/platform/account/referral")
+      .then((r) => {
+        if (!cancelled) setConfig(r.data);
+      })
+      .catch(() => {
+        // Tyst — header faller tillbaka till generisk text
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isFreeDelivery = config?.discountType === "FREE_DELIVERY";
+  const rewardLabel = config?.rewardLabel || "rabatt";
+  const coupons = config?.couponsPerSide ?? 1;
+
+  // Dynamisk header-rad: "Få 20% båda" / "Få Fri leverans båda" / etc.
+  const headerLine2 = isFreeDelivery ? "Få fri leverans båda" : `Få ${rewardLabel} båda`;
+
+  // Förklaringstext anpassad efter typ.
+  const subline = isFreeDelivery
+    ? `Skicka din kod till en vän. När de gör sin första beställning får ni båda fri leverans att använda i kassan.`
+    : `Skicka din kod till en vän. När de gör sin första beställning får ni båda ${rewardLabel} rabatt att använda i kassan.`;
+
+  // "Så funkar det"-steg 3 — anpassad efter typ + antal kuponger.
+  const couponsWord = coupons > 1 ? `${coupons}st ${rewardLabel}-kuponger` : `en ${rewardLabel}-kupong`;
+  const step3 = isFreeDelivery
+    ? `När vännen gör sin första betalda beställning får ni båda en fri-leverans-kupong i kassan.`
+    : `När vännen gör sin första betalda beställning får ni båda ${couponsWord} i kassan.`;
+
   return (
     <div
       className="min-h-screen"
@@ -38,14 +83,13 @@ export default function InvitePage() {
           >
             Bjud in vänner.
             <br />
-            <span className="text-gold-500">Få 20% båda.</span>
+            <span className="text-gold-500">{headerLine2}.</span>
           </h1>
           <p
             className="text-[13px] font-bold leading-relaxed"
             style={{ color: "var(--text-secondary)" }}
           >
-            Skicka din kod till en vän. När de gör sin första beställning
-            får ni båda 20% rabatt att använda i kassan.
+            {subline}
           </p>
         </div>
 
@@ -65,7 +109,7 @@ export default function InvitePage() {
           <ol className="list-decimal pl-4 space-y-1.5">
             <li>Dela din kod med en vän via knappen ovan.</li>
             <li>Vännen registrerar sig på FoodGo med din kod.</li>
-            <li>När vännen gör sin första betalda beställning får ni båda en 20%-rabattkupong i kassan.</li>
+            <li>{step3}</li>
           </ol>
         </div>
       </div>

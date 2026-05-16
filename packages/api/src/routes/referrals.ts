@@ -166,6 +166,20 @@ async function snapshotWelcomeDeal(): Promise<DealSnapshot | null> {
   return snapshotDealById(settings.welcomeDealId);
 }
 
+// Format-helper för customer-facing UI. Returnerar en färdig string som
+// frontend kan visa rakt av: "20%" / "50 kr" / "Fri leverans" / "rabatt".
+function formatRewardLabel(snapshot: DealSnapshot | null): string {
+  if (!snapshot) return 'rabatt';
+  if (snapshot.discountType === 'FREE_DELIVERY') return 'Fri leverans';
+  if (snapshot.discountPercent && snapshot.discountPercent > 0) {
+    return `${snapshot.discountPercent}%`;
+  }
+  if (snapshot.amountKr && snapshot.amountKr > 0) {
+    return `${snapshot.amountKr} kr`;
+  }
+  return 'rabatt';
+}
+
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
   '10minutemail.com',
   'mailinator.com',
@@ -266,20 +280,23 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
     };
 
     // Hämta värden från den valda Dealen så frontend visar exakt vad
-    // användarna faktiskt får. Snapshot är null om ingen Deal vald → vi
-    // returnerar då legacy-värdena från settings (UI:t visar "20%" som
-    // platshållare men referral är inaktivt tills admin valt en Deal).
+    // användarna faktiskt får (procent / kr / fri leverans). rewardLabel
+    // är en färdig string för UI så frontend slipper formatteringslogik.
     const snapshot = await snapshotReferralDeal();
-    const rewardPercent = snapshot?.discountPercent ?? settings.referralRewardPercent ?? 20;
-    const rewardKr = snapshot?.amountKr ?? settings.referralRewardKr ?? 50;
+    const rewardPercent = snapshot?.discountPercent ?? null;
+    const rewardKr = snapshot?.amountKr ?? null;
+    const discountType = snapshot?.discountType ?? null;
     const couponsPerSide = settings.referralCouponsPerSide ?? 1;
+    const rewardLabel = formatRewardLabel(snapshot);
 
     res.json({
       code,
       shareUrl: `${publicShareBase()}/r/${code}`,
       enabled: !!settings.referralEnabled && !!snapshot,
+      discountType,
       rewardPercent,
-      rewardKr, // legacy
+      rewardKr,
+      rewardLabel, // "20%" | "50 kr" | "Fri leverans" | "rabatt" (fallback)
       couponsPerSide,
       stats,
     });
@@ -512,16 +529,15 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
 
     const settings = await getSettings();
     const snapshot = await snapshotReferralDeal();
-    const rewardPercent = snapshot?.discountPercent ?? settings.referralRewardPercent ?? 20;
-    const rewardKr = snapshot?.amountKr ?? settings.referralRewardKr ?? 50;
     res.json({
       exists: true,
       inviterName: inviter.firstName || inviter.name || 'En vän',
-      rewardPercent,
-      rewardKr, // legacy
+      discountType: snapshot?.discountType ?? null,
+      rewardPercent: snapshot?.discountPercent ?? null,
+      rewardKr: snapshot?.amountKr ?? null,
+      rewardLabel: formatRewardLabel(snapshot),
       couponsPerSide: settings.referralCouponsPerSide ?? 1,
       // enabled = true bara om referral är aktivt OCH admin har valt en Deal.
-      // Annars är systemet "konfigurations-pause".
       enabled: !!settings.referralEnabled && !!snapshot,
     });
   } catch (err: any) {

@@ -1,19 +1,57 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import axios from "axios";
 import Link from "next/link";
 import { Gift, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 /**
- * Tydlig "bjud in en vän"-CTA på startsidan. Tidigare fanns referral-koden
- * gömd långt nere på /profile — användarna hittade aldrig dit. Den här
- * gold-bannern syns direkt på startsidan ovanför restaurang-listan och
- * länkar till /invite där hela ReferralCard visas centrerat.
+ * Tydlig "bjud in en vän"-CTA på startsidan. Hämtar referral-config från
+ * backend så texten anpassar sig efter den valda dealen (procent / kr /
+ * fri leverans). Visar generisk fallback om backend inte svarar.
  *
  * Visas endast för inloggade användare (kräver auth för /invite).
  */
+
+type ReferralConfig = {
+  enabled?: boolean;
+  discountType?: string | null;
+  rewardLabel?: string;
+};
+
 export default function InviteFriendsBanner({ enabled = true }: { enabled?: boolean }) {
+  const [config, setConfig] = useState<ReferralConfig | null>(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    axios
+      .get<ReferralConfig>("/api/platform/account/referral")
+      .then((r) => {
+        if (!cancelled) setConfig(r.data);
+      })
+      .catch(() => {
+        // Tyst — banner visar generisk text om fetch failar
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled]);
+
   if (!enabled) return null;
+
+  // Dynamisk CTA-text:
+  //   FREE_DELIVERY → "Få Fri leverans åt båda"
+  //   PERCENT/FIXED → "Få {label} rabatt åt båda"
+  //   ingen config  → "Bjud in en vän"
+  const isFreeDelivery = config?.discountType === "FREE_DELIVERY";
+  const rewardLabel = config?.rewardLabel;
+  const ctaSubtitle = isFreeDelivery
+    ? "Få fri leverans åt båda"
+    : rewardLabel && rewardLabel !== "rabatt"
+      ? `Få ${rewardLabel} rabatt åt båda`
+      : "Bjud in en vän och få belöning";
 
   return (
     <Link href="/invite" className="block mb-6">
@@ -50,7 +88,7 @@ export default function InviteFriendsBanner({ enabled = true }: { enabled?: bool
             className="text-[14px] font-black leading-tight truncate"
             style={{ color: "var(--text-primary)" }}
           >
-            Få <span className="text-gold-500">20%</span> rabatt åt båda
+            {ctaSubtitle}
           </p>
         </div>
 

@@ -13,8 +13,11 @@ import { API_URL } from "@/lib/api";
 type ReferralPreview = {
   exists: boolean;
   inviterName?: string;
-  rewardKr?: number; // legacy
-  rewardPercent?: number;
+  discountType?: string | null;
+  rewardPercent?: number | null;
+  rewardKr?: number | null;
+  rewardLabel?: string; // "20%" / "50 kr" / "Fri leverans"
+  couponsPerSide?: number;
   enabled?: boolean;
 };
 
@@ -85,9 +88,10 @@ export default async function ReferralLandingPage({
     );
   }
 
-  // Percent prefereras över kr — visar "20%" istället för "50 kr".
-  // Faller tillbaka till legacy kr-display om backend bara skickar rewardKr.
-  const rewardPercent = preview.rewardPercent ?? 20;
+  // Färdig label från backend: "20%" / "50 kr" / "Fri leverans".
+  // Backend formaterar baserat på den valda Personal Template-Dealen.
+  const rewardLabel = preview.rewardLabel || "rabatt";
+  const isFreeDelivery = preview.discountType === "FREE_DELIVERY";
   const inviter = preview.inviterName?.trim() || "En vän";
 
   return (
@@ -125,7 +129,9 @@ export default async function ReferralLandingPage({
               {code}
             </span>{" "}
             — så får ni båda{" "}
-            <span className="font-black text-gold-500">{rewardPercent}% rabatt</span>{" "}
+            <span className="font-black text-gold-500">
+              {isFreeDelivery ? "fri leverans" : `${rewardLabel} rabatt`}
+            </span>{" "}
             på er nästa beställning.
           </p>
         </div>
