@@ -48,6 +48,21 @@ function VerifyEmailContent() {
     const type = params.get("type") || "";
     if (accessToken) {
       setSupabaseTokens({ accessToken, refreshToken, type });
+
+      // Försök öppna i appen om vi är på mobil — bättre UX än att
+      // gå via webben när användaren har appen installerad.
+      // iOS/Android följer foodgo://-länken om appen är installerad och
+      // ignorerar den om appen saknas (ingen "kan inte öppna"-popup).
+      // Vi fortsätter web-flow:n parallellt så att om appen INTE öppnas
+      // får användaren ändå sin verifiering klar via webben.
+      const isMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+      if (isMobile) {
+        try {
+          window.location.href = `foodgo://verify-email#${hash}`;
+        } catch {
+          // ignore — fortsätt med web-flow
+        }
+      }
     }
     setHashRead(true);
   }, []);

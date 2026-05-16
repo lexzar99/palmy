@@ -33,6 +33,21 @@ function ResetPasswordContent() {
     const refreshToken = params.get("refresh_token");
     if (accessToken) setSupabaseAccess(accessToken);
     if (refreshToken) setSupabaseRefresh(refreshToken);
+
+    // Försök öppna deep link i appen på mobil — bättre UX än att gå
+    // via webben. Funkar om appen är installerad och registrerad mot
+    // foodgo://-schemat. Vi fortsätter web-flow:n parallellt så
+    // användaren kan slutföra reset:en i webbläsaren om appen saknas.
+    if (accessToken) {
+      const isMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent);
+      if (isMobile) {
+        try {
+          window.location.href = `foodgo://reset-password#${hash}`;
+        } catch {
+          // ignore — fortsätt med web-flow
+        }
+      }
+    }
   }, []);
 
   const [newPassword, setNewPassword] = useState("");

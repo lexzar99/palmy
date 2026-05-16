@@ -854,13 +854,35 @@ function AppContent() {
       // den. Vi navigerar bara till ResetPasswordScreen; själva POST:en
       // sker när användaren skickar formuläret.
       if (url.startsWith("foodgo://reset-password")) {
+        // Två format:
+        //   Legacy: foodgo://reset-password?token=<hex>
+        //   Supabase: foodgo://reset-password#access_token=...&type=recovery
+        // Vi parsar BÅDA. För Supabase-format navigerar vi till
+        // ResetPasswordScreen och bifogar både access + refresh token så
+        // skärmen kan kalla supabase.auth.updateUser().
+        const hashIndex = url.indexOf("#");
         const queryIndex = url.indexOf("?");
         let token = "";
-        if (queryIndex >= 0) {
-          const params = new URLSearchParams(url.slice(queryIndex + 1));
+        let supabaseAccess = "";
+        let supabaseRefresh = "";
+        if (hashIndex >= 0) {
+          const params = new URLSearchParams(url.slice(hashIndex + 1));
+          supabaseAccess = params.get("access_token") || "";
+          supabaseRefresh = params.get("refresh_token") || "";
+        }
+        if (queryIndex >= 0 && (hashIndex < 0 || queryIndex < hashIndex)) {
+          const params = new URLSearchParams(
+            url.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined),
+          );
           token = params.get("token") || "";
         }
-        if (token) {
+        if (supabaseAccess) {
+          pushRoute({
+            name: "reset-password",
+            supabaseAccess,
+            supabaseRefresh,
+          } as any);
+        } else if (token) {
           pushRoute({ name: "reset-password", token } as any);
         }
         return;
@@ -903,15 +925,51 @@ function AppContent() {
       // sväljer vi felet tyst — onboarding-skärmens polling-loop kommer ändå
       // att hitta verified=true så länge användaren är aktiv i appen.
       if (url.startsWith("foodgo://verify-email")) {
+        // Två format:
+        //   Legacy: foodgo://verify-email?token=<hex> — POST /verify-email
+        //   Supabase: foodgo://verify-email#access_token=...&type=signup —
+        //     access_token är redan en giltig session-JWT, sätter direkt.
+        const hashIndex = url.indexOf("#");
         const queryIndex = url.indexOf("?");
-        let token = "";
-        if (queryIndex >= 0) {
-          const params = new URLSearchParams(url.slice(queryIndex + 1));
-          token = params.get("token") || "";
+        let legacyToken = "";
+        let supabaseAccess = "";
+        if (hashIndex >= 0) {
+          const params = new URLSearchParams(url.slice(hashIndex + 1));
+          supabaseAccess = params.get("access_token") || "";
         }
-        if (token) {
+        if (queryIndex >= 0 && (hashIndex < 0 || queryIndex < hashIndex)) {
+          const params = new URLSearchParams(
+            url.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined),
+          );
+          legacyToken = params.get("token") || "";
+        }
+
+        // Supabase-flöde: token är redan giltig session-JWT som
+        // authenticateUser-middleware kan validera mot supabaseAdmin.
+        if (supabaseAccess) {
           try {
-            const { data } = await api.post("/api/account/verify-email", { token });
+            setToken(supabaseAccess);
+            setOnboardingComplete(true);
+            try {
+              const profileRes = await api.get("/api/profile", {
+                headers: { Authorization: `Bearer ${supabaseAccess}` },
+              });
+              setProfile(profileRes.data);
+            } catch {
+              // Profil-fetch fallback — middleware skapar/uppdaterar user
+              // raden vid första anrop ändå.
+            }
+            openRoot("home");
+          } catch {
+            // Sätta token kan inte krasha — defensive guard
+          }
+          return;
+        }
+
+        // Legacy custom-token-flöde
+        if (legacyToken) {
+          try {
+            const { data } = await api.post("/api/account/verify-email", { token: legacyToken });
             const jwt = data?.token;
             if (jwt) {
               setToken(jwt);
@@ -922,8 +980,6 @@ function AppContent() {
                 });
                 setProfile(profileRes.data);
               } catch {
-                // Profil-fetch är best-effort. /verify-email skickar
-                // tillbaka en basal user-payload som fallback.
                 if (data?.user) setProfile(data.user);
               }
               openRoot("home");
