@@ -17,7 +17,7 @@ type DealInfo = {
   amountKr: number | null;
   freeDelivery: boolean;
   minOrderKr: number;
-  expiresAt: string;
+  validUntil: string | null; // null = tills vidare
 };
 
 type ReferralPreview = {
@@ -211,7 +211,13 @@ function LandingDealHero({ deal }: { deal: DealInfo }) {
     (deal.discountType === "PERCENTAGE" && (deal.discountPercent ?? 0) > 0) ||
     (deal.discountType === "FIXED" && (deal.amountKr ?? 0) > 0);
   const isPercent = deal.discountType === "PERCENTAGE";
-  const expiry = formatExpiry(deal.expiresAt);
+  // validUntil = null → "Gäller tills vidare". Datum → "Gäller till 15 dec".
+  const expiryDate = deal.validUntil ? formatExpiry(deal.validUntil) : null;
+  const expiryLabel = deal.validUntil
+    ? expiryDate
+      ? `Gäller till ${expiryDate}`
+      : null
+    : "Gäller tills vidare";
 
   return (
     <div
@@ -271,7 +277,7 @@ function LandingDealHero({ deal }: { deal: DealInfo }) {
         )}
       </div>
 
-      {(deal.minOrderKr > 0 || expiry) && (
+      {(deal.minOrderKr > 0 || expiryLabel) && (
         <div
           className="flex flex-wrap items-center justify-center gap-4 mt-5 pt-4 text-[10px] font-bold"
           style={{
@@ -284,9 +290,9 @@ function LandingDealHero({ deal }: { deal: DealInfo }) {
               <Wallet size={11} /> Min {deal.minOrderKr} kr
             </span>
           )}
-          {expiry && (
+          {expiryLabel && (
             <span className="flex items-center gap-1.5">
-              <CalendarDays size={11} /> Gäller till {expiry}
+              <CalendarDays size={11} /> {expiryLabel}
             </span>
           )}
         </div>

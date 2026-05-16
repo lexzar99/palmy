@@ -114,7 +114,13 @@ type DealSnapshot = {
   amountKr: number | null;
   freeDelivery: boolean; // Stackbar med discountType
   minOrderKr: number;
+  // expiresAt = computed/snapshotad expiry för UserDeal-creation (30 dagars
+  // default om admin inte satt datum — coupons ska inte ligga aktiva för evigt).
   expiresAt: Date;
+  // validUntil = raw värde från Deal (null om admin inte satt datum). Skickas
+  // till frontend för DISPLAY → "Gäller tillsvidare" om null, "Gäller till X"
+  // om satt. Separerar admin-intention från intern teknisk default.
+  validUntil: Date | null;
 };
 
 async function snapshotDealById(dealId: string | null | undefined): Promise<DealSnapshot | null> {
@@ -157,6 +163,7 @@ async function snapshotDealById(dealId: string | null | undefined): Promise<Deal
     freeDelivery,
     minOrderKr,
     expiresAt,
+    validUntil: deal.validUntil ? new Date(deal.validUntil) : null,
   };
 }
 
@@ -313,7 +320,10 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
             amountKr: snapshot.amountKr,
             freeDelivery: snapshot.freeDelivery,
             minOrderKr: snapshot.minOrderKr,
-            expiresAt: snapshot.expiresAt.toISOString(),
+            // validUntil = null betyder "tills vidare" på frontend.
+            // expiresAt (intern UserDeal-expiry) skickas inte hit eftersom
+            // den alltid har ett värde och skulle förvirra display-logiken.
+            validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
           }
         : null,
       // Legacy/convenience-fält — backend-formaterad text för splice-display.
@@ -565,7 +575,10 @@ publicRouter.get('/referral-preview', async (req: any, res: any) => {
             amountKr: snapshot.amountKr,
             freeDelivery: snapshot.freeDelivery,
             minOrderKr: snapshot.minOrderKr,
-            expiresAt: snapshot.expiresAt.toISOString(),
+            // validUntil = null betyder "tills vidare" på frontend.
+            // expiresAt (intern UserDeal-expiry) skickas inte hit eftersom
+            // den alltid har ett värde och skulle förvirra display-logiken.
+            validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
           }
         : null,
       discountType: snapshot?.discountType ?? null,

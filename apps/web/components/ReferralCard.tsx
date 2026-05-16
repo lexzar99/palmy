@@ -18,7 +18,7 @@ type DealInfo = {
   amountKr: number | null;
   freeDelivery: boolean;
   minOrderKr: number;
-  expiresAt: string;
+  validUntil: string | null; // null = tills vidare
 };
 
 type ReferralData = {
@@ -272,7 +272,13 @@ function DealHero({
     (deal.discountType === "PERCENTAGE" && (deal.discountPercent ?? 0) > 0) ||
     (deal.discountType === "FIXED" && (deal.amountKr ?? 0) > 0);
   const isPercent = deal.discountType === "PERCENTAGE";
-  const expiry = formatExpiry(deal.expiresAt);
+  // validUntil = null betyder "tills vidare". Annars formatera till "15 dec".
+  const expiryDate = deal.validUntil ? formatExpiry(deal.validUntil) : null;
+  const expiryLabel = deal.validUntil
+    ? expiryDate
+      ? `Gäller till ${expiryDate}`
+      : null
+    : "Gäller tills vidare";
 
   return (
     <div
@@ -334,8 +340,9 @@ function DealHero({
         )}
       </div>
 
-      {/* Villkor-rad: min-order + expiry */}
-      {(deal.minOrderKr > 0 || expiry) && (
+      {/* Villkor-rad: min-order + expiry. Visar alltid expiry-status —
+          "Gäller till X" om datum satt, "Gäller tills vidare" om null. */}
+      {(deal.minOrderKr > 0 || expiryLabel) && (
         <div
           className="flex flex-wrap items-center gap-4 mt-4 pt-3 text-[10px] font-bold"
           style={{
@@ -348,9 +355,9 @@ function DealHero({
               <Wallet size={11} /> Min {deal.minOrderKr} kr
             </span>
           )}
-          {expiry && (
+          {expiryLabel && (
             <span className="flex items-center gap-1.5">
-              <CalendarDays size={11} /> Gäller till {expiry}
+              <CalendarDays size={11} /> {expiryLabel}
             </span>
           )}
         </div>
