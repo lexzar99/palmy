@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Copy, Share2, Gift, Loader2, Check, Truck, Percent, Tag, CalendarDays, Wallet } from "lucide-react";
+import Link from "next/link";
+import { Copy, Share2, Gift, Loader2, Check, Truck, Percent, Tag, CalendarDays, Wallet, Lock, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/Toast";
 
@@ -22,8 +23,11 @@ type DealInfo = {
 };
 
 type ReferralData = {
-  code: string;
-  shareUrl: string;
+  // locked = true om user inte gjort sin första betalda order än.
+  // Kod/share-funktioner är då gömda, men deal-info (teaser) visas.
+  locked: boolean;
+  code: string | null;
+  shareUrl: string | null;
   enabled: boolean;
   deal: DealInfo | null;
   discountType?: string | null;
@@ -127,6 +131,13 @@ export default function ReferralCard() {
   // Tidigare gömde vi kortet helt → användare trodde funktionen var trasig.
   if (error || !data) {
     return null;
+  }
+
+  // Locked = user har inte lagt sin första betalda order än. Visa teaser
+  // med deal-hero men dölj kod/share. CTA går till hem-sidan så de kan
+  // beställa något.
+  if (data.locked) {
+    return <LockedReferralCard data={data} />;
   }
 
   // Format-helper för expiry-display: "Gäller till 15 dec" istället för ISO.
@@ -398,5 +409,86 @@ function Stat({
         {label}
       </p>
     </div>
+  );
+}
+
+/**
+ * LockedReferralCard — visas innan user gjort sin första betalda order.
+ * Visar dynamiskt deal-hero (samma som unlocked-state) som teaser så
+ * användaren ser EXAKT vad de låser upp, plus CTA "Lägg en beställning →"
+ * istället för kod/share. Texten är driven av samma rewardLabel/deal-fält
+ * från backend så den ändras automatiskt när admin byter mall.
+ */
+function LockedReferralCard({ data }: { data: ReferralData }) {
+  const formatExpiry = (iso: string): string | null => {
+    try {
+      const d = new Date(iso);
+      if (!Number.isFinite(d.getTime())) return null;
+      return d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+    } catch {
+      return null;
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative rounded-[2rem] overflow-hidden"
+      style={{
+        backgroundColor: "var(--bg-secondary)",
+        border: "1px solid var(--border-muted)",
+      }}
+    >
+      <div className="relative p-7 space-y-6">
+        {/* Header med lås-ikon */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Lock size={14} style={{ color: "var(--text-secondary)" }} />
+            <p
+              className="text-[9px] font-black uppercase tracking-[0.3em]"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Låst — lås upp genom att beställa
+            </p>
+          </div>
+          <h3
+            className="text-xl font-black uppercase italic tracking-tight leading-tight"
+            style={{ color: "var(--text-primary)" }}
+          >
+            Vänta — lås upp{" "}
+            <span className="text-gold-500">{data.rewardLabel}</span> åt båda
+          </h3>
+          <p
+            className="text-[11px] font-bold mt-2 leading-relaxed"
+            style={{ color: "var(--text-secondary)" }}
+          >
+            Lägg din första beställning så låser du upp möjligheten att bjuda in
+            vänner och få {data.rewardLabel} på er nästa order.
+          </p>
+        </div>
+
+        {/* Teaser deal-hero (samma som unlocked, men dimmad) */}
+        {data.deal && (
+          <div className="relative">
+            <DealHero deal={data.deal} formatExpiry={formatExpiry} />
+            {/* Subtle dim-overlay för "låst"-känsla */}
+            <div
+              className="absolute inset-0 pointer-events-none rounded-[1.5rem]"
+              style={{ backgroundColor: "rgba(0,0,0,0.05)" }}
+            />
+          </div>
+        )}
+
+        {/* CTA — beställ nu */}
+        <Link
+          href="/"
+          className="flex items-center justify-center gap-3 w-full px-6 py-5 bg-gold-500 text-zinc-950 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-gold-500/20 active:scale-95 transition-all"
+        >
+          Beställ nu för att låsa upp
+          <ArrowRight size={16} />
+        </Link>
+      </div>
+    </motion.div>
   );
 }

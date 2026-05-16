@@ -280,10 +280,48 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const code = await ensureReferralCode(userId);
     const settings = await getSettings();
+    const snapshot = await snapshotReferralDeal();
 
-    // Stats: hämta inviter:s referrals
+    // Lock-state: kräver att user har minst 1 betald order innan de kan
+    // bjuda in andra. Förhindrar att fake-konton sprider länkar utan att
+    // själva ha betalat något. Genererar referralCode lazy först när
+    // detta villkor är uppfyllt.
+    const paidOrderCount = await (prisma as any).order.count({
+      where: { userId, paymentStatus: 'PAID' },
+    });
+    const locked = paidOrderCount < 1;
+
+    const dealPayload = snapshot
+      ? {
+          title: snapshot.title,
+          discountType: snapshot.discountType,
+          discountPercent: snapshot.discountPercent,
+          amountKr: snapshot.amountKr,
+          freeDelivery: snapshot.freeDelivery,
+          minOrderKr: snapshot.minOrderKr,
+          validUntil: snapshot.validUntil ? snapshot.validUntil.toISOString() : null,
+        }
+      : null;
+
+    if (locked) {
+      // Skicka deal-info som teaser så lock-screen kan visa vad som väntar.
+      // Inga stats eller code — användaren har inte unlockat än.
+      return res.json({
+        locked: true,
+        code: null,
+        shareUrl: null,
+        enabled: !!settings.referralEnabled && !!snapshot,
+        deal: dealPayload,
+        rewardLabel: formatRewardLabel(snapshot),
+        couponsPerSide: settings.referralCouponsPerSide ?? 1,
+        stats: { invited: 0, registered: 0, ordered: 0, totalEarnedKr: 0 },
+      });
+    }
+
+    const code = await ensureReferralCode(userId);
+
+    // Stats: hämta inviter:s referrals (endast om unlocked)
     const referrals = await (prisma as any).referral.findMany({
       where: { inviterUserId: userId },
       select: { status: true, rewardedAt: true },
@@ -297,10 +335,6 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
         (settings.referralRewardKr ?? 50),
     };
 
-    // Hämta värden från den valda Dealen så frontend visar exakt vad
-    // användarna faktiskt får (procent / kr / fri leverans). rewardLabel
-    // är en färdig string för UI så frontend slipper formatteringslogik.
-    const snapshot = await snapshotReferralDeal();
     const rewardPercent = snapshot?.discountPercent ?? null;
     const rewardKr = snapshot?.amountKr ?? null;
     const discountType = snapshot?.discountType ?? null;
@@ -308,6 +342,7 @@ router.get('/referral', authenticateUser, async (req: any, res: any) => {
     const rewardLabel = formatRewardLabel(snapshot);
 
     res.json({
+      locked: false,
       code,
       shareUrl: `${publicShareBase()}/r/${code}`,
       enabled: !!settings.referralEnabled && !!snapshot,
@@ -416,6 +451,23 @@ router.post('/redeem-code', redeemLimiter, async (req: any, res: any) => {
       inviteeIP: ip || null,
       inviteeDeviceId: deviceFingerprint ?? null,
     });
+
+    // HARD-BLOCK: samma device som inviter får ALDRIG redeem:a koden.
+    // Detta förhindrar att en användare registrerar ett fake-konto i
+    // samma browser/app och använder sin egen kod för rabatt. Tidigare
+    // var detta endast en SAME_DEVICE-flagga (loggades) — nu hård-blockad.
+    // Båda fingerprints måste finnas för att match ska räknas (null != null).
+    if (
+      deviceFingerprint &&
+      inviter.deviceFingerprint &&
+      deviceFingerprint === inviter.deviceFingerprint
+    ) {
+      noteFailedRedeem(ip);
+      return res.status(400).json({
+        error: 'Koden kan inte användas från samma enhet som ägaren av koden',
+        sameDevice: true,
+      });
+    }
 
     // Är det en inloggad user? Då länkar vi inviteeUserId direkt.
     let inviteeUserId: string | null = null;

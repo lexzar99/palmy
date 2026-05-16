@@ -7,6 +7,7 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Clock, Truck, Store, Loader2, Calendar, Phone, Hash, AlertCircle, Zap, ShieldCheck, ShoppingBag, Sparkles, MapPin, ArrowRight, Star, X, MessageSquare } from "lucide-react";
 import { openSupportChatWithOrder } from "@/components/SupportChat";
+import ShareInviteCard from "@/components/ShareInviteCard";
 import { io as socketIO } from "socket.io-client";
 import { API_URL, SOCKET_URL } from "@/lib/api";
 
@@ -323,6 +324,13 @@ const OrderStatusPage = () => {
               </div>
            </div>
         )}
+
+        {/* Share-invite-CTA — låses upp efter första betalda order. Visas
+            mellan tracker och receipt så användaren ser den medan de väntar
+            på maten (peak emotional moment efter checkout). Komponenten
+            själv döljs om referral fortfarande är locked eller deal inte
+            är konfigurerad. */}
+        {!isRejected && <ShareInviteCard />}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
            {/* Detailed Receipt */}
