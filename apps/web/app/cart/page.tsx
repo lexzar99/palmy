@@ -583,17 +583,28 @@ export default function CartPage() {
   //   1. Användarens EXPLICITA val (kupong-kod ELLER vald account-deal) vinner —
   //      även om summan råkar vara mindre än auto-dealen. Användaren ska kunna
   //      "byta" från auto-deal till sin egen kod utan att Math.max övermanar.
-  //   2. Annars: bästa av auto-deal (om inte avdismissad) och BOGO.
-  // BOGO räknas alltid in eftersom den är knuten till items i kundvagnen.
+  //   2. Annars: bästa av auto-deal/bogoPreview (om inte avdismissad).
+  //
+  // bogoPreview kan vara två olika saker:
+  //   - PURE DISCOUNT (rewardProducts tom) — t.ex. "25% första beställning".
+  //     Räknas som "auto-deal" och kan dismissas av kund.
+  //   - FREE-ITEM BOGO (rewardProducts.length > 0) — kund plockar gratis-vara
+  //     från en kategori. Kan INTE dismissas eftersom gratis-varan ligger i
+  //     varukorgen; dismiss skulle dölja rabatten men inte ta bort items.
+  const bogoIsPureDiscount = !!bogoPreview && (bogoPreview.rewardProducts?.length ?? 0) === 0;
   const userPickedDiscount = personalDiscount > 0
     ? personalDiscount
     : accountDealDiscount > 0
       ? accountDealDiscount
       : 0;
-  const automaticDealAmount = automaticDealDismissed ? 0 : automaticDeal.discountAmount;
+  // Pure-discount-bogo respekterar dismissal-flaggan; free-item-bogo gör inte det.
+  const dismissibleAutoDiscount = automaticDealDismissed
+    ? 0
+    : Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
+  const freeItemBogoDiscount = bogoIsPureDiscount ? 0 : bogoDiscount;
   const finalDiscount = userPickedDiscount > 0
-    ? Math.max(userPickedDiscount, bogoDiscount)
-    : Math.max(automaticDealAmount, bogoDiscount);
+    ? Math.max(userPickedDiscount, freeItemBogoDiscount)
+    : Math.max(dismissibleAutoDiscount, freeItemBogoDiscount);
   // Rabatt-tolerans: när en rabatt är aktiv tillåter vi att totalen (efter
   // rabatten) hamnar upp till MIN_ORDER_TOLERANCE_KR under restaurangens
   // min-order. UTAN rabatt gäller den vanliga strikta gränsen — annars
@@ -1999,44 +2010,55 @@ export default function CartPage() {
                            </div>
                         )}
 
-                        {/* Auto-applicerad publik deal (t.ex. "25% första
-                            beställning") — visas som en synlig, aktiv knapp
-                            som kund kan stänga av. När de stänger av frigör
-                            de rabatt-platsen så de kan använda en egen kod
-                            istället. Att skriva i kupong-fältet stänger den
-                            automatiskt också. */}
-                        {automaticDeal.deal && !selectedPersonalDeal && !selectedAccountDealId && (
-                          <button
-                            type="button"
-                            onClick={() => setAutomaticDealDismissed((v) => !v)}
-                            className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
-                            style={{
-                              backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
-                              borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
-                            }}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
-                                {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
+                        {/* Auto-applicerad rabatt (t.ex. "25% första beställning")
+                            — visas som synlig, aktiv knapp som kund kan stänga av.
+                            Klick frigör rabatt-platsen så kunden kan använda
+                            egen kupong istället. Skriva i kupong-fältet stänger
+                            den automatiskt också (skipAutomaticDeal-flagga går
+                            till backend).
+                            Två möjliga källor:
+                              - automaticDeal (client-eval av publika deals)
+                              - bogoPreview (server-eval via /evaluate-cart) — när
+                                bogo är PURE DISCOUNT (rewardProducts tom) räknas
+                                det som "vanlig" auto-deal och är dismissable. */}
+                        {(() => {
+                          const autoDealTitle = automaticDeal.deal?.title ?? (bogoIsPureDiscount ? bogoPreview?.dealTitle : null);
+                          const autoDealAmount = Math.max(automaticDeal.discountAmount, bogoIsPureDiscount ? bogoDiscount : 0);
+                          const shouldShow = !!autoDealTitle && autoDealAmount > 0 && !selectedPersonalDeal && !selectedAccountDealId;
+                          if (!shouldShow) return null;
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setAutomaticDealDismissed((v) => !v)}
+                              className="w-full flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition-all text-left hover:brightness-110 active:scale-[0.98]"
+                              style={{
+                                backgroundColor: automaticDealDismissed ? "var(--bg-deep)" : "rgba(231,178,75,0.18)",
+                                borderColor: automaticDealDismissed ? "var(--border-muted)" : "rgba(231,178,75,0.5)",
+                              }}
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-all ${automaticDealDismissed ? "bg-gold-500/10 text-gold-500" : "bg-gold-500 text-zinc-950"}`}>
+                                  {automaticDealDismissed ? <Tag size={16} /> : <Check size={16} strokeWidth={3} />}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
+                                    {automaticDealDismissed
+                                      ? `Återaktivera ${autoDealTitle}`
+                                      : `Aktiv — ${autoDealTitle}`}
+                                  </p>
+                                  <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
+                                    {automaticDealDismissed
+                                      ? "Klicka för att aktivera igen"
+                                      : "Klicka för att stänga av och använda en kupong istället"}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-[11px] font-black uppercase tracking-widest text-gold-500 truncate">
-                                  {automaticDealDismissed
-                                    ? `Återaktivera ${automaticDeal.deal.title}`
-                                    : `Aktiv — ${automaticDeal.deal.title}`}
-                                </p>
-                                <p className="text-[9px] font-bold mt-0.5" style={{ color: "var(--text-secondary)" }}>
-                                  {automaticDealDismissed
-                                    ? "Klicka för att aktivera igen"
-                                    : "Klicka för att stänga av och använda en kupong istället"}
-                                </p>
-                              </div>
-                            </div>
-                            <span className="text-[11px] font-black text-gold-500 shrink-0">
-                              -{automaticDeal.discountAmount.toFixed(0)} kr
-                            </span>
-                          </button>
-                        )}
+                              <span className="text-[11px] font-black text-gold-500 shrink-0">
+                                -{autoDealAmount.toFixed(0)} kr
+                              </span>
+                            </button>
+                          );
+                        })()}
 
                         {/* Account-deals (WELCOME / REFERRAL_*) — tydlig
                             klickbar knapp per deal istället för checkbox.

@@ -687,12 +687,16 @@ router.post('/', async (req: Request, res: Response) => {
 
       if (!evaluation.eligible) continue;
 
-      // Respektera kundens explicita avstängning av auto-deals. BOGO_CATEGORY
-      // hoppas inte över — den är knuten till items i kundvagnen (gratis-varor
-      // som kunden redan plockat) och kan inte "avbrytas" utan att items
-      // försvinner. Övriga rabatt-typer skippas.
+      // Respektera kundens explicita avstängning av auto-deals.
+      // BOGO_CATEGORY MED gratis-varor (maxFreeItems > 0) hoppas INTE över —
+      // gratis-varorna ligger redan i kundvagnen och dismiss skulle göra
+      // dem betalda utan att ta bort dem (förvirrande UX). BOGO utan
+      // gratis-varor (pure-discount, t.ex. "25% första beställning" satt
+      // som BOGO_CATEGORY) skippas precis som andra rabatter.
       const isBogoCategoryDeal = deal.triggerType === 'BOGO_CATEGORY';
-      if (skipAutoDeals && !isBogoCategoryDeal) continue;
+      const hasFreeItems = ((evaluation as any).maxFreeItems ?? 0) > 0;
+      const isBogoWithFreeItems = isBogoCategoryDeal && hasFreeItems;
+      if (skipAutoDeals && !isBogoWithFreeItems) continue;
 
       if (evaluation.discountAmountOre > automaticDiscountAmount) {
         automaticDiscountAmount = evaluation.discountAmountOre;
