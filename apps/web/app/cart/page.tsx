@@ -30,6 +30,7 @@ import {
   ParkingCircle,
   KeyRound,
   Gift,
+  AlertCircle,
 } from "lucide-react";
 import { API_URL } from "@/lib/api";
 import { useCartStore } from "@/store/cartStore";
@@ -109,9 +110,24 @@ function dealTypeLabel(type: string): string {
   return "Rabatt";
 }
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "pk_test_placeholder"
-);
+// Stripe-key måste vara satt i prod. Tidigare fallback till "pk_test_placeholder"
+// betydde att en miss-deployad Vercel-build laddade Stripe med skräp-key →
+// PaymentElement renderade tyst inget, "Betala X kr nu"-knappen gjorde inget
+// vid klick. Nu: logga loud och returnera null så vi kan visa en tydlig
+// felvy istället för en frozen checkout.
+const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripeKeyMissing =
+  !STRIPE_PUBLISHABLE_KEY || !STRIPE_PUBLISHABLE_KEY.startsWith("pk_");
+
+if (stripeKeyMissing && typeof window !== "undefined") {
+  console.error(
+    "[stripe] NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY saknas eller är ogiltig — betalning kommer inte fungera. Sätt env-var i Vercel.",
+  );
+}
+
+const stripePromise = stripeKeyMissing
+  ? null
+  : loadStripe(STRIPE_PUBLISHABLE_KEY as string);
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, getTotal, clearCart, restaurantId: cartRestaurantId, restaurantSlug: cartRestaurantSlug } = useCartStore();
@@ -558,6 +574,10 @@ export default function CartPage() {
           ...prev,
           customerName: userRes.data.name || prev.customerName,
           customerPhone: userRes.data.phone || prev.customerPhone,
+          // Email pre-fyllt från inloggad profil (krävs av Klarna m.fl. server-
+          // side, så tomt fält → Stripe rejectar mitt-flow). Pre-fyll bara om
+          // användaren inte redan börjat editera fältet.
+          customerEmail: prev.customerEmail || userRes.data.email || "",
           // Only pull from profile if form is currently empty
           deliveryStreet: prev.deliveryStreet || userRes.data.address || "",
           deliveryZip: prev.deliveryZip || userRes.data.zip || "",
@@ -938,6 +958,14 @@ export default function CartPage() {
       setError("Ange namn och telefonnummer.");
       return;
     }
+    // Email krävs FÖRE Stripe öppnas — Klarna/Apple Pay m.fl. rejectar
+    // server-side utan email och kunden får en obegriplig error mitt-flow.
+    // Bättre att fånga upp här med tydligt meddelande.
+    const emailValue = formData.customerEmail.trim();
+    if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      setError("Ange en giltig e-postadress — krävs för kvitto och Klarna.");
+      return;
+    }
     if (orderType === "DELIVERY") {
       const hasStreet = !!formData.deliveryStreet.trim();
       
@@ -1183,7 +1211,7 @@ export default function CartPage() {
           {/* Form & Payment */}
           <div className="lg:col-span-5">
              <AnimatePresence mode="wait">
-               {showPayment && clientSecret ? (
+               {showPayment && clientSecret && stripePromise ? (
                   <motion.div key="payment" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="glass-panel p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
                      <div className="flex items-center gap-3 text-gold-500 text-[10px] font-black uppercase tracking-[0.4em] mb-10">
                         <CreditCard size={18} /> Betala Tryggt
@@ -1194,6 +1222,18 @@ export default function CartPage() {
                         </Elements>
                      </div>
                      <button onClick={() => setShowPayment(false)} className="w-full text-[10px] font-black uppercase tracking-widest hover:text-gold-500 transition-colors" style={{ color: "var(--text-secondary)" }}>← Tillbaka till uppgifter</button>
+                  </motion.div>
+                ) : showPayment && stripeKeyMissing ? (
+                  <motion.div key="stripe-missing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-8 rounded-[2rem] sm:rounded-[3rem] border" style={{ backgroundColor: "var(--bg-secondary)", borderColor: "var(--border-muted)" }}>
+                     <div className="flex items-center gap-3 text-rose-500 text-[10px] font-black uppercase tracking-[0.4em] mb-6">
+                        <AlertCircle size={18} /> Betalning ej konfigurerad
+                     </div>
+                     <p className="text-sm font-bold leading-relaxed mb-6" style={{ color: "var(--text-primary)" }}>
+                        Betaltjänsten är inte tillgänglig just nu. Vänligen kontakta restaurangen direkt eller försök igen senare. Ingen kostnad har dragits.
+                     </p>
+                     <button onClick={() => setShowPayment(false)} className="text-[10px] font-black uppercase tracking-widest text-gold-500 hover:text-gold-600">
+                        ← Tillbaka
+                     </button>
                   </motion.div>
                 ) : (
                   <motion.div key="form" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-5 sm:p-8 lg:p-10 rounded-[2rem] sm:rounded-[3rem] lg:rounded-[3.5rem] shadow-2xl relative" style={{ backgroundColor: "var(--bg-secondary)", border: "1px solid var(--border-muted)", boxShadow: "var(--card-shadow)" }}>
@@ -1421,7 +1461,8 @@ export default function CartPage() {
                              aria-invalid={emailInvalid || undefined}
                              className={`w-full border rounded-2xl p-4 sm:p-5 text-base sm:text-sm font-bold placeholder:text-zinc-400 outline-none transition-all ${emailInvalid ? errorBorder : okBorder}`}
                              style={{ backgroundColor: "var(--bg-deep)", borderColor: emailInvalid ? undefined : "var(--border-muted)", color: "var(--text-primary)" }}
-                             placeholder="E-post (valfritt)"
+                             placeholder="E-post (krävs för kvitto)"
+                             required
                            />
                            {emailInvalid && <p className="text-[10px] font-bold text-rose-400 ml-3">Ogiltig e-postadress</p>}
                         </div>

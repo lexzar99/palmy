@@ -108,6 +108,11 @@ const OrderStatusPage = () => {
   const phoneFromUrl = searchParams.get("phone");
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // fetchError skiljer på "backend säger 404 — order finns verkligen inte"
+  // (visa not-found-vy) och "fetch failade — nätverk/timeout/500" (visa
+  // retry-vy). Tidigare gav båda samma "Order ej hittad"-skärm vilket är
+  // skrämmande precis efter en Klarna-betalning på dåligt nät.
+  const [fetchError, setFetchError] = useState<"not-found" | "network" | null>(null);
   const socketRef = useRef<any>(null);
   const [etaLeft, setEtaLeft] = useState<number | null>(null);
   const [showReview, setShowReview] = useState(false);
@@ -117,7 +122,7 @@ const OrderStatusPage = () => {
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
 
-  const fetchOrder = useCallback(async () => {
+  const fetchOrder = useCallback(async (opts?: { silent?: boolean }) => {
     if (!orderId) return;
     try {
       // Skicka phone som ownership-bevis så backend-middleware (5-min grace
@@ -128,8 +133,21 @@ const OrderStatusPage = () => {
         : `${API_URL}/api/orders/${orderId}`;
       const res = await axios.get(url, { withCredentials: true });
       setOrder(res.data);
-    } catch (err) {
+      setFetchError(null);
+    } catch (err: any) {
       console.error(err);
+      // Skilj 404 (order finns inte / inte längre tillgänglig) från
+      // network/timeout/500 (backend nere, slö, etc). Om vi redan har
+      // order-data laddad: rör inte den — fortsätt visa, polling försöker
+      // igen vid nästa interval-tick. Bara om ordern är HELT tom byter
+      // vi till error-state.
+      if (!opts?.silent) {
+        if (err?.response?.status === 404) {
+          setFetchError("not-found");
+        } else {
+          setFetchError("network");
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -140,7 +158,11 @@ const OrderStatusPage = () => {
     fetchOrder();
     const socket = socketIO(SOCKET_URL, { path: "/socket.io", transports: ["websocket", "polling"] });
     socketRef.current = socket;
-    socket.on("connect", () => { socket.emit("join:order", orderId); fetchOrder(); });
+    // Bakgrunds-polling (socket reconnect + interval) ska INTE flippa error-
+    // state om vi redan har order laddad — bara visa stale data tyst tills
+    // backend svarar igen. Annars börjar UI:n blinka "nätverksfel" varje 15s
+    // på ostabilt nät, trots att vi har en cachad order.
+    socket.on("connect", () => { socket.emit("join:order", orderId); fetchOrder({ silent: true }); });
     socket.on("order:status", (data: any) => {
       if (data.orderId === orderId) {
         setOrder((prev: any) => prev ? {
@@ -153,7 +175,7 @@ const OrderStatusPage = () => {
       }
     });
 
-    const interval = setInterval(fetchOrder, 15000);
+    const interval = setInterval(() => fetchOrder({ silent: true }), 15000);
     return () => { clearInterval(interval); socket.disconnect(); };
   }, [orderId, fetchOrder]);
 
@@ -230,11 +252,46 @@ const OrderStatusPage = () => {
     );
   }
 
+  // Nätverksfel: backend nere/slö/timeout. Order kan mycket väl finnas och
+  // vara betald — visa retry istället för "ej hittad". Kunder som JUST
+  // betalat ska aldrig se "Order ej hittad" pga en 30s-backend-blip.
+  if (!order && fetchError === "network") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
+        <AlertCircle size={48} className="text-amber-500 mb-6" />
+        <h1 className="text-3xl font-black uppercase italic mb-3" style={{ color: "var(--text-primary)" }}>Kunde inte ladda ordern</h1>
+        <p className="text-sm max-w-md mb-8" style={{ color: "var(--text-secondary)" }}>
+          Servern är upptagen eller din anslutning är instabil. Din order är troligen registrerad — försök igen om en stund. Din betalning är säker.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button
+            onClick={() => { setLoading(true); setFetchError(null); fetchOrder(); }}
+            className="px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
+          >
+            Försök igen
+          </button>
+          <Link
+            href="/orders"
+            className="px-10 py-5 border rounded-[2rem] font-black uppercase tracking-widest text-[10px]"
+            style={{ borderColor: "var(--border-muted)", color: "var(--text-secondary)" }}
+          >
+            Mina ordrar
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 404 från backend — order finns verkligen inte (eller du saknar
+  // ownership-bevis). Härifrån är "till startsidan" rätt åtgärd.
   if (!order) {
     return (
        <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center" style={{ backgroundColor: "var(--bg-primary)" }}>
           <AlertCircle size={48} className="text-rose-500 mb-6" />
           <h1 className="text-4xl font-black uppercase italic" style={{ color: "var(--text-primary)" }}>Order ej hittad</h1>
+          <p className="text-sm max-w-md mt-4" style={{ color: "var(--text-secondary)" }}>
+            Ordern kan ha tagits bort eller så saknar du behörighet att se den.
+          </p>
           <Link href="/" className="mt-10 px-10 py-5 bg-gold-500 text-zinc-950 rounded-[2rem] font-black uppercase tracking-widest text-[10px]">Till startsidan</Link>
        </div>
     );
